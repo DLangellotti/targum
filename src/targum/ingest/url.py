@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import logging
 import os
 import re
 import socket
@@ -24,6 +25,8 @@ from .base import (
     with_front_matter,
 )
 from .htmltext import paragraphs_from_html
+
+log = logging.getLogger(__name__)
 
 #: What targum is, kept for the record and for `robots.txt` — but no longer what the
 #: wire sees. Decided 2026-09-08: the door presents a browser, fingerprint and
@@ -148,6 +151,25 @@ class Fetched:
 REFUSED = frozenset({401, 403, 407, 429, 451})
 
 
+#: The `server` a bot check answers from where it does not say `cf-mitigated`. Russian
+#: publishers sit behind their own vendors rather than Cloudflare, and they answer a
+#: client that runs no script with a status and an empty page that loads one. Measured
+#: 2026-10-06: www.rbc.ru answers every article with `401`, `server: QRATOR` and a
+#: 290-byte page that loads `/__qrator/…js` — not a sign-in wall, so it must not be
+#: called one, and the reader's account would not open it.
+CHALLENGE_SERVERS = ("qrator", "ddos-guard")
+
+
+def _challenged(response: Any) -> bool:
+    """Whether a refusal is a bot check: Cloudflare's header, or a vendor that says so in
+    `server`."""
+    headers = response.headers
+    if (headers.get("cf-mitigated") or "").lower() == "challenge":
+        return True
+    server = (headers.get("server") or "").lower()
+    return any(server.startswith(name) for name in CHALLENGE_SERVERS)
+
+
 def shut(error: Unreachable) -> bool:
     """Whether a failed fetch says the host will refuse the next knock too."""
     if error.status is None:
@@ -237,7 +259,7 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
             target, params = urljoin(target, location), None
             continue
         if status >= 400:
-            challenge = (response.headers.get("cf-mitigated") or "").lower() == "challenge"
+            challenge = _challenged(response)
             response.close()
             if status == 401 and not challenge:
                 # A sign-in wall, named rather than counted (targum-internal#252). Only
@@ -305,6 +327,15 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
     A fallback and not a route, which makes it selective by construction: a host only
     ever leaves through the proxy after a direct attempt refused it, so Gutenberg,
     Wikisource and every feed poll stay off a metered exit that none of them need.
+
+    The proxied knock is the same walk as the direct one (`_open`, `_read`): every hop
+    passes `_reachable` and the body stops at `MAX_BYTES`. What it costs is the page's
+    bytes on the wire, compressed: 43 KB for the median of sixteen Russian articles
+    measured 2026-10-06, 74 KB the largest, which at the residential exit's $1 a gigabyte
+    is a twentieth of a thousandth of a dollar a page.
+
+    Said in the log when it worked, by host alone — no path, no reader — so the box's
+    journal shows which hosts only open this way (2026-10-06).
     """
     try:
         return _read(url, params, via="direct")
@@ -312,7 +343,9 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
         proxy = _retry_through_proxy(url, error)
         if not proxy:
             raise
-        return _read(url, params, via="proxy", proxy=proxy)
+        got = _read(url, params, via="proxy", proxy=proxy)
+        log.info("fetched %s through the proxy", urlparse(url).hostname or "")
+        return got
 
 
 #: How long a page read through `page` is taken as what is there, in seconds.

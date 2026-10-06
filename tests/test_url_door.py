@@ -549,3 +549,132 @@ def test_a_bit_rate_on_the_stream_rather_than_the_format_is_still_a_bit_rate(
         lambda path: {"format": {"size": "1000"}, "streams": [{"bit_rate": "8000"}]},
     )
     assert probe.timed(b"front", 8_000) == 8.0
+
+
+# -- the proxy as the fallback for an article (2026-10-06) -------------------------------
+
+
+def test_a_qrator_refusal_is_a_bot_check_not_a_sign_in_wall(monkeypatch: Any) -> None:
+    """www.rbc.ru answers every article with a 401 from QRATOR and a page that loads a
+    script (measured 2026-10-06). Called a sign-in wall, the reader was told to sign in
+    to a site that has no account to sign in with."""
+    doors = Doors([Answer(401, {"server": "QRATOR"})])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(Unreachable) as caught:
+        door.fetch("https://www.rbc.example/a")
+    error = caught.value
+    assert error.challenge is True and error.key == "fetch.would-not-open"
+    assert "sign in" not in error.message and "bot check" in (error.hint or "")
+    assert door.shut(error)
+
+
+def test_the_proxy_is_only_asked_after_a_direct_knock_is_refused(monkeypatch: Any) -> None:
+    """Not a route: an article that opens directly never touches the metered exit, and
+    one that never answered, was reset or was refused is tried once through it."""
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    page = Answer(200, {"content-type": "text/html"}, b"<p>hi</p>")
+    doors = Doors(direct=[page])
+    monkeypatch.setattr(door, "_session", doors)
+    assert door.fetch("https://open.example/a").via == "direct"
+    assert doors.made == [""]
+
+    refusals: list[Any] = [ConnectionResetError("reset"), TimeoutError("timed out"), Answer(451)]
+    for refusal in refusals:
+        doors = Doors(
+            direct=[refusal], proxied=[Answer(200, {"content-type": "text/html"}, b"<p>ok</p>")]
+        )
+        monkeypatch.setattr(door, "_session", doors)
+        got = door.fetch("https://shut.example/a")
+        assert got.via == "proxy" and got.text == "<p>ok</p>"
+        assert doors.made == ["", "http://u:p@exit.example:823"]
+
+
+def test_a_page_fetched_through_the_proxy_is_logged_by_host_alone(
+    monkeypatch: Any, caplog: Any
+) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(200, {"content-type": "text/html"}, b"<p>hi</p>")],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with caplog.at_level("INFO", logger="targum.ingest.url"):
+        door.fetch("https://shut.example/secret/path?reader=7")
+    said = [record.getMessage() for record in caplog.records]
+    assert said == ["fetched shut.example through the proxy"]
+
+
+def test_the_size_cap_holds_through_the_proxy(monkeypatch: Any) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(200, {"content-type": "text/html"}, b"x" * (door.MAX_BYTES + 1))],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError, match="too big"):
+        door.fetch("https://shut.example/huge")
+
+
+def test_every_proxied_hop_is_still_checked_for_a_private_address(monkeypatch: Any) -> None:
+    """A redirect through the exit to the metadata endpoint is refused before it is
+    followed, as it is on the direct walk."""
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    checked: list[str] = []
+
+    def reachable(url: str) -> None:
+        checked.append(url)
+        if "169.254" in url:
+            raise TargumError("private", key="fetch.private-network")
+
+    monkeypatch.setattr(door, "_reachable", reachable)
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(302, {"location": "https://169.254.169.254/latest/meta-data/"})],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError) as caught:
+        door.fetch("https://shut.example/a")
+    assert caught.value.key == "fetch.private-network"
+    assert checked[-1].startswith("https://169.254.169.254/")
+    assert len(doors.proxied.knocks) == 1, "the private hop was never knocked on"
+
+
+def test_a_private_address_is_never_retried_through_the_proxy(monkeypatch: Any) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+
+    def reachable(url: str) -> None:
+        raise TargumError("private", key="fetch.private-network")
+
+    monkeypatch.setattr(door, "_reachable", reachable)
+    doors = Doors(direct=[], proxied=[])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError):
+        door.fetch("https://10.0.0.1/a")
+    assert doors.proxied.knocks == [] and doors.direct.knocks == []
+
+
+def test_an_article_that_opens_through_the_proxy_does_not_mark_its_host_shut(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    door.PAGES.clear()
+    article = (
+        "<html><head><title>Море</title></head><body>"
+        + "".join(f"<p>{' '.join(['море', 'город', 'день'] * 20)}</p>" for _ in range(4))
+        + "</body></html>"
+    ).encode()
+    headers = {"content-type": "text/html; charset=utf-8"}
+    # One knock each way: `episode.find` knocks first, and the article read after it is
+    # the page that knock kept (`url.page`).
+    doors = Doors(direct=[Answer(403)], proxied=[Answer(200, headers, article, "utf-8")])
+    monkeypatch.setattr(door, "_session", doors)
+    store = Store(tmp_path / "t.db")
+    store.reach("ru.example", False, "403")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+    described = tools.describe_source(ctx, {"url": "https://ru.example/a"})
+    assert described["kind"] == "article" and "host_shut" not in described
+    row = store.db.execute("SELECT open, egress FROM reached WHERE host='ru.example'").fetchone()
+    assert (row["open"], row["egress"]) == (1, "proxy")
+    assert store.closed() == []
