@@ -1472,8 +1472,10 @@ def test_a_tool_that_raises_is_not_its_exception(world, monkeypatch) -> None:
     assert failed and "KeyError" not in text and "reader" not in text
 
 
-def test_how_to_talk_hands_a_host_only_real_words(world) -> None:
+def test_how_to_talk_hands_a_host_only_real_words(world, monkeypatch) -> None:
     library, store, person, home = world
+    # No common list, so none of the known words is left out for being in it.
+    monkeypatch.setattr(tools.hebrew_module, "common_words", lambda **_: [])
     store.push(
         person,
         {
@@ -1604,3 +1606,26 @@ def test_my_shelf_answers_ten_and_counts_them_all(world, monkeypatch) -> None:
     assert len(tools.search_my_shelf(ctx, {"limit": 500})["texts"]) == 14
     one = tools.search_my_shelf(ctx, {"query": "רות", "limit": 1})
     assert one["count"] == 1 and one["texts"][0]["known_share"] == pytest.approx(0.5)
+
+
+def test_how_to_talk_hands_a_host_a_sample_and_says_so(world) -> None:
+    """A long ledger reaches a host as its commonest `HOST_KNOWN` words, and the line
+    says how many the reader really has (2026-10-06)."""
+    wordfreq = pytest.importorskip("wordfreq")
+    library, store, person, home = world
+    words = tools.hebrew_module.for_host(wordfreq.top_n_list("he", 4000)[1200:1700], "he")
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "status": 9, "band": "easy", "at": 9, "seen": 1}
+                for w in words
+            ]
+        },
+    )
+    ctx = context(library, store, person, home)
+    contract = tools.how_to_talk(ctx, {"language": "he"})["contract"]
+    line = next(one for one in contract.splitlines() if one.startswith("A sample of"))
+    total = len(words) + 2  # and the fixture's own שלום and בית
+    assert f"the commonest {tools.hebrew_module.HOST_KNOWN} of the {total:,}" in line
+    assert len(line.split(": ", 1)[1].split()) == tools.hebrew_module.HOST_KNOWN

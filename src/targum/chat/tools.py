@@ -2201,6 +2201,11 @@ Everything else holds: the vocabulary below, the length, the recast, never a lev
 ELSEWHERE = elsewhere("he")
 
 
+#: How far down the ledger `how_to_talk` counts, so "the commonest 300 of 1,483" is the
+#: reader's real number and not `KNOWN_LIMIT` standing in for it.
+KNOWN_COUNTED = 1_000_000
+
+
 def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """targum's own talk contract and this reader's ledger, for a host to hold to.
 
@@ -2225,13 +2230,19 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # Hebrew, graded to the commonest words rather than their own.
     shared = store is not None and person_id is not None and ctx.sees_record
     returning: hebrew_module.Returning | None = None
+    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
     if store is not None and person_id is not None and shared:
         level = level_module.snapshot(store, person_id, language)
         # The ledger holds whatever a reader tapped, and "and", "the", digits and single
         # letters are in it; a host told these are the words they know writes with them.
-        known = hebrew_module.for_host(
-            hebrew_module.known_words(store, person_id, language), language
+        # All of them, for the count; then the commonest few hundred, for the host to
+        # carry (`known_for_host`, 2026-10-06).
+        marked = hebrew_module.for_host(
+            hebrew_module.known_words(store, person_id, language, limit=KNOWN_COUNTED),
+            language,
         )
+        known_of = len(marked)
+        known = hebrew_module.known_for_host(marked, common, language)
         # One slice of the ledger a day, so a conversation that asks twice is told the
         # same words both times.
         seed = int(time.time() // 86400)
@@ -2248,7 +2259,7 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         )
     else:
         level, known, rules = replace(level_module.EMPTY, language=language), [], []
-    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
+        known_of = 0
     gloss = language_name(ctx.language)
     return {
         "language": language,
@@ -2256,7 +2267,9 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             [
                 elsewhere(language, gloss),
                 hebrew_module.contract_for(language, gloss),
-                hebrew_module.ledger_block(level, known, common, returning, rules, shared=shared),
+                hebrew_module.ledger_block(
+                    level, known, common, returning, rules, shared=shared, known_of=known_of
+                ),
             ]
         ),
     }

@@ -50,6 +50,14 @@ COMMON = 800
 #: for a list nobody reads; the commonest are the ones a conversation reaches for.
 KNOWN_LIMIT = 1500
 
+#: How many of them a host is handed through `how_to_talk` (2026-10-06). Measured live,
+#: that answer was about 22,000 characters, mostly 1,483 known words and 774 common ones
+#: that overlapped, and a host carries a tool's answer on every turn after it. The
+#: commonest few hundred are the ones a conversation reaches for; past them a host is
+#: paying, every turn, for words it will not write. targum's own chat keeps
+#: `KNOWN_LIMIT`: its prompt is cached and has never been measured as the slow part.
+HOST_KNOWN = 300
+
 #: Words a minute, for turning a typed exchange into the seconds the allowance is kept
 #: in. Three measured numbers disagreed and had to be reconciled before any of them
 #: metered anything: read-aloud literature runs 5,367 words an hour (89 a minute,
@@ -883,6 +891,56 @@ def for_host(words: list[str], language: str) -> list[str]:
     return out
 
 
+#: A letter three times running, as in חחחח or אתההה — laughter and stretched words a
+#: reader tapped in a chat transcript. Hardly a Hebrew word spells a letter three times
+#: in a row, and the few other languages' that do are not ones a conversation needs.
+_STRETCHED = re.compile(r"([^\W\d_])\1\1")
+
+#: Laughter in the Latin and Cyrillic scripts: haha, jaja, хаха. Hebrew's is caught by
+#: `_STRETCHED`; a two-letter run repeated is not junk there (גלגל, בלבל).
+_LAUGHTER = re.compile(r"(?:ha|ah|he|ja|xa|ха|хе|ах){2,}h?")
+
+#: Points and cantillation, so a pointed headword and a bare common word are one word.
+_POINTED = re.compile("[\u0591-\u05c7]")
+
+
+def known_for_host(
+    known: list[str], common: list[str], language: str, most: int = HOST_KNOWN
+) -> list[str]:
+    """The reader's known words as a host is handed them: the commonest `most` of them.
+
+    `known` has been through `for_host` already. Left out besides: words stretched or
+    laughed (חחחח, אתההה, haha), which `for_host` lets through because they are letters;
+    and any word in `common`, which the host is handed beside this list anyway. Then
+    ordered by how common the word is in the language (`frequency.rank`, the table the
+    reader's levels come from), with words the table does not rank after the ranked ones
+    in the order they came — newest first — and cut at `most`. Where wordfreq is not
+    installed nothing is ranked, and the cut keeps the newest.
+    """
+    from ..annotate import frequency
+
+    code = (language or "he").split("-")[0].lower()
+    floor = {_POINTED.sub("", word) for word in common}
+    seen: set[str] = set()
+    ranked: list[tuple[int, int, str]] = []
+    unranked: list[str] = []
+    for at, word in enumerate(known):
+        bare = _POINTED.sub("", word)
+        lowered = bare.lower()
+        if bare in floor or bare in seen or _STRETCHED.search(lowered):
+            continue
+        if code not in HEBREW_SCRIPT and _LAUGHTER.fullmatch(lowered):
+            continue
+        seen.add(bare)
+        place = frequency.rank(bare, code)
+        if place is None:
+            unranked.append(word)
+        else:
+            ranked.append((place, at, word))
+    ranked.sort()
+    return [word for _, _, word in ranked][:most] + unranked[: max(0, most - len(ranked))]
+
+
 def length(text: str, language: str = "he") -> int:
     """How many words a reply is, the way a reader meets them: over the model's own lines,
     the "> " recast left out because it is the reader's sentence said back. A Hebrew word
@@ -1074,8 +1132,13 @@ def ledger_block(
     returning: Returning | None = None,
     rules: list[str] | None = None,
     shared: bool = True,
+    known_of: int | None = None,
 ) -> str:
     """The per-reader block: the ledger, then the word lists, then what comes back.
+
+    `known_of` is how many words the reader has marked known, where `known` is only a
+    sample of them (`known_for_host`, the connector's). The line then says what the
+    sample is, so a host is not told a reader with 1,483 words knows 300.
 
     `shared` is False for a connector that was not granted the reader's record. Then
     there is no ledger to describe, and the first-day branch would be false: a reader
@@ -1099,8 +1162,19 @@ def ledger_block(
             )
         return "\n\n".join(parts)
     parts = [describe(level)]
-    if known:
+    if known and known_of and known_of > len(known):
+        parts.append(
+            f"A sample of the reader's known words, the commonest {len(known)} of the "
+            f"{known_of:,} they have marked known, leaving out any in the common list "
+            "below: " + " ".join(known)
+        )
+    elif known:
         parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))
+    elif known_of:
+        parts.append(
+            f"The reader has marked {known_of:,} words known, and every one is in the "
+            "common list below."
+        )
     else:
         # Nobody has a ledger on their first day. Words are marked while reading, so
         # the way to a ledger is a text, and the first question is the one the research
