@@ -466,6 +466,50 @@ def info_language(media: Path) -> str:
     return {"iw": "he", "ji": "yi"}.get(head, head) if head.isalpha() else ""
 
 
+#: What a lookup tells YouTube's extractor to leave out (2026-10-06). `skip=dash,hls`
+#: stops it fetching the DASH and HLS manifests, which are further requests through the
+#: proxy after the player answer, for formats a lookup never downloads.
+#:
+#: Checked against yt-dlp's source (2026.08.19, `extractor/youtube/_video.py`) rather
+#: than assumed, because the one thing that must survive is the audio track's language:
+#:
+#: * A format's `language` is set from the player answer's `audioTrack` on the https
+#:   formats (`get_language_code_and_preference`), and for a one-track video from the
+#:   ASR caption track's language (`set_audio_lang_from_orig_subs_lang`). Neither reads a
+#:   manifest. The manifests' own formats repeat the same tracks.
+#: * Subtitles come from the player answer's caption tracks; a manifest contributes
+#:   subtitles only for a live stream, which has no length and is refused anyway.
+#: * Duration, title and licence are off the player answer and the watch page.
+#:
+#: Measured on 2026-10-06 from a laptop: "Me at the zoo" gave 24 formats and 16 with
+#: the skip — the eight HLS ones — and the same duration, licence, subtitle languages
+#: and audio tags; a Khan Academy Hebrew lesson gave the same answer at 2.7 s rather
+#: than 4.6 s. Not `player_skip=webpage`: the licence is read off the watch page.
+#: Not `translated_subs`: it is only built for `--write-auto-subs`, which `-J` is not.
+SLIM = "skip=dash,hls"
+
+
+def _slimmed(routes: list[list[str]]) -> list[list[str]]:
+    """Each route with `SLIM` folded into its own `youtube:` extractor arguments.
+
+    Folded in, not added beside: yt-dlp keeps one set of arguments per extractor and a
+    second `--extractor-args youtube:…` replaces the first (`_dict_from_options_callback`
+    with `multiple_keys=False`), so a route asking for `player_client=tv_embedded` would
+    otherwise silently drop the skip, or the skip drop the client.
+    """
+    slimmed = []
+    for route in routes:
+        asked = list(route)
+        for at, arg in enumerate(asked[:-1]):
+            if arg == "--extractor-args" and asked[at + 1].startswith("youtube:"):
+                asked[at + 1] = f"{asked[at + 1]};{SLIM}"
+                break
+        else:
+            asked += ["--extractor-args", f"youtube:{SLIM}"]
+        slimmed.append(asked)
+    return slimmed
+
+
 def describe(url: str) -> dict[str, Any]:
     """What yt-dlp knows about the video without fetching it: `yt-dlp -J`.
 
@@ -474,7 +518,16 @@ def describe(url: str) -> dict[str, Any]:
     `screen.from_ytdlp` reads, and it is metadata only — a few hundred kilobytes of
     JSON, never the video.
     """
-    done = _run(["yt-dlp", "-J", "--no-playlist", "--skip-download", url], timeout=120)
+    if not is_youtube(url):
+        raise TargumError(
+            "We couldn't find a YouTube video at that address.", key="video.no-youtube-video"
+        )
+    done = run_ytdlp(
+        ["yt-dlp", "-J", "--no-playlist", "--skip-download", url],
+        timeout=120,
+        refused="YouTube wouldn't tell us about that video.",
+        routes=_slimmed(_routes()),
+    )
     try:
         answer: dict[str, Any] = json.loads(done.stdout.decode("utf-8", "replace"))
     except json.JSONDecodeError as error:
