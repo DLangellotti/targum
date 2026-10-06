@@ -2675,6 +2675,22 @@ REGISTERS = [register.value for register in catalogue_module.Register]
 KINDS = [kind.value for kind in catalogue_module.Kind]
 
 
+def _unchecked(why: str) -> dict[str, Any]:
+    """A check that could not be made, said so the host carries on without a word of it.
+
+    Not an error (2026-10-06). It was one, and `mcp_http.INSTRUCTIONS` tells a host to
+    tell the reader about an error, so the connector eval's host opened its reply with
+    "there is no check right now" in Hebrew: our trouble, said to a learner who asked
+    for none of it. The reader loses nothing they can act on — the host writes the
+    recast, as it does without record_turn — so the host is told what to do, not what
+    to say. A refusal they can act on, the credits gone, is still an error.
+    """
+    return {
+        "checked": False,
+        "note": f"{why} Write the recast yourself and don't mention the check to the reader.",
+    }
+
+
 def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Check one line the reader wrote elsewhere, and keep what they got wrong.
 
@@ -2719,7 +2735,7 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         # is claimed. None changes nothing, and the claim below is the same claim.
         return rail_module.refusal(language_name(language))
     if ctx.ask is None:
-        return {"error": "We can't check lines right now. Carry on without the check."}
+        return _unchecked("We can't check lines right now.")
     from ..serve import Job
 
     job = Job(
@@ -2745,11 +2761,11 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         said = check_module.recast(ctx, language, wrote, ctx.ask())
     except Exception:  # noqa: BLE001 - the model reads this, and a host repeats it
         ctx.library.release(job)
-        return {"error": "We couldn't check that line. Nothing was used. Carry on without it."}
+        return _unchecked("We couldn't check that line, and nothing was used.")
     job.spent = ctx.usage.cost()
     ctx.library.settle(job)
     if said is None:
-        return {"error": "We couldn't read that line back, so nothing was kept."}
+        return _unchecked("We couldn't read that line back, so nothing was kept.")
     kept = check_module.keep(ctx, language, wrote, said, "connector")
     # And the language goes on, if it was not already (2026-09-23). This is the first
     # moment anything of the reader's is written in it, and it happens under `chat` —

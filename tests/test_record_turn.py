@@ -273,15 +273,17 @@ def test_nobody_signed_in_checks_nothing(tmp_path: Path) -> None:
 def test_a_box_with_no_model_says_so_rather_than_failing_inside(tmp_path: Path) -> None:
     ctx, _, _, _ = context(tmp_path, client=None)
     said = tools.record_turn(ctx, {"wrote": "אני הלך לים.", "language": "he"})
-    assert "can't check lines right now" in said["error"]
+    assert said["checked"] is False and "error" not in said, "nothing the reader can act on"
+    assert "can't check lines right now" in said["note"]
+    assert "don't mention the check" in said["note"]
 
 
 def test_a_model_that_breaks_hands_the_hours_back(tmp_path: Path) -> None:
     """Releasing is the difference between a failed check and a charged one."""
     ctx, library, store, person = context(tmp_path, Script(RuntimeError("no")))
     said = tools.record_turn(ctx, {"wrote": "אני הלך לים.", "language": "he"})
-    assert "couldn't check that line" in said["error"]
-    assert "RuntimeError" not in said["error"], "a host would say the class name to a reader"
+    assert "couldn't check that line" in said["note"] and "error" not in said
+    assert "RuntimeError" not in said["note"], "a host would say the class name to a reader"
     assert store.hours_used(person.id, library._month_from()) == 0
     assert store.slips(person.id) == []
 
@@ -289,7 +291,7 @@ def test_a_model_that_breaks_hands_the_hours_back(tmp_path: Path) -> None:
 def test_a_reply_that_is_not_a_recast_keeps_nothing(tmp_path: Path) -> None:
     ctx, _, store, person = context(tmp_path, Script(Reply("I think that looks fine!")))
     said = tools.record_turn(ctx, {"wrote": "אני הלך לים.", "language": "he"})
-    assert "couldn't read that line back" in said["error"]
+    assert "couldn't read that line back" in said["note"] and "error" not in said
     assert store.slips(person.id) == []
 
 
