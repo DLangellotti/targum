@@ -459,3 +459,94 @@ def test_a_recording_that_will_not_play_takes_its_button_away(browser) -> None: 
     card.locator(".card-play").click()
     card.locator(".card-play").wait_for(state="hidden", timeout=5000)
     context.close()
+
+
+# --- what a publisher put out (2026-10-06) -------------------------------------------
+
+#: Two articles and an episode as `search_sources` answers with them: texts not yet on
+#: targum, so each door is our add page with the address in the box.
+FOUND = {
+    "count": 3,
+    "items": [
+        {
+            "title": "הכנסת אישרה את התקציב לשנה הבאה",
+            "link": "https://www.ynet.co.il/news/article/abc123",
+            "publisher": "Ynet",
+            "kind": "news",
+            "seconds": 0,
+            "known_share": 0.71,
+        },
+        {
+            "title": "מזג האוויר: גשם ראשון בצפון",
+            "link": "https://www.kan.org.il/item/1",
+            "publisher": "Kan",
+            "kind": "news",
+            "seconds": 0,
+            "known_share": None,
+        },
+        {
+            "title": "הפודקאסט היומי",
+            "link": "https://www.kan.org.il/podcast/2",
+            "publisher": "Kan",
+            "kind": "podcast",
+            "seconds": 1260,
+            "known_share": 0.5,
+        },
+    ],
+}
+ADD = "https://targum.page/add?source="
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_found_articles_open_on_our_add_page(browser, theme: str) -> None:  # noqa: F811
+    """A feed item is a text not yet on targum: its publisher, its length where the feed
+    knows it, how much the reader would know where that was measured, and one door to
+    our add page. Never the publisher's page, never Listen, and nothing fetched."""
+    from urllib.parse import quote
+
+    context = opened(browser, viewport={"width": 520, "height": 520}, scrolling=False)
+    page = context.new_page()
+    fetched: list[str] = []
+    page.on("request", lambda request: fetched.append(request.url))
+    doors = [ADD + quote(str(item["link"]), safe="") for item in FOUND["items"]]
+    # A recording beside a found item is ignored, were one ever sent.
+    meta = [{"door": doors[0], "audio": {"src": HEARD, "ends": _later()}}] + [
+        {"door": door} for door in doors[1:]
+    ]
+    page.set_content(text_hosted(theme, FOUND, meta, height=460))
+    card = _cards(page)
+    assert card.locator(".card-text").count() == 3
+    first, second, third = (card.locator(".card-text").nth(n) for n in range(3))
+
+    title = first.locator(".card-title")
+    assert title.get_attribute("dir") == "rtl" and title.get_attribute("lang") == "he"
+    assert first.locator(".card-from").text_content() == "Ynet"
+    assert first.locator(".card-minutes").is_hidden(), "a feed's summary gives no length"
+    assert first.locator(".card-known").text_content() == "You know about 7 words in 10 here."
+    assert second.locator(".card-known").is_hidden(), "nothing measured, nothing said"
+    assert third.locator(".card-minutes").text_content() == "21 min"
+    assert third.locator(".card-door").text_content() == "Listen on targum"
+    assert card.locator(".card-play:visible").count() == 0, "a found item has no Listen"
+
+    door = first.locator(".card-door")
+    assert door.text_content() == "Read on targum"
+    assert door.get_attribute("href") == doors[0]
+    door.click()
+    page.wait_for_function("window.opened !== ''")
+    assert page.evaluate("window.opened") == doors[0]
+    assert page.evaluate("window.calls") == [], "the card asks for no tool"
+    assert fetched == [], f"the card fetched {fetched}"
+    _shot(page, f"feed-card-{theme}")
+    context.close()
+
+
+def test_a_found_item_with_no_door_beside_it_has_none(browser) -> None:  # noqa: F811
+    """The card never falls back to the item's own link, which is the publisher's."""
+    context = opened(browser, viewport={"width": 520, "height": 300}, scrolling=False)
+    page = context.new_page()
+    one = {"count": 1, "items": [FOUND["items"][0]]}
+    page.set_content(text_hosted("light", one, [{}], height=200))
+    card = _cards(page)
+    assert card.locator(".card-door").is_hidden()
+    assert card.locator(".card-door").get_attribute("href") is None
+    context.close()

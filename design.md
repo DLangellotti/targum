@@ -459,7 +459,11 @@ minutes (a shelf text's words at the library's 130 a minute), how much of it the
 knows in the app's own sentence ("You know about 7 words in 10 here", from the same
 catalogue keys), and one door: Open, to the short link, or Open in the library for a
 library text not yet on the shelf, which goes to our library page where it is got ready.
-It asks for no tool at all. Both cards speak to their host through one shared bridge.
+Beside `search_sources` it draws each article a publisher put out, a text not yet on
+targum, with who published it, and its door (Read on targum, or Watch or Listen for a
+video or an episode) opens our add page with the article's address already in the box,
+where the reader looks and presses: never the publisher's page, and never with Listen
+(2026-10-06). It asks for no tool at all. Both cards speak to their host through one shared bridge.
 
 Its play button is Listen, in outline beside the filled door, and is there only when the
 text already has a recording on the disk: the manifest beside an import or a voice the

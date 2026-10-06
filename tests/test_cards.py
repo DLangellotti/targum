@@ -88,22 +88,26 @@ def test_the_card_is_read_whole() -> None:
     }
 
 
-def test_only_check_job_names_the_card_and_only_where_it_is_held() -> None:
+def test_only_check_job_names_the_card_and_only_where_it_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _following(monkeypatch)
     tools = ask("tools/list")["result"]["tools"]
     carded = {tool["name"]: tool["_meta"] for tool in tools if "_meta" in tool}
-    assert set(carded) == {"check_job", "find_text", "open_library_text"}
+    assert set(carded) == {"check_job", "find_text", "open_library_text", "search_sources"}
     meta = carded["check_job"]
     assert meta["ui"]["resourceUri"] == BUILD
     assert meta["ui"]["visibility"] == ["model", "app"]
     # The flat key the extension's SDK still writes beside the new one.
     assert meta["ui/resourceUri"] == BUILD
-    for name in ("find_text", "open_library_text"):
+    for name in ("find_text", "open_library_text", "search_sources"):
         assert carded[name]["ui"]["resourceUri"] == TEXT
         assert carded[name]["ui/resourceUri"] == TEXT
     library = ask("tools/list", scopes="library")["result"]["tools"]
     assert {tool["name"] for tool in library if "_meta" in tool} == {
         "find_text",
         "open_library_text",
+        "search_sources",
     }
 
 
@@ -262,13 +266,14 @@ def test_the_text_card_asks_for_our_origin_for_media_and_nothing_more() -> None:
 def test_the_text_card_is_refused_where_find_text_is_not_held(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _following(monkeypatch)
     exposed = connector.exposed
 
     def without(*args: Any, **kwargs: Any) -> list[tools_module.Tool]:
         return [
             tool
             for tool in exposed(*args, **kwargs)
-            if tool.name not in ("find_text", "open_library_text")
+            if tool.name not in ("find_text", "open_library_text", "search_sources")
         ]
 
     monkeypatch.setattr(connector, "exposed", without)
@@ -533,6 +538,134 @@ def test_a_failed_find_carries_no_card_meta(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(tools_module, "run", lambda *_a: (text, True))
     result = ask("tools/call", params={"name": "find_text", "arguments": {}})["result"]
     assert "_meta" not in result
+
+
+# --- what a publisher put out (2026-10-06) -------------------------------------------
+
+#: An article as `search_sources` answers with one: a text not yet on targum. Its link
+#: has a query and a fragment of its own, which the door has to carry whole.
+YNET = "https://www.ynet.co.il/news/article/abc123?utm=feed&x=1#top"
+FOUND = {
+    "count": 3,
+    "items": [
+        {
+            "title": "הכנסת אישרה את התקציב",
+            "link": YNET,
+            "publisher": "Ynet",
+            "kind": "news",
+            "published": "2026-10-06T08:00:00+00:00",
+            "seconds": 0,
+            "has_transcript": False,
+            "licence": "",
+            "known_share": 0.71,
+        },
+        {
+            "title": "כותרת קצרה",
+            "link": "https://www.kan.org.il/item/1",
+            "publisher": "Kan",
+            "kind": "video",
+            "published": "2026-10-06T07:00:00+00:00",
+            "seconds": 250,
+            "has_transcript": True,
+            "licence": "",
+            "known_share": None,
+        },
+        {"title": "x", "link": "javascript:alert(1)", "publisher": "?", "known_share": None},
+    ],
+}
+
+
+def _following(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A box that follows a publisher, which is the only kind offered `search_sources`."""
+    from targum.chat import sources as sources_module
+
+    one = sources_module.Publisher(key="ynet", name="Ynet", publisher="Ynet", feed="https://x")
+    monkeypatch.setattr(sources_module, "load", lambda: [one])
+
+
+def test_search_sources_names_the_text_card(monkeypatch: pytest.MonkeyPatch) -> None:
+    _following(monkeypatch)
+    tools = ask("tools/list")["result"]["tools"]
+    carded = {tool["name"]: tool["_meta"] for tool in tools if "_meta" in tool}
+    assert carded["search_sources"]["ui"]["resourceUri"] == TEXT
+    assert "_meta" not in {t["name"]: t for t in tools}["describe_source"]
+
+
+def test_the_text_card_is_listed_where_only_search_sources_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _following(monkeypatch)
+    exposed = connector.exposed
+
+    def only(names: tuple[str, ...]) -> Any:
+        def held(*args: Any, **kwargs: Any) -> list[tools_module.Tool]:
+            return [tool for tool in exposed(*args, **kwargs) if tool.name in names]
+
+        return held
+
+    monkeypatch.setattr(connector, "exposed", only(("search_sources",)))
+    assert [one["uri"] for one in ask("resources/list")["result"]["resources"]] == [TEXT]
+    monkeypatch.setattr(connector, "exposed", only(("describe_source", "quote_build")))
+    assert ask("resources/list")["result"]["resources"] == []
+    refused = ask("resources/read", params={"uri": TEXT})
+    assert refused["error"]["code"] == mcp_http.RESOURCE_NOT_FOUND
+
+
+def test_a_found_article_s_door_is_our_add_page_never_the_publisher(
+    shelves: SimpleNamespace,
+) -> None:
+    """§12: the door opens a page of ours, where the text is got ready, and never presses.
+    The add page takes the address from `?source=` (the weekly's "Read the whole thing"),
+    so the whole address is encoded and its own query stays its own. No recording."""
+    from urllib.parse import parse_qs, urlsplit
+
+    meta = mcp_http.text_card_meta(json.dumps(FOUND), shelves.ctx, ADDRESS)
+    assert len(meta) == 3
+    first, second, third = meta
+    door = urlsplit(first["door"])
+    assert f"{door.scheme}://{door.netloc}" == ADDRESS and door.path == "/add"
+    assert parse_qs(door.query) == {"source": [YNET]}
+    assert "ynet" not in door.netloc and "#" not in first["door"] and "&x=" not in first["door"]
+    assert second == {"door": ADDRESS + "/add?source=https%3A%2F%2Fwww.kan.org.il%2Fitem%2F1"}
+    assert third == {}, "an address that is not http or https gets no door"
+    assert not any("audio" in one for one in meta)
+    # No public address, no door: the card never falls back to the publisher's link.
+    assert mcp_http.text_card_meta(json.dumps(FOUND), shelves.ctx, "") == [{}, {}, {}]
+
+
+def test_search_sources_text_is_unchanged_and_the_card_reads_the_same_rows(
+    monkeypatch: pytest.MonkeyPatch, shelves: SimpleNamespace
+) -> None:
+    """The model's text and `structuredContent` stay exactly what they were; the doors
+    ride beside them in `_meta`, which a host hands the card and not the model."""
+    _following(monkeypatch)
+    text = json.dumps(FOUND, ensure_ascii=False)
+    monkeypatch.setattr(connector, "context", lambda *_a, **_k: shelves.ctx)
+    monkeypatch.setattr(tools_module, "run", lambda *_a: (text, False))
+    result = ask(
+        "tools/call",
+        params={"name": "search_sources", "arguments": {"query": "x"}},
+        address=ADDRESS,
+    )["result"]
+    said = result["content"][0]["text"]
+    assert said == tools_module.shorten(text, ADDRESS)
+    assert result["structuredContent"] == json.loads(said)
+    assert "/add?source=" not in said
+    beside = result["_meta"][mcp_http.TEXT_CARD_META]
+    assert beside[0]["door"].startswith(ADDRESS + "/add?source=https%3A%2F%2Fwww.ynet")
+
+
+def test_the_text_card_s_found_labels_say_what_the_reader_will_do() -> None:
+    page = build_text_card()
+    for said in ("Read on targum", "Watch on targum", "Listen on targum"):
+        assert said in page
+    russian = build_text_card("ru")
+    assert "Читать в targum" in russian and "Смотреть в targum" in russian
+    # The script never reaches for a found item's own link: its door comes only from
+    # beside it, and it is never given a recording.
+    script = re.sub(r"^\s*//.*$", "", _text_script(), flags=re.M)
+    assert "row.link" not in script
+    assert "found ? null : beside.audio" in script
 
 
 # --- the address a recording is played from ----------------------------------------
