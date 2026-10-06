@@ -51,6 +51,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, unquote, urlparse
@@ -346,6 +347,11 @@ class Kept:
 
 #: Enough for every text on a few dozen shelves and a ledger each, in a few megabytes.
 KEPT = Kept(8192)
+
+#: What a reader knows of each feed item `search_sources` turned up (2026-10-06). Its
+#: own, because a search measures some 250 items at a time and a reader who marks a word
+#: makes all of them new keys: in `KEPT` a few searches would push the shelf out.
+FEED_KNOWN = Kept(4096)
 
 
 def _whose(store: Store | None, person_id: int | None) -> tuple[Any, ...] | None:
@@ -1787,13 +1793,38 @@ WEB_SEARCH_USES = 6
 SEARCH_UNAVAILABLE_FROM = {"city": "Tel Aviv", "country": "IL", "timezone": "Asia/Jerusalem"}
 
 
-def _known_share(ctx: Ctx | None, text: str) -> float | None:
+def _known_forms(ctx: Ctx) -> frozenset[str]:
+    """This reader's known Hebrew forms and the commonest words, kept until the record
+    changes (2026-10-06).
+
+    `search_sources` measured every one of its ~250 feed items with `_known_share`, and
+    each measurement read the whole ledger again and took the points off every form in
+    it: 3.2 s of a search on the box, 94% of it here, for a set that is the same on every
+    item and every call until the reader marks a word. Kept under `Store.ledger_stamp`
+    like the rest of `KEPT`, so a word marked known is in the next call's set.
+    """
+    assert ctx.store is not None and ctx.person is not None
+    store, person_id = ctx.store, ctx.person.id
+
+    def work() -> frozenset[str]:
+        return frozenset(store.known_forms(person_id, "he")) | frozenset(
+            hebrew_module.common_words()
+        )
+
+    whose = _whose(store, person_id)
+    if whose is None:
+        return work()
+    forms: frozenset[str] = KEPT.get(("known-forms", *whose, "he"), work)
+    return forms
+
+
+def _known_share(ctx: Ctx | None, text: str, forms: frozenset[str] | None = None) -> float | None:
     """`level.known_share` against this reader's known forms and the commonest words;
-    None where there is nobody to measure for."""
+    None where there is nobody to measure for. `forms` is `_known_forms(ctx)`, passed by
+    a caller that measures many texts in one call."""
     if ctx is None or ctx.store is None or ctx.person is None:
         return None
-    forms = ctx.store.known_forms(ctx.person.id, "he") | set(hebrew_module.common_words())
-    return level_module.known_share(text, forms)
+    return level_module.known_share(text, _known_forms(ctx) if forms is None else forms)
 
 
 def _hebrew_share(text: str) -> float:
@@ -2129,7 +2160,9 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        got = url_module.fetch(url)
+        # The page `episode.find` just read, kept (`url_module.page`, 2026-10-06): one
+        # knock rather than two and a polite wait, and the quote after reads it too.
+        got = url_module.page(url)
     except Unreachable as error:
         # A door that will be shut next time is worth remembering; a page that is not
         # there is not. Every host is still knocked on — the record informs what the
@@ -2377,6 +2410,10 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     skipped: list[str] = []
     late: list[str] = []
     pulled_by_feed = FEEDS.pull([publisher.feed for publisher in publishers], FEEDS_BUDGET_S)
+    measuring = ctx.store is not None and ctx.person is not None
+    # Read once for every item rather than once an item (2026-10-06): see `_known_forms`.
+    forms = _known_forms(ctx) if measuring else None
+    whose = _whose(ctx.store, ctx.person_id) if measuring else None
     for publisher in publishers:
         if publisher.feed not in pulled_by_feed:
             late.append(publisher.key)
@@ -2395,7 +2432,15 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             # `known_share` answers None below twenty tokens rather than guessing at a
             # headline. Enough to tell two of the same day's stories apart, which is all
             # it is asked to do.
-            known = _known_share(ctx, f"{item.title}\n{item.summary}")
+            #
+            # Each item's answer is kept (`FEED_KNOWN`) under the reader's record and the
+            # hook itself, so the same day's items are not measured again on every search.
+            hook = f"{item.title}\n{item.summary}"
+            if whose is None:
+                known = _known_share(ctx, hook, forms)
+            else:
+                digest = hashlib.sha256(hook.encode("utf-8")).hexdigest()
+                known = FEED_KNOWN.get((*whose, digest), partial(_known_share, ctx, hook, forms))
             items.append(
                 {
                     "title": item.title,

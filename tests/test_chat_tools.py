@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -1155,6 +1154,62 @@ def test_a_story_too_short_to_measure_is_not_treated_as_hard(world, monkeypatch,
     assert [row["link"] for row in got["items"]][0] == "https://k/short"
 
 
+def test_a_search_reads_the_ledger_once_and_again_only_when_it_changes(
+    world, monkeypatch, tmp_path
+) -> None:
+    """2026-10-06: a search measured each of ~250 feed items by reading the whole ledger
+    again, 3.2 s on the box. The ledger is read once, kept until the record changes, and a
+    word marked known in between is in the very next search's numbers."""
+    from datetime import UTC, datetime
+
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps({"publishers": [{"key": "kan", "name": "כאן", "feed": "https://k/rss"}]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+    body = " ".join(["פוליטיקאים", "התכנסו", "בירושלים", "לדיון"] * 6)
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        when = datetime(2026, 10, 6, tzinfo=UTC)
+        return [
+            feeds.Item(title=f"כותרת {n}", summary=body, link=f"https://k/{n}", published=when)
+            for n in range(30)
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    reads: list[int] = []
+    known_forms = store.known_forms
+
+    def counted(person_id: int | None, language: str) -> set[str]:
+        reads.append(1)
+        return known_forms(person_id, language)
+
+    monkeypatch.setattr(store, "known_forms", counted)
+    ctx = context(library, store, person, home)
+
+    first = tools.search_sources(ctx, {"limit": 30})
+    assert tools.search_sources(ctx, {"limit": 30}) == first
+    assert len(reads) == 1, "once for thirty items and two searches, not once an item"
+
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": word, "status": 9, "band": "easy", "at": 9, "seen": 9}
+                for word in ("פוליטיקאים", "התכנסו")
+            ]
+        },
+    )
+    after = tools.search_sources(ctx, {"limit": 30})
+    assert len(reads) == 2, "a changed record is read again"
+    assert after["items"][0]["known_share"] > first["items"][0]["known_share"]
+
+
 def test_search_sources_pulls_the_feeds_side_by_side_and_keeps_them(
     world, monkeypatch, tmp_path
 ) -> None:
@@ -1295,11 +1350,9 @@ class Door:
         self.asked.append(url)
         if self.error is not None:
             raise self.error
-        return SimpleNamespace(
-            text="<html><body><p>שלום עולם.</p></body></html>",
-            is_html=True,
-            content_type="text/html",
-        )
+        from targum.ingest import url as url_module
+
+        return url_module.Fetched("<html><body><p>שלום עולם.</p></body></html>", "text/html")
 
 
 def _door(monkeypatch: Any, error: Exception | None = None) -> Door:

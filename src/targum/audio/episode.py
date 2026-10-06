@@ -56,7 +56,7 @@ def find(url: str) -> Episode | None:
     for. An episode page is searched for its own audio, then for the feed it belongs
     to, followed one hop.
     """
-    from ..ingest.url import fetch
+    from ..ingest.url import page
 
     if sounds_like_audio(url):
         return Episode(audio_url=url)
@@ -79,7 +79,9 @@ def find(url: str) -> Episode | None:
         found = _from_apple(apple.group(1), wanted)
         if found is not None:
             return found
-    got = fetch(url)
+    # Through `page`: an article is asked about here first and read by the ingester next,
+    # and the second read is the first one kept (`ingest.url.Pages`, 2026-10-06).
+    got = page(url)
     kind = got.content_type.split(";")[0].strip().lower()
     if kind.startswith("audio/"):
         return Episode(audio_url=url)

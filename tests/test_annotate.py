@@ -1574,6 +1574,46 @@ def test_the_build_and_the_chat_never_run_the_model_at_once(monkeypatch) -> None
     assert most == 1, f"{most} calls ran the model at once"
 
 
+def test_the_weights_are_read_from_disk_before_the_hub_is_asked(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """2026-10-06: every service start asked huggingface.co about dictabert-joint before
+    reading the copy on disk. The disk is asked first; the hub only when the disk has
+    nothing, which is how a box that never had the weights still gets them."""
+    import transformers
+
+    from targum.annotate import dicta
+
+    class Model:
+        def eval(self) -> None:
+            pass
+
+    for cached in (True, False):
+        asked: list[tuple[str, bool]] = []
+
+        def loader(kind: str, made: object, cached: bool = cached, asked: list = asked):  # type: ignore[no-untyped-def,type-arg]
+            def pretrained(*_args, **kwargs):  # type: ignore[no-untyped-def]
+                local = bool(kwargs.get("local_files_only"))
+                asked.append((kind, local))
+                if local and not cached:
+                    raise OSError("not in the cache")
+                return made
+
+            return pretrained
+
+        monkeypatch.setattr(dicta, "_LOADED", {})
+        monkeypatch.setattr(transformers.AutoModel, "from_pretrained", loader("model", Model()))
+        monkeypatch.setattr(
+            transformers.AutoTokenizer, "from_pretrained", loader("tokenizer", object())
+        )
+        dicta.DictaLemmatizer().model()
+        if cached:
+            assert asked == [("tokenizer", True), ("model", True)], "nothing asked of the hub"
+        else:
+            assert asked[0] == ("tokenizer", True) and asked[-2:] == [
+                ("tokenizer", False),
+                ("model", False),
+            ], "a box without the weights fetches them, as it always did"
+
+
 def test_two_threads_asking_for_the_weights_load_them_once(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     """The chat warms the model at start-up; a build arriving in those seconds loaded a
     second 744 MB copy."""

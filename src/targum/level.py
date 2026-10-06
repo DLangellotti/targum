@@ -16,7 +16,7 @@ A `Level` carries the rung so the chat can grade the Hebrew it writes; what the 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Set
 from dataclasses import dataclass
 from datetime import date, timedelta
 from math import ceil
@@ -449,7 +449,7 @@ def _haser_of(token: str, form: str) -> bool:
     return reach[len(inner)]
 
 
-def _male_index(forms: set[str]) -> dict[str, list[str]]:
+def _male_index(forms: Set[str]) -> dict[str, list[str]]:
     """Each known form that has an inner vav or yod, filed under its skeleton."""
     index: dict[str, list[str]] = {}
     for form in forms:
@@ -459,7 +459,7 @@ def _male_index(forms: set[str]) -> dict[str, list[str]]:
     return index
 
 
-def known_share(text: str, forms: set[str]) -> float | None:
+def known_share(text: str, forms: Set[str]) -> float | None:
     """The share of a text's Hebrew tokens the reader already has, cheaply.
 
     A token counts as known when it, or it less a prefix or two, is among `forms` — the
