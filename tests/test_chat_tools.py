@@ -445,6 +445,49 @@ def test_check_job_hands_over_the_link_when_done_and_a_sentence_when_failed(worl
     assert "Try again later" in tools.check_job(ctx, {"id": "j-quiet"})["said"]
 
 
+def test_a_check_job_that_works_is_not_a_failed_call_over_the_connector(world) -> None:
+    """2026-10-06, the connector eval: a job's state carries `"error": ""`, and `run`
+    took the key for a failure, so every `check_job` reached a host — and targum's own
+    chat — as `isError`. Failure is an error that says something."""
+    from targum import mcp_http
+
+    library, store, person, home = world
+    working = Job(id="j-working", source="x", owner=person.id, stage="working", done=4, total=9)
+    done = Job(
+        id="j-ok", source="x", owner=person.id, stage="done", reader="ruth-he/reader/index.html"
+    )
+    failed = Job(id="j-broke", source="x", owner=person.id, stage="failed", error="It broke.")
+    library.jobs.update({one.id: one for one in (working, done, failed)})
+
+    def called(job_id: str) -> dict[str, Any]:
+        answered = mcp_http.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "check_job", "arguments": {"id": job_id}},
+            },
+            library=library,
+            store=store,
+            person=person,
+            scopes="library record",
+            address="https://targum.page",
+        )
+        assert answered is not None
+        return dict(answered["result"])
+
+    for job_id in ("j-working", "j-ok"):
+        result = called(job_id)
+        assert result["isError"] is False, job_id
+        assert json.loads(result["content"][0]["text"])["error"] == "", "the key is still there"
+    assert called("j-nobody")["isError"] is True, "a real error still is one"
+    assert called("j-broke")["isError"] is True, "and so is a build that failed"
+    # targum's own chat reads the same flag.
+    ctx = context(library, store, person, home)
+    assert tools.run("check_job", {"id": "j-working"}, ctx)[1] is False
+    assert tools.run("check_job", {"id": "j-nobody"}, ctx)[1] is True
+
+
 def test_check_job_says_it_in_the_language_the_card_is_drawn_in(world) -> None:
     """2026-10-06: a Russian card had Russian labels over an English line. `said` now
     takes the card's own rule (`strings.drawn_in`), with Russian's three counted forms,
@@ -503,6 +546,16 @@ def test_check_job_never_holds_targums_own_chat(world, monkeypatch) -> None:
     assert "wait_seconds" not in shapes["check_job"]["input_schema"]["properties"]
     assert shapes["check_job"]["input_schema"]["required"] == ["id"]
     assert "wait_seconds" in tools.BY_NAME["check_job"].schema["properties"], "hosts keep it"
+
+
+def test_check_job_asks_a_host_to_wait_and_to_say_said_as_it_is() -> None:
+    """2026-10-06, the connector eval: the host left wait_seconds out and retold `said`
+    in its own words. The schema says both, and stays short."""
+    tool = tools.BY_NAME["check_job"]
+    assert "word for word" in tool.description
+    wait = tool.schema["properties"]["wait_seconds"]["description"]
+    assert "every call" in wait
+    assert len(tool.description) < 300 and len(wait) < 120
 
 
 def test_check_job_waits_for_a_change_and_answers_early(world, monkeypatch) -> None:
@@ -1881,9 +1934,13 @@ def test_the_host_is_told_the_contract_s_own_rule_in_its_own_language(world) -> 
     head = tools.elsewhere("it", "English")
     assert italian.startswith(head)
     assert "Italian" in head and "Hebrew" not in head
-    assert "Never an Italian line without its English line." in head
-    assert "Never an Italian line without its English line." in hebrew.contract_for("it")
     assert "kept on their record" not in head
+    # One thing said, not a sentence and its override (2026-10-06): the host's contract
+    # has the rewritten sentence, and targum's own still has the original.
+    flat = " ".join(italian.split())
+    assert "line without its" not in flat and "overrides" not in flat
+    assert "Its English only when the reader asks" in flat
+    assert "Never an Italian line without its English line." in hebrew.contract_for("it")
 
 
 def test_suggest_next_says_what_it_does() -> None:

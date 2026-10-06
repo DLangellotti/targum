@@ -750,6 +750,116 @@ def contract_for(language: str, gloss: str = "English") -> str:
     return text
 
 
+def _loose(phrase: str) -> str:
+    """A phrase as a pattern that matches it however the contract wrapped it.
+
+    `{L}` is the language's name and `{A}` its article, the same in every contract, so
+    one pattern serves all of them; every other word is matched as written.
+    """
+    parts = []
+    for word in phrase.split(" "):
+        if word == "{L}":
+            parts.append(r"(?P<L>\w+)")
+        elif word == "{A}":
+            parts.append(r"an?")
+        else:
+            parts.append(re.escape(word).replace(r"\{L\}", "(?P=L)"))
+    return r"\s+".join(parts)
+
+
+#: The sentences of a contract that say what targum's page does with a "= " line, and
+#: what they say in a conversation a host writes (2026-10-06, design.md §12, "The
+#: connector talks by the contract"). Each is (name, the sentence, what it becomes,
+#: required); `{G}` is the language the reader reads. Required ones are in every
+#: contract, and a test holds each contract to them, so a contract reworded later fails
+#: there rather than handing a host the old sentence beside the new.
+_FOR_CONNECTOR: tuple[tuple[str, str, str, bool], ...] = (
+    (
+        "meaning on request",
+        'Directly under it, on the next line, its {G}, beginning with "= ". '
+        "Never {A} {L} line without its {G} line.",
+        'Its {G} only when the reader asks: on the next line, beginning with "= ", under '
+        "the lines they asked about, or under every line from then on if that is what "
+        "they asked for, until they say otherwise. In your first reply, say once, in one "
+        "short {L} line, that they can ask for the translation at any time, and give its "
+        'meaning on the "= " line at the end of the reply.',
+        True,
+    ),
+    (
+        "new words after the reply",
+        '— each is on its "= " line like every other word —',
+        '— and give their meanings on the one "= " line at the end of the reply —',
+        True,
+    ),
+    (
+        "a meaning line written",
+        'The "= " line under each of your lines is the {G} for the {L} you wrote,',
+        'A "= " line you write is the {G} for the {L} you wrote,',
+        True,
+    ),
+    (
+        "texts offered",
+        "When you offer texts, one {L} line per text with its {G}, and the text's door under it.",
+        "When you offer texts, one {L} line per text, and the text's door under it.",
+        True,
+    ),
+    (
+        "links",
+        "When the reader asks to read a text, its path - exactly as the tool returned "
+        "it - goes on a line of its own between the {L} lines, with nothing else on that "
+        'line and no "= " line under it. The page draws it as a door. Never say a text '
+        "is open when you have not given its path.",
+        "Every link a tool returns goes on a line of its own, exactly as the tool "
+        'returned it, with nothing else on that line and no "= " line under it. Never '
+        "say a text is open when you have not given its link.",
+        True,
+    ),
+    (
+        "the ledger's new words",
+        'its English is on the "= " line like any word.',
+        'its meaning goes on the one "= " line at the end of the reply.',
+        False,
+    ),
+)
+
+
+def _for_connector(text: str, gloss: str = "English") -> tuple[str, list[str]]:
+    """`for_connector`, and the names of the required sentences it did not find."""
+    missed = []
+    for name, sentence, becomes, required in _FOR_CONNECTOR:
+        pattern = _loose(sentence.replace("{G}", gloss))
+
+        def said(found: re.Match[str], becomes: str = becomes) -> str:
+            named = found.groupdict().get("L") or ""
+            return becomes.replace("{G}", gloss).replace("{L}", named)
+
+        text, count = re.subn(pattern, said, text)
+        if required and not count:
+            missed.append(name)
+    return text, missed
+
+
+def for_connector(text: str, gloss: str = "English") -> str:
+    """A contract, and the ledger block under it, as a host is handed them.
+
+    The host writes the replies and no page of ours draws them, so the meaning lines
+    are written when the reader asks rather than folded under every line, and a link is
+    a link rather than a door the page draws. Until 2026-10-06 that was a note on top of
+    the contract saying it overrode one sentence below — and the connector eval's host
+    kept to the sentence below, writing an English line under every Hebrew one. Now the
+    sentences themselves say it, so the contract a host reads says one thing. targum's
+    own chat is handed `contract_for` untouched.
+    """
+    said, missed = _for_connector(text, gloss)
+    if missed:
+        # A contract reworded without its rewrite: the host gets both, as before this
+        # existed, rather than no contract. `test_chat_hebrew` fails on it first.
+        import logging
+
+        logging.getLogger(__name__).warning("for_connector: not found: %s", ", ".join(missed))
+    return said
+
+
 @dataclass(frozen=True)
 class Pair:
     hebrew: str

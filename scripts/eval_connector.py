@@ -326,13 +326,23 @@ def isolated(root: Path) -> Iterator[None]:
 
     The same things `tests/conftest.py` shuts for the suite: the cache, the corpus
     ledger, the public shelves, and the publishers' feeds (which would make
-    `search_sources` fetch live). The per-sentence levels too, unless the catalogue is
-    the real one they were measured against. The catalogue itself is chosen before
-    import (`_catalogue_named`). Restored on the way out.
+    `search_sources` fetch live); and the recordings, dialogues, videos and portions,
+    which are otherwise read from wherever the run was started. The per-sentence levels
+    too, unless the catalogue is the real one they were measured against. The catalogue
+    itself is chosen before import (`_catalogue_named`). Restored on the way out.
     """
     said = {
         "TARGUM_CACHE_DIR": str(root / "cache"),
         "TARGUM_SOURCES": str(root / "no-sources.json"),
+        # The shelves read relative to the working directory (2026-10-06). Run from the
+        # main checkout, `spoken.sources` walked its real `targum-out` — 171 recordings,
+        # the dialogues and the videos — on the first `find_text`, which the eval timed
+        # at 1,069 ms on a 24-entry fixture, and a real recording could have marked a
+        # fixture text as spoken.
+        "TARGUM_RECORDING_DIR": str(root / "recordings"),
+        "TARGUM_DIALOGUE_DIR": str(root / "dialogues"),
+        "TARGUM_VIDEO_DIR": str(root / "videos"),
+        "TARGUM_PARASHA_DIR": str(root / "parasha"),
     }
     if on_fixture():
         said["TARGUM_SENTENCE_LEVELS"] = str(root / "no-sentence-levels.json")
