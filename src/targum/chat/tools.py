@@ -182,6 +182,11 @@ class Tool:
     #: (targum-internal#80). Never offered to targum's own chat, which already holds its
     #: conversation to the contract and recasts every line itself — see `anthropic_tools`.
     elsewhere: bool = False
+    #: Arguments only a host somewhere else is offered, taken out of the schema targum's
+    #: own chat is handed (`anthropic_tools`). `check_job`'s `wait_seconds` is one: a
+    #: host follows a build between replies, and a turn here that held for it would hold
+    #: the reader's own conversation still for up to half a minute (2026-10-06).
+    elsewhere_args: tuple[str, ...] = ()
     #: What a host shows a person in place of the name (MCP's `title`). Claude prints a
     #: tool's name in its own interface, and "Quote build" or "My hours" is this
     #: registry's vocabulary said to a reader. The name stays, because hosts already
@@ -2082,6 +2087,12 @@ def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         wait = float(args.get("wait_seconds") or 0)
     except (TypeError, ValueError):
         wait = 0.0
+    if ctx.chat_id:
+        # targum's own chat: the one surface with a conversation of ours, opened before
+        # its first turn, and the connector's context never has one. The chat is not
+        # offered the argument (`Tool.elsewhere_args`); a model that sends it anyway
+        # gets an answer now, because the page already follows the build on its strip.
+        wait = 0.0
     _hold(job, max(0.0, min(WAIT_MOST, wait)))
     # Read by a model on either surface and drawn by no page, so it never carries money.
     state = _for_host(job.state())
@@ -2637,8 +2648,7 @@ REGISTRY: tuple[Tool, ...] = (
         "check_job",
         "Where a text the reader is getting ready has got to, by the id quote_build "
         "returned: `said` is a line to pass on, and `open` the link once it is ready. "
-        "To follow a build, pass wait_seconds rather than calling again straight away: "
-        "it answers as soon as something changes. Read only.",
+        "Read only.",
         _schema(
             {
                 "id": {"type": "string"},
@@ -2646,7 +2656,10 @@ REGISTRY: tuple[Tool, ...] = (
                     "type": "number",
                     "minimum": 0,
                     "maximum": WAIT_MOST,
-                    "description": "Hold up to this long for a change. 0 answers at once.",
+                    "description": (
+                        "To follow a build, pass this rather than calling again: the call "
+                        "answers as soon as something changes, or after this many seconds."
+                    ),
                 },
             },
             ("id",),
@@ -2654,10 +2667,24 @@ REGISTRY: tuple[Tool, ...] = (
         check_job,
         scope="record",
         title="Where a text has got to",
+        elsewhere_args=("wait_seconds",),
     ),
 )
 
 BY_NAME: dict[str, Tool] = {tool.name: tool for tool in REGISTRY}
+
+
+def _here(tool: Tool) -> dict[str, Any]:
+    """A tool's schema as targum's own chat is handed it: without `elsewhere_args`."""
+    if not tool.elsewhere_args:
+        return tool.schema
+    properties = {
+        name: spec
+        for name, spec in tool.schema["properties"].items()
+        if name not in tool.elsewhere_args
+    }
+    required = [name for name in tool.schema["required"] if name not in tool.elsewhere_args]
+    return {**tool.schema, "properties": properties, "required": required}
 
 
 def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
@@ -2685,7 +2712,7 @@ def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
     offering it here would record the same mistake twice and charge for it twice.
     """
     tools: list[dict[str, Any]] = [
-        {"name": tool.name, "description": tool.description, "input_schema": tool.schema}
+        {"name": tool.name, "description": tool.description, "input_schema": _here(tool)}
         for tool in REGISTRY
         if not tool.spends and not tool.elsewhere
     ]

@@ -343,6 +343,29 @@ def test_check_job_hands_over_the_link_when_done_and_a_sentence_when_failed(worl
     assert "Try again later" in tools.check_job(ctx, {"id": "j-quiet"})["said"]
 
 
+def away(library: Library, store: Store, person: Person, home: Path) -> tools.Ctx:
+    """A connector's context: no conversation of targum's own, as `connector.context`."""
+    ctx = context(library, store, person, home)
+    ctx.chat_id = ""
+    return ctx
+
+
+def test_check_job_never_holds_targums_own_chat(world, monkeypatch) -> None:
+    library, store, person, home = world
+    job = Job(id="j-here", source="x", owner=person.id, stage="working", done=1, total=4)
+    library.jobs[job.id] = job
+    naps: list[float] = []
+    monkeypatch.setattr(tools, "_sleep", naps.append)
+    got = tools.check_job(
+        context(library, store, person, home), {"id": "j-here", "wait_seconds": 20}
+    )
+    assert not naps and got["done"] == 1, "a turn here answers at once"
+    shapes = {shape["name"]: shape for shape in tools.anthropic_tools()}
+    assert "wait_seconds" not in shapes["check_job"]["input_schema"]["properties"]
+    assert shapes["check_job"]["input_schema"]["required"] == ["id"]
+    assert "wait_seconds" in tools.BY_NAME["check_job"].schema["properties"], "hosts keep it"
+
+
 def test_check_job_waits_for_a_change_and_answers_early(world, monkeypatch) -> None:
     library, store, person, home = world
     job = Job(id="j-wait", source="x", owner=person.id, stage="working", done=1, total=4)
@@ -358,9 +381,7 @@ def test_check_job_waits_for_a_change_and_answers_early(world, monkeypatch) -> N
 
     monkeypatch.setattr(tools, "_clock", lambda: clock[0])
     monkeypatch.setattr(tools, "_sleep", nap)
-    got = tools.check_job(
-        context(library, store, person, home), {"id": "j-wait", "wait_seconds": 20}
-    )
+    got = tools.check_job(away(library, store, person, home), {"id": "j-wait", "wait_seconds": 20})
     assert got["done"] == 2 and len(naps) == 3, "answered on the change, not at the end"
     assert all(one <= tools.WAIT_STEP for one in naps), "short naps, never a spin"
 
@@ -370,7 +391,7 @@ def test_check_job_waits_no_longer_than_it_was_asked_or_than_the_cap(world, monk
     job = Job(id="j-still", source="x", owner=person.id, stage="working", done=1, total=4)
     over = Job(id="j-over", source="x", owner=person.id, stage="done", reader="r/reader/index.html")
     library.jobs.update({job.id: job, over.id: over})
-    ctx = context(library, store, person, home)
+    ctx = away(library, store, person, home)
     clock = [0.0]
 
     def nap(seconds: float) -> None:
@@ -398,9 +419,7 @@ def test_check_job_holds_for_real_without_blocking_the_build(world) -> None:
     library.jobs[job.id] = job
     threading.Timer(0.2, lambda: setattr(job, "stage", "done")).start()
     began = time.monotonic()
-    got = tools.check_job(
-        context(library, store, person, home), {"id": "j-real", "wait_seconds": 5}
-    )
+    got = tools.check_job(away(library, store, person, home), {"id": "j-real", "wait_seconds": 5})
     assert got["stage"] == "done" and time.monotonic() - began < 2
 
 
