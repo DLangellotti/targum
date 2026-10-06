@@ -1789,6 +1789,7 @@
   "video.one-at-a-time.hint": "Paste the address of a single video.",
   "video.no-youtube-video": "We couldn't find a YouTube video at that address.",
   "video.over-four-gb": "That video is over 4 GB. Try a shorter one.",
+  "video.slow": "{host} is slow right now. Try again in a minute.",
   "video.no-tiktok-video": "We couldn't find a TikTok video at that address.",
   "video.no-facebook-video": "We couldn't find a Facebook video at that address.",
   "video.no-instagram-reel": "We couldn't find an Instagram reel at that address.",

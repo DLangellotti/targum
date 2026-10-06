@@ -158,3 +158,87 @@ def test_a_reel_and_a_tiktok_are_remembered_by_their_one_address(monkeypatch) ->
     tiktok.describe("https://www.tiktok.com/@someone/video/7512345678901234567?is_from_webapp=1")
     tiktok.describe("https://www.tiktok.com/@someone/video/7512345678901234567")
     assert len(asked) == 2
+
+
+# -- one budget over a YouTube lookup --------------------------------------------------
+
+BOT_CHECK = b"ERROR: [youtube] abc123defgh: Sign in to confirm you're not a bot.\n"
+
+
+def test_each_attempt_gets_what_is_left_and_the_lookup_stops_when_it_is_gone(
+    monkeypatch,
+) -> None:
+    """Five routes at 120 s each held a reader for minutes. Every route together now has
+    `LOOKUP_S`; each attempt is given what is left, and the next is not started once it
+    is gone."""
+    clock = Clock()
+    monkeypatch.setattr(youtube, "_clock", clock)
+    given: list[float] = []
+
+    def run(args, **kwargs):
+        given.append(kwargs["timeout"])
+        clock.now += 8  # a flagged exit, refused after eight seconds
+        raise subprocess.CalledProcessError(1, args, stderr=BOT_CHECK)
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setenv(youtube.YTDLP_PROXY_ENV, "http://first:1")
+    with pytest.raises(TargumError) as raised:
+        youtube.describe("https://youtu.be/abc123defgh")
+    assert given == [20.0, 12.0, 4.0], "three attempts fit, the fourth is never started"
+    assert raised.value.message == "YouTube is slow right now. Try again in a minute."
+    assert raised.value.key == "video.slow" and raised.value.fill == {"host": "YouTube"}
+
+
+def test_an_attempt_cut_off_by_the_budget_is_slow_not_late(monkeypatch) -> None:
+    clock = Clock()
+    monkeypatch.setattr(youtube, "_clock", clock)
+
+    def run(args, **kwargs):
+        clock.now += kwargs["timeout"]
+        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    with pytest.raises(TargumError, match="YouTube is slow right now"):
+        youtube.describe("https://youtu.be/abc123defgh")
+
+
+def test_the_build_keeps_its_own_two_hours(monkeypatch, tmp_path: Path) -> None:
+    given: list[float] = []
+
+    def run(args, **kwargs):
+        given.append(kwargs["timeout"])
+        (tmp_path / "source.mp4").write_bytes(b"film")
+        return subprocess.CompletedProcess(args, 0, b"", b"")
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    youtube.fetch("https://youtu.be/abc123defgh", tmp_path)
+    assert given == [7200]
+
+
+def test_a_slow_youtube_reaches_a_host_and_a_russian_reader_plainly(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from targum.serve import Job, Library
+
+    clock = Clock()
+    monkeypatch.setattr(youtube, "_clock", clock)
+
+    def run(args, **kwargs):
+        clock.now += kwargs["timeout"]
+        raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    ctx = SimpleNamespace(store=None)
+    got = tools.describe_source(ctx, {"url": "https://youtu.be/abc123defgh"})
+    assert got == {"kind": "video", "error": "YouTube is slow right now. Try again in a minute."}
+
+    remembered.DESCRIBED.clear()
+    job = Job(id="a", source="https://youtu.be/abc123defgh", home=tmp_path, ui="ru")
+    Library(tmp_path).prepare(job)
+    assert job.stage == "failed"
+    assert job.error == "YouTube сейчас отвечает медленно. Попробуйте через минуту."

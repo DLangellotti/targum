@@ -23,6 +23,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -416,6 +417,8 @@ def run_ytdlp(
     carry: bool = True,
     late: str = "yt-dlp did not answer in time, so it was stopped.",
     routes: list[list[str]] | None = None,
+    deadline: float | None = None,
+    host: str = "YouTube",
 ) -> subprocess.CompletedProcess[bytes]:
     """The binary, run once the caller's allowlist has passed the address at the end.
 
@@ -424,6 +427,10 @@ def run_ytdlp(
     (`TRANSIENT`, or the door's own `again`). Unnamed, it is this box's egress once, or
     twice where the door named something worth a second exit: the proxy hands out a
     fresh address per connection, so a second process is a second exit.
+
+    `deadline` is a time on `_clock` that every route together must finish by: each
+    attempt is given what is left of it or `timeout`, whichever is less, and a lookup
+    that runs out is told `host` is slow (`_slow`) rather than waiting out the rest.
     """
     usable, hint = ytdlp_available()
     if not usable:
@@ -435,11 +442,21 @@ def run_ytdlp(
         # Ahead of the address, which the caller read off the end and which yt-dlp wants
         # last of all.
         asked = [*argv[:-1], *route, argv[-1]]
+        allowed: float = timeout
+        if deadline is not None:
+            left = deadline - _clock()
+            if left <= 0:
+                log.warning("yt-dlp ran out of its budget on %s before route %d", argv[-1], attempt)
+                raise _slow(host)
+            allowed = min(float(timeout), left)
         try:
-            return subprocess.run(asked, capture_output=True, check=True, timeout=timeout)
+            return subprocess.run(asked, capture_output=True, check=True, timeout=allowed)
         except OSError as error:
             raise OffHere("yt-dlp is not installed.", hint) from error
         except subprocess.TimeoutExpired as error:
+            if allowed < timeout:
+                log.warning("yt-dlp ran out of its budget on %s on route %d", argv[-1], attempt)
+                raise _slow(host) from error
             raise TargumError(late) from error
         except subprocess.CalledProcessError as error:
             said = (error.stderr or b"").decode("utf-8", "replace")
@@ -511,7 +528,31 @@ def _slimmed(routes: list[list[str]]) -> list[list[str]]:
     return slimmed
 
 
-def describe(url: str) -> dict[str, Any]:
+#: The longest a lookup may take, every route together, in seconds (2026-10-06).
+#:
+#: A lookup is somebody waiting: a host's `describe_source` with a reader watching the
+#: conversation, or a quote, which a host's `quote_build` and the /add page both make
+#: inside the request. Each attempt was allowed 120 s and there are up to five routes,
+#: so a bad hour on the proxy held a reader for minutes with nothing said. Twenty
+#: seconds covers a first route that answers and a second after a flagged exit, which is
+#: what the box sees on a normal day; past it the reader is told YouTube is slow and to
+#: try again in a minute (`SLOW`), which is true and something they can do.
+#:
+#: The lookup's alone. A build's own fetch keeps its two hours.
+LOOKUP_S = 20.0
+
+#: The clock a budget is measured on, here so a test can stand in for it.
+_clock = time.monotonic
+
+
+def _slow(host: str) -> TargumError:
+    """What a reader is told when a lookup ran out of time."""
+    return TargumError(
+        f"{host} is slow right now. Try again in a minute.", key="video.slow", host=host
+    )
+
+
+def describe(url: str, *, within: float | None = LOOKUP_S) -> dict[str, Any]:
     """What yt-dlp knows about the video without fetching it: `yt-dlp -J`.
 
     Duration, a language tag per format, which subtitle tracks somebody wrote and
@@ -521,21 +562,25 @@ def describe(url: str) -> dict[str, Any]:
 
     Remembered by the video's id (`remembered.DESCRIBED`), so the quote that follows a
     host's `describe_source` on the same link answers without asking YouTube again.
+    Given `within` seconds for every route together (`LOOKUP_S`); `None` is no budget
+    beyond each attempt's own cap.
     """
     if not is_youtube(url):
         raise TargumError(
             "We couldn't find a YouTube video at that address.", key="video.no-youtube-video"
         )
-    return DESCRIBED.through(f"youtube:{video_id(url)}", lambda: _asked(url))
+    return DESCRIBED.through(f"youtube:{video_id(url)}", lambda: _asked(url, within))
 
 
-def _asked(url: str) -> dict[str, Any]:
-    """`describe`, asked of yt-dlp rather than remembered."""
+def _asked(url: str, within: float | None) -> dict[str, Any]:
+    """`describe`, asked rather than remembered."""
+    deadline = None if within is None else _clock() + within
     done = run_ytdlp(
         ["yt-dlp", "-J", "--no-playlist", "--skip-download", url],
         timeout=120,
         refused="YouTube wouldn't tell us about that video.",
         routes=_slimmed(_routes()),
+        deadline=deadline,
     )
     try:
         answer: dict[str, Any] = json.loads(done.stdout.decode("utf-8", "replace"))
