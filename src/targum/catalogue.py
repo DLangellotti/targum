@@ -405,6 +405,12 @@ class Collection:
         }
 
 
+#: The words a minute a learner reads at, which every "how long it takes" in the library
+#: is counted at. Named on 2026-10-06 so the text card counts a shelf text, which carries
+#: its words and not its minutes, at the same rate the library counts its own.
+READING_WORDS_PER_MINUTE = 130
+
+
 @dataclass(frozen=True)
 class Entry:
     id: str
@@ -459,7 +465,7 @@ class Entry:
     @property
     def minutes(self) -> int:
         """How long this takes to read, at the 130 words a minute a learner manages."""
-        return max(1, round(self.words / 130))
+        return max(1, round(self.words / READING_WORDS_PER_MINUTE))
 
     #: The model this text's English was bought with, where nobody had published one.
     #:

@@ -214,8 +214,9 @@ class Tool:
     #: (MCP's `idempotentHint`, which only means something for a tool that writes).
     idempotent: bool = False
     #: The `ui://` resource a host that draws MCP Apps shows beside this tool's result,
-    #: or nothing (design.md §12, "A card in someone else's chat", 2026-10-06). Only
-    #: `check_job` has one, and a third card needs an entry in §12 before it gets one.
+    #: or nothing (design.md §12, "A card in someone else's chat", 2026-10-06).
+    #: `check_job` has the build card; `find_text` and `open_library_text` the text
+    #: card. A third card needs an entry in §12 before it gets one.
     #: The text result does not change for it: a host that draws no card reads exactly
     #: what it read before.
     card: str = ""
@@ -2435,6 +2436,11 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 #: the server hands over whole, and nothing is ever fetched from it.
 BUILD_CARD = "ui://targum/build-card.html"
 
+#: The text card's (2026-10-06): each text `find_text` or `open_library_text` answers
+#: with, its title, length, how much of it the reader knows and its door, and a play
+#: button where it already has a recording. The second and last card §12 allows.
+TEXT_CARD = "ui://targum/text-card.html"
+
 #: The longest `check_job` holds a request open, in seconds. Under the half minute a
 #: host's own request usually gives up at, and one held request is one thread of the
 #: threaded server asleep, never a lock: everybody else is answered while it waits.
@@ -2994,6 +3000,7 @@ REGISTRY: tuple[Tool, ...] = (
         _schema({"id": {"type": "string"}}, ("id",)),
         open_library_text,
         title="Look at a library text",
+        card=TEXT_CARD,
     ),
     Tool(
         "search_my_shelf",
@@ -3121,6 +3128,7 @@ REGISTRY: tuple[Tool, ...] = (
         find_text,
         elsewhere=True,
         title="Find something to read",
+        card=TEXT_CARD,
     ),
     Tool(
         "quote_build",

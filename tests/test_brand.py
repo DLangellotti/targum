@@ -366,6 +366,8 @@ THUMBED = (
     ".cmp-add",
     # The build card's door, in somebody else's chat (design.md §12, 2026-10-06).
     ".card-door",
+    # And the text card's Listen, beside its door (2026-10-06).
+    ".card-play",
 )
 
 

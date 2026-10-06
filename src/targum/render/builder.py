@@ -1953,6 +1953,48 @@ def build_card(language: str = "en") -> str:
     )
 
 
+def build_text_card(language: str = "en") -> str:
+    """The text card a host draws beside `find_text` and `open_library_text` (design.md
+    §12, "A card in someone else's chat", 2026-10-06).
+
+    Built as the build card is, and on the same bridge (`card-bridge.js`). What it says
+    about each text — title, length, how much of it the reader knows — is drawn from the
+    tool's own rows; its doors and any recording arrive beside them in the result's
+    `_meta` (`mcp_http.text_card_meta`). The known share is said the way the app says it
+    (`level.words_in_ten`), from the same catalogue keys, every tenth rendered here in the
+    reader's language and plural so the script only picks one.
+    """
+    from ..catalogue import READING_WORDS_PER_MINUTE
+
+    t = page_words(language)
+    tn = page_counts(language)
+    tenths = [
+        str(t("bring.known.none", "You know almost none of the words here yet.")),
+        *(
+            str(
+                tn(
+                    "bring.known.tenths",
+                    n,
+                    "You know about {n} word in 10 here.",
+                    "You know about {n} words in 10 here.",
+                )
+            )
+            for n in range(1, 10)
+        ),
+        str(t("bring.known.all", "You know nearly every word here.")),
+    ]
+    return (
+        _environment()
+        .get_template("card-text.html.j2")
+        .render(
+            t=t,
+            page_language=_page_language(language),
+            tenths=json.dumps(tenths, ensure_ascii=False),
+            pace=READING_WORDS_PER_MINUTE,
+        )
+    )
+
+
 def not_found_page() -> str:
     """An address that is not a page: said plainly, with the way back, in the same
     quiet frame a stranger already meets."""

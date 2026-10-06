@@ -452,6 +452,30 @@ done or has stopped, and gives up after an hour or three failed asks, saying so.
 host draws several cards for one build, the newest follows and the others show what it
 hears.
 
+**The text card** (built 2026-10-06) is drawn beside `find_text` and `open_library_text`,
+one card a text and a short stack of them for a list, as many as the tool returned. Each
+says its title in the reading face, the English title where there is one, its length in
+minutes (a shelf text's words at the library's 130 a minute), how much of it the reader
+knows in the app's own sentence ("You know about 7 words in 10 here", from the same
+catalogue keys), and one door: Open, to the short link, or Open in the library for a
+library text not yet on the shelf, which goes to our library page where it is got ready.
+It asks for no tool at all. Both cards speak to their host through one shared bridge.
+
+Its play button is Listen, in outline beside the filled door, and is there only when the
+text already has a recording on the disk: the manifest beside an import or a voice the
+reader paid for on Hear, a scene's own voicing, or the recording attached to the text's
+source (Be'eri, PocketTorah, LibriVox), credited as "Read by" where the licence names a
+reader. **The card cannot use the reader's session.** It plays from a host's frame on
+another origin, and the cookie is `SameSite=Lax` and third-party there. So the tool
+result carries, beside the rows and never in what the model reads, an address of the
+form `/heard?t=<token>`. The token is a random key the server keeps against that one file
+for twenty minutes, in memory. It names no path, opens nothing else, and is forgotten on a
+restart. Past its time the button goes. The card's frame names targum.page in
+`resourceDomains`, the extension's field that reaches `media-src`, and nothing else.
+While a token lives, anyone holding the address can play that one recording without
+signing in. That is the price of a card that plays, and twenty minutes is how it is kept
+small.
+
 ### The connector is handed a sample of the known words — 2026-10-06
 
 `how_to_talk` handed a host the reader's whole known list, 1,483 words on David's
