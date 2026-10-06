@@ -1578,3 +1578,29 @@ def test_shorten_rewrites_reader_links_for_a_host_and_nothing_else() -> None:
     # targum's own chat has no address and draws the long path as a door on its page.
     relative = json.dumps({"reader": tools.reader_url(name)})
     assert tools.shorten(relative, "") == relative
+
+
+def test_my_shelf_answers_ten_and_counts_them_all(world, monkeypatch) -> None:
+    """2026-10-06: the connector was handed all 397 texts of a shelf, 177,358 characters,
+    each measured first. Now a page of them, measured once cut, and `count` still says how
+    many matched so a host knows to ask for more."""
+    library, store, person, home = world
+    for n in range(12):
+        built(home, f"extra-{n:02d}", f"test:extra-{n}", ["שלום"], f"Extra {n}")
+    ctx = context(library, store, person, home)
+    measured: list[str] = []
+    real = tools.coverage_module.against
+
+    def counting(folder, marked):  # type: ignore[no-untyped-def]
+        measured.append(folder.name)
+        return real(folder, marked)
+
+    monkeypatch.setattr(tools.coverage_module, "against", counting)
+    got = tools.search_my_shelf(ctx, {})
+    assert got["count"] == 14 and len(got["texts"]) == tools.SHELF_LIMIT
+    assert sorted(measured) == sorted(row["name"] for row in got["texts"]), "only those kept"
+    assert all(row["known_share"] is not None for row in got["texts"])
+    assert len(tools.search_my_shelf(ctx, {"limit": 3})["texts"]) == 3
+    assert len(tools.search_my_shelf(ctx, {"limit": 500})["texts"]) == 14
+    one = tools.search_my_shelf(ctx, {"query": "רות", "limit": 1})
+    assert one["count"] == 1 and one["texts"][0]["known_share"] == pytest.approx(0.5)

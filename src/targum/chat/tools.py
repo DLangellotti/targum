@@ -321,16 +321,22 @@ def _sourced(home: Path, rows: list[dict[str, Any]]) -> None:
             row["source"] = ""
 
 
-def _shelf(ctx: Ctx) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """The reader's own texts and the shared starter shelf, each with a reader link."""
+def _shelf(ctx: Ctx, measured: bool = True) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The reader's own texts and the shared starter shelf, each with a reader link.
+
+    `measured=False` leaves out each row's source and how much of it the reader knows,
+    which are a file read and a coverage count per text: for a caller that cuts the
+    list down first and measures only what it keeps (`search_my_shelf`).
+    """
     mine = ctx.library.readers(ctx.home)
-    _sourced(ctx.home, mine)
-    _measure(ctx, ctx.home, mine)
     shared = ctx.library.readers(ctx.library.shared)
-    _sourced(ctx.library.shared, shared)
     for row in shared:
         row["shared"] = True
-    _measure(ctx, ctx.library.shared, shared)
+    if measured:
+        _sourced(ctx.home, mine)
+        _measure(ctx, ctx.home, mine)
+        _sourced(ctx.library.shared, shared)
+        _measure(ctx, ctx.library.shared, shared)
     for row in [*mine, *shared]:
         row["reader"] = reader_url(str(row["name"]), ctx.press_at)
     return mine, shared
@@ -555,6 +561,12 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"lemma": lemma, "count": len(found), "sentences": found}
 
 
+#: How many texts `search_my_shelf` answers with unless asked for more, and the most it
+#: will. Ten is a reply's worth: a host offers two or three of them.
+SHELF_LIMIT = 10
+SHELF_MOST = 50
+
+
 def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "").lower()
     # A language named holds both halves to it. None named: the reader's own texts are
@@ -563,7 +575,12 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     named = str(args.get("language") or "").strip()
     language = _language_asked(ctx, args) if named else ""
     starter = _language_asked(ctx, args)
-    mine, shared = _shelf(ctx)
+    limit = max(1, min(int(args.get("limit") or SHELF_LIMIT), SHELF_MOST))
+    # Unmeasured, then measured once cut (2026-10-06). The connector was handed all 397
+    # texts of David's shelf in one answer, 177,358 characters, and every one was counted
+    # against his words first. Nothing below picks or orders by what is measured, so the
+    # rows that come back say exactly what they said before.
+    mine, shared = _shelf(ctx, measured=False)
     # When each text was last opened and finished, from the reader's own sync. The
     # model answered "what was the last targum I read?" with "the list does not keep
     # times" (2026-09-08) — the store always had, and the tool left them out. Newest
@@ -589,7 +606,13 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         text = " ".join(str(row.get(k) or "") for k in ("title", "author", "name")).lower()
         if query and not all(word in text for word in query.split()):
             continue
-        rows.append(
+        rows.append(row)
+    kept = rows[:limit]
+    _measure(ctx, ctx.home, [row for row in kept if not row.get("shared")])
+    _measure(ctx, ctx.library.shared, [row for row in kept if row.get("shared")])
+    texts = []
+    for row in kept:
+        texts.append(
             {
                 "name": row["name"],
                 "title": row["title"],
@@ -606,7 +629,9 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 **_read_when(times.get(str(row.get("document") or "")), now),
             }
         )
-    return {"count": len(rows), "now": _when(now), "texts": rows}
+    # `count` is every text that matched, so a host shown ten knows there are more and
+    # can ask again with a query or a higher limit.
+    return {"count": len(rows), "now": _when(now), "texts": texts}
 
 
 def _read_when(clocks: dict[str, int] | None, now: int) -> dict[str, Any]:
@@ -2292,8 +2317,19 @@ REGISTRY: tuple[Tool, ...] = (
         "The reader's own texts and the shared starter shelf, newest opened first, each "
         "with its link, which languages it opens in, chapters ready, how much of it they "
         "know, when they last opened it and when they finished it. The starter shelf is "
-        "held to the language the reader is learning here unless you name one. Read only.",
-        _schema({"query": {"type": "string"}, "language": _LANGUAGE_FILTER}),
+        "held to the language the reader is learning here unless you name one. Ten texts "
+        "unless you ask for more with limit; count says how many matched, so narrow with "
+        "query (words of the title or author) to find one. Read only.",
+        _schema(
+            {
+                "query": {
+                    "type": "string",
+                    "description": "Words to match in the title, author or name.",
+                },
+                "language": _LANGUAGE_FILTER,
+                "limit": {"type": "integer", "minimum": 1, "maximum": SHELF_MOST},
+            }
+        ),
         search_my_shelf,
         scope="record",
         title="Search my texts",
