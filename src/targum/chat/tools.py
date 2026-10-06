@@ -2300,50 +2300,130 @@ def _seconds_left(job: Any) -> int | None:
     return int(round((job.total - job.done) * elapsed / job.done))
 
 
-def _in_words(seconds: int) -> str:
+def _counted(language: str, key: str, count: int, one: str, other: str, **fill: object) -> str:
+    """One counted line in `language`, in the form `count` takes there, filled.
+
+    The English is written here as well as in `en.json`, the way `said_in` takes it, so a
+    language that has not said a key yet says it in English.
+    """
+    from ..strings import SOURCE, counted, plural_form
+
+    code = (language or SOURCE).split("-")[0].lower()
+    if code == SOURCE:
+        said = one if plural_form(count) == "one" else other
+    else:
+        said = counted(key, count, code, {"one": one, "other": other})
+    return said.format(n=count, **fill)
+
+
+def _in_words(seconds: int, language: str = "en") -> str:
+    from ..serve import said_in
+
     if seconds < 60:
-        return "less than a minute left"
+        return said_in(language, "job.said.left.under-a-minute", "less than a minute left")
     if seconds < 90:
-        return "about a minute left"
+        return said_in(language, "job.said.left.a-minute", "about a minute left")
     if seconds < 90 * 60:
-        return f"about {round(seconds / 60)} minutes left"
-    return f"about {round(seconds / 3600)} hours left"
+        return _counted(
+            language,
+            "job.said.left.minutes",
+            round(seconds / 60),
+            "about {n} minute left",
+            "about {n} minutes left",
+        )
+    return _counted(
+        language,
+        "job.said.left.hours",
+        round(seconds / 3600),
+        "about {n} hour left",
+        "about {n} hours left",
+    )
 
 
-def _said(job: Any, left: int | None, behind: int) -> str:
+def _said(job: Any, left: int | None, behind: int, language: str = "en") -> str:
     """Where a job has got to, as one line a host can say to the reader as it is.
 
-    English, like `because` on a suggestion: the host reads it and the host decides
-    what language to say it in. Facts only — a count, and a time where one was counted.
+    In the language the reader reads targum in, chosen as the card beside it chooses its
+    labels (`strings.drawn_in`), so a Russian card does not carry an English line
+    (2026-10-06). It was English, on the reasoning that a host decides what language to
+    say it in; but the card shows it as it is, and a host told "pass this on" passes it
+    on. Facts only — a count, and a time where one was counted. What a build or a rail
+    wrote itself, `job.error` and `job.blocked`, is said in whatever it was written in.
     """
+    from ..serve import said_in
+
     if job.stage == "done":
         if job.chapters > 1:
-            return "The first chapter is ready to read. The rest are made as you read on."
-        return "It's ready to read."
+            return said_in(
+                language,
+                "job.said.first-chapter-ready",
+                "The first chapter is ready to read. The rest are made as you read on.",
+            )
+        return said_in(language, "job.said.ready", "It's ready to read.")
     if job.stage == "failed":
-        what = job.error or "Something went wrong on our side. Try again later."
-        spent = " Nothing was used." if job.spent <= 0 else ""
-        return f"We couldn't get it ready. {what}{spent}"
+        what = job.error or said_in(
+            language, "job.said.went-wrong", "Something went wrong on our side. Try again later."
+        )
+        said = said_in(language, "job.said.failed", "We couldn't get it ready. {why}", why=what)
+        if job.spent <= 0:
+            said += " " + said_in(language, "job.said.nothing-used", "Nothing was used.")
+        return said
     if job.stage == "blocked":
-        return job.blocked or "We can't make this one right now."
+        return job.blocked or said_in(
+            language, "job.said.blocked", "We can't make this one right now."
+        )
     if job.stage in ("reading", "looking up words"):
-        return "We're still reading it through. It hasn't started."
+        return said_in(
+            language, "job.said.reading", "We're still reading it through. It hasn't started."
+        )
     if job.stage == "ready":
-        return "It hasn't started. It starts once you confirm it."
+        return said_in(
+            language, "job.said.not-confirmed", "It hasn't started. It starts once you confirm it."
+        )
     if job.stage == "queued":
         if behind > 0:
-            texts = "text" if behind == 1 else "texts"
-            return f"It's waiting to start, behind {behind} other {texts}."
-        return "It's about to start."
+            return _counted(
+                language,
+                "job.said.behind",
+                behind,
+                "It's waiting to start, behind {n} other text.",
+                "It's waiting to start, behind {n} other texts.",
+            )
+        return said_in(language, "job.said.about-to-start", "It's about to start.")
     if job.total <= 0:
-        return "We're working on it."
-    unit = "pictures" if job.options.get("cover") else "sentences"
-    line = f"{min(job.done, job.total)} of {job.total} {unit} ready"
+        return said_in(language, "job.said.working", "We're working on it.")
+    done = min(job.done, job.total)
+    if job.options.get("cover"):
+        line = _counted(
+            language,
+            "job.said.pictures",
+            job.total,
+            "{done} of {n} picture ready",
+            "{done} of {n} pictures ready",
+            done=done,
+        )
+    else:
+        line = _counted(
+            language,
+            "job.said.sentences",
+            job.total,
+            "{done} of {n} sentence ready",
+            "{done} of {n} sentences ready",
+            done=done,
+        )
     if job.chapters > 1:
-        line = f"The first chapter: {line}"
+        line = said_in(
+            language, "job.said.in-first-chapter", "The first chapter: {line}", line=line
+        )
     if left is not None:
-        line += f", {_in_words(left)}"
-    return line + "."
+        return said_in(
+            language,
+            "job.said.progress-left",
+            "{line}, {left}.",
+            line=line,
+            left=_in_words(left, language),
+        )
+    return said_in(language, "job.said.progress", "{line}.", line=line)
 
 
 def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -2388,7 +2468,11 @@ def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         state["seconds_left"] = left
     if job.stage == "working" and job.total > 0:
         state["unit"] = "pictures" if job.options.get("cover") else "sentences"
-    state["said"] = _said(job, left, behind)
+    # The card's own rule for its labels, so the line under them is in the same
+    # language (`mcp_http._language`); `said_reads` is what the reader said they read.
+    from ..strings import drawn_in
+
+    state["said"] = _said(job, left, behind, drawn_in(ctx.said_reads))
     return state
 
 

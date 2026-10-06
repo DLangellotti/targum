@@ -7,6 +7,7 @@ the server built, and nothing a model passes as an argument can name somebody el
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -341,6 +342,43 @@ def test_check_job_hands_over_the_link_when_done_and_a_sentence_when_failed(worl
     )
     assert "open" not in got
     assert "Try again later" in tools.check_job(ctx, {"id": "j-quiet"})["said"]
+
+
+def test_check_job_says_it_in_the_language_the_card_is_drawn_in(world) -> None:
+    """2026-10-06: a Russian card had Russian labels over an English line. `said` now
+    takes the card's own rule (`strings.drawn_in`), with Russian's three counted forms,
+    and a reader who reads only English is told exactly what they were told before."""
+    import time
+
+    library, store, person, home = world
+    ctx = replace(context(library, store, person, home), said_reads={"en", "ru"})
+
+    def said(job: Job) -> str:
+        library.jobs[job.id] = job
+        return str(tools.check_job(ctx, {"id": job.id})["said"])
+
+    running = Job(id="j-ru", source="x", owner=person.id, stage="working", done=30, total=80)
+    running.started = int(time.time() * 1000) - 60_000
+    assert said(running) == "Готово: 30 из 80 предложений, осталось около 2 минут."
+    one = Job(id="j-ru-21", source="x", owner=person.id, stage="working", done=3, total=21)
+    one.chapters = 4
+    assert said(one) == "Первая глава. Готово: 3 из 21 предложения."
+    assert said(Job(id="j-ru-done", source="x", owner=person.id, stage="done")) == ("Можно читать.")
+    failed = said(Job(id="j-ru-failed", source="x", owner=person.id, stage="failed"))
+    assert failed.startswith("Не получилось") and failed.endswith("Кредиты не списаны.")
+    for count, form in ((1, "текст."), (3, "текста."), (5, "текстов."), (11, "текстов.")):
+        assert tools._counted(
+            "ru", "job.said.behind", count, "{n} other text.", "{n} other texts."
+        ).endswith(f"{count} {form}")
+    assert tools._in_words(30 * 60, "ru") == "осталось около 30 минут"
+    assert tools._in_words(21 * 60, "ru") == "осталось около 21 минуты"
+
+    english = replace(ctx, said_reads={"en"})
+    assert tools.check_job(english, {"id": "j-ru"})["said"] == (
+        "30 of 80 sentences ready, about 2 minutes left."
+    )
+    for job in (running, one):
+        assert "!" not in said(job)
 
 
 def away(library: Library, store: Store, person: Person, home: Path) -> tools.Ctx:
