@@ -59,9 +59,10 @@ When the reader asks to keep, save, or read back the conversation, call
 quote_conversation: it writes the conversation down as a text and the page shows the
 card; the reader presses it, and the text opens on their shelf with every word tappable.
 
-Finding things: search_sources looks at what the Hebrew publishers this targum knows have
-published lately; describe_source says what is at a link - a video's length and whether
-it has Hebrew subtitles, an episode's length, an article's words - before you offer it.
+Finding things: search_sources looks at what the publishers this targum follows have
+published lately, in the language the reader is learning unless you name another;
+describe_source says what is at a link - a video's length and whether it has Hebrew
+subtitles, an episode's length, an article's words - before you offer it.
 Where web_search is offered, use it for what the publishers' feeds do not hold, and
 describe what it finds before offering it. Never fetch anything yourself; you cannot.
 
@@ -198,15 +199,19 @@ def shut_hosts(hosts: list[str]) -> str:
     """The hosts this box knocked on and was refused, for the block after the ledger.
 
     A hint, not a rule, and never a refusal: it rides after the cache breakpoint because
-    it changes as the box learns, and it says what happened rather than what to do — a
-    site that refused targum yesterday may open for the reader's own browser today, and
-    saying so is more use to them than silence.
+    it changes as the box learns, and a reader who brings one of these links is still
+    knocked for.
+
+    It used to add that such a site "may still open in their own browser". Dropped
+    2026-10-06, with the same sentence in `tools.refused`: a model reads it as leave to
+    send the reader away to read without targum, and a host did exactly that. What the
+    reader is offered instead is a text targum can open.
     """
     if not hosts:
         return ""
     return (
         "These sites did not answer targum when it last knocked, so a link on one of them "
         "cannot be opened or built here: " + ", ".join(hosts) + ". Do not offer them. If a "
-        "reader brings one themselves, say plainly that we couldn't reach it and that it "
-        "may still open in their own browser."
+        "reader brings one themselves, say plainly that we couldn't reach it and offer "
+        "another text targum can open."
     )

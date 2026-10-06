@@ -308,10 +308,29 @@ class DictaLemmatizer:
                 ) from missing
 
             pinned = REVISION if self.model_id == MODEL else None
-            self._tokenizer = AutoTokenizer.from_pretrained(self.model_id, revision=pinned)
-            model = AutoModel.from_pretrained(
-                self.model_id, trust_remote_code=True, revision=pinned
-            )
+
+            def load(local: bool) -> tuple[Any, Any]:
+                tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_id, revision=pinned, local_files_only=local
+                )
+                weights = AutoModel.from_pretrained(
+                    self.model_id, trust_remote_code=True, revision=pinned, local_files_only=local
+                )
+                return tokenizer, weights
+
+            # From the disk first, and from the hub only if the disk has not got it
+            # (2026-10-06). Asked plainly, the loader asks the hub about the model before
+            # it reads a byte of the copy it already holds — on the box that was a `GET
+            # huggingface.co/api/models/dicta-il/dictabert-joint` at every service start,
+            # a start that waited on Hugging Face answering and, with the hub down, a
+            # start that could not read Hebrew at all. The revision is pinned to a commit,
+            # so the copy on disk is exactly what the hub would hand over. A box that has
+            # never had the weights still gets them: the first load finds nothing local
+            # and goes to the hub, as it always did.
+            try:
+                self._tokenizer, model = load(local=True)
+            except Exception:  # noqa: BLE001 — the loader raises whatever it likes
+                self._tokenizer, model = load(local=False)
             model.eval()
             torch.set_grad_enabled(False)
             self._model = model

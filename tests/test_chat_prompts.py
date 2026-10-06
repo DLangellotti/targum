@@ -44,6 +44,10 @@ def test_the_prompt_keeps_price_language_out_of_the_product() -> None:
     assert "never in money" in said
     assert "price a" not in said and "You can price" not in said
     assert "we couldn't reach it" in prompts.shut_hosts(["example.org"])
+    # Never the way out (2026-10-06): a host read "it may open in their own browser" as
+    # leave to send the reader off to read without targum.
+    assert "browser" not in prompts.shut_hosts(["example.org"])
+    assert "another text targum can open" in prompts.shut_hosts(["example.org"])
 
 
 def test_a_reply_is_capped_in_numbers_not_adjectives() -> None:

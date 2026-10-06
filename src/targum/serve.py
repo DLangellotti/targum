@@ -2717,7 +2717,10 @@ class Library:
             # Priced for what the build will buy, which for a book is one chapter. The
             # cap then applies to a chapter, not to a novel — which is the difference
             # between "no books at all" and "no chapter over two dollars".
-            plan = builder.plan(chapters=FIRST_CHAPTERS)
+            #
+            # `soon`: the translation is counted on a thread while the words are looked
+            # up below, rather than one after the other (2026-10-06).
+            plan = builder.plan(chapters=FIRST_CHAPTERS, soon=True)
             job.title = plan.document.title or job.source
             job.language = plan.document.language
             if not job.options.get("from") and not self._reads_language(job.language):
@@ -2738,6 +2741,26 @@ class Library:
             job.segments = len(plan.segmented.segments) if plan.segmented else 0
             job.known_share = self._known_share(job, plan.document)
             job.chapters = plan.chapters
+            usable, _ = builder.provider.available()
+            # The words are looked up while the translation is still being counted, where
+            # the price at the local rate already clears the cap (2026-10-06): on the box
+            # the count is a round trip to Anthropic, and the lookup is a model on this
+            # machine. Only ever early, never instead: the count still decides whether
+            # the cap is cleared, and a lookup it turns out not to need is thrown away.
+            early: tuple[float, int] | None = None
+            if (
+                plan.counting is not None
+                and usable
+                and builder.gloss
+                and plan.segmented is not None
+                and not self.why_blocked(plan.estimated_cost + plan.floor, job.ui)
+            ):
+                job.stage = "looking up words"
+                try:
+                    early = self._gloss_cost(builder, plan.segmented, plan.buying_segments)
+                except Exception:  # noqa: BLE001 - asked again below, in order, if needed
+                    early = None
+            plan.settle()
             job.estimate = plan.estimated_cost
             if plan.audio is not None:
                 job.audio = True
@@ -2746,7 +2769,6 @@ class Library:
                 job.transcription = plan.audio.transcription
             # The progress bar counts what is being translated now, not the whole book.
             job.total = plan.buying or job.segments
-            usable, _ = builder.provider.available()
             if builder.machine and plan.carried is None and not usable:
                 # Checked here, not at the first API call. The estimate falls back to a
                 # character count when there is no key, so without this the page quotes
@@ -2765,7 +2787,11 @@ class Library:
                 # which means lemmatizing first. Only worth the wait once the
                 # translation itself has cleared the cap.
                 job.stage = "looking up words"
-                cost, job.lemmas = self._gloss_cost(builder, plan.segmented, plan.buying_segments)
+                cost, job.lemmas = (
+                    early
+                    if early is not None
+                    else self._gloss_cost(builder, plan.segmented, plan.buying_segments)
+                )
                 job.meanings = cost
                 job.estimate += cost
                 job.usually = self._how_long(job)

@@ -850,7 +850,8 @@ class Chats:
             ).fetchone()
             if int(known["n"]) > 0:
                 chips.append({"id": "know", "line": said("know")})
-        # Today's news from a publisher in this language: every feed is Hebrew for now.
+        # Today's news from a publisher in this language: Hebrew, and since 2026-10-06
+        # Russian too, which `search_sources` holds to the conversation's language.
         if any(
             one.feed and one.language.split("-")[0].lower() == spoken
             for one in sources_module.load()

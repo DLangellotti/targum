@@ -7,6 +7,7 @@ not content and not a moat, and it is where the encoding bugs live.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -137,3 +138,59 @@ def test_an_item_is_hashable_and_comparable() -> None:
     one = Item(title="a", link="b")
     assert one == Item(title="a", link="b")
     assert len({one, Item(title="a", link="b")}) == 1
+
+
+# -- the Russian publishers (2026-10-06) --------------------------------------------------
+#
+# Fabricated items in the shapes the nine Russian feeds were measured sending on
+# 2026-10-06: markup inside a CDATA description (Meduza, Novaya Gazeta Europe,
+# Teplitsa), `&nbsp;` there (OVD-Info), an empty description and namespaced full-text
+# fields (TASS, RBC), an ISO date where RFC 822 is expected, an item with no date (BBC),
+# and a legacy Cyrillic encoding declared in the prolog.
+
+FEEDS = Path(__file__).parent / "fixtures" / "feeds"
+
+
+def test_a_summary_written_as_markup_reads_as_words() -> None:
+    items = parse((FEEDS / "ru-html-summaries.xml").read_bytes())
+    assert [item.title for item in items] == [
+        "В парке открыли новую библиотеку",
+        "Врач рассказал о новой клинике «Здоровье»",
+        "Прямой эфир: день города",
+    ]
+    first, second, third = items
+    assert first.summary == (
+        "В городском парке открыли библиотеку под открытым небом. Книги можно брать без записи ."
+    )
+    assert second.summary == "Врач-невролог рассказал об открытии клиники на окраине города."
+    assert third.summary.startswith("Праздник продолжается весь день, программа")
+    for item in items:
+        assert "<" not in item.summary and "href" not in item.summary
+        assert "nbsp" not in item.summary and "\xa0" not in item.summary
+    assert first.published == datetime(2026, 10, 6, 18, 34, 6, tzinfo=UTC)
+    assert third.published is None, "no date is no date, and the item is kept"
+
+
+def test_an_agency_feed_with_empty_summaries_and_iso_dates_parses() -> None:
+    items = parse((FEEDS / "ru-agency.xml").read_bytes())
+    assert [item.link for item in items] == [
+        "https://agency.example/sport/1001",
+        "https://agency.example/rbcfreenews/1002",
+    ]
+    assert items[0].summary == ""
+    assert items[1].summary == "Вдоль набережной высадили двести молодых каштанов."
+    assert items[1].published == datetime(2026, 10, 6, 19, 10, 40, tzinfo=UTC)
+
+
+def test_a_cyrillic_feed_in_windows_1251_is_read_by_its_prolog() -> None:
+    raw = (FEEDS / "ru-windows-1251.xml").read_bytes()
+    assert "Мост".encode() not in raw, "the fixture really is in windows-1251"
+    (item,) = parse(raw)
+    assert item.title == "Мост через реку откроют весной"
+    assert item.summary == "Строители закончили опоры моста."
+    assert item.published == datetime(2026, 10, 6, 10, 0, tzinfo=UTC)
+
+
+def test_a_hebrew_summary_with_no_markup_is_untouched() -> None:
+    (first, _) = parse(RSS.encode())
+    assert first.summary == "הוועדה תגיש את מסקנותיה בתוך חצי שנה."

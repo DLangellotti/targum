@@ -329,9 +329,68 @@ def test_a_bot_check_is_said_as_one_to_the_model(tmp_path: Path) -> None:
         ctx, "site.example", Unreachable("no", status=403, host="site.example", challenge=True)
     )
     assert told is not None and told["host_shut"] and told["challenge"]
-    assert "bot check" in told["error"] and "own browser" in told["error"]
+    assert "bot check" in told["error"]
+    assert "browser" not in told["error"] and "search_sources" in told["advice"]
     row = store.db.execute("SELECT why, egress FROM reached WHERE host='site.example'").fetchone()
     assert (row["why"], row["egress"]) == ("bot check", "direct")
+
+
+def test_an_article_described_and_then_quoted_is_knocked_on_once(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """2026-10-06: `describe_source` read an article twice (once in `episode.find`, once
+    to count it) and the quote read it twice more, each knock after the first on the
+    host waiting out `POLITE_S` — 1.6 s a describe and most of a 4.1 s quote on the box.
+    The page is read once and the other three readers are handed it."""
+    article = (
+        "<html><head><title>על הים</title></head><body>"
+        + "".join(f"<p>{' '.join(['שלום', 'עולם', 'ים'] * 20)}</p>" for _ in range(4))
+        + "</body></html>"
+    ).encode()
+    headers = {"content-type": "text/html; charset=utf-8"}
+    doors = Doors([Answer(200, headers, article, "utf-8")])
+    monkeypatch.setattr(door, "_session", doors)
+    store = Store(tmp_path / "t.db")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+
+    described = tools.describe_source(ctx, {"url": "https://news.example/a#top"})
+    assert described["kind"] == "article" and described["words"] >= 200
+    document = door.UrlIngester().load("https://NEWS.example/a")
+    assert document.title == "על הים"
+    assert len(doors.direct.knocks) == 1, "one knock for the describe and the quote"
+
+
+def test_a_kept_page_lapses_and_a_refusal_is_never_kept(monkeypatch: Any) -> None:
+    """Ten minutes, so the build a reader presses reads the text they were quoted for and a
+    page asked about later is read fresh; a refusal is knocked on again every time, so a
+    door that opens is seen to open and `Store.reach` hears each refusal."""
+    now = [0.0]
+    pages = door.Pages(clock=lambda: now[0])
+    answered: list[str] = []
+
+    def fetch(url: str, params: Any = None) -> door.Fetched:
+        answered.append(url)
+        if "shut" in url:
+            raise Unreachable("no", status=403, host="shut.example")
+        return door.Fetched(f"<p>{len(answered)}</p>", "text/html", b"x")
+
+    monkeypatch.setattr(door, "fetch", fetch)
+    assert pages.get("https://a.example/1").text == "<p>1</p>"
+    now[0] = door.PAGE_KEEP_S - 1
+    assert pages.get("https://a.example/1").text == "<p>1</p>"
+    now[0] = door.PAGE_KEEP_S + 1
+    assert pages.get("https://a.example/1").text == "<p>2</p>", "read fresh once it lapses"
+    for _ in range(2):
+        with pytest.raises(Unreachable):
+            pages.get("https://shut.example/")
+    assert answered.count("https://shut.example/") == 2
+
+    small = door.Pages(most=2)
+    for n in range(3):
+        small.get(f"https://a.example/{n}")
+    assert len(small) == 2, "bounded, the least recently asked out first"
 
 
 def test_a_door_opened_through_the_proxy_is_remembered_as_such(tmp_path: Path) -> None:
@@ -342,7 +401,7 @@ def test_a_door_opened_through_the_proxy_is_remembered_as_such(tmp_path: Path) -
     told = tools.refused(
         ctx, "site.example", Unreachable("no", status=403, host="site.example", via="proxy")
     )
-    assert told is not None and "does not answer" in told["error"]
+    assert told is not None and "doesn't answer" in told["error"]
     row = store.db.execute("SELECT egress FROM reached WHERE host='site.example'").fetchone()
     assert row["egress"] == "proxy"
 
@@ -491,3 +550,132 @@ def test_a_bit_rate_on_the_stream_rather_than_the_format_is_still_a_bit_rate(
         lambda path: {"format": {"size": "1000"}, "streams": [{"bit_rate": "8000"}]},
     )
     assert probe.timed(b"front", 8_000) == 8.0
+
+
+# -- the proxy as the fallback for an article (2026-10-06) -------------------------------
+
+
+def test_a_qrator_refusal_is_a_bot_check_not_a_sign_in_wall(monkeypatch: Any) -> None:
+    """www.rbc.ru answers every article with a 401 from QRATOR and a page that loads a
+    script (measured 2026-10-06). Called a sign-in wall, the reader was told to sign in
+    to a site that has no account to sign in with."""
+    doors = Doors([Answer(401, {"server": "QRATOR"})])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(Unreachable) as caught:
+        door.fetch("https://www.rbc.example/a")
+    error = caught.value
+    assert error.challenge is True and error.key == "fetch.would-not-open"
+    assert "sign in" not in error.message and "bot check" in (error.hint or "")
+    assert door.shut(error)
+
+
+def test_the_proxy_is_only_asked_after_a_direct_knock_is_refused(monkeypatch: Any) -> None:
+    """Not a route: an article that opens directly never touches the metered exit, and
+    one that never answered, was reset or was refused is tried once through it."""
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    page = Answer(200, {"content-type": "text/html"}, b"<p>hi</p>")
+    doors = Doors(direct=[page])
+    monkeypatch.setattr(door, "_session", doors)
+    assert door.fetch("https://open.example/a").via == "direct"
+    assert doors.made == [""]
+
+    refusals: list[Any] = [ConnectionResetError("reset"), TimeoutError("timed out"), Answer(451)]
+    for refusal in refusals:
+        doors = Doors(
+            direct=[refusal], proxied=[Answer(200, {"content-type": "text/html"}, b"<p>ok</p>")]
+        )
+        monkeypatch.setattr(door, "_session", doors)
+        got = door.fetch("https://shut.example/a")
+        assert got.via == "proxy" and got.text == "<p>ok</p>"
+        assert doors.made == ["", "http://u:p@exit.example:823"]
+
+
+def test_a_page_fetched_through_the_proxy_is_logged_by_host_alone(
+    monkeypatch: Any, caplog: Any
+) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(200, {"content-type": "text/html"}, b"<p>hi</p>")],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with caplog.at_level("INFO", logger="targum.ingest.url"):
+        door.fetch("https://shut.example/secret/path?reader=7")
+    said = [record.getMessage() for record in caplog.records]
+    assert said == ["fetched shut.example through the proxy"]
+
+
+def test_the_size_cap_holds_through_the_proxy(monkeypatch: Any) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(200, {"content-type": "text/html"}, b"x" * (door.MAX_BYTES + 1))],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError, match="too big"):
+        door.fetch("https://shut.example/huge")
+
+
+def test_every_proxied_hop_is_still_checked_for_a_private_address(monkeypatch: Any) -> None:
+    """A redirect through the exit to the metadata endpoint is refused before it is
+    followed, as it is on the direct walk."""
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    checked: list[str] = []
+
+    def reachable(url: str) -> None:
+        checked.append(url)
+        if "169.254" in url:
+            raise TargumError("private", key="fetch.private-network")
+
+    monkeypatch.setattr(door, "_reachable", reachable)
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(302, {"location": "https://169.254.169.254/latest/meta-data/"})],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError) as caught:
+        door.fetch("https://shut.example/a")
+    assert caught.value.key == "fetch.private-network"
+    assert checked[-1].startswith("https://169.254.169.254/")
+    assert len(doors.proxied.knocks) == 1, "the private hop was never knocked on"
+
+
+def test_a_private_address_is_never_retried_through_the_proxy(monkeypatch: Any) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+
+    def reachable(url: str) -> None:
+        raise TargumError("private", key="fetch.private-network")
+
+    monkeypatch.setattr(door, "_reachable", reachable)
+    doors = Doors(direct=[], proxied=[])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError):
+        door.fetch("https://10.0.0.1/a")
+    assert doors.proxied.knocks == [] and doors.direct.knocks == []
+
+
+def test_an_article_that_opens_through_the_proxy_does_not_mark_its_host_shut(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    door.PAGES.clear()
+    article = (
+        "<html><head><title>Море</title></head><body>"
+        + "".join(f"<p>{' '.join(['море', 'город', 'день'] * 20)}</p>" for _ in range(4))
+        + "</body></html>"
+    ).encode()
+    headers = {"content-type": "text/html; charset=utf-8"}
+    # One knock each way: `episode.find` knocks first, and the article read after it is
+    # the page that knock kept (`url.page`).
+    doors = Doors(direct=[Answer(403)], proxied=[Answer(200, headers, article, "utf-8")])
+    monkeypatch.setattr(door, "_session", doors)
+    store = Store(tmp_path / "t.db")
+    store.reach("ru.example", False, "403")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+    described = tools.describe_source(ctx, {"url": "https://ru.example/a"})
+    assert described["kind"] == "article" and "host_shut" not in described
+    row = store.db.execute("SELECT open, egress FROM reached WHERE host='ru.example'").fetchone()
+    assert (row["open"], row["egress"]) == (1, "proxy")
+    assert store.closed() == []
