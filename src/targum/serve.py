@@ -4819,6 +4819,40 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         return job if job.owner == (person.id if person else None) else None
 
+    def _followed(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Builds as the bell shows them: each with the line `check_job` says about it.
+
+        The bell opens a build that is getting ready and follows it in place (David,
+        2026-10-06: "click on one that is getting ready and see the status live"), and
+        what it says there is the connector's own sentence — `said`, and `seconds_left`
+        only where a rate was counted — in the reader's language, so the page and a host
+        never tell the reader two different things. Added here rather than in
+        `Library.mine`, which `check_job` also reads, so the connector's answer is the
+        same as it was.
+        """
+        from .chat import tools as chat_tools
+
+        language = self._page_language()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            job = self.library.jobs.get(str(row.get("id") or ""))
+            if job is None:
+                out.append(row)
+                continue
+            row = dict(row)
+            if "behind" not in row and job.stage == "queued":
+                row["behind"] = next(
+                    (
+                        int(mine.get("behind") or 0)
+                        for mine in self.library.mine(job.owner)
+                        if mine["id"] == job.id
+                    ),
+                    0,
+                )
+            row.update(chat_tools.progress_of(job, int(row.get("behind") or 0), language))
+            out.append(row)
+        return out
+
     def _host_is_ours(self) -> bool:
         # A page on another origin resolving a name to this address should not be able
         # to drive the builder, whatever else it can prove.
@@ -6993,11 +7027,13 @@ class Handler(BaseHTTPRequestHandler):
             # of a build used to live only in the page that started it, so leaving that
             # page made the build look cancelled — it was not, but nothing could find it.
             person = self._person()
-            return self._json({"jobs": self.library.mine(person.id if person else None)})
+            return self._json(
+                {"jobs": self._followed(self.library.mine(person.id if person else None))}
+            )
         if route.startswith("/job/"):
             job = self._own_job(route[len("/job/") :])
             return self._json(
-                job.state()
+                self._followed([job.state()])[0]
                 if job
                 else {
                     "error": self._say(

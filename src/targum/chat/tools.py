@@ -2658,17 +2658,28 @@ def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             0,
         )
         state["behind"] = behind
-    left = _seconds_left(job) if job.stage == "working" else None
-    if left is not None:
-        state["seconds_left"] = left
     if job.stage == "working" and job.total > 0:
         state["unit"] = "pictures" if job.options.get("cover") else "sentences"
     # The card's own rule for its labels, so the line under them is in the same
     # language (`mcp_http._language`); `said_reads` is what the reader said they read.
     from ..strings import drawn_in
 
-    state["said"] = _said(job, left, behind, drawn_in(ctx.said_reads))
+    state.update(progress_of(job, behind, drawn_in(ctx.said_reads)))
     return state
+
+
+def progress_of(job: Any, behind: int, language: str = "en") -> dict[str, Any]:
+    """Where a job has got to, as `said` and, where it was counted, `seconds_left`.
+
+    One version of the line for both surfaces that say it: `check_job` for a host, and
+    the bell's `/jobs` and `/job/<id>` for the reader's own page, which opens a build
+    that is getting ready and follows it there (2026-10-06). Two copies would drift.
+    """
+    left = _seconds_left(job) if job.stage == "working" else None
+    out: dict[str, Any] = {"said": _said(job, left, behind, language)}
+    if left is not None:
+        out["seconds_left"] = left
+    return out
 
 
 REGISTERS = [register.value for register in catalogue_module.Register]

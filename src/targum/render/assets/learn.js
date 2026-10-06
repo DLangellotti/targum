@@ -2723,7 +2723,16 @@
       if (!fresh.length) return;
       fresh.forEach(function (one) {
         var line = one.name + ": " + (one.instalment.hebrew || one.instalment.title);
-        if (window.TargumNotices && window.TargumNotices.note) {
+        var notices = window.TargumNotices;
+        if (notices && notices.bdi) {
+          // Each name in the bell's own isolate (2026-10-06): unisolated, a Hebrew name
+          // broken over two lines of an English line reads as scrambled.
+          line = document.createDocumentFragment();
+          line.appendChild(notices.bdi(one.name));
+          line.appendChild(document.createTextNode(": "));
+          line.appendChild(notices.bdi(one.instalment.hebrew || one.instalment.title));
+        }
+        if (notices && notices.note) {
           window.TargumNotices.note("series:" + one.id + ":" + one.instalment.id, line, {
             href: keyed(one.page || follow.readerOf(one)),
             label: t("learn.open", "Open"),
