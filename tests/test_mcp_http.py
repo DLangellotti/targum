@@ -442,9 +442,11 @@ def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]
     )["result"]
     assert said["isError"] is False
     contract = json.loads(said["content"][0]["text"])["contract"]
-    assert hebrew.contract_for("he") in contract
+    # The contract as a host is handed it: the page's sentences said for a host
+    # (`hebrew.for_connector`, 2026-10-06), and nothing else changed.
+    assert hebrew.for_connector(hebrew.contract_for("he")) in contract
     assert "Their ledger" in contract
-    assert "folded" in contract, "the host is told why the translation waits to be asked"
+    assert "Its English only when the reader asks" in contract, "translation waits to be asked"
     assert "record_turn" in contract
 
 
@@ -471,7 +473,7 @@ def test_how_to_talk_talks_a_language_the_reader_never_chose(box: tuple[int, str
     got = json.loads(said["content"][0]["text"])
     assert "error" not in got, got
     assert got["language"] == "fr"
-    assert hebrew.contract_for("fr") in got["contract"]
+    assert hebrew.for_connector(hebrew.contract_for("fr")) in got["contract"]
 
 
 def test_how_to_talk_still_refuses_a_language_with_no_contract(box: tuple[int, str]) -> None:
@@ -503,7 +505,7 @@ def test_how_to_talk_without_record_is_the_contract_without_the_words(
     )["result"]
     assert said["isError"] is False
     contract = json.loads(said["content"][0]["text"])["contract"]
-    assert hebrew.contract_for("he") in contract
+    assert hebrew.for_connector(hebrew.contract_for("he")) in contract
     # Not the first-day branch, which would tell a host that a reader with thousands of
     # words has marked none, and to ask what they have read.
     assert "has marked no words known yet" not in contract
