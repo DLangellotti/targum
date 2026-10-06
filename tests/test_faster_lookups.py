@@ -608,3 +608,112 @@ def test_the_server_keeps_feeds_warm_only_when_told(monkeypatch) -> None:
     assert inspect.signature(serve.start).parameters["keep_feeds"].default is False
     assert "keep_feeds=hosted" in inspect.getsource(cli)
     assert tools.FEEDS._warm is None, "nothing at import starts it"
+
+
+# -- the quote counts and looks up words side by side ------------------------------------
+
+
+def _counted_by(monkeypatch, count) -> None:
+    """The counting endpoint, answered by `count(body)`; a key present, nothing reached."""
+    from targum.translate.anthropic_provider import AnthropicProvider
+
+    class Messages:
+        @staticmethod
+        def count_tokens(**kwargs: Any) -> Any:
+            return SimpleNamespace(input_tokens=count(str(kwargs["messages"][0]["content"])))
+
+    client = SimpleNamespace(messages=Messages())
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(AnthropicProvider, "client", lambda self: client)
+
+
+def _hebrew_text(tmp_path: Path) -> Path:
+    path = tmp_path / "text.txt"
+    path.write_text(
+        "\n\n".join(" ".join(["הילד", "הלך", "לבית", "הספר", "בבוקר."] * 4) for _ in range(6)),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_a_quote_looks_up_words_while_the_translation_is_counted(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """2026-10-06: the count is a round trip to Anthropic and the lookup is a model on this
+    machine, and the quote did one and then the other. The count here waits on the lookup,
+    which it would never see if they still ran in order — and the price settles on the
+    count, not on the local rate the head start was judged by."""
+    import threading
+
+    from targum.serve import Job, Library
+
+    looked_up = threading.Event()
+    seen: list[bool] = []
+
+    def count(body: str) -> int:
+        seen.append(looked_up.wait(5))
+        return 1000
+
+    def gloss_cost(builder: Any, segmented: Any, buying: Any) -> tuple[float, int]:
+        looked_up.set()
+        return 0.25, 40
+
+    _counted_by(monkeypatch, count)
+    monkeypatch.setattr(Library, "_gloss_cost", staticmethod(gloss_cost))
+    job = Job(id="q", source=str(_hebrew_text(tmp_path)), home=tmp_path)
+    job.options = {"gloss": True, "words": False, "from": "he"}
+    library = Library(tmp_path)
+    library.prepare(job)
+
+    assert job.error == "" and job.stage == "ready", job.error
+    assert seen == [True], "counted while the words were being looked up"
+    assert job.meanings == 0.25 and job.lemmas == 40
+    provider = library._builder(job).provider
+    calls = -(-job.total // provider.batch_size)
+    assert job.estimate == pytest.approx(provider.estimate_from_counts(1000, calls) + 0.25)
+
+
+def test_a_count_over_the_cap_still_blocks_a_head_start_the_local_rate_allowed(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Pointed Hebrew counts up to 45% over the local rate (32 library texts, 2026-10-06),
+    so the rate only ever decides whether to start early. Here it says the text is well
+    under the cap and the count says over: the card is blocked, and the meanings looked up
+    on the way are not added to a price nobody is shown."""
+    from targum.serve import Job, Library
+
+    _counted_by(monkeypatch, lambda body: 10_000_000)
+    monkeypatch.setattr(Library, "_gloss_cost", staticmethod(lambda b, s, buying: (0.25, 40)))
+    job = Job(id="q", source=str(_hebrew_text(tmp_path)), home=tmp_path)
+    job.options = {"gloss": True, "words": False, "from": "he"}
+    Library(tmp_path).prepare(job)
+
+    assert job.stage == "blocked" and job.blocked
+    assert job.meanings == 0.0 and job.lemmas == 0
+
+
+def test_a_body_is_counted_once_and_a_failed_count_is_asked_again(monkeypatch) -> None:
+    """The build pressed after a quote plans the text again, and a reader re-pricing a card
+    counts it a third time: one round trip, kept. A count that failed fell back to the
+    local rate and is not kept, so the next one asks."""
+    from targum.models import Segment, Style
+    from targum.translate.anthropic_provider import AnthropicProvider
+
+    asked: list[str] = []
+    failing = [True]
+
+    def count(body: str) -> int:
+        asked.append(body)
+        if failing[0]:
+            raise RuntimeError("no network")
+        return 77
+
+    _counted_by(monkeypatch, count)
+    provider = AnthropicProvider()
+    segments = [Segment(id="a", block_id="b", block_index=0, index=0, text="שלום עולם")]
+    offline = provider.estimate(segments, "he", "en", Style.natural)
+    failing[0] = False
+    first = provider.estimate(segments, "he", "en", Style.natural)
+    again = provider.estimate_soon(segments, "he", "en", Style.natural).result()
+    assert len(asked) == 2, "asked after the failure, and then kept"
+    assert first == again == provider.estimate_from_counts(77, 1) != offline

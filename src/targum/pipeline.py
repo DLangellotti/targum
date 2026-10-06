@@ -8,6 +8,7 @@ document.json and rerunning is a supported way to work, not a trick.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -84,10 +85,22 @@ class Plan:
     buying_segments: list[Segment] = field(default_factory=list)
     # For an imported recording: what this build will hear, and what hearing costs.
     audio: AudioPlan | None = None
+    #: The translation's price, still being counted (`plan(soon=True)`, 2026-10-06):
+    #: `estimated_cost` leaves it out until `settle` adds it. `floor` is the same price at
+    #: the local rate, for a caller deciding whether to start its own work early.
+    counting: Future[float] | None = None
+    floor: float = 0.0
 
     @property
     def needs_payment(self) -> bool:
         return self.cached_translation is None and self.estimated_cost > 0
+
+    def settle(self) -> None:
+        """Wait for the count, if one is going, and add it to `estimated_cost`."""
+        if self.counting is not None:
+            self.estimated_cost += self.counting.result()
+            self.counting = None
+            self.floor = 0.0
 
 
 @dataclass(slots=True)
@@ -2083,7 +2096,7 @@ class Build:
             total = total + marks
         return total
 
-    def plan(self, chapters: int | None = None) -> Plan:
+    def plan(self, chapters: int | None = None, *, soon: bool = False) -> Plan:
         """Ingest, segment, and price what a build would actually spend.
 
         `chapters` is what the build will buy, and so what the estimate is for. Pricing
@@ -2091,6 +2104,11 @@ class Build:
         novel prices at $7.58 against a real $0.38, the cap refuses it, and a book can
         never be opened at all — which is what happened when the chapter engine was
         built and the estimate was left alone.
+
+        `soon` returns while the translation is still being counted, on a provider that
+        can count on a thread (`estimate_soon`): `estimated_cost` then leaves it out until
+        `Plan.settle`. For the quote, which has the words to look up meanwhile
+        (2026-10-06); the number it settles on is the same exact count.
         """
         document = self.ingest()
         plan = Plan(document=document)
@@ -2115,9 +2133,16 @@ class Build:
             # cap refused a text that would have cost nothing to open.
             paid = self.held_for(plan.segmented, buying)
             owed = [segment for segment in buying if segment.id not in paid]
-            plan.estimated_cost = self.provider.estimate(
-                owed, plan.segmented.language, self.target_language, self.style
-            )
+            language = plan.segmented.language
+            if soon and hasattr(self.provider, "estimate_soon"):
+                plan.counting = self.provider.estimate_soon(
+                    owed, language, self.target_language, self.style
+                )
+                plan.floor = self.provider.estimate_floor(owed, language)
+            else:
+                plan.estimated_cost = self.provider.estimate(
+                    owed, language, self.target_language, self.style
+                )
             plan.chapters = len(split_sections(plan.segmented))
             plan.buying = len(buying)
             plan.buying_segments = list(buying)

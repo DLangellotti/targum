@@ -139,6 +139,7 @@ def nothing_described_yet(monkeypatch: pytest.MonkeyPatch):
     the suite to Google first; the tests that mean to ask the API set a key of their own.
     """
     from targum.ingest.url import PAGES
+    from targum.translate import anthropic_provider
     from targum.video import youtube
     from targum.video.remembered import DESCRIBED
 
@@ -148,9 +149,13 @@ def nothing_described_yet(monkeypatch: pytest.MonkeyPatch):
     # And no article page kept (`ingest.url.Pages`, 2026-10-06), for the same reason: a
     # test that serves its own page at an address another test used must be read.
     PAGES.clear()
+    # And no body counted (`anthropic_provider._counted`): each test's stand-in for the
+    # counting endpoint answers its own way.
+    anthropic_provider._counted.clear()
     yield
     DESCRIBED.clear()
     PAGES.clear()
+    anthropic_provider._counted.clear()
 
 
 @pytest.fixture(autouse=True)
