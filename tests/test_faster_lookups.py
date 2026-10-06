@@ -481,3 +481,130 @@ def test_the_api_spends_the_same_budget_as_ytdlp(monkeypatch) -> None:
     monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
     youtube.describe("https://youtu.be/abc123defgh")
     assert given == [youtube.LOOKUP_S - youtube.API_TIMEOUT_S]
+
+
+# -- the feeds kept warm ---------------------------------------------------------------
+
+
+def _feeds(monkeypatch, dead: tuple[str, ...] = ()) -> dict[str, int]:
+    """Stand in for `weekly.feeds.pull`; how often each feed was knocked on."""
+    import threading
+
+    from targum.weekly import feeds
+
+    knocks: dict[str, int] = {}
+    counting = threading.Lock()
+
+    def pull(url: str, *, limit: int = 30) -> list[Any]:
+        with counting:
+            knocks[url] = knocks.get(url, 0) + 1
+        if url in dead:
+            raise TargumError("Could not fetch")
+        return [feeds.Item(title="חדשות", link=url + "/1")]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    return knocks
+
+
+def _settled(kept: tools.Feeds) -> None:
+    import time
+
+    for _ in range(200):
+        if not kept._pending:
+            return
+        time.sleep(0.01)
+    raise AssertionError("a pull never finished")
+
+
+def test_the_refresher_keeps_feeds_warm_and_stops_cleanly(monkeypatch) -> None:
+    import time
+
+    knocks = _feeds(monkeypatch)
+    # Fresh for less than a round, as a feed is fresh for five minutes against four.
+    monkeypatch.setattr(tools, "FEED_FRESH_S", 0.06)
+    kept = tools.Feeds(workers=2)
+    urls = ["https://a.example/rss", "https://b.example/rss"]
+    kept.keep_warm(lambda: urls, every=0.05)
+    for _ in range(200):
+        if all(knocks.get(url, 0) >= 2 for url in urls):
+            break
+        time.sleep(0.01)
+    assert all(knocks.get(url, 0) >= 2 for url in urls), knocks
+    thread = kept._warm
+    kept.stop()
+    assert thread is not None and not thread.is_alive()
+    _settled(kept)
+    after = dict(knocks)
+    time.sleep(0.2)
+    assert knocks == after, "nothing is pulled once it has stopped"
+
+    # What a round leaves behind is what a search reads: with no time to wait at all,
+    # every feed is answered.
+    monkeypatch.setattr(tools, "FEED_FRESH_S", 300.0)
+    kept.refresh(urls)
+    _settled(kept)
+    got = kept.pull(urls, budget=0.0)
+    assert all(got[url] for url in urls), "a search answers from memory"
+
+
+def test_a_feed_still_fresh_is_left_alone_and_one_about_to_go_stale_is_not(monkeypatch) -> None:
+    clock = Clock()
+    knocks = _feeds(monkeypatch)
+    kept = tools.Feeds(workers=2, clock=clock)
+    url = "https://a.example/rss"
+    assert kept.refresh([url]) == 1
+    _settled(kept)
+    assert kept.refresh([url], within=60) == 0, "fresh for five minutes, past the minute"
+    clock.now += tools.FEED_FRESH_S - 30
+    assert kept.refresh([url], within=60) == 1, "stale within the minute: pulled ahead"
+    _settled(kept)
+    assert knocks[url] == 2
+
+
+def test_a_dead_feed_is_knocked_on_less_and_less(monkeypatch) -> None:
+    """ "gov" has not answered all week. Each failure in a row doubles how long it is
+    left alone, up to half an hour; a search meanwhile says it is unreachable at once."""
+    clock = Clock()
+    dead = "https://gov.example/rss"
+    knocks = _feeds(monkeypatch, dead=(dead,))
+    kept = tools.Feeds(workers=2, clock=clock)
+    waits = []
+    for _ in range(7):
+        kept.refresh([dead], within=0)
+        _settled(kept)
+        waits.append(kept._kept[dead][0] - clock.now)
+        assert kept.pull([dead], budget=5.0) == {dead: None}
+        clock.now = kept._kept[dead][0]
+    assert waits == [120.0, 240.0, 480.0, 960.0, 1800.0, 1800.0, 1800.0]
+    assert knocks[dead] == 7, "the search in between never knocked"
+
+
+def test_a_refresh_that_fails_keeps_the_last_answer_while_it_stands(monkeypatch) -> None:
+    from targum.weekly import feeds
+
+    clock = Clock()
+    _feeds(monkeypatch)
+    kept = tools.Feeds(workers=2, clock=clock)
+    url = "https://a.example/rss"
+    kept.refresh([url])
+    _settled(kept)
+
+    def refuse(url: str, *, limit: int = 30) -> list[Any]:
+        raise TargumError("Could not fetch")
+
+    monkeypatch.setattr(feeds, "pull", refuse)
+    clock.now += 60
+    kept.refresh([url], within=tools.FEED_FRESH_S)
+    _settled(kept)
+    assert kept.pull([url], budget=0.0)[url], "what the publisher had out still stands"
+
+
+def test_the_server_keeps_feeds_warm_only_when_told(monkeypatch) -> None:
+    """`keep_feeds` is its own switch: the suite starts hosted servers by the dozen."""
+    import inspect
+
+    from targum import cli, serve
+
+    assert inspect.signature(serve.start).parameters["keep_feeds"].default is False
+    assert "keep_feeds=hosted" in inspect.getsource(cli)
+    assert tools.FEEDS._warm is None, "nothing at import starts it"

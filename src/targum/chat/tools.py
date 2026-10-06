@@ -40,6 +40,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import re
 import secrets
 import threading
@@ -66,6 +67,8 @@ from . import check as check_module
 from . import hebrew as hebrew_module
 from . import rail as rail_module
 from . import sources as sources_module
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..accounts import Person, Store
@@ -2094,6 +2097,19 @@ FEED_FRESH_S = 300.0
 #: a knock, so skipping the hosts on that list would keep them there for good.
 FEED_FAILED_S = 120.0
 
+#: The longest a feed that keeps failing is left alone, in seconds (2026-10-06). Each
+#: failure in a row doubles the wait from `FEED_FAILED_S` — two minutes, four, eight —
+#: up to this. A feed that has been dead all week ("gov" has) is then knocked on twice
+#: an hour rather than thirty times, and a search answers "unreachable" for it from
+#: memory rather than waiting on it.
+FEED_FAILED_MOST_S = 1800.0
+
+#: How often the hosted server pulls every followed feed in the background (2026-10-06).
+#: Under `FEED_FRESH_S`, so a feed that answers is refreshed before it goes stale and a
+#: search never waits on it: `search_sources` answers from memory, and its own pull is
+#: the fallback for a feed the refresher has not reached.
+FEED_REFRESH_S = 240.0
+
 
 class Feeds:
     """The publishers' feeds, pulled side by side and kept a few minutes.
@@ -2101,20 +2117,91 @@ class Feeds:
     One per process, shared by every turn: two turns that ask at once share one pull of
     each feed rather than making two, and a feed that came in after one search gave up
     on it is there for the next.
+
+    Hosted, a daemon thread keeps them warm (`keep_warm`, 2026-10-06): every few minutes
+    each feed about to go stale is pulled again, so a search finds today's items already
+    here. Started by `serve.start` and nowhere else — not at import, so the suite never
+    runs it unless a test does, and a laptop serving itself never knocks on nineteen
+    publishers every four minutes for a search nobody makes.
     """
 
-    def __init__(self, workers: int = 24) -> None:
+    def __init__(self, workers: int = 24, clock: Callable[[], float] = time.monotonic) -> None:
         self.workers = workers
+        self.clock = clock
         self._lock = threading.Lock()
-        #: url -> (monotonic time it goes stale, its items or None for a failure)
+        #: url -> (clock time it goes stale, its items or None for a failure)
         self._kept: dict[str, tuple[float, list[Any] | None]] = {}
+        #: url -> failures in a row, for the backoff
+        self._failures: dict[str, int] = {}
         self._pending: dict[str, Future[list[Any] | None]] = {}
         self._pool: ThreadPoolExecutor | None = None
+        self._stop = threading.Event()
+        self._warm: threading.Thread | None = None
 
     def clear(self) -> None:
         with self._lock:
             self._kept.clear()
+            self._failures.clear()
             self._pending.clear()
+
+    def _submit(self, url: str) -> Future[list[Any] | None]:
+        """A pull of `url`, the one already going or a new one. Under `_lock`."""
+        future = self._pending.get(url)
+        if future is None:
+            if self._pool is None:
+                self._pool = ThreadPoolExecutor(
+                    max_workers=self.workers, thread_name_prefix="feeds"
+                )
+            future = self._pool.submit(self._fetch, url)
+            self._pending[url] = future
+        return future
+
+    def refresh(self, urls: list[str], within: float = FEED_REFRESH_S) -> int:
+        """Start a pull of every feed that goes stale within `within` seconds, waiting
+        for none of them. How many were started.
+
+        A feed still fresh past then is left alone — which is what spaces out a failing
+        one: its backoff is how long it is kept as failed.
+        """
+        started = 0
+        with self._lock:
+            horizon = self.clock() + within
+            for url in dict.fromkeys(urls):
+                kept = self._kept.get(url)
+                if url in self._pending or (kept is not None and kept[0] > horizon):
+                    continue
+                self._submit(url)
+                started += 1
+        return started
+
+    def keep_warm(self, urls: Callable[[], list[str]], every: float = FEED_REFRESH_S) -> None:
+        """Refresh `urls()` now and every `every` seconds, on a daemon thread, until
+        `stop`. `urls` is asked each time, so a publisher added to sources.json is
+        followed from the next round without a restart."""
+        if self._warm is not None and self._warm.is_alive():
+            return
+        self._stop.clear()
+
+        def run() -> None:
+            while True:
+                try:
+                    # A little past one interval, so a feed that goes stale just after
+                    # the next round is pulled in this one.
+                    self.refresh(urls(), within=every * 1.25)
+                except Exception as error:  # noqa: BLE001 - never takes the server down
+                    log.warning("feeds: refreshing failed: %s", error)
+                if self._stop.wait(every):
+                    return
+
+        self._warm = threading.Thread(target=run, name="feeds-warm", daemon=True)
+        self._warm.start()
+
+    def stop(self, wait: float = 5.0) -> None:
+        """Stop keeping the feeds warm; a pull already going finishes on its own."""
+        self._stop.set()
+        if self._warm is not None:
+            self._warm.join(wait)
+            self._warm = None
 
     def pull(self, urls: list[str], budget: float) -> dict[str, list[Any] | None]:
         """Each feed's items, or None where it would not answer; waiting at most
@@ -2122,21 +2209,13 @@ class Feeds:
         out: dict[str, list[Any] | None] = {}
         waiting: dict[str, Future[list[Any] | None]] = {}
         with self._lock:
-            now = time.monotonic()
+            now = self.clock()
             for url in dict.fromkeys(urls):
                 kept = self._kept.get(url)
                 if kept is not None and now < kept[0]:
                     out[url] = kept[1]
                     continue
-                future = self._pending.get(url)
-                if future is None:
-                    if self._pool is None:
-                        self._pool = ThreadPoolExecutor(
-                            max_workers=self.workers, thread_name_prefix="feeds"
-                        )
-                    future = self._pool.submit(self._fetch, url)
-                    self._pending[url] = future
-                waiting[url] = future
+                waiting[url] = self._submit(url)
         if waiting:
             wait_for(list(waiting.values()), timeout=budget)
         for url, future in waiting.items():
@@ -2151,12 +2230,25 @@ class Feeds:
         try:
             try:
                 items: list[Any] | None = feeds.pull(url, limit=15)
-                fresh_for = FEED_FRESH_S
             except TargumError:
-                items, fresh_for = None, FEED_FAILED_S
+                items = None
             with self._lock:
-                self._kept[url] = (time.monotonic() + fresh_for, items)
-            return items
+                now = self.clock()
+                if items is not None:
+                    self._failures.pop(url, None)
+                    self._kept[url] = (now + FEED_FRESH_S, items)
+                    return items
+                failures = self._failures.get(url, 0) + 1
+                self._failures[url] = failures
+                kept = self._kept.get(url)
+                if kept is not None and kept[1] is not None and now < kept[0]:
+                    # A refresh that failed while the last answer still stands: what the
+                    # publisher had out a few minutes ago is still true, and better than
+                    # "unreachable". The next round asks again.
+                    return kept[1]
+                wait = min(FEED_FAILED_S * 2 ** (failures - 1), FEED_FAILED_MOST_S)
+                self._kept[url] = (now + wait, None)
+            return None
         finally:
             with self._lock:
                 self._pending.pop(url, None)

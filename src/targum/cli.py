@@ -214,6 +214,7 @@ def serve(
             budget=budget,
             announce=announce,
             require_account=hosted,
+            keep_feeds=hosted,
             public_address=public,
         )
     except TargumError as error:
