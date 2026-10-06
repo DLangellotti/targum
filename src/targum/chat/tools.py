@@ -660,6 +660,39 @@ def _lemma(token: object) -> str:
     return str(token.get("lemma") or "").lower() if isinstance(token, dict) else ""
 
 
+def _pointed(text: str, pointed: object, most: int = SENTENCE_CHARS) -> str:
+    """A sentence as the reader's own text points it, cut where `text` is cut, or "".
+
+    From the text's `vocalization.json`, written when it was built (the vowel toggle's),
+    and never worked out here: a host asked for nikkud adds it itself, slowly and often
+    wrongly, and the pointing targum already has is the edition's or a diacritizer's
+    that ran once at build time (2026-10-06). "" where there is none, where it says
+    nothing `text` does not, or where its letters are not `text`'s — a text rebuilt with
+    different words and an old file beside it — because a pointed sentence that is not
+    the sentence is worse than none.
+    """
+    from ..vocalize.base import is_mark, strip_nikkud
+
+    if not isinstance(pointed, str) or not pointed or pointed == text:
+        return ""
+    bare, _ = strip_nikkud(text)
+    if strip_nikkud(pointed)[0] != bare:
+        return ""
+    if len(text) <= most:
+        return pointed
+    # Cut after as many letters as `text[:most]` keeps, with the last letter's marks.
+    want = len(strip_nikkud(text[:most])[0])
+    out: list[str] = []
+    letters = 0
+    for char in pointed:
+        if not is_mark(char, out[-1] if out else ""):
+            if letters == want:
+                break
+            letters += 1
+        out.append(char)
+    return "".join(out)
+
+
 def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Sentences from the reader's own shelf, and the shared one, where a word appears.
 
@@ -669,6 +702,8 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     texts the reader has, which the model cannot otherwise see into. Read off each text's
     own annotation, by dictionary form, so every inflected form is found. Spends nothing.
     """
+    from ..vocalize.base import supports as vocalize_supports
+
     lemma = str(args.get("lemma") or "").strip().lower().replace("\u0301", "")
     language = str(args.get("language") or "")
     if not lemma:
@@ -692,20 +727,37 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             if not wanted:
                 continue
             segments = _json(folder / "segments.json").get("segments") or []
+            # The pointed form of each sentence, where the text was built with one
+            # (`_pointed`); Hebrew-script languages only, because the same file carries a
+            # Russian text's stress marks, which are not what "pointed" means to a host.
+            vocalized = _json(folder / "vocalization.json")
+            pointing: dict[str, Any] = {}
+            if vocalize_supports(str(vocalized.get("language") or "")):
+                pointing = vocalized.get("segments") or {}
+            guessed = set(vocalized.get("machine") or [])
             for segment in segments:
                 if len(found) >= SENTENCES_WITH:
                     break
                 sid = str(segment.get("id") or "")
                 if sid not in wanted:
                     continue
-                found.append(
-                    {
-                        "sentence": str(segment.get("text") or "")[:SENTENCE_CHARS],
-                        "as": " ".join(form for form in wanted[sid] if form),
-                        "title": str(row.get("title") or ""),
-                        "reader": str(row.get("reader") or ""),
-                    }
-                )
+                text = str(segment.get("text") or "")
+                one = {
+                    "sentence": text[:SENTENCE_CHARS],
+                    "as": " ".join(form for form in wanted[sid] if form),
+                    "title": str(row.get("title") or ""),
+                    "reader": str(row.get("reader") or ""),
+                }
+                # Beside `sentence` rather than in its place: `as` is spelled the way
+                # `sentence` is, and a host that never learned the new field still
+                # reads exactly what it read before.
+                pointed = _pointed(text, pointing.get(sid))
+                if pointed:
+                    one["pointed"] = pointed
+                    # A diacritizer's vowels are 55-73% right on classical Hebrew; the
+                    # reader marks them, and a host is told the same.
+                    one["pointed_by"] = "machine" if sid in guessed else "edition"
+                found.append(one)
     return {"lemma": lemma, "count": len(found), "sentences": found}
 
 
@@ -2686,9 +2738,10 @@ REGISTRY: tuple[Tool, ...] = (
         "sentences_with",
         "Up to five sentences from the texts on the reader's shelf, and the shared one, in "
         "which a word appears, found by its dictionary form so every inflected form counts; "
-        "each with the form it takes there and the text it is from. For setting two uses "
-        "side by side — a Russian verb beside its aspect partner — from what the reader "
-        "has. Read only.",
+        "each with the form it takes there and the text it is from, and `pointed`, the "
+        "sentence with its vowels, where the text has them: quote that rather than adding "
+        "nikkud yourself. For setting two uses side by side — a Russian verb beside its "
+        "aspect partner — from what the reader has. Read only.",
         _schema({"lemma": {"type": "string"}, "language": {"type": "string"}}, ("lemma",)),
         sentences_with,
         scope="record",

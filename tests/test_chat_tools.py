@@ -1385,6 +1385,74 @@ def test_sentences_with_finds_a_word_in_every_form_on_the_shelf(world) -> None:
     assert got["sentences"][0]["title"] == "Рассказ"
     assert tools.sentences_with(ctx, {"lemma": "читать"})["count"] == 0
     assert "error" in tools.sentences_with(ctx, {"lemma": ""})
+    assert all("pointed" not in row for row in got["sentences"]), "no file, no field"
+
+
+def test_sentences_with_hands_over_the_pointing_the_text_was_built_with(world) -> None:
+    """2026-10-06: a host adds nikkud itself, slowly and often wrongly. Where the text's
+    own `vocalization.json` points a sentence, it goes beside `sentence` as `pointed`,
+    saying whether a diacritizer guessed it; a file whose letters are not the sentence's
+    is not believed; and a long sentence is cut where `sentence` is."""
+    library, store, person, home = world
+    built(home, "story-he", "test:story", ["ספר"], "סיפור")
+    folder = home / "story-he"
+    long = "הספר " + "א" * 400
+    (folder / "annotation.json").write_text(
+        json.dumps(
+            {
+                "tokens": {
+                    sid: [{"surface": "הספר", "lemma": "ספר"}]
+                    for sid in ("0001.000-a", "0002.000-a", "0003.000-a", "0004.000-a")
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (folder / "segments.json").write_text(
+        json.dumps(
+            {
+                "segments": [
+                    {"id": "0001.000-a", "text": "קראתי את הספר."},
+                    {"id": "0002.000-a", "text": "הספר על השולחן."},
+                    {"id": "0003.000-a", "text": "הספר ישן."},
+                    {"id": "0004.000-a", "text": long},
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (folder / "vocalization.json").write_text(
+        json.dumps(
+            {
+                "document_hash": "h",
+                "language": "he",
+                "vocalizer": "test",
+                "segments": {
+                    "0001.000-a": "קָרָאתִי אֶת הַסֵּפֶר.",
+                    "0002.000-a": "הַסֵּפֶר עַל הַשּׁוּלְחָן.",
+                    "0003.000-a": "הַסֵּפֶר חָדָשׁ.",  # not this sentence's letters
+                    "0004.000-a": "הַסֵּפֶר " + "אָ" * 400,
+                },
+                "machine": ["0002.000-a"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    ctx = context(library, store, person, home)
+    got = tools.sentences_with(ctx, {"lemma": "ספר", "language": "he"})["sentences"]
+    assert got[0]["sentence"] == "קראתי את הספר."
+    assert got[0]["pointed"] == "קָרָאתִי אֶת הַסֵּפֶר." and got[0]["pointed_by"] == "edition"
+    assert got[1]["pointed_by"] == "machine"
+    assert "pointed" not in got[2], "a stale file is not believed"
+    cut = got[3]
+    assert len(cut["sentence"]) == tools.SENTENCE_CHARS
+    from targum.vocalize.base import strip_nikkud
+
+    assert strip_nikkud(cut["pointed"])[0] == cut["sentence"]
+    assert cut["pointed"].endswith("אָ")
 
 
 # -- a direct link to a recording or a video (targum-internal#256) --------------------
