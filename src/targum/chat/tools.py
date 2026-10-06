@@ -51,6 +51,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, unquote, urlparse
@@ -2439,10 +2440,7 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 known = _known_share(ctx, hook, forms)
             else:
                 digest = hashlib.sha256(hook.encode("utf-8")).hexdigest()
-                known = FEED_KNOWN.get(
-                    (*whose, digest),
-                    lambda hook=hook: _known_share(ctx, hook, forms),
-                )
+                known = FEED_KNOWN.get((*whose, digest), partial(_known_share, ctx, hook, forms))
             items.append(
                 {
                     "title": item.title,
