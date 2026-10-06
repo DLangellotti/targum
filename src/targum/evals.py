@@ -64,6 +64,10 @@ STAGES = (
     "suggest",
     "rail",
     "said",
+    # How the connector reads to a host (2026-10-06): time to the first Hebrew line,
+    # tool calls, result sizes and the contract, from scripts/eval_connector.py. It
+    # writes its own rows under evals/connector/ rather than the ledger.
+    "connector",
 )
 
 
@@ -87,6 +91,7 @@ SCRIPTS = {
     "suggest": "eval_suggest.py",
     "rail": "eval_rail.py",
     "said": "eval_liaison.py",
+    "connector": "eval_connector.py",
 }
 
 

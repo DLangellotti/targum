@@ -85,3 +85,7 @@ scripts/olim_*.py
 scripts/demo_logos.json
 scripts/hero/
 scripts/FILMS.md
+
+# Connector eval runs (scripts/eval_connector.py): a measurement of the day, kept
+# locally, never a fixture.
+evals/connector/
