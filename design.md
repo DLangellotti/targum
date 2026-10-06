@@ -356,8 +356,6 @@ fallen behind the entries by half; the dates are the index.)
 
 ### A card in someone else's chat — 2026-10-06
 
-*Draft for David's approval. Nothing is built against it yet.*
-
 Over the connector, everything targum says arrives as text the host's model reads and
 then rewrites. A build in progress is a model calling `check_job` again and again and
 saying "still working". A text is a long link the model has to copy out character by
@@ -391,15 +389,34 @@ on 2026-10-06.
 - **Text is still the floor.** A host that draws no cards, or a reader who switched them
   off, gets exactly what the tool returns today: the same line and the same link.
 
-**Open, for David:**
+**Two exceptions, both David's, 2026-10-06:**
 
-1. *Light only, or the host's theme?* "There is one look, and it is light" (2026-09-19)
-   says light, and mail followed it. A light card in a dark ChatGPT is a bright rectangle
-   in a dark room. The two choices are light only, with the frame in desk paper, or the
-   host's theme for the frame and light for the card inside it.
-2. *A play button on a text card?* Playing audio is a fetch from targum.page, so as written
-   it is out. The case for it is that hearing a line without leaving the chat is the most
-   delightful thing a card could do.
+- **A card takes the host's theme.** "There is one look, and it is light" (2026-09-19)
+  holds everywhere targum draws its own page. A card is drawn inside somebody else's,
+  and a light card in a dark ChatGPT is a bright rectangle in a dark room. So a card
+  follows the theme the host hands it, light or dark, in a dark reading of the same
+  palette that `test_brand.py` holds. Nowhere else changes.
+- **A text card can play audio the text already has.** Hearing a line without leaving
+  the chat is the most delightful thing a card can do. The play button is there only
+  where a recording already exists (a scene, Be'eri, PocketTorah, a voice the reader
+  already paid for), it streams from targum.page, and it never spends: a text with no
+  voice has no button, and giving it one is still a press on targum's own page. This is
+  the one fetch a card makes, and it is audio from our own origin, never a script,
+  style, font or image.
+
+### The connector is handed a sample of the known words — 2026-10-06
+
+`how_to_talk` handed a host the reader's whole known list, 1,483 words on David's
+ledger, beside 774 common words it overlapped with: about 22,000 characters the host
+read before its first line and carried on every turn after. Over the connector it now
+hands the commonest 300 known words by frequency, leaving out laughter and stretched
+spellings and anything already in the common list, and says so ("the commonest 300 of
+the 1,483 they have marked known"). The count is still the reader's real total.
+
+targum's own chat keeps the whole list. It holds the prompt itself and can cache it, so
+the size costs it far less. "One contract, both surfaces" (2026-09-23) still holds for
+the rules. The two surfaces differ only in how many of the reader's words they are
+shown (David, 2026-10-06).
 
 ### A verse taller than the page is cut between its lines — 2026-10-05
 
