@@ -110,7 +110,9 @@ INSTRUCTIONS = (
     "link on its own line; don't describe the page or tell them to press anything, and "
     "don't call it a quote or a price. A cost is in credits, never money. For several "
     "texts at once, use quote_set. When a tool returns an error, tell the reader in one "
-    "plain sentence what happened and what they can do, and don't retry the same call."
+    "plain sentence what happened and what they can do, and don't retry the same call. "
+    "Where check_job shows a card, the card follows the build itself: call it once and "
+    "don't call it again to check."
 )
 
 #: The prompts a connector offers by name, which is how a reader reaches targum without

@@ -1216,3 +1216,8 @@ def test_each_call_logs_its_tool_and_how_long_it_took(
         for line in said
     ), said
     assert not any("secret" in line or "nope" in line or "@" in line for line in said)
+
+
+def test_instructions_leave_the_following_to_the_card() -> None:
+    """A host that draws the build card is told not to poll beside it (2026-10-06)."""
+    assert "card follows the build" in mcp_http.INSTRUCTIONS
