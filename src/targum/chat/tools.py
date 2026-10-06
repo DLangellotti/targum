@@ -37,6 +37,8 @@ started the process. See `connector.exposed`.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import re
 import secrets
@@ -229,6 +231,51 @@ def reader_url(name: str, at: str = "") -> str:
     clicking it is the only way anything targum offers gets opened.
     """
     return f"{at.rstrip('/')}/reader/{quote(name)}/reader/index.html"
+
+
+def short_key(name: str) -> str:
+    """Eight letters that name a reader folder in a short link, `/r/<key>`.
+
+    A digest of the folder's name rather than a row anywhere: the same name always gives
+    the same key, so nothing has to be written when a text is built and nothing goes
+    stale when one is deleted, and `serve` finds the folder again by hashing the names it
+    already has. Forty bits, base32 and lower case — no letter a host might mistake for
+    another, and a collision among a reader's few hundred folders is a one-in-billions
+    chance. Not a secret: it opens only what the signed-in reader could open by name.
+    """
+    digest = hashlib.sha256(name.encode("utf-8")).digest()[:5]
+    return base64.b32encode(digest).decode("ascii").lower()
+
+
+#: A page of a built reader at its full address: the folder, then the file. The folder
+#: is percent-encoded by `reader_url`, so it has no slash, quote or space of its own.
+_LONG_READER = r"/reader/([^/\s\"?#\\]+)/reader/([a-z0-9-]{1,40})\.html"
+
+
+def shorten(text: str, at: str) -> str:
+    """Every reader link in a tool's answer as its short form, `/r/<key>[/<page>]`.
+
+    For the connector only (2026-10-06). A Hebrew folder name percent-encodes to six
+    characters a letter, and a link to one was about 250 characters the host had to
+    write out in its reply, a token at a time — measured live, the slowest part of an
+    answer that offered three texts — and a long run of `%D7%...` is exactly what a model
+    copies wrong (`Handler._serve_reader` already forgives one misspelling of a final
+    letter). Rewritten here, on the way out, rather than in `reader_url`: inside the
+    tools a reader link is also data — `_folder_of` reads the folder back out of it and
+    playlists compare them — and targum's own chat draws the long path as a door on its
+    own page, where nobody has to type it. `serve` turns the short form back into the
+    long one with a redirect, so a reader opens exactly what they opened before.
+    """
+    if not at:
+        return text
+    origin = at.rstrip("/")
+
+    def short(found: re.Match[str]) -> str:
+        page = found.group(2)
+        tail = "" if page == "index" else f"/{page}"
+        return f"{origin}/r/{short_key(unquote(found.group(1)))}{tail}"
+
+    return re.sub(re.escape(origin) + _LONG_READER, short, text)
 
 
 # -- the shelf, measured -----------------------------------------------------------

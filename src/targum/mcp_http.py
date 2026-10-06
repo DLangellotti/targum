@@ -347,6 +347,9 @@ def _call(
         sees_record=scopes is None or oauth.granted(scopes, "record"),
     )
     text, failed = tools_module.run(name, given, ctx)
+    # Short links on the way out, so the host writes eight letters where it wrote two
+    # hundred and fifty (`tools.shorten`, 2026-10-06).
+    text = tools_module.shorten(text, address)
     return _result(
         request_id,
         {"content": [{"type": "text", "text": text}], "isError": failed},

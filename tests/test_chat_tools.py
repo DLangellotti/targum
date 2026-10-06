@@ -1551,3 +1551,30 @@ def test_suggest_next_points_into_a_harder_text_where_a_section_reads(
     plain = tools.suggest_next(ctx, {"limit": 3})["suggestions"]
     assert all("passage" not in row for row in plain)
     assert "psalms" not in [row["id"] for row in plain]
+
+
+def test_shorten_rewrites_reader_links_for_a_host_and_nothing_else() -> None:
+    """The connector's links are eight letters (2026-10-06); the chat's own are not."""
+    name = "בסטארטאפ-שלום"
+    key = tools.short_key(name)
+    assert len(key) == 8 and key == tools.short_key(name), "short and stable"
+    whole = tools.reader_url(name, "https://targum.test")
+    said = json.dumps(
+        {
+            "reader": whole,
+            "passage": {"reader": whole.rsplit("/", 1)[0] + "/sec-0005.html"},
+            "list": whole + "?list=3",
+            "press": "https://targum.test/build/abc",
+            "elsewhere": "https://example.com/reader/x/reader/index.html",
+        },
+        ensure_ascii=False,
+    )
+    got = json.loads(tools.shorten(said, "https://targum.test/"))
+    assert got["reader"] == f"https://targum.test/r/{key}"
+    assert got["passage"]["reader"] == f"https://targum.test/r/{key}/sec-0005"
+    assert got["list"] == f"https://targum.test/r/{key}?list=3"
+    assert got["press"] == "https://targum.test/build/abc"
+    assert got["elsewhere"] == "https://example.com/reader/x/reader/index.html"
+    # targum's own chat has no address and draws the long path as a door on its page.
+    relative = json.dumps({"reader": tools.reader_url(name)})
+    assert tools.shorten(relative, "") == relative

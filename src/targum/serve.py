@@ -750,6 +750,10 @@ DAILY_ROUTE = re.compile(r"^/(mishna-yomi|nach-yomi|tanakh-yomi|tehillim)(/.*)?$
 #: How many days either side of the one on screen the chip row offers.
 NEARBY_DAYS = 3
 
+#: A short link to a reader (`Handler._short_reader`): eight base32 letters, then a page
+#: of it by name, `sec-0005` and not `sec-0005.html`, where it is not the first.
+SHORT_READER = re.compile(r"^([a-z2-7]{8})(?:/([a-z0-9-]{1,40}))?$")
+
 DAILY_READER = re.compile(r"^/read/(\d{4}-\d{2}-\d{2})/reader/([a-z0-9-]{0,40}\.html)?$")
 
 #: How often one address may ask to be subscribed. The `asked` table and its rail are
@@ -4749,6 +4753,9 @@ class Handler(BaseHTTPRequestHandler):
     #: looking at this".
     PAGE_PREFIXES = (
         "/reader/",
+        # A reader's short link (`_short_reader`): a signed-out visitor meets what the
+        # long one would show them.
+        "/r/",
         "/thumb/",
         "/chat/",
         "/glossary/",
@@ -6096,6 +6103,7 @@ class Handler(BaseHTTPRequestHandler):
             *(f"Allow: {route}" for route in LEGAL_ROUTES if legal_is_public()),
             "Disallow: /account/",
             "Disallow: /reader/",
+            "Disallow: /r/",
             "Disallow: /readers",
             "Disallow: /progress",
             "Disallow: /tanakh-map",
@@ -6768,6 +6776,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
             return self._serve_reader(route[len("/reader/") :])
+        if route.startswith("/r/"):
+            return self._short_reader(route[len("/r/") :])
         if route.startswith("/open/"):
             return self._open_entry(route[len("/open/") :])
         if route.startswith("/thumb/"):
@@ -11178,6 +11188,36 @@ class Handler(BaseHTTPRequestHandler):
                         200, poster.read_bytes(), "image/jpeg", cache="private, max-age=86400"
                     )
         return self._send(404, b"not found", "text/plain")
+
+    def _short_reader(self, short: str) -> None:
+        """A short link the connector handed a host, sent on to the reader it names.
+
+        `/r/<key>` opens a text and `/r/<key>/sec-0005` one section of it, where the key is
+        `tools.short_key` of the folder's name (2026-10-06). Looked up over the same three
+        roots `_serve_reader` reads, in the same order, by hashing the names that are
+        there — no table, so a link made before a deploy still opens after it. Sent on
+        rather than served in place, so the reader's own relative addresses resolve from
+        the long path exactly as they always have, and the long path is still the only
+        place a file is read from.
+        """
+        from .chat.tools import short_key
+
+        found = SHORT_READER.match(short)
+        if found is None:
+            return self._not_found()
+        key, page = found.groups()
+        for root in (self._home(), self.library.shared, self.library.weekly):
+            try:
+                names = [child.name for child in root.iterdir()]
+            except OSError:
+                continue
+            for name in sorted(names):
+                if short_key(name) != key or not (root / name).is_dir():
+                    continue
+                where = f"/reader/{quote(name)}/reader/{page or 'index'}.html"
+                query = urlparse(self.path).query
+                return self._sent_on(where + (f"?{query}" if query else ""))
+        return self._not_found()
 
     def _serve_reader(self, relative: str) -> None:
         """This person's readers, and the shared ones — never another person's.

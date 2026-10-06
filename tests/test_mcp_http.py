@@ -26,6 +26,8 @@ from targum import mcp_http, oauth, serve
 from targum.accounts import Store
 
 PUBLIC = "https://targum.page"
+#: The box's library folder, so a test can put a reader on its shared shelf.
+OUT: list[Path] = []
 HOST = "targum.page"
 CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 
@@ -33,6 +35,7 @@ CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 @pytest.fixture(scope="module")
 def box(tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]) -> tuple[int, str]:
     tmp = tmp_path_factory.mktemp("mcp")
+    OUT.append(tmp / "out")
     store_path = tmp / "targum.db"
     store = Store(store_path)
     signed_in = store.finish_sign_in(store.start_sign_in("reader@example.com"))
@@ -1099,8 +1102,12 @@ def test_the_walk_from_a_quote_to_an_open_reader(
             "result"
         ]["content"][0]["text"]
     )
-    status, body, _ = send(port, "GET", _as_given(checked["open"]), session=session)
-    assert status == 200, (checked["open"], body[:300])
+    # A short link (`tools.shorten`, 2026-10-06), which the box sends on to the long one.
+    assert "/r/" in checked["open"] and "%D7" not in checked["open"], checked["open"]
+    status, _, headers = send(port, "GET", _as_given(checked["open"]), session=session)
+    assert status == 302, (checked["open"], status)
+    status, body, _ = send(port, "GET", headers["location"], session=session)
+    assert status == 200, (headers["location"], body[:300])
     assert "שִׁיר הַשִּׁירִים" in body.decode("utf-8")
 
     # 5b. And the press page, visited again once the text is ready: its one press is the
@@ -1113,3 +1120,55 @@ def test_the_walk_from_a_quote_to_an_open_reader(
     status, body, _ = send(port, "GET", f"/reader/{quote(opens, safe='/%')}", session=session)
     assert status == 200, (opens, body[:300])
     assert "שִׁיר הַשִּׁירִים" in body.decode("utf-8")
+
+
+# --- short links ------------------------------------------------------------------
+
+
+def _shared_reader(name: str) -> None:
+    folder = OUT[0] / "shared" / name
+    (folder / "reader").mkdir(parents=True, exist_ok=True)
+    (folder / "reader" / "index.html").write_text("<p>שלום</p>", encoding="utf-8")
+    (folder / "reader" / "sec-0002.html").write_text("<p>עולם</p>", encoding="utf-8")
+
+
+def test_a_short_link_opens_the_reader_and_its_sections(box: tuple[int, str]) -> None:
+    """`/r/<key>` is the reader a host was handed, by an eight-letter name (2026-10-06)."""
+    from targum.chat import tools as registry
+
+    port, session = box
+    _shared_reader("שלום-עולם")
+    key = registry.short_key("שלום-עולם")
+    long = f"/reader/{quote('שלום-עולם')}/reader"
+
+    status, _, headers = send(port, "GET", f"/r/{key}", session=session)
+    assert (status, headers["location"]) == (302, f"{long}/index.html")
+    status, _, headers = send(port, "GET", f"/r/{key}/sec-0002", session=session)
+    assert (status, headers["location"]) == (302, f"{long}/sec-0002.html")
+    status, body, _ = send(port, "GET", headers["location"], session=session)
+    assert status == 200 and "עולם" in body.decode("utf-8")
+
+
+def test_a_short_link_nobody_made_is_a_404(box: tuple[int, str]) -> None:
+    port, session = box
+    assert send(port, "GET", "/r/aaaaaaaa", session=session)[0] == 404
+    assert send(port, "GET", "/r/not-a-key", session=session)[0] == 404
+    assert send(port, "GET", "/r/aaaaaaaa/sec-0002.html", session=session)[0] == 404
+
+
+def test_the_shelf_comes_over_with_short_links(box: tuple[int, str]) -> None:
+    """Every reader link a host is handed is the short one, on targum's own origin."""
+    from targum.chat import tools as registry
+
+    port, _ = box
+    _shared_reader("שלום-עולם")
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "search_my_shelf", "arguments": {"query": "שלום-עולם", "language": "all"}},
+    )["result"]
+    text = said["content"][0]["text"]
+    assert "/reader/" not in text, text[:300]
+    rows = json.loads(text)["texts"]
+    assert rows[0]["reader"] == f"{PUBLIC}/r/{registry.short_key('שלום-עולם')}"
