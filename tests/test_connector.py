@@ -48,16 +48,18 @@ def test_the_server_lists_the_tools_and_answers_one(tmp_path: Path) -> None:
     listed = asyncio.run(server.list_tools())
     by_name = {tool.name: tool for tool in listed}
     assert set(by_name) == {tool.name for tool in connector.exposed()}
-    schema = by_name["search_library"].model_dump(by_alias=True)["inputSchema"]
-    assert "register" in schema["properties"] and "query" in schema["properties"]
+    schema = by_name["find_text"].model_dump(by_alias=True)["inputSchema"]
+    assert {"register", "query", "where"} <= set(schema["properties"])
 
     answered = asyncio.run(server.call_tool("my_progress", {}))
     text = answered.content[0].text  # type: ignore[union-attr]
     assert json.loads(text)["ladder"]["note"] == "A guide, not a placement."
 
-    found = asyncio.run(server.call_tool("search_library", {"register": "biblical", "limit": 3}))
+    found = asyncio.run(
+        server.call_tool("find_text", {"query": "Genesis", "where": "library", "limit": 3})
+    )
     got = json.loads(found.content[0].text)  # type: ignore[union-attr]
-    assert got["count"] >= 1 and all(row["register"] == "biblical" for row in got["texts"])
+    assert got["count"] >= 1 and all(row["from"] == "library" for row in got["texts"])
 
 
 def test_without_the_sdk_the_connector_says_how_to_get_it(monkeypatch, tmp_path: Path) -> None:
@@ -80,7 +82,8 @@ def test_without_the_sdk_the_connector_says_how_to_get_it(monkeypatch, tmp_path:
 
 def test_the_command_can_say_what_it_offers() -> None:
     said = connector.describe()
-    assert said.startswith("search_library:") and "quote_conversation" not in said
+    assert "\nfind_text:" in said and "quote_conversation" not in said
+    assert "search_library:" not in said, "find_text stands for it over a connector"
 
 
 # --- who is asking, and what they may see (targum-internal#80) --------------------
@@ -89,14 +92,14 @@ def test_the_command_can_say_what_it_offers() -> None:
 def test_stdio_keeps_the_posture_it_shipped_with() -> None:
     """No token means the whole registry, and it is not the same thing as no scopes."""
     names = {tool.name for tool in connector.exposed()}
-    assert "search_library" in names and "my_vocabulary" in names
+    assert "find_text" in names and "my_vocabulary" in names
     assert not [tool for tool in connector.exposed() if tool.spends]
 
 
 def test_no_scope_is_not_every_scope() -> None:
     """An empty scope string is a token that was granted nothing, and gets the library."""
     names = {tool.name for tool in connector.exposed("")}
-    assert "search_library" in names, "the library's scope is the unsaid default"
+    assert "find_text" in names, "the library's scope is the unsaid default"
     assert "my_vocabulary" not in names
     assert "quote_build" not in names
 

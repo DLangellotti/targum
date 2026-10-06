@@ -1135,8 +1135,14 @@ def ledger_block(
     rules: list[str] | None = None,
     shared: bool = True,
     known_of: int | None = None,
+    finder: str = "suggest_next",
 ) -> str:
     """The per-reader block: the ledger, then the word lists, then what comes back.
+
+    `finder` is the tool the first-day line sends a model to for a text to start with:
+    `suggest_next` in targum's own chat, `find_text` over the connector, where the three
+    finding tools are one (design.md §12, 2026-10-06). A host told to call a tool it was
+    never listed says it cannot.
 
     `known_of` is how many words the reader has marked known, where `known` is only a
     sample of them (`known_for_host`, the connector's). The line then says what the
@@ -1188,7 +1194,7 @@ def ledger_block(
             "The reader has marked no words known yet. Stand on the commonest of the common "
             "words, keep every sentence short, and in your first reply ask what they have "
             f"read in {named} so far - never what level they are - and offer them one short "
-            f"{named} text to start with (suggest_next), because words are marked while "
+            f"{named} text to start with ({finder}), because words are marked while "
             f"reading and that is how their ledger begins. If they say they already read "
             f"{named}, tell them once that Learn has a list called Words you may already "
             "know, where marking the common words they know lets you write with them."

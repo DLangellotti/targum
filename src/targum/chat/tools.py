@@ -186,6 +186,12 @@ class Tool:
     #: (targum-internal#80). Never offered to targum's own chat, which already holds its
     #: conversation to the contract and recasts every line itself — see `anthropic_tools`.
     elsewhere: bool = False
+    #: The other way round: offered to targum's own chat and not listed to a connector,
+    #: where `find_text` stands for it (design.md §12, "The connector finds with one
+    #: tool", 2026-10-06). The chat's page draws these results by the tool's name, so the
+    #: chat keeps them; a host was choosing between three tools for one question. Still
+    #: callable by a host that listed it before, under the same scopes (`connector.exposed`).
+    here_only: bool = False
     #: Arguments only a host somewhere else is offered, taken out of the schema targum's
     #: own chat is handed (`anthropic_tools`). `check_job`'s `wait_seconds` is one: a
     #: host follows a build between replies, and a turn here that held for it would hold
@@ -988,6 +994,97 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"suggestions": chosen}
 
 
+#: How many texts `find_text` answers with unless asked, and the most it will.
+FIND_LIMIT = 10
+FIND_MOST = 20
+
+#: What `find_text` says when it is asked for the reader's own texts on a connection that
+#: was not granted the record: a sentence a host can pass on, and what to do instead.
+FIND_NOT_SHARED = (
+    "This connection doesn't share the reader's own texts. Search without where to look in "
+    "the library, or the reader can allow their texts when they connect targum again."
+)
+
+
+def _from(where: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{"from": where, **row} for row in rows]
+
+
+def find_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """The connector's one way to find something to read (design.md §12, "The connector
+    finds with one tool", 2026-10-06).
+
+    A host handed `search_library`, `search_my_shelf` and `suggest_next` had to pick one
+    before it knew what the reader meant, and picked wrong first often enough to be the
+    slowest part of "find me X". This answers the question once, by calling those three
+    and copying none of their logic, so every row reads exactly as it did from the tool
+    it came from, with `from` added to say which half it is.
+
+    - No query: `suggest_next`, ranked for this reader; or, with `where` mine,
+      `search_my_shelf`, newest opened first. With `kind`, which `suggest_next` does not
+      take, the library's own order instead, gentlest first.
+    - A query: the reader's shelf first, then the library, and a library text whose link
+      is a shelf row's already shown is left out, because it is the same text twice. Not
+      held to the reader's ceiling: a text asked for by name is the one wanted, and
+      `search_library` dropping it as too hard answered "we don't have it".
+
+    The record decides the rest. Without it (`Ctx.sees_record`) the reader's shelf is not
+    this caller's to see, so `mine` is refused, `both` is the library alone, and nothing
+    is ranked by what the reader has read: `suggest_next` was a record tool too.
+
+    targum's own chat is never offered this (`elsewhere`): its page draws each of the
+    three results by the tool's name.
+    """
+    query = " ".join(str(args.get("query") or "").split())
+    where = str(args.get("where") or "both").strip().lower()
+    if where not in ("mine", "library", "both"):
+        where = "both"
+    if not ctx.sees_record:
+        if where == "mine":
+            return {"error": FIND_NOT_SHARED}
+        where = "library"
+    limit = max(1, min(int(args.get("limit") or FIND_LIMIT), FIND_MOST))
+    language = str(args.get("language") or "").strip()
+    said = {"language": language} if language else {}
+    narrowed = {
+        key: args[key] for key in ("register", "kind", "max_minutes") if args.get(key) is not None
+    }
+    if not query:
+        if where == "mine":
+            shelf = search_my_shelf(ctx, {**said, "limit": limit})
+            return {
+                "count": shelf["count"],
+                "now": shelf["now"],
+                "texts": _from("mine", shelf["texts"]),
+            }
+        if ctx.sees_record and "kind" not in narrowed:
+            # `suggest_next` reads a language as a code and has no "all": leaving it out
+            # is the reader's own language, which is what "all" asked of it before.
+            named = {} if language.lower() in ("all", "any", "*") else said
+            suggested = suggest_next(ctx, {**narrowed, **named, "limit": limit})["suggestions"]
+            return {"count": len(suggested), "texts": _from("library", suggested)}
+        found = search_library(ctx, {**narrowed, **said, "limit": limit})
+        return {"count": found["count"], "texts": _from("library", found["texts"])}
+    out: dict[str, Any] = {"count": 0, "texts": []}
+    shown: set[str] = set()
+    if where in ("mine", "both"):
+        shelf = search_my_shelf(ctx, {"query": query, **said, "limit": limit})
+        out["count"] = shelf["count"]
+        out["now"] = shelf["now"]
+        out["texts"] = _from("mine", shelf["texts"])
+        shown = {str(row["reader"]) for row in shelf["texts"] if row.get("reader")}
+    if where in ("library", "both"):
+        # Asked even when the shelf filled the answer, so `count` still says how many
+        # matched in all and a host shown ten knows to narrow.
+        found = search_library(
+            ctx, {"query": query, **narrowed, **said, "max_looked_up_percent": 100, "limit": limit}
+        )
+        fresh = [row for row in found["texts"] if not (row["reader"] and row["reader"] in shown)]
+        out["count"] += found["count"] - (len(found["texts"]) - len(fresh))
+        out["texts"] = [*out["texts"], *_from("library", fresh)][:limit]
+    return out
+
+
 def _rung(level: Level) -> int:
     """The reader's rung on the ulpan ladder as an index: measured, else the one they said
     on arrival (`level.seed`), else the first."""
@@ -1574,19 +1671,19 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return {"error": "Name the playlist."}
     if sum(1 for one in (text, source, catalogue_id) if one) != 1:
         return {
-            "error": "Give exactly one of: text (a name from search_my_shelf), source (a "
-            "link) or catalogue_id."
+            "error": "Give exactly one of: text (the name of a text on their shelf), source "
+            "(a link) or catalogue_id."
         }
     one: dict[str, Any]
     if text:
         mine, shared = _shelf(ctx)
-        # Only what is on this reader's shelf, by the name search_my_shelf gave it: the
+        # Only what is on this reader's shelf, by the name its shelf row gave it: the
         # model cannot put somebody else's text into a list by naming it.
         row = next((found for found in [*mine, *shared] if str(found["name"]) == text), None)
         if row is None:
             return {
-                "error": "That text isn't on the reader's shelf. Find it with "
-                "search_my_shelf, or pass it as source or catalogue_id."
+                "error": "That text isn't on the reader's shelf. Find its name among their own "
+                "texts, or pass it as source or catalogue_id."
             }
         one = {"title": str(row.get("title") or text), "reader": text}
     else:
@@ -2738,8 +2835,17 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             [
                 elsewhere(language, gloss),
                 hebrew_module.contract_for(language, gloss),
+                # `find_text`: this is only ever read by a host, which is not listed
+                # `suggest_next` (`Tool.here_only`).
                 hebrew_module.ledger_block(
-                    level, known, common, returning, rules, shared=shared, known_of=known_of
+                    level,
+                    known,
+                    common,
+                    returning,
+                    rules,
+                    shared=shared,
+                    known_of=known_of,
+                    finder="find_text",
                 ),
             ]
         ),
@@ -2787,6 +2893,7 @@ REGISTRY: tuple[Tool, ...] = (
         ),
         search_library,
         title="Search the library",
+        here_only=True,
     ),
     Tool(
         "open_library_text",
@@ -2817,6 +2924,7 @@ REGISTRY: tuple[Tool, ...] = (
         search_my_shelf,
         scope="record",
         title="Search my texts",
+        here_only=True,
     ),
     Tool(
         "sentences_with",
@@ -2876,6 +2984,51 @@ REGISTRY: tuple[Tool, ...] = (
         suggest_next,
         scope="record",
         title="What to read next",
+        here_only=True,
+    ),
+    Tool(
+        "find_text",
+        "Find something for the reader to read, among their own texts and in targum's "
+        "public library, in the language they are learning here unless you name another. "
+        "With query, their own texts that match come first, then the library's, each text "
+        "once. Without query, texts chosen for them to read next, ranked gentlest first, "
+        "each with a reason you can say as it is; with where set to mine, their own texts, "
+        "newest opened first, with when they last opened and finished each. Every text "
+        "says `from`, mine or library, and gives its `reader` link where it opens now; a "
+        "library text with `on_shelf` false needs getting ready first. count says how many "
+        "matched. Read only.",
+        _schema(
+            {
+                "query": {
+                    "type": "string",
+                    "description": "Words to match in the title, author or blurb. Leave it "
+                    "out for texts chosen for the reader.",
+                },
+                "where": {
+                    "type": "string",
+                    "enum": ["mine", "library", "both"],
+                    "description": "mine is the reader's own texts and the starter shelf, "
+                    "library is targum's public library, and both, the default, is theirs "
+                    "first. Where the reader did not share their texts, both is the library.",
+                },
+                "register": {
+                    "type": "string",
+                    "enum": REGISTERS,
+                    "description": "Which Hebrew. Library texts only.",
+                },
+                "kind": {"type": "string", "enum": KINDS, "description": "Library texts only."},
+                "max_minutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Reading time. Library texts only.",
+                },
+                "limit": {"type": "integer", "minimum": 1, "maximum": FIND_MOST},
+                "language": _LANGUAGE_FILTER,
+            }
+        ),
+        find_text,
+        elsewhere=True,
+        title="Find something to read",
     ),
     Tool(
         "quote_build",
@@ -2984,7 +3137,7 @@ REGISTRY: tuple[Tool, ...] = (
         "add_to_playlist",
         "Add a text to one of the reader's playlists, making the playlist if needed. Use it "
         'whenever the reader says "add this to my playlist", whether or not the text is '
-        "made yet: pass text (its name from search_my_shelf) for one on their shelf, or "
+        "made yet: pass text (the `name` their shelf gives it) for one on their shelf, or "
         "source (a link) or catalogue_id for one that isn't. Free: a text that isn't made "
         "yet comes back with its credits and a link where the reader confirms it; you "
         "cannot confirm it. For a new playlist of several texts, use quote_set.",
@@ -2993,7 +3146,7 @@ REGISTRY: tuple[Tool, ...] = (
                 "playlist": {"type": "string", "description": "The playlist's name."},
                 "text": {
                     "type": "string",
-                    "description": "A text on the shelf, exactly as search_my_shelf named it.",
+                    "description": "A text on the shelf, exactly as its `name` says.",
                 },
                 "source": {"type": "string", "description": "A link or fetcher id."},
                 "catalogue_id": {"type": "string"},

@@ -298,7 +298,7 @@ def test_the_library_scope_lists_the_library_and_not_the_record(box: tuple[int, 
     port, _ = box
     token = a_token(port, "library")
     names = {one["name"] for one in rpc(port, token, "tools/list")["result"]["tools"]}
-    assert "search_library" in names and "describe_source" in names
+    assert "find_text" in names and "describe_source" in names
     assert "my_vocabulary" not in names, "that is the record, and was not granted"
     assert "quote_build" not in names, "that is `check`, and was not granted"
 
@@ -307,7 +307,7 @@ def test_the_record_scope_adds_the_reader_s_own(box: tuple[int, str]) -> None:
     port, _ = box
     token = a_token(port, "library record")
     names = {one["name"] for one in rpc(port, token, "tools/list")["result"]["tools"]}
-    assert {"my_vocabulary", "my_progress", "search_my_shelf", "my_hours"} <= names
+    assert {"my_vocabulary", "my_progress", "find_text", "my_hours"} <= names
     assert "quote_build" not in names
 
 
@@ -360,7 +360,7 @@ def test_a_schema_comes_over_as_the_registry_wrote_it(box: tuple[int, str]) -> N
     port, _ = box
     token = a_token(port, "library")
     tools = rpc(port, token, "tools/list")["result"]["tools"]
-    search = next(one for one in tools if one["name"] == "search_library")
+    search = next(one for one in tools if one["name"] == "find_text")
     assert "inputSchema" in search, "MCP's spelling, not the Anthropic API's"
     assert "register" in search["inputSchema"]["properties"]
     assert search["inputSchema"]["additionalProperties"] is False
@@ -385,11 +385,12 @@ def test_the_library_really_answers(box: tuple[int, str]) -> None:
         port,
         token,
         "tools/call",
-        {"name": "search_library", "arguments": {"register": "biblical", "limit": 3}},
+        {"name": "find_text", "arguments": {"register": "biblical", "limit": 3}},
     )["result"]
     found = json.loads(said["content"][0]["text"])
     assert found["count"] >= 1
     assert all(row["register"] == "biblical" for row in found["texts"])
+    assert all(row["from"] == "library" for row in found["texts"]), "no record, no shelf"
 
 
 # --- prompts ---------------------------------------------------------------------
@@ -949,7 +950,8 @@ def test_every_listed_tool_carries_a_title_and_its_annotations(box: tuple[int, s
     assert by_name["record_turn"]["title"] == "Check what I wrote"
     for one in listed:
         assert one["title"] and one["annotations"]["destructiveHint"] is False, one["name"]
-    assert by_name["search_library"]["annotations"]["readOnlyHint"] is True
+    assert by_name["find_text"]["title"] == "Find something to read"
+    assert by_name["find_text"]["annotations"]["readOnlyHint"] is True
     assert by_name["quote_set"]["annotations"]["readOnlyHint"] is False
 
 
@@ -1188,6 +1190,76 @@ def test_the_shelf_comes_over_with_short_links(box: tuple[int, str]) -> None:
     assert rows[0]["reader"] == f"{PUBLIC}/r/{registry.short_key('שלום-עולם')}"
 
 
+def test_find_text_comes_over_with_short_links_too(box: tuple[int, str]) -> None:
+    """The one finding tool a host holds goes through the same door out (2026-10-06)."""
+    from targum.chat import tools as registry
+
+    port, _ = box
+    _shared_reader("שלום-עולם")
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "find_text", "arguments": {"query": "שלום-עולם", "language": "all"}},
+    )["result"]
+    text = said["content"][0]["text"]
+    assert "/reader/" not in text, text[:300]
+    rows = json.loads(text)["texts"]
+    assert rows[0]["from"] == "mine"
+    assert rows[0]["reader"] == f"{PUBLIC}/r/{registry.short_key('שלום-עולם')}"
+
+
+# --- one finding tool (design.md §12, 2026-10-06) ----------------------------------
+
+
+def test_hosts_are_listed_find_text_and_not_the_three(box: tuple[int, str]) -> None:
+    port, _ = box
+    for scope in ("library", "library record", "library record check"):
+        names = {
+            one["name"] for one in rpc(port, a_token(port, scope), "tools/list")["result"]["tools"]
+        }
+        assert "find_text" in names, scope
+        assert not names & {"search_library", "search_my_shelf", "suggest_next"}, scope
+
+
+def test_a_host_holding_an_old_name_can_still_call_it(box: tuple[int, str]) -> None:
+    """Mid-conversation across the change; and under the scope it always needed."""
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library"),
+        "tools/call",
+        {"name": "search_library", "arguments": {"limit": 1}},
+    )
+    assert said["result"]["isError"] is False
+    refused = rpc(
+        port, a_token(port, "library"), "tools/call", {"name": "search_my_shelf", "arguments": {}}
+    )
+    assert refused["error"]["code"] == mcp_http.INVALID_PARAMS, "the record was not granted"
+
+
+def test_without_the_record_find_text_will_not_open_the_shelf(box: tuple[int, str]) -> None:
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library"),
+        "tools/call",
+        {"name": "find_text", "arguments": {"where": "mine"}},
+    )["result"]
+    assert said["isError"] is True
+    assert "doesn't share" in json.loads(said["content"][0]["text"])["error"]
+
+
+def test_the_prompts_send_a_host_to_find_text(box: tuple[int, str]) -> None:
+    port, _ = box
+    token = a_token(port, "library record")
+    for name in ("what-next", "read-with-me"):
+        got = rpc(port, token, "prompts/get", {"name": name})["result"]
+        text = got["messages"][0]["content"]["text"]
+        assert "find_text" in text, name
+        assert not any(old in text for old in ("search_library", "search_my_shelf", "suggest"))
+
+
 # --- timing -----------------------------------------------------------------------
 
 
@@ -1204,12 +1276,12 @@ def test_each_call_logs_its_tool_and_how_long_it_took(
             port,
             token,
             "tools/call",
-            {"name": "search_library", "arguments": {"query": "secret words", "limit": 1}},
+            {"name": "find_text", "arguments": {"query": "secret words", "limit": 1}},
         )
         rpc(port, token, "tools/call", {"name": "open_library_text", "arguments": {"id": "nope"}})
     said = [r.getMessage() for r in caplog.records if r.name == "targum.mcp_http"]
     assert any(
-        line.startswith("mcp tool search_library took ") and line.endswith(" ms") for line in said
+        line.startswith("mcp tool find_text took ") and line.endswith(" ms") for line in said
     ), said
     assert any(
         line.startswith("mcp tool open_library_text took ") and line.endswith("ms (failed)")

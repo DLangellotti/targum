@@ -214,6 +214,107 @@ def test_another_reader_sees_neither_my_shelf_nor_my_words(world) -> None:
     assert tools.my_progress(ctx, {})["known"] == 0
 
 
+# --- find_text: the connector's one finding tool (design.md §12, 2026-10-06) --------
+
+
+def test_find_text_with_nothing_asked_is_what_suggest_next_says(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.find_text(ctx, {})
+    suggested = tools.suggest_next(ctx, {"limit": tools.FIND_LIMIT})["suggestions"]
+    assert got["texts"] == [{"from": "library", **row} for row in suggested]
+    assert got["count"] == len(suggested)
+
+
+def test_find_text_for_mine_is_what_my_shelf_says(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.find_text(ctx, {"where": "mine"})
+    shelf = tools.search_my_shelf(ctx, {"limit": tools.FIND_LIMIT})
+    assert got["texts"] == [{"from": "mine", **row} for row in shelf["texts"]]
+    assert got["count"] == shelf["count"] and got["now"]
+
+
+def test_find_text_with_a_query_puts_mine_first_and_each_text_once(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.find_text(ctx, {"query": "ruth"})
+    assert got["texts"][0]["from"] == "mine" and got["texts"][0]["name"] == "ruth-he"
+    library_ids = [row.get("id") for row in got["texts"] if row["from"] == "library"]
+    assert "ruth" not in library_ids, "on the shelf already, so it is the shelf's row"
+    readers = [row["reader"] for row in got["texts"] if row["reader"]]
+    assert len(readers) == len(set(readers))
+    assert got["count"] == len(got["texts"])
+    only_library = tools.find_text(ctx, {"query": "ruth", "where": "library"})
+    assert [row["from"] for row in only_library["texts"]] == ["library"] * len(
+        only_library["texts"]
+    )
+    assert "ruth" in [row["id"] for row in only_library["texts"]]
+
+
+def test_find_text_holds_a_named_text_to_no_ceiling(world, monkeypatch) -> None:
+    """A text asked for by name is the one wanted, however hard it is."""
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    asked: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        tools, "search_library", lambda ctx, args: asked.append(args) or {"count": 0, "texts": []}
+    )
+    tools.find_text(ctx, {"query": "anything", "where": "library", "register": "biblical"})
+    assert asked[0]["max_looked_up_percent"] == 100 and asked[0]["register"] == "biblical"
+
+
+def test_find_text_with_a_kind_ranks_the_library_s_way(world) -> None:
+    """`suggest_next` takes no kind, so a kind asked for is the library's own order."""
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    kind = tools.search_library(ctx, {"limit": 1})["texts"][0]["kind"]
+    got = tools.find_text(ctx, {"kind": kind})
+    assert got["texts"] and all(row["kind"] == kind for row in got["texts"])
+    assert got["texts"] == [
+        {"from": "library", **row}
+        for row in tools.search_library(ctx, {"kind": kind, "limit": 10})["texts"]
+    ]
+
+
+def test_find_text_without_the_record_sees_only_the_library(world) -> None:
+    library, store, person, home = world
+    ctx = replace(context(library, store, person, home), sees_record=False)
+    assert "doesn't share" in tools.find_text(ctx, {"where": "mine"})["error"]
+    found = tools.find_text(ctx, {"query": "ruth"})
+    assert found["texts"] and {row["from"] for row in found["texts"]} == {"library"}
+    assert "now" not in found, "nothing of the shelf's was read"
+    ranked = tools.find_text(ctx, {})
+    assert ranked["texts"] == [
+        {"from": "library", **row} for row in tools.search_library(ctx, {"limit": 10})["texts"]
+    ], "gentlest first, not ranked by what the reader has read"
+
+
+def test_find_text_is_the_connector_s_and_the_three_are_the_chat_s() -> None:
+    from targum import connector
+
+    here = {shape["name"] for shape in tools.anthropic_tools()}
+    assert {"search_library", "search_my_shelf", "suggest_next"} <= here
+    assert "find_text" not in here, "the chat's page draws the three by name"
+    for scopes in (None, "library", "library record", "library record check"):
+        there = {tool.name for tool in connector.exposed(scopes, person=None)}
+        assert "find_text" in there, scopes
+        assert not there & {"search_library", "search_my_shelf", "suggest_next"}, scopes
+    calling = {tool.name for tool in connector.exposed("library", calling=True)}
+    assert "search_library" in calling and "search_my_shelf" not in calling
+
+
+def test_a_host_on_its_first_day_is_sent_to_find_text(world) -> None:
+    library, store, person, home = world
+    other = signed_in(store, "first-day@example.com")
+    ctx = context(library, store, other, library.home(other))
+    contract = tools.how_to_talk(ctx, {})["contract"]
+    assert "(find_text)" in contract and "suggest_next" not in contract
+    from targum.chat import hebrew
+
+    assert "(suggest_next)" in hebrew.ledger_block(level.EMPTY, [], []), "the chat's own"
+
+
 def test_vocabulary_and_progress_are_counts(world) -> None:
     library, store, person, home = world
     ctx = context(library, store, person, home)
