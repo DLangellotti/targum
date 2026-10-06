@@ -129,15 +129,20 @@ def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def nothing_described_yet():
-    """Every test starts with no video link remembered (2026-10-06).
+def nothing_described_yet(monkeypatch: pytest.MonkeyPatch):
+    """Every test starts with no video link remembered and no Data API key (2026-10-06).
 
     `video/remembered.py` keeps what a link was found to be for an hour, in-process, so
     without this a test that describes `youtu.be/abc123` would be answered by whatever
-    the test before it was told — and pass or fail in an order nobody chose.
+    the test before it was told — and pass or fail in an order nobody chose. And a shell
+    under `op run` has the YouTube key exported, which would send every YouTube lookup in
+    the suite to Google first; the tests that mean to ask the API set a key of their own.
     """
+    from targum.video import youtube
     from targum.video.remembered import DESCRIBED
 
+    monkeypatch.delenv(youtube.API_KEY_ENV, raising=False)
+    monkeypatch.setattr(youtube._REST, "until", 0.0)
     DESCRIBED.clear()
     yield
     DESCRIBED.clear()

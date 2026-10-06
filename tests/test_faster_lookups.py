@@ -242,3 +242,242 @@ def test_a_slow_youtube_reaches_a_host_and_a_russian_reader_plainly(
     Library(tmp_path).prepare(job)
     assert job.stage == "failed"
     assert job.error == "YouTube сейчас отвечает медленно. Попробуйте через минуту."
+
+
+# -- the Data API before yt-dlp --------------------------------------------------------
+
+KEY = "AIza-test-key-never-logged"
+
+#: What `videos.list` said for a Khan Academy Hebrew lesson on 2026-10-06, trimmed.
+LISTED = {
+    "items": [
+        {
+            "id": "abc123defgh",
+            "snippet": {
+                "title": "שיעור",
+                "channelTitle": "Khan Academy Hebrew",
+                "channelId": "UC123",
+                "description": "",
+                "defaultAudioLanguage": "en",
+                "liveBroadcastContent": "none",
+            },
+            "contentDetails": {"duration": "PT10M", "caption": "true", "contentRating": {}},
+            "status": {
+                "uploadStatus": "processed",
+                "privacyStatus": "public",
+                "license": "creativeCommon",
+                "embeddable": True,
+            },
+        }
+    ]
+}
+
+CAPTIONS = {
+    "items": [
+        {"snippet": {"language": "iw", "trackKind": "standard", "status": "serving"}},
+        {"snippet": {"language": "he", "trackKind": "asr", "status": "serving"}},
+        {"snippet": {"language": "en", "trackKind": "standard", "status": "failed"}},
+    ]
+}
+
+
+class _Answer:
+    def __init__(self, body: dict[str, Any]) -> None:
+        self.body = json.dumps(body).encode()
+
+    def __enter__(self) -> _Answer:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self.body
+
+
+def _google(monkeypatch, **said: Any) -> list[str]:
+    """Stand in for the Data API. `said` maps a path to a body, or to an exception."""
+    import urllib.parse
+
+    asked: list[str] = []
+
+    def urlopen(request, timeout=None):
+        address = urllib.parse.urlparse(request.full_url)
+        assert address.scheme == "https" and address.hostname == "www.googleapis.com"
+        assert urllib.parse.parse_qs(address.query)["key"] == [KEY]
+        assert timeout is not None and 0 < timeout <= youtube.API_TIMEOUT_S
+        path = address.path.rsplit("/", 1)[-1]
+        asked.append(path)
+        answer = said[path]
+        if isinstance(answer, Exception):
+            raise answer
+        return _Answer(answer)
+
+    monkeypatch.setattr(youtube.urllib.request, "urlopen", urlopen)
+    monkeypatch.setenv(youtube.API_KEY_ENV, KEY)
+    return asked
+
+
+def _refused(code: int, reason: str) -> Exception:
+    import io
+    import urllib.error
+
+    body = json.dumps({"error": {"code": code, "errors": [{"reason": reason}]}}).encode()
+    return urllib.error.HTTPError(
+        f"https://www.googleapis.com/youtube/v3/videos?key={KEY}", code, "no", {}, io.BytesIO(body)
+    )
+
+
+def test_the_api_answers_what_ytdlp_would_in_the_shape_the_screen_reads(monkeypatch) -> None:
+    """Parity: the five things `screen.from_ytdlp` reads, the same from either door —
+    and `describe_source` the same word for word, so nothing downstream can tell."""
+    from targum import screen
+
+    asked = _google(monkeypatch, videos=LISTED, captions=CAPTIONS)
+    seen = _ytdlp(monkeypatch)
+    via_api = youtube.describe("https://youtu.be/abc123defgh")
+    assert asked == ["videos", "captions"] and seen == [], "yt-dlp is never asked"
+    assert via_api["answered_by"] == "youtube-data-api"
+
+    api, ytdlp = screen.from_ytdlp(via_api), screen.from_ytdlp(ANSWER)
+    assert api.title == ytdlp.title == "שיעור"
+    assert api.duration == ytdlp.duration == 600.0
+    assert api.licence == ytdlp.licence
+    assert api.subtitles == ("iw",), "the standard track, not the ASR one or a failed one"
+    assert api.audio == ("he",), "the ASR track's language, not the uploader's `en`"
+    assert api.source == ytdlp.source
+
+    ctx = SimpleNamespace(store=None)
+    from_api = tools.describe_source(ctx, {"url": "https://youtu.be/abc123defgh"})
+    remembered.DESCRIBED.clear()
+    monkeypatch.delenv(youtube.API_KEY_ENV)
+    from_ytdlp = tools.describe_source(ctx, {"url": "https://youtu.be/abc123defgh"})
+    assert len(seen) == 1
+    assert from_api == from_ytdlp
+
+
+def test_the_standard_licence_says_nothing_as_ytdlp_does(monkeypatch) -> None:
+    import copy
+
+    listed = copy.deepcopy(LISTED)
+    listed["items"][0]["status"]["license"] = "youtube"
+    listed["items"][0]["contentDetails"]["duration"] = "P0D"
+    _google(monkeypatch, videos=listed, captions={"items": []})
+    said = youtube.describe("https://youtu.be/abc123defgh")
+    assert said["license"] is None
+    assert said["duration"] is None, "a live stream has no length, and is refused for it"
+    assert said["subtitles"] == {} and said["formats"] == []
+
+
+@pytest.mark.parametrize(
+    "videos",
+    [
+        _refused(403, "quotaExceeded"),
+        _refused(400, "keyInvalid"),
+        _refused(500, "backendError"),
+        TimeoutError("timed out"),
+        {"items": []},
+        {"not": "a listing"},
+    ],
+    ids=["quota", "bad-key", "google-down", "timeout", "no-such-video", "odd-answer"],
+)
+def test_anything_the_api_cannot_answer_goes_to_ytdlp(monkeypatch, caplog, videos) -> None:
+    caplog.set_level("INFO", logger=youtube.__name__)
+    _google(monkeypatch, videos=videos, captions=CAPTIONS)
+    seen = _ytdlp(monkeypatch)
+    assert youtube.describe("https://youtu.be/abc123defgh")["title"] == "שיעור"
+    assert len(seen) == 1
+    assert KEY not in caplog.text, "the key never reaches the journal"
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"status": {"privacyStatus": "private", "uploadStatus": "processed"}},
+        {"status": {"privacyStatus": "public", "uploadStatus": "uploaded"}},
+        {"contentDetails": {"duration": "PT10M", "contentRating": {"ytRating": "ytAgeRestricted"}}},
+        {"contentDetails": {"duration": "PT10M", "regionRestriction": {"blocked": ["IL"]}}},
+    ],
+    ids=["private", "processing", "age-gated", "region-blocked"],
+)
+def test_a_video_the_build_might_not_get_is_asked_of_ytdlp(monkeypatch, change) -> None:
+    import copy
+
+    listed = copy.deepcopy(LISTED)
+    listed["items"][0].update(change)
+    asked = _google(monkeypatch, videos=listed, captions=CAPTIONS)
+    seen = _ytdlp(monkeypatch)
+    youtube.describe("https://youtu.be/abc123defgh")
+    assert asked == ["videos"] and len(seen) == 1
+
+
+def test_a_refused_key_rests_the_api_and_one_video_does_not(monkeypatch) -> None:
+    clock = Clock()
+    monkeypatch.setattr(youtube, "_clock", clock)
+    asked = _google(monkeypatch, videos=_refused(403, "quotaExceeded"), captions=CAPTIONS)
+    _ytdlp(monkeypatch)
+    youtube.describe("https://youtu.be/abc123defgh")
+    youtube.describe("https://youtu.be/zzz123defgh")
+    assert asked == ["videos"], "out of quota: not asked again for every lookup"
+    clock.now += youtube.API_REST_S + 1
+    youtube.describe("https://youtu.be/yyy123defgh")
+    assert asked == ["videos", "videos"]
+
+    monkeypatch.setattr(youtube._REST, "until", 0.0)
+    again = _google(monkeypatch, videos={"items": []}, captions=CAPTIONS)
+    youtube.describe("https://youtu.be/xxx123defgh")
+    youtube.describe("https://youtu.be/www123defgh")
+    assert again == ["videos", "videos"], "a video Google has not got rests nothing"
+
+
+def test_a_caption_list_that_fails_is_only_survivable_where_there_are_none(monkeypatch) -> None:
+    import copy
+
+    listed = copy.deepcopy(LISTED)
+    listed["items"][0]["contentDetails"]["caption"] = "false"
+    _google(monkeypatch, videos=listed, captions=_refused(403, "forbidden"))
+    seen = _ytdlp(monkeypatch)
+    said = youtube.describe("https://youtu.be/abc123defgh")
+    assert said["answered_by"] == "youtube-data-api" and said["subtitles"] == {}
+    assert seen == []
+
+    remembered.DESCRIBED.clear()
+    monkeypatch.setattr(youtube._REST, "until", 0.0)
+    _google(monkeypatch, videos=LISTED, captions=_refused(500, "backendError"))
+    youtube.describe("https://youtu.be/abc123defgh")
+    assert len(seen) == 1, "Google says somebody wrote a track; yt-dlp is asked which"
+
+
+def test_no_key_and_an_id_that_is_not_one_never_reach_google(monkeypatch) -> None:
+    def urlopen(*args, **kwargs):
+        raise AssertionError("asked Google")
+
+    monkeypatch.setattr(youtube.urllib.request, "urlopen", urlopen)
+    seen = _ytdlp(monkeypatch)
+    youtube.describe("https://youtu.be/abc123defgh")
+    monkeypatch.setenv(youtube.API_KEY_ENV, KEY)
+    assert youtube.from_data_api("abc/../x?y=1") is None
+    assert len(seen) == 1
+
+
+def test_the_api_spends_the_same_budget_as_ytdlp(monkeypatch) -> None:
+    """A Google that hangs takes its four seconds out of the twenty, not on top."""
+    clock = Clock()
+    monkeypatch.setattr(youtube, "_clock", clock)
+
+    def slow(request, timeout=None):
+        clock.now += timeout
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(youtube.urllib.request, "urlopen", slow)
+    monkeypatch.setenv(youtube.API_KEY_ENV, KEY)
+    given: list[float] = []
+
+    def run(args, **kwargs):
+        given.append(kwargs["timeout"])
+        return subprocess.CompletedProcess(args, 0, json.dumps(ANSWER).encode(), b"")
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    youtube.describe("https://youtu.be/abc123defgh")
+    assert given == [youtube.LOOKUP_S - youtube.API_TIMEOUT_S]

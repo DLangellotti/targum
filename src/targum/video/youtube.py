@@ -23,7 +23,11 @@ import logging
 import os
 import re
 import subprocess
+import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -573,8 +577,11 @@ def describe(url: str, *, within: float | None = LOOKUP_S) -> dict[str, Any]:
 
 
 def _asked(url: str, within: float | None) -> dict[str, Any]:
-    """`describe`, asked rather than remembered."""
+    """`describe`, asked rather than remembered: the Data API first, yt-dlp after."""
     deadline = None if within is None else _clock() + within
+    answered = from_data_api(video_id(url), deadline)
+    if answered is not None:
+        return answered
     done = run_ytdlp(
         ["yt-dlp", "-J", "--no-playlist", "--skip-download", url],
         timeout=120,
@@ -587,6 +594,247 @@ def _asked(url: str, within: float | None) -> dict[str, Any]:
     except json.JSONDecodeError as error:
         raise TargumError("yt-dlp answered with something that is not JSON.") from error
     return answer
+
+
+# --- the Data API, before yt-dlp (2026-10-06) ------------------------------------------
+#
+# YouTube refuses the box's address, so every `yt-dlp -J` leaves through the residential
+# proxy: seconds when the exit is clean, a retry when it is flagged, and a minute on a bad
+# day. YouTube's Data API is a different door into the same facts. It is Google's API,
+# asked with targum's key, it does not care which address asks, and it answers in a
+# quarter of a second. Measured from a laptop on 2026-10-06: `videos.list` 0.25 s and
+# `captions.list` 0.4–0.5 s, against 2.7–4.6 s for `yt-dlp -J` with no proxy at all.
+#
+# **It answers what a lookup asks.** `screen.from_ytdlp` reads five things, and each has
+# an API field:
+#
+# * length — `contentDetails.duration`, ISO 8601; `P0D` for a live stream or a premiere,
+#   which is 0 here as it is from yt-dlp, and refused the same way;
+# * title — `snippet.title`;
+# * licence — `status.license`: `creativeCommon` is YouTube's one CC licence, said in the
+#   words yt-dlp uses for it, and `youtube` is the standard licence, for which yt-dlp
+#   says nothing at all (measured on "Me at the zoo"), so nothing is said here either;
+# * which subtitle tracks somebody wrote — `captions.list`, `trackKind: standard`. It
+#   takes a plain API key for a public video: Google's reference lists OAuth scopes for
+#   it, but listing (not downloading) works with a key, checked live on 2026-10-06 — a
+#   Khan Academy Hebrew lesson gave `iw standard`, "Me at the zoo" gave `de standard`,
+#   `en asr`, `en standard`, and nine Hebrew news uploads gave `asr` tracks only, each
+#   with `contentDetails.caption` "false". 50 quota units a call.
+# * the audio track's language — the `asr` track's language. That is where yt-dlp gets
+#   it for an ordinary one-track video (`set_audio_lang_from_orig_subs_lang`, from the
+#   same caption list), so the two doors agree. Not `snippet.defaultAudioLanguage`: that
+#   is what the uploader set, and the Khan Academy Hebrew lesson above, spoken in Hebrew,
+#   says `en`. A video with several dubbed audio tracks is the one thing the API cannot
+#   see; it reads as its spoken language, which is the original track.
+#
+# **Anything it cannot answer goes to yt-dlp, which answers it as before**: no key, a
+# refused or exhausted key, Google not answering in time, no such video (a private one
+# is invisible to a key), or a video the build's own fetch might not get — age-gated,
+# region-blocked, not public, not processed. yt-dlp's refusal for those is the true one,
+# and the build is going to meet it anyway.
+#
+# **The door.** `ingest/url.py` vets addresses a reader brought; this asks one literal
+# https host and two literal paths, the way `video/discover.py` and `google.py` do, and
+# the only thing a reader contributes is an id that has to be eleven characters of
+# YouTube's alphabet first. The box has no outbound allowlist to add googleapis.com to:
+# its firewall closes one inbound port and nothing else (`deploy/nftables-targum.conf`).
+# The key is in the query string, as Google asks for it, so no address of this door is
+# ever logged — only the id and Google's one-word reason.
+#
+# **Quota.** 51 units a lookup against 10,000 a day — about 190 lookups, before the
+# hour's memory (`remembered.py`) and shared with `video/discover.py`'s runs from the
+# laptop on the same key. Run out, and Google says `quotaExceeded`: the API is left
+# alone for `API_REST_S` and yt-dlp answers meanwhile, as it did before any of this.
+
+#: The key, kept in 1Password and written into the box's environment by `deploy.sh`
+#: (`deploy/box.env.op`). The same name `video/discover.py` reads.
+API_KEY_ENV = "TARGUM_YOUTUBE_API_KEY"
+
+#: The one host and the two things asked of it.
+DATA_API = "https://www.googleapis.com/youtube/v3"
+
+#: The longest one call may take. Google answers in a quarter of a second; a call that
+#: has not answered in four is not going to answer usefully, and yt-dlp still has the
+#: rest of the budget.
+API_TIMEOUT_S = 4.0
+
+#: How long the API is left alone after Google refuses the key itself — out of quota, or
+#: a key that is wrong — rather than one video.
+API_REST_S = 600.0
+
+#: What yt-dlp says for YouTube's one Creative Commons licence, word for word, so the
+#: licence row reads the same whichever door answered.
+CC_BY_SAID = "Creative Commons Attribution license (reuse allowed)"
+
+#: What a YouTube video id is: eleven characters of YouTube's URL-safe alphabet.
+_VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")
+
+#: Google's reasons that are about the key or the project rather than the video.
+_KEY_REFUSED = frozenset(
+    {
+        "quotaExceeded",
+        "dailyLimitExceeded",
+        "rateLimitExceeded",
+        "keyInvalid",
+        "keyExpired",
+        "accessNotConfigured",
+        "forbidden",
+        "ipRefererBlocked",
+    }
+)
+
+
+class _Rest:
+    """When the API may next be asked, shared by every thread."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.until = 0.0
+
+    def resting(self) -> bool:
+        with self.lock:
+            return _clock() < self.until
+
+    def start(self) -> None:
+        with self.lock:
+            self.until = _clock() + API_REST_S
+
+
+_REST = _Rest()
+
+
+class _NotAnswered(Exception):
+    """The Data API did not answer this; yt-dlp will be asked instead."""
+
+
+def _api(path: str, query: dict[str, str], key: str, deadline: float | None) -> dict[str, Any]:
+    """One GET to the Data API, or `_NotAnswered` with Google's one-word reason."""
+    allowed = API_TIMEOUT_S
+    if deadline is not None:
+        allowed = min(allowed, deadline - _clock())
+        if allowed <= 0:
+            raise _NotAnswered("no time left")
+    address = f"{DATA_API}/{path}?{urllib.parse.urlencode({**query, 'key': key})}"
+    request = urllib.request.Request(address, headers={"Accept": "application/json"})  # noqa: S310
+    try:
+        # A literal https host and path; nothing in it a reader typed but a checked id.
+        with urllib.request.urlopen(request, timeout=allowed) as answer:  # noqa: S310
+            loaded = json.loads(answer.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        try:
+            said = json.loads(error.read().decode("utf-8", "replace"))
+            reasons = [str(one.get("reason")) for one in said["error"]["errors"]]
+        except Exception:  # noqa: BLE001 - a refusal without Google's body is still one
+            reasons = []
+        if _KEY_REFUSED & set(reasons):
+            _REST.start()
+        raise _NotAnswered(f"HTTP {error.code} {','.join(reasons)}".strip()) from None
+    except Exception as error:  # noqa: BLE001 - timeouts, resets, bad JSON: all one answer
+        # The type alone: a URLError's text can carry the address, and the address
+        # carries the key.
+        raise _NotAnswered(type(error).__name__) from None
+    if not isinstance(loaded, dict):
+        raise _NotAnswered("not a JSON object")
+    return loaded
+
+
+def _why_not(item: dict[str, Any]) -> str:
+    """Why this video is one for yt-dlp to answer rather than the API, or "".
+
+    Each is a video the build's fetch might be refused, where yt-dlp's own sentence is
+    the true answer and the API's tidy one would price something nobody can fetch.
+    """
+    status = item.get("status") or {}
+    details = item.get("contentDetails") or {}
+    if status.get("privacyStatus") not in ("public", "unlisted"):
+        return f"privacy {status.get('privacyStatus')}"
+    if status.get("uploadStatus") != "processed":
+        return f"upload {status.get('uploadStatus')}"
+    if (details.get("contentRating") or {}).get("ytRating") == "ytAgeRestricted":
+        return "age-restricted"
+    if details.get("regionRestriction"):
+        return "region-restricted"
+    return ""
+
+
+def from_api_answer(item: dict[str, Any], tracks: list[dict[str, Any]]) -> dict[str, Any]:
+    """A `videos.list` item and its `captions.list` tracks, in `yt-dlp -J`'s keys.
+
+    Only the keys something reads: `screen.from_ytdlp`'s five and the ones a post card
+    or the journal might, so every caller is unchanged whichever door answered.
+    """
+    from .discover import seconds
+
+    found = str(item.get("id") or "")
+    snippet = item.get("snippet") or {}
+    details = item.get("contentDetails") or {}
+    status = item.get("status") or {}
+    written: list[str] = []
+    heard = ""
+    for track in tracks:
+        said = track.get("snippet") or {}
+        language = str(said.get("language") or "")
+        if not language or said.get("status") == "failed":
+            continue
+        kind = said.get("trackKind")
+        if kind == "standard" and language not in written:
+            written.append(language)
+        elif kind == "asr" and not heard:
+            heard = language
+    return {
+        "id": found,
+        "title": str(snippet.get("title") or ""),
+        "duration": seconds(str(details.get("duration") or "")) or None,
+        "webpage_url": f"{WATCH}{found}",
+        "license": CC_BY_SAID if status.get("license") == "creativeCommon" else None,
+        "channel": snippet.get("channelTitle"),
+        "channel_id": snippet.get("channelId"),
+        "uploader": snippet.get("channelTitle"),
+        "description": snippet.get("description"),
+        # One audio "format", standing for the track whose language YouTube heard. A
+        # lookup reads formats for their language and nothing else.
+        "formats": (
+            [{"format_id": "data-api", "acodec": "unknown", "vcodec": "none", "language": heard}]
+            if heard
+            else []
+        ),
+        "subtitles": {language: [] for language in written},
+        "automatic_captions": {heard: []} if heard else {},
+        "extractor_key": "Youtube",
+        "answered_by": "youtube-data-api",
+    }
+
+
+def from_data_api(found: str, deadline: float | None = None) -> dict[str, Any] | None:
+    """What the Data API says about video `found`, in `yt-dlp -J`'s shape, or None
+    where yt-dlp should be asked instead (see the note above)."""
+    key = os.environ.get(API_KEY_ENV, "").strip()
+    if not key or not _VIDEO_ID.fullmatch(found or "") or _REST.resting():
+        return None
+    try:
+        listed = _api(
+            "videos", {"part": "contentDetails,snippet,status", "id": found}, key, deadline
+        )
+        items = [one for one in listed.get("items") or [] if isinstance(one, dict)]
+        if not items:
+            log.info("the Data API has no public video %s; asking yt-dlp", found)
+            return None
+        if why := _why_not(items[0]):
+            log.info("the Data API passed %s to yt-dlp: %s", found, why)
+            return None
+        try:
+            tracks = _api("captions", {"part": "snippet", "videoId": found}, key, deadline)
+        except _NotAnswered:
+            if (items[0].get("contentDetails") or {}).get("caption") != "false":
+                raise
+            # No track anybody wrote, Google says, so the subtitle question is answered;
+            # only the heard language is lost, and yt-dlp is often silent on it too.
+            tracks = {}
+    except _NotAnswered as reason:
+        log.info("the Data API did not answer for %s (%s); asking yt-dlp", found, reason)
+        return None
+    caption_tracks = [one for one in tracks.get("items") or [] if isinstance(one, dict)]
+    return from_api_answer(items[0], caption_tracks)
 
 
 def fetch_subtitles(url: str, into: Path, languages: tuple[str, ...] = ("he", "iw")) -> Path:
