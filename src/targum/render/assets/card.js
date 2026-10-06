@@ -1,11 +1,8 @@
 // The build card (design.md §12, "A card in someone else's chat", 2026-10-06).
 //
 // A host that draws MCP Apps puts this page in a sandboxed frame beside a `check_job`
-// result and talks to it over postMessage, JSON-RPC 2.0, as the MCP Apps extension
-// (SEP-1865, spec 2026-01-26) says: the card asks `ui/initialize`, is told the host's
-// theme and what it can do, says `ui/notifications/initialized`, and is handed the tool
-// result in `ui/notifications/tool-result`. ChatGPT speaks the same bridge; its older
-// `window.openai` is read only where the bridge never answers.
+// result. How it talks to the host is `card-bridge.js`, inlined before this file and
+// shared with the text card; this file is what the build card does with what it hears.
 //
 // What the card may do, and all it may do:
 //   - draw the rows it was handed, in the host's theme;
@@ -19,7 +16,6 @@
 (function () {
   "use strict";
 
-  var root = document.documentElement;
   var card = document.getElementById("card");
   var label = document.getElementById("label");
   var title = document.getElementById("title");
@@ -41,9 +37,7 @@
   var ENDED = { done: true, failed: true, blocked: true };
   var HEBREW = /[֐-׿]/;
 
-  var host = null;
-  var asked = 0;
-  var waiting = {};
+  var bridge = null;
   var job = "";
   var began = Date.now();
   var following = false;
@@ -52,63 +46,10 @@
   var superseded = false;
   var channel = null;
 
-  function send(message) {
-    message.jsonrpc = "2.0";
-    window.parent.postMessage(message, "*");
-  }
-
-  function request(method, params) {
-    return new Promise(function (resolve, reject) {
-      asked += 1;
-      waiting[asked] = { resolve: resolve, reject: reject };
-      send({ id: asked, method: method, params: params || {} });
-    });
-  }
-
-  function notify(method, params) {
-    send({ method: method, params: params || {} });
-  }
-
-  // -- the theme -------------------------------------------------------------------
-
-  function themed(context) {
-    var theme = context && context.theme;
-    if (theme === "dark" || theme === "light") {
-      root.setAttribute("data-theme", theme);
-    }
-  }
-
-  // Before the host says anything: ChatGPT's global, or the frame's own preference,
-  // so the first paint is not a light card in a dark room.
-  if (window.openai && window.openai.theme) {
-    themed({ theme: window.openai.theme });
-  } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    themed({ theme: "dark" });
-  }
-
   // -- drawing the rows ------------------------------------------------------------
 
-  function rowsOf(result) {
-    if (!result) return null;
-    if (result.structuredContent && typeof result.structuredContent === "object") {
-      return result.structuredContent;
-    }
-    // A host that passed only the text: it is the same JSON (`mcp_http._call`).
-    var content = result.content || [];
-    for (var i = 0; i < content.length; i += 1) {
-      if (content[i] && content[i].type === "text") {
-        try {
-          return JSON.parse(content[i].text);
-        } catch (error) {
-          return null;
-        }
-      }
-    }
-    return null;
-  }
-
   function show(result, mirrored) {
-    var rows = rowsOf(result);
+    var rows = TargumCard.rowsOf(result);
     if (!rows) return;
     if (rows.error) {
       said.textContent = rows.error;
@@ -178,9 +119,10 @@
 
   // The one tool this card may ask for, and the only tool named in this file.
   function check(args) {
-    var bridge = host && (host.hostCapabilities || {}).serverTools;
-    if (host && (bridge || !(window.openai && window.openai.callTool))) {
-      return request("tools/call", { name: "check_job", arguments: args });
+    var host = bridge && bridge.host();
+    var serving = host && (host.hostCapabilities || {}).serverTools;
+    if (host && (serving || !(window.openai && window.openai.callTool))) {
+      return bridge.request("tools/call", { name: "check_job", arguments: args });
     }
     if (window.openai && typeof window.openai.callTool === "function") {
       return window.openai.callTool("check_job", args);
@@ -231,78 +173,22 @@
 
   door.addEventListener("click", function (event) {
     var url = door.getAttribute("href");
-    if (!url) return;
+    if (!url || !bridge) return;
     event.preventDefault();
-    if (host) {
-      request("ui/open-link", { url: url }).catch(function () {
-        window.open(url, "_blank", "noopener");
-      });
-    } else if (window.openai && typeof window.openai.openExternal === "function") {
-      window.openai.openExternal({ href: url });
-    } else {
-      window.open(url, "_blank", "noopener");
-    }
+    bridge.open(url);
   });
 
   // -- the bridge ------------------------------------------------------------------
 
-  window.addEventListener("message", function (event) {
-    if (event.source !== window.parent) return;
-    var message = event.data;
-    if (!message || message.jsonrpc !== "2.0") return;
-    if (message.method === undefined && message.id !== undefined) {
-      var pending = waiting[message.id];
-      if (!pending) return;
-      delete waiting[message.id];
-      if (message.error) pending.reject(message.error);
-      else pending.resolve(message.result);
-      return;
-    }
-    if (message.method === "ui/notifications/tool-input") {
-      var given = (message.params || {}).arguments || {};
-      if (given.id) job = String(given.id);
-    } else if (message.method === "ui/notifications/tool-result") {
-      show(message.params, false);
-    } else if (message.method === "ui/notifications/host-context-changed") {
-      themed(message.params);
-    } else if (message.id !== undefined) {
-      // A request from the host — `ping`, or `ui/resource-teardown` before the frame
-      // goes. Nothing to clean up: an empty answer is the whole reply.
-      send({ id: message.id, result: {} });
-    }
-  });
-
-  var tall = 0;
-  function measured() {
-    if (!host) return;
-    var height = Math.ceil(root.getBoundingClientRect().height);
-    if (height === tall) return;
-    tall = height;
-    notify("ui/notifications/size-changed", {
-      width: Math.ceil(root.getBoundingClientRect().width),
-      height: height,
-    });
-  }
-  if (window.ResizeObserver) new ResizeObserver(measured).observe(card);
-
-  request("ui/initialize", {
-    protocolVersion: "2026-01-26",
-    appCapabilities: { availableDisplayModes: ["inline"] },
-    clientInfo: { name: "targum", version: "1" },
-  }).then(function (result) {
-    host = result || {};
-    themed(host.hostContext);
-    notify("ui/notifications/initialized");
-    measured();
-  });
-
-  // ChatGPT's own globals, for a frame the bridge never answers.
-  if (window.openai && window.openai.toolOutput) {
-    show({ structuredContent: window.openai.toolOutput }, false);
-  }
-  window.addEventListener("openai:set_globals", function (event) {
-    var globals = (event.detail || {}).globals || {};
-    if (globals.theme) themed({ theme: globals.theme });
-    if (globals.toolOutput && !host) show({ structuredContent: globals.toolOutput }, false);
-  });
+  bridge = TargumCard.start(
+    {
+      input: function (given) {
+        if (given.id) job = String(given.id);
+      },
+      result: function (result) {
+        show(result, false);
+      },
+    },
+    card
+  );
 })();

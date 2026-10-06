@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from . import connector, oauth
@@ -81,7 +82,8 @@ CAPABILITIES: dict[str, Any] = {
 CARD_TYPE = "text/html;profile=mcp-app"
 
 #: The cards, by address: what a host lists, and the page `builder` draws for each.
-#: design.md §12 allows two and one is built; a third needs an entry there first.
+#: design.md §12 allows two and both are built (2026-10-06); a third needs an entry
+#: there first.
 CARDS: dict[str, dict[str, str]] = {
     tools_module.BUILD_CARD: {
         "name": "build-card",
@@ -91,7 +93,22 @@ CARDS: dict[str, dict[str, str]] = {
             "check_job again, and the link to it once it is ready."
         ),
     },
+    tools_module.TEXT_CARD: {
+        "name": "text-card",
+        "title": "Something to read",
+        "description": (
+            "Each text found: its title, how long it is, how much of it the reader "
+            "knows, the link that opens it, and a play button where it already has a "
+            "recording."
+        ),
+    },
 }
+
+#: Where a text card's rows say what only the card needs, in the result's `_meta` and so
+#: never in what the model reads (2026-10-06): each row's door, and the short-lived
+#: address of its recording where it has one (`heard`). A name of ours, prefixed with
+#: our domain as MCP asks of a `_meta` key.
+TEXT_CARD_META = "targum.page/texts"
 
 #: How a client is told what this is for, once, at `initialize`. The same job the chat's
 #: system prompt does, in the space a connector gets.
@@ -112,7 +129,8 @@ INSTRUCTIONS = (
     "texts at once, use quote_set. When a tool returns an error, tell the reader in one "
     "plain sentence what happened and what they can do, and don't retry the same call. "
     "Where check_job shows a card, the card follows the build itself: call it once and "
-    "don't call it again to check."
+    "don't call it again to check. Where find_text shows cards, each card carries its "
+    "text's link, so say one line rather than listing them."
 )
 
 #: The prompts a connector offers by name, which is how a reader reaches targum without
@@ -234,7 +252,7 @@ def card_meta(uri: str) -> dict[str, Any]:
     }
 
 
-def card_shapes(tools: list[tools_module.Tool]) -> list[dict[str, Any]]:
+def card_shapes(tools: list[tools_module.Tool], address: str = "") -> list[dict[str, Any]]:
     """The cards as `resources/list` says them: only those of tools this caller holds.
 
     The same filter `prompt_shapes` applies to prompts, for the same reason. A card that
@@ -249,21 +267,42 @@ def card_shapes(tools: list[tools_module.Tool]) -> list[dict[str, Any]]:
             "title": card["title"],
             "description": card["description"],
             "mimeType": CARD_TYPE,
-            "_meta": {"ui": _card_frame()},
+            "_meta": {"ui": _card_frame(uri, address)},
         }
         for uri, card in CARDS.items()
         if uri in held
     ]
 
 
-def _card_frame() -> dict[str, Any]:
-    """The frame a card asks for. No domain at all in its CSP: the card fetches nothing
-    (design.md §12), so it asks a host to open nothing. No border of the host's own:
-    the card draws its own edge, in its own palette."""
-    return {"csp": {"connectDomains": [], "resourceDomains": []}, "prefersBorder": False}
+def _card_frame(uri: str = tools_module.BUILD_CARD, address: str = "") -> dict[str, Any]:
+    """The frame a card asks for. No border of the host's own: the card draws its own
+    edge, in its own palette.
+
+    The build card names no domain at all in its CSP: it fetches nothing (design.md
+    §12), so it asks a host to open nothing. The text card names one, our own origin, in
+    `resourceDomains`, which is the extension's field for media as well as images,
+    scripts, styles and fonts and the only one that reaches `media-src`, because it may
+    play a recording the text already has, streamed from targum.page (§12's second
+    exception, 2026-10-06). It loads nothing else from there: `test_cards.py` holds the
+    page to no address at all and its script to no element that loads but `<audio>`.
+    Nothing in `connectDomains`: the card makes no request of its own.
+    """
+    origin = _origin(address)
+    media = [origin] if uri == tools_module.TEXT_CARD and origin else []
+    return {"csp": {"connectDomains": [], "resourceDomains": media}, "prefersBorder": False}
 
 
-def card_read(uri: str, tools: list[tools_module.Tool], language: str = "en") -> dict[str, Any]:
+def _origin(address: str) -> str:
+    """The scheme and host of the public address, or "" where there is none."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(address)
+    return f"{parts.scheme}://{parts.netloc}" if parts.scheme and parts.netloc else ""
+
+
+def card_read(
+    uri: str, tools: list[tools_module.Tool], language: str = "en", address: str = ""
+) -> dict[str, Any]:
     """One card, whole, as `resources/read` hands it over: the page as text, its type,
     and the frame it wants.
 
@@ -272,14 +311,11 @@ def card_read(uri: str, tools: list[tools_module.Tool], language: str = "en") ->
     """
     if uri not in {shape["uri"] for shape in card_shapes(tools)}:
         raise RpcError(RESOURCE_NOT_FOUND, f"There is no resource called {uri} here.")
-    from .render.builder import build_card
+    from .render.builder import build_card, build_text_card
 
-    page = build_card(language)
-    return {
-        "contents": [
-            {"uri": uri, "mimeType": CARD_TYPE, "text": page, "_meta": {"ui": _card_frame()}}
-        ]
-    }
+    page = build_text_card(language) if uri == tools_module.TEXT_CARD else build_card(language)
+    frame = _card_frame(uri, address)
+    return {"contents": [{"uri": uri, "mimeType": CARD_TYPE, "text": page, "_meta": {"ui": frame}}]}
 
 
 def prompt_shapes(
@@ -387,7 +423,8 @@ def handle(
         )
     if method == "resources/list":
         return _result(
-            request_id, {"resources": card_shapes(connector.exposed(scopes, person=person))}
+            request_id,
+            {"resources": card_shapes(connector.exposed(scopes, person=person), address)},
         )
     if method == "resources/templates/list":
         # Part of `resources`, so answered: there are no templates, only cards at fixed
@@ -401,6 +438,7 @@ def handle(
                 str(params.get("uri") or ""),
                 connector.exposed(scopes, person=person),
                 _language(store, person),
+                address,
             ),
         )
     if method == "tools/call":
@@ -502,6 +540,7 @@ def _call(
     )
     # Short links on the way out, so the host writes eight letters where it wrote two
     # hundred and fifty (`tools.shorten`, 2026-10-06).
+    long = text
     text = tools_module.shorten(text, address)
     answered: dict[str, Any] = {"content": [{"type": "text", "text": text}], "isError": failed}
     tool = tools_module.BY_NAME.get(name)
@@ -517,7 +556,98 @@ def _call(
             rows = None
         if isinstance(rows, dict):
             answered["structuredContent"] = rows
+            if tool.card == tools_module.TEXT_CARD and not failed and ctx is not None:
+                answered["_meta"] = {TEXT_CARD_META: text_card_meta(long, ctx, address)}
     return _result(request_id, answered)
+
+
+def text_card_meta(text: str, ctx: tools_module.Ctx, address: str) -> list[dict[str, Any]]:
+    """What a text card needs beside each row, and the model does not (2026-10-06).
+
+    One entry a row, in the rows' own order, read from the answer before its links were
+    shortened (`text`), because a reader link is how a library row names its folder:
+
+    - `door`: the short link that opens the text where it is built; where it is not, our
+      own library page for it, where it is got ready — never a press inside the card
+      (design.md §12, "A card never presses").
+    - `audio`, only where the text already has a recording (`heard.recording_of`): a
+      short-lived address for that one file, `ends` when it stops working (milliseconds,
+      as a page's clock counts), and `credit` where the reading is somebody's.
+
+    In `_meta`, not the rows: `structuredContent` is the text's own JSON and nothing
+    more, because some hosts read it to their model in place of the text. A token handed
+    to the model would be written out into the conversation, where it outlives the card
+    it was made for.
+    """
+    from urllib.parse import quote
+
+    from . import heard
+
+    try:
+        answer = json.loads(text)
+    except ValueError:
+        return []
+    if not isinstance(answer, dict) or answer.get("error"):
+        return []
+    texts = answer.get("texts")
+    rows = texts if isinstance(texts, list) else [answer]
+    origin = _origin(address)
+    allowed = heard.roots(ctx.home, ctx.library.shared)
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            out.append({})
+            continue
+        reader = str(row.get("reader") or "")
+        said: dict[str, Any] = {}
+        if reader:
+            said["door"] = tools_module.shorten(reader, address)
+        elif row.get("id") and origin:
+            said["door"] = f"{origin}/library/{quote(str(row['id']))}"
+        folder = _folder(row, reader, ctx)
+        found = _recording(folder) if folder is not None and origin else None
+        issued = heard.HEARD.issue(found.path, allowed) if found is not None else None
+        if found is not None and issued is not None:
+            token, ends = issued
+            said["audio"] = {
+                "src": f"{origin}{heard.ROUTE}?t={token}",
+                "ends": int(ends * 1000),
+                **({"credit": found.credit} if found.credit else {}),
+            }
+        out.append(said)
+    return out
+
+
+def _folder(row: dict[str, Any], reader: str, ctx: tools_module.Ctx) -> Path | None:
+    """The built folder a row names, in the reader's home first and then the shared
+    shelf — the order `Handler._serve_reader` looks in — or None for a text not built."""
+    from urllib.parse import unquote, urlsplit
+
+    name = str(row.get("name") or "")
+    if not name and "/reader/" in reader:
+        name = unquote(urlsplit(reader).path.removeprefix("/reader/").split("/")[0])
+    if not name or "/" in name or name.startswith("."):
+        return None
+    for home in (ctx.home, ctx.library.shared):
+        folder = home / name
+        if folder.is_dir() and home.resolve() in folder.resolve().parents:
+            return folder
+    return None
+
+
+def _recording(folder: Path) -> Any:
+    """`heard.recording_of`, kept (`tools.KEPT`) until one of the files it is found from
+    changes, so a find of twenty texts does not read twenty documents on every call.
+
+    A recording shipped to the box after a text was asked about is seen after the next
+    restart, which every deploy is."""
+    from . import heard, remembered
+
+    stamps = remembered.stamp(
+        [folder / "audio.json", folder / "document.json", folder / "segments.json"]
+    )
+    key = ("heard", str(folder), *(tuple(mark) for mark in stamps))
+    return tools_module.KEPT.get(key, lambda: heard.recording_of(folder))
 
 
 def _version() -> str:

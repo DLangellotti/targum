@@ -1,0 +1,56 @@
+{#- The text card, as a host draws it beside `find_text` or `open_library_text`
+    (design.md §12, "A card in someone else's chat", 2026-10-06).
+
+    One document with its style and script inline, handed over whole as the resource
+    `ui://targum/text-card.html`, on the build card's bridge (`card-bridge.js`). The only
+    words it starts with are its labels; every text it shows comes in from the tool
+    result (`card-text.js`).
+
+    It fetches nothing but a recording, and only when the reader presses Listen on a text
+    that already has one (§12's second exception): the one `<audio>` below has no address
+    until then. No control here starts, confirms or spends anything. A door opens a page
+    of ours: the text, or the library page where it is got ready. -#}
+<!doctype html>
+<html lang="{{ page_language }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{ t("card.text.title", "Something to read") }}</title>
+<style>{{ asset('card.css') }}</style>
+</head>
+<body>
+<main class="cards" id="cards" aria-live="polite"
+  data-open="{{ t("card.text.open", "Open") }}"
+  data-library="{{ t("card.text.library", "Open in the library") }}"
+  data-listen="{{ t("reader.page.listen", "Listen") }}"
+  data-pause="{{ t("card.text.pause", "Pause") }}"
+  data-read-by="{{ t("card.text.read-by", "Read by {who}") }}"
+  data-minutes="{{ t("library.minutes", "{n} min") }}"
+  data-tenths="{{ tenths }}"
+  data-pace="{{ pace }}">
+  <p class="card-said card-none" id="none" hidden>{{ t("card.text.none", "Nothing matched.") }}</p>
+</main>
+<template id="one">
+  <article class="card card-text">
+    <h2 class="card-title" dir="auto"></h2>
+    <p class="card-english" hidden></p>
+    <p class="card-facts" hidden><span class="card-minutes"></span><span class="card-known"></span></p>
+    <div class="card-actions">
+      <a class="card-door" target="_blank" rel="noopener" hidden></a>
+      <button type="button" class="card-play" aria-pressed="false" hidden>
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path class="play" d="M5 3.2 12.8 8 5 12.8Z"></path>
+          <path class="pause" d="M5.5 3.8v8.4M10.5 3.8v8.4"></path>
+        </svg>
+        <span class="card-play-word"></span>
+      </button>
+      <span class="card-credit" hidden></span>
+    </div>
+  </article>
+</template>
+<audio id="ear" preload="none"></audio>
+<script>{{ asset('card-bridge.js') }}</script>
+<script>{{ asset('card-text.js') }}</script>
+</body>
+</html>

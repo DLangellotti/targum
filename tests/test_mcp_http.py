@@ -24,6 +24,7 @@ import pytest
 
 from targum import mcp_http, oauth, serve
 from targum.accounts import Store
+from targum.chat import tools as tools_module
 
 PUBLIC = "https://targum.page"
 #: The box's library folder, so a test can put a reader on its shared shelf.
@@ -320,15 +321,18 @@ def test_the_check_scope_adds_pricing(box: tuple[int, str]) -> None:
 
 def test_the_build_card_comes_with_the_record_and_not_before(box: tuple[int, str]) -> None:
     """design.md §12, "A card in someone else's chat": the card asks for check_job, so a
-    connection is offered it only where check_job is held (2026-10-06)."""
+    connection is offered it only where check_job is held (2026-10-06). The text card
+    comes with find_text, which the library scope holds."""
     port, _ = box
     library = rpc(port, a_token(port, "library"), "resources/list")["result"]["resources"]
-    assert library == []
+    assert [one["uri"] for one in library] == [tools_module.TEXT_CARD]
     token = a_token(port, "library record")
     listed = rpc(port, token, "resources/list")["result"]["resources"]
-    assert [one["mimeType"] for one in listed] == [mcp_http.CARD_TYPE]
-    read = rpc(port, token, "resources/read", {"uri": listed[0]["uri"]})["result"]
-    assert read["contents"][0]["text"].startswith("<!doctype html>")
+    assert [one["uri"] for one in listed] == [tools_module.BUILD_CARD, tools_module.TEXT_CARD]
+    assert {one["mimeType"] for one in listed} == {mcp_http.CARD_TYPE}
+    for one in listed:
+        read = rpc(port, token, "resources/read", {"uri": one["uri"]})["result"]
+        assert read["contents"][0]["text"].startswith("<!doctype html>")
 
 
 def test_the_conversation_tool_is_never_listed(box: tuple[int, str]) -> None:
@@ -1207,6 +1211,52 @@ def test_find_text_comes_over_with_short_links_too(box: tuple[int, str]) -> None
     rows = json.loads(text)["texts"]
     assert rows[0]["from"] == "mine"
     assert rows[0]["reader"] == f"{PUBLIC}/r/{registry.short_key('שלום-עולם')}"
+
+
+def test_a_text_with_a_recording_is_played_on_the_box_with_no_cookie(
+    box: tuple[int, str],
+) -> None:
+    """The text card, end to end (design.md §12, 2026-10-06): find_text on a text whose
+    recording is on the disk hands the card, and not the model, a short-lived address;
+    the box answers it with that file and no cookie, and nothing else with it."""
+    from targum import heard
+    from targum.audio import manifest as manifest_module
+
+    port, _ = box
+    _shared_reader("שיחה-מוקלטת")
+    folder = OUT[0] / "shared" / "שיחה-מוקלטת"
+    (folder / "audio").mkdir(exist_ok=True)
+    (folder / "audio" / "part-001.mp3").write_bytes(b"ID3 spoken")
+    manifest_module.write(
+        folder,
+        manifest_module.AudioManifest(
+            source="talk.mp3",
+            sha256="0" * 64,
+            duration=4.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1, start=0.0, end=4.0, audio="audio/part-001.mp3"
+                )
+            ],
+        ),
+    )
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "find_text", "arguments": {"query": "שיחה-מוקלטת", "language": "all"}},
+    )["result"]
+    assert heard.ROUTE not in said["content"][0]["text"]
+    assert said["structuredContent"] == json.loads(said["content"][0]["text"])
+    beside = said["_meta"][mcp_http.TEXT_CARD_META][0]
+    src = beside["audio"]["src"]
+    assert src.startswith(f"{PUBLIC}{heard.ROUTE}?t=")
+    status, body, headers = send(port, "GET", src.removeprefix(PUBLIC))
+    assert status == 200 and body == b"ID3 spoken"
+    assert headers["content-type"] == "audio/mpeg"
+    # The same token on somebody else's name is refused, like every bearer door here.
+    assert send(port, "GET", src.removeprefix(PUBLIC), host="evil.example")[0] != 200
 
 
 # --- one finding tool (design.md §12, 2026-10-06) ----------------------------------

@@ -195,3 +195,267 @@ def test_a_host_that_turns_dark_is_followed(browser) -> None:  # noqa: F811
         "document.getElementById('f').contentDocument.documentElement.dataset.theme === 'dark'"
     )
     context.close()
+
+
+# --- the text card (2026-10-06) ------------------------------------------------------
+
+#: A recording's short-lived address, as `mcp_http.text_card_meta` writes one. Answered
+#: by the test's own route, never the network.
+HEARD = "https://targum.page/heard?t=abcdefghijklmnopqrstuvwxyz012345"
+META = "targum.page/texts"
+
+SONG = {
+    "from": "mine",
+    "name": "שיר-השירים-he",
+    "title": "שיר השירים",
+    "language": "he",
+    "reader": "https://targum.page/r/abcdefgh",
+    "known_share": 0.72,
+    "words": 2600,
+}
+RUTH = {
+    "from": "library",
+    "id": "ruth",
+    "title": "מגילת רות",
+    "english": "The Book of Ruth",
+    "minutes": 19,
+    "known_share": 0.48,
+    "on_shelf": True,
+    "reader": "https://targum.page/r/ijklmnop",
+}
+CAFE = {
+    "from": "library",
+    "id": "cafe-dialogue",
+    "title": "בבית הקפה",
+    "english": "In a café",
+    "minutes": 3,
+    "on_shelf": False,
+    "reader": "",
+}
+
+TEXT_HOST = """
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html { color-scheme: %(theme)s; }
+  html, body { margin: 0; background: %(ground)s; }
+  iframe { border: 0; display: block; width: 440px; height: %(height)spx; margin: 24px; }
+</style></head>
+<body>
+<iframe id="f" sandbox="allow-scripts allow-same-origin"></iframe>
+<script>
+  const RESULT = %(result)s;
+  window.calls = [];
+  window.opened = "";
+  const frame = document.getElementById("f");
+  const post = (message) => frame.contentWindow.postMessage({ jsonrpc: "2.0", ...message }, "*");
+  window.addEventListener("message", (event) => {
+    if (event.source !== frame.contentWindow) return;
+    const m = event.data;
+    if (m.method === "ui/initialize") {
+      post({ id: m.id, result: {
+        protocolVersion: "2026-01-26",
+        hostCapabilities: { serverTools: {}, openLinks: {} },
+        hostInfo: { name: "host", version: "0" },
+        hostContext: { theme: "%(theme)s" },
+      } });
+    } else if (m.method === "ui/notifications/initialized") {
+      post({ method: "ui/notifications/tool-result", params: RESULT });
+    } else if (m.method === "tools/call") {
+      window.calls.push(m.params);
+    } else if (m.method === "ui/open-link") {
+      window.opened = m.params.url;
+      post({ id: m.id, result: {} });
+    }
+  });
+  frame.srcdoc = %(card)s;
+</script>
+</body></html>
+"""
+
+
+def text_hosted(
+    theme: str, rows: dict[str, Any], meta: list[dict[str, Any]], height: int = 220
+) -> str:
+    from targum.render.builder import build_text_card
+
+    result = {
+        "content": [{"type": "text", "text": json.dumps(rows, ensure_ascii=False)}],
+        "structuredContent": rows,
+        "_meta": {META: meta},
+    }
+    return TEXT_HOST % {
+        "ground": GROUND[theme],
+        "theme": theme,
+        "height": height,
+        "result": json.dumps(result, ensure_ascii=False),
+        "card": json.dumps(build_text_card()).replace("</", "<\\/"),
+    }
+
+
+def _later(minutes: int = 20) -> int:
+    import time
+
+    return int((time.time() + minutes * 60) * 1000)
+
+
+def _silence() -> bytes:
+    """A tenth of a second of silence as a WAV, for the route to answer the card with."""
+    import io
+    import wave
+
+    out = io.BytesIO()
+    with wave.open(out, "wb") as sound:
+        sound.setnchannels(1)
+        sound.setsampwidth(2)
+        sound.setframerate(8000)
+        sound.writeframes(b"\x00\x00" * 800)
+    return out.getvalue()
+
+
+def _cards(page: Any) -> Any:
+    page.wait_for_function(
+        "document.getElementById('f').contentDocument?.querySelector('.card-text')"
+    )
+    return page.frame_locator("#f")
+
+
+def _shot(page: Any, name: str) -> None:
+    if SHOTS:
+        Path(SHOTS).mkdir(parents=True, exist_ok=True)
+        page.locator("#f").screenshot(path=str(Path(SHOTS) / f"{name}.png"))
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_a_text_card_draws_one_text_in_the_host_s_theme(browser, theme: str) -> None:  # noqa: F811
+    context = opened(browser, viewport={"width": 520, "height": 300}, scrolling=False)
+    page = context.new_page()
+    fetched: list[str] = []
+    page.on("request", lambda request: fetched.append(request.url))
+    page.set_content(text_hosted(theme, RUTH, [{"door": RUTH["reader"]}], height=180))
+    card = _cards(page)
+
+    assert card.locator("html").get_attribute("data-theme") == theme
+    title = card.locator(".card-title")
+    assert title.text_content() == "מגילת רות"
+    assert title.get_attribute("dir") == "rtl" and title.get_attribute("lang") == "he"
+    assert card.locator(".card-english").text_content() == "The Book of Ruth"
+    assert card.locator(".card-minutes").text_content() == "19 min"
+    assert card.locator(".card-known").text_content() == "You know about 5 words in 10 here."
+    door = card.locator(".card-door")
+    assert door.text_content() == "Open" and door.get_attribute("href") == RUTH["reader"]
+    assert card.locator(".card-play").is_hidden(), "no recording, no button"
+    ink = card.locator(".card-title").evaluate("el => getComputedStyle(el).color")
+    assert ink == ("rgb(230, 225, 216)" if theme == "dark" else "rgb(28, 26, 23)")
+    door.click()
+    page.wait_for_function("window.opened !== ''")
+    assert page.evaluate("window.opened") == RUTH["reader"]
+    assert page.evaluate("window.calls") == [], "the card asks for no tool"
+    assert fetched == [], f"the card fetched {fetched}"
+    _shot(page, f"text-card-{theme}")
+    context.close()
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_a_list_is_a_short_stack_with_a_library_door(browser, theme: str) -> None:  # noqa: F811
+    context = opened(browser, viewport={"width": 520, "height": 560}, scrolling=False)
+    page = context.new_page()
+    fetched: list[str] = []
+    page.on("request", lambda request: fetched.append(request.url))
+    rows = {"count": 3, "texts": [SONG, RUTH, CAFE]}
+    meta = [
+        {"door": SONG["reader"]},
+        {"door": RUTH["reader"]},
+        {"door": "https://targum.page/library/cafe-dialogue"},
+    ]
+    page.set_content(text_hosted(theme, rows, meta, height=500))
+    card = _cards(page)
+    assert card.locator(".card-text").count() == 3
+    assert card.locator("main").get_attribute("class") == "cards stack"
+    # A shelf text gives its words, and is counted at the library's own pace.
+    first = card.locator(".card-text").nth(0)
+    assert first.locator(".card-minutes").text_content() == "20 min"
+    assert first.locator(".card-english").is_hidden()
+    third = card.locator(".card-text").nth(2)
+    assert third.locator(".card-known").text_content() == ""
+    door = third.locator(".card-door")
+    assert door.text_content() == "Open in the library"
+    door.click()
+    page.wait_for_function("window.opened !== ''")
+    assert page.evaluate("window.opened") == "https://targum.page/library/cafe-dialogue"
+    assert fetched == [], f"the card fetched {fetched}"
+    _shot(page, f"text-card-list-{theme}")
+    context.close()
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_a_text_with_a_recording_plays_it_and_fetches_nothing_else(browser, theme: str) -> None:  # noqa: F811
+    context = opened(browser, viewport={"width": 520, "height": 300}, scrolling=False)
+    asked: list[str] = []
+
+    def answer(route: Any) -> None:
+        asked.append(route.request.url)
+        route.fulfill(status=200, body=_silence(), headers={"Content-Type": "audio/wav"})
+
+    context.route("https://targum.page/heard**", answer)
+    page = context.new_page()
+    fetched: list[str] = []
+    page.on("request", lambda request: fetched.append(request.url))
+    meta = [
+        {
+            "door": RUTH["reader"],
+            "audio": {"src": HEARD, "ends": _later(), "credit": "Shmuel Be'eri"},
+        }
+    ]
+    page.set_content(text_hosted(theme, RUTH, meta, height=200))
+    card = _cards(page)
+    play = card.locator(".card-play")
+    play.wait_for(state="visible")
+    assert play.text_content().strip() == "Listen"
+    assert card.locator(".card-credit").text_content() == "Read by Shmuel Be'eri"
+    page.wait_for_timeout(200)
+    assert fetched == [], "nothing is fetched before Listen is pressed"
+    _shot(page, f"text-card-audio-{theme}")
+
+    play.click()
+    page.wait_for_function("window.calls !== undefined")
+    card.locator('.card-play[aria-pressed="true"]').wait_for()
+    assert card.locator(".card-play-word").text_content() == "Pause"
+    page.wait_for_function(
+        "document.getElementById('f').contentDocument.getElementById('ear').currentSrc !== ''"
+    )
+    for _ in range(50):
+        if fetched:
+            break
+        page.wait_for_timeout(50)
+    assert set(fetched) == {HEARD}, f"the card fetched {fetched}"
+    assert asked and set(asked) == {HEARD}
+    # It finishes on its own and the button goes back to Listen.
+    card.locator('.card-play[aria-pressed="false"]').wait_for(timeout=5000)
+    assert page.evaluate("window.calls") == []
+    context.close()
+
+
+def test_a_recording_past_its_time_has_no_button(browser) -> None:  # noqa: F811
+    context = opened(browser, viewport={"width": 520, "height": 300}, scrolling=False)
+    page = context.new_page()
+    fetched: list[str] = []
+    page.on("request", lambda request: fetched.append(request.url))
+    meta = [{"door": RUTH["reader"], "audio": {"src": HEARD, "ends": _later(-1)}}]
+    page.set_content(text_hosted("light", RUTH, meta, height=200))
+    card = _cards(page)
+    assert card.locator(".card-play").is_hidden()
+    assert fetched == []
+    context.close()
+
+
+def test_a_recording_that_will_not_play_takes_its_button_away(browser) -> None:  # noqa: F811
+    context = opened(browser, viewport={"width": 520, "height": 300}, scrolling=False)
+    context.route("https://targum.page/heard**", lambda route: route.fulfill(status=404))
+    page = context.new_page()
+    meta = [{"door": RUTH["reader"], "audio": {"src": HEARD, "ends": _later()}}]
+    page.set_content(text_hosted("light", RUTH, meta, height=200))
+    card = _cards(page)
+    card.locator(".card-play").click()
+    card.locator(".card-play").wait_for(state="hidden", timeout=5000)
+    context.close()

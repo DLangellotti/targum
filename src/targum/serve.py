@@ -53,6 +53,7 @@ from .accounts import (
 )
 from .audio.manifest import POSTER
 from .errors import OffHere, TargumError, UnsupportedSource
+from .heard import ROUTE as HEARD_ROUTE
 from .mail import Mailer
 from .models import Document, Segment, SegmentedDocument, Style, glossary_path, is_biblical
 from .pipeline import Build, Result
@@ -4966,6 +4967,25 @@ class Handler(BaseHTTPRequestHandler):
     MEDIA_TIMEOUT_S = 60.0
     MEDIA_RESPONSE_S = 600.0
 
+    def _heard(self) -> None:
+        """One recording, for the token a text card was handed (`heard`, 2026-10-06).
+
+        No cookie and no key: the card plays from a host's frame, which never carries
+        either. The token is looked up, never parsed — it names no path — and anything
+        it does not open, a token unknown, run out or made for another file, is the same
+        404 as an address that is not there. On our own name only, like every door that
+        acts on a bearer token.
+        """
+        from .heard import AUDIO_KINDS, HEARD
+
+        if not self._host_is_ours():
+            return self._send(404, b"not found", "text/plain")
+        token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+        target = HEARD.opened(token)
+        if target is None:
+            return self._send(404, b"not found", "text/plain")
+        return self._send_file(target, AUDIO_KINDS[target.suffix.lower()])
+
     def _send_file(self, target: Path, kind: str) -> None:
         """A slice of a file on disk, the way a browser asks for video.
 
@@ -6553,6 +6573,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _icon(), "image/png")
         if route == "/robots.txt":
             return self._send(200, self._robots().encode("utf-8"), "text/plain; charset=utf-8")
+        # A text card's recording, played from a host's frame on another origin, where
+        # the session cookie never arrives (design.md §12, 2026-10-06). Before the account
+        # check, because the token is the whole of the permission: it opens one file for
+        # twenty minutes and nothing else (`heard`).
+        if route == HEARD_ROUTE:
+            return self._heard()
         # The connector's metadata, and the page a reader approves on. Before the account
         # check: the two documents are read by a client that has no account and never will
         # have one, and the approval page signs a reader in itself rather than handing a
