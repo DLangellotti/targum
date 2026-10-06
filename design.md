@@ -354,6 +354,70 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A card in someone else's chat — 2026-10-06
+
+Over the connector, everything targum says arrives as text the host's model reads and
+then rewrites. A build in progress is a model calling `check_job` again and again and
+saying "still working". A text is a long link the model has to copy out character by
+character. Claude and ChatGPT can now each draw a small page of a server's own inside
+the conversation (the MCP Apps extension, which ChatGPT's Apps SDK speaks too): the server
+names a `ui://` resource on a tool, the host draws it in a sandboxed frame, and the frame
+talks to the host and to nobody else. David asked for build progress to be shown this way
+on 2026-10-06.
+
+- **Two cards, and a third needs an entry here first.** *A text*: its title in the
+  reading face, Hebrew `dir="rtl"`, how long it is, how much of it the reader knows, and
+  one door that opens it on targum. *A build*: what stage it is at, how many chapters are
+  ready of how many, the time left where it can honestly be estimated, and the door once
+  the text is ready.
+- **A card is chrome, not a reader.** It is drawn as the desk is (§13): the chrome's sans,
+  named and never fetched; ink and teal; the radii and the type scale `test_brand.py`
+  already holds. No emoji, no exclamation marks, no streaks, no confetti when a build
+  finishes. Motion only under `prefers-reduced-motion: no-preference`.
+- **It fetches nothing.** The page, its style and its script are inline in the resource
+  the server hands over. No font, image, stylesheet or script from the network, ours
+  included, which is the readers' rule applied to a frame we do not own, as it was to mail
+  (2026-09-27). Whatever the card shows comes in from the tool result. A build card stays
+  current by asking the host to call `check_job` again, which is free and read only.
+- **A card never presses.** It can open a page of ours and it can ask for a read-only
+  tool. It cannot start a build, confirm a quote or call `record_turn`: the press stays on
+  targum's own page, and the scope stays the one press that lasts ("A scope is a press that
+  lasts"). A card that could spend would be the model's hand with a button drawn on it.
+- **The model is told less, not more.** The model gets one line it can say; the card
+  gets the rows. A text card means the model writes no link, which is faster and cannot
+  garble one.
+- **Text is still the floor.** A host that draws no cards, or a reader who switched them
+  off, gets exactly what the tool returns today: the same line and the same link.
+
+**Two exceptions, both David's, 2026-10-06:**
+
+- **A card takes the host's theme.** "There is one look, and it is light" (2026-09-19)
+  holds everywhere targum draws its own page. A card is drawn inside somebody else's,
+  and a light card in a dark ChatGPT is a bright rectangle in a dark room. So a card
+  follows the theme the host hands it, light or dark, in a dark reading of the same
+  palette that `test_brand.py` holds. Nowhere else changes.
+- **A text card can play audio the text already has.** Hearing a line without leaving
+  the chat is the most delightful thing a card can do. The play button is there only
+  where a recording already exists (a scene, Be'eri, PocketTorah, a voice the reader
+  already paid for), it streams from targum.page, and it never spends: a text with no
+  voice has no button, and giving it one is still a press on targum's own page. This is
+  the one fetch a card makes, and it is audio from our own origin, never a script,
+  style, font or image.
+
+### The connector is handed a sample of the known words — 2026-10-06
+
+`how_to_talk` handed a host the reader's whole known list, 1,483 words on David's
+ledger, beside 774 common words it overlapped with: about 22,000 characters the host
+read before its first line and carried on every turn after. Over the connector it now
+hands the commonest 300 known words by frequency, leaving out laughter and stretched
+spellings and anything already in the common list, and says so ("the commonest 300 of
+the 1,483 they have marked known"). The count is still the reader's real total.
+
+targum's own chat keeps the whole list. It holds the prompt itself and can cache it, so
+the size costs it far less. "One contract, both surfaces" (2026-09-23) still holds for
+the rules. The two surfaces differ only in how many of the reader's words they are
+shown (David, 2026-10-06).
+
 ### A verse taller than the page is cut between its lines — 2026-10-05
 
 Rashi stays on by default and at full length (David, after the QA pass before the
