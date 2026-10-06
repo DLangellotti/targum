@@ -2159,7 +2159,9 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        got = url_module.fetch(url)
+        # The page `episode.find` just read, kept (`url_module.page`, 2026-10-06): one
+        # knock rather than two and a polite wait, and the quote after reads it too.
+        got = url_module.page(url)
     except Unreachable as error:
         # A door that will be shut next time is worth remembering; a page that is not
         # there is not. Every host is still knocked on — the record informs what the

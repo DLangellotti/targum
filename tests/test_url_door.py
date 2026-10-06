@@ -334,6 +334,64 @@ def test_a_bot_check_is_said_as_one_to_the_model(tmp_path: Path) -> None:
     assert (row["why"], row["egress"]) == ("bot check", "direct")
 
 
+def test_an_article_described_and_then_quoted_is_knocked_on_once(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """2026-10-06: `describe_source` read an article twice (once in `episode.find`, once
+    to count it) and the quote read it twice more, each knock after the first on the
+    host waiting out `POLITE_S` — 1.6 s a describe and most of a 4.1 s quote on the box.
+    The page is read once and the other three readers are handed it."""
+    article = (
+        "<html><head><title>על הים</title></head><body>"
+        + "".join(f"<p>{' '.join(['שלום', 'עולם', 'ים'] * 20)}</p>" for _ in range(4))
+        + "</body></html>"
+    ).encode()
+    headers = {"content-type": "text/html; charset=utf-8"}
+    doors = Doors([Answer(200, headers, article, "utf-8")])
+    monkeypatch.setattr(door, "_session", doors)
+    store = Store(tmp_path / "t.db")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+
+    described = tools.describe_source(ctx, {"url": "https://news.example/a#top"})
+    assert described["kind"] == "article" and described["words"] >= 200
+    document = door.UrlIngester().load("https://NEWS.example/a")
+    assert document.title == "על הים"
+    assert len(doors.direct.knocks) == 1, "one knock for the describe and the quote"
+
+
+def test_a_kept_page_lapses_and_a_refusal_is_never_kept(monkeypatch: Any) -> None:
+    """Ten minutes, so the build a reader presses reads the text they were quoted for and a
+    page asked about later is read fresh; a refusal is knocked on again every time, so a
+    door that opens is seen to open and `Store.reach` hears each refusal."""
+    now = [0.0]
+    pages = door.Pages(clock=lambda: now[0])
+    answered: list[str] = []
+
+    def fetch(url: str, params: Any = None) -> door.Fetched:
+        answered.append(url)
+        if "shut" in url:
+            raise Unreachable("no", status=403, host="shut.example")
+        return door.Fetched(f"<p>{len(answered)}</p>", "text/html", b"x")
+
+    monkeypatch.setattr(door, "fetch", fetch)
+    assert pages.get("https://a.example/1").text == "<p>1</p>"
+    now[0] = door.PAGE_KEEP_S - 1
+    assert pages.get("https://a.example/1").text == "<p>1</p>"
+    now[0] = door.PAGE_KEEP_S + 1
+    assert pages.get("https://a.example/1").text == "<p>2</p>", "read fresh once it lapses"
+    for _ in range(2):
+        with pytest.raises(Unreachable):
+            pages.get("https://shut.example/")
+    assert answered.count("https://shut.example/") == 2
+
+    small = door.Pages(most=2)
+    for n in range(3):
+        small.get(f"https://a.example/{n}")
+    assert len(small) == 2, "bounded, the least recently asked out first"
+
+
 def test_a_door_opened_through_the_proxy_is_remembered_as_such(tmp_path: Path) -> None:
     store = Store(tmp_path / "t.db")
     ctx = tools.Ctx(

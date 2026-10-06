@@ -8,6 +8,7 @@ import re
 import socket
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -314,6 +315,109 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
         return _read(url, params, via="proxy", proxy=proxy)
 
 
+#: How long a page read through `page` is taken as what is there, in seconds.
+PAGE_KEEP_S = 600.0
+#: The most pages held at once, and the most bytes. A page is at most `MAX_BYTES` raw and
+#: about as much again decoded, so the byte bound is what holds; a news article is a few
+#: hundred kilobytes, and sixty-four megabytes is a busy hour's worth of them.
+PAGE_MOST = 64
+PAGE_MOST_BYTES = 64 * 1024 * 1024
+
+
+class Pages:
+    """Pages read through the door in the last ten minutes, by address (2026-10-06).
+
+    An article a host asks about was fetched four times before it was priced: by
+    `episode.find` in `describe_source`, to rule out a podcast page, then by
+    `describe_source` itself to count its words; and the same two again inside the
+    quote, by `episode.find` and the ingester. Each knock after the first on one host
+    also waited out `POLITE_S`. On the box on 2026-10-06 that was 1.6 s a describe and
+    most of a 4.1 s quote, for one page read four times within the minute.
+
+    **Only what came through the door.** A page is kept after `fetch` returned it, so it
+    passed the SSRF check at every hop and the size cap; a refusal is never kept, so a
+    shut host is knocked on again and `Store.reach` hears about it each time.
+
+    **Ten minutes**, because what is kept is what the reader is about to be quoted for
+    and then build: the quote prices the text it read, and a build pressed a few minutes
+    later reads the same text rather than a page edited in between, which is the text
+    they agreed to. A page asked about again after that is read fresh. Not a cache of
+    the web: feeds, robots and every other fetch go straight to `fetch`, and only the
+    three readers of one article page above come through here.
+
+    In-process, bounded by count and by bytes, the least recently asked dropped first.
+    """
+
+    def __init__(
+        self,
+        *,
+        keep_s: float = PAGE_KEEP_S,
+        most: int = PAGE_MOST,
+        most_bytes: int = PAGE_MOST_BYTES,
+        clock: Any = time.monotonic,
+    ) -> None:
+        self.keep_s = keep_s
+        self.most = most
+        self.most_bytes = most_bytes
+        self.clock = clock
+        self._lock = threading.Lock()
+        #: key -> (clock time it lapses, the page, its size)
+        self._held: OrderedDict[str, tuple[float, Fetched, int]] = OrderedDict()
+        self._bytes = 0
+
+    @staticmethod
+    def key(url: str) -> str:
+        """The address as the server sees it: scheme and host in lower case, no fragment."""
+        parsed = urlparse(url.strip())
+        return parsed._replace(
+            scheme=parsed.scheme.lower(), netloc=parsed.netloc.lower(), fragment=""
+        ).geturl()
+
+    def clear(self) -> None:
+        with self._lock:
+            self._held.clear()
+            self._bytes = 0
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._held)
+
+    def _drop(self, key: str) -> None:
+        held = self._held.pop(key, None)
+        if held is not None:
+            self._bytes -= held[2]
+
+    def get(self, url: str) -> Fetched:
+        """`fetch(url)`, or the same page read through here within `keep_s`."""
+        key = self.key(url)
+        with self._lock:
+            held = self._held.get(key)
+            if held is not None and self.clock() < held[0]:
+                self._held.move_to_end(key)
+                return held[1]
+            self._drop(key)
+        got = fetch(url)
+        size = len(got.raw or b"") + len(got.text.encode("utf-8", errors="replace"))
+        if size > self.most_bytes:
+            return got
+        with self._lock:
+            self._drop(key)
+            self._held[key] = (self.clock() + self.keep_s, got, size)
+            self._bytes += size
+            while self._held and (len(self._held) > self.most or self._bytes > self.most_bytes):
+                self._drop(next(iter(self._held)))
+        return got
+
+
+PAGES = Pages()
+
+
+def page(url: str) -> Fetched:
+    """One page, read through the door and kept ten minutes (`Pages`). For an article's
+    readers — `describe_source`, `episode.find` and the ingester — and nobody else."""
+    return PAGES.get(url)
+
+
 def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "") -> Fetched:
     response, _ = _open(url, params, via=via, proxy=proxy)
     try:
@@ -539,7 +643,9 @@ class UrlIngester:
     def load(self, source: str) -> Document:
         import trafilatura
 
-        got = fetch(source)
+        # Through `page`, so the quote that follows a `describe_source` reads the page
+        # that was described rather than fetching it again (2026-10-06).
+        got = page(source)
         if not got.is_html:
             # A URL that answers with plain text is a text file that happens to live on
             # the web, and running an article extractor over it finds no article and

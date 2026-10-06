@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -1351,11 +1350,9 @@ class Door:
         self.asked.append(url)
         if self.error is not None:
             raise self.error
-        return SimpleNamespace(
-            text="<html><body><p>שלום עולם.</p></body></html>",
-            is_html=True,
-            content_type="text/html",
-        )
+        from targum.ingest import url as url_module
+
+        return url_module.Fetched("<html><body><p>שלום עולם.</p></body></html>", "text/html")
 
 
 def _door(monkeypatch: Any, error: Exception | None = None) -> Door:
