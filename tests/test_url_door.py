@@ -329,7 +329,8 @@ def test_a_bot_check_is_said_as_one_to_the_model(tmp_path: Path) -> None:
         ctx, "site.example", Unreachable("no", status=403, host="site.example", challenge=True)
     )
     assert told is not None and told["host_shut"] and told["challenge"]
-    assert "bot check" in told["error"] and "own browser" in told["error"]
+    assert "bot check" in told["error"]
+    assert "browser" not in told["error"] and "search_sources" in told["advice"]
     row = store.db.execute("SELECT why, egress FROM reached WHERE host='site.example'").fetchone()
     assert (row["why"], row["egress"]) == ("bot check", "direct")
 
@@ -400,7 +401,7 @@ def test_a_door_opened_through_the_proxy_is_remembered_as_such(tmp_path: Path) -
     told = tools.refused(
         ctx, "site.example", Unreachable("no", status=403, host="site.example", via="proxy")
     )
-    assert told is not None and "does not answer" in told["error"]
+    assert told is not None and "doesn't answer" in told["error"]
     row = store.db.execute("SELECT egress FROM reached WHERE host='site.example'").fetchone()
     assert row["egress"] == "proxy"
 

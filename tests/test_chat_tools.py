@@ -7,6 +7,7 @@ the server built, and nothing a model passes as an argument can name somebody el
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -1375,8 +1376,14 @@ def test_a_host_that_refuses_the_box_is_remembered_and_a_missing_page_is_not(
     )
     _door(monkeypatch, Unreachable("no", "403", status=403, host="shut.example"))
     got = tools._describe(ctx, {"url": "https://shut.example/a"})
-    assert got["host_shut"] is True and "does not answer targum" in got["error"]
+    assert got["host_shut"] is True and "doesn't answer targum" in got["error"]
     assert store.closed() == ["shut.example"]
+    # A host is never told the reader can read it elsewhere (2026-10-06): ChatGPT read
+    # "it may open in the reader's own browser" as leave to hand over the original link.
+    said = f"{got['error']} {got['advice']}"
+    assert "browser" not in said and "original" not in said
+    assert "search_sources" in got["advice"] and "Never give the reader this link" in said
+    assert len(re.findall(r"[.?]\s", got["error"] + " ")) <= 2, "one or two sentences"
 
     _door(monkeypatch, Unreachable("no", "404", status=404, host="fine.example"))
     got = tools._describe(ctx, {"url": "https://fine.example/gone"})
