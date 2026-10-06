@@ -251,6 +251,159 @@ def test_check_job_answers_only_for_the_owner(world) -> None:
     assert got["stage"] == "done" and got["open"] == "/reader/ruth-he/reader/index.html"
 
 
+def test_check_job_says_how_far_a_build_has_got_and_how_long_is_left(world) -> None:
+    import time
+
+    library, store, person, home = world
+    job = Job(id="j-run", source="x", owner=person.id, stage="working", done=30, total=80)
+    # Thirty sentences in sixty seconds: fifty more is a hundred seconds.
+    job.started = int(time.time() * 1000) - 60_000
+    library.jobs[job.id] = job
+    got = tools.check_job(context(library, store, person, home), {"id": "j-run"})
+    assert got["done"] == 30 and got["total"] == 80 and got["unit"] == "sentences"
+    assert 95 <= got["seconds_left"] <= 105
+    assert got["said"] == "30 of 80 sentences ready, about 2 minutes left."
+    assert "!" not in got["said"] and "$" not in got["said"]
+
+
+def test_check_job_says_no_time_left_where_there_is_nothing_to_count_from(world) -> None:
+    import time
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    # Never seen to start (read back after a restart), nothing done yet, and too soon.
+    unseen = Job(id="j-unseen", source="x", owner=person.id, stage="working", done=5, total=9)
+    nothing = Job(id="j-nothing", source="x", owner=person.id, stage="working", total=9)
+    nothing.started = int(time.time() * 1000) - 60_000
+    early = Job(id="j-early", source="x", owner=person.id, stage="working", done=1, total=9)
+    early.started = int(time.time() * 1000) - 1_000
+    library.jobs.update({one.id: one for one in (unseen, nothing, early)})
+    for one in (unseen, nothing, early):
+        got = tools.check_job(ctx, {"id": one.id})
+        assert "seconds_left" not in got, one.id
+        assert "left" not in got["said"] and got["said"].endswith("sentences ready."), one.id
+    book = Job(id="j-book", source="x", owner=person.id, stage="working", done=2, total=9)
+    book.chapters = 12
+    library.jobs[book.id] = book
+    assert tools.check_job(ctx, {"id": "j-book"})["said"] == (
+        "The first chapter: 2 of 9 sentences ready."
+    )
+
+
+def test_check_job_starts_the_clock_when_the_build_starts_working(world) -> None:
+    library, store, person, home = world
+    job = Job(id="j-clock", source="x", owner=person.id, stage="queued")
+    library.remember(job)
+    assert job.started == 0, "waiting in line is not working"
+    job.stage = "working"
+    library.remember(job)
+    first = job.started
+    assert first > 0
+    library.remember(job)
+    assert job.started == first, "stamped once"
+
+
+def test_check_job_says_how_many_texts_are_ahead_in_the_line(world) -> None:
+    library, store, person, home = world
+    ahead = Job(id="j-ahead", source="x", owner=person.id + 1, stage="working", made=1)
+    mine = Job(id="j-line", source="x", owner=person.id, stage="queued", made=2)
+    for one in (ahead, mine):
+        library.jobs[one.id] = one
+        library.remember(one)
+    got = tools.check_job(context(library, store, person, home), {"id": "j-line"})
+    assert got["behind"] == 1
+    assert got["said"] == "It's waiting to start, behind 1 other text."
+
+
+def test_check_job_hands_over_the_link_when_done_and_a_sentence_when_failed(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    done = Job(
+        id="j-done", source="x", owner=person.id, stage="done", reader="ruth-he/reader/index.html"
+    )
+    failed = Job(
+        id="j-failed",
+        source="x",
+        owner=person.id,
+        stage="failed",
+        error="We couldn't open that link. Check it and try again.",
+    )
+    quiet = Job(id="j-quiet", source="x", owner=person.id, stage="failed")
+    library.jobs.update({one.id: one for one in (done, failed, quiet)})
+    got = tools.check_job(ctx, {"id": "j-done"})
+    assert got["said"] == "It's ready to read."
+    assert got["open"] == "/reader/ruth-he/reader/index.html"
+    assert "seconds_left" not in got
+    got = tools.check_job(ctx, {"id": "j-failed"})
+    assert got["said"] == (
+        "We couldn't get it ready. We couldn't open that link. Check it and try again. "
+        "Nothing was used."
+    )
+    assert "open" not in got
+    assert "Try again later" in tools.check_job(ctx, {"id": "j-quiet"})["said"]
+
+
+def test_check_job_waits_for_a_change_and_answers_early(world, monkeypatch) -> None:
+    library, store, person, home = world
+    job = Job(id="j-wait", source="x", owner=person.id, stage="working", done=1, total=4)
+    library.jobs[job.id] = job
+    clock = [0.0]
+    naps: list[float] = []
+
+    def nap(seconds: float) -> None:
+        naps.append(seconds)
+        clock[0] += seconds
+        if len(naps) == 3:
+            job.done = 2  # a worker thread finishes a batch
+
+    monkeypatch.setattr(tools, "_clock", lambda: clock[0])
+    monkeypatch.setattr(tools, "_sleep", nap)
+    got = tools.check_job(
+        context(library, store, person, home), {"id": "j-wait", "wait_seconds": 20}
+    )
+    assert got["done"] == 2 and len(naps) == 3, "answered on the change, not at the end"
+    assert all(one <= tools.WAIT_STEP for one in naps), "short naps, never a spin"
+
+
+def test_check_job_waits_no_longer_than_it_was_asked_or_than_the_cap(world, monkeypatch) -> None:
+    library, store, person, home = world
+    job = Job(id="j-still", source="x", owner=person.id, stage="working", done=1, total=4)
+    over = Job(id="j-over", source="x", owner=person.id, stage="done", reader="r/reader/index.html")
+    library.jobs.update({job.id: job, over.id: over})
+    ctx = context(library, store, person, home)
+    clock = [0.0]
+
+    def nap(seconds: float) -> None:
+        clock[0] += seconds
+
+    monkeypatch.setattr(tools, "_clock", lambda: clock[0])
+    monkeypatch.setattr(tools, "_sleep", nap)
+    got = tools.check_job(ctx, {"id": "j-still", "wait_seconds": 3})
+    assert clock[0] == 3 and got["done"] == 1
+    clock[0] = 0.0
+    tools.check_job(ctx, {"id": "j-still", "wait_seconds": 600})
+    assert clock[0] == tools.WAIT_MOST
+    clock[0] = 0.0
+    tools.check_job(ctx, {"id": "j-still", "wait_seconds": "soon"})
+    tools.check_job(ctx, {"id": "j-over", "wait_seconds": 20})
+    assert clock[0] == 0, "nothing to wait for on a finished build or a nonsense wait"
+
+
+def test_check_job_holds_for_real_without_blocking_the_build(world) -> None:
+    import threading
+    import time
+
+    library, store, person, home = world
+    job = Job(id="j-real", source="x", owner=person.id, stage="working", done=0, total=2)
+    library.jobs[job.id] = job
+    threading.Timer(0.2, lambda: setattr(job, "stage", "done")).start()
+    began = time.monotonic()
+    got = tools.check_job(
+        context(library, store, person, home), {"id": "j-real", "wait_seconds": 5}
+    )
+    assert got["stage"] == "done" and time.monotonic() - began < 2
+
+
 def test_run_answers_a_broken_tool_as_an_error_the_model_can_read(world) -> None:
     library, store, person, home = world
     ctx = context(library, store, person, home)

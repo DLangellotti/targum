@@ -1968,15 +1968,143 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+#: The longest `check_job` holds a request open, in seconds. Under the half minute a
+#: host's own request usually gives up at, and one held request is one thread of the
+#: threaded server asleep, never a lock: everybody else is answered while it waits.
+WAIT_MOST = 25.0
+
+#: How often a held `check_job` looks again. A build has no event to wait on — its
+#: progress is a counter a worker thread bumps — and half a second is quicker than any
+#: reader could notice and slower than anything that would cost the box (2026-10-06).
+WAIT_STEP = 0.5
+
+#: The clock and the sleep a held call runs on, here so a test can stand in for both.
+_clock = time.monotonic
+_sleep = time.sleep
+
+
+def _mark(job: Any) -> tuple[Any, ...]:
+    """What has to change for a held `check_job` to answer early."""
+    return (job.stage, job.done, job.total, job.reader, job.error, job.blocked)
+
+
+def _hold(job: Any, seconds: float) -> None:
+    """Wait until the job moves, ends, or `seconds` pass, whichever is first."""
+    if seconds <= 0 or job.stage in ("done", "failed", "blocked"):
+        return
+    seen = _mark(job)
+    until = _clock() + seconds
+    while _mark(job) == seen:
+        left = until - _clock()
+        if left <= 0:
+            return
+        _sleep(min(WAIT_STEP, left))
+
+
+def _seconds_left(job: Any) -> int | None:
+    """Time left on a build, counted from its own rate so far, or None.
+
+    Only from what this job has done since it started here: units finished over the
+    seconds it took. Nothing is guessed where there is nothing to count from — no
+    start seen, nothing finished, or too little time gone to call it a rate — because
+    a number a host repeats is a number the reader holds us to (2026-10-06).
+
+    The box's `usually` is not used. It runs from the quote, not the press, so it
+    counts however long the reader took to confirm, and says nothing about this build.
+    The rate starts at the press too, so the reading and annotating before the first
+    sentence is translated slow it down: it errs long, and closes in as it goes.
+    """
+    if not job.started or job.done <= 0 or job.done >= job.total:
+        return None
+    elapsed = time.time() - job.started / 1000
+    if elapsed < 5:
+        return None
+    return int(round((job.total - job.done) * elapsed / job.done))
+
+
+def _in_words(seconds: int) -> str:
+    if seconds < 60:
+        return "less than a minute left"
+    if seconds < 90:
+        return "about a minute left"
+    if seconds < 90 * 60:
+        return f"about {round(seconds / 60)} minutes left"
+    return f"about {round(seconds / 3600)} hours left"
+
+
+def _said(job: Any, left: int | None, behind: int) -> str:
+    """Where a job has got to, as one line a host can say to the reader as it is.
+
+    English, like `because` on a suggestion: the host reads it and the host decides
+    what language to say it in. Facts only — a count, and a time where one was counted.
+    """
+    if job.stage == "done":
+        if job.chapters > 1:
+            return "The first chapter is ready to read. The rest are made as you read on."
+        return "It's ready to read."
+    if job.stage == "failed":
+        what = job.error or "Something went wrong on our side. Try again later."
+        spent = " Nothing was used." if job.spent <= 0 else ""
+        return f"We couldn't get it ready. {what}{spent}"
+    if job.stage == "blocked":
+        return job.blocked or "We can't make this one right now."
+    if job.stage in ("reading", "looking up words"):
+        return "We're still reading it through. It hasn't started."
+    if job.stage == "ready":
+        return "It hasn't started. It starts once you confirm it."
+    if job.stage == "queued":
+        if behind > 0:
+            texts = "text" if behind == 1 else "texts"
+            return f"It's waiting to start, behind {behind} other {texts}."
+        return "It's about to start."
+    if job.total <= 0:
+        return "We're working on it."
+    unit = "pictures" if job.options.get("cover") else "sentences"
+    line = f"{min(job.done, job.total)} of {job.total} {unit} ready"
+    if job.chapters > 1:
+        line = f"The first chapter: {line}"
+    if left is not None:
+        line += f", {_in_words(left)}"
+    return line + "."
+
+
 def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Where a build has got to, said so a host can repeat it in one line.
+
+    With `wait_seconds` the call holds until the build moves, ends, or the time is up,
+    so a host follows a build in a few calls rather than asking every second and
+    saying the same thing each time (2026-10-06). Read only, held or not.
+    """
     job = ctx.library.jobs.get(str(args.get("id") or ""))
     if job is None or job.owner != ctx.person_id:
         return {"error": "None of the reader's texts has that id."}
+    try:
+        wait = float(args.get("wait_seconds") or 0)
+    except (TypeError, ValueError):
+        wait = 0.0
+    _hold(job, max(0.0, min(WAIT_MOST, wait)))
     # Read by a model on either surface and drawn by no page, so it never carries money.
     state = _for_host(job.state())
     if state.get("reader"):
         folder = str(state["reader"]).removesuffix("/reader/index.html")
         state["open"] = reader_url(folder, ctx.press_at)
+    behind = 0
+    if job.stage == "queued":
+        behind = next(
+            (
+                int(row.get("behind") or 0)
+                for row in ctx.library.mine(job.owner)
+                if row["id"] == job.id
+            ),
+            0,
+        )
+        state["behind"] = behind
+    left = _seconds_left(job) if job.stage == "working" else None
+    if left is not None:
+        state["seconds_left"] = left
+    if job.stage == "working" and job.total > 0:
+        state["unit"] = "pictures" if job.options.get("cover") else "sentences"
+    state["said"] = _said(job, left, behind)
     return state
 
 
@@ -2508,8 +2636,21 @@ REGISTRY: tuple[Tool, ...] = (
     Tool(
         "check_job",
         "Where a text the reader is getting ready has got to, by the id quote_build "
-        "returned, with its link once it is ready. Read only.",
-        _schema({"id": {"type": "string"}}, ("id",)),
+        "returned: `said` is a line to pass on, and `open` the link once it is ready. "
+        "To follow a build, pass wait_seconds rather than calling again straight away: "
+        "it answers as soon as something changes. Read only.",
+        _schema(
+            {
+                "id": {"type": "string"},
+                "wait_seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": WAIT_MOST,
+                    "description": "Hold up to this long for a change. 0 answers at once.",
+                },
+            },
+            ("id",),
+        ),
         check_job,
         scope="record",
         title="Where a text has got to",
