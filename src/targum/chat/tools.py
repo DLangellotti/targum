@@ -202,6 +202,12 @@ class Tool:
     #: Whether calling it twice with the same arguments does no more than once
     #: (MCP's `idempotentHint`, which only means something for a tool that writes).
     idempotent: bool = False
+    #: The `ui://` resource a host that draws MCP Apps shows beside this tool's result,
+    #: or nothing (design.md §12, "A card in someone else's chat", 2026-10-06). Only
+    #: `check_job` has one, and a third card needs an entry in §12 before it gets one.
+    #: The text result does not change for it: a host that draws no card reads exactly
+    #: what it read before.
+    card: str = ""
 
     def hints(self) -> dict[str, bool]:
         """The tool's MCP annotations. None of them deletes or overwrites anything."""
@@ -2045,6 +2051,11 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+#: The build card's address, as `mcp_http` serves it and a tool's `_meta` names it. A
+#: name of ours and nobody's URL: `ui://` is the MCP Apps extension's scheme for a page
+#: the server hands over whole, and nothing is ever fetched from it.
+BUILD_CARD = "ui://targum/build-card.html"
+
 #: The longest `check_job` holds a request open, in seconds. Under the half minute a
 #: host's own request usually gives up at, and one held request is one thread of the
 #: threaded server asleep, never a lock: everybody else is answered while it waits.
@@ -2764,6 +2775,7 @@ REGISTRY: tuple[Tool, ...] = (
         scope="record",
         title="Where a text has got to",
         elsewhere_args=("wait_seconds",),
+        card=BUILD_CARD,
     ),
 )
 

@@ -11,8 +11,9 @@ the protocol directly, on the server targum already runs, behind the auth targum
 has.
 
 **What is implemented.** `initialize` with version negotiation, `tools/list`,
-`tools/call`, `prompts/list`, `prompts/get`, `ping`, and the notifications a client
-sends and expects no answer to. `GET /mcp` is 405: there is no server-initiated stream
+`tools/call`, `prompts/list`, `prompts/get`, `resources/list`, `resources/read`,
+`resources/templates/list`, `ping`, and the notifications a client sends and expects no
+answer to. `GET /mcp` is 405: there is no server-initiated stream
 here, and saying so plainly is better than holding a socket open that will never carry
 anything.
 
@@ -52,13 +53,45 @@ INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
+#: MCP's own code for a resource that is not there (the spec's "Resource not found").
+RESOURCE_NOT_FOUND = -32002
 
 #: What the server says it is, in the client's connector list.
 SERVER_NAME = "targum"
 
-#: What the host is told this server can do. No `resources` and no `logging`: claiming a
-#: capability and then answering `method not found` is worse than not claiming it.
-CAPABILITIES: dict[str, Any] = {"tools": {"listChanged": False}, "prompts": {"listChanged": False}}
+#: What the host is told this server can do. No `logging`: claiming a capability and then
+#: answering `method not found` is worse than not claiming it.
+#:
+#: **`resources` since 2026-10-06, for the cards.** Until then there were none to claim:
+#: everything targum hands a host is a tool's answer. A card in someone else's chat
+#: (design.md §12) is a page the host fetches as a resource and draws beside a tool's
+#: result, which is what the MCP Apps extension asks of a server: `resources/list` and
+#: `resources/read` answering for the `ui://` address a tool names. The cards are the only
+#: resources there are, and a connection is listed only the cards of tools it holds
+#: (`card_shapes`). No `subscribe`: a card never changes under a host that is holding it.
+CAPABILITIES: dict[str, Any] = {
+    "tools": {"listChanged": False},
+    "prompts": {"listChanged": False},
+    "resources": {"listChanged": False},
+}
+
+#: The MCP Apps extension's type for a page a host draws in a frame (SEP-1865, spec
+#: 2026-01-26). Claude and ChatGPT both read it; ChatGPT's older `text/html+skybridge`
+#: is not needed beside it.
+CARD_TYPE = "text/html;profile=mcp-app"
+
+#: The cards, by address: what a host lists, and the page `builder` draws for each.
+#: design.md §12 allows two and one is built; a third needs an entry there first.
+CARDS: dict[str, dict[str, str]] = {
+    tools_module.BUILD_CARD: {
+        "name": "build-card",
+        "title": "Where a text has got to",
+        "description": (
+            "How far a text the reader is getting ready has got, kept current by asking "
+            "check_job again, and the link to it once it is ready."
+        ),
+    },
+}
 
 #: How a client is told what this is for, once, at `initialize`. The same job the chat's
 #: system prompt does, in the space a connector gets.
@@ -171,9 +204,76 @@ def tool_shapes(tools: list[tools_module.Tool]) -> list[dict[str, Any]]:
             "description": tool.description,
             "inputSchema": tool.schema,
             "annotations": {"title": tool.title or tool.name, **tool.hints()},
+            **({"_meta": card_meta(tool.card)} if tool.card else {}),
         }
         for tool in tools
     ]
+
+
+def card_meta(uri: str) -> dict[str, Any]:
+    """What a tool's `_meta` says so a host draws its card (2026-10-06).
+
+    `ui.resourceUri` is the MCP Apps extension's key and the one Claude and ChatGPT both
+    read. The flat `ui/resourceUri` is the same thing in the shape the extension first
+    shipped, which its own SDK still writes beside the new one for hosts that have not
+    moved; it is marked for removal before the extension is final. `visibility` says the
+    model may call the tool and so may the card — the card's one call is this tool, again,
+    with `wait_seconds`. `openai/widgetAccessible` says the same to ChatGPT's Apps SDK,
+    which asked for it separately before it read the extension's keys.
+    """
+    return {
+        "ui": {"resourceUri": uri, "visibility": ["model", "app"]},
+        "ui/resourceUri": uri,
+        "openai/widgetAccessible": True,
+    }
+
+
+def card_shapes(tools: list[tools_module.Tool]) -> list[dict[str, Any]]:
+    """The cards as `resources/list` says them: only those of tools this caller holds.
+
+    The same filter `prompt_shapes` applies to prompts, for the same reason. A card that
+    asks for `check_job` is no use on a connection that was never granted the record, and
+    listing it would be offering a page that can only fail.
+    """
+    held = {tool.card for tool in tools if tool.card}
+    return [
+        {
+            "uri": uri,
+            "name": card["name"],
+            "title": card["title"],
+            "description": card["description"],
+            "mimeType": CARD_TYPE,
+            "_meta": {"ui": _card_frame()},
+        }
+        for uri, card in CARDS.items()
+        if uri in held
+    ]
+
+
+def _card_frame() -> dict[str, Any]:
+    """The frame a card asks for. No domain at all in its CSP: the card fetches nothing
+    (design.md §12), so it asks a host to open nothing. No border of the host's own:
+    the card draws its own edge, in its own palette."""
+    return {"csp": {"connectDomains": [], "resourceDomains": []}, "prefersBorder": False}
+
+
+def card_read(uri: str, tools: list[tools_module.Tool], language: str = "en") -> dict[str, Any]:
+    """One card, whole, as `resources/read` hands it over: the page as text, its type,
+    and the frame it wants.
+
+    Refused like a tool the caller does not hold: the same answer whether the card does
+    not exist or is not theirs to have.
+    """
+    if uri not in {shape["uri"] for shape in card_shapes(tools)}:
+        raise RpcError(RESOURCE_NOT_FOUND, f"There is no resource called {uri} here.")
+    from .render.builder import build_card
+
+    page = build_card(language)
+    return {
+        "contents": [
+            {"uri": uri, "mimeType": CARD_TYPE, "text": page, "_meta": {"ui": _card_frame()}}
+        ]
+    }
 
 
 def prompt_shapes(
@@ -276,6 +376,24 @@ def handle(
             request_id,
             _prompt(str(params.get("name") or ""), mine, held, params.get("arguments")),
         )
+    if method == "resources/list":
+        return _result(
+            request_id, {"resources": card_shapes(connector.exposed(scopes, person=person))}
+        )
+    if method == "resources/templates/list":
+        # Part of `resources`, so answered: there are no templates, only cards at fixed
+        # addresses, and an empty list says so where `method not found` would read as a
+        # broken server.
+        return _result(request_id, {"resourceTemplates": []})
+    if method == "resources/read":
+        return _result(
+            request_id,
+            card_read(
+                str(params.get("uri") or ""),
+                connector.exposed(scopes, person=person),
+                _language(store, person),
+            ),
+        )
     if method == "tools/call":
         return _call(
             request_id,
@@ -288,6 +406,16 @@ def handle(
             ask=ask,
         )
     raise RpcError(METHOD_NOT_FOUND, f"This server has no {method}.")
+
+
+def _language(store: Store | None, person: Person | None) -> str:
+    """The language a card's labels are drawn in: the chrome's rule for this reader
+    (`strings.drawn_in`), and English for nobody in particular."""
+    from .strings import SOURCE, drawn_in
+
+    if store is None or person is None:
+        return SOURCE
+    return drawn_in(store.reads(person.id))
 
 
 def _prompt(
@@ -365,10 +493,21 @@ def _call(
     # Short links on the way out, so the host writes eight letters where it wrote two
     # hundred and fifty (`tools.shorten`, 2026-10-06).
     text = tools_module.shorten(text, address)
-    return _result(
-        request_id,
-        {"content": [{"type": "text", "text": text}], "isError": failed},
-    )
+    answered: dict[str, Any] = {"content": [{"type": "text", "text": text}], "isError": failed}
+    tool = tools_module.BY_NAME.get(name)
+    if tool is not None and tool.card:
+        # The card's rows, in the field the MCP Apps extension hands a card. Exactly the
+        # text's own JSON and nothing more (2026-10-06): some hosts read this field to
+        # the model in place of the text (Claude Code does), so it has to be the same
+        # floor, or a host that draws no card would be reading something new. `said` in
+        # it is still the one line to pass on.
+        try:
+            rows = json.loads(text)
+        except ValueError:
+            rows = None
+        if isinstance(rows, dict):
+            answered["structuredContent"] = rows
+    return _result(request_id, answered)
 
 
 def _version() -> str:
@@ -452,11 +591,16 @@ def _dump(payload: Any) -> bytes:
 
 __all__ = [
     "CAPABILITIES",
+    "CARDS",
+    "CARD_TYPE",
     "INSTRUCTIONS",
     "PROMPTS",
     "SERVER_NAME",
     "RpcError",
     "answer",
+    "card_meta",
+    "card_read",
+    "card_shapes",
     "handle",
     "prompt_shapes",
     "tool_shapes",

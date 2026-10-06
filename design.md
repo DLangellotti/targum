@@ -404,6 +404,27 @@ on 2026-10-06.
   the one fetch a card makes, and it is audio from our own origin, never a script,
   style, font or image.
 
+**The dark reading** (built with the build card, 2026-10-06). It invents no colour: each
+light token is swapped for the value §4 already gives it on ink, and nothing else on the
+card changes. `card.css` holds both columns and `test_brand.py` pins them value by value.
+
+| token | light | dark |
+|---|---|---|
+| card | `#fffdf9` | `#201e1b` |
+| ink | `#1c1a17` | `#e6e1d8` |
+| muted | `#6b645c` | `#9a9288` |
+| edge | ink at 8% | `#322e29` |
+| teal, the door | `#1f6f6b` | `#6fb8b3` |
+| text on teal | `#fffdf9` | `#0f1a19` |
+| leaf, the bar | `#5a7340` | `#a8c37e` |
+| track | `#ece7de` | `#322e29` |
+
+The frame's own ground is transparent in both, so the host's page shows round the card.
+The build card follows a build by asking for `check_job` with `wait_seconds` until it is
+done or has stopped, and gives up after an hour or three failed asks, saying so. Where a
+host draws several cards for one build, the newest follows and the others show what it
+hears.
+
 ### The connector is handed a sample of the known words — 2026-10-06
 
 `how_to_talk` handed a host the reader's whole known list, 1,483 words on David's

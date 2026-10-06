@@ -1936,6 +1936,23 @@ def holding_page(language: str = "en") -> str:
     )
 
 
+def build_card(language: str = "en") -> str:
+    """The build card a host draws beside `check_job` (design.md §12, "A card in
+    someone else's chat", 2026-10-06).
+
+    The whole document, style and script inline, because the frame a host draws it in
+    is somebody else's and the card fetches nothing — no face carried either, only named.
+    The labels are in the reader's language where the catalogue has it; what the card
+    says about the build arrives in the tool result, so this renders the same for every
+    build and a host may keep it.
+    """
+    return (
+        _environment()
+        .get_template("card-build.html.j2")
+        .render(t=page_words(language), page_language=_page_language(language))
+    )
+
+
 def not_found_page() -> str:
     """An address that is not a page: said plainly, with the way back, in the same
     quiet frame a stranger already meets."""

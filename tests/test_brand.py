@@ -364,6 +364,8 @@ THUMBED = (
     ".bar-pop .recordings .recording-key",
     ".bar-pop .to-sheet .more-sheet",
     ".cmp-add",
+    # The build card's door, in somebody else's chat (design.md §12, 2026-10-06).
+    ".card-door",
 )
 
 
@@ -710,3 +712,58 @@ def test_the_queue_waits_and_never_chases() -> None:
     yours = (TEMPLATES / "yours.html.j2").read_text(encoding="utf-8")
     assert "What to work on" in yours
     assert "work-title" not in yours, "no counted heading: that is the table's, and earned"
+
+
+#: The card's two columns (design.md §12, "The dark reading", 2026-10-06). A card is the
+#: one surface that takes a theme, because it is drawn inside somebody else's page, and
+#: its dark column is §4's "on ink" values and nothing invented. The edge on light is
+#: ink at 8%, the desk's hairline, which is not a hex and so is not pinned here.
+CARD_LIGHT = {
+    "--card": "#fffdf9",
+    "--ink": "#1c1a17",
+    "--muted": "#6b645c",
+    "--teal": "#1f6f6b",
+    "--teal-ink": "#fffdf9",
+    "--leaf": "#5a7340",
+    "--track": "#ece7de",
+}
+CARD_DARK = {
+    "--card": "#201e1b",
+    "--ink": "#e6e1d8",
+    "--muted": "#9a9288",
+    "--edge": "#322e29",
+    "--teal": "#6fb8b3",
+    "--teal-ink": "#0f1a19",
+    "--leaf": "#a8c37e",
+    "--track": "#322e29",
+}
+
+
+def _block(css: str, selector: str) -> dict[str, str]:
+    body = css[css.index(selector + " {") :]
+    body = body[: body.index("}")]
+    return dict(re.findall(r"(--[\w-]+):\s*([^;]+);", body))
+
+
+def test_the_card_reads_the_palette_light_and_dark() -> None:
+    """§12: a card follows the host's theme in a dark reading of the same palette. Each
+    value is pinned, and every dark one is a colour §4 already gives a job on ink."""
+    css = re.sub(r"/\*.*?\*/", " ", (ASSETS / "card.css").read_text(encoding="utf-8"), flags=re.S)
+    light = _block(css, ":root")
+    dark = _block(css, ':root[data-theme="dark"]')
+    for token, value in CARD_LIGHT.items():
+        assert light.get(token) == value, f"light {token} is {light.get(token)}, not {value}"
+    for token, value in CARD_DARK.items():
+        assert dark.get(token) == value, f"dark {token} is {dark.get(token)}, not {value}"
+        assert value in PALETTE, f"dark {token} {value} is not in the palette"
+    # The dark block swaps colours and nothing else: no size, face or corner of its own.
+    assert set(dark) <= set(CARD_DARK) | {"--shadow"}, sorted(set(dark) - set(CARD_DARK))
+    # And the card says the scheme it is in, so the browser draws no backdrop behind it.
+    assert "color-scheme: dark" in css and "color-scheme: light" in css
+
+
+def test_the_card_names_its_faces_and_carries_none() -> None:
+    """§12: the chrome's sans, named and never fetched. No @font-face, no url()."""
+    css = re.sub(r"/\*.*?\*/", " ", (ASSETS / "card.css").read_text(encoding="utf-8"), flags=re.S)
+    assert "@font-face" not in css and "url(" not in css
+    assert '"Source Sans 3"' in css

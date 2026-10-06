@@ -257,7 +257,8 @@ def test_a_notification_is_answered_with_nothing(box: tuple[int, str]) -> None:
 def test_an_unknown_method_is_a_jsonrpc_error_and_not_a_500(box: tuple[int, str]) -> None:
     port, _ = box
     token = a_token(port, "library")
-    said = rpc(port, token, "resources/list")
+    # Resources were the example until 2026-10-06, when the cards made them real.
+    said = rpc(port, token, "completion/complete")
     assert said["error"]["code"] == mcp_http.METHOD_NOT_FOUND
 
 
@@ -315,6 +316,19 @@ def test_the_check_scope_adds_pricing(box: tuple[int, str]) -> None:
     token = a_token(port, "library record check")
     names = {one["name"] for one in rpc(port, token, "tools/list")["result"]["tools"]}
     assert "quote_build" in names
+
+
+def test_the_build_card_comes_with_the_record_and_not_before(box: tuple[int, str]) -> None:
+    """design.md §12, "A card in someone else's chat": the card asks for check_job, so a
+    connection is offered it only where check_job is held (2026-10-06)."""
+    port, _ = box
+    library = rpc(port, a_token(port, "library"), "resources/list")["result"]["resources"]
+    assert library == []
+    token = a_token(port, "library record")
+    listed = rpc(port, token, "resources/list")["result"]["resources"]
+    assert [one["mimeType"] for one in listed] == [mcp_http.CARD_TYPE]
+    read = rpc(port, token, "resources/read", {"uri": listed[0]["uri"]})["result"]
+    assert read["contents"][0]["text"].startswith("<!doctype html>")
 
 
 def test_the_conversation_tool_is_never_listed(box: tuple[int, str]) -> None:
