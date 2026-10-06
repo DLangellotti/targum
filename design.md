@@ -2827,6 +2827,15 @@ These are the ones that change or add a rule, so they are recorded.
   and leads with the English. Inside anything tagged Hebrew-script, `--reading` and
   `--chrome` are the Hebrew stack, so a component names its face by variable and never
   has to out-specify the `[lang]` rule.
+
+  **Amended 2026-10-06: the bell is a page, not plain text.** Its titles had the
+  characters, and David still saw "We're getting {title} ready" scrambled. The direction
+  was isolated correctly. The line broke inside a Hebrew title that was too long for the
+  room left, and each half was reordered on its own line. So a title the bell puts into
+  an English line is a `<bdi>` drawn as an inline block (`.notices-title`): it moves to
+  the next line whole, wraps inside itself in its own direction, and carries
+  `lang="he"` when it is Hebrew script. U+2068 … U+2069 is still the rule wherever the
+  text really is plain: a mail subject, a tab title, a push.
 - **A reader page is English chrome around a text.** `<html lang="en">`, the direction
   still the text's, the text's language on `data-language`, and `lang` on every source
   cell as before. A speaker's name is 0.8125rem in the reading face and is heard by a

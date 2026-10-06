@@ -15,6 +15,11 @@
  * Since 2026-09-14 the panel stays open while you put lines away — the × used to close
  * it, because redrawing the list took the pressed button out of the page before the
  * press outside was judged — and Clear all puts every line away at once.
+ *
+ * Since 2026-10-06 a build that is getting ready opens in place: its line is a button,
+ * and under it the stage, a bar and the server's own sentence about it, followed live
+ * while it is open (David: "I want to be able to click on one that is getting ready and
+ * see the status live"). And every title in the bell is a <bdi> drawn as one box.
  */
 (function () {
   "use strict";
@@ -88,43 +93,206 @@
     return "";
   }
 
-  // A title inside an English line, isolated (U+2068 … U+2069): unisolated, a Hebrew
-  // title took the words beside it into its own direction, and a question mark at its
-  // end jumped to the other side of the line (2026-09-14).
-  function iso(text) {
-    return "\u2068" + text + "\u2069";
+  /* A title inside an English line, in a <bdi> drawn as one box (2026-10-06). Since
+     2026-09-14 it was U+2068 … U+2069 inside the string, which isolated the title's
+     direction and still let the line break inside it: a Hebrew title longer than the
+     room left on the line was split over two lines, each reordered on its own, and
+     "We're getting {title} ready" came out of the bell in pieces (David, 2026-10-06).
+     The element isolates as the characters did, and as an inline block it moves to the
+     next line whole and wraps inside itself, right to left. design.md §12, "The
+     Hebrew-first audit", amended the same day: the characters are for plain text, and
+     the bell is a page. */
+  var SLOT = "\uE000";
+  function bdi(text, language) {
+    var b = document.createElement("bdi");
+    b.className = "notices-title";
+    b.textContent = text;
+    // Hebrew script in its own face (the audit: anything tagged Hebrew-script takes the
+    // Hebrew stack), named by the build's language where it is one of the three.
+    if (/[\u0590-\u05ff]/.test(text)) b.lang = language === "yi" || language === "arc" ? language : "he";
+    return b;
+  }
+  // A sentence said with SLOT where its title goes, and the title put there.
+  function filled(text, title) {
+    var out = document.createDocumentFragment();
+    var parts = String(text).split(SLOT);
+    parts.forEach(function (part, at) {
+      if (part) out.appendChild(document.createTextNode(part));
+      if (at < parts.length - 1) out.appendChild(title.cloneNode(true));
+    });
+    return out;
+  }
+
+  function titleOf(job) {
+    // The English first where there is one: this line is read by somebody waiting, and
+    // a title they can read is the one that tells them which build this is.
+    var out = document.createDocumentFragment();
+    if (job.english) {
+      out.appendChild(bdi(job.english));
+      out.appendChild(document.createTextNode(" · "));
+    }
+    if (job.title) out.appendChild(bdi(job.title, job.language));
+    else out.appendChild(document.createTextNode(t("building.your-text", "your text")));
+    return out;
   }
 
   function line(job) {
-    // The English first where there is one: this line is read by somebody waiting, and
-    // a title they can read is the one that tells them which build this is.
-    var title = job.title ? iso(job.title) : t("building.your-text", "your text");
-    if (job.english) title = iso(job.english) + " · " + title;
-    var named = { title: title };
-    if (job.stage === "done") return t("building.ready", "{title} is ready.", named);
+    var title = titleOf(job);
+    var slot = { title: SLOT };
+    if (job.stage === "done") return filled(t("building.ready", "{title} is ready.", slot), title);
     if (job.stage === "failed") {
-      return title + ": " + (job.error || t("building.failed", "we couldn't get it ready. Try adding it again."));
+      var failed = job.error || t("building.failed", "we couldn't get it ready. Try adding it again.");
+      return filled(SLOT + ": " + failed, title);
     }
     if (job.stage === "blocked") {
-      return title + ": " + (job.blocked || t("building.blocked", "we can't do this one right now."));
+      var blocked = job.blocked || t("building.blocked", "we can't do this one right now.");
+      return filled(SLOT + ": " + blocked, title);
     }
     if (job.stage === "queued") {
-      return job.behind > 0
-        ? tn(
-            "building.queued",
-            job.behind,
-            "We'll start {title} after one other text.",
-            "We'll start {title} after {n} other texts.",
-            named
-          )
-        : t("building.next", "We'll start {title} next.", named);
+      return filled(
+        job.behind > 0
+          ? tn(
+              "building.queued",
+              job.behind,
+              "We'll start {title} after one other text.",
+              "We'll start {title} after {n} other texts.",
+              slot
+            )
+          : t("building.next", "We'll start {title} next.", slot),
+        title
+      );
     }
-    var far = job.total ? Math.round((job.done / job.total) * 100) + "%" : plain(job.message);
-    return t("building.getting-ready", "We're getting {title} ready", named) + (far ? " · " + far : "");
+    var far = job.total ? percent(job) + "%" : plain(job.message);
+    var going = t("building.getting-ready", "We're getting {title} ready", slot);
+    return filled(going + (far ? " · " + far : ""), title);
+  }
+
+  function percent(job) {
+    return job.total ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0;
   }
 
   function live(job) {
     return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked";
+  }
+
+  /* --- A build opened in place (David, 2026-10-06: "I want to be able to click on one
+     that is getting ready and see the status live") ---------------------------------
+     A row that is getting ready, or that has failed, is a button; pressing it opens
+     under it the stage in words, a bar from done and total, and the server's own line
+     about it — `said`, the sentence `check_job` gives a host, with the time left only
+     where a rate was counted. One open at a time. While it is open, the panel is open
+     and the tab is in view, `/job/<id>` is asked every two seconds; collapsing it, its
+     finishing or failing, closing the panel or leaving the tab stops that, and the
+     list's own poll goes on by its old rule. A finished one turns back into the done
+     row with its Open.
+
+     A book needs nothing of its own here: its build ends when the first chapter is
+     ready (the rest are made as they are read), so the done row's Open already opens
+     what is ready, and while it runs `said` says it is the first chapter being made. */
+  var STAGE = {
+    "We're drawing…": function () {
+      return t("building.stage.drawing", "Drawing the pictures");
+    },
+    "We're reading it aloud…": function () {
+      return t("building.stage.voicing", "Recording the voice");
+    },
+    "Finding each word's dictionary form…": function () {
+      return t("building.stage.words", "Reading the words");
+    },
+    "Adding vowel points…": function () {
+      return t("building.stage.points", "Adding vowel points");
+    },
+    "Building the reader…": function () {
+      return t("building.stage.page", "Setting the page");
+    },
+  };
+  function stageOf(job) {
+    if (job.stage === "queued") return t("building.stage.waiting", "Waiting to start");
+    var message = job.message || "";
+    if (Object.prototype.hasOwnProperty.call(STAGE, message)) return STAGE[message]();
+    // The count moves only while sentences are translated, and whatever the pipeline
+    // printed before that is still standing then: it is not what is happening.
+    if (job.total > 0 && job.done < job.total) return t("building.stage.translating", "Translating");
+    if (message.indexOf("Matching") === 0) return t("building.stage.lining-up", "Lining it up");
+    if (message.indexOf("Looking up") === 0) return t("building.stage.looking-up", "Looking up the words");
+    return t("building.stage.working", "Working on it");
+  }
+
+  function opens(job) {
+    return live(job) || job.stage === "failed";
+  }
+
+  function statusId(job) {
+    return "notices-status-" + String(job.id).replace(/[^\w-]/g, "_");
+  }
+
+  function status(job) {
+    var box = document.createElement("div");
+    box.className = "notices-status";
+    box.id = statusId(job);
+    if (job.stage === "failed") {
+      // What happened and what to do, in the server's one sentence: the build's own
+      // reason, and whether anything was used.
+      var why = document.createElement("p");
+      why.className = "notices-said";
+      why.textContent =
+        job.said || job.error || t("building.failed", "we couldn't get it ready. Try adding it again.");
+      box.appendChild(why);
+      return box;
+    }
+    var stage = document.createElement("p");
+    stage.className = "notices-stage";
+    // Said when the stage changes, and not at every count: the bar carries the count.
+    stage.setAttribute("aria-live", "polite");
+    stage.textContent = stageOf(job);
+    box.appendChild(stage);
+    if (job.stage === "working" && job.total > 0) {
+      var bar = document.createElement("div");
+      bar.className = "notices-bar";
+      bar.setAttribute("role", "progressbar");
+      bar.setAttribute("aria-label", t("building.stage.progress", "How much is ready"));
+      bar.setAttribute("aria-valuemin", "0");
+      bar.setAttribute("aria-valuemax", String(job.total));
+      bar.setAttribute("aria-valuenow", String(Math.min(job.done, job.total)));
+      var fill = document.createElement("span");
+      fill.style.inlineSize = percent(job) + "%";
+      bar.appendChild(fill);
+      box.appendChild(bar);
+    }
+    if (job.said) {
+      var said = document.createElement("p");
+      said.className = "notices-said";
+      said.textContent = job.said;
+      box.appendChild(said);
+    }
+    return box;
+  }
+
+  // An open status is changed where it stands rather than drawn again, so the bar moves
+  // to its new width instead of jumping, and a screen reader is not handed it afresh.
+  function refresh(box, job) {
+    var next = status(job);
+    var kids = box.children;
+    var same =
+      kids.length === next.children.length &&
+      Array.prototype.every.call(next.children, function (kid, at) {
+        return kid.className === kids[at].className;
+      });
+    if (!same) {
+      box.textContent = "";
+      while (next.firstChild) box.appendChild(next.firstChild);
+      return;
+    }
+    Array.prototype.forEach.call(next.children, function (kid, at) {
+      var old = kids[at];
+      if (kid.className === "notices-bar") {
+        old.setAttribute("aria-valuemax", kid.getAttribute("aria-valuemax"));
+        old.setAttribute("aria-valuenow", kid.getAttribute("aria-valuenow"));
+        old.firstChild.style.inlineSize = kid.firstChild.style.inlineSize;
+      } else if (old.textContent !== kid.textContent) {
+        old.textContent = kid.textContent;
+      }
+    });
   }
 
   // Lines other scripts add, by id, beside the builds; a promise made on a dismissed
@@ -133,12 +301,44 @@
   var jobsNow = [];
   var timer = null;
 
+  // The build whose status is open in the panel, by id, or "" for none; and the clock
+  // that follows it.
+  var opened = "";
+  var follow = null;
+
+  // A line's words: a string another script handed over, or nodes this file built with
+  // its titles isolated.
+  function words(entry) {
+    var text = document.createElement("span");
+    if (typeof entry.text === "string") text.textContent = entry.text;
+    else if (entry.text) text.appendChild(entry.text.cloneNode(true));
+    return text;
+  }
+
   function row(entry) {
     var li = document.createElement("li");
+    li.setAttribute("data-id", entry.id);
     if (entry.live) li.className = "live";
-    var text = document.createElement("span");
-    text.textContent = entry.text;
-    li.appendChild(text);
+    var text = words(entry);
+    if (entry.job && opens(entry.job)) {
+      // The line itself is the press that opens it: a button saying whether it is open,
+      // and what it opens.
+      var flip = document.createElement("button");
+      flip.type = "button";
+      flip.className = "notices-row";
+      var on = opened === entry.job.id;
+      flip.setAttribute("aria-expanded", on ? "true" : "false");
+      flip.setAttribute("aria-controls", statusId(entry.job));
+      flip.appendChild(text);
+      flip.onclick = function () {
+        opened = opened === entry.job.id ? "" : entry.job.id;
+        draw();
+      };
+      li.appendChild(flip);
+      if (on) li.classList.add("opened");
+    } else {
+      li.appendChild(text);
+    }
     if (entry.href) {
       var link = document.createElement("a");
       link.href = entry.href;
@@ -181,6 +381,8 @@
       }
     };
     li.appendChild(x);
+    // After the ×, so the × keeps its place on the line's first row of the grid.
+    if (li.classList.contains("opened")) li.appendChild(status(entry.job));
     return li;
   }
 
@@ -205,25 +407,115 @@
   // — puts it on the line that took that place, or on the bell when none is left.
   var pressed = -1;
 
+  function lineOf(id) {
+    for (var at = 0; at < list.children.length; at++) {
+      if (list.children[at].getAttribute("data-id") === id) return list.children[at];
+    }
+    return null;
+  }
+
   function draw() {
     var rows = entries();
+    // A build that is no longer there, or no longer has a status to show, is not open:
+    // a finished one turns back into the done row with its Open.
+    var still = rows.some(function (entry) {
+      return entry.job && entry.job.id === opened && opens(entry.job);
+    });
+    if (!still) opened = "";
     var at = Array.prototype.indexOf.call(list.querySelectorAll(".notices-x"), document.activeElement);
     if (at < 0) at = pressed;
     pressed = -1;
-    list.textContent = "";
-    rows.forEach(function (entry) {
-      list.appendChild(row(entry));
+    // The line the keyboard was on, when it was not a ×: the button that opens a build,
+    // so focus follows that build — onto its Open when it finishes.
+    var active = document.activeElement;
+    var held = "";
+    if (at < 0 && active && active !== list && list.contains(active)) {
+      var up = active;
+      while (up && up.parentNode !== list) up = up.parentNode;
+      held = up ? up.getAttribute("data-id") || "" : "";
+    }
+    // The open line is kept where it stands and changed in place; everything else is
+    // drawn again around it.
+    var kept = opened ? lineOf("job:" + opened) : null;
+    if (kept && !kept.classList.contains("opened")) kept = null;
+    var drawn = rows.map(function (entry) {
+      if (kept && entry.id === kept.getAttribute("data-id")) {
+        var flip = kept.querySelector(".notices-row");
+        flip.replaceChild(words(entry), flip.firstChild);
+        kept.className = entry.live ? "live opened" : "opened";
+        refresh(kept.querySelector(".notices-status"), entry.job);
+        return kept;
+      }
+      return row(entry);
+    });
+    Array.prototype.slice.call(list.children).forEach(function (child) {
+      if (child !== kept) list.removeChild(child);
+    });
+    var past = false;
+    drawn.forEach(function (li) {
+      if (li === kept) past = true;
+      else if (kept && !past) list.insertBefore(li, kept);
+      else list.appendChild(li);
     });
     if (at >= 0) {
       var xs = list.querySelectorAll(".notices-x");
       (xs[Math.min(at, xs.length - 1)] || open).focus();
+    } else if (held && !list.contains(document.activeElement)) {
+      var back = lineOf(held);
+      var to = back && back.querySelector(".notices-row, a, .notices-act, .notices-x");
+      if (to) to.focus();
     }
     empty.hidden = rows.length > 0;
     if (head) head.hidden = rows.length === 0;
     count.hidden = rows.length === 0;
     count.textContent = String(rows.length);
     open.classList.toggle("live", rows.some(function (entry) { return entry.live; }));
+    track();
   }
+
+  // The open build is followed only while somebody could be watching it: open, in an
+  // open panel, in a tab in view, and not yet finished. Anything else stops the clock.
+  function watched() {
+    if (!opened || panel.hidden || document.visibilityState === "hidden") return false;
+    return jobsNow.some(function (job) {
+      return job.id === opened && live(job);
+    });
+  }
+  function track() {
+    var want = watched();
+    if (want && !follow) {
+      follow = setInterval(lookAt, 2000);
+      lookAt();
+    }
+    if (!want && follow) {
+      clearInterval(follow);
+      follow = null;
+    }
+  }
+  function lookAt() {
+    var id = opened;
+    if (!id) return;
+    fetch(keyed("/job/" + encodeURIComponent(id)), { credentials: "same-origin" })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (fresh) {
+        // A build the server lost answers with an error and no id; the list's own poll
+        // is what takes it off.
+        if (!fresh || fresh.id !== id) return;
+        jobsNow = jobsNow.map(function (job) {
+          if (job.id !== id) return job;
+          var both = { mail: job.mail, behind: fresh.stage === "queued" ? job.behind : 0 };
+          for (var name in fresh) both[name] = fresh[name];
+          return both;
+        });
+        draw();
+      })
+      .catch(function () {});
+  }
+  document.addEventListener("visibilitychange", function () {
+    track();
+  });
 
   function ask() {
     fetch(keyed("/jobs"), { credentials: "same-origin" })
@@ -316,8 +608,11 @@
     .then(function (got) {
       ((got && got.chats) || []).forEach(function (chat) {
         if (!chat.answered || !(chat.answered > (chat.opened || 0))) return;
-        var about = chat.title ? iso(chat.title) : t("building.your-conversation", "your chat");
-        note("chat:" + chat.id + ":" + chat.answered, t("building.new-reply", "New reply in {title}", { title: about }), {
+        var about = chat.title
+          ? bdi(chat.title)
+          : document.createTextNode(t("building.your-conversation", "your chat"));
+        var said = filled(t("building.new-reply", "New reply in {title}", { title: SLOT }), about);
+        note("chat:" + chat.id + ":" + chat.answered, said, {
           label: t("building.open", "Open"),
           action: function () {
             if (window.TargumTalk && window.TargumTalk.open) window.TargumTalk.open(chat.id);
@@ -333,6 +628,7 @@
     panel.hidden = !on;
     open.setAttribute("aria-expanded", on ? "true" : "false");
     open.classList.toggle("on", on);
+    track();
   }
   open.addEventListener("click", function () {
     show(panel.hidden);
@@ -404,7 +700,12 @@
     window.TargumFollow.list().then(function (series) {
       window.TargumFollow.fresh(series).forEach(function (one) {
         var inst = one.instalment;
-        note("series:" + one.id + ":" + inst.id, one.name + ": " + iso(inst.hebrew || inst.title), {
+        // Both names isolated: a series can be named in Hebrew as well as its instalment.
+        var said = document.createDocumentFragment();
+        said.appendChild(bdi(one.name));
+        said.appendChild(document.createTextNode(": "));
+        said.appendChild(bdi(inst.hebrew || inst.title));
+        note("series:" + one.id + ":" + inst.id, said, {
           href: keyed(window.TargumFollow.readerOf(one) || one.page),
           label: t("building.open", "Open"),
         });
@@ -415,5 +716,5 @@
   // Another script on the page that has just started a build asks the bell to look
   // again, rather than waiting for a poll that only runs while something is unfinished.
   window.TargumBuilding = { ask: ask };
-  window.TargumNotices = { note: note, ask: ask };
+  window.TargumNotices = { note: note, ask: ask, bdi: bdi };
 })();

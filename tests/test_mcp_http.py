@@ -1132,6 +1132,13 @@ def test_the_walk_from_a_quote_to_an_open_reader(
         time.sleep(0.05)
     assert state["stage"] == "done", state
     assert state["reader"], state
+    # The bell follows a build with the line check_job says (2026-10-06), on both of the
+    # page's routes, and the connector's own answer below is unchanged by it.
+    assert state["said"] == "It's ready to read.", state
+    status, body, _ = send(port, "GET", "/jobs", session=session)
+    listed = {row["id"]: row for row in json.loads(body)["jobs"]}
+    assert listed[job_id]["said"] == "It's ready to read.", listed
+    assert "mail" in listed[job_id] and "behind" in listed[job_id]
 
     # 5a. The link the connector hands over, followed as given.
     checked = json.loads(

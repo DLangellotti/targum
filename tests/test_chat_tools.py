@@ -368,6 +368,31 @@ def test_check_job_says_how_far_a_build_has_got_and_how_long_is_left(world) -> N
     assert "!" not in got["said"] and "$" not in got["said"]
 
 
+def test_the_bell_and_check_job_say_one_line(world) -> None:
+    """`progress_of` is what the bell's `/jobs` and `/job/<id>` add to a build, and what
+    check_job says: one version of the sentence, so the page and a host agree."""
+    import time
+
+    library, store, person, home = world
+    job = Job(id="j-bell", source="x", owner=person.id, stage="working", done=30, total=80)
+    job.started = int(time.time() * 1000) - 60_000
+    library.jobs[job.id] = job
+    checked = tools.check_job(context(library, store, person, home), {"id": "j-bell"})
+    shown = tools.progress_of(job, 0, "en")
+    assert shown["said"] == checked["said"] == "30 of 80 sentences ready, about 2 minutes left."
+    assert abs(shown["seconds_left"] - checked["seconds_left"]) <= 1
+    waiting = Job(id="j-wait", source="x", owner=person.id, stage="queued")
+    assert tools.progress_of(waiting, 2, "en") == {
+        "said": "It's waiting to start, behind 2 other texts."
+    }
+    failed = Job(
+        id="j-fail", source="x", owner=person.id, stage="failed", error="That page is empty."
+    )
+    assert tools.progress_of(failed, 0, "en")["said"] == (
+        "We couldn't get it ready. That page is empty. Nothing was used."
+    )
+
+
 def test_check_job_says_no_time_left_where_there_is_nothing_to_count_from(world) -> None:
     import time
 
