@@ -233,6 +233,11 @@ def test_next_wants_one_search_and_short_links(ec: Any) -> None:
     assert all(ec.check_next([one]).values())
     two = turn(f"Esther.\n{link}", [], [("suggest_next", {}, "{}"), ("search_my_shelf", {}, "{}")])
     assert not ec.check_next([two])["one_search"]
+    # After #596 the connector lists `find_text` in place of the three.
+    found = turn(f"Esther.\n{link}", [], [("find_text", {}, "{}")])
+    assert ec.check_next([found])["one_search"]
+    both = turn(f"Esther.\n{link}", [], [("find_text", {}, "{}"), ("suggest_next", {}, "{}")])
+    assert not ec.check_next([both])["one_search"]
     long = turn(
         "Esther.\nhttps://targum.page/reader/%D7%90/reader/index.html",
         [],

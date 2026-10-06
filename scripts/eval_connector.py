@@ -90,9 +90,19 @@ from targum.accounts import Person, Store  # noqa: E402
 MODEL = "claude-sonnet-5-5"
 
 #: Dollars per million tokens: input, output, cache read, cache write (five minutes).
-#: Copied from the published table on 2026-10-06; check it again before trusting a cost
-#: from a model added here. A model not in it is refused, because a run whose price is
-#: unknown is a run whose cap cannot be kept.
+#: A model not in it is refused, because a run whose price is unknown is a run whose cap
+#: cannot be kept. Where each figure came from, as of 2026-10-06:
+#:
+#: - Input and output, every row: the model table in Anthropic's `claude-api` skill
+#:   (cached 2026-09-25), which mirrors https://platform.claude.com/docs/en/about-claude/pricing
+#:   — that page was not fetched for this. Sonnet 5, Opus 5 and Haiku 4.5 agree with
+#:   `translate/anthropic_provider.PRICES` in this repo.
+#: - Cache reads: $0.20 for Sonnet 5.5 and Opus 5.5 is stated in the same skill. The
+#:   other three are the usual tenth of the input price, NOT confirmed from a source.
+#: - Cache writes: 1.25 times input, the five-minute rate the skill gives in general
+#:   terms; not confirmed per model.
+#:
+#: Check the pricing page before trusting a cost from any of them.
 PRICES: dict[str, tuple[float, float, float, float]] = {
     "claude-sonnet-5-5": (2.0, 10.0, 0.20, 2.50),
     "claude-sonnet-5": (2.0, 10.0, 0.20, 2.50),
@@ -753,7 +763,10 @@ def check_talk(turns: list[dict[str, Any]]) -> dict[str, bool]:
     return out
 
 
-SEARCHES = ("suggest_next", "search_library", "search_my_shelf")
+#: Any of the doors to the shelf. `find_text` stands for the other three over the
+#: connector once #596 is in (they stay callable but are not listed), so a run counts
+#: whichever the host was handed, before that change and after it.
+SEARCHES = ("find_text", "suggest_next", "search_library", "search_my_shelf")
 
 
 def check_next(turns: list[dict[str, Any]]) -> dict[str, bool]:
