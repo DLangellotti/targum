@@ -30,7 +30,9 @@ after the stage to the script: `targum eval vocalize --corpus dicta-modern`. `le
 `stress` are each measured by two scripts, so they are named by corpus:
 `lemma/iahlt` and `lemma/ud`, `stress/tanakh-taamim` and `stress/wiktionary-ru`
 (`evals.SCRIPTS`). `targum eval rail` runs `scripts/eval_rail.py` (targum-internal#324),
-which writes no ledger row. Calling the script by path still works; the command is only
+which writes no ledger row, and so does `targum eval connector` (`scripts/eval_connector.py`,
+2026-10-06): a pretend host drives the connector against a local fixture and writes its
+rows to `evals/connector/`, spending up to `--max-dollars` (5 by default). Calling the script by path still works; the command is only
 the way in.
 
 What each corpus is, where it comes from, its licence and what it may be used for:
