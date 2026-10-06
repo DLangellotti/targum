@@ -239,10 +239,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    not only the ones they kept. On a table every box with the record has, so it is in
 #    MIGRATIONS; empty for every lookup before it, and for every other kind of event.
 #
+# 39→40: person.ledger — a counter bumped by every write to what a reader's record says
+#    that a sync does not already stamp with `revision`: a slip written or marked known,
+#    the address and the rung they named, a test account wiped (2026-10-06). The two
+#    together are what the connector's answers are kept under (`Store.ledger_stamp`), so
+#    a change to either is a new key and nothing kept is read across it. On a table every
+#    box has, so it is in MIGRATIONS.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 39
+SCHEMA_VERSION = 40
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -546,6 +553,10 @@ MIGRATIONS: tuple[str, ...] = (
     # the ledger keys a word on, so a week's look-ups meet the reader's own words and
     # meanings. Empty on every lookup recorded before it and on every other kind.
     "ALTER TABLE event ADD COLUMN word TEXT NOT NULL DEFAULT ''",
+    # Bumped by every write to the record that `revision` does not stamp (2026-10-06):
+    # see `Store.ledger_stamp`. Zero for everybody until their first such write, which
+    # is a key like any other.
+    "ALTER TABLE person ADD COLUMN ledger INTEGER NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """
@@ -1727,7 +1738,10 @@ class Store:
         if said and said not in self.DECLARED:
             raise ValueError("No such choice.")
         with self.write() as db:
-            db.execute("UPDATE person SET declared = ? WHERE id = ?", (said, person.id))
+            db.execute(
+                "UPDATE person SET declared = ?, ledger = ledger + 1 WHERE id = ?",
+                (said, person.id),
+            )
         return said
 
     # -- what a reader did in a text (targum-internal#127) -------------------------
@@ -1921,7 +1935,10 @@ class Store:
         if value not in self.ADDRESSES:
             raise ValueError("No such choice.")
         with self.write() as db:
-            db.execute("UPDATE person SET address = ? WHERE id = ?", (value, person.id))
+            db.execute(
+                "UPDATE person SET address = ?, ledger = ledger + 1 WHERE id = ?",
+                (value, person.id),
+            )
         return value
 
     def rename(self, person: Person, name: str) -> str:
@@ -2559,7 +2576,8 @@ class Store:
             db.execute("DELETE FROM reads WHERE email = ?", (person.email,))
             db.execute(
                 "UPDATE person SET name = '', picture = '', address = '', interest = '',"
-                " declared = '', events = '', granted = 0, revision = revision + 1"
+                " declared = '', events = '', granted = 0, revision = revision + 1,"
+                " ledger = ledger + 1"
                 " WHERE id = ?",
                 (person.id,),
             )
@@ -3043,6 +3061,34 @@ class Store:
     def revision(self, person: Person) -> int:
         row = self.db.execute("SELECT revision FROM person WHERE id = ?", (person.id,)).fetchone()
         return int(row["revision"]) if row else 0
+
+    @staticmethod
+    def _bump_ledger(db: sqlite3.Connection, person_id: int) -> None:
+        db.execute("UPDATE person SET ledger = ledger + 1 WHERE id = ?", (person_id,))
+
+    def ledger_stamp(self, person_id: int | None) -> tuple[int, int, int] | None:
+        """What changes whenever anything a reader's record says changes, or None.
+
+        The connector's answers are worked out from the record — the words, what they
+        finished, the days they read, their slips, the rung and address they named — and
+        kept under this (`chat.tools`, 2026-10-06), so this has to move on every write to
+        any of it. `revision` already does for everything a sync writes, which is the
+        words and the rest of `KINDS`; `ledger` is bumped by the few writes that are not a
+        sync (`_bump_ledger` and the statements beside it). `made` is there because an
+        `INTEGER PRIMARY KEY` can be given again to a person made after the last one was
+        deleted, and that person's zero counters must not be the old one's.
+
+        Read from the database rather than counted in memory, so a write made by another
+        process — the command line, a second server — moves it too. One row, by its key.
+        """
+        if person_id is None:
+            return None
+        row = self.db.execute(
+            "SELECT made, revision, ledger FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        if row is None:
+            return None
+        return (int(row["made"]), int(row["revision"]), int(row["ledger"]))
 
     def push(self, person: Person, changes: dict[str, list[dict[str, Any]]]) -> int:
         """Take a browser's changes, keeping whichever version of each record is newer.
@@ -4069,6 +4115,7 @@ class Store:
                     source,
                 ),
             )
+            self._bump_ledger(db, person_id)
             return int(cursor.lastrowid or 0)
 
     def slips(
@@ -4125,6 +4172,8 @@ class Store:
                 "UPDATE slip SET known = ? WHERE id = ? AND person = ? AND gone = 0",
                 (now() if known else 0, slip_id, person_id),
             )
+            if cursor.rowcount > 0:
+                self._bump_ledger(db, person_id)
             return cursor.rowcount > 0
 
     # --- what a reader wrote for their own connector (targum-internal#80) ----------

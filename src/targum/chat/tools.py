@@ -44,11 +44,12 @@ import re
 import secrets
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, unquote, urlparse
@@ -56,6 +57,7 @@ from urllib.parse import quote, unquote, urlparse
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
 from .. import level as level_module
+from .. import remembered as remembered_module
 from .. import sentence_level
 from ..level import Level
 from ..translate.prompts import INTO, language_name
@@ -289,6 +291,87 @@ def shorten(text: str, at: str) -> str:
     return re.sub(re.escape(origin) + _LONG_READER, short, text)
 
 
+# -- worked out once a change ------------------------------------------------------
+
+
+class Kept:
+    """Answers worked out from a reader's record, kept until the record changes.
+
+    A host waits on every call, and on 2026-10-06 `how_to_talk` and the shelf's
+    measurements were worked out from the store on each one, though the record behind
+    them changes only when the reader marks a word, finishes a part or is corrected. So
+    they are kept here, in this process, under a key that names whose record it is and
+    `Store.ledger_stamp` — which moves on every write to it — and so cannot be read
+    across a change or by anybody else: a changed record is a new key, and the old
+    answer is simply never asked for again. Bounded, oldest out first; the lock guards
+    the dictionary, never the work, so two threads that miss together both work it out
+    and the second write is the same answer.
+
+    What goes in must not be changed by whoever takes it out: a frozen dataclass, a
+    tuple, a number.
+    """
+
+    def __init__(self, most: int) -> None:
+        self._held: OrderedDict[tuple[Any, ...], Any] = OrderedDict()
+        self._most = most
+        self._lock = threading.Lock()
+
+    def get(self, key: tuple[Any, ...], work: Callable[[], Any]) -> Any:
+        with self._lock:
+            if key in self._held:
+                self._held.move_to_end(key)
+                return self._held[key]
+        value = work()
+        with self._lock:
+            self._held[key] = value
+            self._held.move_to_end(key)
+            while len(self._held) > self._most:
+                self._held.popitem(last=False)
+        return value
+
+    def clear(self) -> None:
+        with self._lock:
+            self._held.clear()
+
+
+#: Enough for every text on a few dozen shelves and a ledger each, in a few megabytes.
+KEPT = Kept(8192)
+
+
+def _whose(store: Store | None, person_id: int | None) -> tuple[Any, ...] | None:
+    """The part of a key that says whose record, as it stands now; None to keep nothing.
+
+    The store's own path is in it so two stores in one process — every test — never
+    share a person id. Read before the work it keys, never after: a write that lands in
+    between is then kept under the stamp before it, which the next call will not ask for.
+    """
+    if store is None or person_id is None:
+        return None
+    stamp = store.ledger_stamp(person_id)
+    if stamp is None:
+        return None
+    return (str(store.path), person_id, stamp)
+
+
+def snapshot(store: Store | None, person_id: int | None, language: str) -> Level:
+    """`level.snapshot`, kept until the record changes or the day does (2026-10-06).
+
+    The connector builds every call's context with one, so every call paid for reading
+    the whole ledger. The day is in the key because the streak is counted to today.
+    """
+    if store is None or person_id is None:
+        return level_module.EMPTY
+    whose = _whose(store, person_id)
+    if whose is None:
+        return level_module.snapshot(store, person_id, language)
+    day = date.today().isoformat()
+    level: Level = KEPT.get(
+        ("level", *whose, language, day),
+        lambda: level_module.snapshot(store, person_id, language),
+    )
+    return level
+
+
 # -- the shelf, measured -----------------------------------------------------------
 
 
@@ -302,14 +385,42 @@ def _marked(ctx: Ctx, language: str, cache: dict[str, dict[str, int]]) -> dict[s
 
 def _measure(ctx: Ctx, home: Path, rows: list[dict[str, Any]]) -> None:
     """Say how much of each built text the reader already knows — `Handler._measure`'s
-    rule, applied to a list a tool is about to return."""
+    rule, applied to a list a tool is about to return.
+
+    Each text's answer is kept (`KEPT`) under the reader's record as it stands and the
+    files the count is read from — the annotation, and the segments and post a post's
+    names are found in, as `coverage.lemmas` reads them — so it is counted again only
+    when either changes (2026-10-06). The ledger is asked for once a call, and only if
+    some text has to be counted.
+    """
+    from ..ingest import post as post_module
+
     cache: dict[str, dict[str, int]] = {}
+    whose = _whose(ctx.store, ctx.person_id)
     for row in rows:
         language = str(row.get("language") or "")
         name = str(row.get("name") or "")
         if not language or not name:
             continue
-        measured = coverage_module.against(home / name, _marked(ctx, language, cache))
+        folder = home / name
+
+        def count(folder: Path = folder, language: str = language) -> Any:
+            return coverage_module.against(folder, _marked(ctx, language, cache))
+
+        if whose is None:
+            measured = count()
+        else:
+            files = tuple(
+                tuple(mark)
+                for mark in remembered_module.stamp(
+                    [
+                        folder / coverage_module.ANNOTATION,
+                        folder / "segments.json",
+                        folder / post_module.NAME,
+                    ]
+                )
+            )
+            measured = KEPT.get(("measure", *whose, language, str(folder), files), count)
         if measured is not None:
             row.update(measured.state())
 
@@ -357,8 +468,32 @@ def _by_source(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {catalogue_module._key(str(row.get("source") or "")): row for row in rows}
 
 
-def _entry_row(entry: catalogue_module.Entry, built: dict[str, Any] | None) -> dict[str, Any]:
-    collection = catalogue_module.collection_of(entry.id)
+def _collections() -> dict[str, str]:
+    """Each catalogue text's collection title, by entry id, worked out once a call.
+
+    `catalogue.collection_of` works out every collection afresh each time it is asked,
+    and a search asking it once an entry asked it about 600 times — measured
+    2026-10-06, half of what `search_library` took. Once a call, not kept: the weekly
+    joins the catalogue from its own file, so what is on the shelf can change between
+    calls.
+    """
+    return {
+        member: collection.title
+        for collection in catalogue_module.collections()
+        for member in collection.members
+    }
+
+
+def _entry_row(
+    entry: catalogue_module.Entry,
+    built: dict[str, Any] | None,
+    collections: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    if collections is None:
+        collection = catalogue_module.collection_of(entry.id)
+        titled = collection.title if collection else ""
+    else:
+        titled = collections.get(entry.id, "")
     row: dict[str, Any] = {
         "id": entry.id,
         "title": entry.title,
@@ -372,7 +507,7 @@ def _entry_row(entry: catalogue_module.Entry, built: dict[str, Any] | None) -> d
         "minutes": entry.minutes,
         "words": entry.words,
         "has_published_translation": bool(entry.translations),
-        "collection": collection.title if collection else "",
+        "collection": titled,
         "on_shelf": built is not None,
         "reader": str(built["reader"]) if built else "",
     }
@@ -432,6 +567,7 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     language = _language_asked(ctx, args)
     mine, shared = _shelf(ctx)
     built = _by_source([*mine, *shared])
+    collections = _collections()
     found: list[dict[str, Any]] = []
     for entry in catalogue_module.everything():
         if language and entry.language.split("-")[0].lower() not in _FAMILY.get(
@@ -448,7 +584,7 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             continue
         if not _matches(entry, query):
             continue
-        found.append(_entry_row(entry, built.get(catalogue_module._key(entry.source))))
+        found.append(_entry_row(entry, built.get(catalogue_module._key(entry.source)), collections))
     # Gentlest first, which is the order the register ramp is meant to be climbed in;
     # unmeasured texts sort after measured ones rather than pretending to be easy.
     found.sort(key=lambda row: (row["looked_up_percent"] or 999, row["minutes"]))
@@ -524,6 +660,39 @@ def _lemma(token: object) -> str:
     return str(token.get("lemma") or "").lower() if isinstance(token, dict) else ""
 
 
+def _pointed(text: str, pointed: object, most: int = SENTENCE_CHARS) -> str:
+    """A sentence as the reader's own text points it, cut where `text` is cut, or "".
+
+    From the text's `vocalization.json`, written when it was built (the vowel toggle's),
+    and never worked out here: a host asked for nikkud adds it itself, slowly and often
+    wrongly, and the pointing targum already has is the edition's or a diacritizer's
+    that ran once at build time (2026-10-06). "" where there is none, where it says
+    nothing `text` does not, or where its letters are not `text`'s — a text rebuilt with
+    different words and an old file beside it — because a pointed sentence that is not
+    the sentence is worse than none.
+    """
+    from ..vocalize.base import is_mark, strip_nikkud
+
+    if not isinstance(pointed, str) or not pointed or pointed == text:
+        return ""
+    bare, _ = strip_nikkud(text)
+    if strip_nikkud(pointed)[0] != bare:
+        return ""
+    if len(text) <= most:
+        return pointed
+    # Cut after as many letters as `text[:most]` keeps, with the last letter's marks.
+    want = len(strip_nikkud(text[:most])[0])
+    out: list[str] = []
+    letters = 0
+    for char in pointed:
+        if not is_mark(char, out[-1] if out else ""):
+            if letters == want:
+                break
+            letters += 1
+        out.append(char)
+    return "".join(out)
+
+
 def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Sentences from the reader's own shelf, and the shared one, where a word appears.
 
@@ -533,11 +702,14 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     texts the reader has, which the model cannot otherwise see into. Read off each text's
     own annotation, by dictionary form, so every inflected form is found. Spends nothing.
     """
+    from ..vocalize.base import supports as vocalize_supports
+
     lemma = str(args.get("lemma") or "").strip().lower().replace("\u0301", "")
     language = str(args.get("language") or "")
     if not lemma:
         return {"error": "Name the word by its dictionary form."}
-    mine, shared = _shelf(ctx)
+    # Unmeasured: nothing here says how much of a text the reader knows (2026-10-06).
+    mine, shared = _shelf(ctx, measured=False)
     found: list[dict[str, str]] = []
     for home, rows in ((ctx.home, mine), (ctx.library.shared, shared)):
         for row in rows:
@@ -555,20 +727,37 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             if not wanted:
                 continue
             segments = _json(folder / "segments.json").get("segments") or []
+            # The pointed form of each sentence, where the text was built with one
+            # (`_pointed`); Hebrew-script languages only, because the same file carries a
+            # Russian text's stress marks, which are not what "pointed" means to a host.
+            vocalized = _json(folder / "vocalization.json")
+            pointing: dict[str, Any] = {}
+            if vocalize_supports(str(vocalized.get("language") or "")):
+                pointing = vocalized.get("segments") or {}
+            guessed = set(vocalized.get("machine") or [])
             for segment in segments:
                 if len(found) >= SENTENCES_WITH:
                     break
                 sid = str(segment.get("id") or "")
                 if sid not in wanted:
                     continue
-                found.append(
-                    {
-                        "sentence": str(segment.get("text") or "")[:SENTENCE_CHARS],
-                        "as": " ".join(form for form in wanted[sid] if form),
-                        "title": str(row.get("title") or ""),
-                        "reader": str(row.get("reader") or ""),
-                    }
-                )
+                text = str(segment.get("text") or "")
+                one = {
+                    "sentence": text[:SENTENCE_CHARS],
+                    "as": " ".join(form for form in wanted[sid] if form),
+                    "title": str(row.get("title") or ""),
+                    "reader": str(row.get("reader") or ""),
+                }
+                # Beside `sentence` rather than in its place: `as` is spelled the way
+                # `sentence` is, and a host that never learned the new field still
+                # reads exactly what it read before.
+                pointed = _pointed(text, pointing.get(sid))
+                if pointed:
+                    one["pointed"] = pointed
+                    # A diacritizer's vowels are 55-73% right on classical Hebrew; the
+                    # reader marks them, and a host is told the same.
+                    one["pointed_by"] = "machine" if sid in guessed else "edition"
+                found.append(one)
     return {"lemma": lemma, "count": len(found), "sentences": found}
 
 
@@ -741,6 +930,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     rung = _rung(ctx.level) if language.split("-")[0] == "he" else None
     levels = sentence_level.load() if rung is not None else {}
     candidates: list[tuple[tuple[float, float], dict[str, Any]]] = []
+    collections = _collections()
     for entry in catalogue_module.everything():
         key = catalogue_module._key(entry.source)
         if entry.language.split("-")[0] != language.split("-")[0]:
@@ -751,7 +941,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             continue
         if minutes is not None and entry.minutes > int(minutes):
             continue
-        row = _entry_row(entry, built.get(key))
+        row = _entry_row(entry, built.get(key), collections)
         known = row.get("known_share")
         tilt = 1.0 if entry.register.value in liked else 0.0
         if known is not None:
@@ -2110,50 +2300,130 @@ def _seconds_left(job: Any) -> int | None:
     return int(round((job.total - job.done) * elapsed / job.done))
 
 
-def _in_words(seconds: int) -> str:
+def _counted(language: str, key: str, count: int, one: str, other: str, **fill: object) -> str:
+    """One counted line in `language`, in the form `count` takes there, filled.
+
+    The English is written here as well as in `en.json`, the way `said_in` takes it, so a
+    language that has not said a key yet says it in English.
+    """
+    from ..strings import SOURCE, counted, plural_form
+
+    code = (language or SOURCE).split("-")[0].lower()
+    if code == SOURCE:
+        said = one if plural_form(count) == "one" else other
+    else:
+        said = counted(key, count, code, {"one": one, "other": other})
+    return said.format(n=count, **fill)
+
+
+def _in_words(seconds: int, language: str = "en") -> str:
+    from ..serve import said_in
+
     if seconds < 60:
-        return "less than a minute left"
+        return said_in(language, "job.said.left.under-a-minute", "less than a minute left")
     if seconds < 90:
-        return "about a minute left"
+        return said_in(language, "job.said.left.a-minute", "about a minute left")
     if seconds < 90 * 60:
-        return f"about {round(seconds / 60)} minutes left"
-    return f"about {round(seconds / 3600)} hours left"
+        return _counted(
+            language,
+            "job.said.left.minutes",
+            round(seconds / 60),
+            "about {n} minute left",
+            "about {n} minutes left",
+        )
+    return _counted(
+        language,
+        "job.said.left.hours",
+        round(seconds / 3600),
+        "about {n} hour left",
+        "about {n} hours left",
+    )
 
 
-def _said(job: Any, left: int | None, behind: int) -> str:
+def _said(job: Any, left: int | None, behind: int, language: str = "en") -> str:
     """Where a job has got to, as one line a host can say to the reader as it is.
 
-    English, like `because` on a suggestion: the host reads it and the host decides
-    what language to say it in. Facts only — a count, and a time where one was counted.
+    In the language the reader reads targum in, chosen as the card beside it chooses its
+    labels (`strings.drawn_in`), so a Russian card does not carry an English line
+    (2026-10-06). It was English, on the reasoning that a host decides what language to
+    say it in; but the card shows it as it is, and a host told "pass this on" passes it
+    on. Facts only — a count, and a time where one was counted. What a build or a rail
+    wrote itself, `job.error` and `job.blocked`, is said in whatever it was written in.
     """
+    from ..serve import said_in
+
     if job.stage == "done":
         if job.chapters > 1:
-            return "The first chapter is ready to read. The rest are made as you read on."
-        return "It's ready to read."
+            return said_in(
+                language,
+                "job.said.first-chapter-ready",
+                "The first chapter is ready to read. The rest are made as you read on.",
+            )
+        return said_in(language, "job.said.ready", "It's ready to read.")
     if job.stage == "failed":
-        what = job.error or "Something went wrong on our side. Try again later."
-        spent = " Nothing was used." if job.spent <= 0 else ""
-        return f"We couldn't get it ready. {what}{spent}"
+        what = job.error or said_in(
+            language, "job.said.went-wrong", "Something went wrong on our side. Try again later."
+        )
+        said = said_in(language, "job.said.failed", "We couldn't get it ready. {why}", why=what)
+        if job.spent <= 0:
+            said += " " + said_in(language, "job.said.nothing-used", "Nothing was used.")
+        return said
     if job.stage == "blocked":
-        return job.blocked or "We can't make this one right now."
+        return job.blocked or said_in(
+            language, "job.said.blocked", "We can't make this one right now."
+        )
     if job.stage in ("reading", "looking up words"):
-        return "We're still reading it through. It hasn't started."
+        return said_in(
+            language, "job.said.reading", "We're still reading it through. It hasn't started."
+        )
     if job.stage == "ready":
-        return "It hasn't started. It starts once you confirm it."
+        return said_in(
+            language, "job.said.not-confirmed", "It hasn't started. It starts once you confirm it."
+        )
     if job.stage == "queued":
         if behind > 0:
-            texts = "text" if behind == 1 else "texts"
-            return f"It's waiting to start, behind {behind} other {texts}."
-        return "It's about to start."
+            return _counted(
+                language,
+                "job.said.behind",
+                behind,
+                "It's waiting to start, behind {n} other text.",
+                "It's waiting to start, behind {n} other texts.",
+            )
+        return said_in(language, "job.said.about-to-start", "It's about to start.")
     if job.total <= 0:
-        return "We're working on it."
-    unit = "pictures" if job.options.get("cover") else "sentences"
-    line = f"{min(job.done, job.total)} of {job.total} {unit} ready"
+        return said_in(language, "job.said.working", "We're working on it.")
+    done = min(job.done, job.total)
+    if job.options.get("cover"):
+        line = _counted(
+            language,
+            "job.said.pictures",
+            job.total,
+            "{done} of {n} picture ready",
+            "{done} of {n} pictures ready",
+            done=done,
+        )
+    else:
+        line = _counted(
+            language,
+            "job.said.sentences",
+            job.total,
+            "{done} of {n} sentence ready",
+            "{done} of {n} sentences ready",
+            done=done,
+        )
     if job.chapters > 1:
-        line = f"The first chapter: {line}"
+        line = said_in(
+            language, "job.said.in-first-chapter", "The first chapter: {line}", line=line
+        )
     if left is not None:
-        line += f", {_in_words(left)}"
-    return line + "."
+        return said_in(
+            language,
+            "job.said.progress-left",
+            "{line}, {left}.",
+            line=line,
+            left=_in_words(left, language),
+        )
+    return said_in(language, "job.said.progress", "{line}.", line=line)
 
 
 def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -2198,7 +2468,11 @@ def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         state["seconds_left"] = left
     if job.stage == "working" and job.total > 0:
         state["unit"] = "pictures" if job.options.get("cover") else "sentences"
-    state["said"] = _said(job, left, behind)
+    # The card's own rule for its labels, so the line under them is in the same
+    # language (`mcp_http._language`); `said_reads` is what the reader said they read.
+    from ..strings import drawn_in
+
+    state["said"] = _said(job, left, behind, drawn_in(ctx.said_reads))
     return state
 
 
@@ -2356,6 +2630,51 @@ ELSEWHERE = elsewhere("he")
 KNOWN_COUNTED = 1_000_000
 
 
+@dataclass(frozen=True)
+class _Talked:
+    """What `how_to_talk` reads from a reader's record, kept as one (`Kept`)."""
+
+    level: Level
+    common: tuple[str, ...]
+    known: tuple[str, ...]
+    known_of: int
+    new: tuple[str, ...]
+    learning: tuple[str, ...]
+    nearly: tuple[str, ...]
+    known_back: tuple[str, ...]
+    rules: tuple[str, ...]
+
+
+def _talk(store: Store, person_id: int, language: str, seed: int) -> _Talked:
+    """Everything `how_to_talk` reads from the record, but the phrases kept lately."""
+    level = snapshot(store, person_id, language)
+    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
+    # The ledger holds whatever a reader tapped, and "and", "the", digits and single
+    # letters are in it; a host told these are the words they know writes with them.
+    # All of them, for the count; then the commonest few hundred, for the host to
+    # carry (`known_for_host`, 2026-10-06).
+    marked = hebrew_module.for_host(
+        hebrew_module.known_words(store, person_id, language, limit=KNOWN_COUNTED),
+        language,
+    )
+    back = hebrew_module.bring_back(store, person_id, language, seed=seed)
+    return _Talked(
+        level=level,
+        common=tuple(common),
+        known=tuple(hebrew_module.known_for_host(marked, common, language)),
+        known_of=len(marked),
+        new=tuple(hebrew_module.for_host(back.new, language)),
+        learning=tuple(hebrew_module.for_host(back.learning, language)),
+        nearly=tuple(hebrew_module.for_host(back.nearly, language)),
+        known_back=tuple(hebrew_module.for_host(back.known, language)),
+        rules=tuple(
+            hebrew_module.recurring(
+                store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
+            )
+        ),
+    )
+
+
 def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """targum's own talk contract and this reader's ledger, for a host to hold to.
 
@@ -2380,34 +2699,36 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # Hebrew, graded to the commonest words rather than their own.
     shared = store is not None and person_id is not None and ctx.sees_record
     returning: hebrew_module.Returning | None = None
-    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
     if store is not None and person_id is not None and shared:
-        level = level_module.snapshot(store, person_id, language)
-        # The ledger holds whatever a reader tapped, and "and", "the", digits and single
-        # letters are in it; a host told these are the words they know writes with them.
-        # All of them, for the count; then the commonest few hundred, for the host to
-        # carry (`known_for_host`, 2026-10-06).
-        marked = hebrew_module.for_host(
-            hebrew_module.known_words(store, person_id, language, limit=KNOWN_COUNTED),
-            language,
-        )
-        known_of = len(marked)
-        known = hebrew_module.known_for_host(marked, common, language)
         # One slice of the ledger a day, so a conversation that asks twice is told the
         # same words both times.
         seed = int(time.time() // 86400)
-        back = hebrew_module.bring_back(store, person_id, language, seed=seed)
+        whose = _whose(store, person_id)
+        if whose is None:
+            talk = _talk(store, person_id, language, seed)
+        else:
+            # Worked out once a change to the record, or once a day (2026-10-06): see
+            # `Kept`. `sees_record` is in the key though only a caller who sees the
+            # record reaches here, so a key can never be shared across that line.
+            day = date.today().isoformat()
+            talk = KEPT.get(
+                ("talk", *whose, language, seed, day, ctx.sees_record),
+                lambda: _talk(store, person_id, language, seed),
+            )
+        level, common = talk.level, list(talk.common)
+        known, known_of, rules = list(talk.known), talk.known_of, list(talk.rules)
+        # The phrases are asked for every time: "lately" is a window that moves with the
+        # clock and not with the record, and it is one small query by an index.
+        since = int(time.time() * 1000) - hebrew_module.LATELY_MS
         returning = hebrew_module.Returning(
-            new=hebrew_module.for_host(back.new, language),
-            learning=hebrew_module.for_host(back.learning, language),
-            nearly=hebrew_module.for_host(back.nearly, language),
-            known=hebrew_module.for_host(back.known, language),
-            phrases=back.phrases,
-        )
-        rules = hebrew_module.recurring(
-            store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
+            new=list(talk.new),
+            learning=list(talk.learning),
+            nearly=list(talk.nearly),
+            known=list(talk.known_back),
+            phrases=store.recent_phrases(person_id, since, limit=hebrew_module.BRING_BACK_PHRASES),
         )
     else:
+        common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
         level, known, rules = replace(level_module.EMPTY, language=language), [], []
         known_of = 0
     gloss = language_name(ctx.language)
@@ -2501,9 +2822,10 @@ REGISTRY: tuple[Tool, ...] = (
         "sentences_with",
         "Up to five sentences from the texts on the reader's shelf, and the shared one, in "
         "which a word appears, found by its dictionary form so every inflected form counts; "
-        "each with the form it takes there and the text it is from. For setting two uses "
-        "side by side — a Russian verb beside its aspect partner — from what the reader "
-        "has. Read only.",
+        "each with the form it takes there and the text it is from, and `pointed`, the "
+        "sentence with its vowels, where the text has them: quote that rather than adding "
+        "nikkud yourself. For setting two uses side by side — a Russian verb beside its "
+        "aspect partner — from what the reader has. Read only.",
         _schema({"lemma": {"type": "string"}, "language": {"type": "string"}}, ("lemma",)),
         sentences_with,
         scope="record",

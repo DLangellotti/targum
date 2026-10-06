@@ -7,6 +7,7 @@ the server built, and nothing a model passes as an argument can name somebody el
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -341,6 +342,43 @@ def test_check_job_hands_over_the_link_when_done_and_a_sentence_when_failed(worl
     )
     assert "open" not in got
     assert "Try again later" in tools.check_job(ctx, {"id": "j-quiet"})["said"]
+
+
+def test_check_job_says_it_in_the_language_the_card_is_drawn_in(world) -> None:
+    """2026-10-06: a Russian card had Russian labels over an English line. `said` now
+    takes the card's own rule (`strings.drawn_in`), with Russian's three counted forms,
+    and a reader who reads only English is told exactly what they were told before."""
+    import time
+
+    library, store, person, home = world
+    ctx = replace(context(library, store, person, home), said_reads={"en", "ru"})
+
+    def said(job: Job) -> str:
+        library.jobs[job.id] = job
+        return str(tools.check_job(ctx, {"id": job.id})["said"])
+
+    running = Job(id="j-ru", source="x", owner=person.id, stage="working", done=30, total=80)
+    running.started = int(time.time() * 1000) - 60_000
+    assert said(running) == "Готово: 30 из 80 предложений, осталось около 2 минут."
+    one = Job(id="j-ru-21", source="x", owner=person.id, stage="working", done=3, total=21)
+    one.chapters = 4
+    assert said(one) == "Первая глава. Готово: 3 из 21 предложения."
+    assert said(Job(id="j-ru-done", source="x", owner=person.id, stage="done")) == ("Можно читать.")
+    failed = said(Job(id="j-ru-failed", source="x", owner=person.id, stage="failed"))
+    assert failed.startswith("Не получилось") and failed.endswith("Кредиты не списаны.")
+    for count, form in ((1, "текст."), (3, "текста."), (5, "текстов."), (11, "текстов.")):
+        assert tools._counted(
+            "ru", "job.said.behind", count, "{n} other text.", "{n} other texts."
+        ).endswith(f"{count} {form}")
+    assert tools._in_words(30 * 60, "ru") == "осталось около 30 минут"
+    assert tools._in_words(21 * 60, "ru") == "осталось около 21 минуты"
+
+    english = replace(ctx, said_reads={"en"})
+    assert tools.check_job(english, {"id": "j-ru"})["said"] == (
+        "30 of 80 sentences ready, about 2 minutes left."
+    )
+    for job in (running, one):
+        assert "!" not in said(job)
 
 
 def away(library: Library, store: Store, person: Person, home: Path) -> tools.Ctx:
@@ -1385,6 +1423,74 @@ def test_sentences_with_finds_a_word_in_every_form_on_the_shelf(world) -> None:
     assert got["sentences"][0]["title"] == "Рассказ"
     assert tools.sentences_with(ctx, {"lemma": "читать"})["count"] == 0
     assert "error" in tools.sentences_with(ctx, {"lemma": ""})
+    assert all("pointed" not in row for row in got["sentences"]), "no file, no field"
+
+
+def test_sentences_with_hands_over_the_pointing_the_text_was_built_with(world) -> None:
+    """2026-10-06: a host adds nikkud itself, slowly and often wrongly. Where the text's
+    own `vocalization.json` points a sentence, it goes beside `sentence` as `pointed`,
+    saying whether a diacritizer guessed it; a file whose letters are not the sentence's
+    is not believed; and a long sentence is cut where `sentence` is."""
+    library, store, person, home = world
+    built(home, "story-he", "test:story", ["ספר"], "סיפור")
+    folder = home / "story-he"
+    long = "הספר " + "א" * 400
+    (folder / "annotation.json").write_text(
+        json.dumps(
+            {
+                "tokens": {
+                    sid: [{"surface": "הספר", "lemma": "ספר"}]
+                    for sid in ("0001.000-a", "0002.000-a", "0003.000-a", "0004.000-a")
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (folder / "segments.json").write_text(
+        json.dumps(
+            {
+                "segments": [
+                    {"id": "0001.000-a", "text": "קראתי את הספר."},
+                    {"id": "0002.000-a", "text": "הספר על השולחן."},
+                    {"id": "0003.000-a", "text": "הספר ישן."},
+                    {"id": "0004.000-a", "text": long},
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (folder / "vocalization.json").write_text(
+        json.dumps(
+            {
+                "document_hash": "h",
+                "language": "he",
+                "vocalizer": "test",
+                "segments": {
+                    "0001.000-a": "קָרָאתִי אֶת הַסֵּפֶר.",
+                    "0002.000-a": "הַסֵּפֶר עַל הַשּׁוּלְחָן.",
+                    "0003.000-a": "הַסֵּפֶר חָדָשׁ.",  # not this sentence's letters
+                    "0004.000-a": "הַסֵּפֶר " + "אָ" * 400,
+                },
+                "machine": ["0002.000-a"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    ctx = context(library, store, person, home)
+    got = tools.sentences_with(ctx, {"lemma": "ספר", "language": "he"})["sentences"]
+    assert got[0]["sentence"] == "קראתי את הספר."
+    assert got[0]["pointed"] == "קָרָאתִי אֶת הַסֵּפֶר." and got[0]["pointed_by"] == "edition"
+    assert got[1]["pointed_by"] == "machine"
+    assert "pointed" not in got[2], "a stale file is not believed"
+    cut = got[3]
+    assert len(cut["sentence"]) == tools.SENTENCE_CHARS
+    from targum.vocalize.base import strip_nikkud
+
+    assert strip_nikkud(cut["pointed"])[0] == cut["sentence"]
+    assert cut["pointed"].endswith("אָ")
 
 
 # -- a direct link to a recording or a video (targum-internal#256) --------------------
@@ -1801,3 +1907,126 @@ def test_how_to_talk_hands_a_host_a_sample_and_says_so(world) -> None:
     total = len(words) + 2  # and the fixture's own שלום and בית
     assert f"the commonest {tools.hebrew_module.HOST_KNOWN} of the {total:,}" in line
     assert len(line.split(": ", 1)[1].split()) == tools.hebrew_module.HOST_KNOWN
+
+
+def _mark(store: Store, person: Person, lemma: str, at: int) -> None:
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": lemma,
+                    "status": 9,
+                    "band": "easy",
+                    "at": at,
+                    "seen": at,
+                }
+            ]
+        },
+    )
+
+
+def test_the_ledger_stamp_moves_on_every_write_to_the_record(world) -> None:
+    """2026-10-06: the connector's answers are kept under `Store.ledger_stamp`, so every
+    write to what they are read from has to move it — a sync, a slip, a slip known, the
+    address and rung named, a test account wiped — and another reader's never does."""
+    library, store, person, home = world
+    other = signed_in(store, "other@example.com")
+    seen = [store.ledger_stamp(person.id)]
+    theirs = store.ledger_stamp(other.id)
+
+    def moved() -> None:
+        now = store.ledger_stamp(person.id)
+        assert now not in seen
+        seen.append(now)
+
+    store.push(person, {"days": [{"day": "2026-10-06", "count": 1, "seen": 5}]})
+    moved()
+    slip = store.slip(person.id, wrote="אני הולך לבית", recast="אני הולך הביתה", changed=["x"])
+    moved()
+    assert store.know_slip(person.id, slip)
+    moved()
+    assert not store.know_slip(other.id, slip), "not theirs to know"
+    assert store.ledger_stamp(person.id) == seen[-1]
+    store.set_address(person, "f")
+    moved()
+    store.set_declared(person, "bet")
+    moved()
+    store.make_test_account("trying@example.com")
+    trying = signed_in(store, "trying@example.com")
+    before = store.ledger_stamp(trying.id)
+    store.wipe(trying)
+    assert store.ledger_stamp(trying.id) != before
+    assert store.ledger_stamp(other.id) == theirs
+    assert store.ledger_stamp(None) is None and store.ledger_stamp(10_000) is None
+
+
+def test_how_to_talk_is_kept_until_the_record_changes(world, monkeypatch) -> None:
+    """Asked twice, the second answer reads nothing of the ledger; a word marked in
+    between is in the next answer; and one reader's answer is never another's."""
+    library, store, person, home = world
+    tools.KEPT.clear()
+    ctx = context(library, store, person, home)
+    reads: list[int | None] = []
+    real = store.words_with_bands
+
+    def counting(person_id, language):  # type: ignore[no-untyped-def]
+        reads.append(person_id)
+        return real(person_id, language)
+
+    monkeypatch.setattr(store, "words_with_bands", counting)
+    first = tools.how_to_talk(ctx, {"language": "he"})
+    assert reads, "worked out the first time"
+    reads.clear()
+    assert tools.how_to_talk(ctx, {"language": "he"}) == first
+    assert reads == [], "kept the second time"
+
+    _mark(store, person, "ספר", 9)
+    after = tools.how_to_talk(ctx, {"language": "he"})["contract"]
+    assert reads and after != first["contract"] and "ספר" in after
+
+    other = signed_in(store, "other@example.com")
+    away = context(library, store, other, library.home(other))
+    theirs = tools.how_to_talk(away, {"language": "he"})["contract"]
+    tools.KEPT.clear()
+    assert theirs == tools.how_to_talk(away, {"language": "he"})["contract"]
+    assert theirs != after
+
+
+def test_a_text_is_measured_once_until_the_ledger_or_the_text_changes(world, monkeypatch) -> None:
+    library, store, person, home = world
+    tools.KEPT.clear()
+    ctx = context(library, store, person, home)
+    measured: list[str] = []
+    real = tools.coverage_module.against
+
+    def counting(folder, marked):  # type: ignore[no-untyped-def]
+        measured.append(folder.name)
+        return real(folder, marked)
+
+    monkeypatch.setattr(tools.coverage_module, "against", counting)
+    one = tools.search_my_shelf(ctx, {"query": "רות"})["texts"][0]
+    assert measured == ["ruth-he"] and one["known_share"] == pytest.approx(0.5)
+    tools.search_my_shelf(ctx, {"query": "רות"})
+    assert measured == ["ruth-he"], "kept"
+
+    # Another reader's text of the same name is counted against their own words.
+    other = signed_in(store, "other@example.com")
+    built(library.home(other), "ruth-he", "test:ruth", ["שלום", "בית", "מלך", "ספר"], "רות")
+    theirs = tools.search_my_shelf(context(library, store, other, library.home(other)), {})
+    assert theirs["texts"][0]["known_share"] == 0
+
+    measured.clear()
+    _mark(store, person, "ספר", 9)
+    again = tools.search_my_shelf(ctx, {"query": "רות"})["texts"][0]
+    assert measured == ["ruth-he"] and again["known_share"] == pytest.approx(0.75)
+
+    # A rebuilt text is counted again, with the ledger unchanged.
+    measured.clear()
+    (home / "ruth-he" / "annotation.json").write_text(
+        json.dumps({"tokens": {"0001.001-a": [{"lemma": "שלום", "pos": "NOUN"}, {"lemma": "x"}]}}),
+        encoding="utf-8",
+    )
+    rebuilt = tools.search_my_shelf(ctx, {"query": "רות"})["texts"][0]
+    assert measured == ["ruth-he"] and rebuilt["known_share"] == pytest.approx(0.5)
