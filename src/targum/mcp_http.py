@@ -32,6 +32,8 @@ does not throw the second half away.
 from __future__ import annotations
 
 import json
+import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 from . import connector, oauth
@@ -40,6 +42,8 @@ from .chat import tools as tools_module
 if TYPE_CHECKING:
     from .accounts import Person, Store
     from .serve import Library
+
+log = logging.getLogger(__name__)
 
 #: JSON-RPC 2.0 §5.1. The codes are the spec's; the sentences are ours, and they are read
 #: by a client's log rather than by a reader — `serve` says what a *person* is shown.
@@ -346,7 +350,18 @@ def _call(
         ask=ask,
         sees_record=scopes is None or oauth.granted(scopes, "record"),
     )
+    started = time.perf_counter()
     text, failed = tools_module.run(name, given, ctx)
+    # How long each call took, so a slow tool is a line in the log rather than a guess
+    # (2026-10-06: the first measurements were made by hand, from a host). The tool's
+    # name, the time and whether it failed — never the arguments or the answer, which
+    # are the reader's, and never who asked.
+    log.info(
+        "mcp tool %s took %d ms%s",
+        name,
+        round((time.perf_counter() - started) * 1000),
+        " (failed)" if failed else "",
+    )
     # Short links on the way out, so the host writes eight letters where it wrote two
     # hundred and fifty (`tools.shorten`, 2026-10-06).
     text = tools_module.shorten(text, address)
@@ -425,9 +440,7 @@ def _one(message: Any, asked: dict[str, Any]) -> dict[str, Any] | None:
         # in it rather than the end of it. Same reasoning as `tools.run`'s own catch.
         # Never the exception's own words: a host says what it is handed, and a class name
         # and a message are not a sentence for a reader. The log has the traceback.
-        import logging
-
-        logging.getLogger(__name__).exception("mcp request failed", exc_info=broke)
+        log.exception("mcp request failed", exc_info=broke)
         return _failed(
             message.get("id"), INTERNAL_ERROR, "Something went wrong on our side. Try again later."
         )

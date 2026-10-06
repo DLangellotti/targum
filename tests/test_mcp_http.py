@@ -1172,3 +1172,33 @@ def test_the_shelf_comes_over_with_short_links(box: tuple[int, str]) -> None:
     assert "/reader/" not in text, text[:300]
     rows = json.loads(text)["texts"]
     assert rows[0]["reader"] == f"{PUBLIC}/r/{registry.short_key('שלום-עולם')}"
+
+
+# --- timing -----------------------------------------------------------------------
+
+
+def test_each_call_logs_its_tool_and_how_long_it_took(
+    box: tuple[int, str], caplog: pytest.LogCaptureFixture
+) -> None:
+    """The name, the milliseconds and whether it failed; nothing the reader said."""
+    import logging
+
+    port, _ = box
+    token = a_token(port, "library")
+    with caplog.at_level(logging.INFO, logger="targum.mcp_http"):
+        rpc(
+            port,
+            token,
+            "tools/call",
+            {"name": "search_library", "arguments": {"query": "secret words", "limit": 1}},
+        )
+        rpc(port, token, "tools/call", {"name": "open_library_text", "arguments": {"id": "nope"}})
+    said = [r.getMessage() for r in caplog.records if r.name == "targum.mcp_http"]
+    assert any(
+        line.startswith("mcp tool search_library took ") and line.endswith(" ms") for line in said
+    ), said
+    assert any(
+        line.startswith("mcp tool open_library_text took ") and line.endswith("ms (failed)")
+        for line in said
+    ), said
+    assert not any("secret" in line or "nope" in line or "@" in line for line in said)
