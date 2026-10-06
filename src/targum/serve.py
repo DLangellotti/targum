@@ -11377,8 +11377,15 @@ def start(
     announce: Callable[[str], None] | None = None,
     require_account: bool = False,
     public_address: str = "",
+    keep_feeds: bool = False,
 ) -> str:
-    """Run until interrupted. Returns the address it is listening on."""
+    """Run until interrupted. Returns the address it is listening on.
+
+    `keep_feeds` keeps the publishers' feeds warm in the background for `search_sources`
+    (`chat.tools.Feeds.keep_warm`, 2026-10-06). Its own switch rather than read off
+    `require_account`, because the suite starts hosted servers by the dozen and none of
+    them may knock on a publisher; `targum serve` turns it on where it is hosted.
+    """
     from .chat.session import Chats
     from .mail import from_environment
     from .render.builder import (
@@ -11521,10 +11528,19 @@ def start(
                     log.warning("series: announcing failed: %s", error)
 
         threading.Thread(target=keep_telling, name="series-announce", daemon=True).start()
+    if keep_feeds:
+        from .chat import sources as sources_module
+        from .chat import tools as tools_module
+
+        tools_module.FEEDS.keep_warm(
+            lambda: [publisher.feed for publisher in sources_module.load() if publisher.feed]
+        )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        if keep_feeds:
+            tools_module.FEEDS.stop()
         server.server_close()
     return address

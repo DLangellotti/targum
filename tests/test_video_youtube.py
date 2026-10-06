@@ -386,6 +386,8 @@ def test_an_unset_egress_is_not_a_flag(monkeypatch) -> None:
         "-J",
         "--no-playlist",
         "--skip-download",
+        "--extractor-args",
+        "youtube:skip=dash,hls",
         "https://youtu.be/abc123",
     ]
 
@@ -411,7 +413,7 @@ def test_a_refused_exit_is_tried_again_and_then_the_embedded_player(monkeypatch)
     assert youtube.describe("https://youtu.be/abc123")["id"] == "abc123"
     assert len(seen) == 3
     assert seen[0] == seen[1], "the same route twice: a second process is a second exit"
-    assert "youtube:player_client=tv_embedded" in seen[2]
+    assert "youtube:player_client=tv_embedded;skip=dash,hls" in seen[2]
     for argv in seen:
         assert argv[-1] == "https://youtu.be/abc123"
         assert argv[argv.index("--proxy") + 1] == "socks5://127.0.0.1:1080"
@@ -459,3 +461,52 @@ def test_every_route_refused_ends_on_the_backup_egress(monkeypatch, tmp_path: Pa
     assert last.count("--proxy") == 1 and "http://first:1" not in last
     assert "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" in last
     assert "--cookies" not in raised.value.message
+
+
+# --- a slimmer lookup (2026-10-06) ----------------------------------------------------
+
+
+def test_a_lookup_skips_the_manifests_on_every_route(monkeypatch) -> None:
+    """`skip=dash,hls` rides every route of a lookup, folded into a route's own
+    `youtube:` arguments rather than beside them: yt-dlp keeps one set per extractor, so
+    a second `--extractor-args youtube:…` would replace the first."""
+    seen: list[list[str]] = []
+
+    def run(args, **kwargs):
+        seen.append(list(args))
+        raise subprocess.CalledProcessError(1, args, stderr=BOT_CHECK)
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setenv(youtube.YTDLP_PROXY_ENV, "http://first:1")
+    monkeypatch.setenv(youtube.POT_PROVIDER_ENV, "http://127.0.0.1:4416")
+    monkeypatch.setenv(youtube.YTDLP_PROXY_BACKUP_ENV, "http://second:2")
+    with pytest.raises(TargumError):
+        youtube.describe("https://youtu.be/abc123")
+    assert len(seen) == 5
+    for argv in seen:
+        youtube_args = [
+            argv[at + 1]
+            for at, arg in enumerate(argv)
+            if arg == "--extractor-args" and argv[at + 1].startswith("youtube:")
+        ]
+        assert len(youtube_args) == 1, argv
+        assert youtube_args[0].endswith("skip=dash,hls")
+        assert "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" in argv
+        assert argv[-1] == "https://youtu.be/abc123"
+    assert "youtube:player_client=android_vr;skip=dash,hls" in seen[3]
+
+
+def test_the_download_does_not_skip_the_manifests(monkeypatch, tmp_path: Path) -> None:
+    """The skip is the lookup's alone: a fetch may need a format only a manifest lists."""
+    seen: list[list[str]] = []
+
+    def watch(args, **kwargs):
+        seen.append(list(args))
+        (tmp_path / "source.mp4").write_bytes(b"film")
+        return subprocess.CompletedProcess(args, 0, b"", b"")
+
+    monkeypatch.setattr(youtube.subprocess, "run", watch)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    youtube.fetch("https://youtu.be/abc123", tmp_path)
+    assert not any("skip=" in arg for arg in seen[-1])
