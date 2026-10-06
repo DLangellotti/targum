@@ -129,6 +129,21 @@ def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def nothing_described_yet():
+    """Every test starts with no video link remembered (2026-10-06).
+
+    `video/remembered.py` keeps what a link was found to be for an hour, in-process, so
+    without this a test that describes `youtu.be/abc123` would be answered by whatever
+    the test before it was told — and pass or fail in an order nobody chose.
+    """
+    from targum.video.remembered import DESCRIBED
+
+    DESCRIBED.clear()
+    yield
+    DESCRIBED.clear()
+
+
+@pytest.fixture(autouse=True)
 def russian_read_by_the_model(monkeypatch: pytest.MonkeyPatch) -> None:
     """Russian words go to the model, as they do in CI, unless a test says otherwise.
 

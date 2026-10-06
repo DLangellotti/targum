@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ..errors import OffHere, TargumError
 from . import MAX_VIDEO_BYTES, VIDEO_EDGE, ytdlp_available
+from .remembered import DESCRIBED
 
 log = logging.getLogger(__name__)
 
@@ -517,11 +518,19 @@ def describe(url: str) -> dict[str, Any]:
     which YouTube guessed, and the licence the uploader set. This is what
     `screen.from_ytdlp` reads, and it is metadata only — a few hundred kilobytes of
     JSON, never the video.
+
+    Remembered by the video's id (`remembered.DESCRIBED`), so the quote that follows a
+    host's `describe_source` on the same link answers without asking YouTube again.
     """
     if not is_youtube(url):
         raise TargumError(
             "We couldn't find a YouTube video at that address.", key="video.no-youtube-video"
         )
+    return DESCRIBED.through(f"youtube:{video_id(url)}", lambda: _asked(url))
+
+
+def _asked(url: str) -> dict[str, Any]:
+    """`describe`, asked of yt-dlp rather than remembered."""
     done = run_ytdlp(
         ["yt-dlp", "-J", "--no-playlist", "--skip-download", url],
         timeout=120,

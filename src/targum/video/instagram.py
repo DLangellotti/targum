@@ -46,6 +46,7 @@ from urllib.parse import urlparse
 
 from ..errors import TargumError
 from . import hosts
+from .remembered import DESCRIBED
 from .youtube import fetch_through, run_ytdlp
 
 log = logging.getLogger(__name__)
@@ -166,8 +167,16 @@ def describe(url: str) -> dict[str, Any]:
     `duration` is read off the header where yt-dlp gave none, and left at 0 where the
     header would not say either — the caller prices that on `GUESS_S` rather than
     refusing it as a live stream, which a reel never is.
+
+    Remembered by the reel's canonical address (`remembered.DESCRIBED`), so the quote
+    that follows a host's `describe_source` does not ask Instagram again.
     """
     _vetted(url)
+    return DESCRIBED.through(f"instagram:{home_url(url)}", lambda: _asked(url))
+
+
+def _asked(url: str) -> dict[str, Any]:
+    """`describe`, asked of yt-dlp and the embed page rather than remembered."""
     try:
         done = run_ytdlp(
             ["yt-dlp", "-J", "--no-playlist", "--skip-download", *TITLED, url],
