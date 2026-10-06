@@ -354,6 +354,33 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The connector finds with one tool — 2026-10-06
+
+Over the connector, Claude and ChatGPT were handed three tools for finding something
+to read: `search_library`, `search_my_shelf` and `suggest_next`. A host had to choose
+between them before it knew what the reader meant, and it often chose wrong first:
+the library searched for a text already on the shelf, the shelf searched for one still
+in the library. All three descriptions were also read on every turn. David replaced them
+with one tool on 2026-10-06, `find_text`, titled "Find something to read".
+
+- **One question, one tool.** With words to look for, it returns the reader's own texts
+  first, then the library's, and a library text already on the shelf appears once, as
+  the shelf's row. With no words, it returns what `suggest_next` returns, ranked for the
+  reader, or the reader's own texts newest opened first when it is asked for theirs.
+  Each row says where it came from, `mine` or `library`.
+- **Hosts see 15 tools, not 17.** Fewer tools means fewer wrong first calls and a shorter
+  list read every turn. `find_text` reuses the three functions and copies none of their
+  logic, so a row reads exactly as it did.
+- **The scope still decides.** A connection that was not granted the record sees no
+  text of the reader's. There `find_text` searches the library alone and ranks it the
+  library's way, gentlest first.
+- **targum's own chat keeps all three.** Its page draws each result by the tool's name,
+  and its prompt names them, so it is not offered `find_text`.
+- **The old names still answer.** A conversation that listed the tools before the change
+  can still call the three by name, under the same scopes. They are no longer listed.
+- **A name searched for is not held to the reader's ceiling.** When the reader names a
+  text, they want that text, even if it is harder than what they would be offered.
+
 ### A card in someone else's chat — 2026-10-06
 
 Over the connector, everything targum says arrives as text the host's model reads and

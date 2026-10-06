@@ -122,17 +122,21 @@ INSTRUCTIONS = (
 #: **Each is said in the reader's voice**, because a host drops it into the conversation
 #: as the reader's own message, and **each names the tools its text needs**, so a
 #: connection that was not granted them is not offered a prompt that sends its host to a
-#: tool it does not have (`prompt_shapes`).
+#: tool it does not have (`prompt_shapes`). A `scope` beside them is for a tool that
+#: answers anybody but answers this prompt only with the record: `find_text` without it
+#: cannot say what the reader is in the middle of (2026-10-06).
 PROMPTS: tuple[dict[str, Any], ...] = (
     {
         "name": "what-next",
         "description": "Find something to read next, chosen for the words you know.",
         "arguments": [],
-        "needs": ("suggest_next", "search_my_shelf"),
+        "needs": ("find_text",),
+        # find_text answers anybody, and "what I'm in the middle of" is the record's.
+        "scope": "record",
         "says": (
-            "What should I read next on targum? Call suggest_next, then search_my_shelf "
-            "to see what I'm in the middle of, and offer me two or three with a sentence "
-            "each about why. Give me the links."
+            "What should I read next on targum? Call find_text, then find_text with where "
+            "set to mine to see what I'm in the middle of, and offer me two or three with "
+            "a sentence each about why. Give me the links."
         ),
     },
     {
@@ -162,9 +166,9 @@ PROMPTS: tuple[dict[str, Any], ...] = (
         "name": "read-with-me",
         "description": "Read a text line by line, with the grammar explained as you go.",
         "arguments": [{"name": "text", "description": "What to read", "required": False}],
-        "needs": ("search_library",),
+        "needs": ("find_text",),
         "says": (
-            "Find {text} with search_my_shelf or search_library and read it with me a "
+            "Find {text} with find_text and read it with me a "
             "few lines at a time: the Hebrew, what it means, and what is worth noticing "
             "in the grammar. Let me set the pace."
         ),
@@ -279,7 +283,9 @@ def card_read(uri: str, tools: list[tools_module.Tool], language: str = "en") ->
 
 
 def prompt_shapes(
-    mine: list[dict[str, Any]] | None = None, tools: set[str] | None = None
+    mine: list[dict[str, Any]] | None = None,
+    tools: set[str] | None = None,
+    scopes: str | None = None,
 ) -> list[dict[str, Any]]:
     """The prompts as `prompts/list` says them — everything but what they actually say.
 
@@ -294,12 +300,12 @@ def prompt_shapes(
     """
     return [
         {key: one[key] for key in ("name", "description", "arguments") if key in one}
-        for one in _prompts(mine, tools)
+        for one in _prompts(mine, tools, scopes)
     ]
 
 
 def _prompts(
-    mine: list[dict[str, Any]] | None, tools: set[str] | None = None
+    mine: list[dict[str, Any]] | None, tools: set[str] | None = None, scopes: str | None = None
 ) -> list[dict[str, Any]]:
     """Ours and theirs, ours first, one name each.
 
@@ -313,7 +319,8 @@ def _prompts(
     out = [
         one
         for one in PROMPTS
-        if tools is None or all(need in tools for need in one.get("needs", ()))
+        if (tools is None or all(need in tools for need in one.get("needs", ())))
+        and (scopes is None or not one.get("scope") or oauth.granted(scopes, one["scope"]))
     ]
     for one in mine or []:
         name = str(one.get("name") or "")
@@ -373,10 +380,10 @@ def handle(
     if method in ("prompts/list", "prompts/get"):
         held = {tool.name for tool in connector.exposed(scopes, person=person)}
         if method == "prompts/list":
-            return _result(request_id, {"prompts": prompt_shapes(mine, held)})
+            return _result(request_id, {"prompts": prompt_shapes(mine, held, scopes)})
         return _result(
             request_id,
-            _prompt(str(params.get("name") or ""), mine, held, params.get("arguments")),
+            _prompt(str(params.get("name") or ""), mine, held, params.get("arguments"), scopes),
         )
     if method == "resources/list":
         return _result(
@@ -425,10 +432,11 @@ def _prompt(
     mine: list[dict[str, Any]] | None = None,
     tools: set[str] | None = None,
     arguments: Any = None,
+    scopes: str | None = None,
 ) -> dict[str, Any]:
     """One prompt, as the message a host drops into its own conversation, with its
     arguments written in where it has any."""
-    found = next((one for one in _prompts(mine, tools) if one["name"] == name), None)
+    found = next((one for one in _prompts(mine, tools, scopes) if one["name"] == name), None)
     if found is None:
         raise RpcError(INVALID_PARAMS, f"There is no prompt called {name}.")
     says = str(found["says"])
@@ -465,7 +473,7 @@ def _call(
     would otherwise still be able to call it.
     """
     name = str(params.get("name") or "")
-    allowed = {tool.name for tool in connector.exposed(scopes, person=person)}
+    allowed = {tool.name for tool in connector.exposed(scopes, person=person, calling=True)}
     if name not in allowed:
         # Deliberately the same answer whether the tool does not exist or is not this
         # caller's to have: the difference is not a client's business.
