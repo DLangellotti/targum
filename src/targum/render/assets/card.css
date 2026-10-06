@@ -196,7 +196,9 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.card-facts.both .card-minutes::after {
+/* Who published it, how long, how much is known: whichever of the three there are,
+   with a point between each two that are shown. */
+.card-facts > :not([hidden]) ~ :not([hidden])::before {
   content: " · ";
 }
 

@@ -436,6 +436,14 @@ def test_the_host_is_told_every_link_goes_on_a_line_of_its_own() -> None:
     assert "list item" in mcp_http.INSTRUCTIONS
 
 
+def test_the_host_is_told_to_write_the_name_in_lowercase() -> None:
+    """2026-10-06: ChatGPT, asked for a news article, wrote "Targum" twice. design.md §6:
+    the name is always lowercase, even at sentence start, so the host is told both."""
+    said = mcp_http.INSTRUCTIONS
+    assert "write its name in lowercase, targum, even at the start of a sentence" in said
+    assert "Targum" not in said
+
+
 def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]) -> None:
     """One contract, both surfaces: the host is given what targum's own chat is given."""
     from targum.chat import hebrew

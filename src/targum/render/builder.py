@@ -1963,6 +1963,10 @@ def build_text_card(language: str = "en") -> str:
     `_meta` (`mcp_http.text_card_meta`). The known share is said the way the app says it
     (`level.words_in_ten`), from the same catalogue keys, every tenth rendered here in the
     reader's language and plural so the script only picks one.
+
+    Beside `search_sources` too (2026-10-06): an article a publisher put out, with who
+    published it, and a door named for what the reader will do there (read, watch,
+    listen) that opens our add page with its address in the box.
     """
     from ..catalogue import READING_WORDS_PER_MINUTE
 

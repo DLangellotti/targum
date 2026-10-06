@@ -99,7 +99,7 @@ CARDS: dict[str, dict[str, str]] = {
         "description": (
             "Each text found: its title, how long it is, how much of it the reader "
             "knows, the link that opens it, and a play button where it already has a "
-            "recording."
+            "recording. An article a publisher put out opens on targum's add page."
         ),
     },
 }
@@ -117,8 +117,14 @@ TEXT_CARD_META = "targum.page/texts"
 #: who asked Claude for Hebrew was answered in English about Hebrew, because nothing here
 #: said otherwise; `how_to_talk` carries targum's own contract, and this is what sends a
 #: host to it. design.md §12, "The connector talks by the contract".
+#:
+#: **And how to write the name** (2026-10-06). ChatGPT, asked for a news article, answered
+#: with "Targum" twice: the opening word here is lowercase, and a model capitalises a
+#: sentence's first word anyway. design.md §6 has it lowercase even at sentence start, so
+#: the host is told so in as many words.
 INSTRUCTIONS = (
-    "targum is a reading app for people learning Hebrew. These tools search the public "
+    "targum is a reading app for people learning Hebrew; write its name in lowercase, "
+    "targum, even at the start of a sentence. These tools search the public "
     "library and, where the reader allowed it, their texts and word list. When the reader "
     "wants to talk or practise in a language they're learning, call how_to_talk first and "
     "keep to what it returns for the whole conversation, translation included: only when "
@@ -130,8 +136,8 @@ INSTRUCTIONS = (
     "When a tool returns an error, tell the reader in one plain sentence what happened and "
     "what they can do, and don't retry the same call. Where check_job shows a card, the "
     "card follows the build itself: call it once, with wait_seconds, and don't call it "
-    "again to check. Where find_text shows cards, each card carries its text's link, so "
-    "say one line rather than listing them."
+    "again to check. Where find_text or search_sources shows cards, each card carries its "
+    "text's link, so say one line rather than listing them."
 )
 
 #: The prompts a connector offers by name, which is how a reader reaches targum without
@@ -575,6 +581,12 @@ def text_card_meta(text: str, ctx: tools_module.Ctx, address: str) -> list[dict[
       short-lived address for that one file, `ends` when it stops working (milliseconds,
       as a page's clock counts), and `credit` where the reading is somebody's.
 
+    A `search_sources` answer is `items`, not `texts`: what a publisher put out, not yet
+    on targum (2026-10-06). Its door is our add page with the article's address in the
+    box (`/add?source=`, the weekly's "Read the whole thing"), where the reader looks and
+    presses — never the publisher's page, because the reader came to read it here, and
+    never a press inside the card. It has no recording to play.
+
     In `_meta`, not the rows: `structuredContent` is the text's own JSON and nothing
     more, because some hosts read it to their model in place of the text. A token handed
     to the model would be written out into the conversation, where it outlives the card
@@ -590,9 +602,12 @@ def text_card_meta(text: str, ctx: tools_module.Ctx, address: str) -> list[dict[
         return []
     if not isinstance(answer, dict) or answer.get("error"):
         return []
+    origin = _origin(address)
+    items = answer.get("items")
+    if isinstance(items, list):
+        return [_feed_door(row, origin) for row in items]
     texts = answer.get("texts")
     rows = texts if isinstance(texts, list) else [answer]
-    origin = _origin(address)
     allowed = heard.roots(ctx.home, ctx.library.shared)
     out: list[dict[str, Any]] = []
     for row in rows:
@@ -617,6 +632,20 @@ def text_card_meta(text: str, ctx: tools_module.Ctx, address: str) -> list[dict[
             }
         out.append(said)
     return out
+
+
+def _feed_door(row: Any, origin: str) -> dict[str, Any]:
+    """A found article's door: our add page holding its address, or none at all.
+
+    Only an http or https address is put in the box, which is all `add.js` takes from
+    the query too; the whole address is encoded, so its own query and fragment stay its
+    own rather than becoming the add page's."""
+    from urllib.parse import quote, urlsplit
+
+    link = str(row.get("link") or "") if isinstance(row, dict) else ""
+    if not origin or urlsplit(link).scheme not in ("http", "https"):
+        return {}
+    return {"door": f"{origin}/add?source={quote(link, safe='')}"}
 
 
 def _folder(row: dict[str, Any], reader: str, ctx: tools_module.Ctx) -> Path | None:

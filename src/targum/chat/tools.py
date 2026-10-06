@@ -2439,6 +2439,13 @@ BUILD_CARD = "ui://targum/build-card.html"
 #: The text card's (2026-10-06): each text `find_text` or `open_library_text` answers
 #: with, its title, length, how much of it the reader knows and its door, and a play
 #: button where it already has a recording. The second and last card §12 allows.
+#:
+#: **And each article `search_sources` finds** (2026-10-06): a text not yet on targum,
+#: whose door is our own add page with the article's address already in the box, where
+#: it is got ready. Not `describe_source`: it is the look a host takes just before
+#: `quote_build`, whose link is the press page, so a card there would put a second door
+#: to the same text in the same turn — and half its answers (an identifier, a file, a
+#: post of pictures) have nothing a card could draw.
 TEXT_CARD = "ui://targum/text-card.html"
 
 #: The longest `check_job` holds a request open, in seconds. Under the half minute a
@@ -3173,6 +3180,7 @@ REGISTRY: tuple[Tool, ...] = (
         search_sources,
         title="What publishers put out",
         open_world=True,
+        card=TEXT_CARD,
     ),
     Tool(
         "quote_conversation",

@@ -1,7 +1,7 @@
 // The text card (design.md §12, "A card in someone else's chat", 2026-10-06).
 //
-// A host that draws MCP Apps puts this page in a sandboxed frame beside a `find_text`
-// or `open_library_text` result. How it talks to the host is `card-bridge.js`, inlined
+// A host that draws MCP Apps puts this page in a sandboxed frame beside a `find_text`,
+// `open_library_text` or `search_sources` result. How it talks to the host is `card-bridge.js`, inlined
 // before this file and shared with the build card; this file is what the text card does
 // with what it hears.
 //
@@ -10,6 +10,9 @@
 //     (Hebrew right to left), the English title, how long it is, how much of it the
 //     reader knows, said the way the app says it;
 //   - ask the host to open a text's door, a page of ours, when the reader presses it;
+//   - for an article a publisher put out (`search_sources`, 2026-10-06), which is not on
+//     targum yet, say who published it, and make the door our add page with its address
+//     already in the box. Never the publisher's page: the reader came to read it here.
 //   - play a recording the text already has, from the short-lived address the result
 //     carries in `_meta`, when the reader presses Listen. That is the one thing it ever
 //     loads, and only into the one `<audio>` on the page.
@@ -55,11 +58,21 @@
     return isNaN(tenths) ? "" : TENTHS[tenths] || "";
   }
 
-  // The minutes the library gives, or a shelf text's words at the library's own pace.
+  // The minutes the library gives, or a shelf text's words at the library's own pace,
+  // or a found video's or episode's own length. A found article gives none: its feed
+  // carries a summary, not the article, so it says nothing rather than guess.
   function minutes(row) {
     var given = Number(row.minutes) || 0;
     if (!given && Number(row.words) > 0) given = Math.max(1, Math.round(Number(row.words) / PACE));
+    if (!given && Number(row.seconds) > 0) given = Math.max(1, Math.round(Number(row.seconds) / 60));
     return given ? said("minutes", { n: given }) : "";
+  }
+
+  // What the door to a found item says: what the reader will do with it there.
+  function arriving(row) {
+    if (row.kind === "video") return said("watch-on");
+    if (row.kind === "podcast") return said("listen-on");
+    return said("read-on");
   }
 
   // -- the recording ---------------------------------------------------------------
@@ -116,7 +129,7 @@
 
   // -- drawing the rows ------------------------------------------------------------
 
-  function draw(row, beside) {
+  function draw(row, beside, found) {
     var card = one.content.firstElementChild.cloneNode(true);
     var title = card.querySelector(".card-title");
     var name = String(row.title || row.name || "");
@@ -132,18 +145,26 @@
     english.hidden = !gloss || gloss === name;
 
     var facts = card.querySelector(".card-facts");
+    var from = found ? String(row.publisher || "") : "";
     var length = minutes(row);
     var share = known(row.known_share);
-    card.querySelector(".card-minutes").textContent = length;
-    card.querySelector(".card-known").textContent = share;
-    facts.hidden = !length && !share;
-    if (length && share) facts.classList.add("both");
+    [
+      [".card-from", from],
+      [".card-minutes", length],
+      [".card-known", share],
+    ].forEach(function (pair) {
+      var part = card.querySelector(pair[0]);
+      part.textContent = pair[1];
+      part.hidden = !pair[1];
+    });
+    facts.hidden = !from && !length && !share;
 
     var door = card.querySelector(".card-door");
-    var url = String(beside.door || row.reader || "");
+    // A found item's door comes only from beside it: its own `link` is the publisher's.
+    var url = String(beside.door || (found ? "" : row.reader) || "");
     if (url) {
       door.setAttribute("href", url);
-      door.textContent = row.reader ? said("open") : said("library");
+      door.textContent = found ? arriving(row) : row.reader ? said("open") : said("library");
       door.hidden = false;
       door.addEventListener("click", function (event) {
         event.preventDefault();
@@ -151,7 +172,7 @@
       });
     }
 
-    var audio = beside.audio;
+    var audio = found ? null : beside.audio;
     if (audio && audio.src && Number(audio.ends) > Date.now()) {
       var button = card.querySelector(".card-play");
       idle(button);
@@ -186,11 +207,12 @@
       none.hidden = false;
       return;
     }
-    var texts = Array.isArray(rows.texts) ? rows.texts : rows.title ? [rows] : [];
+    var found = Array.isArray(rows.items);
+    var texts = found ? rows.items : Array.isArray(rows.texts) ? rows.texts : rows.title ? [rows] : [];
     none.hidden = texts.length > 0;
     list.classList.toggle("stack", texts.length > 1);
     texts.forEach(function (row, n) {
-      var card = draw(row || {}, meta[n] || {});
+      var card = draw(row || {}, meta[n] || {}, found);
       list.appendChild(card);
       shown.push(card);
     });
