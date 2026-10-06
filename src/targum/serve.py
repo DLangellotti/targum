@@ -1077,6 +1077,11 @@ class Job:
     #: How long a build takes was never written down, so nothing could answer "when will
     #: this be ready?" with a number anybody had counted (targum-internal#303).
     finished: int = 0
+    #: When it began working, in milliseconds, or zero where this process never saw it
+    #: start. Never stored: it is only the clock `check_job` counts a rate from, and a
+    #: job read back after a restart has no honest start to count from, so it says no
+    #: time left rather than one measured across a restart (2026-10-06).
+    started: int = 0
     #: `build` for everything the queue runs; `chat` for one turn of conversation, which
     #: takes a row here so the rails see it and is never queued. See `chat/session.py`.
     kind: str = "build"
@@ -1486,6 +1491,10 @@ class Library:
 
     def remember(self, job: Job) -> None:
         """Put a job's current state on disk. Cheap, and safe to call often."""
+        # The start is stamped on the same road as the finish, and before the store is
+        # asked about, because it is a fact about this process and not about the disk.
+        if not job.started and job.stage == "working":
+            job.started = now()
         if self.store is None:
             return
         # Stamped here rather than at each of the nine places a stage becomes "done":
