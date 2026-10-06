@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-05
+The controls above a text sit in one quiet row, which steps back while you read or listen.
+A video plays beside its transcript, or large with the line being said set under it.
+The weekly portion reads in Russian, with the Russian translation as its first column.
+
 2026-10-04
 Each section of the weekly portion can be heard chanted or spoken, with a switch between the two.
 Rashi, in Hebrew or in English, and the Aramaic sit beside each verse of the week's portion.
