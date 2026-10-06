@@ -3325,8 +3325,8 @@ REGISTRY: tuple[Tool, ...] = (
     Tool(
         "check_job",
         "Where a text the reader is getting ready has got to, by the id quote_build "
-        "returned: `said` is a line to pass on, and `open` the link once it is ready. "
-        "Read only.",
+        "returned. Say `said` to the reader word for word, in place of your own account "
+        "of the numbers; `open` is the link once it is ready. Read only.",
         _schema(
             {
                 "id": {"type": "string"},
@@ -3334,9 +3334,13 @@ REGISTRY: tuple[Tool, ...] = (
                     "type": "number",
                     "minimum": 0,
                     "maximum": WAIT_MOST,
+                    # Hosts left it out while it read as optional (the connector
+                    # eval, 2026-10-06), and answered a build at 40 of 60 with the
+                    # number the reader would have had a second earlier. Every call
+                    # can pass it: a finished build answers at once.
                     "description": (
-                        "To follow a build, pass this rather than calling again: the call "
-                        "answers as soon as something changes, or after this many seconds."
+                        "Pass 25 on every call. A finished build answers at once; one "
+                        "still being made answers as soon as it moves."
                     ),
                 },
             },

@@ -548,6 +548,16 @@ def test_check_job_never_holds_targums_own_chat(world, monkeypatch) -> None:
     assert "wait_seconds" in tools.BY_NAME["check_job"].schema["properties"], "hosts keep it"
 
 
+def test_check_job_asks_a_host_to_wait_and_to_say_said_as_it_is() -> None:
+    """2026-10-06, the connector eval: the host left wait_seconds out and retold `said`
+    in its own words. The schema says both, and stays short."""
+    tool = tools.BY_NAME["check_job"]
+    assert "word for word" in tool.description
+    wait = tool.schema["properties"]["wait_seconds"]["description"]
+    assert "every call" in wait
+    assert len(tool.description) < 300 and len(wait) < 120
+
+
 def test_check_job_waits_for_a_change_and_answers_early(world, monkeypatch) -> None:
     library, store, person, home = world
     job = Job(id="j-wait", source="x", owner=person.id, stage="working", done=1, total=4)
