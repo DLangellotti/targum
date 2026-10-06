@@ -117,8 +117,14 @@ TEXT_CARD_META = "targum.page/texts"
 #: who asked Claude for Hebrew was answered in English about Hebrew, because nothing here
 #: said otherwise; `how_to_talk` carries targum's own contract, and this is what sends a
 #: host to it. design.md §12, "The connector talks by the contract".
+#:
+#: **And how to write the name** (2026-10-06). ChatGPT, asked for a news article, answered
+#: with "Targum" twice: the opening word here is lowercase, and a model capitalises a
+#: sentence's first word anyway. design.md §6 has it lowercase even at sentence start, so
+#: the host is told so in as many words.
 INSTRUCTIONS = (
-    "targum is a reading app for people learning Hebrew. These tools search the public "
+    "targum is a reading app for people learning Hebrew; write its name in lowercase, "
+    "targum, even at the start of a sentence. These tools search the public "
     "library and, where the reader allowed it, their texts and word list. When the reader "
     "wants to talk or practise in a language they're learning, call how_to_talk first and "
     "keep to what it returns for the whole conversation, translation included: only when "
