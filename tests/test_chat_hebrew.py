@@ -326,6 +326,50 @@ def test_the_italian_contract_keeps_the_shape_and_none_of_hebrew_s_own_rules() -
         assert hebrew_only not in said, hebrew_only
 
 
+# --- the contract as a host is handed it (2026-10-06) ------------------------------
+
+
+@pytest.mark.parametrize("code", ["he", "it", "fr", "ru", "yi"])
+@pytest.mark.parametrize("gloss", ["English", "Russian"])
+def test_a_host_is_handed_a_contract_that_says_one_thing(code: str, gloss: str) -> None:
+    """The connector eval's host wrote a "= " line under every Hebrew line, because the
+    contract said "never a Hebrew line without its English line" and a note above it
+    said that sentence was overridden. Each sentence about the page's folded lines and
+    its doors is now rewritten in place, in every contract; a contract reworded without
+    its rewrite fails here."""
+    base = hebrew.contract_for(code, gloss)
+    said, missed = hebrew._for_connector(base, gloss)
+    assert missed == [], missed
+    flat = " ".join(said.split())
+    for gone in ("line without its", "The page draws it as a door", "like every other word"):
+        assert gone not in flat, gone
+    assert f"Its {gloss} only when the reader asks" in flat
+    assert '"= " line at the end of the reply' in flat
+    assert "Every link a tool returns goes on a line of its own" in flat
+    # The recast keeps its own "= " line, which is what the reader wrote.
+    assert '"> "' in flat and 'then a "= " line with its' in flat
+    assert hebrew.for_connector(base, gloss) == said
+
+
+@pytest.mark.parametrize("code", sorted(hebrew.TALKED))
+def test_targums_own_chat_is_handed_the_contract_as_it_was(code: str) -> None:
+    """`for_connector` is the host's alone. The chat's prompt (`session.py`) and the
+    check (`check.py`) read `contract_for`, which still says the page's sentences."""
+    flat = " ".join(hebrew.contract_for(code).split())
+    assert "line without its English line." in flat
+    assert "The page draws it as a door." in flat
+    assert "Its English only when the reader asks" not in flat
+    assert hebrew.contract_for("he") == hebrew.CONTRACT
+
+
+def test_the_ledger_s_new_words_are_said_after_the_reply_for_a_host() -> None:
+    returning = hebrew.Returning(new=["גשם"], learning=[], nearly=[], known=[], phrases=[])
+    block = hebrew.ledger_block(level.EMPTY, [], [], returning)
+    assert 'its English is on the "= " line like any word.' in block, "the chat's, as it was"
+    said = hebrew.for_connector(block)
+    assert 'its meaning goes on the one "= " line at the end of the reply.' in said
+
+
 # --- the three that landed with the connector (#281–#283) ------------------------
 
 

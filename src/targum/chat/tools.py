@@ -2780,40 +2780,30 @@ def _not_yet(language: str) -> str:
 
 
 def elsewhere(language: str = "he", gloss: str = "English") -> str:
-    """What a host is told on top of the contract, because there the host writes the
+    """What a host is told above the contract, because there the host writes the
     replies and targum does not (design.md §12, "The connector talks by the contract",
-    2026-09-23). Three things differ from targum's own page and nothing else does.
+    2026-09-23).
 
-    In the conversation's own language, and quoting the contract's own rule word for
-    word: it said Hebrew to an Italian conversation, and named a rule ("never a Hebrew
-    line without its line") that no contract says in those words.
+    In the conversation's own language: it said Hebrew to an Italian conversation.
+
+    Only what the contract has no sentence for (2026-10-06). This said three changes
+    and that one of them overrode a sentence below; the connector eval's host kept to
+    the sentence below and wrote an English line under every Hebrew one. The meaning
+    lines and the links are now rewritten in the contract itself
+    (`hebrew.for_connector`), and what is left here, record_turn, contradicts nothing.
+    `gloss` is kept so every caller reads the same; nothing here names it now.
     """
     named = language_name(language)
-    article = "an" if named[:1] in "AEIOU" else "a"
     return f"""You are holding this conversation for targum, inside another app. The contract
-below is the one targum's own chat is held to, and you keep to it, with three changes,
-because here you write the replies and there is no targum page to draw them:
+below is the one targum's own chat is held to, written for a conversation where you
+write the replies and there is no targum page to draw them. Keep to it.
 
-- The meaning lines. On targum's page every "= " line is folded under its {named} and a
-  tap opens it; you cannot fold, so the tap here is the reader asking. Write the {named}
-  lines, and the "= " line only when the reader asks what something means or asks for
-  the translation — for the lines they asked about, or for every line from then on if
-  that is what they asked for, until they say otherwise. A new word you bring in still
-  gets its meaning, on one "= " line after the reply naming only the new words. In your
-  first reply, say once, in one short {named} line with its meaning, that they can ask
-  for the translation at any time. This overrides this rule below, and nothing else:
-  "Never {article} {named} line without its {gloss} line."
-- The reader's own line. When record_turn is among your tools, call it with every line
-  the reader writes in {named}, exactly as they wrote it, before you answer, and make
-  the recast it returns your "> " line and its why your "~ " line — targum's judgement,
-  not yours, because that is the one we remember and bring back to them on targum.
-  Never send it your own correction. A line they wrote in another language you say in
-  {named} yourself, as the contract says, and nothing is kept. Without record_turn,
-  write the recast yourself.
-- Doors. Where the contract speaks of a path the page draws as a door, give the link
-  the tool returned, on a line of its own.
-
-Everything else holds: the vocabulary below, the length, the recast, never a level."""
+When record_turn is among your tools, call it with every line the reader writes in
+{named}, exactly as they wrote it, before you answer, and make the recast it returns your
+"> " line and its why your "~ " line — targum's judgement, not yours, because that is the
+one we remember and bring back to them on targum. Never send it your own correction. A
+line they wrote in another language you say in {named} yourself, as the contract says,
+and nothing is kept. Without record_turn, or when it fails, write the recast yourself."""
 
 
 #: The Hebrew one, which is the one most hosts are handed.
@@ -2927,27 +2917,17 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         level, known, rules = replace(level_module.EMPTY, language=language), [], []
         known_of = 0
     gloss = language_name(ctx.language)
-    return {
-        "language": language,
-        "contract": "\n\n".join(
-            [
-                elsewhere(language, gloss),
-                hebrew_module.contract_for(language, gloss),
-                # `find_text`: this is only ever read by a host, which is not listed
-                # `suggest_next` (`Tool.here_only`).
-                hebrew_module.ledger_block(
-                    level,
-                    known,
-                    common,
-                    returning,
-                    rules,
-                    shared=shared,
-                    known_of=known_of,
-                    finder="find_text",
-                ),
-            ]
-        ),
-    }
+    # `find_text`: this is only ever read by a host, which is not listed `suggest_next`
+    # (`Tool.here_only`).
+    ledger = hebrew_module.ledger_block(
+        level, known, common, returning, rules, shared=shared, known_of=known_of, finder="find_text"
+    )
+    # One contract, said for a host (`hebrew.for_connector`): the sentences about the
+    # page's folded meaning lines and its doors rewritten in place, the ledger's with them.
+    said = hebrew_module.for_connector(
+        hebrew_module.contract_for(language, gloss) + "\n\n" + ledger, gloss
+    )
+    return {"language": language, "contract": elsewhere(language, gloss) + "\n\n" + said}
 
 
 #: The language a search is held to, as a schema property: the conversation's own

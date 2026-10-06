@@ -1987,7 +1987,9 @@ the slips are what `record` says it shares, and a tool that carried them past th
 would make the approval page a lie.
 
 Three things differ, and only three, because the host writes the replies and there is no
-page of ours to draw them (`tools.ELSEWHERE` says them to the host):
+page of ours to draw them. Since 2026-10-06 the contract a host is handed says them in
+its own sentences (`hebrew.for_connector`) rather than in a note above it that overrode
+one, which a host was seen to ignore; targum's own chat is handed `contract_for` as it was:
 
 - **The translation is asked for, not shown.** On targum's page every `= ` line is
   folded and a tap opens it. A host cannot fold, so an unfolded line under every Hebrew

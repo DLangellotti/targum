@@ -1924,9 +1924,13 @@ def test_the_host_is_told_the_contract_s_own_rule_in_its_own_language(world) -> 
     head = tools.elsewhere("it", "English")
     assert italian.startswith(head)
     assert "Italian" in head and "Hebrew" not in head
-    assert "Never an Italian line without its English line." in head
-    assert "Never an Italian line without its English line." in hebrew.contract_for("it")
     assert "kept on their record" not in head
+    # One thing said, not a sentence and its override (2026-10-06): the host's contract
+    # has the rewritten sentence, and targum's own still has the original.
+    flat = " ".join(italian.split())
+    assert "line without its" not in flat and "overrides" not in flat
+    assert "Its English only when the reader asks" in flat
+    assert "Never an Italian line without its English line." in hebrew.contract_for("it")
 
 
 def test_suggest_next_says_what_it_does() -> None:
