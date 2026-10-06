@@ -44,11 +44,12 @@ import re
 import secrets
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, unquote, urlparse
@@ -56,6 +57,7 @@ from urllib.parse import quote, unquote, urlparse
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
 from .. import level as level_module
+from .. import remembered as remembered_module
 from .. import sentence_level
 from ..level import Level
 from ..translate.prompts import INTO, language_name
@@ -289,6 +291,87 @@ def shorten(text: str, at: str) -> str:
     return re.sub(re.escape(origin) + _LONG_READER, short, text)
 
 
+# -- worked out once a change ------------------------------------------------------
+
+
+class Kept:
+    """Answers worked out from a reader's record, kept until the record changes.
+
+    A host waits on every call, and on 2026-10-06 `how_to_talk` and the shelf's
+    measurements were worked out from the store on each one, though the record behind
+    them changes only when the reader marks a word, finishes a part or is corrected. So
+    they are kept here, in this process, under a key that names whose record it is and
+    `Store.ledger_stamp` — which moves on every write to it — and so cannot be read
+    across a change or by anybody else: a changed record is a new key, and the old
+    answer is simply never asked for again. Bounded, oldest out first; the lock guards
+    the dictionary, never the work, so two threads that miss together both work it out
+    and the second write is the same answer.
+
+    What goes in must not be changed by whoever takes it out: a frozen dataclass, a
+    tuple, a number.
+    """
+
+    def __init__(self, most: int) -> None:
+        self._held: OrderedDict[tuple[Any, ...], Any] = OrderedDict()
+        self._most = most
+        self._lock = threading.Lock()
+
+    def get(self, key: tuple[Any, ...], work: Callable[[], Any]) -> Any:
+        with self._lock:
+            if key in self._held:
+                self._held.move_to_end(key)
+                return self._held[key]
+        value = work()
+        with self._lock:
+            self._held[key] = value
+            self._held.move_to_end(key)
+            while len(self._held) > self._most:
+                self._held.popitem(last=False)
+        return value
+
+    def clear(self) -> None:
+        with self._lock:
+            self._held.clear()
+
+
+#: Enough for every text on a few dozen shelves and a ledger each, in a few megabytes.
+KEPT = Kept(8192)
+
+
+def _whose(store: Store | None, person_id: int | None) -> tuple[Any, ...] | None:
+    """The part of a key that says whose record, as it stands now; None to keep nothing.
+
+    The store's own path is in it so two stores in one process — every test — never
+    share a person id. Read before the work it keys, never after: a write that lands in
+    between is then kept under the stamp before it, which the next call will not ask for.
+    """
+    if store is None or person_id is None:
+        return None
+    stamp = store.ledger_stamp(person_id)
+    if stamp is None:
+        return None
+    return (str(store.path), person_id, stamp)
+
+
+def snapshot(store: Store | None, person_id: int | None, language: str) -> Level:
+    """`level.snapshot`, kept until the record changes or the day does (2026-10-06).
+
+    The connector builds every call's context with one, so every call paid for reading
+    the whole ledger. The day is in the key because the streak is counted to today.
+    """
+    if store is None or person_id is None:
+        return level_module.EMPTY
+    whose = _whose(store, person_id)
+    if whose is None:
+        return level_module.snapshot(store, person_id, language)
+    day = date.today().isoformat()
+    level: Level = KEPT.get(
+        ("level", *whose, language, day),
+        lambda: level_module.snapshot(store, person_id, language),
+    )
+    return level
+
+
 # -- the shelf, measured -----------------------------------------------------------
 
 
@@ -302,14 +385,42 @@ def _marked(ctx: Ctx, language: str, cache: dict[str, dict[str, int]]) -> dict[s
 
 def _measure(ctx: Ctx, home: Path, rows: list[dict[str, Any]]) -> None:
     """Say how much of each built text the reader already knows — `Handler._measure`'s
-    rule, applied to a list a tool is about to return."""
+    rule, applied to a list a tool is about to return.
+
+    Each text's answer is kept (`KEPT`) under the reader's record as it stands and the
+    files the count is read from — the annotation, and the segments and post a post's
+    names are found in, as `coverage.lemmas` reads them — so it is counted again only
+    when either changes (2026-10-06). The ledger is asked for once a call, and only if
+    some text has to be counted.
+    """
+    from ..ingest import post as post_module
+
     cache: dict[str, dict[str, int]] = {}
+    whose = _whose(ctx.store, ctx.person_id)
     for row in rows:
         language = str(row.get("language") or "")
         name = str(row.get("name") or "")
         if not language or not name:
             continue
-        measured = coverage_module.against(home / name, _marked(ctx, language, cache))
+        folder = home / name
+
+        def count(folder: Path = folder, language: str = language) -> Any:
+            return coverage_module.against(folder, _marked(ctx, language, cache))
+
+        if whose is None:
+            measured = count()
+        else:
+            files = tuple(
+                tuple(mark)
+                for mark in remembered_module.stamp(
+                    [
+                        folder / coverage_module.ANNOTATION,
+                        folder / "segments.json",
+                        folder / post_module.NAME,
+                    ]
+                )
+            )
+            measured = KEPT.get(("measure", *whose, language, str(folder), files), count)
         if measured is not None:
             row.update(measured.state())
 
@@ -357,8 +468,32 @@ def _by_source(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {catalogue_module._key(str(row.get("source") or "")): row for row in rows}
 
 
-def _entry_row(entry: catalogue_module.Entry, built: dict[str, Any] | None) -> dict[str, Any]:
-    collection = catalogue_module.collection_of(entry.id)
+def _collections() -> dict[str, str]:
+    """Each catalogue text's collection title, by entry id, worked out once a call.
+
+    `catalogue.collection_of` works out every collection afresh each time it is asked,
+    and a search asking it once an entry asked it about 600 times — measured
+    2026-10-06, half of what `search_library` took. Once a call, not kept: the weekly
+    joins the catalogue from its own file, so what is on the shelf can change between
+    calls.
+    """
+    return {
+        member: collection.title
+        for collection in catalogue_module.collections()
+        for member in collection.members
+    }
+
+
+def _entry_row(
+    entry: catalogue_module.Entry,
+    built: dict[str, Any] | None,
+    collections: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    if collections is None:
+        collection = catalogue_module.collection_of(entry.id)
+        titled = collection.title if collection else ""
+    else:
+        titled = collections.get(entry.id, "")
     row: dict[str, Any] = {
         "id": entry.id,
         "title": entry.title,
@@ -372,7 +507,7 @@ def _entry_row(entry: catalogue_module.Entry, built: dict[str, Any] | None) -> d
         "minutes": entry.minutes,
         "words": entry.words,
         "has_published_translation": bool(entry.translations),
-        "collection": collection.title if collection else "",
+        "collection": titled,
         "on_shelf": built is not None,
         "reader": str(built["reader"]) if built else "",
     }
@@ -432,6 +567,7 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     language = _language_asked(ctx, args)
     mine, shared = _shelf(ctx)
     built = _by_source([*mine, *shared])
+    collections = _collections()
     found: list[dict[str, Any]] = []
     for entry in catalogue_module.everything():
         if language and entry.language.split("-")[0].lower() not in _FAMILY.get(
@@ -448,7 +584,7 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             continue
         if not _matches(entry, query):
             continue
-        found.append(_entry_row(entry, built.get(catalogue_module._key(entry.source))))
+        found.append(_entry_row(entry, built.get(catalogue_module._key(entry.source)), collections))
     # Gentlest first, which is the order the register ramp is meant to be climbed in;
     # unmeasured texts sort after measured ones rather than pretending to be easy.
     found.sort(key=lambda row: (row["looked_up_percent"] or 999, row["minutes"]))
@@ -537,7 +673,8 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     language = str(args.get("language") or "")
     if not lemma:
         return {"error": "Name the word by its dictionary form."}
-    mine, shared = _shelf(ctx)
+    # Unmeasured: nothing here says how much of a text the reader knows (2026-10-06).
+    mine, shared = _shelf(ctx, measured=False)
     found: list[dict[str, str]] = []
     for home, rows in ((ctx.home, mine), (ctx.library.shared, shared)):
         for row in rows:
@@ -741,6 +878,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     rung = _rung(ctx.level) if language.split("-")[0] == "he" else None
     levels = sentence_level.load() if rung is not None else {}
     candidates: list[tuple[tuple[float, float], dict[str, Any]]] = []
+    collections = _collections()
     for entry in catalogue_module.everything():
         key = catalogue_module._key(entry.source)
         if entry.language.split("-")[0] != language.split("-")[0]:
@@ -751,7 +889,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             continue
         if minutes is not None and entry.minutes > int(minutes):
             continue
-        row = _entry_row(entry, built.get(key))
+        row = _entry_row(entry, built.get(key), collections)
         known = row.get("known_share")
         tilt = 1.0 if entry.register.value in liked else 0.0
         if known is not None:
@@ -2356,6 +2494,51 @@ ELSEWHERE = elsewhere("he")
 KNOWN_COUNTED = 1_000_000
 
 
+@dataclass(frozen=True)
+class _Talked:
+    """What `how_to_talk` reads from a reader's record, kept as one (`Kept`)."""
+
+    level: Level
+    common: tuple[str, ...]
+    known: tuple[str, ...]
+    known_of: int
+    new: tuple[str, ...]
+    learning: tuple[str, ...]
+    nearly: tuple[str, ...]
+    known_back: tuple[str, ...]
+    rules: tuple[str, ...]
+
+
+def _talk(store: Store, person_id: int, language: str, seed: int) -> _Talked:
+    """Everything `how_to_talk` reads from the record, but the phrases kept lately."""
+    level = snapshot(store, person_id, language)
+    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
+    # The ledger holds whatever a reader tapped, and "and", "the", digits and single
+    # letters are in it; a host told these are the words they know writes with them.
+    # All of them, for the count; then the commonest few hundred, for the host to
+    # carry (`known_for_host`, 2026-10-06).
+    marked = hebrew_module.for_host(
+        hebrew_module.known_words(store, person_id, language, limit=KNOWN_COUNTED),
+        language,
+    )
+    back = hebrew_module.bring_back(store, person_id, language, seed=seed)
+    return _Talked(
+        level=level,
+        common=tuple(common),
+        known=tuple(hebrew_module.known_for_host(marked, common, language)),
+        known_of=len(marked),
+        new=tuple(hebrew_module.for_host(back.new, language)),
+        learning=tuple(hebrew_module.for_host(back.learning, language)),
+        nearly=tuple(hebrew_module.for_host(back.nearly, language)),
+        known_back=tuple(hebrew_module.for_host(back.known, language)),
+        rules=tuple(
+            hebrew_module.recurring(
+                store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
+            )
+        ),
+    )
+
+
 def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """targum's own talk contract and this reader's ledger, for a host to hold to.
 
@@ -2380,34 +2563,36 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # Hebrew, graded to the commonest words rather than their own.
     shared = store is not None and person_id is not None and ctx.sees_record
     returning: hebrew_module.Returning | None = None
-    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
     if store is not None and person_id is not None and shared:
-        level = level_module.snapshot(store, person_id, language)
-        # The ledger holds whatever a reader tapped, and "and", "the", digits and single
-        # letters are in it; a host told these are the words they know writes with them.
-        # All of them, for the count; then the commonest few hundred, for the host to
-        # carry (`known_for_host`, 2026-10-06).
-        marked = hebrew_module.for_host(
-            hebrew_module.known_words(store, person_id, language, limit=KNOWN_COUNTED),
-            language,
-        )
-        known_of = len(marked)
-        known = hebrew_module.known_for_host(marked, common, language)
         # One slice of the ledger a day, so a conversation that asks twice is told the
         # same words both times.
         seed = int(time.time() // 86400)
-        back = hebrew_module.bring_back(store, person_id, language, seed=seed)
+        whose = _whose(store, person_id)
+        if whose is None:
+            talk = _talk(store, person_id, language, seed)
+        else:
+            # Worked out once a change to the record, or once a day (2026-10-06): see
+            # `Kept`. `sees_record` is in the key though only a caller who sees the
+            # record reaches here, so a key can never be shared across that line.
+            day = date.today().isoformat()
+            talk = KEPT.get(
+                ("talk", *whose, language, seed, day, ctx.sees_record),
+                lambda: _talk(store, person_id, language, seed),
+            )
+        level, common = talk.level, list(talk.common)
+        known, known_of, rules = list(talk.known), talk.known_of, list(talk.rules)
+        # The phrases are asked for every time: "lately" is a window that moves with the
+        # clock and not with the record, and it is one small query by an index.
+        since = int(time.time() * 1000) - hebrew_module.LATELY_MS
         returning = hebrew_module.Returning(
-            new=hebrew_module.for_host(back.new, language),
-            learning=hebrew_module.for_host(back.learning, language),
-            nearly=hebrew_module.for_host(back.nearly, language),
-            known=hebrew_module.for_host(back.known, language),
-            phrases=back.phrases,
-        )
-        rules = hebrew_module.recurring(
-            store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
+            new=list(talk.new),
+            learning=list(talk.learning),
+            nearly=list(talk.nearly),
+            known=list(talk.known_back),
+            phrases=store.recent_phrases(person_id, since, limit=hebrew_module.BRING_BACK_PHRASES),
         )
     else:
+        common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
         level, known, rules = replace(level_module.EMPTY, language=language), [], []
         known_of = 0
     gloss = language_name(ctx.language)

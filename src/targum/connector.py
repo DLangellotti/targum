@@ -141,11 +141,9 @@ def context(
         # The ladder is per language and a reader may be on several. Hebrew is the one
         # every reader has, so it is what a tool that names no language is measured
         # against; `my_progress` takes one and re-reads it for whichever it is given.
-        level=(
-            level_module.snapshot(store, person.id, "he")
-            if store is not None
-            else level_module.EMPTY
-        ),
+        # Kept until the record changes (`tools.snapshot`, 2026-10-06): this runs before
+        # every call a host makes, and read the whole ledger each time.
+        level=tools_module.snapshot(store, person.id, "he"),
         reads=reads or {code for code, _ in INTO},
         learning=learning or {code for code, _ in READING},
         admin=store.is_admin(person.email) if store is not None else False,
