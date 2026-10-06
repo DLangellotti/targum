@@ -1644,8 +1644,10 @@ def test_a_tool_that_raises_is_not_its_exception(world, monkeypatch) -> None:
     assert failed and "KeyError" not in text and "reader" not in text
 
 
-def test_how_to_talk_hands_a_host_only_real_words(world) -> None:
+def test_how_to_talk_hands_a_host_only_real_words(world, monkeypatch) -> None:
     library, store, person, home = world
+    # No common list, so none of the known words is left out for being in it.
+    monkeypatch.setattr(tools.hebrew_module, "common_words", lambda **_: [])
     store.push(
         person,
         {
@@ -1723,3 +1725,79 @@ def test_suggest_next_points_into_a_harder_text_where_a_section_reads(
     plain = tools.suggest_next(ctx, {"limit": 3})["suggestions"]
     assert all("passage" not in row for row in plain)
     assert "psalms" not in [row["id"] for row in plain]
+
+
+def test_shorten_rewrites_reader_links_for_a_host_and_nothing_else() -> None:
+    """The connector's links are eight letters (2026-10-06); the chat's own are not."""
+    name = "בסטארטאפ-שלום"
+    key = tools.short_key(name)
+    assert len(key) == 8 and key == tools.short_key(name), "short and stable"
+    whole = tools.reader_url(name, "https://targum.test")
+    said = json.dumps(
+        {
+            "reader": whole,
+            "passage": {"reader": whole.rsplit("/", 1)[0] + "/sec-0005.html"},
+            "list": whole + "?list=3",
+            "press": "https://targum.test/build/abc",
+            "elsewhere": "https://example.com/reader/x/reader/index.html",
+        },
+        ensure_ascii=False,
+    )
+    got = json.loads(tools.shorten(said, "https://targum.test/"))
+    assert got["reader"] == f"https://targum.test/r/{key}"
+    assert got["passage"]["reader"] == f"https://targum.test/r/{key}/sec-0005"
+    assert got["list"] == f"https://targum.test/r/{key}?list=3"
+    assert got["press"] == "https://targum.test/build/abc"
+    assert got["elsewhere"] == "https://example.com/reader/x/reader/index.html"
+    # targum's own chat has no address and draws the long path as a door on its page.
+    relative = json.dumps({"reader": tools.reader_url(name)})
+    assert tools.shorten(relative, "") == relative
+
+
+def test_my_shelf_answers_ten_and_counts_them_all(world, monkeypatch) -> None:
+    """2026-10-06: the connector was handed all 397 texts of a shelf, 177,358 characters,
+    each measured first. Now a page of them, measured once cut, and `count` still says how
+    many matched so a host knows to ask for more."""
+    library, store, person, home = world
+    for n in range(12):
+        built(home, f"extra-{n:02d}", f"test:extra-{n}", ["שלום"], f"Extra {n}")
+    ctx = context(library, store, person, home)
+    measured: list[str] = []
+    real = tools.coverage_module.against
+
+    def counting(folder, marked):  # type: ignore[no-untyped-def]
+        measured.append(folder.name)
+        return real(folder, marked)
+
+    monkeypatch.setattr(tools.coverage_module, "against", counting)
+    got = tools.search_my_shelf(ctx, {})
+    assert got["count"] == 14 and len(got["texts"]) == tools.SHELF_LIMIT
+    assert sorted(measured) == sorted(row["name"] for row in got["texts"]), "only those kept"
+    assert all(row["known_share"] is not None for row in got["texts"])
+    assert len(tools.search_my_shelf(ctx, {"limit": 3})["texts"]) == 3
+    assert len(tools.search_my_shelf(ctx, {"limit": 500})["texts"]) == 14
+    one = tools.search_my_shelf(ctx, {"query": "רות", "limit": 1})
+    assert one["count"] == 1 and one["texts"][0]["known_share"] == pytest.approx(0.5)
+
+
+def test_how_to_talk_hands_a_host_a_sample_and_says_so(world) -> None:
+    """A long ledger reaches a host as its commonest `HOST_KNOWN` words, and the line
+    says how many the reader really has (2026-10-06)."""
+    wordfreq = pytest.importorskip("wordfreq")
+    library, store, person, home = world
+    words = tools.hebrew_module.for_host(wordfreq.top_n_list("he", 4000)[1200:1700], "he")
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "status": 9, "band": "easy", "at": 9, "seen": 1}
+                for w in words
+            ]
+        },
+    )
+    ctx = context(library, store, person, home)
+    contract = tools.how_to_talk(ctx, {"language": "he"})["contract"]
+    line = next(one for one in contract.splitlines() if one.startswith("A sample of"))
+    total = len(words) + 2  # and the fixture's own שלום and בית
+    assert f"the commonest {tools.hebrew_module.HOST_KNOWN} of the {total:,}" in line
+    assert len(line.split(": ", 1)[1].split()) == tools.hebrew_module.HOST_KNOWN

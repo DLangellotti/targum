@@ -93,6 +93,32 @@ def test_the_ledger_block_carries_the_words_and_never_a_level(tmp_path: Path) ->
     assert "read in Hebrew so far" in empty
 
 
+def test_a_host_is_handed_the_commonest_known_words_and_no_junk(monkeypatch) -> None:
+    """2026-10-06: `how_to_talk` carried 1,483 known words and 774 common ones, about
+    22,000 characters on every turn of a host's conversation. A host gets the commonest
+    few hundred, never laughter or a stretched word, and never one already in the common
+    list it is handed beside them."""
+    from targum.annotate import frequency
+
+    order = {"מלך": 900, "ספר": 300, "בית": 40, "שלום": 120}
+    monkeypatch.setattr(frequency, "rank", lambda lemma, language: order.get(lemma))
+    known = ["חחחח", "אתההה", "מלך", "בַּיִת", "ספר", "שלום", "גלגל", "קשקש", "ספר"]
+    got = hebrew.known_for_host(known, ["שלום"], "he", most=4)
+    assert got == ["בַּיִת", "ספר", "מלך", "גלגל"], "ranked first, then newest; one each"
+    assert hebrew.known_for_host(["haha", "jajaja", "ciao", "hhhm"], [], "it") == ["ciao"]
+
+
+def test_a_sample_of_the_ledger_says_it_is_a_sample() -> None:
+    block = hebrew.ledger_block(level.EMPTY, ["בית", "ספר"], ["את"], known_of=1483)
+    assert "the commonest 2 of the 1,483 they have marked known" in block
+    assert "leaving out any in the common list" in block
+    assert "no words known yet" not in block
+    whole = hebrew.ledger_block(level.EMPTY, ["בית", "ספר"], ["את"], known_of=2)
+    assert "known words (2): בית ספר" in whole
+    covered = hebrew.ledger_block(level.EMPTY, [], ["את"], known_of=40)
+    assert "marked 40 words known" in covered and "no words known yet" not in covered
+
+
 def test_a_first_day_in_another_language_asks_about_that_language() -> None:
     """An Italian conversation with an empty Italian ledger was told to ask what the reader
     had read in Hebrew, and offered a Hebrew text (2026-09-15)."""

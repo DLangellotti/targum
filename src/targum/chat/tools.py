@@ -37,6 +37,8 @@ started the process. See `connector.exposed`.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import re
 import secrets
@@ -236,6 +238,51 @@ def reader_url(name: str, at: str = "") -> str:
     return f"{at.rstrip('/')}/reader/{quote(name)}/reader/index.html"
 
 
+def short_key(name: str) -> str:
+    """Eight letters that name a reader folder in a short link, `/r/<key>`.
+
+    A digest of the folder's name rather than a row anywhere: the same name always gives
+    the same key, so nothing has to be written when a text is built and nothing goes
+    stale when one is deleted, and `serve` finds the folder again by hashing the names it
+    already has. Forty bits, base32 and lower case — no letter a host might mistake for
+    another, and a collision among a reader's few hundred folders is a one-in-billions
+    chance. Not a secret: it opens only what the signed-in reader could open by name.
+    """
+    digest = hashlib.sha256(name.encode("utf-8")).digest()[:5]
+    return base64.b32encode(digest).decode("ascii").lower()
+
+
+#: A page of a built reader at its full address: the folder, then the file. The folder
+#: is percent-encoded by `reader_url`, so it has no slash, quote or space of its own.
+_LONG_READER = r"/reader/([^/\s\"?#\\]+)/reader/([a-z0-9-]{1,40})\.html"
+
+
+def shorten(text: str, at: str) -> str:
+    """Every reader link in a tool's answer as its short form, `/r/<key>[/<page>]`.
+
+    For the connector only (2026-10-06). A Hebrew folder name percent-encodes to six
+    characters a letter, and a link to one was about 250 characters the host had to
+    write out in its reply, a token at a time — measured live, the slowest part of an
+    answer that offered three texts — and a long run of `%D7%...` is exactly what a model
+    copies wrong (`Handler._serve_reader` already forgives one misspelling of a final
+    letter). Rewritten here, on the way out, rather than in `reader_url`: inside the
+    tools a reader link is also data — `_folder_of` reads the folder back out of it and
+    playlists compare them — and targum's own chat draws the long path as a door on its
+    own page, where nobody has to type it. `serve` turns the short form back into the
+    long one with a redirect, so a reader opens exactly what they opened before.
+    """
+    if not at:
+        return text
+    origin = at.rstrip("/")
+
+    def short(found: re.Match[str]) -> str:
+        page = found.group(2)
+        tail = "" if page == "index" else f"/{page}"
+        return f"{origin}/r/{short_key(unquote(found.group(1)))}{tail}"
+
+    return re.sub(re.escape(origin) + _LONG_READER, short, text)
+
+
 # -- the shelf, measured -----------------------------------------------------------
 
 
@@ -279,16 +326,22 @@ def _sourced(home: Path, rows: list[dict[str, Any]]) -> None:
             row["source"] = ""
 
 
-def _shelf(ctx: Ctx) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """The reader's own texts and the shared starter shelf, each with a reader link."""
+def _shelf(ctx: Ctx, measured: bool = True) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The reader's own texts and the shared starter shelf, each with a reader link.
+
+    `measured=False` leaves out each row's source and how much of it the reader knows,
+    which are a file read and a coverage count per text: for a caller that cuts the
+    list down first and measures only what it keeps (`search_my_shelf`).
+    """
     mine = ctx.library.readers(ctx.home)
-    _sourced(ctx.home, mine)
-    _measure(ctx, ctx.home, mine)
     shared = ctx.library.readers(ctx.library.shared)
-    _sourced(ctx.library.shared, shared)
     for row in shared:
         row["shared"] = True
-    _measure(ctx, ctx.library.shared, shared)
+    if measured:
+        _sourced(ctx.home, mine)
+        _measure(ctx, ctx.home, mine)
+        _sourced(ctx.library.shared, shared)
+        _measure(ctx, ctx.library.shared, shared)
     for row in [*mine, *shared]:
         row["reader"] = reader_url(str(row["name"]), ctx.press_at)
     return mine, shared
@@ -513,6 +566,12 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"lemma": lemma, "count": len(found), "sentences": found}
 
 
+#: How many texts `search_my_shelf` answers with unless asked for more, and the most it
+#: will. Ten is a reply's worth: a host offers two or three of them.
+SHELF_LIMIT = 10
+SHELF_MOST = 50
+
+
 def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "").lower()
     # A language named holds both halves to it. None named: the reader's own texts are
@@ -521,7 +580,12 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     named = str(args.get("language") or "").strip()
     language = _language_asked(ctx, args) if named else ""
     starter = _language_asked(ctx, args)
-    mine, shared = _shelf(ctx)
+    limit = max(1, min(int(args.get("limit") or SHELF_LIMIT), SHELF_MOST))
+    # Unmeasured, then measured once cut (2026-10-06). The connector was handed all 397
+    # texts of David's shelf in one answer, 177,358 characters, and every one was counted
+    # against his words first. Nothing below picks or orders by what is measured, so the
+    # rows that come back say exactly what they said before.
+    mine, shared = _shelf(ctx, measured=False)
     # When each text was last opened and finished, from the reader's own sync. The
     # model answered "what was the last targum I read?" with "the list does not keep
     # times" (2026-09-08) — the store always had, and the tool left them out. Newest
@@ -547,7 +611,13 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         text = " ".join(str(row.get(k) or "") for k in ("title", "author", "name")).lower()
         if query and not all(word in text for word in query.split()):
             continue
-        rows.append(
+        rows.append(row)
+    kept = rows[:limit]
+    _measure(ctx, ctx.home, [row for row in kept if not row.get("shared")])
+    _measure(ctx, ctx.library.shared, [row for row in kept if row.get("shared")])
+    texts = []
+    for row in kept:
+        texts.append(
             {
                 "name": row["name"],
                 "title": row["title"],
@@ -564,7 +634,9 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 **_read_when(times.get(str(row.get("document") or "")), now),
             }
         )
-    return {"count": len(rows), "now": _when(now), "texts": rows}
+    # `count` is every text that matched, so a host shown ten knows there are more and
+    # can ask again with a query or a higher limit.
+    return {"count": len(rows), "now": _when(now), "texts": texts}
 
 
 def _read_when(clocks: dict[str, int] | None, now: int) -> dict[str, Any]:
@@ -2268,6 +2340,11 @@ Everything else holds: the vocabulary below, the length, the recast, never a lev
 ELSEWHERE = elsewhere("he")
 
 
+#: How far down the ledger `how_to_talk` counts, so "the commonest 300 of 1,483" is the
+#: reader's real number and not `KNOWN_LIMIT` standing in for it.
+KNOWN_COUNTED = 1_000_000
+
+
 def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """targum's own talk contract and this reader's ledger, for a host to hold to.
 
@@ -2292,13 +2369,19 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # Hebrew, graded to the commonest words rather than their own.
     shared = store is not None and person_id is not None and ctx.sees_record
     returning: hebrew_module.Returning | None = None
+    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
     if store is not None and person_id is not None and shared:
         level = level_module.snapshot(store, person_id, language)
         # The ledger holds whatever a reader tapped, and "and", "the", digits and single
         # letters are in it; a host told these are the words they know writes with them.
-        known = hebrew_module.for_host(
-            hebrew_module.known_words(store, person_id, language), language
+        # All of them, for the count; then the commonest few hundred, for the host to
+        # carry (`known_for_host`, 2026-10-06).
+        marked = hebrew_module.for_host(
+            hebrew_module.known_words(store, person_id, language, limit=KNOWN_COUNTED),
+            language,
         )
+        known_of = len(marked)
+        known = hebrew_module.known_for_host(marked, common, language)
         # One slice of the ledger a day, so a conversation that asks twice is told the
         # same words both times.
         seed = int(time.time() // 86400)
@@ -2315,7 +2398,7 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         )
     else:
         level, known, rules = replace(level_module.EMPTY, language=language), [], []
-    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
+        known_of = 0
     gloss = language_name(ctx.language)
     return {
         "language": language,
@@ -2323,7 +2406,9 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             [
                 elsewhere(language, gloss),
                 hebrew_module.contract_for(language, gloss),
-                hebrew_module.ledger_block(level, known, common, returning, rules, shared=shared),
+                hebrew_module.ledger_block(
+                    level, known, common, returning, rules, shared=shared, known_of=known_of
+                ),
             ]
         ),
     }
@@ -2384,8 +2469,19 @@ REGISTRY: tuple[Tool, ...] = (
         "The reader's own texts and the shared starter shelf, newest opened first, each "
         "with its link, which languages it opens in, chapters ready, how much of it they "
         "know, when they last opened it and when they finished it. The starter shelf is "
-        "held to the language the reader is learning here unless you name one. Read only.",
-        _schema({"query": {"type": "string"}, "language": _LANGUAGE_FILTER}),
+        "held to the language the reader is learning here unless you name one. Ten texts "
+        "unless you ask for more with limit; count says how many matched, so narrow with "
+        "query (words of the title or author) to find one. Read only.",
+        _schema(
+            {
+                "query": {
+                    "type": "string",
+                    "description": "Words to match in the title, author or name.",
+                },
+                "language": _LANGUAGE_FILTER,
+                "limit": {"type": "integer", "minimum": 1, "maximum": SHELF_MOST},
+            }
+        ),
         search_my_shelf,
         scope="record",
         title="Search my texts",
