@@ -3434,4 +3434,10 @@ def run(name: str, args: dict[str, Any], ctx: Ctx) -> tuple[str, bool]:
 
         logging.getLogger(__name__).exception("tool %s failed", name)
         return json.dumps({"error": "Something went wrong on our side. Try again later."}), True
-    return json.dumps(out, ensure_ascii=False), "error" in out
+    # Failure is an error that says something, not the key (2026-10-06). A job's own
+    # state carries `"error": ""` until a build fails, so the key alone marked every
+    # `check_job` a failed call: the connector eval's host was told a build at 40 of 60
+    # had failed, and targum's own chat was told the same. A failed build still says why
+    # in `error`, and still comes back as one.
+    failed = isinstance(out, dict) and bool(out.get("error"))
+    return json.dumps(out, ensure_ascii=False), failed
