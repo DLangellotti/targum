@@ -1,0 +1,170 @@
+/* A card in someone else's chat (design.md §12, 2026-10-06): the build card a host
+   draws beside `check_job` in a sandboxed frame of its own.
+
+   It is chrome, drawn as the desk is (§13): the chrome's sans, named and never fetched;
+   ink and teal; the desk's radii and type scale. It fetches nothing — this sheet is
+   inlined into the resource, and there is no @font-face, no image and no url() in it.
+
+   It is the one surface that takes a theme, because it is drawn inside somebody else's
+   page (§12, "A card takes the host's theme"): `card.js` sets `data-theme` from what
+   the host hands it. The dark block is the dark reading of the same palette, every value
+   one §4 already gives "on ink", and `test_brand.py` pins it value by value. */
+
+:root {
+  color-scheme: light;
+  --card: #fffdf9;
+  --ink: #1c1a17;
+  --muted: #6b645c;
+  --edge: rgb(28 26 23 / 0.08);
+  --teal: #1f6f6b;
+  --teal-ink: #fffdf9;
+  --leaf: #5a7340;
+  --track: #ece7de;
+  --shadow: 0 1px 2px rgb(28 26 23 / 0.06);
+  --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --reading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --reading-hebrew: "Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew", "New Peninim MT", David, serif;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* The dark reading (§12, 2026-10-06). Only these tokens change. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --card: #201e1b;
+  --ink: #e6e1d8;
+  --muted: #9a9288;
+  --edge: #322e29;
+  --teal: #6fb8b3;
+  --teal-ink: #0f1a19;
+  --leaf: #a8c37e;
+  --track: #322e29;
+  --shadow: none;
+}
+
+/* The host's page shows through around the card, so the frame never paints a
+   rectangle of its own over the conversation. */
+html,
+body {
+  margin: 0;
+  background: transparent;
+}
+
+body {
+  padding: 2px;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.card {
+  box-sizing: border-box;
+  max-inline-size: 34rem;
+  padding: 16px 20px;
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.card-label {
+  margin: 0 0 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* A text's own title is in the reading face (§13), Hebrew in its own stack and never
+   scaled below the Latin (§5). Named, never carried: the frame fetches nothing. */
+.card-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.card-title[lang|="he"],
+.card-title[lang|="arc"] {
+  font-family: var(--reading-hebrew);
+  line-height: 1.6;
+}
+
+.card-english {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* Progress is leaf (§4, §13: a green thing is always progress), flat, on the desk's
+   ground as its track. */
+.card-bar {
+  margin-block: 12px 0;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.card-bar span {
+  display: block;
+  block-size: 100%;
+  inline-size: 0;
+  border-radius: 999px;
+  background: var(--leaf);
+}
+
+.card-said {
+  margin: 10px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-stopped {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* The door: the one filled control in the card, in the primary (§13). It opens a page
+   of ours; it never starts or confirms anything (§12, "A card never presses"). */
+.card-door {
+  display: inline-flex;
+  align-items: center;
+  margin-block-start: 12px;
+  min-block-size: 40px;
+  padding-inline: 20px;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.card-door:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .card-door {
+    min-block-size: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card-bar span {
+    transition: inline-size 240ms var(--ease);
+  }
+
+  .card-door:active {
+    transform: scale(0.98);
+  }
+}

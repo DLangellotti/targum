@@ -1,0 +1,34 @@
+{#- The build card, as a host draws it beside `check_job` (design.md §12, "A card in
+    someone else's chat", 2026-10-06).
+
+    One document with its style and script inline, handed over whole as the resource
+    `ui://targum/build-card.html`: no favicon, no face carried, no link to a sheet. The
+    frame fetches nothing, and the only words it starts with are its labels; what it says
+    about a build comes in from the tool result (`card.js`).
+
+    No control here starts, confirms or spends anything. The door opens a page of ours. -#}
+<!doctype html>
+<html lang="{{ page_language }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{ t("card.build.title", "Where a text has got to") }}</title>
+<style>{{ asset('card.css') }}</style>
+</head>
+<body>
+<article class="card" id="card" aria-live="polite"
+  data-working="{{ t("card.build.working", "Getting it ready") }}"
+  data-ready="{{ t("card.build.ready", "Ready to read") }}"
+  data-not-ready="{{ t("card.build.not-ready", "Not ready") }}">
+  <p class="card-label" id="label">{{ t("card.build.working", "Getting it ready") }}</p>
+  <h1 class="card-title" id="title" dir="auto" hidden></h1>
+  <p class="card-english" id="english" hidden></p>
+  <div class="card-bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-labelledby="said" hidden><span id="fill"></span></div>
+  <p class="card-said" id="said">{{ t("card.build.looking", "We're looking at where it has got to.") }}</p>
+  <p class="card-stopped" id="stopped" hidden>{{ t("card.build.stopped", "We stopped following it here. Ask again to see where it has got to.") }}</p>
+  <a class="card-door" id="door" target="_blank" rel="noopener" hidden>{{ t("card.build.open", "Open") }}</a>
+</article>
+<script>{{ asset('card.js') }}</script>
+</body>
+</html>

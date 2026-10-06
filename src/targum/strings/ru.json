@@ -2925,5 +2925,12 @@
   "reader.page.by-aliyah": "По алие",
   "reader.page.by-chapter": "По главе",
   "reader.page.key-stress-marks": "знаки ударения",
-  "reader.page.key-vowel-points": "огласовки"
+  "reader.page.key-vowel-points": "огласовки",
+  "card.build.title": "Как идёт подготовка текста",
+  "card.build.working": "Готовим",
+  "card.build.ready": "Можно читать",
+  "card.build.not-ready": "Не готово",
+  "card.build.looking": "Смотрим, как идут дела.",
+  "card.build.stopped": "Здесь мы перестали следить. Спросите ещё раз, как идут дела.",
+  "card.build.open": "Открыть"
 }

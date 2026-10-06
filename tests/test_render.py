@@ -1284,6 +1284,11 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
         assert "window.targumKeep" in html, name
 
     for sheet in sorted(ASSETS.glob("*.css")):
+        if sheet.name == "card.css":
+            # The one exception, David's (design.md §12, "A card takes the host's theme",
+            # 2026-10-06): a card is drawn inside somebody else's page and follows its
+            # theme. No page of ours carries it; `test_brand.py` pins its dark reading.
+            continue
         css = sheet.read_text(encoding="utf-8")
         assert "prefers-color-scheme" not in css, sheet.name
         assert "data-theme" not in css, sheet.name

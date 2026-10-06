@@ -2744,5 +2744,12 @@
   "reader.page.by-aliyah": "By aliyah",
   "reader.page.by-chapter": "By chapter",
   "reader.page.key-stress-marks": "stress marks",
-  "reader.page.key-vowel-points": "vowel points"
+  "reader.page.key-vowel-points": "vowel points",
+  "card.build.title": "Where a text has got to",
+  "card.build.working": "Getting it ready",
+  "card.build.ready": "Ready to read",
+  "card.build.not-ready": "Not ready",
+  "card.build.looking": "We're looking at where it has got to.",
+  "card.build.stopped": "We stopped following it here. Ask again to see where it has got to.",
+  "card.build.open": "Open"
 }
