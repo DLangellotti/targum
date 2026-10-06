@@ -13,6 +13,7 @@ private it would sit where CI can never run it.
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -60,6 +61,25 @@ def _text(element: ElementTree.Element | None) -> str:
     if element is None:
         return ""
     return " ".join((element.text or "").split())
+
+
+#: A tag inside a title or a summary, where a feed put markup into CDATA.
+_TAG = re.compile(r"<[^>]*>")
+
+
+def _plain(raw: str) -> str:
+    """Words, where a feed sent markup (2026-10-06).
+
+    Meduza, Novaya Gazeta Europe and Teplitsa put paragraphs and links into a CDATA
+    description (`<p>…</p>`, `<br/>`, `<a href=…>`), and OVD-Info writes `&nbsp;` there,
+    which CDATA leaves as six characters. Kept as it came, a summary carried `href`,
+    `https` and `nbsp` as words: in the hook the weekly writes from, and in the tokens
+    `search_sources` measures a reader's known share over. A tag is a space, an entity
+    is its character, and the spaces are folded.
+    """
+    if "<" not in raw and "&" not in raw:
+        return raw
+    return " ".join(html.unescape(_TAG.sub(" ", raw)).split())
 
 
 def _when(raw: str) -> datetime | None:
@@ -145,10 +165,10 @@ def parse(xml: bytes) -> list[Item]:
         fields: dict[str, ElementTree.Element] = {}
         for child in element:
             fields.setdefault(_name(child.tag), child)
-        title = _text(fields.get("title"))
+        title = _plain(_text(fields.get("title")))
         if not title:
             continue
-        summary = _text(fields.get("description")) or _text(fields.get("summary"))
+        summary = _plain(_text(fields.get("description")) or _text(fields.get("summary")))
         stamp = (
             _text(fields.get("pubdate"))
             or _text(fields.get("published"))

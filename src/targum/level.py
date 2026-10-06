@@ -459,8 +459,40 @@ def _male_index(forms: Set[str]) -> dict[str, list[str]]:
     return index
 
 
-def known_share(text: str, forms: Set[str]) -> float | None:
+#: The languages `known_share` reads as Hebrew letters, with Hebrew's prefixes.
+_HEBREW_SCRIPT = frozenset({"he", "yi", "arc"})
+
+#: A word in any other alphabet: a run of letters, an apostrophe inside it kept.
+_ANY_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")
+
+
+def _known_share_spaced(text: str, forms: Set[str]) -> float | None:
+    """`known_share` for a language written in words with spaces between — Russian,
+    French, Italian — rather than Hebrew letters (2026-10-06).
+
+    The Hebrew rule finds no Hebrew token in a Russian headline and answers "not
+    measured", which is right about Hebrew and useless once `search_sources` offers
+    Russian publishers. Here a token is a run of letters, lower-cased, with ё read as е
+    on both sides because publishers write it either way; known when it is among
+    `forms`. No prefixes and no stemming, so an inflected word the ledger never saw in
+    that form is unknown — an undercount, like the Hebrew one, and the exact figure is
+    still the built text's coverage.
+    """
+
+    def fold(word: str) -> str:
+        return word.lower().replace("ё", "е")
+
+    tokens = [fold(token) for token in _ANY_WORD.findall(text)]
+    if len(tokens) < MEASURABLE:
+        return None
+    folded = {fold(form) for form in forms}
+    return sum(1 for token in tokens if token in folded) / len(tokens)
+
+
+def known_share(text: str, forms: Set[str], language: str = "he") -> float | None:
     """The share of a text's Hebrew tokens the reader already has, cheaply.
+
+    In a language not written in Hebrew letters, `_known_share_spaced` (2026-10-06).
 
     A token counts as known when it, or it less a prefix or two, is among `forms` — the
     reader's known words as surface forms and dictionary forms, plus the commonest
@@ -482,6 +514,8 @@ def known_share(text: str, forms: Set[str]) -> float | None:
     פחות), so an unpointed page measures exactly as it did. The known forms are filed
     by skeleton only when a pointed token misses outright, once a call.
     """
+    if (language or "he").split("-")[0].lower() not in _HEBREW_SCRIPT:
+        return _known_share_spaced(text, forms)
     found = [(_bare(t), _POINTS.search(t) is not None) for t in _WORD.findall(text)]
     tokens = [(t, pointed) for t, pointed in found if t]
     if len(tokens) < MEASURABLE:

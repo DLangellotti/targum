@@ -1793,9 +1793,10 @@ WEB_SEARCH_USES = 6
 SEARCH_UNAVAILABLE_FROM = {"city": "Tel Aviv", "country": "IL", "timezone": "Asia/Jerusalem"}
 
 
-def _known_forms(ctx: Ctx) -> frozenset[str]:
-    """This reader's known Hebrew forms and the commonest words, kept until the record
-    changes (2026-10-06).
+def _known_forms(ctx: Ctx, language: str = "he") -> frozenset[str]:
+    """This reader's known forms in `language` and its commonest words, kept until the
+    record changes (2026-10-06). Hebrew unless a Russian publisher's item asks for
+    Russian: each item is measured against the words of the language it is written in.
 
     `search_sources` measured every one of its ~250 feed items with `_known_share`, and
     each measurement read the whole ledger again and took the points off every form in
@@ -1806,25 +1807,31 @@ def _known_forms(ctx: Ctx) -> frozenset[str]:
     assert ctx.store is not None and ctx.person is not None
     store, person_id = ctx.store, ctx.person.id
 
+    code = (language or "he").split("-")[0].lower()
+
     def work() -> frozenset[str]:
-        return frozenset(store.known_forms(person_id, "he")) | frozenset(
-            hebrew_module.common_words()
+        return frozenset(store.known_forms(person_id, code)) | frozenset(
+            hebrew_module.common_words(language=code)
         )
 
     whose = _whose(store, person_id)
     if whose is None:
         return work()
-    forms: frozenset[str] = KEPT.get(("known-forms", *whose, "he"), work)
+    forms: frozenset[str] = KEPT.get(("known-forms", *whose, code), work)
     return forms
 
 
-def _known_share(ctx: Ctx | None, text: str, forms: frozenset[str] | None = None) -> float | None:
+def _known_share(
+    ctx: Ctx | None, text: str, forms: frozenset[str] | None = None, language: str = "he"
+) -> float | None:
     """`level.known_share` against this reader's known forms and the commonest words;
-    None where there is nobody to measure for. `forms` is `_known_forms(ctx)`, passed by
-    a caller that measures many texts in one call."""
+    None where there is nobody to measure for. `forms` is `_known_forms(ctx, language)`,
+    passed by a caller that measures many texts in one call."""
     if ctx is None or ctx.store is None or ctx.person is None:
         return None
-    return level_module.known_share(text, _known_forms(ctx) if forms is None else forms)
+    if forms is None:
+        forms = _known_forms(ctx, language)
+    return level_module.known_share(text, forms, language)
 
 
 def _hebrew_share(text: str) -> float:
@@ -2402,14 +2409,38 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
     Feeds are pulled through the one outbound door and read by `weekly/feeds.py`; a
     feed that will not answer is noted and skipped rather than failing the search.
+
+    **Held to a language** (2026-10-06): the language the reader is learning here unless
+    one is named, or every language for "all" — `search_library`'s rule. Until then the
+    list was nineteen Hebrew papers and the tool said "the Hebrew publishers", so a reader
+    who asked ChatGPT for a Russian article was sent to the host's own web search, and
+    from there to a site targum could not open. Nine Russian publishers joined the list
+    the same day; a Hebrew reader's search is not filled with them, and a Russian one
+    is not filled with Hebrew.
+
+    Each item's known share is measured in its publisher's language, against the
+    reader's words in that language. An item on a host whose last knock was refused
+    (`Store.closed`) says `host_shut`, so a host can pass it over before describing it.
     """
     query = str(args.get("query") or "").lower().split()
     kind = str(args.get("kind") or "")
     limit = max(1, min(int(args.get("limit") or 10), 30))
+    language = _language_asked(ctx, args)
+    following = [one for one in sources_module.load() if one.feed]
     publishers = [
-        one for one in sources_module.load() if one.feed and (not kind or one.kind == kind)
+        one
+        for one in following
+        if (not kind or one.kind == kind)
+        and (not language or one.language.split("-")[0].lower() == language)
     ]
     if not publishers:
+        if following and language:
+            return {
+                "count": 0,
+                "items": [],
+                "language": language,
+                "note": f"We don't follow any publishers in {language_name(language)}.",
+            }
         return {
             "count": 0,
             "items": [],
@@ -2420,10 +2451,16 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     late: list[str] = []
     pulled_by_feed = FEEDS.pull([publisher.feed for publisher in publishers], FEEDS_BUDGET_S)
     measuring = ctx.store is not None and ctx.person is not None
-    # Read once for every item rather than once an item (2026-10-06): see `_known_forms`.
-    forms = _known_forms(ctx) if measuring else None
     whose = _whose(ctx.store, ctx.person_id) if measuring else None
+    shut_hosts = set(ctx.store.closed(limit=200)) if ctx.store is not None else set()
+    # Read once a language for every item rather than once an item (2026-10-06): see
+    # `_known_forms`.
+    forms_by_language: dict[str, frozenset[str]] = {}
     for publisher in publishers:
+        written = publisher.language.split("-")[0].lower() or "he"
+        if measuring and written not in forms_by_language:
+            forms_by_language[written] = _known_forms(ctx, written)
+        forms = forms_by_language.get(written)
         if publisher.feed not in pulled_by_feed:
             late.append(publisher.key)
             continue
@@ -2446,23 +2483,27 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             # hook itself, so the same day's items are not measured again on every search.
             hook = f"{item.title}\n{item.summary}"
             if whose is None:
-                known = _known_share(ctx, hook, forms)
+                known = _known_share(ctx, hook, forms, written)
             else:
                 digest = hashlib.sha256(hook.encode("utf-8")).hexdigest()
-                known = FEED_KNOWN.get((*whose, digest), partial(_known_share, ctx, hook, forms))
-            items.append(
-                {
-                    "title": item.title,
-                    "link": item.link,
-                    "publisher": publisher.publisher or publisher.name,
-                    "kind": publisher.kind,
-                    "published": item.published.isoformat() if item.published else "",
-                    "seconds": round(item.seconds) if item.seconds else 0,
-                    "has_transcript": bool(item.transcript),
-                    "licence": publisher.licence,
-                    "known_share": None if known is None else round(known, 2),
-                }
-            )
+                known = FEED_KNOWN.get(
+                    (*whose, written, digest), partial(_known_share, ctx, hook, forms, written)
+                )
+            row: dict[str, Any] = {
+                "title": item.title,
+                "link": item.link,
+                "publisher": publisher.publisher or publisher.name,
+                "kind": publisher.kind,
+                "language": written,
+                "published": item.published.isoformat() if item.published else "",
+                "seconds": round(item.seconds) if item.seconds else 0,
+                "has_transcript": bool(item.transcript),
+                "licence": publisher.licence,
+                "known_share": None if known is None else round(known, 2),
+            }
+            if (urlparse(item.link).hostname or "").lower() in shut_hosts:
+                row["host_shut"] = True
+            items.append(row)
     # Newest first, and within a day the one this reader would get furthest into
     # (targum-internal#244, change 4b). The day is the window on purpose: news is worth
     # reading because it is today's, so a story the reader knows more of does not climb
@@ -2476,7 +2517,11 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         ),
         reverse=True,
     )
-    out: dict[str, Any] = {"count": len(items), "items": items[:limit]}
+    out: dict[str, Any] = {
+        "count": len(items),
+        "language": language or "all",
+        "items": items[:limit],
+    }
     if skipped:
         out["unreachable"] = skipped
     if late:
@@ -3221,12 +3266,15 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "search_sources",
-        "What the Hebrew publishers targum follows have put out lately, matched to words "
-        "in the title or summary. News, podcasts and videos, newest first, each with its "
-        "link to look at or offer. Read only.",
+        "What the publishers targum follows have put out lately, in the language the "
+        "reader is learning here unless you name another, matched to words in the title "
+        "or summary. News, podcasts and videos, newest first, each with its link to look "
+        "at or offer. Use this before your own web search when the reader wants an "
+        "article to read. Read only.",
         _schema(
             {
                 "query": {"type": "string"},
+                "language": _LANGUAGE_FILTER,
                 "kind": {"type": "string", "enum": list(sources_module.KINDS)},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 30},
             }

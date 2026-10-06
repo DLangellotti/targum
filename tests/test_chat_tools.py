@@ -1040,6 +1040,102 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
     assert tools.search_sources(ctx, {})["note"] == "We don't follow any publishers yet."
 
 
+def test_search_sources_holds_to_the_reader_s_language_unless_another_is_named(
+    world, monkeypatch, tmp_path
+) -> None:
+    """2026-10-06: a reader asked ChatGPT for an article from Russian media, the tool said
+    it searched "the Hebrew publishers", and ChatGPT went to its own web search and found
+    a site targum could not open. Russian publishers are followed now; a Hebrew reader's
+    search stays Hebrew, `language` names another or "all", and each item is measured
+    against the reader's words in its own language."""
+    from datetime import UTC, datetime
+
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps(
+            {
+                "publishers": [
+                    {"key": "kan", "name": "כאן", "feed": "https://kan.example/rss"},
+                    {
+                        "key": "meduza",
+                        "name": "Медуза",
+                        "feed": "https://meduza.example/rss",
+                        "language": "ru",
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+    when = datetime(2026, 10, 6, tzinfo=UTC)
+    known_ru = " ".join(["кошка", "собака", "молоко", "хлеб"] * 6)
+    unknown_ru = " ".join(["правительство", "законопроект", "парламентарии", "обсудили"] * 6)
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        if "meduza" in url:
+            return [
+                feeds.Item(
+                    title="Кошка",
+                    summary=known_ru,
+                    link="https://meduza.example/easy",
+                    published=when,
+                ),
+                feeds.Item(
+                    title="Закон",
+                    summary=unknown_ru,
+                    link="https://shut.example/hard",
+                    published=when,
+                ),
+            ]
+        return [feeds.Item(title="חדשות", link="https://kan.example/1", published=when)]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "ru", "lemma": w, "surface": w, "status": 9, "at": 1, "seen": 1}
+                for w in ("кошка", "собака", "молоко", "хлеб")
+            ]
+        },
+    )
+    store.reach("shut.example", False, "403")
+    ctx = context(library, store, person, home)
+
+    hebrew = tools.search_sources(ctx, {})
+    assert hebrew["language"] == "he"
+    assert [row["link"] for row in hebrew["items"]] == ["https://kan.example/1"]
+
+    russian = tools.search_sources(ctx, {"language": "ru"})
+    assert russian["language"] == "ru"
+    rows = {row["link"]: row for row in russian["items"]}
+    assert set(rows) == {"https://meduza.example/easy", "https://shut.example/hard"}
+    assert all(row["language"] == "ru" for row in rows.values())
+    easy, hard = rows["https://meduza.example/easy"], rows["https://shut.example/hard"]
+    assert easy["known_share"] is not None and easy["known_share"] > 0.9
+    assert hard["known_share"] is not None and hard["known_share"] < easy["known_share"]
+    assert hard.get("host_shut") is True and "host_shut" not in easy
+
+    both = tools.search_sources(ctx, {"language": "all"})
+    assert both["language"] == "all" and both["count"] == 3
+
+    none = tools.search_sources(ctx, {"language": "fr"})
+    assert none["count"] == 0 and "French" in none["note"]
+
+
+def test_search_sources_says_it_is_not_only_hebrew_and_takes_a_language() -> None:
+    tool = next(tool for tool in tools.REGISTRY if tool.name == "search_sources")
+    assert "Hebrew" not in tool.description
+    assert "language the reader is learning here" in tool.description
+    assert tool.schema["properties"]["language"] == tools._LANGUAGE_FILTER
+
+
 def test_the_day_s_stories_are_ordered_by_what_the_reader_would_know(
     world, monkeypatch, tmp_path
 ) -> None:
