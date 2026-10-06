@@ -354,6 +354,53 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A card in someone else's chat — 2026-10-06
+
+*Draft for David's approval. Nothing is built against it yet.*
+
+Over the connector, everything targum says arrives as text the host's model reads and
+then rewrites. A build in progress is a model calling `check_job` again and again and
+saying "still working". A text is a long link the model has to copy out character by
+character. Claude and ChatGPT can now each draw a small page of a server's own inside
+the conversation (the MCP Apps extension, which ChatGPT's Apps SDK speaks too): the server
+names a `ui://` resource on a tool, the host draws it in a sandboxed frame, and the frame
+talks to the host and to nobody else. David asked for build progress to be shown this way
+on 2026-10-06.
+
+- **Two cards, and a third needs an entry here first.** *A text*: its title in the
+  reading face, Hebrew `dir="rtl"`, how long it is, how much of it the reader knows, and
+  one door that opens it on targum. *A build*: what stage it is at, how many chapters are
+  ready of how many, the time left where it can honestly be estimated, and the door once
+  the text is ready.
+- **A card is chrome, not a reader.** It is drawn as the desk is (§13): the chrome's sans,
+  named and never fetched; ink and teal; the radii and the type scale `test_brand.py`
+  already holds. No emoji, no exclamation marks, no streaks, no confetti when a build
+  finishes. Motion only under `prefers-reduced-motion: no-preference`.
+- **It fetches nothing.** The page, its style and its script are inline in the resource
+  the server hands over. No font, image, stylesheet or script from the network, ours
+  included, which is the readers' rule applied to a frame we do not own, as it was to mail
+  (2026-09-27). Whatever the card shows comes in from the tool result. A build card stays
+  current by asking the host to call `check_job` again, which is free and read only.
+- **A card never presses.** It can open a page of ours and it can ask for a read-only
+  tool. It cannot start a build, confirm a quote or call `record_turn`: the press stays on
+  targum's own page, and the scope stays the one press that lasts ("A scope is a press that
+  lasts"). A card that could spend would be the model's hand with a button drawn on it.
+- **The model is told less, not more.** The model gets one line it can say; the card
+  gets the rows. A text card means the model writes no link, which is faster and cannot
+  garble one.
+- **Text is still the floor.** A host that draws no cards, or a reader who switched them
+  off, gets exactly what the tool returns today: the same line and the same link.
+
+**Open, for David:**
+
+1. *Light only, or the host's theme?* "There is one look, and it is light" (2026-09-19)
+   says light, and mail followed it. A light card in a dark ChatGPT is a bright rectangle
+   in a dark room. The two choices are light only, with the frame in desk paper, or the
+   host's theme for the frame and light for the card inside it.
+2. *A play button on a text card?* Playing audio is a fetch from targum.page, so as written
+   it is out. The case for it is that hearing a line without leaving the chat is the most
+   delightful thing a card could do.
+
 ### A verse taller than the page is cut between its lines — 2026-10-05
 
 Rashi stays on by default and at full length (David, after the QA pass before the
