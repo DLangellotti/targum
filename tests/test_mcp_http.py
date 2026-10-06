@@ -429,6 +429,13 @@ def test_the_host_is_told_how_to_talk_at_initialize() -> None:
     assert "translation" in mcp_http.INSTRUCTIONS
 
 
+def test_the_host_is_told_every_link_goes_on_a_line_of_its_own() -> None:
+    """2026-10-06, the connector eval: told only that the confirm link goes on its own
+    line, the host wrote find_text's links into the middle of its bullets."""
+    assert "Every link a tool returns goes on a line of its own" in mcp_http.INSTRUCTIONS
+    assert "list item" in mcp_http.INSTRUCTIONS
+
+
 def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]) -> None:
     """One contract, both surfaces: the host is given what targum's own chat is given."""
     from targum.chat import hebrew
