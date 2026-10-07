@@ -2421,6 +2421,14 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     Each item's known share is measured in its publisher's language, against the
     reader's words in that language. An item on a host whose last knock was refused
     (`Store.closed`) says `host_shut`, so a host can pass it over before describing it.
+
+    **And sorts after every item that is not** (2026-10-07, targum-internal#423). On
+    2026-10-06 the first Russian result was an РБК article marked `host_shut`: a host
+    offers the top of a list, describe_source refuses it, and the reader is left with no
+    text. Still listed and still marked, because the mark is a hint and never a refusal —
+    only lower, so whatever is offered first is something targum can open. The cards
+    (`mcp_http.text_card_meta`) and the Add page's rows (`session._found_rows`) are drawn
+    in `items`' own order, so they follow it with nothing of their own.
     """
     query = str(args.get("query") or "").lower().split()
     kind = str(args.get("kind") or "")
@@ -2510,8 +2518,11 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # over a fresher one — it only wins against the others published alongside it. An
     # entry too short to measure sorts as if it were average rather than as nothing,
     # since a headline that says little about its Hebrew is not evidence of hard Hebrew.
+    # Above both, whether targum can open it: a shut host's items come after every
+    # reachable one, today's included (targum-internal#423).
     items.sort(
         key=lambda row: (
+            not row.get("host_shut"),
             str(row["published"])[:10],
             0.5 if row["known_share"] is None else row["known_share"],
         ),
@@ -3280,8 +3291,9 @@ REGISTRY: tuple[Tool, ...] = (
         "What the publishers targum follows have put out lately, in the language the "
         "reader is learning here unless you name another, matched to words in the title "
         "or summary. News, podcasts and videos, newest first, each with its link to look "
-        "at or offer. Use this before your own web search when the reader wants an "
-        "article to read. Read only.",
+        "at or offer; items marked host_shut, which targum can't open, come last. Use "
+        "this before your own web search when the reader wants an article to read. Read "
+        "only.",
         _schema(
             {
                 "query": {"type": "string"},
