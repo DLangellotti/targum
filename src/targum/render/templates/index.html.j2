@@ -88,8 +88,11 @@
     {% endfor %}
   </ol>
   {#- For somebody about to lose their connection. A reader off a disk is the promise
-      this product makes, and half a translated book is not that. -#}
-  <p class="whole" hidden{% if part_seconds %} data-part-seconds="{% for number, seconds in part_seconds|dictsort %}{{ number }}:{{ seconds|round(1) }}{% if not loop.last %} {% endif %}{% endfor %}"{% endif %}><button type="button" id="prepare">{{ t("contents.page.prepare-all", "Prepare all") }}</button> <span class="get-cost" id="prepare-cost" hidden></span></p>
+      this product makes, and half a translated book is not that. A book's only since
+      2026-10-07 (design.md §12, "One press gets the whole video, a part at a time"): a
+      recording's parts are made as the reader opens them, under the press on its quote,
+      and a press here to make them all at once was a second way round that rule. -#}
+  {% if not has_audio %}<p class="whole" hidden><button type="button" id="prepare">{{ t("contents.page.prepare-all", "Prepare all") }}</button> <span class="get-cost" id="prepare-cost" hidden></span></p>{% endif %}
 </main>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>

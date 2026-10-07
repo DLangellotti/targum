@@ -1014,6 +1014,37 @@ def test_a_part_the_reader_opens_is_made_whichever_it_is(served, fake_audio, mon
     assert again["id"] == third["id"] and len(claims) == 1 and len(queued) == 1
 
 
+def test_every_part_at_once_is_not_a_door_and_the_bell_says_which_part(
+    served, fake_audio, monkeypatch
+) -> None:
+    """David, 2026-10-07: the contents page has no Prepare all for a recording, and that
+    was the one thing that asked for every part at once — so `all` on a recording is not
+    found, and nothing is claimed or queued. And the list of builds the page follows says
+    which text and which parts each is making, so a waiting row can say it is being made."""
+    port, token, out = served
+    build = talk(out, fake_audio, parts=3)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    claims, queued = _spied(monkeypatch)
+
+    body = json_module.dumps({"name": folder.name, "all": True}).encode()
+    status, answer = raw(port, f"/chapter?k={token}", body, "application/json")
+    assert status == 404 and answer == {"error": "not found"}, answer
+    assert claims == [] and queued == []
+
+    status, third = press(port, token, folder, 3)
+    assert status == 200 and third["id"], third
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request("GET", f"/jobs?k={token}")
+        jobs = json_module.loads(connection.getresponse().read())["jobs"]
+    finally:
+        connection.close()
+    row = next(job for job in jobs if job["id"] == third["id"])
+    assert row["folder"] == folder.name and row["making"] == [3], row
+    assert row["said"], "with the line the bell says about it"
+
+
 def test_a_part_the_rails_refuse_is_not_made_and_the_answer_says_why(
     served, fake_audio, monkeypatch
 ) -> None:

@@ -581,9 +581,40 @@ def test_a_waiting_press_says_what_it_spends(tmp_path: Path) -> None:
     source = (Path(__file__).parents[1] / "src/targum/render/assets/contents.js").read_text(
         encoding="utf-8"
     )
-    assert "spends(hearing, partsOf(row))" in source
-    assert 'getElementById("prepare-cost")' in source
-    assert "Already in the credits you confirmed" in source
+    assert 'getElementById("prepare-cost")' in source, "a book's Prepare all says its none"
+    assert "Already in the credits you confirmed" not in source, "no press on a part to price"
+
+
+def test_a_recordings_contents_page_has_no_press_for_a_part(tmp_path: Path) -> None:
+    """David, 2026-10-07 (design.md §12, "One press gets the whole video, a part at a
+    time"): the contents page of a recording has neither a row's Transcribe nor Prepare
+    all — opening a part's page is what starts it — and its waiting rows say how the part
+    stands. A book's contents page keeps both of its presses."""
+    contents, _pages = _recording(tmp_path / "talk")
+    assert 'id="prepare"' not in contents and "Prepare all" not in contents
+    assert "data-part-seconds" not in contents, "nothing left to price"
+    assert '<a href="sec-0002.html">' in contents, "the waiting part's link is the way in"
+
+    from targum.models import Document
+    from targum.render import render
+
+    folder = tmp_path / "book" / "book-he"
+    book(folder, chapters=2, translated=1)
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    translation = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert segmented is not None and translation is not None
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="b")
+    render(document, segmented, [translation], folder / "reader")
+    index = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert 'id="prepare"' in index and "Prepare all" in index, "a book keeps Prepare all"
+
+    source = (Path(__file__).parents[1] / "src/targum/render/assets/contents.js").read_text(
+        encoding="utf-8"
+    )
+    assert "contents.transcribe" not in source and "Transcribe" not in source
+    assert 't("contents.translate", "Translate")' in source, "a book keeps Translate"
+    assert '"Waiting. We make it when you open it."' in source
+    assert '"Being made."' in source
 
 
 def test_the_contents_page_starts_a_recording_by_listening_and_a_film_by_watching(
