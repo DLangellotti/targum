@@ -458,3 +458,66 @@ def test_an_admin_buying_a_chapter_is_never_in_the_way(tmp_path: Path) -> None:
     lib.claim(job(lib, 50.0, id="a", owner=boss, admin=True))
 
     assert lib.already_over(job(lib, 0.0, id="ch", owner=boss, admin=True)) == ""
+
+
+DAY_MS = 24 * 60 * 60 * 1000
+
+
+def test_a_restart_holds_a_day_of_history_and_reads_the_rest_back(tmp_path: Path) -> None:
+    """targum-internal#231: the table is the record and the process holds a window. Two
+    thousand settled jobs from last month cost a restart nothing, and any one of them
+    still answers by its id, as `/job/<id>` always has."""
+    lib, store = library(tmp_path)
+    for n in range(2000):
+        old = Job(id=f"old{n}", source="x", estimate=0.0, kind="chat" if n % 2 else "build")
+        old.made = now() - 30 * DAY_MS
+        old.stage = "done"
+        lib.remember(old)
+    fresh = job(lib, 0.1)
+    fresh.stage = "done"
+    lib.remember(fresh)
+    stuck = Job(id="stuck", source="x", estimate=0.0)
+    stuck.made = now() - 30 * DAY_MS
+    stuck.stage = "ready"  # a quote nobody has pressed yet
+    lib.remember(stuck)
+
+    after = Library(
+        tmp_path / "out", max_cost=10.0, budget=10.0, store=Store(tmp_path / "targum.db")
+    )
+    assert len(after.jobs) == 2, "only the day's job and the unpressed quote are held"
+    assert "old7" not in after.jobs
+    assert after.jobs["old7"].stage == "done", "and an old one still answers"
+    assert after.jobs.get("old7") is after.jobs.get("old7"), "read back once, then held"
+    assert after.jobs.get("nothing") is None
+    with pytest.raises(KeyError):
+        after.jobs["nothing"]
+
+
+def test_a_settled_job_stops_being_held_and_a_running_one_never_does(tmp_path: Path) -> None:
+    lib, _ = library(tmp_path)
+    settled = job(lib, 0.1, id="settled")
+    settled.stage, settled.made = "failed", now() - 2 * DAY_MS
+    working = job(lib, 0.1, id="working")
+    working.stage, working.made = "working", now() - 2 * DAY_MS
+    lib.remember(settled)
+    lib.remember(working)
+
+    assert lib.jobs.sweep(now() - lib.jobs.HELD_MS) == 1
+    assert working.id in lib.jobs, "a worker is writing to it"
+    assert settled.id not in lib.jobs
+    assert lib.jobs[settled.id].stage == "failed", "still on disk, still answering"
+
+
+def test_held_jobs_are_swept_as_new_ones_arrive(tmp_path: Path, monkeypatch) -> None:
+    """The sweep rides on adding a job, every `SWEEP_EVERY`, so a long-lived process stays
+    flat however many turns it takes."""
+    from targum.serve import Jobs
+
+    monkeypatch.setattr(Jobs, "SWEEP_EVERY", 10)
+    lib, _ = library(tmp_path)
+    after = Library(tmp_path / "out", max_cost=10.0, budget=10.0, store=lib.store)
+    for n in range(95):
+        turn = Job(id=f"t{n}", source="x", estimate=0.0, kind="chat")
+        turn.stage, turn.made = "done", now() - 2 * DAY_MS
+        after.jobs[turn.id] = turn
+    assert len(after.jobs) < 10, "never more than one sweep's worth held"

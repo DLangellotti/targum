@@ -1320,9 +1320,25 @@ class Jobs(dict[str, Job]):
     wraps a plain mapping in this.
     """
 
-    def __init__(self, initial: Mapping[str, Job] | None = None) -> None:
+    #: How long a settled job is held after it is made: a day. Past that it is on disk
+    #: only, and read back from there if anything asks (`get`). Comfortably longer than
+    #: `Library.RECENT_MS`, the hour a finished build stays on somebody's strip.
+    HELD_MS = 24 * 60 * 60 * 1000
+    #: How many jobs are added between sweeps. A sweep walks what is held, so it is paid
+    #: once in this many new jobs rather than on each one.
+    SWEEP_EVERY = 200
+
+    def __init__(
+        self,
+        initial: Mapping[str, Job] | None = None,
+        load: Callable[[str], Job | None] | None = None,
+    ) -> None:
         super().__init__()
         self.builds: dict[str, Job] = {}
+        #: How to read back a job that is no longer held, or None to hold everything.
+        self.load = load
+        self._added = 0
+        self._lock = threading.Lock()
         if initial:
             self.update(initial)
 
@@ -1330,6 +1346,49 @@ class Jobs(dict[str, Job]):
         super().__setitem__(key, job)
         if job.kind == "build":
             self.builds[key] = job
+        self._added += 1
+        if self.load is not None and self._added % self.SWEEP_EVERY == 0:
+            self.sweep(now() - self.HELD_MS)
+
+    def get(self, key: str, default: Job | None = None) -> Job | None:  # type: ignore[override]
+        """The job, held or read back from disk (targum-internal#231).
+
+        What used to be true because everything was held stays true because anything can
+        be fetched: `/job/<id>` answers about a job from three months ago, after a
+        restart as before. A job read back is held again until the next sweep, so the
+        page that polls it asks the disk once.
+        """
+        found = super().get(key)
+        if found is not None or self.load is None or not key:
+            return found if found is not None else default
+        with self._lock:
+            found = super().get(key)
+            if found is None:
+                found = self.load(key)
+                if found is not None:
+                    self[key] = found
+        return found if found is not None else default
+
+    def __getitem__(self, key: str) -> Job:
+        found = self.get(key)
+        if found is None:
+            raise KeyError(key)
+        return found
+
+    def sweep(self, cutoff: int) -> int:
+        """Stop holding what is settled and was made before `cutoff`. Returns how many.
+
+        Only settled jobs go: one still reading, waiting or working is held whatever its
+        age, because a worker thread is writing to that very object. A copy is taken
+        first for the same reason `waiting` takes one.
+        """
+        gone = 0
+        for key, job in list(self.items()):
+            if job.stage in Library.SETTLED and job.made < cutoff:
+                self.pop(key, None)
+                self.builds.pop(key, None)
+                gone += 1
+        return gone
 
     # `dict.update` does not go through `__setitem__` on a subclass, so it is spelled
     # out. A silent bypass here would be a drifted index, which shows up as a build
@@ -1463,36 +1522,50 @@ class Library:
         "working" would sit there forever — and hand back the money it never spent.
         """
         store.interrupt_running()
-        for row in store.jobs():
-            job = Job(
-                id=str(row["id"]),
-                source=str(row["source"]),
-                title=str(row["title"]),
-                language=str(row["language"]),
-                segments=int(row["segments"]),
-                estimate=float(row["estimate"]),
-                stage=str(row["stage"]),
-                done=int(row["done"]),
-                total=int(row["total"]),
-                message=str(row["message"]),
-                error=str(row["error"]),
-                reader=str(row["reader"]),
-                lemmas=int(row["lemmas"]),
-                meanings=float(row["meanings"]),
-                blocked=str(row["blocked"]),
-                spent=float(row["spent"]),
-                chapters=int(row["chapters"]),
-                options=json.loads(row["options"] or "{}"),
-                owner=row["owner"],
-                home=Path(str(row["home"])),
-                kind=str(row["kind"] or "build"),
-                # When it was made, not when it was read back. Left out, every job ever
-                # run came back made at start-up, so each deploy made the whole history
-                # "lately finished" for an hour and the bell filled with it (2026-09-14).
-                made=int(row["made"] or 0) or now(),
-                finished=int(row["finished"] or 0),
-            )
-            self.jobs[job.id] = job
+        # Only what is not settled, and what was made within the day; everything older
+        # is read back from its row when asked for (`Jobs.get`, targum-internal#231).
+        self.jobs = Jobs(load=self._job_from_store)
+        for row in store.jobs(since=now() - Jobs.HELD_MS):
+            self.jobs[str(row["id"])] = self._job_from_row(row)
+
+    def _job_from_store(self, job_id: str) -> Job | None:
+        """One job the process no longer holds, from its row, or None."""
+        if self.store is None:
+            return None
+        row = self.store.job(job_id)
+        return self._job_from_row(row) if row is not None else None
+
+    @staticmethod
+    def _job_from_row(row: Mapping[str, Any]) -> Job:
+        """A job as the last run wrote it down."""
+        return Job(
+            id=str(row["id"]),
+            source=str(row["source"]),
+            title=str(row["title"]),
+            language=str(row["language"]),
+            segments=int(row["segments"]),
+            estimate=float(row["estimate"]),
+            stage=str(row["stage"]),
+            done=int(row["done"]),
+            total=int(row["total"]),
+            message=str(row["message"]),
+            error=str(row["error"]),
+            reader=str(row["reader"]),
+            lemmas=int(row["lemmas"]),
+            meanings=float(row["meanings"]),
+            blocked=str(row["blocked"]),
+            spent=float(row["spent"]),
+            chapters=int(row["chapters"]),
+            options=json.loads(row["options"] or "{}"),
+            owner=row["owner"],
+            home=Path(str(row["home"])),
+            kind=str(row["kind"] or "build"),
+            # When it was made, not when it was read back. Left out, every job ever
+            # run came back made at start-up, so each deploy made the whole history
+            # "lately finished" for an hour and the bell filled with it (2026-09-14).
+            made=int(row["made"] or 0) or now(),
+            finished=int(row["finished"] or 0),
+        )
 
     #: Stages a job does not come back from. Reaching one stamps `finished`.
     SETTLED = ("done", "failed", "blocked")
