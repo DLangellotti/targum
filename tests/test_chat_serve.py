@@ -759,3 +759,76 @@ def test_a_turn_that_found_nothing_says_so_rather_than_leaving_the_key_out(chatt
     chats.answer(chats.queue.get())
     status, state, _ = call(port, "GET", f"/chat/turn/{asked['chat']}/1?k={key}")
     assert status == 200 and state["found"] == []
+
+
+def test_a_word_is_said_once_and_kept_for_everyone(
+    chatting, monkeypatch: Any, tmp_path: Path
+) -> None:
+    """The word card's Hear on a page with no recording: the press is the spend,
+    claimed and settled to the clip, and the clip is kept by the word, so a second press
+    costs nothing and claims nothing."""
+    import base64
+
+    from targum import speech
+
+    port, key, store, chats = chatting
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    said: list[tuple[str, str]] = []
+
+    def render(
+        text: str, into: Path, voice: str = speech.VOICE, language: str = "he"
+    ) -> speech.Clip:
+        said.append((text, language))
+        into.parent.mkdir(parents=True, exist_ok=True)
+        target = into.with_suffix(".wav")
+        target.write_bytes(speech.wav(b"\x00" * speech.BYTES_PER_SECOND))
+        return speech.Clip(target, "audio/wav", 1.0)
+
+    monkeypatch.setattr(speech, "render", render)
+    monkeypatch.setenv(speech.KEY, "k")
+    word = {"text": "תלמידי", "language": "he"}
+    status, body, _ = call(port, "POST", f"/say-word?k={key}", word)
+    assert status == 200 and body["audio"].startswith("data:audio/wav;base64,")
+    assert base64.b64decode(body["audio"].split(",", 1)[1])[:4] == b"RIFF"
+    assert said == [("תלמידי", "he")]
+    spoken = [job for job in chats.library.jobs.values() if job.source == "word:he"]
+    assert len(spoken) == 1 and spoken[0].stage == "done"
+    assert spoken[0].spent == pytest.approx(1.0 / 60 * speech.PRICES[speech.NAME])
+    assert store.committed(0) >= spoken[0].spent, "the box's day can see it"
+
+    # Kept: no second voice, no second claim — and no key needed to hear it again.
+    monkeypatch.delenv(speech.KEY, raising=False)
+    monkeypatch.delenv(speech.VERTEX_KEY, raising=False)
+    before = store.committed(0)
+    status, again, _ = call(port, "POST", f"/say-word?k={key}", word)
+    assert status == 200 and again["audio"] == body["audio"]
+    assert len(said) == 1 and store.committed(0) == pytest.approx(before)
+
+    # A language the voice does not read, a sentence, and nothing at all are refused
+    # before anything is spent.
+    assert call(port, "POST", f"/say-word?k={key}", {"text": "דין", "language": "arc"})[0] == 402
+    long = {"text": "אחת שתיים שלוש ארבע חמש", "language": "he"}
+    assert call(port, "POST", f"/say-word?k={key}", long)[0] == 400
+    assert call(port, "POST", f"/say-word?k={key}", {"text": " "})[0] == 400
+    assert len(said) == 1
+
+
+def test_a_word_the_voice_breaks_on_gives_its_claim_back(
+    chatting, monkeypatch: Any, tmp_path: Path
+) -> None:
+    from targum import speech
+
+    port, key, store, _chats = chatting
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    before = store.committed(0)
+
+    def broken(
+        text: str, into: Path, voice: str = speech.VOICE, language: str = "he"
+    ) -> speech.Clip:
+        raise RuntimeError("ffmpeg went away")
+
+    monkeypatch.setattr(speech, "render", broken)
+    monkeypatch.setenv(speech.KEY, "k")
+    status, body, _ = call(port, "POST", f"/say-word?k={key}", {"text": "שלום", "language": "he"})
+    assert status == 502 and body["error"] == "The voice did not answer."
+    assert store.committed(0) == pytest.approx(before), "released, nothing held"
