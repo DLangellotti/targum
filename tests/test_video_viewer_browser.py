@@ -28,11 +28,12 @@ from test_reader_browser import (  # noqa: E402, F401
     browser,
     open_reader,
     opened,
+    press_in_aa,
     press_in_more,
     settled,
     video_reader,
 )
-from test_word_tap_browser import talk  # noqa: E402
+from test_word_tap_browser import QAMATS, talk  # noqa: E402
 
 PHONE = {"width": 390, "height": 844}
 
@@ -306,6 +307,79 @@ def test_a_word_is_tapped_beside_and_in_theatre(browser, tmp_path) -> None:  # n
         assert seen["card"], "the frame steps down under the card"
         assert page.locator("#gloss-card .lemma").inner_text() == said
         assert page.locator("#film-sub .w.looked-up").count() == 1, "the word stays marked"
+    finally:
+        context.close()
+
+
+#: The line under the picture: whether its Hebrew is on the page, what it says, and how
+#: many of its words a pointer can reach.
+LINE = r"""
+() => {
+  const cell = document.querySelector('#film-sub .film-now .src');
+  const reached = cell
+    ? [...cell.querySelectorAll('.w')].filter((w) => {
+        const r = w.getBoundingClientRect();
+        if (!r.width || !r.height) return false;
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !!hit && (hit === w || w.contains(hit));
+      }).length
+    : 0;
+  return {
+    vowels: document.body.classList.contains('nikkud'),
+    form: cell ? cell.getAttribute('data-form') : null,
+    shown: !!cell && cell.getClientRects().length > 0,
+    text: cell ? cell.textContent.replace(/[⁦-⁩]/g, '').trim() : '',
+    words: cell ? cell.querySelectorAll('.w').length : 0,
+    reached,
+    tr: document.querySelector('#film-sub .film-tr').textContent.trim(),
+  };
+}
+"""
+
+
+def test_the_line_stays_with_the_vowels_on(browser, tmp_path) -> None:  # noqa: F811
+    """Theatre's large line is a copy of the cell the transcript has on show, and with the
+    vowel points on that cell is the pointed one. The rule that shows a pointed cell lives
+    under `.pair.points`, which the copy's holder is not, so the copy kept
+    `.src.pointed { display: none }`: the line vanished, its words could not be pressed,
+    and only its English was left under the picture (David, 2026-10-07, on his own
+    video). Whatever the form, the line is on show and its words answer a tap — through
+    the switch in Aa and `n` alike, and in the gap between two lines."""
+    built = talk(tmp_path, lines=12, pointed=True)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        seek(page, 7.0)
+        page.wait_for_selector("#film-sub .film-now .w")
+        seen = page.evaluate(LINE)
+        assert not seen["vowels"] and seen["form"] == "plain", "a guessed pointing opens bare"
+        assert seen["shown"] and seen["reached"] == seen["words"] == 8, seen
+
+        press_in_aa(page, "[data-nikkud-toggle]")
+        page.wait_for_timeout(150)
+        seen = page.evaluate(LINE)
+        assert seen["vowels"] and seen["form"] == "pointed", seen
+        assert QAMATS in seen["text"], "the line is the pointed one"
+        assert seen["shown"], f"the line is on the page, not just its English: {seen}"
+        assert seen["reached"] == seen["words"] == 8, f"and every word can be pressed: {seen}"
+        assert seen["tr"] == "A line of the talk, in English.", seen
+
+        word = page.locator("#film-sub .film-now .w").nth(2)
+        word.click()
+        page.wait_for_selector("#gloss-card:not([hidden])")
+        assert page.locator("#film-sub .w.looked-up").count() == 1
+        page.keyboard.press("Escape")
+
+        # Between two lines the one just said holds, pointed and on show.
+        seek(page, 8.7)
+        seen = page.evaluate(LINE)
+        assert seen["form"] == "pointed" and seen["shown"] and seen["reached"] == 8, seen
+
+        # And off again with `n`, the switch's key: the bare line, as it was.
+        page.keyboard.press("n")
+        page.wait_for_timeout(150)
+        seen = page.evaluate(LINE)
+        assert not seen["vowels"] and seen["form"] == "plain", seen
+        assert seen["shown"] and seen["reached"] == 8, seen
     finally:
         context.close()
 

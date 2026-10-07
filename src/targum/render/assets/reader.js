@@ -12026,6 +12026,10 @@ var targumReader = function () {
     var copyLine = function (pair) {
       if (!subNow) return;
       var form = shownForm(pair);
+      // A pointed cell with nothing in it is no line to say: the bare one is.
+      if (form && !form.textContent.replace(/[⁦-⁩\s]/g, "")) {
+        form = pair.querySelector(".src.plain") || form;
+      }
       var holder = document.createElement("div");
       // Its own class rather than `pair`, so nothing that walks the transcript counts it;
       // the card's helpers answer to both.

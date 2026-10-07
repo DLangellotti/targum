@@ -41,11 +41,18 @@ from test_reader_browser import (  # noqa: E402, F401
     settled,
 )
 
+QAMATS = "\u05b8"
+
 PHONE = {"width": 390, "height": 844}
 
 
-def talk(folder: Path, lines: int = 60) -> Path:
-    """A video import whose lines have words to tap: what a real one is."""
+def talk(folder: Path, lines: int = 60, pointed: bool = False) -> Path:
+    """A video import whose lines have words to tap: what a real one is.
+
+    `pointed` gives every line a vowel-pointed form as well, the way a transcript the
+    vocalizer reached carries one, so the Aa menu's Vowel points switch has something to
+    switch to.
+    """
     from targum.audio import manifest as manifest_module
     from targum.models import (
         Annotation,
@@ -54,6 +61,7 @@ def talk(folder: Path, lines: int = 60) -> Path:
         SegmentedDocument,
         Token,
         Translation,
+        Vocalization,
     )
     from targum.render import render
 
@@ -127,6 +135,19 @@ def talk(folder: Path, lines: int = 60) -> Path:
             method_note="a test",
             tokens=tokens,
         ),
+        vocalization=Vocalization(
+            document_hash="h",
+            language="he",
+            vocalizer="test/1",
+            # A qamats under every letter: the same letters, so every offset still maps.
+            segments={
+                s.id: " ".join(QAMATS.join(w) + QAMATS for w in s.text.split()) for s in segments
+            },
+            # Guessed, as the vocalizer's points on a transcript are: so it opens bare.
+            machine=[s.id for s in segments],
+        )
+        if pointed
+        else None,
         folder=folder,
     )[0]
 
