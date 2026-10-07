@@ -13149,6 +13149,36 @@ else targumReader();
   };
 
   window.TargumVoice = { POLL: POLL };
+
+  /* Sent here to hear this section (targum-internal#407): a link a chat handed over
+   * ends `?hear=1`. The offer is opened and the button given focus, never pressed: the
+   * press is still the reader's, with what it uses beside it. */
+  var asked = "";
+  try {
+    asked = new URLSearchParams(location.search).get("hear") || "";
+  } catch (e) {
+    asked = "";
+  }
+  /* After the page is up: the ⋯ button is wired by the reader itself, which may wait
+   * on the store, and a click before then opens nothing. */
+  function bring(tries) {
+    var more = document.querySelector("[data-more]");
+    if (more && more.getAttribute("aria-expanded") !== "true") more.click();
+    if (more && more.getAttribute("aria-expanded") !== "true" && tries > 0) {
+      setTimeout(function () {
+        bring(tries - 1);
+      }, 100);
+      return;
+    }
+    go.focus();
+  }
+  if (asked && !offer.hidden) {
+    if (document.readyState === "complete") bring(20);
+    else
+      window.addEventListener("load", function () {
+        bring(20);
+      });
+  }
 })();
 
 /* Into a playlist (targum-internal#364), from the ⋯ menu.

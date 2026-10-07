@@ -751,6 +751,92 @@ def test_pasted_text_is_refused_where_it_cannot_be_a_text(world) -> None:
     assert not (home / "uploads").exists(), "nothing written for a refusal"
 
 
+def _sections(folder: Path, verses: list[str]) -> None:
+    """A two-section text on disk the way a build leaves it: a heading opens each."""
+    from targum.models import BlockKind, Segment, SegmentedDocument
+
+    segments = []
+    for n, text in enumerate(verses):
+        if n in (0, len(verses) // 2):
+            segments.append(
+                Segment(
+                    id=f"{n:04d}.h",
+                    block_id=f"h{n}",
+                    block_index=n,
+                    index=len(segments),
+                    kind=BlockKind.heading,
+                    level=1,
+                    text=f"Part {1 if n == 0 else 2}",
+                )
+            )
+        segments.append(
+            Segment(
+                id=f"{n:04d}.v",
+                block_id=f"b{n}",
+                block_index=n,
+                index=len(segments),
+                kind=BlockKind.paragraph,
+                text=text,
+            )
+        )
+    SegmentedDocument(document_hash="h", language="he", segmenter="test", segments=segments).write(
+        folder / "segments.json"
+    )
+
+
+def test_a_section_heard_is_a_link_to_its_own_offer_and_never_a_press(world, monkeypatch) -> None:
+    """targum-internal#407, decided 2026-10-07: quote and press, in credits. The tool
+    makes nothing and claims nothing; its link opens the section's own offer."""
+    from targum import speech
+
+    library, store, person, home = world
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
+
+    def forbidden(*_: object, **__: object) -> str:
+        raise AssertionError("a quote must not spend")
+
+    monkeypatch.setattr(library, "claim", forbidden)
+    monkeypatch.setattr(library, "claim_turn", forbidden)
+    monkeypatch.setattr(library, "enqueue", forbidden)
+    _sections(home / "ruth-he", ["שלום עולם " * 40, "בית ספר " * 10, "מלך " * 300, "ספר"])
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.test"
+    jobs = dict(library.jobs)
+
+    got = tools.quote_voice(ctx, {"text": "ruth-he", "section": 2})["voice"]
+    assert got["open"] == "https://targum.test/reader/ruth-he/reader/sec-0002.html?hear=1"
+    assert got["section"] == 2 and got["credits"] >= 2, "a part of a minute is a credit"
+    assert library.jobs == jobs, "nothing made, nothing queued"
+
+    # Its reader link and its short link name the same text.
+    by_link = tools.quote_voice(
+        ctx, {"text": "https://targum.test/reader/ruth-he/reader/index.html", "section": 2}
+    )
+    short = tools.quote_voice(
+        ctx, {"text": f"https://targum.test/r/{tools.short_key('ruth-he')}", "section": 2}
+    )
+    assert by_link["voice"] == got == short["voice"]
+
+
+def test_a_section_heard_is_refused_where_it_cannot_be(world, monkeypatch) -> None:
+    from targum import speech
+
+    library, store, person, home = world
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
+    _sections(home / "ruth-he", ["שלום עולם", "בית ספר"])
+    ctx = context(library, store, person, home)
+    assert "sections 1 to 2" in tools.quote_voice(ctx, {"text": "ruth-he", "section": 9})["error"]
+    assert "own texts" in tools.quote_voice(ctx, {"text": "../ruth-he"})["error"]
+    assert "own texts" in tools.quote_voice(ctx, {"text": "esther-he"})["error"], (
+        "the shared shelf is not the reader's to have read aloud"
+    )
+    nobody = context(library, store, None, library.home(None))
+    assert "account" in tools.quote_voice(nobody, {"text": "ruth-he"})["error"]
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.0)
+    monkeypatch.setattr(speech, "priced", lambda: False)
+    assert "right now" in tools.quote_voice(ctx, {"text": "ruth-he"})["error"]
+
+
 def test_a_library_text_is_quoted_with_its_published_translation(world, monkeypatch) -> None:
     library, store, person, home = world
     monkeypatch.setattr(library, "prepare", priced)
