@@ -27,7 +27,9 @@ from __future__ import annotations
 import http.server
 import io
 import json
+import os
 import re
+import signal
 from pathlib import Path
 from typing import Any
 
@@ -294,24 +296,25 @@ def two_languages(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return bilingual(tmp_path_factory.mktemp("bilingual") / "reader")
 
 
-@pytest.fixture(scope="module")
-def browser():
-    """One Chromium for the file. Launching one a test is most of the run."""
-    try:
-        driver = playwright_api.sync_playwright().start()
-    except Exception as why:  # pragma: no cover - environment, not behaviour
-        pytest.skip(f"Playwright will not start: {why}")
-    try:
-        # Muted, because a dialogue's tests watch the media clock and Chromium will not
-        # advance an unmuted one with no audio device under it — it reports playing and
-        # sits at zero. Nothing here listens; what is asserted is the clock.
-        running = driver.chromium.launch(args=["--mute-audio"])
-    except Exception as why:  # pragma: no cover - the browser itself is not installed
-        driver.stop()
-        pytest.skip(f"no Chromium: run `playwright install chromium` ({why})")
-    yield running
-    running.close()
-    driver.stop()
+@pytest.fixture
+def browser(chromium):
+    """One Chromium for the file, launched once and again only if a test lost it —
+    `conftest.Chromium` says why (2026-10-07)."""
+    return chromium.browser()
+
+
+def test_a_browser_lost_in_one_test_is_launched_again_for_the_next(chromium) -> None:
+    lost = chromium.browser()
+    told = lost.new_browser_cdp_session().send("SystemInfo.getProcessInfo")
+    pid = next(one["id"] for one in told["processInfo"] if one["type"] == "browser")
+    # Killed rather than closed, because that is what CI saw: a Chromium gone without a
+    # word, and the file's next `new_context` failing on it (targum-internal#427).
+    os.kill(pid, signal.SIGKILL)
+    with pytest.raises(playwright_api.Error):
+        lost.new_context()
+    found = chromium.browser()
+    assert found is not lost and found.is_connected()
+    found.new_context().close()
 
 
 #: These tests are about the scrolling reader, and pages are the default now — every

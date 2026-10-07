@@ -549,6 +549,10 @@ def test_the_sheet_says_it_is_being_made_until_it_comes(browser, served: str) ->
             },
         )
     assert saving.value.suggested_filename == "ruth-aliyah-1.pdf"
+    # All of the file before the context closes, as in `test_parasha_russian_browser`:
+    # closing on a download still being written is where CI's Chromium died
+    # (targum-internal#427, 2026-10-07).
+    assert Path(saving.value.path()).read_bytes() == b"%PDF-1.4\n"
     assert press.locator(".pick-name").inner_text() == named, "and the press is itself again"
     assert press.get_attribute("aria-busy") is None
     context.close()

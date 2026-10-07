@@ -8,6 +8,8 @@ what is asked here is what the page says while it waits.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from test_parasha_russian import SLUG, built, serving  # noqa: F401
 from test_reader_browser import browser  # noqa: F401
@@ -80,6 +82,14 @@ def test_the_download_says_it_is_preparing_until_the_file_arrives(
                 },
             )
         assert arriving.value.suggested_filename == f"{SLUG}-2026-09-05.pdf"
+        # The file itself, all of it, before anything closes. The download event fires
+        # when the file starts, and closing the context cancels every download it has
+        # seen and disposes the context around them. Closed on a download that may not
+        # have finished, CI's Chromium died in that close — twice in PRs, three times in
+        # 4,800 runs looped on a runner, and not once in 3,600 with this wait
+        # (targum-internal#427, 2026-10-07). It is also the stronger test: the reader
+        # gets the PDF.
+        assert Path(arriving.value.path()).read_bytes() == PDF
         page.wait_for_function(
             "() => !document.querySelector('form.sheet-choices button').hasAttribute('aria-busy')"
         )
