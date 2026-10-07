@@ -4016,8 +4016,9 @@ def test_the_queue_never_reads_the_page() -> None:
     body = script[script.index("function buildQueue() {") : script.index("var segmentAt")]
     assert "querySelector" not in body and "document." not in body
     assert "Object.keys(wordData)" in body
-    # Everything neither known nor ignored, which is `fresh` plus `learning`.
-    assert "if (status === KNOWN || status === IGNORED) return;" in body
+    # Everything neither known nor ignored, which is `fresh` plus `learning` — less what
+    # the reader's rung assumes (design.md §12, 2026-10-07), which `coverage` counts known.
+    assert "if (status === KNOWN || status === IGNORED || assumedOf(lemma)) return;" in body
     # A text using the word "constructor" would otherwise skip every word in it.
     assert "Object.prototype.hasOwnProperty.call(seen, lemma)" in body
 

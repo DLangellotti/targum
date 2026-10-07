@@ -354,6 +354,33 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### An advanced reader is not asked about the commonest words — 2026-10-07
+
+An alpha reader who reads Hebrew well, 2026-10-06: *"for me as an advanced Hebrew I know a
+lot of words so it's a bit hard to mark them all"* — and *"if I mark myself as advanced
+then for sure u can auto filter basic words at least and then if I don't know them I can
+mark them manually"*. David's worry was the reader who says advanced and is not, because
+the point of the word list is the data on what a reader knows. Both are kept.
+
+- **The rung named on arrival draws the commonest bands plain.** On a Hebrew page, bet and
+  bet plus take the easy band as known; gimel and dalet the easy and fairly easy; hey and
+  vav up to moderate. Aleph and aleph plus take nothing. An assumed word is drawn as a
+  known word is, left out of the queue the arrows walk and out of "N left", and counted
+  in "N of M known" — that line is what the page is still asking about.
+- **Assumed is never marked.** It is not written to the word list, not counted in the
+  ledger or on the ladder, not sent to the server, and the finish press leaves it out of
+  what it marks and of the number it says. The word list stays what the reader said.
+- **A tap says so, and a level wins.** The card reads "assumed known" with no step
+  pressed, and any step pressed on it — known included — is the reader's own mark.
+- **This reads the declaration, not the seed.** "The arrival is two questions" (below)
+  has the measured rung outvote the declared one. That is still true of everything it
+  names: the first text, the Library's band, how hard the conversation writes. This one
+  reads the answer for as long as it stands, because a page that started asking about
+  "של" again after the 250th mark would read as broken. Nothing shows the rung back.
+
+There is no place yet to change the answer after arrival; that wants one.
+
+
 ### One press gets the whole video, a part at a time — 2026-10-07
 
 David, 2026-10-07, at the end of the first part of a video he had uploaded, in Theatre:

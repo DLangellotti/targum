@@ -312,11 +312,15 @@
       // A step whose name is its own label says it once: "known" and "Known" are one
       // word, and the card printed it twice (targum-internal#398).
       var named = pressed ? pressed.title.toLowerCase() : "";
+      // A word the page took as known from the reader's rung, which they have not marked:
+      // it says so, and any level pressed below becomes their own (design.md §12, 2026-10-07).
       legend.textContent = pressed
         ? named === String(pressed.label).toLowerCase()
           ? pressed.label
           : pressed.label + " · " + named
-        : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");
+        : options.assumed
+          ? t("vocab.assumed", "assumed known")
+          : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");
       box.appendChild(legend);
     }
 

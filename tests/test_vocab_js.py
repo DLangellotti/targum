@@ -301,6 +301,15 @@ def test_the_scale_says_what_the_pressed_step_means() -> None:
     assert run(status=2)["legend"] is None, "the list beside the text has no room for it"
 
 
+def test_a_word_taken_as_known_from_the_readers_rung_says_so() -> None:
+    """design.md §12, 2026-10-07: unmarked, so no step is pressed, and the card says why
+    the word was drawn plain. A level said on it is the reader's own."""
+    done = run(legend=True, assumed=True, level=9)
+    assert done["legend"] == "assumed known"
+    assert done["levels"] == [9], "known pressed is known said, never a mark taken off"
+    assert run(status=2, legend=True, assumed=True)["legend"] == "2 · getting there"
+
+
 # -- copying a word out -----------------------------------------------------------
 
 
