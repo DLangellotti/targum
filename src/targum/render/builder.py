@@ -3912,20 +3912,15 @@ def render(
     from ..audio import manifest as manifest_module
 
     has_audio = folder is not None and (folder / manifest_module.MANIFEST).is_file()
-    # What the contents page's presses spend and what its first one says (copy audit,
-    # 2026-09-28): each part's length off the manifest, so a waiting row's Transcribe can
-    # say its credits and Prepare all theirs; and the verb, by medium, as Learn's rows
-    # choose it (§6) — a recording is listened to, a film watched.
-    part_seconds: dict[int, float] = {}
+    # What the contents page's first press says (copy audit, 2026-09-28): the verb, by
+    # medium, as Learn's rows choose it (§6) — a recording is listened to, a film watched.
+    # Each part's length rode along for the waiting rows' Transcribe and Prepare all to
+    # price; a recording's contents page has neither since 2026-10-07 (design.md §12,
+    # "One press gets the whole video, a part at a time").
     medium = "read"
     if has_audio and folder is not None:
         kept_manifest = manifest_module.load(folder)
         if kept_manifest is not None:
-            part_seconds = {
-                part.number: part.end - part.start
-                for part in kept_manifest.parts
-                if part.end > part.start
-            }
             medium = "watch" if any(part.video for part in kept_manifest.parts) else "listen"
     by_id = {segment.id: segment for segment in segmented.segments}
     section_parts = {
@@ -3948,7 +3943,6 @@ def render(
         "has_audio": has_audio,
         "medium": medium,
         "section_parts": section_parts,
-        "part_seconds": part_seconds,
         # What to read next, worked out here because a reader cannot ask anybody. The
         # first is the offer; the rest are what "something else" draws, written into the
         # page because the page fetches nothing (targum-internal#233).

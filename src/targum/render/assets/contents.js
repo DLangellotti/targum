@@ -10,17 +10,14 @@ function readInto() {
 }
 
 /* What a waiting press spends, said beside it (copy audit, 2026-09-28): a translation
- * none. A part of a recording none either since 2026-10-07: the press on the
- * recording's quote was consent to every part and took every part's credits (design.md
- * §12, "One press gets the whole video, a part at a time"), so the page says so rather
- * than quoting a second price for what was already paid for. `parts` is kept so the
- * callers stay as they are. */
-function spends(hearing, parts) {
-  var t = window.TargumStrings.t;
-  if (!hearing) return t("contents.uses-no-credits", "Uses none of your credits");
-  return parts.length ? t("contents.part-paid", "Already in the credits you confirmed") : "";
+ * none. Only a book's chapters have a press here since 2026-10-07: a recording's parts
+ * are made as the reader opens them (design.md §12, "One press gets the whole video, a
+ * part at a time"), so its rows say how each part stands instead. */
+function spends() {
+  return window.TargumStrings.t("contents.uses-no-credits", "Uses none of your credits");
 }
 
+/* The parts of a recording a row holds, as the page writes them on `data-parts`. */
 function partsOf(row) {
   return (row.getAttribute("data-parts") || "").split(" ").filter(Boolean);
 }
@@ -193,6 +190,7 @@ function partsOf(row) {
   }
 
   function mark(chapters) {
+    var heard = [];
     Array.prototype.forEach.call(rows, function (row) {
       var number = Number(row.getAttribute("data-chapter"));
       var chapter = chapters.filter(function (c) {
@@ -200,18 +198,35 @@ function partsOf(row) {
       })[0];
       if (!chapter) return;
       row.classList.toggle("waiting", !chapter.ready);
-      if (chapter.ready || row.querySelector(".get")) return;
+      if (chapter.ready) return;
+
+      // A part of a recording has no press here (David, 2026-10-07; design.md §12, "One
+      // press gets the whole video, a part at a time"): the press on its quote covered
+      // every part, and opening the part's own page is what starts it. The row says
+      // plainly how the part stands instead — waiting, or being made and how far — and
+      // its link is the way in.
+      if (row.hasAttribute("data-audio")) {
+        if (!row.querySelector(".get-said")) {
+          var line = document.createElement("span");
+          line.className = "get-said";
+          line.setAttribute("role", "status");
+          // A sentence in the page's language inside a Hebrew list: isolated, or its
+          // closing full stop is drawn at the start of the line.
+          line.dir = "auto";
+          row.appendChild(line);
+        }
+        heard.push(row);
+        return;
+      }
+      if (row.querySelector(".get")) return;
 
       var get = document.createElement("button");
       get.type = "button";
       get.className = "get";
-      // An imported recording's chapter is waiting on a transcript, not a
-      // translation, and a button that names the wrong work makes the wrong promise.
-      var hearing = row.hasAttribute("data-audio");
-      get.textContent = hearing ? t("contents.transcribe", "Transcribe") : t("contents.translate", "Translate");
+      get.textContent = t("contents.translate", "Translate");
       get.onclick = function () {
         get.disabled = true;
-        get.textContent = hearing ? t("contents.transcribing", "Transcribing…") : t("contents.translating", "Translating…");
+        get.textContent = t("contents.translating", "Translating…");
         ask("/chapter", { name: name, number: number, to: readInto() })
           .then(function (job) {
             if (job.ready) return location.reload();
@@ -230,14 +245,80 @@ function partsOf(row) {
           });
       };
       row.appendChild(get);
-      var cost = spends(hearing, partsOf(row));
-      if (cost) {
-        var said = document.createElement("span");
-        said.className = "get-cost";
-        said.textContent = cost;
-        row.appendChild(said);
-      }
+      var said = document.createElement("span");
+      said.className = "get-cost";
+      said.textContent = spends();
+      row.appendChild(said);
     });
+    if (heard.length) follow(heard);
+  }
+
+  /* How each waiting part of a recording stands, from the bell's own list of your builds
+   * (`/jobs`, with the server's `said` about each), looked at again every three seconds
+   * while any of them is being made, as the bell does, and not at all once none is. A
+   * part made while the page was watching reloads it, so its row turns ready. Nothing
+   * here asks for anything to be made. */
+  function follow(heard) {
+    var seen = {};
+    var timer = null;
+    function jobFor(row, jobs) {
+      var mine = partsOf(row).map(Number);
+      return jobs.filter(function (job) {
+        if (job.folder !== name || job.stage === "done") return false;
+        return (job.making || []).some(function (n) {
+          return mine.indexOf(n) >= 0;
+        });
+      })[0];
+    }
+    function say(row, job) {
+      var line = row.querySelector(".get-said");
+      if (!job) {
+        line.textContent = t("contents.part-waiting", "Waiting. We make it when you open it.");
+      } else if (job.stage === "failed" || job.stage === "blocked") {
+        line.textContent = job.said || job.blocked || job.error || t("contents.could-not", "We couldn't start that. Try again.");
+      } else {
+        var making = t("contents.part-making", "Being made.");
+        line.textContent = job.said ? making + " " + job.said : making;
+      }
+    }
+    function look() {
+      fetch(keyed("/jobs"), { credentials: "same-origin" })
+        .then(function (r) {
+          return r.ok ? r.json() : { jobs: [] };
+        })
+        .then(function (data) {
+          var jobs = (data && data.jobs) || [];
+          var going = false;
+          var finished = false;
+          heard.forEach(function (row) {
+            var job = jobFor(row, jobs);
+            say(row, job);
+            var live = !!job && job.stage !== "failed" && job.stage !== "blocked";
+            if (live) seen[job.id] = true;
+            going = going || live;
+          });
+          // A job this page saw being made that is now done, or gone from the list.
+          Object.keys(seen).forEach(function (id) {
+            var now = jobs.filter(function (job) {
+              return job.id === id;
+            })[0];
+            if (!now || now.stage === "done") finished = true;
+          });
+          if (finished) return location.reload();
+          if (going && !timer) timer = setInterval(look, 3000);
+          if (!going && timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        })
+        .catch(function () {
+          heard.forEach(function (row) {
+            var line = row.querySelector(".get-said");
+            if (!line.textContent) say(row, null);
+          });
+        });
+    }
+    look();
   }
 
   function watch(id, button) {
@@ -277,7 +358,8 @@ function partsOf(row) {
     .catch(function () {});
 })();
 
-/* Prepare the whole book, for reading somewhere with no connection. */
+/* Prepare the whole book, for reading somewhere with no connection. A book's only: a
+ * recording's contents page has no such press since 2026-10-07. */
 (function () {
   "use strict";
   // Said in the page's language, from `strings.js` (targum-internal#184).
@@ -308,21 +390,14 @@ function partsOf(row) {
   }
 
   function show() {
-    var rows = document.querySelectorAll("[data-chapter].waiting");
-    var waiting = rows.length;
+    var waiting = document.querySelectorAll("[data-chapter].waiting").length;
     var box = press.parentNode;
     box.hidden = waiting === 0;
-    // What preparing the rest spends, beside the press: every waiting part once.
+    // What preparing the rest spends, beside the press. Only a book's page has the
+    // press since 2026-10-07, so it is a translation's none.
     var cost = document.getElementById("prepare-cost");
     if (!cost || !waiting) return;
-    var hearing = rows[0].hasAttribute("data-audio");
-    var parts = [];
-    Array.prototype.forEach.call(rows, function (row) {
-      partsOf(row).forEach(function (n) {
-        if (parts.indexOf(n) < 0) parts.push(n);
-      });
-    });
-    cost.textContent = spends(hearing, parts);
+    cost.textContent = spends();
     cost.hidden = !cost.textContent;
   }
 

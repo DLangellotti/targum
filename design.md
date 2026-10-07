@@ -389,7 +389,10 @@ transcript, and Theatre does not show the transcript.
   page, say — starts it, says "We're getting it ready" with the job's live status, and
   opens itself when it is made. A button stands there only to try again after a failure.
   The one-ahead rule is about making ahead of the part being opened, not about a part the
-  reader opens: that one is the part they are on.
+  reader opens: that one is the part they are on. The contents page has no press for a
+  part either, neither a row's Transcribe nor Prepare all (David, the same day): a
+  waiting part's row says it is waiting, or that it is being made with the job's live
+  status, and its link opens the page that starts it.
 - **Every part is still a claim.** Each is its own job row, claimed through
   `Library.press` and so `Library.claim` at the money the part will cost, settled to what
   it spent, and released if it fails. It takes no credits — those were taken at the

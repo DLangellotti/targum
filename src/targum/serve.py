@@ -4896,6 +4896,12 @@ class Handler(BaseHTTPRequestHandler):
                     0,
                 )
             row.update(chat_tools.progress_of(job, int(row.get("behind") or 0), language))
+            # Which text and which of its parts, so a recording's contents page can say
+            # on each waiting row that it is being made and follow it live (2026-10-07):
+            # the row has no press any more, and the part's own page is what starts it.
+            # Here and not in `state()`, for the reason `said` is.
+            row["folder"] = str(job.options.get("folder") or "")
+            row["making"] = [int(n) for n in job.options.get("parts") or []]
             out.append(row)
         return out
 
@@ -10283,11 +10289,14 @@ class Handler(BaseHTTPRequestHandler):
 
         # An imported recording buys by the part: a chapter that is waiting is waiting
         # on a transcript, and the build path — not run_chapter — is what knows how to
-        # grow the document around one.
+        # grow the document around one. One part at a time, never `all`: since 2026-10-07
+        # a part is made as the reader opens it (design.md §12, "One press gets the whole
+        # video, a part at a time"), and the contents page's Prepare all, the one thing
+        # that asked for every part at once, is a book's only.
         if (folder / "audio" / "parts.json").is_file():
-            return self._buy_parts(
-                folder, number, whole, target, ahead=bool(payload.get("ahead")) and not whole
-            )
+            if whole:
+                return self._json({"error": "not found"}, 404)
+            return self._buy_parts(folder, number, target, ahead=bool(payload.get("ahead")))
 
         standing = self.library.chapters(folder, target)
         waiting: list[int] = []
@@ -10322,10 +10331,8 @@ class Handler(BaseHTTPRequestHandler):
         self.library.enqueue(job)
         self._json(job.state())
 
-    def _buy_parts(
-        self, folder: Path, number: int, whole: bool, target: str, *, ahead: bool = False
-    ) -> None:
-        """Queue the hearing of one page's parts — or of every page still waiting.
+    def _buy_parts(self, folder: Path, number: int, target: str, *, ahead: bool = False) -> None:
+        """Queue the hearing of one page's parts.
 
         `number` is the page's, as it is for any book: the reader and the contents page
         both send the section they show, and a part that ran long fills two of them.
@@ -10364,13 +10371,10 @@ class Handler(BaseHTTPRequestHandler):
         by_id = {segment.id: segment for segment in segmented.segments}
         ready = {c["number"]: c["ready"] for c in self.library.chapters(folder, target)}
 
-        if whole:
-            pages = [section for section in sections if not ready.get(section.number, True)]
-        else:
-            page = next((section for section in sections if section.number == number), None)
-            if page is None:
-                return self._json({"error": "not found"}, 404)
-            pages = [page]
+        page = next((section for section in sections if section.number == number), None)
+        if page is None:
+            return self._json({"error": "not found"}, 404)
+        pages = [page]
         if ahead:
             before = next((one for one in sections if one.number == number - 1), None)
             if (
@@ -10398,11 +10402,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(coming[buying[0]].state())
         buying = [n for n in buying if n not in coming]
 
-        if (
-            not whole
-            and ready.get(number)
-            and not _still_waiting(folder / "reader" / pages[0].filename)
-        ):
+        if ready.get(number) and not _still_waiting(folder / "reader" / pages[0].filename):
             return self._json({"ready": True})
 
         person = self._person()
