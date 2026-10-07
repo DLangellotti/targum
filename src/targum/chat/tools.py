@@ -41,6 +41,7 @@ import base64
 import hashlib
 import json
 import logging
+import math
 import re
 import secrets
 import threading
@@ -1398,6 +1399,104 @@ def build_from_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return _quote(ctx, str(path), payload)
 
 
+def _own_folder(ctx: Ctx, given: str) -> tuple[str, Path] | None:
+    """One of the reader's own texts, named the way a tool hands it over: its shelf
+    name, its reader link, or the short link the connector wrote (`shorten`)."""
+    name = given.strip()
+    short = re.search(r"/r/([a-z0-9]{8})(?:/|$|\?)", name)
+    if "/reader/" in name:
+        name = _folder_of(name[name.index("/reader/") :])
+    elif short is not None:
+        try:
+            names = sorted(child.name for child in ctx.home.iterdir() if child.is_dir())
+        except OSError:
+            names = []
+        name = next((one for one in names if short_key(one) == short.group(1)), "")
+    if not name:
+        return None
+    from ..serve import Library
+
+    folder = Library.within(ctx.home, name)
+    return (name, folder) if folder is not None else None
+
+
+def quote_voice(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Audio of one section of a text, as a link (targum-internal#407).
+
+    Decided by David on 2026-10-07: quote and press, in credits, the same as a build. So
+    nothing is made here and nothing is claimed. The link opens the section on targum
+    with its own "Hear this section" offer showing what it uses, and the reader's press
+    there is `/voice`, the door the reader has had since targum-internal#246: claimed
+    through `Library.claim_turn`, inside the box ceiling, settled to the clip's seconds.
+    A section that has audio already is just a link to it.
+    """
+    from .. import speech
+    from ..audio import manifest as manifest_module
+    from ..models import SegmentedDocument
+    from ..models import read_artifact as read
+    from ..render import split_sections
+    from ..serve import SECONDS_A_CREDIT
+
+    if ctx.person is None:
+        return {"error": "Hearing a text needs an account: it is one of the reader's texts."}
+    found = _own_folder(ctx, str(args.get("text") or ""))
+    if found is None:
+        return {
+            "error": "That isn't one of the reader's own texts. Texts on the shared shelf "
+            "come with their recording, or without one."
+        }
+    name, folder = found
+    segmented = read(SegmentedDocument, folder / "segments.json")
+    if segmented is None:
+        return {"error": "That text isn't ready yet."}
+    if not speech.speaks(segmented.language):
+        return {"error": "targum can't read this language aloud yet."}
+    sections = split_sections(segmented)
+    try:
+        number = int(args.get("section") or 1)
+    except (TypeError, ValueError):
+        number = 1
+    section = next((one for one in sections if one.number == number), None)
+    if section is None:
+        return {"error": f"That text has sections 1 to {len(sections)}."}
+    page = "index.html" if len(sections) == 1 else section.filename
+    link = f"{ctx.press_at}/reader/{quote(name)}/reader/{page}"
+    kept = manifest_module.load(folder)
+    part = kept.part_for(section.segment_ids) if kept is not None else None
+    if part is not None and part.audio:
+        return {
+            "recorded": True,
+            "open": link,
+            "note": "That section has its audio already. Give the reader the link in "
+            "`open`, on a line of its own.",
+        }
+    if not speech.priced():
+        return {"error": "targum can't read aloud right now."}
+    wanted = set(section.segment_ids)
+    seconds = hebrew_module.seconds_for(
+        hebrew_module.words_in(
+            *(segment.text for segment in segmented.segments if segment.id in wanted)
+        )
+    )
+    return {
+        "voice": {
+            "title": section.title,
+            "section": number,
+            # Rounded up: a credit is a minute, and part of one is still one used.
+            "credits": max(1, math.ceil(seconds / SECONDS_A_CREDIT)),
+            "open": f"{link}?hear=1",
+        },
+        "note": (
+            "Give the reader the link in `open`, on a line of its own, and say in ONE "
+            "sentence that it is this section read aloud and uses about that many "
+            "credits; never say money. They confirm it on targum's own page, and you "
+            "cannot. Don't describe the page or tell them to press anything."
+        ),
+    }
+
+
+#: How many texts one set may hold: design.md §12's cap, and the playlist's own.
+MOST_IN_SET = 20
 #: How many texts one set may hold: design.md §12's cap, and the playlist's own.
 MOST_IN_SET = 20
 
@@ -3442,6 +3541,27 @@ REGISTRY: tuple[Tool, ...] = (
         scope="chat",
         title="Get pasted text ready",
         writes=True,
+    ),
+    Tool(
+        "quote_voice",
+        "Audio of one section of a text on the reader's own shelf, read aloud by "
+        "targum's voice. Give the text's name or link from their shelf and the section "
+        "number. Free: returns the credits it uses and a link to the section on targum, "
+        "where the reader confirms; you cannot. A section that has audio already comes "
+        "back as a plain link.",
+        _schema(
+            {
+                "text": {
+                    "type": "string",
+                    "description": "The text's name or link from the reader's shelf.",
+                },
+                "section": {"type": "integer", "minimum": 1},
+            },
+            ("text",),
+        ),
+        quote_voice,
+        scope="chat",
+        title="Hear a section",
     ),
     Tool(
         "describe_source",

@@ -5838,6 +5838,37 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
     assert len(loads) >= 2, "reopened once the audio was there"
 
 
+def test_a_link_to_hear_a_section_opens_the_offer_and_presses_nothing(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """targum-internal#407: a chat hands over the section's link ending `?hear=1`. The
+    page opens This text with "Hear this section" in focus, what it uses beside it, and
+    posts nothing: the press is still the reader's own."""
+    from targum import speech
+
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
+    html = chapter(tmp_path / "out").read_text(encoding="utf-8")
+    posted: list[str] = []
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+
+    def answer(route, request):
+        if request.method == "POST":
+            posted.append(request.url)
+        route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?hear=1")
+    page.wait_for_function(
+        "() => document.activeElement && document.activeElement.id === 'voice-go'"
+    )
+    assert page.locator("[data-more]").first.get_attribute("aria-expanded") == "true"
+    assert page.locator("#voice-go").is_visible(), "the offer is on show, not only in the page"
+    page.wait_for_timeout(300)
+    context.close()
+    assert posted == [], "a link opens the offer; it never makes the press"
+
+
 def test_a_word_on_a_silent_served_page_is_said_by_the_voice(browser, tmp_path: Path) -> None:
     """2026-10-07: a word with no recording behind it still has a Hear on its card where
     a server is behind the page. The press posts the word as it is spelt and the text's
