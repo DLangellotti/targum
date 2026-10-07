@@ -1350,7 +1350,7 @@ class Jobs(dict[str, Job]):
         if self.load is not None and self._added % self.SWEEP_EVERY == 0:
             self.sweep(now() - self.HELD_MS)
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Job | None = None) -> Job | None:  # type: ignore[override]
         """The job, held or read back from disk (targum-internal#231).
 
         What used to be true because everything was held stays true because anything can
@@ -1373,7 +1373,7 @@ class Jobs(dict[str, Job]):
         found = self.get(key)
         if found is None:
             raise KeyError(key)
-        return found  # type: ignore[no-any-return]
+        return found
 
     def sweep(self, cutoff: int) -> int:
         """Stop holding what is settled and was made before `cutoff`. Returns how many.
