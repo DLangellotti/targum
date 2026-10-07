@@ -92,6 +92,9 @@ from .weekly.models import Level as WeeklyLevel
 from .weekly.models import parse_identifier as parse_weekly_id
 
 MAX_UPLOAD = 32 * 1024 * 1024
+#: The longest thing a word's card may ask to hear, pointing included: a word, or the few
+#: a fixed expression is, and never a sentence.
+WORD_SAID_CHARS = 60
 
 #: The chunked door, for recordings. An audiobook is a gigabyte and the JSON door reads
 #: its whole body into memory as base64; chunks arrive raw, 8 MiB at a time — under
@@ -7211,6 +7214,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._chat_suggest(payload)
         if route == "/voice":
             return self._voice(payload)
+        if route == "/say-word":
+            return self._hear_word(payload)
         if route == "/chat/save":
             return self._chat_save(payload)
         if route == "/weekly/follow":
@@ -7674,6 +7679,119 @@ class Handler(BaseHTTPRequestHandler):
         self.library.settle(job)
         if job.spent > 0:
             self.chats.store.chat_add_spent(chat_id, job.spent)
+
+    def _hear_word(self, payload: dict[str, Any]) -> None:
+        """One word said aloud, from its card, on a page with no recording of it.
+
+        A recorded page plays the word out of its own recording and never asks here.
+        Everywhere else the press is the spend, exactly as a spoken reply's is: claimed at
+        the voice's price for the word, out of the same hours, and settled to the clip.
+        The clip is kept by what was said, not by who asked, so the same word in the same
+        language is made once and free everywhere after that — no claim at all.
+
+        Answered as a `data:` URL in JSON rather than as a file, because a page's media may
+        come from itself or from `data:` and nothing else, and a fetched body handed to an
+        `<audio>` would need `blob:` too. One word is a few kilobytes.
+        """
+        import unicodedata
+
+        from . import speech
+        from .ids import content_hash
+        from .paths import cache_dir
+
+        text = unicodedata.normalize("NFC", str(payload.get("text") or "")).strip()
+        language = str(payload.get("language") or "he").split("-")[0].lower()
+        # One word, or the few a fixed expression is. A sentence is the chat's to say.
+        if not text or len(text) > WORD_SAID_CHARS or len(text.split()) > 4:
+            return self._json({"error": "bad request"}, 400)
+        if not speech.speaks(language):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.we-can-t-read-this-language",
+                        "We can't read this language aloud yet.",
+                    )
+                },
+                402,
+            )
+        key = content_hash(speech.NAME, speech.VOICE, speech.ask(language), language, text)
+        into = cache_dir() / "said" / key[:2] / key
+        kept = next((p for p in into.parent.glob(f"{key}.*") if p.is_file()), None)
+        if kept is None:
+            usable, why = speech.available()
+            if not usable:
+                return self._json(
+                    {
+                        "error": (
+                            self._say(
+                                "serve.cannot-read-aloud-now",
+                                "We can't read aloud right now. Try again later.",
+                            )
+                            if self._keeps_why(why)
+                            else self._say(
+                                "serve.cannot-read-aloud",
+                                "We can't read aloud here: {why}.",
+                                why=why,
+                            )
+                        )
+                    },
+                    402,
+                )
+            person = self._person()
+            # A word is about a second said slowly; two is the claim, settled to the clip.
+            seconds = 2.0
+            job = Job(
+                ui=self._page_language(),
+                id=f"say-{key[:12]}-{secrets.token_hex(3)}",
+                source=f"word:{language}",
+                estimate=seconds / 60 * speech.PRICES[speech.NAME],
+                seconds=seconds,
+                stage="working",
+                owner=person.id if person else None,
+                home=self._home(),
+                admin=bool(person and self.store.is_admin(person.email)),
+                kind="chat",
+            )
+            self.library.jobs[job.id] = job
+            self.library.remember(job)
+            refused = self.library.claim_turn(job)
+            if refused:
+                job.stage = "blocked"
+                job.blocked = refused
+                self.library.remember(job)
+                return self._json({"error": refused}, 402)
+            try:
+                clip = speech.render(text, into, language=language)
+            except Exception as error:
+                job.stage = "failed"
+                made = error.seconds if isinstance(error, speech.Interrupted) else 0.0
+                if made > 0:
+                    job.seconds = made
+                    spent = Usage()
+                    spent.add_seconds(speech.NAME, made)
+                    job.spent = spent.cost()
+                    self.library.settle(job)
+                else:
+                    self.library.release(job)
+                self.library.remember(job)
+                if not isinstance(error, TargumError):
+                    traceback.print_exc()
+                    incidents_module.record(self.library.incidents, "say", error, job=job.id)
+                said = (
+                    error.message if isinstance(error, TargumError) else "The voice did not answer."
+                )
+                return self._json({"error": said}, 502)
+            job.stage = "done"
+            job.seconds = clip.seconds
+            spent = Usage()
+            spent.add_seconds(speech.NAME, clip.seconds)
+            job.spent = spent.cost()
+            self.library.settle(job)
+            self.library.remember(job)
+            kept = clip.path
+        kind = "audio/mpeg" if kept.suffix == ".mp3" else "audio/wav"
+        encoded = base64.b64encode(kept.read_bytes()).decode("ascii")
+        return self._json({"audio": f"data:{kind};base64,{encoded}"})
 
     def _chat_hear(self, query: dict[str, list[str]]) -> None:
         """A line spoken into the microphone, written down and asked. Push-to-talk in.

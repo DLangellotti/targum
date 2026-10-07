@@ -5835,6 +5835,51 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
     assert len(loads) >= 2, "reopened once the audio was there"
 
 
+def test_a_word_on_a_silent_served_page_is_said_by_the_voice(browser, tmp_path: Path) -> None:
+    """2026-10-07: a word with no recording behind it still has a Hear on its card where
+    a server is behind the page. The press posts the word as it is spelt and the text's
+    language, plays what comes back, and a second press asks nothing more."""
+    import json
+
+    from targum import speech
+
+    built = chapter(tmp_path / "out")
+    html = built.read_text(encoding="utf-8")
+    posted: list[dict] = []
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    page.add_init_script(
+        "window.__played = []; HTMLMediaElement.prototype.play = function () {"
+        " window.__played.push(this.src.slice(0, 15)); return Promise.resolve(); };"
+    )
+    clip = "data:audio/wav;base64,UklGRg=="
+
+    def answer(route, request):
+        if "/say-word" in request.url:
+            posted.append(request.post_data_json)
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"audio": clip})
+            )
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair .src .w")
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_selector("#gloss-card .hear")
+    assert page.evaluate("() => !window.TargumSpeech"), "no recording on this page"
+    page.click("#gloss-card .hear")
+    page.wait_for_timeout(300)
+    page.click("#gloss-card .hear")
+    page.wait_for_timeout(200)
+    played = page.evaluate("() => window.__played")
+    context.close()
+    assert len(posted) == 1, "asked once; the second press plays what came back"
+    assert posted[0]["language"] in speech.SPOKEN and posted[0]["text"].strip()
+    assert played == [clip[:15], clip[:15]]
+
+
 def test_a_framed_reader_counts_a_visit_at_the_first_press_and_not_before(
     browser, built: Path
 ) -> None:

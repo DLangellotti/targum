@@ -4468,12 +4468,73 @@ var targumReader = function () {
     var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return null;
-    return hearButton(
-      pair.getAttribute("data-id"),
-      parseInt(span[0], 10),
-      parseInt(span[1], 10),
-      t("reader.card.hear-word", "Hear this word")
+    return (
+      hearButton(
+        pair.getAttribute("data-id"),
+        parseInt(span[0], 10),
+        parseInt(span[1], 10),
+        t("reader.card.hear-word", "Hear this word")
+      ) || sayButton(word)
     );
+  }
+
+  // The word said by the voice, where no recording covers it (2026-10-07: "would be
+  // nice if there was a way to play the word so I can hear what it sounds like"). The
+  // press is the spend, as a spoken reply's is; the server keeps the clip by the word,
+  // so a word anybody has heard is free. Only in the languages the voice reads
+  // (`speech.SPOKEN`), and only where a server is behind the page — a card offers what
+  // the page can do.
+  var VOICED = { he: true, fr: true, ru: true, it: true };
+  // Ends a word can be cut with that are not the word: spaces, maqaf, sof pasuq,
+  // punctuation.
+  var EDGES = /^[\s־׀׃.,;:!?"'()\[\]–—]+|[\s־׀׃.,;:!?"'()\[\]–—]+$/g;
+  var saidClips = {};
+
+  function sayButton(word) {
+    if (!canAsk() || typeof fetch !== "function" || typeof Audio !== "function") return null;
+    var tongue = wordLanguage(parseInt(word.getAttribute("data-lemma"), 10));
+    if (!VOICED[tongue]) return null;
+    var text = String(bareSurface(word) || "").replace(EDGES, "");
+    if (!text) return null;
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "hear";
+    button.title = "Hear";
+    button.setAttribute("aria-label", t("reader.card.hear-word", "Hear this word"));
+    button.innerHTML = HEAR_GLYPH;
+    var key = tongue + ":" + text;
+    function play(clip) {
+      var played = new Audio(clip).play();
+      if (played && played.catch) played.catch(function () {});
+    }
+    function failed(why) {
+      button.removeAttribute("aria-busy");
+      say(why || t("reader.card.could-not-say", "We couldn't say that word just now."));
+    }
+    button.addEventListener("click", function (event) {
+      event.stopPropagation();
+      if (saidClips[key]) return play(saidClips[key]);
+      if (button.getAttribute("aria-busy") === "true") return;
+      button.setAttribute("aria-busy", "true");
+      fetch(keyed("/say-word"), {
+        method: "POST",
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ text: text, language: tongue }),
+      })
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (answer) {
+          if (!answer || !answer.audio) return failed(answer && answer.error);
+          button.removeAttribute("aria-busy");
+          saidClips[key] = answer.audio;
+          play(answer.audio);
+        })
+        .catch(function () {
+          failed("");
+        });
+    });
+    return button;
   }
 
   function levelOf(word) {
