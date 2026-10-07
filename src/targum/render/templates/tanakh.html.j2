@@ -41,6 +41,21 @@
 
   {#- The squares are links, so the map is a table of contents for the whole Tanakh and
       works with no script at all. `aria-label` is the chapter; the card says the rest. -#}
+  {#- The Torah's year (targum-internal#144): a tick a portion, in the order they are
+      read, each the link to its portion and as wide as the chapters it is read from
+      (`tanakh.js` sets that; with no script they are even). Hover or focus on a tick
+      lights its chapters on the map, and a Torah chapter lights its tick. -#}
+  {%- if year %}
+  <nav class="tanakh-year" aria-label="{{ t("tanakh.page.year", "The year of portions") }}">
+    <ol class="year-ticks" id="tanakh-year">
+      {%- for portion in year %}
+      <li class="year-item"><a class="year-tick" href="{{ portion.href }}" data-slug="{{ portion.slug }}" data-chapters="{{ portion.chapters|join('|') }}" aria-label="{{ portion.name }}, {{ portion.chapters[0] }}{% if portion.chapters|length > 1 %}–{{ portion.chapters[-1].rsplit(' ', 1)[1] }}{% endif %}"></a></li>
+      {%- endfor %}
+    </ol>
+    <p class="year-said" id="year-said" aria-live="polite"></p>
+  </nav>
+  {%- endif %}
+
   <div class="tanakh-map" id="tanakh-map">
     {%- for part in parts %}
     <section class="tanakh-part" aria-labelledby="part-{{ part.part }}">

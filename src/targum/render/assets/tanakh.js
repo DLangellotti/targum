@@ -175,6 +175,76 @@
     cells[to].focus();
   });
 
+  /* The year of portions (#144). A tick is as wide as the chapters it is read from, set
+   * here because the page's styles are pinned and an inline width would be refused.
+   * Hover or focus on a tick lights its chapters; on a Torah chapter, its tick. */
+  var year = document.getElementById("tanakh-year");
+  var yearSaid = document.getElementById("year-said");
+  var ticks = year ? [].slice.call(year.querySelectorAll(".year-tick")) : [];
+  var cellAt = {};
+  cells.forEach(function (cell) {
+    cellAt[cell.getAttribute("data-ref")] = cell;
+  });
+  // A chapter's tick is the first portion that holds it: the one its first verse is read
+  // in, since a portion that shares a chapter starts partway through it.
+  var tickFor = {};
+  ticks.forEach(function (tick) {
+    var chapters = (tick.getAttribute("data-chapters") || "").split("|");
+    tick.parentNode.style.flexGrow = String(chapters.length);
+    tick.setAttribute("href", keyed(tick.getAttribute("href")));
+    chapters.forEach(function (ref) {
+      if (!tickFor[ref]) tickFor[ref] = tick;
+    });
+  });
+  var lit = null;
+
+  function light(tick) {
+    if (lit === tick) return;
+    if (lit) {
+      lit.classList.remove("lit");
+      (lit.getAttribute("data-chapters") || "").split("|").forEach(function (ref) {
+        if (cellAt[ref]) cellAt[ref].classList.remove("lit");
+      });
+    }
+    lit = tick;
+    if (yearSaid) yearSaid.textContent = tick ? tick.getAttribute("aria-label") : "";
+    if (!tick) return;
+    tick.classList.add("lit");
+    (tick.getAttribute("data-chapters") || "").split("|").forEach(function (ref) {
+      if (cellAt[ref]) cellAt[ref].classList.add("lit");
+    });
+  }
+
+  function tickOf(target) {
+    return target && target.classList && target.classList.contains("year-tick") ? target : null;
+  }
+
+  if (year) {
+    year.addEventListener("mouseover", function (event) {
+      var tick = tickOf(event.target);
+      if (tick) light(tick);
+    });
+    year.addEventListener("focusin", function (event) {
+      var tick = tickOf(event.target);
+      if (tick) light(tick);
+    });
+    year.addEventListener("mouseleave", function () {
+      light(null);
+    });
+    year.addEventListener("focusout", function () {
+      light(null);
+    });
+    ["mouseover", "focusin"].forEach(function (kind) {
+      map.addEventListener(kind, function (event) {
+        var cell = cellOf(event.target);
+        if (cell) light(tickFor[cell.getAttribute("data-ref")] || null);
+      });
+    });
+    map.addEventListener("mouseleave", function () {
+      light(null);
+    });
+  }
+
   shade();
   if (typeof fetch !== "function") return;
   fetch(keyed("/tanakh-map.json"), { credentials: "same-origin" })
@@ -192,6 +262,9 @@
       });
       (said.week || []).forEach(function (ref) {
         week[ref] = true;
+      });
+      ticks.forEach(function (tick) {
+        tick.classList.toggle("week", !!said.portion && tick.getAttribute("data-slug") === said.portion);
       });
       shade();
     })

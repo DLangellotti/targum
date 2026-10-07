@@ -21,6 +21,7 @@ import test_serve
 from test_serve import Postbox, call, sign_in
 
 from targum import catalogue, coverage
+from targum.render import builder
 from targum.render.builder import tanakh_map, tanakh_map_page
 from targum.serve import Handler
 
@@ -146,6 +147,7 @@ def test_signed_out_there_is_nothing_to_shade(served: tuple[int, str, Path]) -> 
     port, token, _ = served
     status, said, _ = call(port, "GET", f"/tanakh-map.json?k={token}")
     assert status == 200 and said["signedIn"] is False and said["chapters"] == {}
+    assert isinstance(said["portion"], str), 'the year strip\'s ink tick, or "" with no corpus'
 
 
 def test_a_reader_is_answered_with_their_own_shares(
@@ -295,6 +297,83 @@ def test_a_chapter_read_through_is_solid_leaf_and_its_card_says_so(
     assert page.evaluate(fill, "Genesis 3") == legend, "the legend's swatch is the square"
     page.hover("[data-ref='Genesis 3']")
     assert "You've read it" in page.inner_text("#tanakh-card")
+    assert not page.thrown
+    opened.close()
+
+
+YEAR = [
+    {
+        "slug": "bereshit",
+        "name": "Bereshit",
+        "hebrew": "בראשית",
+        "chapters": [f"Genesis {n}" for n in range(1, 7)],
+        "href": "/library/parasha-bereshit",
+    },
+    {
+        "slug": "noach",
+        "name": "Noach",
+        "hebrew": "נח",
+        "chapters": [f"Genesis {n}" for n in range(6, 12)],
+        "href": "/library/parasha-noach",
+    },
+    {
+        "slug": "lech-lecha",
+        "name": "Lech-Lecha",
+        "hebrew": "לך לך",
+        "chapters": [f"Genesis {n}" for n in range(12, 18)],
+        "href": "/library/parasha-lech-lecha",
+    },
+]
+
+
+def test_chapters_of_a_portion_take_whole_chapters() -> None:
+    """Chapter-level, as #144 says: Noach starts at 6:9 and still takes chapter 6."""
+    from targum.parasha.build import chapters_of
+    from targum.parasha.models import Portion
+
+    noach = Portion(
+        slug="noach", name="Noach", hebrew="נח", summary="Genesis 6:9-11:32", books=["Genesis"]
+    )
+    assert chapters_of(noach) == [f"Genesis {n}" for n in range(6, 12)]
+    assert chapters_of(Portion(slug="x", name="X", hebrew="", summary="", books=[])) == []
+
+
+def test_the_year_strip_is_a_link_a_portion_in_the_order_they_are_read(
+    shelf: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(builder, "tanakh_year", lambda: YEAR)
+    page = tanakh_map_page("")
+    ticks = re.findall(r'<a class="year-tick" href="([^"]+)" data-slug="([^"]+)"', page)
+    assert ticks == [(one["href"], one["slug"]) for one in YEAR]
+    assert 'aria-label="Noach, Genesis 6–11"' in page
+    monkeypatch.setattr(builder, "tanakh_year", lambda: [])
+    assert '<a class="year-tick"' not in tanakh_map_page(""), "no corpus, no strip"
+
+
+def test_the_year_and_the_map_light_each_other(
+    browser: Any, shelf: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(builder, "tanakh_year", lambda: YEAR)
+    answer = {**ANSWER, "portion": "lech-lecha"}
+    opened, page = _open(
+        browser, tanakh_map_page(""), answer, viewport={"width": 390, "height": 844}
+    )
+    widths = page.evaluate(
+        "[...document.querySelectorAll('.year-item')].map((li) => li.getBoundingClientRect().width)"
+    )
+    assert len(widths) == 3 and abs(widths[0] - widths[1]) < 2, widths
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    week = page.evaluate(
+        "[...document.querySelectorAll('.year-tick.week')].map((t) => t.dataset.slug)"
+    )
+    assert week == ["lech-lecha"], "this week's tick is the one the server named"
+
+    lit = "() => [...document.querySelectorAll('.cell.lit')].map((c) => c.dataset.ref)"
+    page.hover(".year-tick[data-slug='noach']")
+    assert page.evaluate(lit) == [f"Genesis {n}" for n in range(6, 12)]
+    assert "Noach" in page.inner_text("#year-said")
+    page.focus("[data-ref='Genesis 12']")
+    assert page.evaluate("document.querySelector('.year-tick.lit').dataset.slug") == "lech-lecha"
     assert not page.thrown
     opened.close()
 

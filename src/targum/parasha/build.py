@@ -654,6 +654,23 @@ def portions_for(book: str, index: Index | None = None) -> list[Start]:
     return out
 
 
+def chapters_of(portion: Portion) -> list[str]:
+    """The chapters a portion is read from, as the Tanakh map names them —
+    `["Genesis 6", …, "Genesis 11"]` — or nothing for a portion with no range.
+
+    Chapter-level, as targum-internal#144 says it must be for now: a portion that starts
+    or ends mid-chapter takes the whole of that chapter with it, so two portions can
+    share one.
+    """
+    if not portion.books:
+        return []
+    found = [int(n) for n in re.findall(r"(\d+):\d+", portion.summary)]
+    if not found:
+        return []
+    book = portion.books[0]
+    return [f"{book} {n}" for n in range(min(found), max(found) + 1)]
+
+
 def readable(index: Index | None = None) -> set[str]:
     """Every folder that actually has a built reader in it.
 

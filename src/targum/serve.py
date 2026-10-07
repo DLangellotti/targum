@@ -10075,9 +10075,10 @@ class Handler(BaseHTTPRequestHandler):
         from . import coverage as coverage_module
 
         week = self._portion_chapters()
+        portion = self._portion_slug()
         person = self._person()
         if person is None:
-            return self._json({"signedIn": False, "chapters": {}, "week": week})
+            return self._json({"signedIn": False, "chapters": {}, "week": week, "portion": portion})
         marked = self.store.marked(person, "he")
         known = {lemma for lemma, status in marked.items() if status == coverage_module.KNOWN}
         shares = coverage_module.chapter_map(known)
@@ -10090,6 +10091,7 @@ class Handler(BaseHTTPRequestHandler):
                     if share is not None
                 },
                 "week": week,
+                "portion": portion,
                 "finished": sorted(self._finished_chapters(person)),
             }
         )
@@ -10112,6 +10114,18 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     @staticmethod
+    def _portion_slug() -> str:
+        """This Shabbat's portion, by slug, for the year strip's ink tick; "" where there
+        is no corpus or no ordinary portion this week."""
+        try:
+            from .parasha import build as corpus
+
+            portion = corpus.current()
+        except Exception:  # noqa: BLE001 - no corpus is a strip with no ink
+            return ""
+        return portion.slug if portion is not None else ""
+
+    @staticmethod
     def _portion_chapters() -> list[str]:
         """The chapters this week's portion is read from, as the map names them —
         `["Genesis 12", "Genesis 13", …]` — or nothing where there is no parasha corpus
@@ -10126,13 +10140,9 @@ class Handler(BaseHTTPRequestHandler):
             portion = corpus.current()
         except Exception:  # noqa: BLE001 - no corpus is a map with no ring, not a 500
             return []
-        if portion is None or not portion.books:
+        if portion is None:
             return []
-        found = [int(n) for n in re.findall(r"(\d+):\d+", portion.summary)]
-        if not found:
-            return []
-        book = portion.books[0]
-        return [f"{book} {n}" for n in range(min(found), max(found) + 1)]
+        return corpus.chapters_of(portion)
 
     def _reading(self) -> None:
         """What the reader knew of what they read, a point a month, per language

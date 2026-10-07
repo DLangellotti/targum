@@ -3008,5 +3008,6 @@
   "job.said.progress-left": "{line}, {left}.",
   "tanakh.card.finished": "Вы её прочли",
   "tanakh.page.finished": "Прочитано",
-  "library.door.tanakh-map": "Все главы на одной карте"
+  "library.door.tanakh-map": "Все главы на одной карте",
+  "tanakh.page.year": "Недельные главы за год"
 }

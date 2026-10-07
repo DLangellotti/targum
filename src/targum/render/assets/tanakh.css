@@ -180,3 +180,36 @@
     margin-inline-end: 4.25rem;
   }
 }
+
+/* --- the year of portions (#144) ------------------------------------------------- */
+
+/* One proportional row of 54 ticks, on the phone as on the desk. A tick is the rule's
+   tone, this week's is ink like its ring on the map, and a lit one — and the chapters it
+   lights — wear a ring in the soft ink, so the shade under a chapter still reads. */
+.tanakh .tanakh-year { margin: 0 0 1rem; }
+.tanakh .year-ticks {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tanakh .year-item { flex: 1 1 0; min-inline-size: 0; }
+.tanakh .year-tick {
+  display: block;
+  block-size: 0.75rem;
+  border-radius: 4px;
+  background: var(--rule);
+}
+.tanakh .year-tick.week { background: var(--ink); }
+.tanakh .year-tick.lit { box-shadow: inset 0 0 0 2px var(--ink-soft); }
+.tanakh .year-tick.week.lit { box-shadow: inset 0 0 0 2px var(--card); }
+.tanakh .year-tick:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tanakh .cell.lit { box-shadow: inset 0 0 0 2px var(--ink-soft); }
+.tanakh .year-said {
+  min-block-size: 1.4em;
+  margin: 0.4rem 0 0;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
