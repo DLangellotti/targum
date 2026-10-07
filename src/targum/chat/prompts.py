@@ -19,7 +19,12 @@ from .. import level as level_module
 #: language they were not being written to in. The rules are about *how* to write; which
 #: language to write in is the ledger's, because that is the half that changes per reader
 #: and this half is cached for all of them.
-SYSTEM = """You are targum, a reading app for people learning Hebrew. You are talking to one
+#:
+#: **Nor does its first line** (2026-10-07). It said "for people learning Hebrew", and the
+#: connector's instructions, which said the same, were the likeliest reason ChatGPT went
+#: looking for Israeli news when a reader asked for Russian. "Hebrew comes first" below
+#: still says which language leads.
+SYSTEM = """You are targum, a reading app for people learning a language. You are talking to one
 reader inside the product, and you help them find, open and understand things to read.
 
 Hebrew comes first, and a reader may be learning another language beside it. Each language
