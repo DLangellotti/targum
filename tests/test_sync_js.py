@@ -281,6 +281,48 @@ def test_a_language_pressed_while_the_account_answers_is_not_put_back() -> None:
     assert seen["pressed"] and all(row["keepalive"] for row in seen["pressed"])
 
 
+def test_a_language_carried_out_of_a_text_is_told_to_the_account() -> None:
+    """design.md §12, 2026-10-07. A page arrived at from the corner of a Russian text is in
+    Russian, and the account's older answer — Hebrew, and a list without Russian — is not
+    written over it. The account is told instead, with leave to turn Russian on, and its
+    answer's list is mirrored for the next page."""
+    program = """
+      const {{ install }} = require({dom});
+      const stored = {{ "targum:language": "ru", "targum:learning": "[\\"he\\",\\"ru\\"]" }};
+      install({{ TARGUM_KEY: "", stored, TargumLang: {{ carried: () => "ru" }} }});
+      const sent = [];
+      global.fetch = function (url, options) {{
+        const body = options && options.body ? JSON.parse(options.body) : null;
+        sent.push({{ url: String(url), body: body, keepalive: !!(options && options.keepalive) }});
+        let answer = {{}};
+        if (String(url).indexOf("/account/me") >= 0) {{
+          answer = {{ signedIn: true, email: "r@example.com", reads: [], learning: ["he"],
+                     language: "he" }};
+        }} else if (String(url).indexOf("/account/language") >= 0) {{
+          answer = {{ signedIn: true, language: "ru", learning: ["he", "ru"] }};
+        }}
+        return Promise.resolve({{ ok: true, status: 200, json: () => Promise.resolve(answer) }});
+      }};
+      require({where});
+      window.TargumSync.start().then(function () {{
+        return new Promise((resolve) => setTimeout(resolve, 20));
+      }}).then(function () {{
+        console.log(JSON.stringify({{
+          language: localStorage.getItem("targum:language"),
+          learning: JSON.parse(localStorage.getItem("targum:learning")),
+          told: sent.filter((r) => r.url.indexOf("/account/language") >= 0),
+        }}));
+      }});
+    """.format(dom=json.dumps(str(DOM)), where=json.dumps(str(ASSETS / "sync.js")))
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    seen = json.loads(done.stdout)
+    assert seen["language"] == "ru", "the account's older Hebrew is not written over it"
+    assert [row["body"] for row in seen["told"]] == [{"language": "ru", "add": True}]
+    assert all(row["keepalive"] for row in seen["told"])
+    assert seen["learning"] == ["he", "ru"], "the list the account answered with"
+
+
 def test_a_claimed_word_keeps_its_source_across_a_sync() -> None:
     """targum-internal#245. `sync.js` rebuilds a word from a named list on the way in and
     writes a named list on the way out, so a field nobody named is dropped on every

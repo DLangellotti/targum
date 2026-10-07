@@ -862,6 +862,44 @@ def test_a_reader_can_stop_the_record_and_erase_it(
     assert got["totals"] == []
 
 
+def test_a_text_left_by_its_corner_turns_its_language_on(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """design.md §12, 2026-10-07: a Russian text imported over the connector sits on the
+    shelf of an account that says Hebrew alone, and leaving it by the mark puts the desk
+    in Russian. The menu's own press still refuses a language not on the list; the
+    corner's carries leave to add it, and only ever adds, and only what targum offers."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(
+        port, "POST", f"/account/language?k={token}", {"language": "ru"}, cookie=cookie
+    )
+    assert status == 400 and answer["language"] == "he", "the menu offers only the list"
+
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/account/language?k={token}",
+        {"language": "ru", "add": True},
+        cookie=cookie,
+    )
+    assert status == 200 and answer["language"] == "ru"
+    assert answer["learning"] == ["he", "ru"], "Hebrew kept, Russian beside it"
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["language"] == "ru" and sorted(me["learning"]) == ["he", "ru"]
+
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/account/language?k={token}",
+        {"language": "es", "add": True},
+        cookie=cookie,
+    )
+    assert status == 400 and answer["language"] == "ru", "no desk in Spanish: nothing moves"
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert sorted(me["learning"]) == ["he", "ru"]
+
+
 def test_an_old_marking_arrives_as_the_persons_own_choice(tmp_path: Path) -> None:
     """`targum languages` marked an address as reading Russian, from a terminal. The
     profile replaces it, and a person who was marked keeps Russian — with English

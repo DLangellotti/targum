@@ -789,7 +789,18 @@
           // And not over a press made on this page while the account was answering: the
           // account's answer is from before it, and would put the reader back where they
           // just left (2026-09-14).
-          if (me.language && local("targum:language") === asked) {
+          //
+          // And not over a language this page arrived carrying, from the corner of a text
+          // (design.md §12, 2026-10-07): that is a press too, made one page ago, and the
+          // account is told of it now that there is somebody to tell — with leave to turn
+          // the language on, because the text may be the first thing they have in it.
+          var carried =
+            window.TargumLang && typeof window.TargumLang.carried === "function"
+              ? window.TargumLang.carried()
+              : "";
+          if (carried) {
+            api.language(carried, true);
+          } else if (me.language && local("targum:language") === asked) {
             try {
               localStorage.setItem("targum:language", me.language);
             } catch (e) {}
@@ -910,13 +921,26 @@
 
   // The language menu's press, kept on the account (2026-09-13). Nothing for somebody
   // signed out: the browser keeps it, as it always did.
-  api.language = function (code) {
+  //
+  // `add` turns the language on where the account has not ticked it, for a text left by
+  // its corner (2026-10-07); the menu itself never asks for that. The answer carries the
+  // account's list, mirrored here so the next page offers what was turned on.
+  api.language = function (code, add) {
     if (!api.who || !code) return Promise.resolve(null);
+    var body = add ? { language: code, add: true } : { language: code };
     // Kept alive: the conversation reloads on the press, and a request cut off by the
     // page going left the account in the old language, which the next page then took.
-    return ask("/account/language", { language: code }, true).catch(function () {
-      return null;
-    });
+    return ask("/account/language", body, true)
+      .then(function (answer) {
+        if (answer && answer.learning && answer.learning.length) {
+          write(LEARNING, answer.learning);
+          if (api.who) api.who.learning = answer.learning;
+        }
+        return answer;
+      })
+      .catch(function () {
+        return null;
+      });
   };
 
   /* A language to build into that this account will actually be allowed. What somebody

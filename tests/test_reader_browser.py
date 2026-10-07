@@ -1218,7 +1218,8 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     page.wait_for_function("() => document.querySelector('.gloss-card .ask-a.working') === null")
     first = page.evaluate(ASKED)
     assert first["questions"] == ["why this form?"] and first["answers"] == ["Answer 1."]
-    assert first["on"] == "/chat?k=test#c1", "the way on carries the key and the conversation"
+    # And the text's language, so the chat opens in it (2026-10-07, design.md §12).
+    assert first["on"] == "/chat?learning=he&k=test#c1", "the way on carries language, key, chat"
     assert first["field"], "one more question is offered"
 
     sent = said[0]
@@ -1240,7 +1241,7 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     )
     assert said[1]["chat"] == "c1", "the same conversation, continued"
     assert not second["field"], "two turns, then the conversation page"
-    assert second["on"] == "/chat?k=test#c1"
+    assert second["on"] == "/chat?learning=he&k=test#c1"
 
     # Tapping the word again redraws the card with the exchange still in it.
     page.evaluate(TAP_AGAIN, word)
