@@ -2816,5 +2816,6 @@
   "job.said.progress-left": "{line}, {left}.",
   "tanakh.card.finished": "You've read it",
   "tanakh.page.finished": "Read through",
-  "library.door.tanakh-map": "Every chapter on one map"
+  "library.door.tanakh-map": "Every chapter on one map",
+  "tanakh.page.year": "The year of portions"
 }

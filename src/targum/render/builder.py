@@ -2644,6 +2644,37 @@ def tanakh_map() -> list[dict[str, Any]]:
     return [{"part": part, "books": books} for part, books in parts.items()]
 
 
+def tanakh_year() -> list[dict[str, Any]]:
+    """The Torah's year of portions, for the strip above the map (targum-internal#144).
+
+    The cycle in the order it is read, each portion with the chapters it is read from
+    (`parasha.build.chapters_of`), its Library row, and how many chapters it spans so the
+    strip can be drawn in proportion. Nothing where the parasha corpus is not on this
+    machine: the map then has no strip, which is true.
+    """
+    try:
+        from ..parasha import build as corpus
+
+        listed = corpus.load().listed()
+    except Exception:  # noqa: BLE001 - a missing corpus is a map without its strip
+        return []
+    year = []
+    for portion in listed:
+        chapters = corpus.chapters_of(portion)
+        if not chapters:
+            continue
+        year.append(
+            {
+                "slug": portion.slug,
+                "name": portion.name,
+                "hebrew": portion.hebrew,
+                "chapters": chapters,
+                "href": f"/library/parasha-{portion.slug}",
+            }
+        )
+    return year
+
+
 def _portion_starts(book: str) -> list[Any]:
     """Where each portion begins in one book of the Torah, or nothing where the parasha
     corpus is not on this machine: the card then names no portion, which is true."""
@@ -2675,6 +2706,7 @@ def tanakh_map_page(token: str, language: str = "en") -> str:
             token=token,
             languages=_language_names(language),
             parts=tanakh_map(),
+            year=tanakh_year(),
             steps=list(MAP_STEPS),
             strings=script_strings(language, "tanakh."),
         )
