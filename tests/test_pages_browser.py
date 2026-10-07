@@ -1905,6 +1905,8 @@ def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
           crumbs: document.getElementById('crumbs').innerText,
           titles: [...document.querySelectorAll('#cards .card-title')].map((t) => t.textContent),
           sorts: getComputedStyle(document.getElementById('sorts')).display !== 'none',
+          map: (document.querySelector('#crumbs a.crumb-map') || {}).href || '',
+          sideways: document.documentElement.scrollWidth > window.innerWidth,
         })"""
     )
     page.locator("#crumbs button").click()
@@ -1918,6 +1920,8 @@ def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
     assert inside["hash"] == "#bm/tanakh" and "Tanakh" in inside["crumbs"], inside
     assert "רות" in inside["titles"], "the tab, then Tanakh, and Ruth is on the page"
     assert inside["sorts"], "and inside a door the list has its sorts back"
+    assert "/tanakh-map" in inside["map"], "the Tanakh door leads on to its map (#144)"
+    assert not inside["sideways"], inside
     assert back == "#bm"
 
 

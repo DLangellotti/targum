@@ -2813,5 +2813,8 @@
   "job.said.left.hours.one": "about {n} hour left",
   "job.said.left.hours.other": "about {n} hours left",
   "job.said.progress": "{line}.",
-  "job.said.progress-left": "{line}, {left}."
+  "job.said.progress-left": "{line}, {left}.",
+  "tanakh.card.finished": "You've read it",
+  "tanakh.page.finished": "Read through",
+  "library.door.tanakh-map": "Every chapter on one map"
 }

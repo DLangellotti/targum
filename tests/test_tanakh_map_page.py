@@ -169,6 +169,7 @@ def test_a_reader_is_answered_with_their_own_shares(
     assert 40 < chapters["Genesis 1"] < 100
     assert "Daniel 3" not in chapters, "an Aramaic chapter is not measured, never 0%"
     assert len(chapters) == 929 - 10
+    assert said["finished"] == [], "nothing read through yet"
 
 
 def test_a_second_account_signed_out_is_turned_away(
@@ -268,6 +269,32 @@ def test_the_squares_take_their_shade_and_the_card_says_what_one_is(
     page.hover("[data-ref='Exodus 3']")
     assert "Not in the library yet." in page.inner_text("#tanakh-card")
     assert page.is_hidden("#card-read")
+    assert not page.thrown
+    opened.close()
+
+
+def test_a_chapter_read_through_is_solid_leaf_and_its_card_says_so(
+    browser: Any, shelf: None
+) -> None:
+    """targum-internal#144: finished chapters are solid leaf, whatever share of their
+    words is known, and a book the library lacks never is."""
+    answer = {**ANSWER, "finished": ["Genesis 3", "Exodus 3"]}
+    opened, page = _open(
+        browser, tanakh_map_page(""), answer, viewport={"width": 1280, "height": 900}
+    )
+    classes = "(ref) => document.querySelector(`[data-ref='${ref}']`).className"
+    assert "read" in page.evaluate(classes, "Genesis 3").split()
+    assert "read" not in page.evaluate(classes, "Genesis 1").split()
+    assert "read" not in page.evaluate(classes, "Exodus 3").split(), "not in the library"
+    fill = (
+        "(ref) => getComputedStyle(document.querySelector(`[data-ref='${ref}']`)).backgroundColor"
+    )
+    legend = page.evaluate(
+        "getComputedStyle(document.querySelector('.tanakh-legend .cell.read')).backgroundColor"
+    )
+    assert page.evaluate(fill, "Genesis 3") == legend, "the legend's swatch is the square"
+    page.hover("[data-ref='Genesis 3']")
+    assert "You've read it" in page.inner_text("#tanakh-card")
     assert not page.thrown
     opened.close()
 

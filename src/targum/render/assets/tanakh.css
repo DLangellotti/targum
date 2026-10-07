@@ -44,6 +44,8 @@
 .tanakh .cell[data-step="2"] { background: var(--step-2); box-shadow: none; }
 .tanakh .cell[data-step="3"] { background: var(--step-3); box-shadow: none; }
 .tanakh .cell[data-step="4"] { background: var(--step-4); box-shadow: none; }
+/* Read through (#144): solid leaf, over whatever step its words are on. */
+.tanakh .cell.read { background: var(--leaf); box-shadow: none; }
 .tanakh .cell.aramaic { background: var(--off); box-shadow: none; }
 .tanakh .cell.away {
   background: transparent;

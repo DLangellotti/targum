@@ -1555,6 +1555,12 @@
     here.appendChild(document.createTextNode(" · " + door[2]));
     here.setAttribute("aria-current", "page");
     host.appendChild(here);
+    // The Tanakh door leads on to the whole of it, one square a chapter (#144).
+    if (door[0] === "tanakh") {
+      var map = el("a", "crumb crumb-map", t("library.door.tanakh-map", "Every chapter on one map"));
+      map.href = keyed("/tanakh-map");
+      host.appendChild(map);
+    }
   }
 
   /* The tree has an address — `#bm`, `#bm/tanakh` — the first view of this page that

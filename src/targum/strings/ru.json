@@ -3005,5 +3005,8 @@
   "job.said.left.hours.few": "осталось около {n} часов",
   "job.said.left.hours.many": "осталось около {n} часов",
   "job.said.progress": "{line}.",
-  "job.said.progress-left": "{line}, {left}."
+  "job.said.progress-left": "{line}, {left}.",
+  "tanakh.card.finished": "Вы её прочли",
+  "tanakh.page.finished": "Прочитано",
+  "library.door.tanakh-map": "Все главы на одной карте"
 }
