@@ -46,7 +46,7 @@ export is one `WHERE` with no join.
 | `segmentations` + `segments` | a split of a text / one sentence | `document_hash`, `segmenter`; `segment_id`, `ord`, `text` |
 | `translations` + `pairs` | one rendering / one aligned pair | `document_hash`, `provider`, `model`, `style`, `target_language`; `segment_id`, `target`, `confidence`, `coarse` |
 | `alignments` + `links` | a human translation matched / one link | `document_hash`, `translation_hash`, `aligner`; `source[]`, `target[]`, `confidence` |
-| `annotations` + `tokens` | one annotator's pass / one token | `document_hash`, `annotator`; `segment_id`, `ord`, `form`, `lemma`, `pos`, `features`, `band` |
+| `annotations` + `tokens` | one annotator's pass / one token | `document_hash`, `tool` (the annotator), `head_json`; `segment_id`, `segment_ord`, `ord`, `form`, `lemma`, `pos`, `features`, `band`, `token_json` — **built** (2026-10-08). Keyed `<document_hash>:<annotator>`, written where the pipeline writes `annotation.json`, since annotation has no cache. `token_json` is the token whole, so the file comes back byte for byte; the other columns are for queries. On the laptop shelf, 577 passes and 1.9M tokens took 36 s and 884 MB, about the size of the JSON. |
 | `vocalizations` + `pointings` | one diacritizer's pass / one segment | `document_hash`, `language`; `segment_id`, `pointed`, `segment_ord`, `machine_ord`, `rejected_ord` — **built** |
 | `glosses` | one lemma's meaning | `lemma`, `source_language`, `target_language`, `provider`, `grounded` |
 | `timings` | one word's time | `document_hash`, `segment_id`, `word`, `start`, `end`, `aligner`, `acoustic_model` |

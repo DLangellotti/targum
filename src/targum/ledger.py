@@ -43,8 +43,11 @@ ENV = "TARGUM_LEDGER"
 #: shape without the cache key moving, which is the point of having rows.
 LEDGER_SCHEMA = 2
 
-#: The stages the ledger records. One, for now.
-STAGES = frozenset({"vocalize"})
+#: The stages the ledger records, and the table each one's values head. `tokens` since
+#: 2026-10-08 (David's third answer of 2026-10-03): one annotator's pass over a text,
+#: written where the pipeline writes `annotation.json`, since annotation has no cache.
+_HEAD = {"vocalize": "vocalizations", "tokens": "annotations"}
+STAGES = frozenset(_HEAD)
 
 # Every field of a `Vocalization` as it is dumped. A value with any other key is refused
 # rather than half-recorded: a field added to the model must be given a column first.
@@ -87,6 +90,42 @@ CREATE INDEX IF NOT EXISTS vocalizations_by_text
     ON vocalizations (document_hash, tool, tool_version);
 -- A segment of that pointing. `pointed` is null for a segment that is only listed as
 -- rejected; each *_ord is the segment's place in its list, null when not in it.
+-- One annotator's pass over one text (`tokens`). `head_json` is the annotation without
+-- its tokens, so the fields only a reader of the file wants — the method, its note, the
+-- band count — come back exactly without a column each.
+CREATE TABLE IF NOT EXISTS annotations (
+    id             INTEGER PRIMARY KEY,
+    stage          TEXT NOT NULL,
+    cache_key      TEXT NOT NULL,
+    document_hash  TEXT NOT NULL,
+    language       TEXT NOT NULL,
+    tool           TEXT NOT NULL,
+    tool_version   TEXT,
+    schema_version INTEGER NOT NULL,
+    head_json      TEXT NOT NULL,
+    written_at     TEXT NOT NULL,
+    superseded_at  TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS annotations_current
+    ON annotations (cache_key) WHERE superseded_at IS NULL;
+CREATE INDEX IF NOT EXISTS annotations_by_text ON annotations (document_hash, tool);
+-- One token of that pass. The query columns are what the agreement between two
+-- annotators is asked of (criterion 2: a self-join on document, segment and place);
+-- `token_json` is the token whole, which is what gives the file back byte for byte.
+CREATE TABLE IF NOT EXISTS tokens (
+    annotation_id INTEGER NOT NULL REFERENCES annotations (id),
+    segment_id    TEXT NOT NULL,
+    segment_ord   INTEGER NOT NULL,
+    ord           INTEGER NOT NULL,
+    form          TEXT NOT NULL,
+    lemma         TEXT,
+    pos           TEXT,
+    features      TEXT,
+    band          INTEGER,
+    token_json    TEXT NOT NULL,
+    PRIMARY KEY (annotation_id, segment_id, ord)
+);
+CREATE INDEX IF NOT EXISTS tokens_by_lemma ON tokens (lemma);
 CREATE TABLE IF NOT EXISTS pointings (
     vocalization_id INTEGER NOT NULL REFERENCES vocalizations (id),
     segment_id      TEXT NOT NULL,
@@ -130,26 +169,19 @@ class Ledger:
         """
         if stage not in STAGES:
             raise ValueError(f"the ledger does not record {stage!r} yet")
-        header, rows = _to_rows(value)
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
             # What the key held stays, as history; it is only no longer the answer.
             db.execute(
-                "UPDATE vocalizations SET superseded_at = ?"
+                f"UPDATE {_HEAD[stage]} SET superseded_at = ?"  # noqa: S608 - a fixed name
                 " WHERE cache_key = ? AND superseded_at IS NULL",
                 (stamp, key),
             )
-            cursor = db.execute(
-                "INSERT INTO vocalizations (stage, cache_key, document_hash, language, tool,"
-                " tool_version, schema_version, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (stage, key, *header, stamp),
-            )
-            db.executemany(
-                "INSERT INTO pointings (vocalization_id, segment_id, pointed, segment_ord,"
-                " machine_ord, rejected_ord) VALUES (?, ?, ?, ?, ?, ?)",
-                [(cursor.lastrowid, *row) for row in rows],
-            )
-            back = _read(db, key)
+            if stage == "vocalize":
+                _insert_vocalization(db, stage, key, value, stamp)
+            else:
+                _insert_annotation(db, stage, key, value, stamp)
+            back = _read(db, stage, key)
             if _bytes(back) != _bytes(value):
                 # Leaving the `with db` block by an exception rolls the write back.
                 raise ValueError("the rows do not give the value back exactly")
@@ -159,7 +191,7 @@ class Ledger:
         if stage not in STAGES or not self.file.is_file():
             return None
         with closing(self._connect()) as db:
-            return _read(db, key)
+            return _read(db, stage, key)
 
     def drop(self, stage: str, key: str) -> bool:
         """Stop answering for one value — the cache's `drop`, so a wrong answer is not
@@ -170,7 +202,7 @@ class Ledger:
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
             dropped = db.execute(
-                "UPDATE vocalizations SET superseded_at = ?"
+                f"UPDATE {_HEAD[stage]} SET superseded_at = ?"  # noqa: S608 - a fixed name
                 " WHERE cache_key = ? AND superseded_at IS NULL",
                 (stamp, key),
             )
@@ -183,11 +215,11 @@ class Ledger:
             return []
         with closing(self._connect()) as db:
             heads = db.execute(
-                "SELECT id, written_at, superseded_at FROM vocalizations"
+                f"SELECT id, written_at, superseded_at FROM {_HEAD[stage]}"  # noqa: S608
                 " WHERE cache_key = ? ORDER BY id",
                 (key,),
             ).fetchall()
-            return [(written, gone, _read_row(db, row)) for row, written, gone in heads]
+            return [(written, gone, _read_row(db, stage, row)) for row, written, gone in heads]
 
     def entries(self, stage: str) -> Iterator[tuple[str, dict[str, Any]]]:
         """Every (cache key, value) the ledger holds for a stage, oldest first."""
@@ -197,13 +229,13 @@ class Ledger:
             keys = [
                 row[0]
                 for row in db.execute(
-                    "SELECT cache_key FROM vocalizations"
+                    f"SELECT cache_key FROM {_HEAD[stage]}"  # noqa: S608 - a fixed name
                     " WHERE stage = ? AND superseded_at IS NULL ORDER BY id",
                     (stage,),
                 )
             ]
             for key in keys:
-                value = _read(db, key)
+                value = _read(db, stage, key)
                 if value is not None:
                     yield key, value
 
@@ -333,16 +365,114 @@ def _migrate(db: sqlite3.Connection) -> None:
         db.execute("UPDATE meta SET value = ? WHERE key = 'schema'", (str(LEDGER_SCHEMA),))
 
 
-def _read(db: sqlite3.Connection, key: str) -> dict[str, Any] | None:
+def _read(db: sqlite3.Connection, stage: str, key: str) -> dict[str, Any] | None:
     """The value a key holds now: its one row with no superseded stamp."""
     head = db.execute(
-        "SELECT id FROM vocalizations WHERE cache_key = ? AND superseded_at IS NULL", (key,)
+        f"SELECT id FROM {_HEAD[stage]}"  # noqa: S608 - a fixed name
+        " WHERE cache_key = ? AND superseded_at IS NULL",
+        (key,),
     ).fetchone()
-    return _read_row(db, head[0]) if head is not None else None
+    return _read_row(db, stage, head[0]) if head is not None else None
 
 
-def _read_row(db: sqlite3.Connection, row_id: int) -> dict[str, Any]:
-    """One value, rebuilt from its row and its pointings, current or not."""
+def _read_row(db: sqlite3.Connection, stage: str, row_id: int) -> dict[str, Any]:
+    """One value, rebuilt from its rows, current or not."""
+    if stage == "tokens":
+        return _read_annotation(db, row_id)
+    return _read_vocalization(db, row_id)
+
+
+def _insert_vocalization(
+    db: sqlite3.Connection, stage: str, key: str, value: Any, stamp: str
+) -> None:
+    header, rows = _to_rows(value)
+    cursor = db.execute(
+        "INSERT INTO vocalizations (stage, cache_key, document_hash, language, tool,"
+        " tool_version, schema_version, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (stage, key, *header, stamp),
+    )
+    db.executemany(
+        "INSERT INTO pointings (vocalization_id, segment_id, pointed, segment_ord,"
+        " machine_ord, rejected_ord) VALUES (?, ?, ?, ?, ?, ?)",
+        [(cursor.lastrowid, *row) for row in rows],
+    )
+
+
+#: The fields an annotation has besides its tokens, in the order the file writes them.
+_ANNOTATION = ("schema_version", "document_hash", "language", "annotator")
+
+
+def _insert_annotation(
+    db: sqlite3.Connection, stage: str, key: str, value: Any, stamp: str
+) -> None:
+    if not isinstance(value, Mapping) or list(value)[-1:] != ["tokens"]:
+        raise ValueError("not an annotation as the pipeline writes one")
+    if any(name not in value for name in _ANNOTATION):
+        raise ValueError("not an annotation as the pipeline writes one")
+    tokens = value["tokens"]
+    if not isinstance(tokens, Mapping):
+        raise ValueError("not an annotation as the pipeline writes one")
+    head = {name: field for name, field in value.items() if name != "tokens"}
+    cursor = db.execute(
+        "INSERT INTO annotations (stage, cache_key, document_hash, language, tool,"
+        " tool_version, schema_version, head_json, written_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            stage,
+            key,
+            value["document_hash"],
+            value["language"],
+            value["annotator"],
+            None,
+            value["schema_version"],
+            json.dumps(head, ensure_ascii=False),
+            stamp,
+        ),
+    )
+    rows = []
+    for segment_ord, (segment, run) in enumerate(tokens.items()):
+        if not isinstance(run, list):
+            raise ValueError("a segment's tokens are not a list")
+        for ord_, token in enumerate(run):
+            if not isinstance(token, Mapping):
+                raise ValueError("a token is not an object")
+            rows.append(
+                (
+                    cursor.lastrowid,
+                    segment,
+                    segment_ord,
+                    ord_,
+                    str(token.get("surface") or ""),
+                    token.get("lemma"),
+                    token.get("pos"),
+                    token.get("feats"),
+                    token.get("band"),
+                    json.dumps(token, ensure_ascii=False),
+                )
+            )
+    db.executemany(
+        "INSERT INTO tokens (annotation_id, segment_id, segment_ord, ord, form, lemma, pos,"
+        " features, band, token_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        rows,
+    )
+
+
+def _read_annotation(db: sqlite3.Connection, row_id: int) -> dict[str, Any]:
+    head_json = db.execute("SELECT head_json FROM annotations WHERE id = ?", (row_id,)).fetchone()
+    value: dict[str, Any] = json.loads(head_json[0])
+    tokens: dict[str, list[Any]] = {}
+    for segment, token in db.execute(
+        "SELECT segment_id, token_json FROM tokens WHERE annotation_id = ?"
+        " ORDER BY segment_ord, ord",
+        (row_id,),
+    ):
+        tokens.setdefault(segment, []).append(json.loads(token))
+    value["tokens"] = tokens
+    return value
+
+
+def _read_vocalization(db: sqlite3.Connection, row_id: int) -> dict[str, Any]:
+    """One pointing, rebuilt from its row and its pointings."""
     head = db.execute(
         "SELECT id, schema_version, document_hash, language, tool, tool_version"
         " FROM vocalizations WHERE id = ?",
