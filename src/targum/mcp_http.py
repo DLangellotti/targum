@@ -127,10 +127,11 @@ TEXT_CARD_META = "targum.page/texts"
 #: read in Russian, from today's news", ChatGPT with targum on never called
 #: `search_sources`: it used its own web search and brought two Israel-related pages to
 #: `describe_source`. This said targum was for Hebrew, and nothing said our feeds came
-#: before the web. The languages named are `hebrew.TALKED`, the ones with a shelf and a
-#: conversation; a test holds the two together.
+#: before the web. It says "learning languages" and names none (David, 2026-10-07): a
+#: list goes stale the day a language is added, and a host asked for one it does not
+#: see would read it as "not for this".
 INSTRUCTIONS = (
-    "targum is a reading app for people learning Hebrew, Russian, French or Italian; "
+    "targum is a reading app for people learning languages; "
     "write its name in lowercase, targum, even at the start of a sentence. These tools "
     "search the public library and, where the reader allowed it, their texts and word "
     "list. When the reader asks for something to read, news included, call "

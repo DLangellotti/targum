@@ -444,15 +444,17 @@ def test_the_host_is_told_to_write_the_name_in_lowercase() -> None:
     assert "Targum" not in said
 
 
-def test_the_host_is_told_targum_teaches_every_language_it_talks_in() -> None:
+def test_the_host_is_told_targum_is_for_languages_not_one_language() -> None:
     """2026-10-07: "a reading app for people learning Hebrew" read, to a host asked for a
-    Russian article, as "not for this". The languages named are the ones targum talks in."""
+    Russian article, as "not for this". David: it says "learning languages" and names
+    none, so it cannot fall behind the languages targum adds."""
     from targum.chat.hebrew import TALKED
     from targum.translate.prompts import language_name
 
     opening = mcp_http.INSTRUCTIONS.split(";", 1)[0]
+    assert opening == "targum is a reading app for people learning languages"
     for code in TALKED:
-        assert language_name(code) in opening, code
+        assert language_name(code) not in opening, code
     assert "write its name in lowercase" in mcp_http.INSTRUCTIONS
 
 
