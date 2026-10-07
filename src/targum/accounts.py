@@ -4960,9 +4960,24 @@ class Store:
         pick = took[middle] if len(took) % 2 else (took[middle - 1] + took[middle]) / 2
         return float(pick) / 1000
 
-    def jobs(self) -> list[dict[str, Any]]:
-        rows = self.db.execute("SELECT * FROM job ORDER BY made").fetchall()
+    def jobs(self, since: int | None = None) -> list[dict[str, Any]]:
+        """Job rows, oldest first. With `since`, only what a process has to hold: every
+        job not yet settled, whenever it was made, and the rest made since then
+        (targum-internal#231). The table itself is never trimmed."""
+        if since is None:
+            rows = self.db.execute("SELECT * FROM job ORDER BY made").fetchall()
+        else:
+            rows = self.db.execute(
+                "SELECT * FROM job WHERE stage NOT IN ('done', 'failed', 'blocked')"
+                " OR made >= ? ORDER BY made",
+                (since,),
+            ).fetchall()
         return [dict(row) for row in rows]
+
+    def job(self, job_id: str) -> dict[str, Any] | None:
+        """One job's row, for a job the process no longer holds."""
+        row = self.db.execute("SELECT * FROM job WHERE id = ?", (job_id,)).fetchone()
+        return dict(row) if row is not None else None
 
     def committed(self, since: int, owner: int | None = -1) -> float:
         """What is still spoken for, counting only the window the budget covers.
