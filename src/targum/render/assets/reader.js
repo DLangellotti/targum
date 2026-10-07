@@ -1878,20 +1878,36 @@ var targumReader = function () {
   // Worked out at the first question rather than here: `bandOf` reads tables declared
   // further down the file, which are still undefined while this line runs.
   var assumedSet = null;
+  // The rung the set was worked out from, so the account's answer can say it moved.
+  var assumedFrom = "";
+
+  function declaredHere() {
+    try {
+      return localStorage.getItem("targum:declared") || "";
+    } catch (e) {
+      return "";
+    }
+  }
 
   function assumedWords() {
-    if (!assumedSet) assumedSet = assumedFromDeclared();
+    if (!assumedSet) {
+      assumedFrom = declaredHere();
+      assumedSet = assumedFromDeclared();
+    }
     return assumedSet;
+  }
+
+  // Whether the rung in the browser is no longer the one the page was drawn with: the
+  // account's copy arrived after the first draw, or the You page changed it.
+  function assumedMoved() {
+    if (assumedSet === null || declaredHere() === assumedFrom) return false;
+    assumedSet = null;
+    return true;
   }
 
   function assumedFromDeclared() {
     if (language !== "he" || PREVIEW) return {};
-    var said = "";
-    try {
-      said = localStorage.getItem("targum:declared") || "";
-    } catch (e) {
-      return {};
-    }
+    var said = declaredHere();
     var bands = Object.prototype.hasOwnProperty.call(ASSUMED_BANDS, said) ? ASSUMED_BANDS[said] : [];
     var out = {};
     if (!bands.length) return out;
@@ -10284,6 +10300,10 @@ var targumReader = function () {
   // something actually arrived.
   if (served && window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
+      // The rung comes with the account's answer too, and on a browser that never drew
+      // the arrival it comes after the first draw: the page redraws for it rather than
+      // waiting for the next load.
+      if (assumedMoved()) changed = true;
       took("the account answered" + (changed ? "" : ", with nothing new"));
       if (!changed) return;
       vocab = readVocab();

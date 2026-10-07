@@ -1454,7 +1454,8 @@
      nothing to go on at a first visit (which text opens first, here; the Library's band;
      how hard the conversation writes), and the first measurement **outvotes** it —
      `charts.seed` answers "" the moment the reader's own marked words reach aleph. It is
-     never shown back: nothing on any page says "you said gimel".
+     never shown back as a letter: nothing on any page says "you said gimel". The You
+     page offers it to change, in these same words (2026-10-07).
 
      The ulpan ladder `level.py` climbs, aleph to vav. Anybody who studied Hebrew in
      Israel knows which kitah they were in; anybody who did not reads the plain words and

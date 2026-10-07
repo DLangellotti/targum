@@ -89,6 +89,9 @@ function act(step) {
     node.fire("click", {});
   } else if (step.type === "write") {
     at(step.id).value = step.value;
+  } else if (step.type === "pick") {
+    at(step.id).value = step.value;
+    at(step.id).fire("change", {});
   } else if (step.type === "tick") {
     const box = at(step.list).children.map((label) => label.children[0]).find((one) => one.value === step.code);
     box.checked = !box.checked;
@@ -119,6 +122,14 @@ setTimeout(() => {
         kept: at("you-kept").textContent,
         learning: ticks("you-learning"),
         reads: ticks("you-reads"),
+        /* The rung named on arrival: what the picker offers, which it shows as chosen, and
+           the browser's copy the reader page reads. */
+        level: at("you-level").children.map((option) => ({
+          value: option.value,
+          label: option.textContent,
+          on: Boolean(option.selected),
+        })),
+        declaredHere: localStorage.getItem("targum:declared"),
         said: { text: at("you-said").textContent, hidden: at("you-said").hidden },
         languagesSaid: {
           text: at("you-languages-said").textContent,

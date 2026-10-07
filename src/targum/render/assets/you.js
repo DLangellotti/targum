@@ -516,6 +516,61 @@
     }, 400);
   }
 
+  /* --- your Hebrew -------------------------------------------------------------- */
+
+  /* The rung named on arrival (design.md §12, "An advanced reader is not asked about the
+     commonest words"). Learn asks it once; this is where it changes. Kept the way Learn
+     keeps it — the account has it, the browser holds a copy — because a reader page
+     reads the copy, and a change here should reach the next page opened here at once. */
+  var RUNGS = ["aleph", "aleph-plus", "bet", "bet-plus", "gimel", "dalet", "hey", "vav"];
+
+  function rungLabels() {
+    return {
+      "": t("you.level.none", "Not said"),
+      aleph: t("learn.level.aleph", "Just starting"),
+      "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
+      bet: t("learn.level.bet", "I can hold a simple conversation"),
+      "bet-plus": t("learn.level.bet-plus", "I follow slow Hebrew with help"),
+      gimel: t("learn.level.gimel", "I follow the news with a dictionary"),
+      dalet: t("learn.level.dalet", "I follow most things comfortably"),
+      hey: t("learn.level.hey", "I follow almost anything"),
+      vav: t("learn.level.vav", "Hebrew is a language I live in"),
+    };
+  }
+
+  function keepRung(rung) {
+    try {
+      if (rung) window.targumKeep("targum:declared", rung);
+      else window.targumForget("targum:declared");
+    } catch (e) {}
+  }
+
+  function drawLevel(who) {
+    var pick = at("you-level");
+    if (!pick) return;
+    var labels = rungLabels();
+    var said = RUNGS.indexOf(who.declared || "") >= 0 ? who.declared : "";
+    pick.textContent = "";
+    [""].concat(RUNGS).forEach(function (rung) {
+      var option = document.createElement("option");
+      option.value = rung;
+      option.textContent = labels[rung];
+      option.selected = rung === said;
+      pick.appendChild(option);
+    });
+    pick.onchange = function () {
+      ask("/account/level", { level: pick.value }).then(function (answer) {
+        if (answer.error || answer.signedIn === false) {
+          drawLevel({ declared: said });
+          return say("you-languages-said", answer.error || SIGNED_OUT);
+        }
+        said = answer.declared || "";
+        keepRung(said);
+        say("you-languages-said", SAVED);
+      });
+    };
+  }
+
   /* --- ending it -------------------------------------------------------------- */
 
   function ending() {
@@ -661,6 +716,7 @@
       if (!who.signedIn) return;
       drawWho(who);
       drawLanguages(who);
+      drawLevel(who);
       drawRecord(who);
       drawConnections(who);
       drawTelegram(who);
