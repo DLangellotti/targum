@@ -24,6 +24,30 @@ def model_dir() -> Path:
     return Path(override).expanduser() if override else cache_dir() / "models"
 
 
+def hf_home() -> Path:
+    """Where the Hugging Face cache lives: beside the language models, so one directory is
+    the whole of what a box has to be given.
+
+    The one place this is said (2026-10-07, targum-internal#426). targum.service set
+    `HF_HOME` to models/huggingface while the code defaulted to models/hf, and deploy.sh's
+    `systemd-run` steps read the env file but not the unit, so the service and every
+    rebuild kept a copy of dictabert-joint each, in two folders.
+    """
+    return model_dir() / "hf"
+
+
+def settle_hf_home() -> None:
+    """Point the Hugging Face libraries at `hf_home()` unless somebody already chose.
+
+    Before anything imports `huggingface_hub`, which reads `HF_HOME` once, at import: set
+    after that, it is not read at all, and the cache lands under $HOME — read-only on the
+    box. So every command does it first (`cli._root`), and each loader again for a caller
+    that came in without the CLI. An `HF_HOME` already in the environment is kept: a laptop
+    that keeps its own Hugging Face cache elsewhere is not moved.
+    """
+    os.environ.setdefault("HF_HOME", str(hf_home()))
+
+
 def config_path() -> Path:
     root = _base("XDG_CONFIG_HOME", Path.home() / ".config")
     return root / "targum" / "config.toml"

@@ -324,9 +324,9 @@ def needs_dicta_model() -> None:
     Checked as a directory rather than by loading, because loading it on a box that does
     not have it would fetch 700 MB from a test.
     """
-    from targum.paths import model_dir
+    from targum.paths import hf_home
 
-    weights = model_dir() / "hf" / "hub" / "models--dicta-il--dictabert-joint"
+    weights = hf_home() / "hub" / "models--dicta-il--dictabert-joint"
     if not weights.is_dir():
         pytest.skip("DICTA not downloaded: run `targum models fetch he`")
 
