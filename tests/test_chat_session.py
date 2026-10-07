@@ -825,6 +825,35 @@ def test_on_a_machine_somebody_runs_themselves_the_chat_rail_is_off(tmp_path: Pa
     assert "chat_budget=CHAT_BUDGET if require_account else None" in source
 
 
+def test_a_gift_turn_passes_the_account_and_spends_none_of_its_hours(tmp_path: Path) -> None:
+    """A word said from its card is on targum (design.md §12, 2026-10-07): a reader whose
+    chat budget is spent still hears it, and their hours do not move. The box ceiling
+    still holds."""
+    from targum.serve import Job, Library
+
+    store = Store(tmp_path / "words.db")
+    person = store.finish_sign_in(store.start_sign_in("r@example.com"))[0]  # type: ignore[index]
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store, chat_budget=0.01, budget=1.0)
+    spent = Job(id="chat-c-1", source="chat:c", estimate=0.02, kind="chat", owner=person.id)
+    assert library.claim_turn(spent) != "", "the reader's own turn is refused"
+    word = Job(
+        id="say-w",
+        source="word:he",
+        estimate=0.001,
+        seconds=2.0,
+        kind="chat",
+        owner=person.id,
+        gift=True,
+    )
+    assert library.claim_turn(word) == ""
+    library.settle(word)
+    assert store.hours_used(person.id, 0) == 0.0
+    huge = Job(id="say-x", source="word:he", estimate=5.0, kind="chat", owner=person.id, gift=True)
+    assert library.claim_turn(huge) != "", "the box ceiling is not waived"
+
+
 def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
     tmp_path: Path,
 ) -> None:

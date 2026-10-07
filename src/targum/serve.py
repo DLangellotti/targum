@@ -3824,7 +3824,10 @@ class Library:
                     return self._out_of("everyone", job.ui)
                 self._committed += job.estimate
                 return ""
-        admin = bool(job.admin)
+        # A gift passes the account's rails as an admin does, and spends none of the
+        # hours: targum pays for it (a word said from its card, design.md §12). The box
+        # ceiling holds for it like everything else.
+        admin = bool(job.admin) or job.gift
         refused = self.store.claim(
             job.id,
             job.estimate,
@@ -3838,7 +3841,7 @@ class Library:
             # voice made for a text (kind `voice`, targum-internal#246) comes out of it
             # the same way.
             month_from=self._month_from(),
-            length=job.seconds,
+            length=0.0 if job.gift else job.seconds,
             per_month_length=None if admin else self.upload_seconds,
         )
         if not refused:
@@ -7684,8 +7687,11 @@ class Handler(BaseHTTPRequestHandler):
         """One word said aloud, from its card, on a page with no recording of it.
 
         A recorded page plays the word out of its own recording and never asks here.
-        Everywhere else the press is the spend, exactly as a spoken reply's is: claimed at
-        the voice's price for the word, out of the same hours, and settled to the clip.
+        Everywhere else the press makes the clip, and targum pays for it (David,
+        2026-10-07; design.md §12): a `gift`, claimed against the box ceiling and settled
+        to the clip like any spend, but past the account's rails and out of nobody's hours.
+        A second of speech is a fraction of a cent, and a reader should not have to weigh
+        one before hearing a word.
         The clip is kept by what was said, not by who asked, so the same word in the same
         language is made once and free everywhere after that — no claim at all.
 
@@ -7751,6 +7757,7 @@ class Handler(BaseHTTPRequestHandler):
                 home=self._home(),
                 admin=bool(person and self.store.is_admin(person.email)),
                 kind="chat",
+                gift=True,
             )
             self.library.jobs[job.id] = job
             self.library.remember(job)

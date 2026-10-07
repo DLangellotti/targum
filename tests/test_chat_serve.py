@@ -764,9 +764,9 @@ def test_a_turn_that_found_nothing_says_so_rather_than_leaving_the_key_out(chatt
 def test_a_word_is_said_once_and_kept_for_everyone(
     chatting, monkeypatch: Any, tmp_path: Path
 ) -> None:
-    """The word card's Hear on a page with no recording: the press is the spend,
-    claimed and settled to the clip, and the clip is kept by the word, so a second press
-    costs nothing and claims nothing."""
+    """The word card's Hear on a page with no recording: the press makes the clip on
+    targum (a gift, design.md §12), claimed against the box and settled to the clip, and
+    the clip is kept by the word, so a second press costs nothing and claims nothing."""
     import base64
 
     from targum import speech
@@ -793,6 +793,7 @@ def test_a_word_is_said_once_and_kept_for_everyone(
     assert said == [("תלמידי", "he")]
     spoken = [job for job in chats.library.jobs.values() if job.source == "word:he"]
     assert len(spoken) == 1 and spoken[0].stage == "done"
+    assert spoken[0].gift, "targum pays for a word, not the reader"
     assert spoken[0].spent == pytest.approx(1.0 / 60 * speech.PRICES[speech.NAME])
     assert store.committed(0) >= spoken[0].spent, "the box's day can see it"
 
