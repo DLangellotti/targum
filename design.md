@@ -365,7 +365,7 @@ followed nine Russian publishers by then; nothing sent a host to them.
 - **The connector says every language it teaches.** `mcp_http.INSTRUCTIONS` and the chat's
   own prompt opened "a reading app for people learning Hebrew", which reads to a host as
   "Israel". The connector now names the languages in `hebrew.TALKED` and a test keeps the
-  two in step; the chat says "learning a language" and keeps "Hebrew comes first".
+  two in step; the chat says "learning languages" and keeps "Hebrew comes first".
 - **targum's own sources are asked first.** One sentence in the instructions: when the
   reader asks for something to read, news included, call `search_sources` or `find_text`
   first, and use the host's own web search only when they find nothing that fits. A host
