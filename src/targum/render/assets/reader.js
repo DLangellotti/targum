@@ -11897,6 +11897,28 @@ var targumReader = function () {
     var PANEL = 420;
     var view = "beside";
     var panel = false;
+    //: Theatre's picture as a share of the size the layout gives it (2026-10-07), kept
+    //: per reader like the view; 1 is the default and is never written.
+    var SIZE_STORE = "targum:film-size";
+    var size = 1;
+    var fullW = 0;
+    var sizeGrip = videoBox.querySelector(".film-size");
+    //: The smallest it goes: three tenths of the full size and never under 280px wide,
+    //: which still shows a face — and never more than the full size on a small window.
+    var SIZE_LEAST = 0.3;
+    var SIZE_LEAST_PX = 280;
+    var sizeFloor = function (full) {
+      return Math.min(full, Math.max(Math.round(full * SIZE_LEAST), SIZE_LEAST_PX));
+    };
+    // The separator's numbers, in per cent of the full size.
+    var sized = function (full) {
+      if (!sizeGrip || !full) return;
+      var least = Math.round((sizeFloor(full) / full) * 100);
+      var now = Math.max(least, Math.round(size * 100));
+      sizeGrip.setAttribute("aria-valuemin", String(least));
+      sizeGrip.setAttribute("aria-valuenow", String(now));
+      sizeGrip.setAttribute("aria-valuetext", S.t("reader.film.size-now", "{n}% of full size", { n: now }));
+    };
 
     var filmUp = function () {
       return !videoBox.hidden;
@@ -11964,6 +11986,11 @@ var targumReader = function () {
         // Room under it for the controls and three lines of the transcript.
         w = Math.min(area - 160, 1120, (H - top - 300) * ratio);
         col = panel ? W - PANEL : 0;
+        // The reader's own size, a share of that (2026-10-07). At the full share this
+        // is the line above untouched, so Theatre stands where it always stood.
+        fullW = Math.max(160, Math.round(w));
+        w = Math.max(sizeFloor(fullW), fullW * size);
+        sized(fullW);
       } else {
         // Room under it for the controls and the lines that say what it is.
         w = Math.min((W - listed) * 0.6 - 80, (H - top - 210) * ratio);
@@ -12339,6 +12366,109 @@ var targumReader = function () {
       });
     });
 
+    /* --- Theatre's picture, made smaller --------------------------------------- */
+
+    /* David, 2026-10-07 (design.md §12): "drag on the video and make it smaller or
+       bigger, giving more room to text" — and "I like the theater default though". So
+       the grip on the picture's lower edge scales it down from the size `fit` gives it
+       and back, never past it, and keeps its shape: the picture and its row are one
+       column, so the line under them takes whatever height the picture gives up, and
+       the transcript panel beside it does not move. The lower edge rather than a
+       corner because the picture stands in the middle and can only trade height; a
+       corner would promise a free shape it cannot have. A share of the full size is
+       kept, not pixels, so a window resized keeps the reader's proportion; the full
+       size is never written. Nothing is animated — the picture follows the hand. */
+    var setSize = function (share, keep) {
+      var least = fullW ? sizeFloor(fullW) / fullW : SIZE_LEAST;
+      size = Math.max(least, Math.min(1, share));
+      if (size > 0.995) size = 1;
+      fit();
+      if (keep) {
+        try {
+          if (size === 1) targumForget(SIZE_STORE);
+          else targumKeep(SIZE_STORE, String(Math.round(size * 1000) / 1000));
+        } catch (e) {}
+      }
+    };
+    // What depends on the picture's height once it has settled: the reader's own
+    // layout, and the line being said brought back into view where the transcript shows.
+    var sizeSettled = function () {
+      relay();
+      var now = marked || (subFor && subFor.parentNode ? subFor : null);
+      if (now && filmFollow) filmFollow(now);
+    };
+    if (sizeGrip) {
+      var grab = null;
+      var lastTap = 0;
+      sizeGrip.addEventListener("pointerdown", function (event) {
+        if (event.button > 0 || !filmUp() || view !== "theatre" || !wideFilm.matches) return;
+        event.preventDefault();
+        var frame = sizeGrip.parentNode.getBoundingClientRect();
+        grab = { id: event.pointerId, y: event.clientY, h: frame.height, moved: false };
+        try {
+          sizeGrip.setPointerCapture(event.pointerId);
+        } catch (e) {}
+        sizeGrip.classList.add("held");
+        body.classList.add("film-sizing");
+      });
+      sizeGrip.addEventListener("pointermove", function (event) {
+        if (!grab || event.pointerId !== grab.id || !fullW) return;
+        var dy = event.clientY - grab.y;
+        if (Math.abs(dy) > 3) grab.moved = true;
+        if (!grab.moved) return;
+        // The edge follows the pointer: the new height, in the film's shape, as a share.
+        var high = Math.max(1, grab.h + dy);
+        setSize((high * shape()) / fullW, false);
+      });
+      var letGo = function (event) {
+        if (!grab || event.pointerId !== grab.id) return;
+        var moved = grab.moved;
+        grab = null;
+        try {
+          sizeGrip.releasePointerCapture(event.pointerId);
+        } catch (e) {}
+        sizeGrip.classList.remove("held");
+        body.classList.remove("film-sizing");
+        if (moved) {
+          setSize(size, true);
+          lastTap = 0;
+        } else if (event.type === "pointerup") {
+          // Two presses in a row put it back to the default: a double click, and a
+          // double tap, which a touch screen does not always send as one.
+          var at = Date.now();
+          if (at - lastTap < 400) {
+            lastTap = 0;
+            setSize(1, true);
+          } else {
+            lastTap = at;
+          }
+        }
+        sizeSettled();
+      };
+      sizeGrip.addEventListener("pointerup", letGo);
+      sizeGrip.addEventListener("pointercancel", letGo);
+      // A press on the grip is not a press on the picture under it.
+      sizeGrip.addEventListener("click", function (event) {
+        event.stopPropagation();
+      });
+      sizeGrip.addEventListener("keydown", function (event) {
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        var to = null;
+        // ↑ takes the edge up, so the picture smaller; ↓ down. A tenth a press.
+        if (event.key === "ArrowUp" || event.key === "ArrowLeft") to = size - 0.1;
+        else if (event.key === "ArrowDown" || event.key === "ArrowRight") to = size + 0.1;
+        else if (event.key === "PageUp") to = size - 0.25;
+        else if (event.key === "PageDown") to = size + 0.25;
+        else if (event.key === "Home") to = 0;
+        else if (event.key === "End") to = 1;
+        if (to === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setSize(to, true);
+        sizeSettled();
+      });
+    }
+
     /* --- C: it steps back while it plays ---------------------------------------- */
 
     /* Playing, the bar and the controls fade, and what is left is the picture, a hairline
@@ -12363,6 +12493,7 @@ var targumReader = function () {
       if (body.classList.contains("pop-open")) return false;
       if (card && !card.hidden) return false;
       if (filmCtl && filmCtl.matches(":hover")) return false;
+      if (body.classList.contains("film-sizing")) return false;
       return !keyboardIn();
     };
     var quiet = function (on) {
@@ -12448,7 +12579,8 @@ var targumReader = function () {
         if (!filmUp() || event.metaKey || event.ctrlKey || event.altKey) return;
         var on = document.activeElement;
         if (on && /^(INPUT|SELECT|TEXTAREA)$/.test(on.tagName)) return;
-        if (on && (on.isContentEditable || on.getAttribute("role") === "slider")) return;
+        // The size grip is a separator and its arrows are its own (2026-10-07).
+        if (on && (on.isContentEditable || on.getAttribute("role") === "slider" || on === sizeGrip)) return;
         if (body.classList.contains("pop-open")) return;
         var by = 0;
         if (event.key === "ArrowUp") by = -1;
@@ -12528,6 +12660,8 @@ var targumReader = function () {
       putAway = localStorage.getItem(VIDEO_STORE) === "1";
       var keptView = localStorage.getItem(VIEW_STORE);
       if (VIEWS.indexOf(keptView) >= 0) view = keptView;
+      var keptSize = parseFloat(localStorage.getItem(SIZE_STORE) || "");
+      if (keptSize > 0 && keptSize < 1) size = keptSize;
     } catch (e) {}
     var inList = false;
     var swipedHere = false;

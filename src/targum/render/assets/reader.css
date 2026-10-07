@@ -3354,6 +3354,50 @@ body.paged .credits { margin-block-end: 6rem; }
   -webkit-tap-highlight-color: transparent;
 }
 .video-tap:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
+/* Theatre's grip on the picture's lower edge (David, 2026-10-07; design.md §12): drag it
+   up and the picture scales down, and the line under it takes the room. A 44px band over
+   the picture's foot rather than a strip under it, so it takes no room and Theatre stands
+   exactly where it stood for a reader who never touches it; the bar inside it is shown
+   only while the pointer is over the picture, the grip has the keyboard, or it is held.
+   Wide windows only — a phone has no Theatre. */
+.film-size { display: none; }
+.film-grip {
+  position: absolute;
+  inset-block-end: 0.5rem;
+  inset-inline: 0;
+  inline-size: 3rem;
+  block-size: 4px;
+  margin-inline: auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 85%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #171614 35%, transparent);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+@media (min-width: 60.01rem) {
+  body.film-theatre .film-size {
+    display: block;
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    block-size: 44px;
+    cursor: ns-resize;
+    touch-action: none;
+  }
+  body.film-theatre .film-frame:hover .film-grip,
+  .film-size:focus-visible .film-grip,
+  .film-size.held .film-grip { opacity: 1; }
+  body.film-quiet:not(.film-sizing) .film-grip { opacity: 0; }
+  .film-size:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
+}
+/* A touch screen has no hover to bring the grip up, so it is there, faintly. */
+@media (hover: none) and (pointer: coarse) {
+  .film-size { min-block-size: 44px; }
+  .film-grip { opacity: 0.55; }
+}
+/* While it is held the page does not select text under the pointer. */
+body.film-sizing { user-select: none; -webkit-user-select: none; cursor: ns-resize; }
 /* A word's card over a paused picture (C): the frame steps down under it. */
 body.film-card.film-theatre .film-frame::after {
   content: "";
@@ -3795,7 +3839,8 @@ body.film-quiet .video-tap { cursor: none; }
   .film-ctl > *,
   .film-line,
   .film-about,
-  .film-far { transition: none; }
+  .film-far,
+  .film-grip { transition: none; }
 }
 
 /* --- on a phone: the picture, its row, and the transcript under them ---

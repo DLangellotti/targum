@@ -453,3 +453,203 @@ def test_a_picture_put_away_is_an_audio_reader_and_comes_back(browser, tmp_path)
         assert not page.locator("#player").is_visible(), "the row is the transport again"
     finally:
         context.close()
+
+
+# -- Theatre's picture, made smaller (David, 2026-10-07; design.md §12) --------------
+
+#: The picture, its row and the line under it, in Theatre at the suite's 1280x800 on the
+#: fixture film (16:9), measured on master before the grip was drawn. David likes the
+#: default as it is: a reader who never touches the grip must see exactly this.
+THEATRE_AS_IT_WAS = {
+    "frame": [245.5, 80, 789, 443.81],
+    "row": [245.5, 532.61, 789, 36],
+    "sub": [245.5, 583, 789, 193],
+}
+
+SIZE = """
+() => {
+  const grip = document.querySelector('.film-size');
+  const r = (s) => {
+    const el = document.querySelector(s);
+    if (!el || !el.getClientRects().length) return null;
+    const b = el.getBoundingClientRect();
+    return [b.left, b.top, b.width, b.height].map((v) => Math.round(v * 100) / 100);
+  };
+  return {
+    frame: r('.film-frame'),
+    row: r('.film-ctl'),
+    sub: r('#film-sub'),
+    now: r('#film-sub .film-now'),
+    grip: r('.film-size'),
+    shown: grip ? getComputedStyle(grip.querySelector('.film-grip')).opacity : null,
+    value: grip ? Number(grip.getAttribute('aria-valuenow')) : null,
+    least: grip ? Number(grip.getAttribute('aria-valuemin')) : null,
+    stored: localStorage.getItem('targum:film-size'),
+    innerHeight: window.innerHeight,
+  };
+}
+"""
+
+
+def drag_grip(page, dy: float) -> None:
+    """Take the grip in the middle of its band and move it `dy` pixels down."""
+    grip = page.evaluate(SIZE)["grip"]
+    x = grip[0] + grip[2] / 2
+    y = grip[1] + grip[3] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    for step in range(1, 6):
+        page.mouse.move(x, y + dy * step / 5)
+    page.mouse.up()
+    page.wait_for_timeout(50)
+
+
+def line_in_view(seen) -> bool:
+    """The line being said stands under the picture's row and inside the window."""
+    now, row = seen["now"], seen["row"]
+    return now[1] >= row[1] + row[3] - 1 and now[1] + now[3] <= seen["innerHeight"] + 1
+
+
+def test_theatre_opens_at_the_size_it_always_had(browser, tmp_path) -> None:  # noqa: F811
+    """The grip is an option, not a new default: Theatre stands to the pixel where it stood
+    before it was drawn, the grip's bar is not shown until the pointer is over the picture,
+    and nothing is stored."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        settled(page)
+        seek(page, 0.2)
+        page.mouse.move(5, 795)
+        seen = page.evaluate(SIZE)
+        for name, box in THEATRE_AS_IT_WAS.items():
+            assert seen[name] == box, f"{name} moved: {seen[name]} != {box}"
+        assert seen["shown"] == "0", "the grip is quiet until the picture is pointed at"
+        assert seen["value"] == 100 and seen["stored"] is None, seen
+        frame = seen["frame"]
+        page.mouse.move(frame[0] + frame[2] / 2, frame[1] + frame[3] / 2)
+        assert page.evaluate(SIZE)["shown"] == "1", "and there under the pointer"
+        # Its band is 44px and lies over the picture's foot, inside it.
+        grip = seen["grip"]
+        assert grip[3] >= 44 and abs(grip[1] + grip[3] - (frame[1] + frame[3])) < 1, seen
+    finally:
+        context.close()
+
+
+def test_the_grip_drags_the_picture_smaller_and_back(browser, tmp_path) -> None:  # noqa: F811
+    """Dragged up, the picture scales down in its own shape and the line under it takes
+    the room; dragged down it grows back, never past the default, and never under the
+    floor. The line being said stays in view throughout, and the size is kept."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        settled(page)
+        seek(page, 0.2)
+        full = page.evaluate(SIZE)
+        drag_grip(page, -150)
+        small = page.evaluate(SIZE)
+        assert abs(small["frame"][3] - (full["frame"][3] - 150)) < 3, small
+        assert abs(small["frame"][2] / small["frame"][3] - 16 / 9) < 0.02, "kept its shape"
+        assert small["sub"][3] > full["sub"][3] + 140, "the line took the room"
+        assert line_in_view(small), small
+        assert 50 < small["value"] < 75 and small["stored"], small
+
+        drag_grip(page, -800)
+        least = page.evaluate(SIZE)
+        assert least["frame"][2] == 280, "never under 280px wide (3/10 is less, here)"
+        assert least["value"] == least["least"] == round(280 / 789 * 100), least
+        assert line_in_view(least), least
+
+        drag_grip(page, 900)
+        back = page.evaluate(SIZE)
+        assert back["frame"] == full["frame"], "never past the default"
+        assert back["value"] == 100 and back["stored"] is None, "the default is not stored"
+        assert line_in_view(back), back
+    finally:
+        context.close()
+
+
+def test_the_grip_answers_the_keyboard(browser, tmp_path) -> None:  # noqa: F811
+    """A separator: ↑ smaller and ↓ larger by a tenth, Home the smallest, End the full
+    size. Its arrows are its own — they do not step the line as they do elsewhere."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        seek(page, 0.2)
+        page.focus(".film-size")
+        assert page.get_attribute(".film-size", "role") == "separator"
+        assert page.get_attribute(".film-size", "aria-orientation") == "horizontal"
+        assert page.get_attribute(".film-size", "aria-label") == "Video size"
+        width = page.evaluate(SIZE)["frame"][2]
+        page.keyboard.press("ArrowUp")
+        seen = page.evaluate(SIZE)
+        assert seen["value"] == 90 and abs(seen["frame"][2] - width * 0.9) < 1.5, seen
+        assert page.evaluate(FILM)["now"] == "שורה 1", "the arrow did not step the line"
+        ring = page.evaluate(
+            "() => getComputedStyle(document.querySelector('.film-size')).outlineColor"
+        )
+        assert ring == "rgb(184, 147, 94)", f"the focus colour: {ring}"
+        page.keyboard.press("ArrowDown")
+        assert page.evaluate(SIZE)["value"] == 100
+        page.keyboard.press("Home")
+        seen = page.evaluate(SIZE)
+        assert seen["value"] == seen["least"] and seen["frame"][2] == 280, seen
+        page.keyboard.press("End")
+        seen = page.evaluate(SIZE)
+        assert seen["value"] == 100 and seen["frame"][2] == width and seen["stored"] is None
+    finally:
+        context.close()
+
+
+def test_a_double_press_resets_and_the_size_is_kept(browser, tmp_path) -> None:  # noqa: F811
+    """The size is the reader's, kept across a reload and onto the next text like the view;
+    a double click on the grip puts the default back."""
+    one = video_reader(tmp_path / "one", spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    two = video_reader(tmp_path / "two", spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, one, view="theatre")
+    try:
+        full = page.evaluate(SIZE)["frame"]
+        drag_grip(page, -120)
+        small = page.evaluate(SIZE)
+        assert small["frame"][2] < full[2] and small["stored"], small
+
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(SIZE)["frame"] == small["frame"], "kept across the door"
+        page.goto(address(two))
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(SIZE)["frame"] == small["frame"], "and on the next text"
+
+        grip = small["grip"]
+        page.mouse.dblclick(grip[0] + grip[2] / 2, grip[1] + grip[3] / 2)
+        page.wait_for_timeout(50)
+        seen = page.evaluate(SIZE)
+        assert seen["frame"] == full and seen["stored"] is None, seen
+        assert page.evaluate(FILM)["paused"], "a press on the grip is not a press on the picture"
+    finally:
+        context.close()
+
+
+def test_beside_and_the_phone_have_no_grip(browser, tmp_path) -> None:  # noqa: F811
+    """The size is Theatre's alone: Beside stands where it stood with a size kept, and a
+    phone, which has no Theatre, has no grip."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(browser, built, view="beside")
+    names = {"picture": ".film-frame", "row": ".film-ctl", "line": FIRST_LINE}
+    try:
+        plain = page.evaluate(BOXES, names)
+        assert not page.locator(".film-size").is_visible()
+        page.evaluate("() => localStorage.setItem('targum:film-size', '0.5')")
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(BOXES, names) == plain, "Beside is unchanged"
+        assert not page.locator(".film-size").is_visible()
+    finally:
+        context.close()
+    context, page = film_open(browser, built, viewport=PHONE, view="theatre")
+    try:
+        assert not page.locator(".film-size").is_visible()
+    finally:
+        context.close()

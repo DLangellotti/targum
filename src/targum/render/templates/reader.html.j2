@@ -514,6 +514,10 @@
         and pauses — the same wiring as every other play press (`data-play-scene`). No
         glyph sits on it: the row under it says whether it is playing. -#}
     <button type="button" class="video-tap" data-play-scene aria-pressed="false" aria-label="{{ t("reader.page.play-or-pause-the-picture", "Play or pause the picture") }}"></button>
+    {#- Theatre's picture, made smaller by its lower edge (David, 2026-10-07; design.md
+        §12). Inside the frame, over the picture's foot, so it takes no room: a reader who
+        never touches it sees Theatre as it was. Shown only in Theatre on a wide window. -#}
+    <div class="film-size" role="separator" tabindex="0" aria-orientation="horizontal" aria-valuemin="30" aria-valuemax="100" aria-valuenow="100" aria-label="{{ t("reader.film.size", "Video size") }}" title="{{ t("reader.film.size-title", "Drag to make the video smaller or larger. Double-click for the full size.") }}"><span class="film-grip" aria-hidden="true"></span></div>
   </div>
   {#- One thin row: play, where it is, the line of it, how long, how fast, and the line
       held. Text labels and thin strokes, nothing filled (#421's bar). -#}
