@@ -2263,6 +2263,18 @@ FEEDS_BUDGET_S = 8.0
 #: hour, and a conversation asks again within the minute.
 FEED_FRESH_S = 300.0
 
+#: How many items of each feed a search keeps (2026-10-07). It was 15, which held a
+#: topic search to what fifteen of a feed's newest stories happened to be: on that day
+#: Lenta's 200 items had six on culture, and fifteen had none. 60 is what the busy feeds
+#: carry in about a day (Lenta sends 200, TASS 100, Haaretz 100) and every other feed
+#: sends fewer. The weekly's own pull keeps its own limit. Measured the same day on the
+#: laptop, on 28 feeds cut from that day's Russian and Hebrew feeds: 1,470 parsed items
+#: held 3.3 MB, about 2 KB each, РБК's full texts the bulk of it. A first search over
+#: 1,680 items took 0.05 s with ~420 distinct hooks to measure (call it 0.2 s for all
+#: distinct), and 0.016 s once `FEED_KNOWN` held them. A search still answers `limit`
+#: items, so what a host reads is no larger.
+FEED_ITEMS = 60
+
 #: How long a feed that would not answer is left alone before it is knocked on again.
 #: Short, because a host comes back; long enough that one turn's searches do not each
 #: wait on the same dead one. Not `store.closed()`: a host is only marked open again by
@@ -2404,7 +2416,7 @@ class Feeds:
 
         try:
             try:
-                items: list[Any] | None = feeds.pull(url, limit=15)
+                items: list[Any] | None = feeds.pull(url, limit=FEED_ITEMS)
             except TargumError:
                 items = None
             if items is not None:
@@ -2445,9 +2457,14 @@ def _feed_language(feed: str) -> str:
 
 
 def _item_topics(publisher: sources_module.Publisher, item: Any) -> tuple[str, ...]:
-    """What one feed item is about: its publisher's section, and its own categories."""
+    """What one feed item is about: its publisher's section, and its own categories —
+    or, where the feed gives it none, the section its address names (2026-10-07)."""
     found = set(publisher.topics)
-    found.update(sources_module.topics_of(getattr(item, "categories", ()) or ()))
+    categories = getattr(item, "categories", ()) or ()
+    if categories:
+        found.update(sources_module.topics_of(categories))
+    else:
+        found.update(sources_module.topics_of_link(str(getattr(item, "link", "") or "")))
     return tuple(one for one in sources_module.TOPICS if one in found)
 
 

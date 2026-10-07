@@ -210,3 +210,60 @@ def test_search_sources_offers_the_topics_by_name() -> None:
     schema = tools.BY_NAME["search_sources"].schema["properties"]["topic"]
     assert schema["enum"] == list(sources.TOPICS)
     assert "by topic" in tools.BY_NAME["search_sources"].description
+
+
+# -- the address, where a feed files nothing (2026-10-07) ----------------------------
+
+
+@pytest.mark.parametrize(
+    ("link", "topics"),
+    [
+        ("https://www.haaretz.co.il/news/politics/2026-10-07/ty-article/00000", ("politics",)),
+        ("https://www.haaretz.co.il/news/world/europe/2026-10-07/ty-article/1", ("world",)),
+        ("https://www.rbc.ru/sport/07/10/2026/abc", ("sport",)),
+        ("https://www.rbc.ru/business/07/10/2026/abc", ("economy",)),
+        ("https://tass.ru/kultura/28188000", ("culture",)),
+        ("https://tass.ru/mezhdunarodnaya-panorama/28188665", ("world",)),
+        ("https://www.ynet.co.il/sport/article/abc", ("sport",)),
+        ("https://www.israelhayom.co.il/culture/internet-culture/article/1", ("culture",)),
+        # No section named, so no topic: never a guess.
+        ("https://meduza.io/news/2026/10/07/zagolovok", ()),
+        ("https://meduza.io/feature/2026/10/07/kultura-i-mir", ()),
+        ("https://www.bbc.com/russian/articles/c0000000", ()),
+        ("https://news.walla.co.il/item/3871080", ()),
+        ("https://lenta.ru/news/2026/10/07/sport/", ()),
+        ("https://www.ynet.co.il/entertainment/article/abc", ()),
+        ("https://www.ynet.co.il/digital/technews/article/abc", ()),
+        ("https://example.org/sportswear/1", ()),
+    ],
+)
+def test_an_address_names_a_topic_only_by_its_section(link: str, topics: tuple[str, ...]) -> None:
+    assert sources.topics_of_link(link) == topics
+    for segment, named in sources.PATH_TOPICS.items():
+        assert set(named) <= set(sources.TOPICS), segment
+
+
+def test_the_address_is_read_only_where_the_feed_files_nothing() -> None:
+    blank = sources.Publisher(key="p", name="p", publisher="")
+    bare = feeds.Item(title="t", link="https://www.rbc.ru/sport/07/10/2026/a")
+    filed = feeds.Item(
+        title="t", link="https://www.rbc.ru/sport/07/10/2026/a", categories=("Политика",)
+    )
+    assert tools._item_topics(blank, bare) == ("sport",)
+    assert tools._item_topics(blank, filed) == ("politics",), "the feed's word wins"
+
+
+def test_a_search_keeps_sixty_items_of_each_feed(
+    world: tuple[Library, Store, Person], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """15 held a topic search to a feed's fifteen newest stories (2026-10-07)."""
+    asked: list[int] = []
+    real = feeds.pull
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        asked.append(limit)
+        return real(url, limit=limit)
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.search_sources(context(*world, "ru"), {"language": "all"})
+    assert asked and set(asked) == {tools.FEED_ITEMS} and tools.FEED_ITEMS == 60

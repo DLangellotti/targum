@@ -217,6 +217,48 @@ CATEGORY_TOPICS: dict[str, tuple[str, ...]] = {
 }
 
 
+#: A section an article's address names, to the topics it means (2026-10-07), for a feed
+#: item with no categories of its own. Only a path segment that is the section word
+#: itself, among the first two, and only words a followed paper was seen using:
+#: Haaretz's /news/politics/ and /news/world/, РБК's /politics/, /sport/, /business/,
+#: TASS's /kultura/, /nauka/, /ekonomika/, /mezhdunarodnaya-panorama/, Ynet's /sport/,
+#: Israel Hayom's /culture/ and /sport/. Meduza (/news/, /feature/), the BBC
+#: (/russian/articles/), Walla (/item/) and Lenta (/news/2026/) name no section and get
+#: none — and nothing near a section word is read as one: Ynet's /entertainment/ and
+#: /digital/technews/ stay without a topic rather than be guessed at.
+PATH_TOPICS: dict[str, tuple[str, ...]] = {
+    "world": ("world",),
+    "world-news": ("world",),
+    "mezhdunarodnaya-panorama": ("world",),
+    "politics": ("politics",),
+    "politika": ("politics",),
+    "economics": ("economy",),
+    "economy": ("economy",),
+    "ekonomika": ("economy",),
+    "business": ("economy",),
+    "finances": ("economy",),
+    "culture": ("culture",),
+    "kultura": ("culture",),
+    "science": ("science",),
+    "nauka": ("science",),
+    "tech": ("tech",),
+    "technology": ("tech",),
+    "sport": ("sport",),
+    "sports": ("sport",),
+    "health": ("health",),
+    "zdorove": ("health",),
+}
+
+
+def topics_of_link(link: str) -> tuple[str, ...]:
+    """The topics the first two segments of an article's path name; () for none."""
+    segments = [one.casefold() for one in urlparse(link).path.split("/") if one][:2]
+    found: set[str] = set()
+    for segment in segments:
+        found.update(PATH_TOPICS.get(segment, ()))
+    return tuple(topic for topic in TOPICS if topic in found)
+
+
 def _category_key(category: str) -> list[str]:
     """The spellings of one category to look up: the whole, folded, and then each part
     of a section path — Novaya Gazeta Europe's "Novosti · Kultura", Globes' "טכנולוגיה:
