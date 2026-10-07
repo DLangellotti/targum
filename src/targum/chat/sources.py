@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -118,6 +119,122 @@ UNREACHABLE: dict[str, str] = {
 #: What one entry in `sources.json` may say it is.
 KINDS = ("news", "podcast", "video", "text")
 
+#: What a reader can ask the news to be about (2026-10-07). Eight, because these are the
+#: sections the followed papers themselves are cut into — Lenta's, TASS's, РБК's, Israel
+#: Hayom's and Globes' categories, and the section feeds Ynet, Walla, Globes and Maariv
+#: publish — and the words a reader uses for a kind of story ("something on culture").
+#: "world" rather than "news": every item here is news, and what a reader who says "news
+#: from abroad" means is the world desk. Science and tech are two because the papers
+#: keep them apart except where one section holds both, which then carries both topics.
+TOPICS = ("world", "politics", "economy", "culture", "science", "tech", "sport", "health")
+
+#: A feed's own category, as it spells it, to the topics it means (2026-10-07). Matched
+#: whole, after `_category_key` folds it, never as a substring: "Мир" is the world desk
+#: and "Мировой рынок нефти" is not. Every spelling here was seen in a followed feed on
+#: 2026-10-07 or is its plain neighbour in the same language; a category not here has no
+#: topic, which keeps the item and leaves it out of a topic filter.
+CATEGORY_TOPICS: dict[str, tuple[str, ...]] = {
+    # Russian: Lenta, TASS, РБК, Global Voices, and Novaya Gazeta Europe's transliterated
+    # sections ("Novosti · Kultura" — `_category_key` takes the part after the dot).
+    "мир": ("world",),
+    "в мире": ("world",),
+    "международная политика": ("world", "politics"),
+    "mezhdunarodnaya politika": ("world", "politics"),
+    "политика": ("politics",),
+    "внешняя политика": ("world", "politics"),
+    "власть": ("politics",),
+    "politika": ("politics",),
+    "экономика": ("economy",),
+    "экономика и бизнес": ("economy",),
+    "бизнес": ("economy",),
+    "финансы": ("economy",),
+    "малый бизнес": ("economy",),
+    "недвижимость": ("economy",),
+    "ekonomika": ("economy",),
+    "культура": ("culture",),
+    "культура и искусство": ("culture",),
+    "искусство и культура": ("culture",),
+    "кино": ("culture",),
+    "музыка": ("culture",),
+    "театр": ("culture",),
+    "литература": ("culture",),
+    "книги": ("culture",),
+    "kultura": ("culture",),
+    "retsenziya": ("culture",),
+    "наука": ("science",),
+    "наука и техника": ("science", "tech"),
+    "космос": ("science",),
+    "nauka": ("science",),
+    "технологии": ("tech",),
+    "tekhnologii": ("tech",),
+    "спорт": ("sport",),
+    "футбол": ("sport",),
+    "хоккей": ("sport",),
+    "sport": ("sport",),
+    "здоровье": ("health",),
+    "медицина": ("health",),
+    "забота о себе": ("health",),
+    # Hebrew: Israel Hayom and Globes.
+    "העולם": ("world",),
+    "בעולם": ("world",),
+    "חדשות חוץ": ("world",),
+    "פוליטי": ("politics",),
+    "פוליטי-מדיני": ("politics",),
+    "פוליטיקה": ("politics",),
+    "כלכלה": ("economy",),
+    "עסקים": ("economy",),
+    "שוק ההון": ("economy",),
+    "תרבות": ("culture",),
+    "קולנוע": ("culture",),
+    "מוזיקה": ("culture",),
+    "טלוויזיה": ("culture",),
+    "ספרות": ("culture",),
+    "תיאטרון": ("culture",),
+    "אמנות": ("culture",),
+    "מדע": ("science",),
+    "חלל ומדע": ("science",),
+    "טכנולוגיה ומדע": ("science", "tech"),
+    "מדע וטכנולוגיה": ("science", "tech"),
+    "טכנולוגיה": ("tech",),
+    "ספורט": ("sport",),
+    "כדורגל ישראלי": ("sport",),
+    "כדורגל עולמי": ("sport",),
+    "כדורסל ישראלי": ("sport",),
+    "בריאות": ("health",),
+    # English: Global Voices, and any English feed added later.
+    "world": ("world",),
+    "international relations": ("world",),
+    "politics": ("politics",),
+    "economy": ("economy",),
+    "business": ("economy",),
+    "economics & business": ("economy",),
+    "culture": ("culture",),
+    "arts & culture": ("culture",),
+    "science": ("science",),
+    "technology": ("tech",),
+    "sports": ("sport",),
+    "health": ("health",),
+}
+
+
+def _category_key(category: str) -> list[str]:
+    """The spellings of one category to look up: the whole, folded, and then each part
+    of a section path — Novaya Gazeta Europe's "Novosti · Kultura", Globes' "טכנולוגיה:
+    בינה מלאכותית" — so the section a path names is found without matching substrings."""
+    folded = " ".join(category.casefold().replace("ё", "е").split())
+    parts = [part.strip() for part in re.split(r"[·:|/]", folded)]
+    return [folded, *(part for part in parts if part and part != folded)]
+
+
+def topics_of(categories: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """The topics a feed item's own categories name, in `TOPICS` order; () for none."""
+    found: set[str] = set()
+    for category in categories:
+        for key in _category_key(category):
+            found.update(CATEGORY_TOPICS.get(key, ()))
+    return tuple(topic for topic in TOPICS if topic in found)
+
+
 #: The API takes at most this many domains on one search tool.
 MAX_DOMAINS = 64
 
@@ -161,6 +278,10 @@ class Publisher:
     #: and read at promotion — never enforced against the reader who imports.
     licence: str = ""
     language: str = "he"
+    #: What every item of the feed is about, where the feed is one section of a paper
+    #: (`ynet-sport`, `walla-culture`, `globes-tech`) — written `"topic"` in sources.json,
+    #: one of `TOPICS` or a list of them (2026-10-07). Empty for a paper's whole feed.
+    topics: tuple[str, ...] = ()
 
 
 def sources_path() -> Path | None:
@@ -200,9 +321,16 @@ def load() -> list[Publisher]:
                 kind=kind if kind in KINDS else "news",
                 licence=str(row.get("licence") or ""),
                 language=str(row.get("language") or "he"),
+                topics=_topics_said(row.get("topic")),
             )
         )
     return out
+
+
+def _topics_said(raw: object) -> tuple[str, ...]:
+    """A row's `topic`, a word or a list of words, kept where it is one of `TOPICS`."""
+    said = [raw] if isinstance(raw, str) else raw if isinstance(raw, list) else []
+    return tuple(dict.fromkeys(str(one) for one in said if str(one) in TOPICS))
 
 
 def by_key(key: str) -> Publisher | None:

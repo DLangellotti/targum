@@ -69,6 +69,10 @@ class Item:
     #: weekly's: it writes from `summary` and nothing else, and this is here for one
     #: reader importing one article whose page is behind a bot check (`HELD`).
     full_text: str = ""
+    #: The sections the feed files the item under, as it spells them (2026-10-07):
+    #: RSS's `<category>`, Atom's `<category term>`, Dublin Core's `<dc:subject>`. Raw,
+    #: in the publisher's language; `chat.sources.topics_of` reads them as topics.
+    categories: tuple[str, ...] = ()
 
 
 def _name(tag: str) -> str:
@@ -176,6 +180,24 @@ def _seconds(raw: str) -> float:
     return total
 
 
+def _categories(entry: ElementTree.Element) -> tuple[str, ...]:
+    """Every section one entry is filed under, in the feed's order, each once.
+
+    Lenta, TASS, РБК, Novaya Gazeta Europe, Israel Hayom, Globes and Global Voices write
+    them; Ynet, Walla, Mako, Haaretz, Meduza, the BBC and OVD-Info write none (measured
+    2026-10-07), and their items are filed by the publisher row's `topic` where the feed
+    is one section.
+    """
+    out: list[str] = []
+    for child in entry:
+        if _name(child.tag) not in {"category", "subject"}:
+            continue
+        said = _plain(_text(child) or " ".join(child.get("term", "").split()))
+        if said and said not in out:
+            out.append(said)
+    return tuple(out)
+
+
 def _link(entry: ElementTree.Element) -> str:
     """RSS writes the address as text; Atom writes it as an `href` attribute, and may
     write several with only one of them the article."""
@@ -233,6 +255,7 @@ def parse(xml: bytes) -> list[Item]:
                 transcript_type=spoken_type,
                 seconds=_seconds(_text(fields.get("duration"))),
                 full_text=whole,
+                categories=_categories(element),
             )
         )
     return items
