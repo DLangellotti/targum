@@ -3331,22 +3331,28 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "search_sources",
-        "What the publishers targum follows have put out lately, in the language the "
-        "reader is learning here unless you name another, matched to words in the title "
-        "or summary. News, podcasts and videos, newest first, each with its link to look "
-        "at or offer; items marked host_shut, which targum can't open, come last. Use "
-        "this before your own web search when the reader wants an article to read. Read "
-        "only.",
+        "Today's news and other recent articles, podcasts and videos from the publishers "
+        "targum follows, in the language the reader is learning here unless you name "
+        "another, by words in the title or summary. Newest first, each with its link to "
+        "look at or offer; items marked host_shut, which targum can't open, come last. "
+        "When the reader wants something to read, news included, prefer this to your own "
+        "web search, and search the web only when it finds nothing that fits. Read only.",
         _schema(
             {
-                "query": {"type": "string"},
+                "query": {
+                    "type": "string",
+                    "description": "Words to match in the title or summary, in the "
+                    "article's own language.",
+                },
                 "language": _LANGUAGE_FILTER,
                 "kind": {"type": "string", "enum": list(sources_module.KINDS)},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 30},
             }
         ),
         search_sources,
-        title="What publishers put out",
+        # 2026-10-07: "What publishers put out" matched nothing a reader says. Asked for
+        # "an article from today's news", ChatGPT never called this tool once.
+        title="Today's news to read",
         open_world=True,
         card=TEXT_CARD,
     ),
