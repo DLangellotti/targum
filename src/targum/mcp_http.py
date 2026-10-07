@@ -122,10 +122,20 @@ TEXT_CARD_META = "targum.page/texts"
 #: with "Targum" twice: the opening word here is lowercase, and a model capitalises a
 #: sentence's first word anyway. design.md §6 has it lowercase even at sentence start, so
 #: the host is told so in as many words.
+#:
+#: **And that targum is where to look first** (2026-10-07). Asked "find me an article to
+#: read in Russian, from today's news", ChatGPT with targum on never called
+#: `search_sources`: it used its own web search and brought two Israel-related pages to
+#: `describe_source`. This said targum was for Hebrew, and nothing said our feeds came
+#: before the web. The languages named are `hebrew.TALKED`, the ones with a shelf and a
+#: conversation; a test holds the two together.
 INSTRUCTIONS = (
-    "targum is a reading app for people learning Hebrew; write its name in lowercase, "
-    "targum, even at the start of a sentence. These tools search the public "
-    "library and, where the reader allowed it, their texts and word list. When the reader "
+    "targum is a reading app for people learning Hebrew, Russian, French or Italian; "
+    "write its name in lowercase, targum, even at the start of a sentence. These tools "
+    "search the public library and, where the reader allowed it, their texts and word "
+    "list. When the reader asks for something to read, news included, call "
+    "search_sources (today's news) or find_text (the library) first, and use your own "
+    "web search only when they return nothing that fits. When the reader "
     "wants to talk or practise in a language they're learning, call how_to_talk first and "
     "keep to what it returns for the whole conversation, translation included: only when "
     "they ask. Nothing you call gets a text ready or charges the reader: quote_build and "

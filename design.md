@@ -390,6 +390,32 @@ different question.
   deploy's `targum rebuild` writes every reader page again from what is cached, so the
   next deploy carries the word into all of them.
 
+### Today's news is the connector's first stop — 2026-10-07
+
+On 2026-10-07 David asked ChatGPT, with targum switched on, for an article in Russian from
+today's news, then for something on culture. The box's tool log shows ChatGPT never asked
+targum: it used its own web search, came back with two Israel-related pieces from outlets
+targum does not follow, and called targum only to look at each and get it ready. targum
+followed nine Russian publishers by then; nothing sent a host to them.
+
+- **The connector says every language it teaches.** `mcp_http.INSTRUCTIONS` and the chat's
+  own prompt opened "a reading app for people learning Hebrew", which reads to a host as
+  "Israel". The connector now names the languages in `hebrew.TALKED` and a test keeps the
+  two in step; the chat says "learning languages" and no longer says "Hebrew comes first": the
+  ledger names the language each conversation is in (David).
+- **targum's own sources are asked first.** One sentence in the instructions: when the
+  reader asks for something to read, news included, call `search_sources` or `find_text`
+  first, and use the host's own web search only when they find nothing that fits. A host
+  may still ignore it; the eval's `news` conversation checks that a host which follows
+  the instructions asks targum first.
+- **`search_sources` is titled "Today's news to read".** It was "What publishers put out",
+  which named what the tool is made of rather than what a reader asks for, and a host
+  matches a request to a title.
+- **News can be asked for by topic.** Eight topics (world, politics, economy, culture,
+  science, tech, sport, health), read from the section a feed names for each article, from
+  a publisher row whose feed is one section, or from a section word in the article's
+  address, and never guessed. An article with none is still found by a search without a
+  topic.
 
 ### The connector finds with one tool — 2026-10-06
 

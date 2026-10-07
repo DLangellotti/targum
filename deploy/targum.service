@@ -22,9 +22,11 @@ User=targum
 Group=targum
 WorkingDirectory=/srv/targum
 EnvironmentFile=/etc/targum/targum.env
-# Stanza fetches its models through the Hugging Face hub, which caches under $HOME —
-# and ProtectHome below makes /srv/targum read-only. Point it at the one writable tree.
-Environment=HF_HOME=/var/lib/targum/models/huggingface
+# No HF_HOME here (2026-10-07, targum-internal#426). It was set to models/huggingface,
+# while deploy.sh's `systemd-run` steps read the env file and not this unit and fell to
+# the code's models/hf, so the box kept dictabert-joint twice. `targum` itself now sets
+# it, before anything reads it, to `$TARGUM_MODEL_DIR/hf` — inside /var/lib/targum, the
+# one tree ProtectHome below leaves writable — for the service and every step alike.
 
 # The gate. A deployment fails either here, in the journal, or at somebody's first
 # sign-in — and there is only one alpha reader to spend on the second. Non-zero exit

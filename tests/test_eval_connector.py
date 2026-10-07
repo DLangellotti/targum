@@ -64,8 +64,8 @@ def test_a_dry_run_goes_through_the_connector_and_passes(
 
     monkeypatch.setattr(mcp_http, "handle", watched)
     path, rows = ec.run(ec.DryHost(), into=tmp_path)
-    assert seen == ["how_to_talk", "suggest_next", "check_job", "quote_build"]
-    assert [row["scenario"] for row in rows] == ["talk", "next", "done", "ready"]
+    assert seen == ["how_to_talk", "suggest_next", "check_job", "quote_build", "search_sources"]
+    assert [row["scenario"] for row in rows] == ["talk", "next", "done", "ready", "news"]
     for row in rows:
         assert row["passed"], (row["scenario"], row["checks"])
         assert row["result_bytes"] > 0 and row["tool_calls"] == 1
@@ -77,8 +77,10 @@ def test_a_dry_run_goes_through_the_connector_and_passes(
     assert "It's ready to read." in by["done"]["turns"][0]["reply"]
     assert f"{ec.ADDRESS}/build/" in by["ready"]["turns"][0]["reply"]
     assert by["talk"]["first_hebrew_s"] is not None
+    # The culture item off the fabricated Russian feed, held to the topic.
+    assert "https://news.example.org/ru/culture/101" in by["news"]["turns"][0]["reply"]
     written = rows_in(path)
-    assert [row["scenario"] for row in written] == ["talk", "next", "done", "ready"]
+    assert [row["scenario"] for row in written] == ["talk", "next", "done", "ready", "news"]
     assert all("_results" not in turn for row in written for turn in row["turns"])
 
 
@@ -281,3 +283,44 @@ def test_ready_wants_the_link_alone_credits_and_no_quote(ec: Any) -> None:
     checks = ec.check_ready([bad])
     assert not checks["links_alone"] and not checks["no_money_or_quote"]
     assert not checks["nothing_to_press"] and not checks["says_credits"]
+
+
+def test_only_the_news_scenario_follows_publishers(ec: Any, tmp_path: Path) -> None:
+    """2026-10-07: `followed` lists search_sources for the news scenario and puts the
+    world back after, so the other scenarios are measured as they were."""
+    with ec.isolated(tmp_path):
+        world = ec.build_world(tmp_path)
+        with ec.followed(world):
+            inside = {shape["name"] for shape in ec.host_tools(world)}
+            text, failed = ec.call_tool(
+                world, 1, "search_sources", {"language": "ru", "topic": "culture"}
+            )
+        outside = {shape["name"] for shape in ec.host_tools(world)}
+    assert "search_sources" in inside and "search_sources" not in outside
+    assert not failed
+    assert [row["link"] for row in json.loads(text)["items"]] == [
+        "https://news.example.org/ru/culture/101"
+    ]
+
+
+def test_news_wants_search_sources_first_held_to_russian_and_a_feed_article(ec: Any) -> None:
+    link = "https://news.example.org/ru/culture/101"
+    found = json.dumps({"items": [{"title": "Выставка", "link": link}]})
+    asked = {"language": "ru", "topic": "culture"}
+    good = turn(f"Выставка\n{link}", [], [("search_sources", asked, found)])
+    assert all(ec.check_news([good]).values()), ec.check_news([good])
+    by_words = turn(
+        good["reply"], [], [("search_sources", {"language": "ru", "query": "выставка"}, found)]
+    )
+    assert ec.check_news([by_words])["held_to_culture"]
+    elsewhere = "https://tsn.example/ru/article"
+    web = turn(
+        f"An article\n{elsewhere}",
+        [],
+        [("describe_source", {"url": elsewhere}, "{}"), ("search_sources", asked, found)],
+    )
+    checks = ec.check_news([web])
+    assert not checks["search_sources_first"] and not checks["only_links_it_found"]
+    assert not checks["offers_a_feed_article"]
+    hebrew = turn(good["reply"], [], [("search_sources", {"topic": "culture"}, found)])
+    assert not ec.check_news([hebrew])["held_to_russian"]

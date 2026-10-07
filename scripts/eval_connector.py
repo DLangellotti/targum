@@ -150,6 +150,50 @@ JOB_LINK = "https://www.example.org/he/2026/09/kotel-tunnels"
 #: The link the make-ready scenario pastes. Never fetched: `stubbed` answers for it.
 LINK = "https://www.example.org/he/2026/10/shuk-mahane-yehuda"
 
+#: The feeds the news scenario's world follows (2026-10-07): one Russian paper, one
+#: Hebrew one so a search not held to Russian shows it, and never fetched — `followed`
+#: answers for both.
+NEWS_FEED_RU = "https://news.example.org/ru/rss"
+NEWS_FEED_HE = "https://news.example.org/he/rss"
+
+#: What the two feeds carry: (feed, title, link, categories). Fabricated, in the shapes
+#: the followed Russian feeds were measured sending on 2026-10-07 (a `<category>` per
+#: item, as Lenta and TASS write it). One Russian item is culture.
+NEWS_ITEMS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+    (
+        NEWS_FEED_RU,
+        "В городе открылась выставка русского авангарда",
+        "https://news.example.org/ru/culture/101",
+        ("Культура",),
+    ),
+    (
+        NEWS_FEED_RU,
+        "Парламент обсудил новый бюджет",
+        "https://news.example.org/ru/politics/102",
+        ("Политика",),
+    ),
+    (
+        NEWS_FEED_RU,
+        "Сборная выиграла товарищеский матч",
+        "https://news.example.org/ru/sport/103",
+        ("Спорт",),
+    ),
+    (
+        NEWS_FEED_HE,
+        "תערוכה חדשה נפתחה במוזיאון",
+        "https://news.example.org/he/culture/201",
+        ("תרבות",),
+    ),
+)
+
+#: The sentence in `mcp_http.INSTRUCTIONS` that sends a host to targum before its own
+#: web search. The eval's host has no web search to prefer, so whether it was told is
+#: checked on the prompt it saw.
+LOOK_HERE_FIRST = (
+    "call search_sources (today's news) or find_text (the library) first, and use your "
+    "own web search only when they return nothing that fits"
+)
+
 
 # --- the world ------------------------------------------------------------------
 
@@ -318,6 +362,53 @@ def stubbed() -> Iterator[None]:
         )
         stack.enter_context(mock.patch.object(Library, "prepare", prepare))
         yield
+
+
+@contextlib.contextmanager
+def followed(world: World) -> Iterator[None]:
+    """A world that follows two publishers, for the news scenario alone (2026-10-07).
+
+    Every other scenario runs with no publishers, so `search_sources` is not listed and
+    their measurements stay what they were. Here a sources.json names a Russian feed
+    and a Hebrew one, and `weekly.feeds.pull` answers each with `NEWS_ITEMS` rather
+    than fetching. The kept pulls are cleared on the way in and out, so nothing of this
+    world reaches the next.
+    """
+    from datetime import UTC
+    from datetime import datetime as when
+
+    from targum.chat import tools
+    from targum.weekly import feeds
+
+    def pull(url: str, *, limit: int = 30) -> list[Any]:
+        return [
+            feeds.Item(
+                title=title,
+                link=link,
+                summary=title,
+                published=when(2026, 10, 7, 9 - n, tzinfo=UTC),
+                categories=categories,
+            )
+            for n, (feed, title, link, categories) in enumerate(NEWS_ITEMS)
+            if feed == url
+        ][:limit]
+
+    rows = [
+        {"key": "ru-paper", "name": "Газета", "feed": NEWS_FEED_RU, "language": "ru"},
+        {"key": "he-paper", "name": "עיתון", "feed": NEWS_FEED_HE, "language": "he"},
+    ]
+    with tempfile.TemporaryDirectory(prefix="eval-connector-news-") as where:
+        path = Path(where) / "sources.json"
+        path.write_text(json.dumps({"publishers": rows}, ensure_ascii=False), encoding="utf-8")
+        tools.FEEDS.clear()
+        try:
+            with (
+                mock.patch.dict(os.environ, {"TARGUM_SOURCES": str(path)}),
+                mock.patch.object(feeds, "pull", pull),
+            ):
+                yield
+        finally:
+            tools.FEEDS.clear()
 
 
 @contextlib.contextmanager
@@ -503,6 +594,9 @@ class Scenario:
     checks: Callable[[list[dict[str, Any]]], dict[str, bool]]
     #: Run before the first turn, against the world: the build scenario starts its clock.
     setup: Callable[[World], Any] | None = None
+    #: Held open around the whole scenario, the tools listed included: the news
+    #: scenario's publishers (`followed`), which no other scenario sees.
+    around: Callable[[World], contextlib.AbstractContextManager[None]] | None = None
 
 
 @dataclass
@@ -550,6 +644,18 @@ def run_scenario(
     effort: str = "",
 ) -> dict[str, Any]:
     """Hold one conversation and measure it. A cap reached mid-way ends it, recorded."""
+    with scenario.around(world) if scenario.around else contextlib.nullcontext():
+        return _held(scenario, world, client, meter, model, effort)
+
+
+def _held(
+    scenario: Scenario,
+    world: World,
+    client: Any,
+    meter: Meter,
+    model: str,
+    effort: str,
+) -> dict[str, Any]:
     tools = host_tools(world)
     system = host_system()
     messages: list[dict[str, Any]] = []
@@ -834,6 +940,44 @@ def check_ready(turns: list[dict[str, Any]]) -> dict[str, bool]:
     return out
 
 
+def check_news(turns: list[dict[str, Any]]) -> dict[str, bool]:
+    """Today's news on a topic (2026-10-07): search_sources first, held to Russian and to
+    culture (or to words), nothing looked at that it did not turn up, and the article
+    offered one of the feed's.
+
+    On the day this was written, ChatGPT answered the same request from its own web
+    search and never called search_sources. The host here has no web search, so whether
+    it was told to look in targum first is checked on the prompt it saw."""
+    reply = turns[-1]["reply"]
+    asked = [tool for turn in turns for tool in turn["tools"]]
+    first = asked[0] if asked else {"name": "", "arguments": {}}
+    arguments = first["arguments"]
+    found = [row for got in _results(turns, "search_sources") for row in got.get("items") or []]
+    links = {str(row.get("link") or "") for row in found} - {""}
+    titles = {str(row.get("title") or "") for row in found} - {""}
+    looked = [
+        str(tool["arguments"].get("url") or tool["arguments"].get("source") or "")
+        for tool in _calls(turns, "describe_source", "quote_build")
+    ]
+    return {
+        "told_to_look_here_first": LOOK_HERE_FIRST in " ".join(host_system().split()),
+        "search_sources_first": first["name"] == "search_sources",
+        "held_to_russian": str(arguments.get("language") or "").lower() == "ru",
+        "held_to_culture": arguments.get("topic") == "culture"
+        or bool(str(arguments.get("query") or "").strip()),
+        "only_links_it_found": all(link in links for link in looked),
+        "offers_a_feed_article": any(link in links for link in urls(reply))
+        or any(title in reply for title in titles),
+        "links_alone": links_alone(reply),
+        "no_money": not money_words(reply),
+    }
+
+
+#: What the reader says in the news scenario, as David said it to ChatGPT on 2026-10-07
+#: in two turns, in one.
+NEWS = "Find me something to read in Russian from today's news, on culture."
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     Scenario("talk", ("Talk with me in Hebrew.", "אתמול הלכתי לשוק וקניתי פירות"), check_talk),
     Scenario("next", ("What should I read next?",), check_next),
@@ -844,6 +988,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         setup=finish_build,
     ),
     Scenario("ready", (f"Make this text ready for me: {LINK}",), check_ready),
+    Scenario("news", (NEWS,), check_news, around=followed),
 )
 
 
@@ -956,6 +1101,8 @@ class DryHost:
     def _first(self, said: str, at: int) -> list[SimpleNamespace]:
         if said.startswith("Talk"):
             return [_tool("how_to_talk", {"language": "he"}, at)]
+        if said == NEWS:
+            return [_tool("search_sources", {"language": "ru", "topic": "culture"}, at)]
         if HEBREW.search(said):
             return [_text("> אֶתְמוֹל הָלַכְתִּי לַשּׁוּק וְקָנִיתִי פֵּרוֹת.\nאֵילוּ פֵּרוֹת קָנִיתָ?")]
         if "next" in said:
@@ -980,6 +1127,11 @@ class DryHost:
                 if link:
                     said.append(str(link))
             return "\n".join(said) or "Nothing to suggest yet."
+        if name == "search_sources":
+            first = (got.get("items") or [{}])[0]
+            return "\n".join(
+                filter(None, [str(first.get("title") or ""), str(first.get("link") or "")])
+            )
         if name == "check_job":
             return "\n".join(filter(None, [str(got.get("said") or ""), str(got.get("open") or "")]))
         quoted = got.get("quote") or {}

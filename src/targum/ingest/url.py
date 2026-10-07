@@ -10,6 +10,7 @@ import socket
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -134,7 +135,13 @@ class Fetched:
     raw: bytes = b""
     #: How it was got: `direct`, or `proxy` after a direct knock was refused. Recorded
     #: beside the host (`accounts.Store.reach`) so the memory of a shut door says which.
+    #: `feed` for an article read from its publisher's feed (`page`, 2026-10-07), which
+    #: is no knock on the host at all and so is never recorded as one.
     via: str = "direct"
+    #: The title and language the feed gave, set only where `via` is `feed`: a page
+    #: has its own `<title>`, and the feed knows the language its publisher writes in.
+    title: str = ""
+    language: str = ""
 
     @property
     def is_html(self) -> bool:
@@ -369,7 +376,9 @@ class Pages:
 
     **Only what came through the door.** A page is kept after `fetch` returned it, so it
     passed the SSRF check at every hop and the size cap; a refusal is never kept, so a
-    shut host is knocked on again and `Store.reach` hears about it each time.
+    shut host is knocked on again and `Store.reach` hears about it each time. The one
+    other thing kept is an article read from its feed in place of a page behind a bot
+    check (`page`, 2026-10-07), which came through the door as the feed did.
 
     **Ten minutes**, because what is kept is what the reader is about to be quoted for
     and then build: the quote prices the text it read, and a build pressed a few minutes
@@ -420,8 +429,8 @@ class Pages:
         if held is not None:
             self._bytes -= held[2]
 
-    def get(self, url: str) -> Fetched:
-        """`fetch(url)`, or the same page read through here within `keep_s`."""
+    def held(self, url: str) -> Fetched | None:
+        """The page read through here within `keep_s`, or None."""
         key = self.key(url)
         with self._lock:
             held = self._held.get(key)
@@ -429,26 +438,154 @@ class Pages:
                 self._held.move_to_end(key)
                 return held[1]
             self._drop(key)
+        return None
+
+    def get(self, url: str) -> Fetched:
+        """`fetch(url)`, or the same page read through here within `keep_s`."""
+        held = self.held(url)
+        if held is not None:
+            return held
         got = fetch(url)
+        self.keep(url, got)
+        return got
+
+    def keep(self, url: str, got: Fetched) -> None:
+        """Hold `got` as what is at `url` for `keep_s`: a page `fetch` returned, or an
+        article read from its feed (`page`)."""
+        key = self.key(url)
         size = len(got.raw or b"") + len(got.text.encode("utf-8", errors="replace"))
         if size > self.most_bytes:
-            return got
+            return
         with self._lock:
             self._drop(key)
             self._held[key] = (self.clock() + self.keep_s, got, size)
             self._bytes += size
             while self._held and (len(self._held) > self.most or self._bytes > self.most_bytes):
                 self._drop(next(iter(self._held)))
-        return got
 
 
 PAGES = Pages()
 
+#: How long a host that refused a page is taken as refusing the next, in seconds, for
+#: `page`'s choice to read an article from its feed without knocking (2026-10-07). An
+#: hour: a bot check is the site's policy and does not lift by the minute, and a host
+#: that has lifted it is knocked on again after this.
+SHUT_KEEP_S = 3600.0
+
+
+class Shut:
+    """Hosts that refused this process lately, for `page` and nothing else (2026-10-07).
+
+    Not `accounts.Store.reached`, which this door cannot see: what a caller that holds a
+    store knows is handed in (`note`), and a refusal `page` meets itself is noted here.
+    Nothing is refused because of it — a link with no feed text behind it is knocked on
+    whatever this says.
+    """
+
+    def __init__(self, keep_s: float = SHUT_KEEP_S, clock: Any = time.monotonic) -> None:
+        self.keep_s = keep_s
+        self.clock = clock
+        self._lock = threading.Lock()
+        self._until: dict[str, float] = {}
+
+    def note(self, host: str) -> None:
+        with self._lock:
+            self._until[host.lower()] = self.clock() + self.keep_s
+
+    def knows(self, host: str) -> bool:
+        with self._lock:
+            until = self._until.get(host.lower())
+            if until is not None and self.clock() >= until:
+                del self._until[host.lower()]
+                return False
+            return until is not None
+
+    def clear(self) -> None:
+        with self._lock:
+            self._until.clear()
+
+
+SHUT = Shut()
+
+
+def remember_shut(url: str, closed: Callable[..., list[str]]) -> None:
+    """Hand `SHUT` what a store remembers of `url`'s host, where `url` is an article a
+    followed feed carries whole (2026-10-07).
+
+    `closed` is `accounts.Store.closed`, asked only for such a link, so describing or
+    quoting any other link costs no query. Without this, the first article of a shut host
+    after a restart is knocked on once before the feed is read; with it, not at all.
+    """
+    from ..weekly import feeds
+
+    if feeds.HELD.find(url) is None:
+        return
+    host = (urlparse(url).hostname or "").lower()
+    if host and host in closed(limit=500):
+        SHUT.note(host)
+
+
+def from_feed(url: str) -> Fetched | None:
+    """The article at `url` as its publisher's feed carries it, or None (2026-10-07).
+
+    None unless `url` is an item of a feed this box follows and that feed carries the
+    item's whole text (`weekly.feeds.HELD`, targum-internal#424). Handed back as a page
+    the article's readers already read — a `<title>` and a `<p>` a paragraph — so
+    `describe_source` counts it and the ingester builds it the way it would a fetched
+    article, and marked `via="feed"` so neither records it as a knock on the host.
+    """
+    import html
+
+    from ..weekly import feeds
+
+    held = feeds.HELD.find(url)
+    if held is None:
+        return None
+    item, language = held
+    body = "".join(f"<p>{html.escape(paragraph)}</p>" for paragraph in item.full_text.split("\n\n"))
+    lang = f' lang="{html.escape(language)}"' if language else ""
+    text = (
+        f'<!doctype html><html{lang}><head><meta charset="utf-8">'
+        f"<title>{html.escape(item.title)}</title></head><body>{body}</body></html>"
+    )
+    return Fetched(
+        text=text,
+        content_type="text/html; charset=utf-8",
+        via="feed",
+        title=item.title,
+        language=language,
+    )
+
 
 def page(url: str) -> Fetched:
     """One page, read through the door and kept ten minutes (`Pages`). For an article's
-    readers — `describe_source`, `episode.find` and the ingester — and nobody else."""
-    return PAGES.get(url)
+    readers — `describe_source`, `episode.find` and the ingester — and nobody else.
+
+    **Or read from its feed, where the page is behind a bot check** (2026-10-07,
+    targum-internal#424). www.rbc.ru answers every article with `401`,
+    `server: QRATOR` and a page that loads a script, which neither the direct door nor
+    the proxy runs, and its feed carries each article whole. Where `url` is a followed
+    feed's item with its full text (`from_feed`), a host known to refuse (`SHUT`) is not
+    knocked on at all, and a page that refuses when knocked is replaced by the feed's
+    text. Kept like any page, so the quote and the build after it read the same text.
+    Every other link is fetched exactly as it was, and a refusal of one is still raised.
+    """
+    held = PAGES.held(url)
+    if held is not None:
+        return held
+    standin = from_feed(url)
+    if standin is None:
+        return PAGES.get(url)
+    host = (urlparse(url).hostname or "").lower()
+    if not SHUT.knows(host):
+        try:
+            return PAGES.get(url)
+        except Unreachable as error:
+            if not shut(error):
+                raise
+            SHUT.note(host)
+    PAGES.keep(url, standin)
+    return standin
 
 
 def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "") -> Fetched:
@@ -645,6 +782,11 @@ class UrlIngester:
     # again rather than kept as though somebody had edited them.
     name = "url/5"
 
+    # An article read from its publisher's feed because its page is behind a bot check
+    # (`page`, 2026-10-07): the same article, but not what a page's extractor found, and
+    # what a text arrived as is recorded the way `plain_name` records a text file.
+    feed_name = "url-feed/1"
+
     # A .txt served over http is a text file that happens to live on the web, and the
     # artifact says so: what a text arrived as decides what may later be inferred about
     # it. A page's markup states its structure; a plain file has none to state.
@@ -673,12 +815,33 @@ class UrlIngester:
             structure=True,
         )
 
+    def _from_feed(self, source: str, got: Fetched) -> Document:
+        """An article its feed carried whole (`from_feed`): its paragraphs are already
+        the article, so no extractor decides what on a page is the article."""
+        paragraphs: list[Paragraph] = [
+            (kind, level, normalize(text)) for kind, level, text in paragraphs_from_html(got.text)
+        ]
+        if not paragraphs:
+            raise TargumError(
+                f"We couldn't find any text at {source}.",
+                "Save the page as .txt or .md and drop the file in.",
+            )
+        return build_document(
+            source,
+            blocks_from_paragraphs(with_front_matter(paragraphs, got.title or None, None)),
+            ingester=self.feed_name,
+            language=got.language or None,
+            title=got.title or source,
+        )
+
     def load(self, source: str) -> Document:
         import trafilatura
 
         # Through `page`, so the quote that follows a `describe_source` reads the page
         # that was described rather than fetching it again (2026-10-06).
         got = page(source)
+        if got.via == "feed":
+            return self._from_feed(source, got)
         if not got.is_html:
             # A URL that answers with plain text is a text file that happens to live on
             # the web, and running an article extractor over it finds no article and

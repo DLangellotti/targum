@@ -1154,6 +1154,92 @@ def test_search_sources_holds_to_the_reader_s_language_unless_another_is_named(
     assert none["count"] == 0 and "French" in none["note"]
 
 
+def test_a_shut_host_s_items_sort_after_every_reachable_one(world, monkeypatch, tmp_path) -> None:
+    """2026-10-07, targum-internal#423: the first Russian result on 2026-10-06 was an РБК
+    article on a shut host, so the host offered a text describe_source then refused. A
+    shut host's items come after every reachable one — newer and easier or not — still
+    listed and still marked, and the cards and the Add page's rows follow the same order.
+    """
+    from datetime import UTC, datetime
+    from urllib.parse import unquote
+
+    from targum import mcp_http
+    from targum.chat import session
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps(
+            {
+                "publishers": [
+                    {"key": "shut", "name": "Shut", "feed": "https://shut.example/rss"},
+                    {"key": "open", "name": "Open", "feed": "https://open.example/rss"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        if "shut" in url:
+            return [
+                feeds.Item(
+                    title="שלום היום",
+                    link=f"https://shut.example/{n}",
+                    published=datetime(2026, 10, 7, n, tzinfo=UTC),
+                )
+                for n in (1, 2)
+            ]
+        return [
+            feeds.Item(
+                title="חדשות שלשום",
+                link="https://open.example/old",
+                published=datetime(2026, 10, 5, tzinfo=UTC),
+            ),
+            feeds.Item(
+                title="חדשות היום",
+                link="https://open.example/new",
+                published=datetime(2026, 10, 7, tzinfo=UTC),
+            ),
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    store.reach("shut.example", False, "403")
+    ctx = context(library, store, person, home)
+
+    got = tools.search_sources(ctx, {})
+    links = [row["link"] for row in got["items"]]
+    assert links[:2] == ["https://open.example/new", "https://open.example/old"], (
+        "reachable first, two days old or not"
+    )
+    assert set(links[2:]) == {"https://shut.example/1", "https://shut.example/2"}
+    assert [bool(row.get("host_shut")) for row in got["items"]] == [False, False, True, True]
+
+    text = json.dumps(got, ensure_ascii=False)
+    doors = mcp_http.text_card_meta(text, ctx, "https://targum.example/mcp")
+    assert [unquote(door["door"].split("source=", 1)[1]) for door in doors] == links
+    assert [row["link"] for row in session._found_rows(text)] == links[: session.MOST_FOUND]
+
+    tool = next(tool for tool in tools.REGISTRY if tool.name == "search_sources")
+    assert "host_shut" in tool.description and "come last" in tool.description
+
+
+def test_search_sources_is_titled_for_what_a_reader_asks_and_preferred_to_the_web() -> None:
+    """2026-10-07: asked for "an article to read in Russian, from today's news", ChatGPT
+    never called the tool titled "What publishers put out" and searched the web."""
+    tool = tools.BY_NAME["search_sources"]
+    assert tool.title == "Today's news to read"
+    assert 2 <= len(tool.title.split()) <= 4 and not tool.title.endswith((".", "!"))
+    said = tool.description
+    assert said.startswith("Today's news")
+    assert "publishers targum follows" in said
+    assert "prefer this to your own web search" in said
+    assert "only when it finds nothing that fits" in said
+
+
 def test_search_sources_says_it_is_not_only_hebrew_and_takes_a_language() -> None:
     tool = next(tool for tool in tools.REGISTRY if tool.name == "search_sources")
     assert "Hebrew" not in tool.description

@@ -35,7 +35,7 @@ from typing import Any
 
 from ..errors import TargumError
 from ..models import Segment, Syntax, Token
-from ..paths import model_dir
+from ..paths import settle_hf_home
 from ..segment.pieces import at_spaces
 from ..segment.stanza_segmenter import stanza_code
 from .hebrew import BINYANIM, CLITIC_GLOSSES, FINALS, binyan_of, kept_feats, root_of
@@ -295,9 +295,7 @@ class DictaLemmatizer:
         if self._model is None and MODEL in _LOADED:
             self._model, self._tokenizer = _LOADED[MODEL]
         if self._model is None:
-            import os
-
-            os.environ.setdefault("HF_HOME", str(model_dir() / "hf"))
+            settle_hf_home()
             try:
                 import torch
                 from transformers import AutoModel, AutoTokenizer

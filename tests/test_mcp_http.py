@@ -444,6 +444,30 @@ def test_the_host_is_told_to_write_the_name_in_lowercase() -> None:
     assert "Targum" not in said
 
 
+def test_the_host_is_told_targum_teaches_every_language_it_talks_in() -> None:
+    """2026-10-07: "a reading app for people learning Hebrew" read, to a host asked for a
+    Russian article, as "not for this". The languages named are the ones targum talks in."""
+    from targum.chat.hebrew import TALKED
+    from targum.translate.prompts import language_name
+
+    opening = mcp_http.INSTRUCTIONS.split(";", 1)[0]
+    for code in TALKED:
+        assert language_name(code) in opening, code
+    assert "write its name in lowercase" in mcp_http.INSTRUCTIONS
+
+
+def test_the_host_is_told_to_look_in_targum_before_its_own_web_search() -> None:
+    """2026-10-07: ChatGPT, asked for today's news in Russian, never called
+    search_sources and took pages from its own web search to describe_source."""
+    said = " ".join(mcp_http.INSTRUCTIONS.split())
+    assert (
+        "When the reader asks for something to read, news included, call search_sources "
+        "(today's news) or find_text (the library) first, and use your own web search only "
+        "when they return nothing that fits."
+    ) in said
+    assert len(said) < 1500, "edited, not appended to: a host reads it on every turn"
+
+
 def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]) -> None:
     """One contract, both surfaces: the host is given what targum's own chat is given."""
     from targum.chat import hebrew

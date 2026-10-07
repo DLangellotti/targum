@@ -167,7 +167,7 @@ class TestLoad:
     def test_it_loads_from_where_downloaded_looked_whatever_hf_home_says(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """targum.service sets `HF_HOME` for Stanza; the fetch runs without it. The check
+        """targum.service set `HF_HOME` for Stanza; the fetch ran without it. The check
         looked in models/hf and the load in models/huggingface, so the box called the
         menaked downloaded and then failed to load it on every build (2026-09-13)."""
         import huggingface_hub

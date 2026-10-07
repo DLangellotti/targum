@@ -26,7 +26,7 @@ from .cache import Cache
 from .errors import TargumError
 from .ids import slug
 from .models import Document, Style, is_biblical
-from .paths import cache_dir, config_path, model_dir, write_atomic
+from .paths import cache_dir, config_path, model_dir, settle_hf_home, write_atomic
 from .pipeline import Build
 
 if TYPE_CHECKING:
@@ -4446,6 +4446,12 @@ def export_mikra(
 
 
 def main() -> None:
+    # Before any command imports `huggingface_hub`, which reads `HF_HOME` once (2026-10-07,
+    # targum-internal#426): the service and deploy.sh's `systemd-run` steps both come in
+    # here, and neither sets `HF_HOME` any more, so both keep their models in the one
+    # folder `paths.hf_home()` names. Here and not in `_root`, so a test driving `app`
+    # leaves the process's environment alone.
+    settle_hf_home()
     try:
         app()
     except KeyboardInterrupt:
