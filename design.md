@@ -376,9 +376,15 @@ the point of the word list is the data on what a reader knows. Both are kept.
   has the measured rung outvote the declared one. That is still true of everything it
   names: the first text, the Library's band, how hard the conversation writes. This one
   reads the answer for as long as it stands, because a page that started asking about
-  "של" again after the 250th mark would read as broken. Nothing shows the rung back.
-
-There is no place yet to change the answer after arrival; that wants one.
+  "של" again after the 250th mark would read as broken. David kept it that way the same
+  day, asked whether the measured rung should take over once it is in.
+- **The answer changes on the You page** (David, 2026-10-07: account settings). "Your
+  Hebrew", under Your languages, offers the arrival's own eight answers in its own words
+  and "Not said", and a change is kept on the account and in the browser at once, so the
+  next page opened draws by it. This is the one place the answer is shown back, and it is
+  shown as the sentence the reader picked, never as a letter: "nothing anywhere says 'you
+  said gimel'" still holds of every other page. A reader page that drew before the
+  account's copy reached the browser redraws when it arrives.
 
 
 ### One press gets the whole video, a part at a time — 2026-10-07

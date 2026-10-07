@@ -65,6 +65,13 @@
       <span class="ticks-label" id="reads-label">{{ t("you.page.translations-in", "Translations in") }}</span>
       <span class="tick-list" id="you-reads" role="group" aria-labelledby="reads-label"></span>
     </div>
+    {#- The rung named on arrival, and changed here (design.md §12, 2026-10-07). It
+        decides which of the commonest words a Hebrew page draws as known. -#}
+    <label class="field level-field">
+      <span>{{ t("you.page.your-hebrew", "Your Hebrew") }}</span>
+      <select id="you-level"></select>
+    </label>
+    <p class="note">{{ t("you.page.level-note", "The commonest words at your level show as known until you mark them.") }}</p>
     <p class="note">{{ t("you.page.hebrew-is-always-on-everything-else-is", "Hebrew always stays on. Apart from Hebrew and English, every language here is experimental. You lose nothing when you untick one.") }}</p>
     <p class="said" id="you-languages-said" hidden></p>
   </section>

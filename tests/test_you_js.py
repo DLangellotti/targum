@@ -400,3 +400,49 @@ def test_a_remove_that_fails_says_remove() -> None:
         answers={"/account/prompts": "fail"},
     )
     assert page["promptsSaid"]["text"] == "We couldn't remove that. Try again."
+
+
+# -- your Hebrew: the rung named on arrival, changed here (design.md §12, 2026-10-07) ----
+
+
+def test_the_page_shows_the_rung_they_named_in_their_own_words() -> None:
+    """The arrival's eight answers and "Not said", the one they gave chosen, and never a
+    letter: "nothing anywhere says 'you said gimel'" still holds."""
+    page = run(who={**SIGNED_IN, "declared": "dalet"})
+    level = page["level"]
+    assert [one["value"] for one in level] == [
+        "",
+        "aleph",
+        "aleph-plus",
+        "bet",
+        "bet-plus",
+        "gimel",
+        "dalet",
+        "hey",
+        "vav",
+    ]
+    assert [one["value"] for one in level if one["on"]] == ["dalet"]
+    assert level[6]["label"] == "I follow most things comfortably"
+    assert not any("ד" in one["label"] or "dalet" in one["label"] for one in level)
+    assert [one["value"] for one in run()["level"] if one["on"]] == [""], "none named"
+
+
+def test_a_new_rung_is_kept_on_the_account_and_in_the_browser() -> None:
+    """The reader page reads the browser's copy, so a change reaches the next page at once."""
+    page = run(
+        who={**SIGNED_IN, "declared": "aleph"},
+        do=[{"type": "pick", "id": "you-level", "value": "hey"}],
+        answers={"/account/level": {"signedIn": True, "declared": "hey"}},
+    )
+    assert {"path": "/account/level", "body": {"level": "hey"}} in page["posted"]
+    assert page["declaredHere"] == "hey"
+    assert page["languagesSaid"] == {"text": "Saved.", "hidden": False}
+
+
+def test_not_said_takes_the_browsers_copy_back_too() -> None:
+    page = run(
+        who={**SIGNED_IN, "declared": "gimel"},
+        do=[{"type": "pick", "id": "you-level", "value": ""}],
+        answers={"/account/level": {"signedIn": True, "declared": ""}},
+    )
+    assert page["declaredHere"] is None

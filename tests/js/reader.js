@@ -160,8 +160,30 @@ if (payload.ask !== undefined) {
     });
   };
 }
+/* The account answering after the page drew (`declaredLater`): a served page with a sync
+ * that holds on to the listener, so the test can say when the answer lands. */
+let accountAnswered = null;
+if (payload.declaredLater !== undefined) {
+  location.protocol = "http:";
+  if (payload.ask === undefined) global.fetch = window.fetch = () => new Promise(() => {});
+  window.TargumSync = {
+    onChange: (listener) => (accountAnswered = listener),
+    start: () => {},
+    touched: () => {},
+    forgetWord: () => {},
+    forgetPhrase: () => {},
+  };
+}
 require(path.join(assets, "reader.js"));
 const reader = window.TargumReader;
+let queueAfterAccount = null;
+let queueBeforeAccount = null;
+if (accountAnswered) {
+  queueBeforeAccount = reader.queue().map((item) => (payload.lemmas || [])[item.lemma]);
+  if (payload.declaredLater) localStorage.setItem("targum:declared", payload.declaredLater);
+  accountAnswered(false);
+  queueAfterAccount = reader.queue().map((item) => (payload.lemmas || [])[item.lemma]);
+}
 
 /** A queue entry as a test would say it: the word itself, not its index. */
 function entry(item) {
@@ -285,6 +307,9 @@ process.stdout.write(
     rendering: { opened, switched },
     practice: practiced,
     queue: reader.queue().map(entry),
+    // The words still asked about once the account's answer landed (`declaredLater`).
+    queueBeforeAccount,
+    queueAfterAccount,
     // Each asked of a freshly built queue, the way a keypress asks it.
     steps: (payload.steps || []).map((ask) => entry(reader.step(ask.from, ask.forward))),
     said,

@@ -1929,3 +1929,16 @@ def test_nothing_is_assumed_outside_hebrew() -> None:
     """The rung is asked over the ulpan ladder, so it says nothing about a reader's
     Russian."""
     assert lemmas_queued(banded("vav", language="ru")) == ["a", "b", "c", "d"]
+
+
+def test_a_rung_that_arrives_after_the_page_drew_is_drawn_at_once() -> None:
+    """On a browser that never drew the arrival, the account's copy of the rung lands after
+    the first draw, and the page used to wait for the next load to use it. And a rung
+    changed on the You page meets a page drawn with the old one the same way."""
+    done = banded(declaredLater="dalet")
+    assert done["queueBeforeAccount"] == ["a", "b", "c", "d"], "drawn before the answer"
+    assert done["queueAfterAccount"] == ["c", "d"]
+    moved = banded("hey", declaredLater="bet")
+    assert moved["queueAfterAccount"] == ["b", "c", "d"]
+    still = banded("dalet", declaredLater="")
+    assert still["queueAfterAccount"] == ["c", "d"], "an answer with no rung changes nothing"
