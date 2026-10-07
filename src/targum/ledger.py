@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sqlite3
 from collections.abc import Iterator, Mapping
 from contextlib import closing
@@ -238,6 +239,70 @@ class Ledger:
                 value = _read(db, stage, key)
                 if value is not None:
                     yield key, value
+
+
+#: The rows a value is made of, by the head table they hang off and the column that
+#: names it: what has to go when a head row goes.
+_UNITS = {
+    "vocalizations": ("pointings", "vocalization_id"),
+    "annotations": ("tokens", "annotation_id"),
+}
+
+
+def forget(hashes: set[str]) -> int:
+    """Delete everything the ledger holds about these documents, history and all.
+
+    For an account that is gone (decided 2026-10-03: `corpus.db` is its own file, and
+    account deletion has to reach it). Unlike `drop`, nothing is kept: these are a
+    private bucket, and the person they came from asked for them to go. Returns how many
+    values went; does nothing with the flag off.
+    """
+    file = path()
+    if file is None or not hashes or not file.is_file():
+        return 0
+    gone = 0
+    with closing(Ledger(file)._connect()) as db, db:
+        wanted = sorted(hashes)
+        marks = ",".join("?" for _ in wanted)
+        for head, (units, link) in _UNITS.items():
+            ids = [
+                row[0]
+                for row in db.execute(
+                    f"SELECT id FROM {head} WHERE document_hash IN ({marks})",  # noqa: S608
+                    wanted,
+                )
+            ]
+            for start in range(0, len(ids), 500):
+                chunk = ids[start : start + 500]
+                holes = ",".join("?" for _ in chunk)
+                db.execute(f"DELETE FROM {units} WHERE {link} IN ({holes})", chunk)  # noqa: S608
+                db.execute(f"DELETE FROM {head} WHERE id IN ({holes})", chunk)  # noqa: S608
+            gone += len(ids)
+    return gone
+
+
+#: A document's hash where an artifact names it, read from the head of the file: every
+#: artifact writes it among its first fields, and an annotation can be tens of megabytes.
+_NAMED = re.compile(r'"(?:document_hash|content_hash)":\s*"([0-9a-f]{16,})"')
+_ARTIFACTS = ("document.json", "segments.json", "vocalization.json", "annotation.json")
+
+
+def documents_under(root: Path) -> set[str]:
+    """Every document hash a folder of built texts names, one level down."""
+    found: set[str] = set()
+    try:
+        folders = [one for one in root.iterdir() if one.is_dir()]
+    except OSError:
+        return found
+    for folder in folders:
+        for name in _ARTIFACTS:
+            try:
+                with (folder / name).open("rb") as handle:
+                    head = handle.read(2048).decode("utf-8", "ignore")
+            except OSError:
+                continue
+            found.update(_NAMED.findall(head))
+    return found
 
 
 def mirror_put(stage: str, key: str, value: Any) -> None:

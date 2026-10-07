@@ -391,3 +391,63 @@ class TestTokens:
         assert "mirror_put(" in said and '"tokens"' in said, (
             "the build writes its pass to the ledger"
         )
+
+
+class TestADepartedReader:
+    """Decided 2026-10-03: account deletion reaches `corpus.db`. Their own texts go,
+    history and all; a text the shared shelf or anybody else also has stays."""
+
+    @staticmethod
+    def _text(folder: Path, document_hash: str) -> None:
+        folder.mkdir(parents=True)
+        (folder / "vocalization.json").write_text(
+            json.dumps({**POINTED, "document_hash": document_hash}, indent=2), encoding="utf-8"
+        )
+
+    def test_the_ledger_forgets_only_what_was_theirs_alone(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from targum.accounts import Store
+        from targum.serve import Library
+
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        store = Store(tmp_path / "targum.db")
+        person, _ = store.finish_sign_in(store.start_sign_in("leaving@example.com"))  # type: ignore[misc]
+        library = Library(tmp_path / "out", store=store)
+        home = library.home(person)
+        self._text(home / "my-upload", "a" * 64)
+        self._text(home / "genesis", "b" * 64)
+        self._text(library.shared / "genesis", "b" * 64)
+
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        for hash_ in ("a" * 64, "b" * 64):
+            book.record("vocalize", f"k-{hash_[0]}", {**POINTED, "document_hash": hash_})
+            book.record(
+                "tokens", f"{hash_}:grammar/2", {**_annotation("grammar/2"), "document_hash": hash_}
+            )
+        book.record("vocalize", "k-a", {**POINTED, "document_hash": "a" * 64, "machine": []})
+
+        with store.write() as db:
+            db.execute("UPDATE person SET leaving = 1 WHERE id = ?", (person.id,))
+        assert library.purge_departed() == [person.id]
+
+        assert not home.exists()
+        assert book.get("vocalize", "k-a") is None
+        assert book.history("vocalize", "k-a") == [], "history too: they asked for it to go"
+        assert book.get("tokens", f"{'a' * 64}:grammar/2") is None
+        assert book.get("vocalize", "k-b") is not None, "the shared shelf's Genesis stays"
+        assert book.get("tokens", f"{'b' * 64}:grammar/2") is not None
+        with sqlite3.connect(book.file) as db:
+            assert db.execute("SELECT COUNT(*) FROM pointings").fetchone()[0] == 4
+            orphans = db.execute(
+                "SELECT COUNT(*) FROM tokens"
+                " WHERE annotation_id NOT IN (SELECT id FROM annotations)"
+            ).fetchone()[0]
+        assert orphans == 0
+
+    def test_with_the_ledger_off_a_departure_opens_no_database(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.delenv(ledger.ENV, raising=False)
+        assert ledger.forget({"a" * 64}) == 0
+        assert ledger.documents_under(tmp_path / "nowhere") == set()
