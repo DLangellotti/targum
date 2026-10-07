@@ -354,6 +354,66 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### One press gets the whole video, a part at a time — 2026-10-07
+
+David, 2026-10-07, at the end of the first part of a video he had uploaded, in Theatre:
+*"there's no button to take me to the next video"* — and, of how the parts are got: *"when
+the reader imports via mcp, they do give consent on the full video being imported, but
+still they are asked after every part. I think for better UX the whole thing should be
+done, but only start part 2 once the reader is working on part 1, and likewise part 3
+when on part 2, and so on."*
+
+A long recording is cut into parts of about twelve minutes, and each part is a page.
+Until today the first was made at the press and every other waited behind a Transcribe
+press on its own page, with "Uses N credits" beside it — though the press on the quote
+had already taken the credits for the whole recording (the quote says the whole length,
+and `Library.claim` counts the whole length against the month). So the reader was asked
+again at every part for something already paid for, and the page that would have asked
+could not be reached from Theatre at all: the way on was the pager at the foot of the
+transcript, and Theatre does not show the transcript.
+
+- **The press on the quote is consent to every part**, up to the credits it showed, which
+  are the whole recording's and are still taken once, at that press. The quote page, the
+  card in the box and the connector's quote say so: "In 4 parts, each made as you reach
+  it". Nothing asks again, and a waiting part's page says it is already in the credits
+  the reader confirmed rather than quoting a second price.
+- **Made one ahead of the reader.** Opening a part's page asks once for the next, and the
+  box makes it only if the part being opened is ready itself — a reader on a part that is
+  still waiting is not working on it. So part 2 is begun when part 1 is opened, part 3
+  when part 2 is, and never two ahead. Opening the same part twice makes nothing twice:
+  a part already made answers that it is ready, and one on its way answers with that job.
+  This replaces, for a recording only, the book's rule of asking at 60% of the way
+  through a chapter; a book is unchanged.
+- **Every part is still a claim.** Each is its own job row, claimed through
+  `Library.press` and so `Library.claim` at the money the part will cost, settled to what
+  it spent, and released if it fails. It takes no credits — those were taken at the
+  press — so the total a reader is charged is the total they were shown. If a rail
+  refuses (the day's rate, the box's ceiling), nothing is made and the door says the
+  refusal in its own words. There is no top-up to send them to yet; the refusal says
+  when it lifts.
+- **The model cannot make a part.** The ask is the reader's own page, on the reader's
+  own visit, through the session that page was opened in; no tool the connector or the
+  chat holds reaches it. "A chat turn never spends without a quoted, consented job"
+  (CLAUDE.md) holds: the quoted, consented job is the recording, and a part is a piece
+  of it.
+- **The door at the end of a part.** "Next part", §13's pill, under the picture in Theatre
+  and in Beside once the voice reaches the last line or the film ends — so it is there
+  for a reader who stepped to the last line as well as one who watched to the end — and
+  the pager keeps its place at the foot of the transcript. Ready, it opens the part.
+  Being made, it says "We're getting it ready", and pressed then it says it will open
+  the part when it is ready and does, because the press was the reader's. Failed, it
+  says why and offers Try again, the same ask under the same consent. Nothing plays by
+  itself: the next part opens waiting for its press, like any text, and there is no
+  auto-advance (a swipe is a press only inside a playlist, 2026-09-23). On the last
+  part there is no door; in Theatre the transcript opens to its foot when the film
+  ends, where Done and the library's next offer are, as a playlist's end opens it to
+  its card. In a playlist the row's own Next stands instead.
+
+What it does not reopen: a book is still bought a chapter at a time behind its 60%
+prefetch and its Translate press; a playlist's set is still claimed all or nothing; and a
+quote is still information that only the reader's press turns into spending.
+
+
 ### The large picture can be made smaller — 2026-10-07
 
 David, 2026-10-07, watching in Theatre: *"while in theater mode I want the ability to drag

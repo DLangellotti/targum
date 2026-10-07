@@ -10,31 +10,15 @@ function readInto() {
 }
 
 /* What a waiting press spends, said beside it (copy audit, 2026-09-28): a translation
- * none, and a transcript its parts' minutes — a credit a minute, any part of one a whole
- * one, as the server counts (`builder.credits_of`). The page carries each part's length
- * on `.whole[data-part-seconds]` and each row's parts on `data-parts`; "" where either
- * is missing, rather than a guess. `parts` is a list of part numbers. */
+ * none. A part of a recording none either since 2026-10-07: the press on the
+ * recording's quote was consent to every part and took every part's credits (design.md
+ * §12, "One press gets the whole video, a part at a time"), so the page says so rather
+ * than quoting a second price for what was already paid for. `parts` is kept so the
+ * callers stay as they are. */
 function spends(hearing, parts) {
   var t = window.TargumStrings.t;
-  var tn = window.TargumStrings.tn;
   if (!hearing) return t("contents.uses-no-credits", "Uses none of your credits");
-  var whole = document.querySelector(".whole[data-part-seconds]");
-  if (!whole || !parts.length) return "";
-  var seconds = {};
-  whole
-    .getAttribute("data-part-seconds")
-    .split(" ")
-    .forEach(function (pair) {
-      var bits = pair.split(":");
-      seconds[bits[0]] = Number(bits[1]) || 0;
-    });
-  var sum = 0;
-  for (var i = 0; i < parts.length; i++) {
-    if (!seconds[parts[i]]) return "";
-    sum += seconds[parts[i]];
-  }
-  var n = Math.ceil(sum / 60 - 1e-9);
-  return tn("contents.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+  return parts.length ? t("contents.part-paid", "Already in the credits you confirmed") : "";
 }
 
 function partsOf(row) {

@@ -277,7 +277,14 @@
       var seconds = Number(job.seconds) || 0;
       if (seconds <= 0) return "";
       var n = Math.ceil(seconds / 60 - 1e-9);
-      return tn("bring.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+      var whole = tn("bring.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+      // One press gets every part, a part at a time (David, 2026-10-07; design.md §12):
+      // the credits are the whole recording's, and the card says how it arrives.
+      var parts = Number(job.parts) || 0;
+      if (parts > 1) {
+        whole += " · " + tn("bring.in-parts", parts, "in {n} part, each made as you reach it", "in {n} parts, each made as you reach it");
+      }
+      return whole;
     }
     return t("bring.uses-no-credits", "Uses none of your credits");
   }

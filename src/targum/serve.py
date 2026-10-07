@@ -3564,11 +3564,13 @@ class Library:
         job.options["subtitles"] = bool(written)
         self._price_recording(job, transcribed=not written)
 
-    def _price_recording(self, job: Job, *, transcribed: bool) -> None:
-        """What a recording of `job.seconds` costs to hear and to render into English.
+    def _recording_cost(self, seconds: float, *, transcribed: bool = True) -> tuple[float, float]:
+        """What `seconds` of speech costs to hear and to render into English: the
+        hearing, and the whole of it. Money, for the rails; a reader is told credits.
 
-        The arithmetic `_prepare_episode` does, lifted out so the two doors quote the
-        same coin. Both buy a part at a time, so both price a part.
+        Lifted out of `_price_recording` on 2026-10-07 so a part made as the reader goes
+        on is claimed at the same coin its quote was counted in (design.md §12, "One
+        press gets the whole video, a part at a time").
         """
         import math
 
@@ -3583,15 +3585,26 @@ class Library:
                 rate = float(build_transcriber(default_name()).price_per_minute())
             except Exception:  # noqa: BLE001 - an unkeyed transcriber prices at nothing
                 rate = max(PRICES.values()) if PRICES else 0.0
-        first = job.seconds / max(1, job.parts) / 60
-        transcription = first * (rate + _punctuation_rate(rate))
-        words = first * SPEECH_WORDS_PER_MINUTE
+        minutes = seconds / 60
+        transcription = minutes * (rate + _punctuation_rate(rate))
+        words = minutes * SPEECH_WORDS_PER_MINUTE
         batches = max(1, math.ceil(words / WORDS_PER_SENTENCE / 20))
         translating = AnthropicProvider(model=HOSTED_MODEL).estimate_from_counts(
             words * TOKENS_PER_SPOKEN_WORD, batches
         )
-        job.transcription = round(transcription, 4)
-        job.estimate = round(transcription + translating, 4)
+        return round(transcription, 4), round(transcription + translating, 4)
+
+    def _price_recording(self, job: Job, *, transcribed: bool) -> None:
+        """What a recording of `job.seconds` costs to hear and to render into English.
+
+        The arithmetic `_prepare_episode` does, lifted out so the two doors quote the
+        same coin. Both buy a part at a time, so both price a part.
+        """
+        transcription, estimate = self._recording_cost(
+            job.seconds / max(1, job.parts), transcribed=transcribed
+        )
+        job.transcription = transcription
+        job.estimate = estimate
         job.usually = self._how_long(job)
         job.blocked = self.why_blocked(job.estimate, job.ui)
         job.stage = "blocked" if job.blocked else "ready"
@@ -10272,7 +10285,9 @@ class Handler(BaseHTTPRequestHandler):
         # on a transcript, and the build path — not run_chapter — is what knows how to
         # grow the document around one.
         if (folder / "audio" / "parts.json").is_file():
-            return self._buy_parts(folder, number, whole, target)
+            return self._buy_parts(
+                folder, number, whole, target, ahead=bool(payload.get("ahead")) and not whole
+            )
 
         standing = self.library.chapters(folder, target)
         waiting: list[int] = []
@@ -10307,11 +10322,21 @@ class Handler(BaseHTTPRequestHandler):
         self.library.enqueue(job)
         self._json(job.state())
 
-    def _buy_parts(self, folder: Path, number: int, whole: bool, target: str) -> None:
+    def _buy_parts(
+        self, folder: Path, number: int, whole: bool, target: str, *, ahead: bool = False
+    ) -> None:
         """Queue the hearing of one page's parts — or of every page still waiting.
 
         `number` is the page's, as it is for any book: the reader and the contents page
         both send the section they show, and a part that ran long fills two of them.
+
+        `ahead` is the reader opening the page before it (David, 2026-10-07; design.md
+        §12, "One press gets the whole video, a part at a time"): the press on the quote
+        was consent to the whole recording, and its credits were all claimed then, so the
+        next part is made as the reader reaches the one before, and never further. It is
+        refused unless the page before `number` is ready and on disk: a reader on a part
+        still waiting is not working on it, and that is what keeps the making one part
+        ahead of the reader rather than running down the recording on its own.
 
         Ready is what the page can show, never whether a transcript is on disk. This
         answered `ready` to any part that had been heard, and the page reloaded itself
@@ -10346,6 +10371,14 @@ class Handler(BaseHTTPRequestHandler):
             if page is None:
                 return self._json({"error": "not found"}, 404)
             pages = [page]
+        if ahead:
+            before = next((one for one in sections if one.number == number - 1), None)
+            if (
+                before is None
+                or not ready.get(before.number)
+                or _still_waiting(folder / "reader" / before.filename)
+            ):
+                return self._json({"waiting": True}, 409)
         buying = sorted({n for one in pages for n in _parts_on(one, by_id)} & known)
         if not buying:
             return self._json({"ready": True})
@@ -10373,6 +10406,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ready": True})
 
         person = self._person()
+        # Claimed through `Library.press`, at the money the part will cost (2026-10-07).
+        # It was queued past `claim` with only `already_over` in front of it, which was
+        # the book's reasoning (a chapter cannot be priced inside the request), and a part
+        # can be: its length is on the manifest. No `seconds` and no `audio`, so the claim
+        # takes no credits: the press on the quote took the whole recording's, and a part
+        # made later is never charged for them twice.
+        lengths = {
+            int(span.get("number") or 0): float(span.get("end") or 0)
+            - float(span.get("start") or 0)
+            for span in plan.get("parts") or []
+        }
+        _hearing, estimate = self.library._recording_cost(
+            sum(max(0.0, lengths.get(n, 0.0)) for n in buying)
+        )
         job = Job(
             ui=self._page_language(),
             id=secrets.token_hex(8),
@@ -10381,15 +10428,14 @@ class Handler(BaseHTTPRequestHandler):
             owner=person.id if person else None,
             admin=bool(person and person.admin),
             home=home,
+            estimate=estimate,
         )
-        blocked = self.library.already_over(job)
-        if blocked:
-            job.blocked = blocked
-            job.stage = "blocked"
-            return self._json(job.state(), 402)
+        job.stage = "ready"
         self.library.jobs[job.id] = job
         self.library.remember(job)
-        self.library.enqueue(job)
+        if self.library.press(job):
+            self.library.remember(job)
+            return self._json(job.state(), 402)
         self._json(job.state())
 
     def _watch_job(self, payload: dict[str, Any]) -> None:

@@ -10567,6 +10567,121 @@ var targumReader = function () {
     }).catch(function () {});
   }
 
+  /* An imported recording is not a book (David, 2026-10-07; design.md §12, "One press
+     gets the whole video, a part at a time"): the press on its quote took every part's
+     credits, so the next part is asked for once, the moment this one is opened — the
+     reader is on it — and the box makes it if the part before it, this one, is ready.
+     Never further: the box refuses a part whose page before it is still waiting. And
+     the door under the picture says what became of it, from the answer and from the
+     job the waiting press already watches, so nothing new is fetched. */
+  if (pager.hasAttribute("data-by-part")) {
+    var S = window.TargumStrings || {
+      t: function (k, english) {
+        return english;
+      },
+    };
+    var door = document.getElementById("film-next");
+    var go = door && door.querySelector(".film-next-go");
+    var said = door && door.querySelector(".film-next-said");
+    var again = door && door.querySelector(".film-next-again");
+    var making = "";
+    var wanted = false;
+    var timer = 0;
+    var tell = function (state, text) {
+      if (door) door.setAttribute("data-state", state);
+      if (said) said.textContent = text || "";
+      if (again) again.hidden = state !== "failed";
+    };
+    var stop = function () {
+      clearInterval(timer);
+      timer = 0;
+      making = "";
+    };
+    var ready = function () {
+      stop();
+      tell("ready", "");
+      // Pressed while it was being made: the press was the reader's, so it opens now,
+      // through the door's own link rather than a second way out of the page.
+      if (wanted && go) go.click();
+    };
+    var failed = function (text) {
+      stop();
+      tell("failed", text || S.t("reader.film.next-part-trouble", "We couldn't get the next part ready."));
+    };
+    var refused = function (text) {
+      stop();
+      tell("refused", text);
+    };
+    // Looked at only while the door is on screen or was pressed: a part takes minutes
+    // and the reader is watching this one, so nobody needs a clock ticking under it.
+    var look = function () {
+      if (!making) return;
+      if (!wanted && !document.body.classList.contains("film-at-end")) return;
+      fetch(keyed("/job/" + making))
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (state) {
+          if (state.stage === "done") ready();
+          else if (state.stage === "blocked" || state.blocked) refused(state.blocked || state.error);
+          else if (state.stage === "failed" || (state.error && !state.stage)) failed(state.error);
+        })
+        .catch(function () {});
+    };
+    var watch = function (id) {
+      making = id;
+      tell(
+        "making",
+        wanted
+          ? S.t("reader.film.next-part-opening", "We'll open it when it's ready.")
+          : S.t("reader.film.next-part-making", "We're getting it ready.")
+      );
+      if (!timer) timer = setInterval(look, 4000);
+    };
+    var ask = function () {
+      var reading = document.querySelector(".pair .tr");
+      fetch(keyed("/chapter"), {
+        method: "POST",
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          name: name,
+          number: Number(link.getAttribute("data-next")),
+          to: reading ? reading.getAttribute("lang") || "" : "",
+          ahead: true,
+        }),
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (job) {
+          if (job.ready || job.stage === "done") return ready();
+          if (job.blocked || job.stage === "blocked") return refused(job.blocked || job.error);
+          if (job.stage === "failed") return failed(job.error);
+          if (job.id) return watch(job.id);
+          // `waiting`: this part is not ready itself, so nothing is made ahead of it.
+        })
+        .catch(function () {});
+    };
+    if (go) {
+      go.addEventListener("click", function (event) {
+        if (!making) return;
+        event.preventDefault();
+        wanted = true;
+        tell("making", S.t("reader.film.next-part-opening", "We'll open it when it's ready."));
+        look();
+      });
+    }
+    // Within the consent the quote's press gave: the same ask, for the same part.
+    if (again) {
+      again.addEventListener("click", function () {
+        tell("making", S.t("reader.film.next-part-making", "We're getting it ready."));
+        ask();
+      });
+    }
+    ask();
+    return;
+  }
+
   window.addEventListener("scroll", maybe, { passive: true });
   document.addEventListener("targum:page", maybe);
   maybe();
@@ -12096,13 +12211,23 @@ var targumReader = function () {
       }
     };
     var subId = null;
+    /* At the end of the part (2026-10-07): the last line held, or the film over. The door
+       to the next part stands under the picture from then (`film-next`), so a reader who
+       stepped to the last line has it without playing to the end, and one who played to
+       the end has it where they are looking. */
+    var atEnd = function () {
+      var last = order.length ? order[order.length - 1].id : null;
+      var end = filmUp() && (videoEl.ended || (!!last && subId === last));
+      body.classList.toggle("film-at-end", !!end);
+    };
     filmCaption = function (id) {
       // The transcript lights the line held as well, paused or playing: moving the voice
       // with the picture up moves the lit line with it.
       if (id && filmUp() && !playing) mark(id);
-      if (id === subId) return;
+      if (id === subId) return atEnd();
       subId = id;
       drawSub(id);
+      atEnd();
     };
 
     /* --- the word being said ----------------------------------------------------- */
@@ -12263,6 +12388,7 @@ var targumReader = function () {
       });
       if (transcriptKey) transcriptKey.setAttribute("aria-pressed", panel ? "true" : "false");
       if (panelHead) panelHead.hidden = !(up && standing === "theatre" && panel);
+      atEnd();
       fit();
       relay(held);
       look();
@@ -12601,10 +12727,28 @@ var targumReader = function () {
       true
     );
 
+    /* The end of the part (2026-10-07). The door to the next one comes up under the
+       picture (`atEnd`); nothing plays it, because the next part is a text of its own and
+       opens waiting for its press. On the last part of a recording there is no next one,
+       and the end is the foot of the transcript — Done, and after it the library's
+       offer, as at the end of any text — so in Theatre the transcript opens to it, as a
+       playlist's end opens it to its card (#422). Not inside a playlist, whose own end
+       does that. */
+    videoEl.addEventListener("ended", function () {
+      atEnd();
+      var pages = document.querySelector(".pager[data-by-part]");
+      if (!pages || pages.querySelector("[data-next]") || inList) return;
+      if (view === "theatre" && !panel && wideFilm.matches) setPanel(true);
+      var foot = document.getElementById("foot");
+      if (foot && foot.scrollIntoView) foot.scrollIntoView({ block: "center", behavior: behaviour() });
+    });
+    videoEl.addEventListener("seeking", atEnd);
+
     /* The voice starts and stops. */
     audio.addEventListener("play", function () {
       startTicking();
       if (filmUp()) settle();
+      atEnd();
     });
     audio.addEventListener("pause", function () {
       unlightFilm();

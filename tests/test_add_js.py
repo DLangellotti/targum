@@ -192,6 +192,9 @@ def test_a_press_that_spends_says_what_beside_it() -> None:
         {"audio": True, "seconds": 20},
         {"audio": True, "seconds": 0},
         {"audio": False, "segments": 40},
+        # One press gets every part (design.md §12, 2026-10-07): the whole length's
+        # credits, and how it arrives.
+        {"audio": True, "seconds": 1500, "parts": 2},
     ]
     script = (
         stubs + source[start:end] + f"console.log(JSON.stringify({json.dumps(jobs)}.map(uses)));"
@@ -204,6 +207,7 @@ def test_a_press_that_spends_says_what_beside_it() -> None:
         "Uses 1 credit",
         "",
         "Uses none of your credits",
+        "Uses 25 credits · in 2 parts, each made as you reach it",
     ]
     assert "var spends = uses(job);" in source, "on the chat's card"
     add = (HARNESS.parents[2] / "src/targum/render/assets/add.js").read_text(encoding="utf-8")

@@ -567,18 +567,23 @@ def _recording(tmp_path: Path, video: bool = False) -> tuple[str, dict[int, str]
 def test_a_waiting_press_says_what_it_spends(tmp_path: Path) -> None:
     """Copy audit, 2026-09-28 (Q11). Translate, Transcribe and Prepare all spent with no
     cost beside them, where the voice offer beside them said its credits. A translation
-    uses none; a transcript its part's minutes, a credit a minute, rounded up."""
+    uses none. A part of a recording none either since 2026-10-07 (design.md §12, "One
+    press gets the whole video, a part at a time"): the press on its quote took the whole
+    recording's credits, and "Uses 3 credits" here was a second price for them."""
     text = _render_book(tmp_path / "text", translated=1)
     assert 'id="waiting-cost"' in text[2] and "Uses none of your credits" in text[2]
 
     contents, pages = _recording(tmp_path / "talk")
-    assert 'id="waiting-cost"' in pages[2] and "Uses 3 credits" in pages[2], "130 seconds"
-    assert 'data-parts="2"' in contents and 'data-part-seconds="1:300.0 2:130.0"' in contents
+    assert 'id="waiting-cost"' in pages[2]
+    assert "Already in the credits you confirmed" in pages[2]
+    assert "Uses 3 credits" not in pages[2], "never a second price for a paid part"
+    assert 'data-parts="2"' in contents
     source = (Path(__file__).parents[1] / "src/targum/render/assets/contents.js").read_text(
         encoding="utf-8"
     )
     assert "spends(hearing, partsOf(row))" in source
     assert 'getElementById("prepare-cost")' in source
+    assert "Already in the credits you confirmed" in source
 
 
 def test_the_contents_page_starts_a_recording_by_listening_and_a_film_by_watching(

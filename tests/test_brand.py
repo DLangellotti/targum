@@ -221,6 +221,9 @@ THUMBED = (
     ".more-on",
     # Theatre's size grip on the picture's foot (design.md §12, 2026-10-07).
     ".film-size",
+    # The next part under the picture, and its Try again (design.md §12, 2026-10-07).
+    ".film-next-go",
+    ".film-next-again",
     # What to work on (2026-09-18, targum-internal#103): the two answers a word row has.
     ".work-keys button",
     ".fold",

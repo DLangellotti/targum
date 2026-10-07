@@ -742,6 +742,19 @@ def test_the_press_card_counts_in_credits_and_agrees_with_itself() -> None:
         assert gone not in one, f"the card still says {gone!r}"
 
 
+def test_the_press_card_says_one_press_gets_every_part() -> None:
+    """design.md §12, "One press gets the whole video, a part at a time" (2026-10-07):
+    the credits on the card are the whole recording's, and the card says how it comes —
+    a part at a time, each as the reader reaches it — so nothing asks again later."""
+    from targum.render import builder
+
+    long = _prose(builder.press_page(_quoted(audio=True, seconds=2805.0, parts=4)))
+    assert "Uses 47 credits" in long, "the whole length, once"
+    assert "In 4 parts, each made as you reach it" in long
+    short = _prose(builder.press_page(_quoted(audio=True, seconds=62.0, parts=1)))
+    assert "each made as you reach it" not in short, "one part has nothing to say"
+
+
 def test_the_press_card_says_the_wait_in_minutes_not_seconds() -> None:
     """`usually` is seconds (`Job.state`) and was drawn as minutes, so a seven-minute
     build promised "Ready in about 420 minutes"."""
