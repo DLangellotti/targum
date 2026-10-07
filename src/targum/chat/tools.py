@@ -2263,6 +2263,18 @@ FEEDS_BUDGET_S = 8.0
 #: hour, and a conversation asks again within the minute.
 FEED_FRESH_S = 300.0
 
+#: How many items of each feed a search keeps (2026-10-07). It was 15, which held a
+#: topic search to what fifteen of a feed's newest stories happened to be: on that day
+#: Lenta's 200 items had six on culture, and fifteen had none. 60 is what the busy feeds
+#: carry in about a day (Lenta sends 200, TASS 100, Haaretz 100) and every other feed
+#: sends fewer. The weekly's own pull keeps its own limit. Measured the same day on the
+#: laptop, on 28 feeds cut from that day's Russian and Hebrew feeds: 1,470 parsed items
+#: held 3.3 MB, about 2 KB each, РБК's full texts the bulk of it. A first search over
+#: 1,680 items took 0.05 s with ~420 distinct hooks to measure (call it 0.2 s for all
+#: distinct), and 0.016 s once `FEED_KNOWN` held them. A search still answers `limit`
+#: items, so what a host reads is no larger.
+FEED_ITEMS = 60
+
 #: How long a feed that would not answer is left alone before it is knocked on again.
 #: Short, because a host comes back; long enough that one turn's searches do not each
 #: wait on the same dead one. Not `store.closed()`: a host is only marked open again by
@@ -2404,7 +2416,7 @@ class Feeds:
 
         try:
             try:
-                items: list[Any] | None = feeds.pull(url, limit=15)
+                items: list[Any] | None = feeds.pull(url, limit=FEED_ITEMS)
             except TargumError:
                 items = None
             if items is not None:
@@ -2444,6 +2456,18 @@ def _feed_language(feed: str) -> str:
     return ""
 
 
+def _item_topics(publisher: sources_module.Publisher, item: Any) -> tuple[str, ...]:
+    """What one feed item is about: its publisher's section, and its own categories —
+    or, where the feed gives it none, the section its address names (2026-10-07)."""
+    found = set(publisher.topics)
+    categories = getattr(item, "categories", ()) or ()
+    if categories:
+        found.update(sources_module.topics_of(categories))
+    else:
+        found.update(sources_module.topics_of_link(str(getattr(item, "link", "") or "")))
+    return tuple(one for one in sources_module.TOPICS if one in found)
+
+
 def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """What the publishers this box knows have published lately, matched to a query.
 
@@ -2471,9 +2495,19 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     only lower, so whatever is offered first is something targum can open. The cards
     (`mcp_http.text_card_meta`) and the Add page's rows (`session._found_rows`) are drawn
     in `items`' own order, so they follow it with nothing of their own.
+
+    **And by topic** (2026-10-07). Asked in ChatGPT for "something on culture" in Russian,
+    a host had only `query`, which matches words in a headline in the article's own
+    language, so it went to its own web search instead. An item's topics are its feed's
+    categories read through `sources.CATEGORY_TOPICS`, together with its publisher row's
+    where the feed is one section; `topic` keeps the items that carry it. An item with no
+    topic is left out of a topic search and kept in every other.
     """
     query = str(args.get("query") or "").lower().split()
     kind = str(args.get("kind") or "")
+    topic = str(args.get("topic") or "").strip().lower()
+    if topic not in sources_module.TOPICS:
+        topic = ""
     limit = max(1, min(int(args.get("limit") or 10), 30))
     language = _language_asked(ctx, args)
     following = [one for one in sources_module.load() if one.feed]
@@ -2522,6 +2556,9 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             haystack = f"{item.title} {item.summary}".lower()
             if query and not all(word in haystack for word in query):
                 continue
+            topics = _item_topics(publisher, item)
+            if topic and topic not in topics:
+                continue
             # What the reader would already know of it, from the hook the feed gives:
             # a title and up to four hundred characters of summary. Not the article —
             # nothing here has been fetched — so it is an estimate off an estimate, and
@@ -2551,6 +2588,8 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "licence": publisher.licence,
                 "known_share": None if known is None else round(known, 2),
             }
+            if topics:
+                row["topics"] = list(topics)
             shut_host = (urlparse(item.link).hostname or "").lower() in shut_hosts
             if shut_host and not getattr(item, "full_text", ""):
                 row["host_shut"] = True
@@ -3331,22 +3370,34 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "search_sources",
-        "What the publishers targum follows have put out lately, in the language the "
-        "reader is learning here unless you name another, matched to words in the title "
-        "or summary. News, podcasts and videos, newest first, each with its link to look "
-        "at or offer; items marked host_shut, which targum can't open, come last. Use "
-        "this before your own web search when the reader wants an article to read. Read "
-        "only.",
+        "Today's news and other recent articles, podcasts and videos from the publishers "
+        "targum follows, in the language the reader is learning here unless you name "
+        "another, by topic or by words in the title or summary. Newest first, each with "
+        "its link to look at or offer; items marked host_shut, which targum can't open, "
+        "come last. When the reader wants something to read, news included, prefer this "
+        "to your own web search, and search the web only when it finds nothing that fits. "
+        "Read only.",
         _schema(
             {
-                "query": {"type": "string"},
+                "query": {
+                    "type": "string",
+                    "description": "Words to match in the title or summary, in the "
+                    "article's own language.",
+                },
+                "topic": {
+                    "type": "string",
+                    "enum": list(sources_module.TOPICS),
+                    "description": "What the story is about. Leave it out for everything.",
+                },
                 "language": _LANGUAGE_FILTER,
                 "kind": {"type": "string", "enum": list(sources_module.KINDS)},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 30},
             }
         ),
         search_sources,
-        title="What publishers put out",
+        # 2026-10-07: "What publishers put out" matched nothing a reader says. Asked for
+        # "an article from today's news", ChatGPT never called this tool once.
+        title="Today's news to read",
         open_world=True,
         card=TEXT_CARD,
     ),

@@ -1227,6 +1227,19 @@ def test_a_shut_host_s_items_sort_after_every_reachable_one(world, monkeypatch, 
     assert "host_shut" in tool.description and "come last" in tool.description
 
 
+def test_search_sources_is_titled_for_what_a_reader_asks_and_preferred_to_the_web() -> None:
+    """2026-10-07: asked for "an article to read in Russian, from today's news", ChatGPT
+    never called the tool titled "What publishers put out" and searched the web."""
+    tool = tools.BY_NAME["search_sources"]
+    assert tool.title == "Today's news to read"
+    assert 2 <= len(tool.title.split()) <= 4 and not tool.title.endswith((".", "!"))
+    said = tool.description
+    assert said.startswith("Today's news")
+    assert "publishers targum follows" in said
+    assert "prefer this to your own web search" in said
+    assert "only when it finds nothing that fits" in said
+
+
 def test_search_sources_says_it_is_not_only_hebrew_and_takes_a_language() -> None:
     tool = next(tool for tool in tools.REGISTRY if tool.name == "search_sources")
     assert "Hebrew" not in tool.description

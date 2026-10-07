@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>Новости по рубрикам</title>
+    <item>
+      <title>В городе открылся фестиваль уличного театра</title>
+      <link>https://rubrics.example/culture/2001</link>
+      <description>Труппы из пяти городов играют на площадях всю неделю.</description>
+      <category>Культура</category>
+      <pubDate>Wed, 07 Oct 2026 09:00:00 +0300</pubDate>
+    </item>
+    <item>
+      <title>Сборная выиграла товарищеский матч</title>
+      <link>https://rubrics.example/sport/2002</link>
+      <description>Игра прошла за границей при полных трибунах.</description>
+      <category><![CDATA[Спорт]]></category>
+      <category>Мир</category>
+      <category>Спорт</category>
+      <pubDate>Wed, 07 Oct 2026 08:00:00 +0300</pubDate>
+    </item>
+    <item>
+      <title>Учёные показали новый телескоп</title>
+      <link>https://rubrics.example/science/2003</link>
+      <description>Телескоп поставят в горах к весне.</description>
+      <dc:subject>Наука и техника</dc:subject>
+      <pubDate>Wed, 07 Oct 2026 07:00:00 +0300</pubDate>
+    </item>
+    <item>
+      <title>Рецензия: роман о семье и море</title>
+      <link>https://rubrics.example/novosti/2004</link>
+      <description>Новая книга вышла этой осенью.</description>
+      <category>Novosti · Kultura</category>
+      <pubDate>Wed, 07 Oct 2026 06:00:00 +0300</pubDate>
+    </item>
+    <item>
+      <title>Погода на выходные</title>
+      <link>https://rubrics.example/misc/2005</link>
+      <description>Ожидается тёплая и сухая погода.</description>
+      <category>Из жизни</category>
+      <pubDate>Wed, 07 Oct 2026 05:00:00 +0300</pubDate>
+    </item>
+    <item>
+      <title>Мэрия обновила расписание автобусов</title>
+      <link>https://rubrics.example/misc/2006</link>
+      <description>Новое расписание действует с понедельника.</description>
+      <pubDate>Wed, 07 Oct 2026 04:00:00 +0300</pubDate>
+    </item>
+  </channel>
+</rss>
