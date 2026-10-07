@@ -159,13 +159,58 @@ class TestRoundTrip:
             tools = [row[0] for row in db.execute("SELECT tool FROM vocalizations ORDER BY id")]
         assert tools == ["dicta/menaked/1", "dicta/menaked/2"]
 
-    def test_the_same_key_again_replaces_rather_than_doubles(self, tmp_path: Path) -> None:
+    def test_the_same_key_again_answers_with_the_new_and_keeps_the_old(
+        self, tmp_path: Path
+    ) -> None:
+        """David, 2026-10-03: a rewrite under the same key keeps history, so a forced
+        rebuild leaves a comparison behind. The key still has one answer."""
         book = ledger.Ledger(tmp_path / "corpus.db")
         book.record("vocalize", "k1", POINTED)
         fewer = {**POINTED, "segments": {"s0": "שָׁלוֹם."}, "machine": [], "rejected": []}
         book.record("vocalize", "k1", fewer)
         assert book.get("vocalize", "k1") == fewer
-        assert [key for key, _ in book.entries("vocalize")] == ["k1"]
+        assert [key for key, _ in book.entries("vocalize")] == ["k1"], "one answer a key"
+        held = book.history("vocalize", "k1")
+        assert [value for _, _, value in held] == [POINTED, fewer]
+        assert held[0][1] is not None and held[1][1] is None, "the old one is stamped"
+
+    def test_a_dropped_answer_is_kept_as_history(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("vocalize", "k1", POINTED)
+        assert book.drop("vocalize", "k1")
+        assert book.get("vocalize", "k1") is None
+        assert not book.drop("vocalize", "k1"), "nothing current is left to drop"
+        assert [value for _, _, value in book.history("vocalize", "k1")] == [POINTED]
+        book.record("vocalize", "k1", POINTED)
+        assert book.get("vocalize", "k1") == POINTED
+
+    def test_a_ledger_written_under_schema_1_is_brought_up_in_place(self, tmp_path: Path) -> None:
+        """The box has had a `corpus.db` since 2026-10-04. Its rows come across as they
+        were, current, and the key can be written again without a UNIQUE refusal."""
+        file = tmp_path / "corpus.db"
+        old = ledger.Ledger(file)
+        old.record("vocalize", "k1", POINTED)
+        with sqlite3.connect(file) as db:
+            # The schema-1 table, as the box has it: the key UNIQUE, no stamp.
+            db.executescript(
+                "CREATE TABLE v1 AS SELECT id, stage, cache_key, document_hash, language,"
+                " tool, tool_version, schema_version, written_at FROM vocalizations;"
+                " DROP TABLE vocalizations;"
+                " CREATE TABLE vocalizations (id INTEGER PRIMARY KEY, stage TEXT NOT NULL,"
+                " cache_key TEXT NOT NULL UNIQUE, document_hash TEXT NOT NULL,"
+                " language TEXT NOT NULL, tool TEXT NOT NULL, tool_version TEXT,"
+                " schema_version INTEGER NOT NULL, written_at TEXT NOT NULL);"
+                " INSERT INTO vocalizations SELECT * FROM v1; DROP TABLE v1;"
+                " DROP INDEX IF EXISTS vocalizations_current;"
+                " UPDATE meta SET value = '1' WHERE key = 'schema';"
+            )
+        book = ledger.Ledger(file)
+        assert book.get("vocalize", "k1") == POINTED
+        book.record("vocalize", "k1", {**POINTED, "machine": []})
+        assert len(book.history("vocalize", "k1")) == 2
+        with sqlite3.connect(file) as db:
+            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("2",)
+            assert db.execute("SELECT COUNT(*) FROM pointings").fetchone()[0] == 8
 
     @pytest.mark.parametrize(
         "value",
@@ -191,7 +236,9 @@ class TestRoundTrip:
         cache = Cache(tmp_path / "cache")
         cache.put("vocalize", "ab" + "3" * 62, POINTED)
         assert cache.drop("vocalize", "ab" + "3" * 62)
-        assert ledger.Ledger(tmp_path / "corpus.db").get("vocalize", "ab" + "3" * 62) is None
+        assert ledger.Ledger(tmp_path / "corpus.db").get("vocalize", "ab" + "3" * 62) is None, (
+            "no longer the answer, though kept as history"
+        )
 
 
 class TestRebuildFromRows:

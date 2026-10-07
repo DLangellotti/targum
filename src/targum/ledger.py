@@ -41,7 +41,7 @@ ENV = "TARGUM_LEDGER"
 
 #: The ledger's own schema, independent of `models.SCHEMA_VERSION`: the rows can change
 #: shape without the cache key moving, which is the point of having rows.
-LEDGER_SCHEMA = 1
+LEDGER_SCHEMA = 2
 
 #: The stages the ledger records. One, for now.
 STAGES = frozenset({"vocalize"})
@@ -65,18 +65,24 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 -- One pointing of one document by one tool. A rename of the tool is a new cache key,
--- so a new row; the old one stays (targum-internal#162, criterion 2).
+-- so a new row; the old one stays (targum-internal#162, criterion 2). The same key
+-- written again keeps the old row too, stamped `superseded_at` (David, 2026-10-03), so a
+-- forced rebuild leaves a comparison behind. One row a key is current: the one with no
+-- stamp.
 CREATE TABLE IF NOT EXISTS vocalizations (
     id             INTEGER PRIMARY KEY,
     stage          TEXT NOT NULL,
-    cache_key      TEXT NOT NULL UNIQUE,
+    cache_key      TEXT NOT NULL,
     document_hash  TEXT NOT NULL,
     language       TEXT NOT NULL,
     tool           TEXT NOT NULL,
     tool_version   TEXT,
     schema_version INTEGER NOT NULL,
-    written_at     TEXT NOT NULL
+    written_at     TEXT NOT NULL,
+    superseded_at  TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS vocalizations_current
+    ON vocalizations (cache_key) WHERE superseded_at IS NULL;
 CREATE INDEX IF NOT EXISTS vocalizations_by_text
     ON vocalizations (document_hash, tool, tool_version);
 -- A segment of that pointing. `pointed` is null for a segment that is only listed as
@@ -108,6 +114,7 @@ class Ledger:
         # Warm workers share the cache directory, so they share this file too.
         db = sqlite3.connect(self.file, timeout=30)
         db.execute("PRAGMA journal_mode=WAL")
+        _migrate(db)
         db.executescript(_SCHEMA)
         db.execute(
             "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', ?)", (str(LEDGER_SCHEMA),)
@@ -124,17 +131,18 @@ class Ledger:
         if stage not in STAGES:
             raise ValueError(f"the ledger does not record {stage!r} yet")
         header, rows = _to_rows(value)
+        stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
+            # What the key held stays, as history; it is only no longer the answer.
             db.execute(
-                "DELETE FROM pointings WHERE vocalization_id IN "
-                "(SELECT id FROM vocalizations WHERE cache_key = ?)",
-                (key,),
+                "UPDATE vocalizations SET superseded_at = ?"
+                " WHERE cache_key = ? AND superseded_at IS NULL",
+                (stamp, key),
             )
-            db.execute("DELETE FROM vocalizations WHERE cache_key = ?", (key,))
             cursor = db.execute(
                 "INSERT INTO vocalizations (stage, cache_key, document_hash, language, tool,"
                 " tool_version, schema_version, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (stage, key, *header, datetime.now(UTC).isoformat(timespec="seconds")),
+                (stage, key, *header, stamp),
             )
             db.executemany(
                 "INSERT INTO pointings (vocalization_id, segment_id, pointed, segment_ord,"
@@ -154,16 +162,32 @@ class Ledger:
             return _read(db, key)
 
     def drop(self, stage: str, key: str) -> bool:
-        """Forget one value — the cache's `drop`, so a wrong answer is not rebuilt."""
+        """Stop answering for one value — the cache's `drop`, so a wrong answer is not
+        rebuilt. Kept as history, like any value a key no longer holds: a wrong answer is
+        exactly the one worth comparing the next against."""
         if stage not in STAGES or not self.file.is_file():
             return False
+        stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
-            db.execute(
-                "DELETE FROM pointings WHERE vocalization_id IN "
-                "(SELECT id FROM vocalizations WHERE cache_key = ?)",
-                (key,),
+            dropped = db.execute(
+                "UPDATE vocalizations SET superseded_at = ?"
+                " WHERE cache_key = ? AND superseded_at IS NULL",
+                (stamp, key),
             )
-            return db.execute("DELETE FROM vocalizations WHERE cache_key = ?", (key,)).rowcount > 0
+            return dropped.rowcount > 0
+
+    def history(self, stage: str, key: str) -> list[tuple[str, str | None, dict[str, Any]]]:
+        """Every value one key has held, oldest first, as (written, superseded, value);
+        the current one, where there is one, is last and has no superseded stamp."""
+        if stage not in STAGES or not self.file.is_file():
+            return []
+        with closing(self._connect()) as db:
+            heads = db.execute(
+                "SELECT id, written_at, superseded_at FROM vocalizations"
+                " WHERE cache_key = ? ORDER BY id",
+                (key,),
+            ).fetchall()
+            return [(written, gone, _read_row(db, row)) for row, written, gone in heads]
 
     def entries(self, stage: str) -> Iterator[tuple[str, dict[str, Any]]]:
         """Every (cache key, value) the ledger holds for a stage, oldest first."""
@@ -173,7 +197,9 @@ class Ledger:
             keys = [
                 row[0]
                 for row in db.execute(
-                    "SELECT cache_key FROM vocalizations WHERE stage = ? ORDER BY id", (stage,)
+                    "SELECT cache_key FROM vocalizations"
+                    " WHERE stage = ? AND superseded_at IS NULL ORDER BY id",
+                    (stage,),
                 )
             ]
             for key in keys:
@@ -273,14 +299,55 @@ def _to_rows(
     return header, [tuple(row) for row in order.values()]
 
 
+def _migrate(db: sqlite3.Connection) -> None:
+    """Bring a ledger written under an older schema up to this one, in place.
+
+    1 → 2 (2026-10-08): `cache_key` loses its UNIQUE and rows gain `superseded_at`, so a
+    key written again keeps what it held. SQLite cannot drop a column constraint, so the
+    table is copied: made anew, filled, the old one dropped and the new one renamed into
+    its place, which keeps `pointings`' reference to it by name. Every row comes across as
+    current, which is what it was.
+    """
+    if not db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'"
+    ).fetchone():
+        return  # a new file: the schema makes it current
+    found = db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()
+    if found is None or int(found[0]) >= LEDGER_SCHEMA:
+        return
+    with db:
+        db.execute(
+            "CREATE TABLE vocalizations_2 (id INTEGER PRIMARY KEY, stage TEXT NOT NULL,"
+            " cache_key TEXT NOT NULL, document_hash TEXT NOT NULL, language TEXT NOT NULL,"
+            " tool TEXT NOT NULL, tool_version TEXT, schema_version INTEGER NOT NULL,"
+            " written_at TEXT NOT NULL, superseded_at TEXT)"
+        )
+        db.execute(
+            "INSERT INTO vocalizations_2 (id, stage, cache_key, document_hash, language, tool,"
+            " tool_version, schema_version, written_at) SELECT id, stage, cache_key,"
+            " document_hash, language, tool, tool_version, schema_version, written_at"
+            " FROM vocalizations"
+        )
+        db.execute("DROP TABLE vocalizations")
+        db.execute("ALTER TABLE vocalizations_2 RENAME TO vocalizations")
+        db.execute("UPDATE meta SET value = ? WHERE key = 'schema'", (str(LEDGER_SCHEMA),))
+
+
 def _read(db: sqlite3.Connection, key: str) -> dict[str, Any] | None:
+    """The value a key holds now: its one row with no superseded stamp."""
+    head = db.execute(
+        "SELECT id FROM vocalizations WHERE cache_key = ? AND superseded_at IS NULL", (key,)
+    ).fetchone()
+    return _read_row(db, head[0]) if head is not None else None
+
+
+def _read_row(db: sqlite3.Connection, row_id: int) -> dict[str, Any]:
+    """One value, rebuilt from its row and its pointings, current or not."""
     head = db.execute(
         "SELECT id, schema_version, document_hash, language, tool, tool_version"
-        " FROM vocalizations WHERE cache_key = ?",
-        (key,),
+        " FROM vocalizations WHERE id = ?",
+        (row_id,),
     ).fetchone()
-    if head is None:
-        return None
     rows = db.execute(
         "SELECT segment_id, pointed, segment_ord, machine_ord, rejected_ord"
         " FROM pointings WHERE vocalization_id = ?",
