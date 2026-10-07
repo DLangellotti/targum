@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import Any
 
 from ..errors import OffHere, TargumError
-from ..paths import model_dir
+from ..paths import model_dir, settle_hf_home
 from .tools import samples
 
 #: Apache-2.0, and the name says which model made a span. Stored spans carry the
@@ -298,7 +298,7 @@ class CtcAligner:
         import torch
         from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
-        os.environ.setdefault("HF_HOME", str(model_dir() / "hf"))
+        settle_hf_home()
         os.environ.setdefault("TORCH_HOME", str(model_dir()))
         processor = Wav2Vec2Processor.from_pretrained(self.model)
         # Annotated rather than inferred: with the extra installed the class is typed

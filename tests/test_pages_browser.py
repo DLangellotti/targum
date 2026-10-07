@@ -526,7 +526,20 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     def answer(route, request):
         u = request.url
         if "/account/me" in u:
-            body = {"signedIn": True, "email": "d@x.test", "initials": "DJ", "language": "he"}
+            # The two languages said by the account as well as by this browser, as the
+            # server always says them (2026-10-07, targum-internal#425). Without them
+            # `sync.js` mirrored `me.learning || []` over the init script's two, so the
+            # menu was drawn twice: with two by the nav's own default at load, visible,
+            # and again by Learn once the shelf answered, with one and hidden. Which of
+            # the two the wait below met was a matter of timing, and on a slow runner it
+            # met the second and waited 30 s for a button that never shows.
+            body = {
+                "signedIn": True,
+                "email": "d@x.test",
+                "initials": "DJ",
+                "language": "he",
+                "learning": ["he", "it"],
+            }
         elif request.resource_type == "document":
             route.fulfill(status=200, content_type="text/html", body=html)
             return
@@ -545,6 +558,10 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
     page.wait_for_selector(".account > button.avatar")
+    # Learn's own menu, not the nav's default drawn before it: the waiting line is hidden
+    # in the same task that redraws the menu, so once it is gone the menu measured is the
+    # last one this page draws.
+    page.wait_for_selector("#learn-waiting", state="hidden")
     page.wait_for_selector(".lang-open")
     page.wait_for_timeout(200)
     got = page.evaluate(
