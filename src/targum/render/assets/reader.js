@@ -1523,9 +1523,7 @@ var targumReader = function () {
      the press still clears without calling them words (the same count the header gives,
      because two counts disagreeing on one screen read as a bug). */
   function leftToMark() {
-    return lemmasHere(false).filter(function (lemma) {
-      return statusOf(lemma) === undefined;
-    }).length;
+    return lemmasHere(false).filter(asksAbout).length;
   }
 
   /* The press and the line under it, as they stand. One press, saying both halves of
@@ -1855,6 +1853,68 @@ var targumReader = function () {
     return item ? item.status : undefined;
   }
 
+  /* Words taken as known from the rung a reader named on arrival (design.md §12, "An
+     advanced reader is not asked about the commonest words", 2026-10-07). A reader at
+     dalet asked to mark "של" and "גם" one by one marks a hundred words before the page
+     says anything they did not know. So the commonest bands are drawn plain for them —
+     and only drawn: an assumed word is never written to the word list, never counted in
+     the ledger or the ladder, never sent anywhere as theirs. A level said on one makes it
+     a real mark, which wins.
+
+     Read from the declaration itself rather than `charts.seed`, which goes quiet once the
+     reader has been measured: the seed picks a first text, this decides what the page
+     asks about, and a page that started asking about "של" again after the 250th mark
+     would read as broken. Hebrew only, because the question is asked over the ulpan
+     ladder; and bands rather than ranks, because the bands are what each token carries. */
+  var ASSUMED_BANDS = {
+    bet: ["easy"],
+    "bet-plus": ["easy"],
+    gimel: ["easy", "fairly easy"],
+    dalet: ["easy", "fairly easy"],
+    hey: ["easy", "fairly easy", "moderate"],
+    vav: ["easy", "fairly easy", "moderate"],
+  };
+
+  // Worked out at the first question rather than here: `bandOf` reads tables declared
+  // further down the file, which are still undefined while this line runs.
+  var assumedSet = null;
+
+  function assumedWords() {
+    if (!assumedSet) assumedSet = assumedFromDeclared();
+    return assumedSet;
+  }
+
+  function assumedFromDeclared() {
+    if (language !== "he" || PREVIEW) return {};
+    var said = "";
+    try {
+      said = localStorage.getItem("targum:declared") || "";
+    } catch (e) {
+      return {};
+    }
+    var bands = Object.prototype.hasOwnProperty.call(ASSUMED_BANDS, said) ? ASSUMED_BANDS[said] : [];
+    var out = {};
+    if (!bands.length) return out;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        var lemma = lemmas[token[4]];
+        if (!lemma || isName(token)) return;
+        if (bands.indexOf(bandOf(token)) >= 0) out[lemma] = true;
+      });
+    });
+    return out;
+  }
+
+  // Whether the page draws this word as known without the reader having said so.
+  function assumedOf(lemma) {
+    return statusOf(lemma) === undefined && Object.prototype.hasOwnProperty.call(assumedWords(), lemma);
+  }
+
+  // Unmarked and not assumed: a word the page is still asking about.
+  function asksAbout(lemma) {
+    return statusOf(lemma) === undefined && !assumedOf(lemma);
+  }
+
   // What you wrote down that a word means. Beside the meaning targum gave and under the
   // same pair, because a note is a meaning too: one written in Russian is no more use on
   // an English page than a Russian gloss would be.
@@ -1970,11 +2030,11 @@ var targumReader = function () {
   // whole point is a clean page — and stay out of every count, because the record
   // keeps "name" as its band.
 
-  // What is still unmarked on this page, names included: what the offer counts.
+  // What is still unmarked on this page, names included: what the offer counts. Not
+  // the words assumed from the reader's rung, which stay assumed rather than becoming
+  // marks the reader never made.
   function unmarkedHere() {
-    return lemmasHere(true).filter(function (lemma) {
-      return statusOf(lemma) === undefined;
-    });
+    return lemmasHere(true).filter(asksAbout);
   }
 
   function markRest() {
@@ -2713,6 +2773,8 @@ var targumReader = function () {
       var inCase = token.length > 8 ? feat(grammarTable[token[8]] || "", "Case") : "";
       if (CASE_LENS.indexOf(inCase) >= 0) classes.push("case-" + inCase);
       var status = statusOf(lemma);
+      // Drawn plain, as a known word is, and told apart in the markup.
+      if (status === undefined && assumedOf(lemma)) status = "assumed";
       layers.push({
         start: at(token[0]),
         end: at(token[1]),
@@ -3112,10 +3174,15 @@ var targumReader = function () {
   // know it is choosing what to read next, so it counts this text and not the language.
   function coverage() {
     var here = lemmasHere();
-    var counts = { total: here.length, learning: 0, known: 0, ignored: 0, fresh: 0 };
+    // `assumed` is inside `known`: the count is of what the page still asks about, and
+    // it no longer asks about those. Kept apart as well so nothing mistakes it for marks.
+    var counts = { total: here.length, learning: 0, known: 0, ignored: 0, fresh: 0, assumed: 0 };
     here.forEach(function (lemma) {
       var status = statusOf(lemma);
-      if (status === undefined) counts.fresh += 1;
+      if (status === undefined && assumedOf(lemma)) {
+        counts.known += 1;
+        counts.assumed += 1;
+      } else if (status === undefined) counts.fresh += 1;
       else if (status === KNOWN) counts.known += 1;
       else if (status === IGNORED) counts.ignored += 1;
       else counts.learning += 1;
@@ -4524,6 +4591,7 @@ var targumReader = function () {
     var lemma = lemmas[index];
     return TargumVocab.editor({
       status: statusOf(lemma),
+      assumed: assumedOf(lemma),
       note: noteOf(lemma),
       // The scale says what the pressed step means. "1 2 3" alone had to be explained
       // — the first alpha reader asked — and the names were only ever in tooltips.
@@ -9355,7 +9423,7 @@ var targumReader = function () {
         // already know cannot let a later occurrence of itself back in.
         seen[lemma] = true;
         var status = statusOf(lemma);
-        if (status === KNOWN || status === IGNORED) return;
+        if (status === KNOWN || status === IGNORED || assumedOf(lemma)) return;
         out.push({ segment: segmentId, lemma: token[4], start: token[0] });
       });
     });

@@ -1850,3 +1850,63 @@ def test_a_pronoun_says_what_it_stands_for_only_where_the_page_carries_it() -> N
     assert carried == [{"segment": "s1", "words": "le livre"}, None]
     bare = run([], language="fr", chapter=chapter, texts=texts, standingAsks=[["s2", 0]])
     assert bare["standing"] == [None]
+
+
+# -- words assumed from the rung named on arrival (design.md §12, 2026-10-07) ----------
+
+#: The builder's band names by a token's third field.
+BANDS = {"1": "easy", "2": "fairly easy", "3": "moderate", "4": "hard"}
+
+
+def banded(declared: str = "", **chapter: Any) -> dict[str, Any]:
+    """`a` is easy, `b` fairly easy, `c` moderate and `d` hard, in one sentence."""
+    rows = {"s0": [[0, 1, 1, 0, 0], [2, 3, 2, 0, 1], [4, 5, 3, 0, 2], [6, 7, 4, 0, 3]]}
+    chapter.setdefault("vocab", {})
+    return run(
+        [],
+        chapter=rows,
+        lemmas=["a", "b", "c", "d"],
+        levelNames=BANDS,
+        stored={"targum:declared": declared} if declared else {},
+        **chapter,
+    )
+
+
+def lemmas_queued(done: dict[str, Any]) -> list[str]:
+    return [item["lemma"] for item in done["queue"]]
+
+
+def test_a_reader_who_named_no_rung_is_asked_about_every_word() -> None:
+    assert lemmas_queued(banded()) == ["a", "b", "c", "d"]
+
+
+def test_an_advanced_reader_is_not_asked_about_the_commonest_words() -> None:
+    """Boaz, 2026-10-06: "if I mark myself as advanced then for sure u can auto filter
+    basic words at least and then if I don't know them I can mark them manually"."""
+    assert lemmas_queued(banded("dalet")) == ["c", "d"]
+    assert lemmas_queued(banded("hey")) == ["d"]
+    assert lemmas_queued(banded("bet")) == ["b", "c", "d"]
+
+
+def test_a_beginner_is_assumed_to_know_nothing() -> None:
+    assert lemmas_queued(banded("aleph-plus")) == ["a", "b", "c", "d"]
+
+
+def test_an_assumed_word_is_never_written_as_the_readers_own() -> None:
+    """The word list is what the reader said. The finish marks what is left and leaves
+    the assumed words assumed, and the press counts only what it marks."""
+    assert banded("dalet")["foot"]["press"] == "Done, and mark 2 words known"
+    done = banded("dalet", presses=[True])
+    assert sorted(done["stores"]["he"]) == ["c", "d"]
+
+
+def test_a_level_said_on_an_assumed_word_is_a_real_mark() -> None:
+    done = banded("dalet", levels=[{"word": "a", "status": 1}])
+    assert done["stores"]["he"]["a"]["status"] == 1
+    assert lemmas_queued(done) == ["a", "c", "d"]
+
+
+def test_nothing_is_assumed_outside_hebrew() -> None:
+    """The rung is asked over the ulpan ladder, so it says nothing about a reader's
+    Russian."""
+    assert lemmas_queued(banded("vav", language="ru")) == ["a", "b", "c", "d"]

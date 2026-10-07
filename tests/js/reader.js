@@ -60,6 +60,8 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   ...(payload.tensesApart ? { tensesApart: true } : {}),
   ...(payload.stands ? { stands: payload.stands } : {}),
   sourceRegister: payload.sourceRegister || "",
+  // A token's band by its third field, as the builder ships them: `{ "1": "easy" }`.
+  ...(payload.levelNames ? { levelNames: payload.levelNames } : {}),
   document: "a-chapter",
   // Which part of the document this file is, and how many there are. A targum finishes
   // at the end of a chapter (targum-internal#173), so a test about the Done button is a

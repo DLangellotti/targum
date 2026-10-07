@@ -935,6 +935,7 @@
   "vocab.step.ignore.title": "Имя или число",
   "vocab.saved": "Сохранено",
   "vocab.save": "Сохранить",
+  "vocab.assumed": "считается знакомым",
   "vocab.legend": "1 едва знакомо · 2 осваивается · 3 почти знакомо",
   "vocab.enter-text": "Введите текст",
   "vocab.own-meaning": "Ваше значение",
