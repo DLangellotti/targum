@@ -22,8 +22,11 @@ yet. The cache is still the record and the read path.
    `models.SCHEMA_VERSION`. Rows can change shape without moving a cache key, so a
    ledger migration never re-buys a translation.
 4. **A rename is a new row.** A new tool name or version is a new cache key, so it is
-   a new row, and the old row stays. Writing again under the same key replaces that key's
-   row, as the cache does today. History lives in tool versions, not in overwrites.
+   a new row, and the old row stays. **Writing again under the same key keeps the old
+   row too** (David, 2026-10-03; ledger schema 2, 2026-10-08): it is stamped
+   `superseded_at` and the new row is the key's one current answer, so a forced rebuild
+   leaves a comparison behind. A `drop` stamps the row the same way rather than deleting
+   it. `Ledger.history` reads every value a key has held.
 5. **A value is recorded only if the rows give it back byte for byte.** `record` rebuilds
    the value inside its own transaction and rolls back on any difference. The ledger can
    never become a lossy copy of the cache it is meant to replace.
@@ -33,7 +36,7 @@ yet. The cache is still the record and the read path.
 ## Schema
 
 Each table below has these columns, and they are not repeated in the list:
-`id`, `stage`, `cache_key UNIQUE`, `tool`, `tool_version`, `schema_version`,
+`id`, `stage`, `cache_key` (one current row a key), `superseded_at`, `tool`, `tool_version`, `schema_version`,
 `written_at`, `exportable`. `exportable` is copied from `texts` at write time, so an
 export is one `WHERE` with no join.
 
