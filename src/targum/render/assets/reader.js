@@ -10720,12 +10720,33 @@ var targumReader = function () {
   var said = window.TargumStrings || { t: function (key, english) { return english; } };
   var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that. Try again.");
 
-  press.hidden = false;
+  // A part of an imported recording is not pressed for (David, 2026-10-07; design.md §12,
+  // "One press gets the whole video, a part at a time"): the press on the recording's
+  // quote was consent to every part, so opening the page is what starts it, and the page
+  // says it is being made and opens itself when it is. The button stands only to try
+  // again after a failure, under the same consent. A book's chapter keeps its press.
+  var hearing = note.hasAttribute("data-audio");
+  var status = document.getElementById("waiting-said");
+  press.hidden = hearing;
   // Its cost beside it, where the page knows one; shown with the press it prices.
   var costs = document.getElementById("waiting-cost");
   if (costs) costs.hidden = false;
+  function fail(text) {
+    press.disabled = false;
+    if (!hearing) {
+      press.textContent = text;
+      return;
+    }
+    if (status) status.textContent = text;
+    press.textContent = said.t("reader.film.next-part-again", "Try again");
+    press.hidden = false;
+  }
   press.onclick = function () {
     press.disabled = true;
+    if (hearing) {
+      press.hidden = true;
+      if (status) status.textContent = said.t("reader.film.next-part-making", "We're getting it ready.");
+    }
     // The page says which work is owed — a translation, or for an imported recording a
     // transcript — and the working form keeps that promise. Read off the attribute, not
     // the button's word, which is the reader's language.
@@ -10769,22 +10790,20 @@ var targumReader = function () {
                 location.reload();
               } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
-                press.disabled = false;
-                press.textContent = state.error || state.blocked || trouble;
+                fail(state.error || state.blocked || trouble);
               }
             })
             .catch(function () {
               clearInterval(timer);
-              press.disabled = false;
-              press.textContent = said.t("reader.chapter.could-not-reach", "We couldn't reach targum. Try again.");
+              fail(said.t("reader.chapter.could-not-reach", "We couldn't reach targum. Try again."));
             });
         }, 1500);
       })
       .catch(function (problem) {
-        press.disabled = false;
-        press.textContent = String(problem.message || problem);
+        fail(String(problem.message || problem));
       });
   };
+  if (hearing) press.onclick();
 })();
 
 /* Which chapter this was, written down for the contents page, so "Start reading" can

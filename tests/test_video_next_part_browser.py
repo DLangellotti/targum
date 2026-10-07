@@ -331,17 +331,69 @@ def test_the_last_part_ends_at_the_foot_of_its_transcript(browser, tmp_path) -> 
         context.close()
 
 
-def test_a_part_still_waiting_asks_for_nothing_ahead(browser, tmp_path) -> None:  # noqa: F811
-    """A reader on a part that is not made is not working on it: its page asks for no
-    part after it."""
+def test_a_waiting_part_starts_itself_and_asks_for_nothing_ahead(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """David, 2026-10-07: opening any waiting part starts it — the quote's press covered
+    every part — so its page has no Transcribe press. It asks for itself once (not
+    `ahead`), says it is being made, and asks for no part after it: a reader on a part
+    that is not made yet is not working on it. A failure offers Try again."""
     reader = two_parts(tmp_path, second_ready=False, count=3)
     context = opened(browser, WIDE)
     page = context.new_page()
-    asked = answering(page, (200, {"ready": True}))
+    asked = answering(
+        page,
+        (200, {"id": "j3", "stage": "queued", "blocked": "", "error": ""}),
+        jobs=[{"stage": "working"}, {"stage": "failed", "error": "We couldn't hear it."}],
+    )
     try:
         page.goto(address(reader / "sec-0002.html"))
         page.wait_for_selector("#waiting-note")
-        page.wait_for_timeout(300)
-        assert asked == []
+        page.wait_for_function(
+            "() => document.getElementById('waiting-said').textContent.trim() !== ''"
+        )
+        posts = [one for one in asked if one["path"] == "/chapter"]
+        assert len(posts) == 1, posts
+        assert posts[0]["body"]["number"] == 2 and not posts[0]["body"].get("ahead")
+        assert page.locator("#waiting-said").inner_text() == "We're getting it ready."
+        assert not page.locator("#translate-chapter").is_visible(), "no press to make"
+        assert page.locator("#waiting-cost").inner_text() == "Already in the credits you confirmed"
+        shot(page, "waiting-part")
+        page.wait_for_function(
+            "() => document.getElementById('waiting-said').textContent"
+            ' === "We couldn\'t hear it."',
+            timeout=10000,
+        )
+        again = page.locator("#translate-chapter")
+        assert again.is_visible() and again.inner_text() == "Try again"
+        assert len([one for one in asked if one["path"] == "/chapter"]) == 1
+    finally:
+        context.close()
+
+
+def test_beside_has_one_primary_at_the_end_of_a_part(browser, tmp_path) -> None:  # noqa: F811
+    """David, 2026-10-07: in Beside "Next part" stays the teal pill and Done becomes a
+    quiet text link, so the end of a part has one primary; on the last part, with no door,
+    Done is the pill it always was."""
+    reader = two_parts(tmp_path)
+    looks = (
+        "() => { const s = getComputedStyle(document.getElementById('done-mark'));"
+        " return { bg: s.backgroundImage + ' ' + s.backgroundColor, line: s.textDecorationLine }; }"
+    )
+    context, page, _asked = film_page(
+        browser, reader, "sec-0001.html", "beside", (200, {"ready": True})
+    )
+    try:
+        done = page.evaluate(looks)
+        assert done["line"] == "underline" and "gradient" not in done["bg"], done
+    finally:
+        context.close()
+    context, page, _asked = film_page(
+        browser, reader, "sec-0002.html", "beside", (200, {"ready": True})
+    )
+    try:
+        done = page.evaluate(looks)
+        assert "gradient" in done["bg"] and done["line"] != "underline", done
     finally:
         context.close()

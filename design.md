@@ -384,6 +384,12 @@ transcript, and Theatre does not show the transcript.
   a part already made answers that it is ready, and one on its way answers with that job.
   This replaces, for a recording only, the book's rule of asking at 60% of the way
   through a chapter; a book is unchanged.
+- **A part the reader opens is made, whichever it is** (David, the same day). A waiting
+  part's page has no Transcribe press any more: opening it — part 3 from the contents
+  page, say — starts it, says "We're getting it ready" with the job's live status, and
+  opens itself when it is made. A button stands there only to try again after a failure.
+  The one-ahead rule is about making ahead of the part being opened, not about a part the
+  reader opens: that one is the part they are on.
 - **Every part is still a claim.** Each is its own job row, claimed through
   `Library.press` and so `Library.claim` at the money the part will cost, settled to what
   it spent, and released if it fails. It takes no credits — those were taken at the
@@ -404,7 +410,10 @@ transcript, and Theatre does not show the transcript.
   the part when it is ready and does, because the press was the reader's. Failed, it
   says why and offers Try again, the same ask under the same consent. Nothing plays by
   itself: the next part opens waiting for its press, like any text, and there is no
-  auto-advance (a swipe is a press only inside a playlist, 2026-09-23). On the last
+  auto-advance (a swipe is a press only inside a playlist, 2026-09-23). In Beside, where
+  the foot of the transcript is on screen beside it, "Next part" is the one teal pill and
+  Done steps down to a text link (David, the same day; "The foot is one block" asked for
+  one primary colour); Theatre shows no foot and is unchanged. On the last
   part there is no door; in Theatre the transcript opens to its foot when the film
   ends, where Done and the library's next offer are, as a playlist's end opens it to
   its card. In a playlist the row's own Next stands instead.

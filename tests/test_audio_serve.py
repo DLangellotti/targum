@@ -994,6 +994,26 @@ def test_opening_a_part_makes_the_next_once_and_never_two_ahead(
     assert all(not job.audio and job.seconds == 0 for job in claims), "no credits, ever"
 
 
+def test_a_part_the_reader_opens_is_made_whichever_it_is(served, fake_audio, monkeypatch) -> None:
+    """David, 2026-10-07: opening any waiting part starts it — part three straight from the
+    contents page, with part two still waiting. The one-ahead rule is about making ahead of
+    the part opened, not the part itself. Still one claim, and opened again it joins the
+    build already coming rather than making or charging a second."""
+    port, token, out = served
+    build = talk(out, fake_audio, parts=3)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    claims, queued = _spied(monkeypatch)
+
+    status, third = press(port, token, folder, 3)
+    assert status == 200 and third["id"] and third["stage"] == "queued", third
+    assert [job.options["parts"] for job in queued] == [[3]]
+    assert len(claims) == 1 and not claims[0].audio and claims[0].seconds == 0
+
+    _status, again = press(port, token, folder, 3)
+    assert again["id"] == third["id"] and len(claims) == 1 and len(queued) == 1
+
+
 def test_a_part_the_rails_refuse_is_not_made_and_the_answer_says_why(
     served, fake_audio, monkeypatch
 ) -> None:

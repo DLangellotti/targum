@@ -646,7 +646,12 @@
       not on a translation, and a button that names the wrong work makes a promise the
       click will not keep. -#}
   <p>{% if audio_waiting %}We haven't transcribed this part yet.{% else %}We haven't translated this chapter yet.{% endif %}</p>
-  <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}Transcribe{% else %}Translate{% endif %}</button>
+  {#- A recording's part has no press since 2026-10-07 (design.md §12, "One press gets the
+      whole video, a part at a time"): opening it starts it, the line under says it is
+      being made, and the page opens itself when it is. The button is only the way to
+      try again after a failure. Off a disk nothing runs, and the line above stands. -#}
+  {% if audio_waiting %}<p class="waiting-said" id="waiting-said" role="status"></p>{% endif %}
+  <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}{{ t("reader.film.next-part-again", "Try again") }}{% else %}Translate{% endif %}</button>
   {#- What the press spends, beside it and shown with it (copy audit, 2026-09-28): a
       translation none. A part of a recording none either since 2026-10-07: the press on
       its quote took the whole recording's credits, and said so (design.md §12, "One

@@ -2236,6 +2236,9 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
   color: var(--ink-soft);
 }
 .waiting-note p { margin: 0; }
+/* A recording's part says it is being made, under the line (2026-10-07). */
+.waiting-note .waiting-said { color: var(--ink-soft); }
+.waiting-note .waiting-said:empty { display: none; }
 .waiting-note button {
   padding: 0.3rem 0.8rem;
   border: 1px solid var(--ink);
@@ -2291,6 +2294,22 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
   cursor: pointer;
 }
 .foot-go:hover { filter: brightness(1.08); }
+/* Beside, on a part with a part after it, "Next part" under the picture is the one
+   primary at the end, and Done steps down to a text link (David, 2026-10-07; design.md
+   §12, "One press gets the whole video, a part at a time"): two teal pills a screen
+   apart is the shape "The foot is one block" took apart. Theatre has no foot on screen,
+   and a playlist's press is its Next, so neither changes. */
+body.film-beside:not(.in-list):has(#film-next) .foot-go {
+  min-block-size: 2.75rem;
+  padding: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+body.film-beside:not(.in-list):has(#film-next) .foot-go:hover { filter: none; color: var(--ink); }
 .foot-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* The same press without the marking: a text link under it, never a second button. */
 .foot-plain {
