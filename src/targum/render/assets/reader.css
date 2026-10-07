@@ -3580,7 +3580,13 @@ body.film-theatre .film-ctl .film-transcript { display: inline-flex; }
   background: none;
   box-shadow: none;
 }
+/* Shown whatever its form. The copy is the one cell that was on show in the transcript,
+   so it needs no rule to choose it — and the rules that choose live under `.pair.points`,
+   which the holder is not. With the vowels on, the copy was a pointed cell and
+   `.src.pointed { display: none }` held it: the line vanished and only its English was
+   left (David, 2026-10-07). */
 .film-sub .film-pair .src {
+  display: block;
   max-width: none;
   margin: 0;
   color: var(--ink);
