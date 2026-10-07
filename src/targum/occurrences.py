@@ -434,6 +434,35 @@ def _finished_texts(
             yield document, sections, counted
 
 
+def finished_chapters(
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "he",
+) -> set[str]:
+    """The chapters a reader has read every verse of, named as the Tanakh map names
+    them, "Genesis 12" (targum-internal#144: "chapters the reader has finished are solid
+    leaf").
+
+    A chapter is read when every verse of it the text carries words for sits in a
+    section the reader finished. Whole chapters only: a text that cuts a long chapter into
+    two sections finishes it with the second. Texts with no verse references, which name
+    no chapter, add nothing.
+    """
+    out: set[str] = set()
+    for _document, sections, counted in _finished_texts(finished, folder_for, language):
+        every: dict[str, set[str]] = {}
+        read: dict[str, set[str]] = {}
+        for section, ref in counted.places:
+            if not _VERSE.fullmatch(ref):
+                continue
+            chapter = ref.rsplit(":", 1)[0]
+            every.setdefault(chapter, set()).add(ref)
+            if section in sections:
+                read.setdefault(chapter, set()).add(ref)
+        out.update(chapter for chapter, refs in read.items() if refs == every[chapter])
+    return out
+
+
 # -- what the card says ----------------------------------------------------------------
 
 #: How many places the card names before it says how many more (targum-internal#95: "a

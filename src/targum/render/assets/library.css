@@ -1296,6 +1296,7 @@
 .crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; margin: 0 0 0.75rem; font-family: var(--chrome); font-size: 0.9375rem; }
 .crumbs[hidden] { display: none; }
 .crumbs .crumb { color: var(--ink); }
+.crumbs .crumb-map { margin-inline-start: auto; text-decoration: underline; text-underline-offset: 0.15em; }
 .crumbs button.crumb {
   padding: 0.2rem 0;
   border: 0;

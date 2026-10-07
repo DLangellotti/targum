@@ -59,6 +59,7 @@
   var cells = Array.prototype.slice.call(map.querySelectorAll(".cell"));
   var shares = {};
   var week = {};
+  var finished = {};
   var signedIn = false;
 
   cells.forEach(function (cell, at) {
@@ -81,6 +82,8 @@
         cell.removeAttribute("data-step");
       }
       cell.classList.toggle("week", !!week[ref]);
+      // Read through: solid leaf, whatever share of its words is known (#144).
+      cell.classList.toggle("read", !!finished[ref] && !cell.classList.contains("away"));
     });
     var sum = document.getElementById("tanakh-sum");
     if (!sum) return;
@@ -110,6 +113,7 @@
     var meta = [tn("tanakh.card.verses", verses, "{n} verse", "{n} verses")];
     if (portion) meta.push(portion);
     if (week[ref]) meta.push(t("tanakh.card.this-week", "This week's portion"));
+    if (finished[ref]) meta.push(t("tanakh.card.finished", "You've read it"));
     document.getElementById("card-meta").textContent = meta.join(" · ");
 
     var said = "";
@@ -182,6 +186,10 @@
       signedIn = !!said.signedIn;
       shares = said.chapters || {};
       week = {};
+      finished = {};
+      (said.finished || []).forEach(function (ref) {
+        finished[ref] = true;
+      });
       (said.week || []).forEach(function (ref) {
         week[ref] = true;
       });

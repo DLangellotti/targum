@@ -10090,7 +10090,25 @@ class Handler(BaseHTTPRequestHandler):
                     if share is not None
                 },
                 "week": week,
+                "finished": sorted(self._finished_chapters(person)),
             }
+        )
+
+    def _finished_chapters(self, person: Person) -> set[str]:
+        """The chapters this reader has read through, in any Hebrew text that names its
+        verses: the map draws them solid leaf (targum-internal#144)."""
+        from . import occurrences as occurrences_module
+
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        return occurrences_module.finished_chapters(
+            self.store.finished(person.id), folder_for, "he"
         )
 
     @staticmethod
