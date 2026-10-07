@@ -85,6 +85,30 @@ def _chapters(segments: list[Any]) -> list[list[Any]]:
     return out
 
 
+#: What an empty verse reads as once ingested: `sefaria.document_from_payload` keeps the
+#: place of a verse with no text and writes it as a dash.
+_BLANK = ("", "—")
+
+
+def _padded(left: list[Any], right: list[Any]) -> list[Any]:
+    """The translation's chapter without the empty verses it runs on past the text.
+
+    Metsudah's Rashi on Exodus 38 has forty-three verses to the chapter's thirty-one, on
+    both its Hebrew and its English side, and the twelve past the end carry no comment at
+    all (targum-internal#419). A blank unit after the last verse pairs with nothing and
+    shifts nothing, so dropping it is safe in exactly the way a missing tail is. A unit
+    with text in it past the end is still a different numbering, and still refused.
+    """
+    trimmed = list(right)
+    while (
+        len(trimmed) > len(left)
+        and trimmed[-1].kind is BlockKind.verse
+        and trimmed[-1].text.strip() in _BLANK
+    ):
+        trimmed.pop()
+    return trimmed
+
+
 def pair(source: SegmentedDocument, target: SegmentedDocument, name: str) -> Alignment:
     """One link per verse, chapter by chapter, at full confidence.
 
@@ -104,7 +128,8 @@ def pair(source: SegmentedDocument, target: SegmentedDocument, name: str) -> Ali
 
     links: list[Link] = []
     missing = 0
-    for number, (left, right) in enumerate(zip(mine, theirs, strict=True), start=1):
+    for number, (left, padded) in enumerate(zip(mine, theirs, strict=True), start=1):
+        right = _padded(left, padded)
         if len(right) > len(left):
             # The translation claims verses the source does not have. That is not a gap,
             # it is a different numbering, and pairing through it would misalign the rest

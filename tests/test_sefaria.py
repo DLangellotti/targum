@@ -683,6 +683,31 @@ def test_a_translation_with_more_verses_than_the_text_is_refused() -> None:
         parallel.pair(source, target, "Ruth")
 
 
+def test_empty_verses_past_the_end_of_a_chapter_are_dropped() -> None:
+    """Metsudah's Rashi on Exodus 38 runs twelve empty verses past the chapter's
+    thirty-one (targum-internal#419). They pair with nothing and shift nothing, so they
+    must not cost the book its Rashi."""
+    source = segment_document(document("he"), _WholeBlocks())
+    target = segment_document(document("en"), _WholeBlocks())
+    whole = parallel.pair(source, target, "Ruth").links
+    blank = target.segments[-1].model_copy(update={"id": "padding", "text": "—"})
+    object.__setattr__(target, "segments", [*target.segments, blank, blank])
+
+    assert parallel.pair(source, target, "Ruth").links == whole
+
+
+def test_a_unit_with_text_past_the_end_is_still_refused() -> None:
+    """Only blank padding is dropped. A comment past the last verse is a different
+    numbering, and pairing through it would misplace it."""
+    source = segment_document(document("he"), _WholeBlocks())
+    target = segment_document(document("en"), _WholeBlocks())
+    blank = target.segments[-1].model_copy(update={"id": "padding", "text": "—"})
+    worded = target.segments[-1].model_copy(update={"id": "worded"})
+    object.__setattr__(target, "segments", [*target.segments, worded, blank])
+    with pytest.raises(TargumError, match="units to"):
+        parallel.pair(source, target, "Ruth")
+
+
 def test_a_sefaria_build_is_shared_between_readers() -> None:
     """Without this every Tanakh is cached per person and the second reader pays."""
     from targum.pipeline import Build
