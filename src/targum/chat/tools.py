@@ -1834,6 +1834,13 @@ def _known_share(
     return level_module.known_share(text, forms, language)
 
 
+def _russian_share(text: str) -> float:
+    letters = [ch for ch in text if ch.isalpha()]
+    if not letters:
+        return 0.0
+    return sum(1 for ch in letters if "\u0400" <= ch <= "\u04ff") / len(letters)
+
+
 def _hebrew_share(text: str) -> float:
     letters = [ch for ch in text if ch.isalpha()]
     if not letters:
@@ -2099,6 +2106,11 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         }
 
     host = (parsed.hostname or "").lower()
+    if ctx is not None and ctx.store is not None:
+        # What the store remembers of a host whose article a followed feed carries whole,
+        # handed to the door, so `page` reads it from the feed without knocking first
+        # (2026-10-07, targum-internal#424). Asked only for such a link.
+        url_module.remember_shut(url, ctx.store.closed)
 
     # A direct link to a file, before anything reads it as a page (targum-internal#256).
     # `episode.find` fetches an address it cannot name from its suffix, and `.mp4` is one
@@ -2187,8 +2199,10 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return shut if shut is not None else {"error": error.message}
     except TargumError as error:
         return {"error": error.message}
-    if ctx is not None and ctx.store is not None:
-        ctx.store.reach(host, True, egress=getattr(got, "via", "direct"))
+    via = getattr(got, "via", "direct")
+    if ctx is not None and ctx.store is not None and via != "feed":
+        # Read from the feed is no knock on the host, so it says nothing about it.
+        ctx.store.reach(host, True, egress=via)
     if not got.is_html:
         return {
             "kind": "file",
@@ -2204,21 +2218,32 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     words = len(body.split())
     title_match = re.search(r"<title[^>]*>(.*?)</title>", got.text, re.S | re.I)
     title = re.sub(r"\s+", " ", title_match.group(1)).strip() if title_match else ""
-    share = _hebrew_share(body)
+    # Measured in Russian where the page is a Russian publisher's article read from its
+    # feed (2026-10-07): the feed says the language, which a page never did here, and an
+    # РБК article counted in Hebrew letters is 0% of anything useful.
+    written = "ru" if getattr(got, "language", "") == "ru" else "he"
+    share = _russian_share(body) if written == "ru" else _hebrew_share(body)
     advice = []
     if share < 0.5:
-        advice.append(f"Only {round(share * 100)}% of the letters on the page are Hebrew.")
+        advice.append(
+            f"Only {round(share * 100)}% of the letters on the page are {language_name(written)}."
+        )
     if words < 80:
         advice.append("Very little text was found on the page.")
     # How much of it this reader already has, cheaply, before it is quoted
     # (targum-internal#244): the number for the model, the words for the reader.
-    known = _known_share(ctx, body) if share >= 0.5 else None
+    known = _known_share(ctx, body, language=written) if share >= 0.5 else None
+    shares: dict[str, Any] = (
+        {"language": "ru", "russian_share": round(share, 2)}
+        if written == "ru"
+        else {"hebrew_share": round(share, 2)}
+    )
     return {
         "kind": "article",
         "title": title,
         "words": words,
         "minutes": max(1, round(words / 130)),
-        "hebrew_share": round(share, 2),
+        **shares,
         "known_share": None if known is None else round(known, 2),
         "known_line": level_module.words_in_ten(known),
         "advice": advice,
@@ -2286,10 +2311,13 @@ class Feeds:
         self._warm: threading.Thread | None = None
 
     def clear(self) -> None:
+        from ..weekly import feeds
+
         with self._lock:
             self._kept.clear()
             self._failures.clear()
             self._pending.clear()
+        feeds.HELD.clear()
 
     def _submit(self, url: str) -> Future[list[Any] | None]:
         """A pull of `url`, the one already going or a new one. Under `_lock`."""
@@ -2379,6 +2407,10 @@ class Feeds:
                 items: list[Any] | None = feeds.pull(url, limit=15)
             except TargumError:
                 items = None
+            if items is not None:
+                # The articles it carries whole, for a page behind a bot check
+                # (`weekly.feeds.HELD`, 2026-10-07).
+                feeds.HELD.keep(url, items, _feed_language(url))
             with self._lock:
                 now = self.clock()
                 if items is not None:
@@ -2404,6 +2436,14 @@ class Feeds:
 FEEDS = Feeds()
 
 
+def _feed_language(feed: str) -> str:
+    """The language the publisher of `feed` writes in, as sources.json says, or ""."""
+    for publisher in sources_module.load():
+        if publisher.feed == feed:
+            return publisher.language.split("-")[0].lower()
+    return ""
+
+
 def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """What the publishers this box knows have published lately, matched to a query.
 
@@ -2420,7 +2460,9 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
     Each item's known share is measured in its publisher's language, against the
     reader's words in that language. An item on a host whose last knock was refused
-    (`Store.closed`) says `host_shut`, so a host can pass it over before describing it.
+    (`Store.closed`) says `host_shut`, so a host can pass it over before describing it —
+    unless its feed carries it whole (2026-10-07, targum-internal#424): then its text is
+    reachable from the feed (`ingest.url.page`), and it is offered like any other.
 
     **And sorts after every item that is not** (2026-10-07, targum-internal#423). On
     2026-10-06 the first Russian result was an РБК article marked `host_shut`: a host
@@ -2509,7 +2551,8 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "licence": publisher.licence,
                 "known_share": None if known is None else round(known, 2),
             }
-            if (urlparse(item.link).hostname or "").lower() in shut_hosts:
+            shut_host = (urlparse(item.link).hostname or "").lower() in shut_hosts
+            if shut_host and not getattr(item, "full_text", ""):
                 row["host_shut"] = True
             items.append(row)
     # Newest first, and within a day the one this reader would get furthest into
