@@ -614,5 +614,69 @@
     "system": "morphalou-3.1+gruut-liaison",
     "at_least": 0.98,
     "why": "the card's own floor (targum-internal#266); 1.0 on 2026-09-28, 80 of 80, against a model-drafted gold with its own tags"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-he",
+    "metric": "seam_in_gap",
+    "system": "ctc-forced-aligner",
+    "at_least": 0.95,
+    "why": "1.0000 on 2026-10-08 (targum-internal#265): every join between two words falls between the aligner's two words"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-he",
+    "metric": "onset_ms_median",
+    "system": "ctc-forced-aligner",
+    "at_most": 80.0,
+    "why": "45.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-fr",
+    "metric": "seam_in_gap",
+    "system": "ctc-forced-aligner",
+    "at_least": 0.95,
+    "why": "1.0000 on 2026-10-08 (targum-internal#265): every join between two words falls between the aligner's two words"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-fr",
+    "metric": "onset_ms_median",
+    "system": "ctc-forced-aligner",
+    "at_most": 80.0,
+    "why": "20.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-ru",
+    "metric": "seam_in_gap",
+    "system": "ctc-forced-aligner",
+    "at_least": 0.95,
+    "why": "1.0000 on 2026-10-08 (targum-internal#265): every join between two words falls between the aligner's two words"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-ru",
+    "metric": "onset_ms_median",
+    "system": "ctc-forced-aligner",
+    "at_most": 80.0,
+    "why": "35.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-it",
+    "metric": "seam_in_gap",
+    "system": "ctc-forced-aligner",
+    "at_least": 0.95,
+    "why": "1.0000 on 2026-10-08 (targum-internal#265): every join between two words falls between the aligner's two words"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-it",
+    "metric": "onset_ms_median",
+    "system": "ctc-forced-aligner",
+    "at_most": 80.0,
+    "why": "20.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
   }
 ]
