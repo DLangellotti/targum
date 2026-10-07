@@ -6,6 +6,7 @@ the server built, and nothing a model passes as an argument can name somebody el
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 from dataclasses import replace
@@ -2083,6 +2084,26 @@ def test_a_quote_over_the_connector_carries_credits_and_no_dollars(world, monkey
     # And the in-app card still has what it draws from.
     ctx.press_at = ""
     assert "estimate" in tools.quote_build(ctx, {"source": "https://example.com/e2"})["quote"]
+
+
+def test_a_job_quoted_through_the_connector_says_so_on_its_row(world, monkeypatch) -> None:
+    """targum-internal#408: what the connector brings in is counted off the job rows,
+    so each row has to say where it came from. A set quotes its items with no press
+    link of their own, and they still say so."""
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    mine = tools.quote_build(ctx, {"source": "https://example.com/in-app"})["quote"]
+    assert "via" not in library.jobs[mine["id"]].options, "targum's own chat is not a host"
+
+    ctx.press_at, ctx.via = "https://targum.test", "connector"
+    theirs = tools.quote_build(ctx, {"source": "https://example.com/from-a-host"})["quote"]
+    assert library.jobs[theirs["id"]].options["via"] == "connector"
+    assert "utm_source" not in theirs["open"], "the link stays as short as it was"
+    alone = dataclasses.replace(ctx, press_at="")
+    quoted = tools.quote_build(alone, {"source": "https://example.com/in-a-set"})["quote"]
+    assert library.jobs[quoted["id"]].options["via"] == "connector"
 
 
 def test_check_job_says_no_dollars_and_quotes_its_link(world) -> None:

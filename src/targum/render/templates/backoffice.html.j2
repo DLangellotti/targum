@@ -229,6 +229,14 @@
       A visitor is an address and browser within one day, so the window's figure is a
       sum of days, not a count of people. -#}
   <h2 id="visitors">Visitors</h2>
+  {#- What came in through the chat connector (targum-internal#408), off the job and
+      playlist rows. Readers who use it are signed in, so the visitor count below never
+      sees them. -#}
+  {%- if survey.connector and (survey.connector.quoted or survey.connector.sets) %}
+  <p class="taken">Through the connector, last {{ days }} days: {{ survey.connector.quoted }} texts offered &middot;
+    {{ survey.connector.pressed }} confirmed &middot; {{ survey.connector.finished }} ready &middot;
+    {{ survey.connector.sets }} playlists</p>
+  {%- endif %}
   {%- if not visits or not visits.any() %}
   <p class="nothing">Nothing counted yet. The roll-up runs hourly on the box.</p>
   {%- else %}

@@ -166,6 +166,7 @@ def context(
         # never sets this: a turn there has a client already.
         ask=ask,
         sees_record=sees_record,
+        via="connector",
     )
 
 
