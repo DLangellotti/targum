@@ -709,6 +709,48 @@ def test_a_quote_never_claims_or_enqueues(world, monkeypatch) -> None:
     assert "how_to_talk" not in offered
 
 
+PASTED = "בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ. וְהָאָרֶץ הָיְתָה תֹהוּ וָבֹהוּ."
+
+
+def test_pasted_text_is_kept_as_the_reader_s_own_and_quoted(world, monkeypatch) -> None:
+    """targum-internal#406: the Add page's pasted door, through a host. The words land in
+    the reader's own uploads, and the quote is the same seam: nothing claimed, nothing
+    queued, a link to targum's own page."""
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+
+    def forbidden(*_: object) -> str:
+        raise AssertionError("a quote must not spend")
+
+    monkeypatch.setattr(library, "claim", forbidden)
+    monkeypatch.setattr(library, "enqueue", forbidden)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    ctx.press_at, ctx.via = "https://targum.test", "connector"
+    got = tools.build_from_text(ctx, {"text": PASTED, "title": "Genesis / 1:1-2"})
+    quote = got["quote"]
+    assert quote["stage"] == "ready" and quote["open"].startswith("https://targum.test/build/")
+    job = library.jobs[quote["id"]]
+    kept = Path(job.source)
+    assert kept.is_relative_to(home / "uploads"), "the reader's own, never the shared shelf"
+    assert kept.read_text(encoding="utf-8").strip() == PASTED, "the words, exactly"
+    assert kept.name == "Genesis 11-2.txt", "a title is a name, never a path"
+    assert job.options["via"] == "connector" and job.options["to"] == "en"
+    assert job.owner == person.id and store.committed(0) == 0.0
+
+
+def test_pasted_text_is_refused_where_it_cannot_be_a_text(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    assert "too short" in tools.build_from_text(ctx, {"text": "שלום"})["error"]
+    long = "שלום " * (tools.MOST_PASTED // 4)
+    assert "Add page" in tools.build_from_text(ctx, {"text": long})["error"]
+    nobody = context(library, store, None, library.home(None))
+    assert "account" in tools.build_from_text(nobody, {"text": PASTED})["error"]
+    assert not (home / "uploads").exists(), "nothing written for a refusal"
+
+
 def test_a_library_text_is_quoted_with_its_published_translation(world, monkeypatch) -> None:
     library, store, person, home = world
     monkeypatch.setattr(library, "prepare", priced)
