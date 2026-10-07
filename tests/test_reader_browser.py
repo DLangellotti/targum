@@ -6191,9 +6191,18 @@ def test_a_part_still_waiting_to_be_heard_buys_nothing_ahead_of_it(
         context.close()
         return asked
 
-    assert "data-audio" in (folder / "sec-0002.html").read_text(encoding="utf-8")
-    assert bought("sec-0002.html") == []
-    assert [ask["number"] for ask in bought("sec-0001.html")] == [2], "a heard part still does"
+    page = (folder / "sec-0002.html").read_text(encoding="utf-8")
+    assert "data-audio" in page
+    # Since 2026-10-07 (design.md §12, "One press gets the whole video, a part at a time")
+    # a waiting part asks for itself as it opens — the quote's press covered every part —
+    # and still for nothing ahead of it. Its page has no translation column, so it names
+    # no language and the box answers in the one the folder holds.
+    assert 'class="tr"' not in page
+    assert bought("sec-0002.html") == [{"name": "talk-en", "number": 2, "to": ""}]
+    ahead = bought("sec-0001.html")
+    assert [(ask["number"], ask.get("ahead")) for ask in ahead] == [(2, True)], (
+        "a heard part asks for the next, once, as it opens"
+    )
 
 
 def french(out: Path) -> Path:

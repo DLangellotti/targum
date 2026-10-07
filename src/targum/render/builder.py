@@ -4043,6 +4043,9 @@ def render(
     }
 
     written: list[Path] = []
+    from ..audio.manifest import MANIFEST as RECORDING
+
+    by_part = folder is not None and (folder / RECORDING).is_file()
     for section in sections:
         segments = [by_id[sid] for sid in section.segment_ids]
         # Only this section's translations ship with the page, so a long book stays
@@ -4420,22 +4423,11 @@ def render(
         # Whether this section is an imported recording's part still waiting for its
         # transcript. The page says which work is owed, and the button asks for it.
         audio_waiting = any(segment.ref.endswith(":waiting") for segment in segments)
-        # What transcribing it would use, beside the press (copy audit, 2026-09-28): the
-        # waiting parts' length off the manifest, a credit a minute. None where the
-        # manifest does not say — the page then says no figure rather than a guess.
-        waiting_credits: int | None = None
-        if audio_waiting and folder is not None:
-            from ..audio import manifest as manifest_module
-
-            kept = manifest_module.load(folder)
-            owed = {
-                int(head[5:])
-                for head in (segment.ref.split(":", 1)[0] for segment in segments)
-                if head.startswith("part ") and head[5:].isdigit()
-            }
-            lengths = [p.end - p.start for p in (kept.parts if kept else []) if p.number in owed]
-            if lengths and all(length > 0 for length in lengths):
-                waiting_credits = credits_of(sum(lengths))
+        # A waiting part used to carry what transcribing it would use, a credit a minute
+        # (copy audit, 2026-09-28). Since 2026-10-07 the press on the recording's quote
+        # is consent to every part and took every part's credits, so the page says it is
+        # already paid for (design.md §12, "One press gets the whole video, a part at a
+        # time").
         # A chapter's own cover where one was drawn for it, and the book's where it was
         # not — which is most of them, since a numbered chapter is not a subject anything
         # could draw.
@@ -4508,7 +4500,6 @@ def render(
             section=section,
             translated=translated,
             audio_waiting=audio_waiting,
-            waiting_credits=waiting_credits,
             # Words to tap: the Hebrew's, or Onkelos's beside it (targum-internal#202).
             words=bool(words)
             or any(
@@ -4812,6 +4803,11 @@ def render(
             ),
             previous=None if section.number == 1 else sections[section.number - 2],
             following=None if section.number == len(sections) else sections[section.number],
+            # An imported recording is made a part at a time, the next as the reader
+            # opens the one before (2026-10-07, design.md §12, "One press gets the whole
+            # video, a part at a time"): the page asks for it once, on opening, instead
+            # of at 60% of the way through as a book's page does.
+            by_part=by_part,
             standalone=single,
             # How many parts the text is in, for the line under a video (#422).
             section_count=len(sections),

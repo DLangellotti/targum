@@ -96,6 +96,13 @@
             for, and was dropped on 2026-09-25. -#}
         <span class="scope-says">{{ tn("press.page.uses-credits", (job.seconds / 60)|round|int, "Uses {n} credit", "Uses {n} credits") }}</span>
       </li>
+      {#- One press gets the whole of it (David, 2026-10-07; design.md §12, "One press gets
+          the whole video, a part at a time"), so the page says how it arrives: the first
+          part now, each of the rest as the one before it is opened. The credits above are
+          the whole recording's, and nothing asks again. -#}
+      {%- if job.parts and job.parts > 1 %}
+      <li><span class="scope-says">{{ tn("press.page.in-parts", job.parts, "In {n} part, each made as you reach it", "In {n} parts, each made as you reach it") }}</span></li>
+      {%- endif %}
       {%- endif %}
     </ul>
     <form method="post" action="/build/{{ job.id }}" id="press" data-job="{{ job.id }}"

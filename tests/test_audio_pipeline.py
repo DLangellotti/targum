@@ -297,9 +297,12 @@ def test_an_imported_recording_has_no_credit_line(fake_audio, tmp_path: Path) ->
         assert "Read by" not in page.read_text(encoding="utf-8")
 
 
-def test_an_untranscribed_part_says_not_transcribed_yet_and_offers_to_transcribe(
+def test_an_untranscribed_part_says_not_transcribed_yet_and_starts_on_opening(
     fake_audio, tmp_path: Path
 ) -> None:
+    """Since 2026-10-07 (design.md §12, "One press gets the whole video, a part at a
+    time") a waiting part has no Transcribe press: opening it starts it, and the page
+    carries a line for its live status and a button only to try again."""
     fake_audio.duration = 1440.0
     fake_audio.pauses = [(719.0, 721.0)]
     build = builder(tmp_path, recording(tmp_path))
@@ -307,7 +310,8 @@ def test_an_untranscribed_part_says_not_transcribed_yet_and_offers_to_transcribe
     waiting = next(page for page in result.pages if page.name == "sec-0002.html")
     text = waiting.read_text(encoding="utf-8")
     assert "We haven't transcribed this part yet." in text
-    assert ">Transcribe<" in text
+    assert ">Transcribe<" not in text, "no press: the quote's press covered every part"
+    assert 'id="waiting-said"' in text and ">Try again<" in text
     ready = next(page for page in result.pages if page.name == "sec-0001.html")
     assert "We haven't transcribed this part yet." not in ready.read_text(encoding="utf-8")
 

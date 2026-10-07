@@ -901,3 +901,147 @@ def test_a_press_buys_the_part_on_its_page_not_the_part_with_its_number(
     )
     press(port, token, folder, page.number)
     assert [job.options["parts"] for job in queued] == [[2]]
+
+
+"""--- one press gets the whole recording, a part at a time (design.md §12, 2026-10-07) ---"""
+
+
+def opened(port: int, token: str, folder: Path, number: int):
+    """What a part's page sends as it opens: the next page, `ahead`."""
+    body = json_module.dumps({"name": folder.name, "number": number, "ahead": True}).encode()
+    return raw(port, f"/chapter?k={token}", body, "application/json")
+
+
+def _spied(monkeypatch) -> tuple[list[Job], list[Job]]:
+    """Every claim and every job put in the line, without running any of them."""
+    claims: list[Job] = []
+    queued: list[Job] = []
+    claim = Library.claim
+
+    def spy(self, job):
+        claims.append(job)
+        return claim(self, job)
+
+    monkeypatch.setattr(Library, "claim", spy)
+    enqueue = Library.enqueue
+    monkeypatch.setattr(
+        Library, "enqueue", lambda self, job: (queued.append(job), enqueue(self, job))
+    )
+    return claims, queued
+
+
+def test_the_press_makes_the_first_part_and_no_other(served, fake_audio) -> None:
+    """The press buys the first part (`FIRST_CHAPTERS`), and its quote is the whole
+    recording's length: the credits `Library.claim` takes for it are every part's."""
+    from targum.serve import FIRST_CHAPTERS
+
+    _port, _token, out = served
+    build = talk(out, fake_audio, parts=3)
+    plan = build.plan(chapters=FIRST_CHAPTERS)
+    assert plan.audio is not None
+    assert plan.audio.duration == 2160.0 and plan.audio.parts == 3, "the quote is the whole"
+    build.run(chapters=FIRST_CHAPTERS)
+    pages = build.resolved_out / "reader"
+    assert 'id="waiting-note"' not in (pages / "sec-0001.html").read_text(encoding="utf-8")
+    assert 'id="waiting-note"' in (pages / "sec-0002.html").read_text(encoding="utf-8")
+    assert 'id="waiting-note"' in (pages / "sec-0003.html").read_text(encoding="utf-8")
+
+
+def test_opening_a_part_makes_the_next_once_and_never_two_ahead(
+    served, fake_audio, monkeypatch
+) -> None:
+    """David, 2026-10-07: "only start part 2 once the reader is working on part 1, and
+    likewise part 3 when on part 2". Opening part one starts part two, as one claim;
+    opening it again starts nothing more; part three is refused while part two is still
+    waiting; and once part two is made, opening it starts part three."""
+    port, token, out = served
+    build = talk(out, fake_audio, parts=3)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    claims, queued = _spied(monkeypatch)
+
+    status, first = opened(port, token, folder, 2)
+    assert status == 200 and first["id"] and first["stage"] == "queued", first
+    assert [job.options["parts"] for job in queued] == [[2]]
+    assert len(claims) == 1, "a part is a claim, through Library.press"
+    assert claims[0].estimate > 0, "at the money the part will cost"
+    assert not claims[0].audio and claims[0].seconds == 0, (
+        "and no credits: the press on the quote took the whole recording's"
+    )
+
+    _status, again = opened(port, token, folder, 2)
+    assert again["id"] == first["id"], "opened twice, made once"
+    assert len(claims) == 1 and len(queued) == 1
+
+    status, ahead = opened(port, token, folder, 3)
+    assert status == 409 and ahead == {"waiting": True}, "never two ahead of the reader"
+    assert len(claims) == 1 and len(queued) == 1
+
+    # Part two is made; the reader opens it, and part three begins.
+    engine = NullTranscriber(text=TALK, language="en")
+    monkeypatch.setattr(Library, "_builder", lambda self, job: talk(out, fake_audio, 3, engine))
+    Library(out).run(queued[0])
+    assert queued[0].stage == "done", queued[0].error
+    status, third = opened(port, token, folder, 3)
+    assert status == 200 and third["id"] and third["id"] != first["id"], third
+    assert [job.options["parts"] for job in queued] == [[2], [3]]
+    assert len(claims) == 2
+
+    # And a part already made is never made, or charged, again.
+    _status, made = opened(port, token, folder, 2)
+    assert made == {"ready": True}
+    assert len(claims) == 2 and len(queued) == 2
+    assert all(not job.audio and job.seconds == 0 for job in claims), "no credits, ever"
+
+
+def test_a_part_the_reader_opens_is_made_whichever_it_is(served, fake_audio, monkeypatch) -> None:
+    """David, 2026-10-07: opening any waiting part starts it — part three straight from the
+    contents page, with part two still waiting. The one-ahead rule is about making ahead of
+    the part opened, not the part itself. Still one claim, and opened again it joins the
+    build already coming rather than making or charging a second."""
+    port, token, out = served
+    build = talk(out, fake_audio, parts=3)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    claims, queued = _spied(monkeypatch)
+
+    status, third = press(port, token, folder, 3)
+    assert status == 200 and third["id"] and third["stage"] == "queued", third
+    assert [job.options["parts"] for job in queued] == [[3]]
+    assert len(claims) == 1 and not claims[0].audio and claims[0].seconds == 0
+
+    _status, again = press(port, token, folder, 3)
+    assert again["id"] == third["id"] and len(claims) == 1 and len(queued) == 1
+
+
+def test_a_part_the_rails_refuse_is_not_made_and_the_answer_says_why(
+    served, fake_audio, monkeypatch
+) -> None:
+    """Out of room on a rail, nothing is queued, and the refusal comes back in words for
+    the door to say."""
+    port, token, out = served
+    build = talk(out, fake_audio, parts=2)
+    build.run(chapters=1)
+    queued: list[Job] = []
+    monkeypatch.setattr(Library, "enqueue", lambda self, job: queued.append(job))
+    monkeypatch.setattr(
+        Library, "claim", lambda self, job: "That's a lot to get ready at once. Try again later."
+    )
+    status, refused = opened(port, token, build.resolved_out, 2)
+    assert status == 402 and refused["stage"] == "blocked"
+    assert refused["blocked"].startswith("That's a lot to get ready at once")
+    assert queued == []
+
+
+def test_a_part_is_asked_for_only_by_the_readers_own_page() -> None:
+    """The model cannot make a part: nothing the connector or the chat holds reaches the
+    door a part's page knocks on. A part is made from the reader's own visit, under the
+    consent of the press on the recording's quote, and never on a model's decision."""
+    root = Path(__file__).parents[1] / "src" / "targum"
+    for name in ("chat/tools.py", "connector.py", "mcp_http.py", "telegram.py"):
+        path = root / name
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for door in ('"/chapter"', "_buy_parts", "._chapter("):
+            assert door not in text, f"{name} reaches {door}"

@@ -2236,6 +2236,9 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
   color: var(--ink-soft);
 }
 .waiting-note p { margin: 0; }
+/* A recording's part says it is being made, under the line (2026-10-07). */
+.waiting-note .waiting-said { color: var(--ink-soft); }
+.waiting-note .waiting-said:empty { display: none; }
 .waiting-note button {
   padding: 0.3rem 0.8rem;
   border: 1px solid var(--ink);
@@ -2291,6 +2294,22 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
   cursor: pointer;
 }
 .foot-go:hover { filter: brightness(1.08); }
+/* Beside, on a part with a part after it, "Next part" under the picture is the one
+   primary at the end, and Done steps down to a text link (David, 2026-10-07; design.md
+   §12, "One press gets the whole video, a part at a time"): two teal pills a screen
+   apart is the shape "The foot is one block" took apart. Theatre has no foot on screen,
+   and a playlist's press is its Next, so neither changes. */
+body.film-beside:not(.in-list):has(#film-next) .foot-go {
+  min-block-size: 2.75rem;
+  padding: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+body.film-beside:not(.in-list):has(#film-next) .foot-go:hover { filter: none; color: var(--ink); }
 .foot-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* The same press without the marking: a text link under it, never a second button. */
 .foot-plain {
@@ -3522,6 +3541,73 @@ body.film-card.film-theatre .film-frame::after {
 body.film-theatre .film-ctl .film-transcript { display: inline-flex; }
 /* A playlist's Back and Next, in the row, quietly (list.js). */
 .film-tools .list-key { margin-block: 0; }
+
+/* --- the next part, under the picture (David, 2026-10-07; design.md §12, "One press
+   gets the whole video, a part at a time") ---
+   Theatre does not show the transcript, so the pager at its foot was nowhere to be seen
+   and a part played to its end led nowhere. The door stands in the picture's column
+   once the voice reaches the last line or the film ends: under the line in Theatre,
+   under what it is in Beside, under the row on a phone. The house press, §13's pill in
+   teal as at the foot of a text, with what is happening to the part beside it in muted
+   ink. A playlist carries its own Next in the row, so it is not drawn there. */
+.film-next { display: none; }
+body.film-at-end:not(.in-list) .film-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 1rem;
+  row-gap: 0.4rem;
+  margin-block-start: 1rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+body.film-theatre .film-next { justify-content: center; margin-block-end: 0.5rem; }
+.film-next-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  padding: 0 1.4rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss), transparent) var(--teal);
+  color: var(--teal-ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.film-next-go svg {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.film-next-go:hover { filter: brightness(1.08); }
+.film-next-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.film-next-said:empty { display: none; }
+.film-next-again {
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.film-next-again:hover { color: var(--ink); }
+.film-next-again:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.film-next-again[hidden] { display: none; }
+@media (max-width: 60rem) {
+  body.film-at-end:not(.in-list) .film-next { padding-inline: 1rem; margin-block: 0.5rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .film-next-go, .film-next-again { min-block-size: 44px; }
+}
 
 /* --- what it is and whose, under the row, Beside --- */
 .film-about { margin-block-start: 1.1rem; }

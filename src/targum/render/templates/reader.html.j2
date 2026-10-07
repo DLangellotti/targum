@@ -569,6 +569,21 @@
     {% if translated %}<p class="film-tr" lang="{{ target_language }}" dir="{{ target_direction }}"></p>{% endif %}
     <p class="film-far film-after" lang="{{ source_language }}" dir="{{ source_direction }}" aria-hidden="true"></p>
   </div>
+  {#- The way on to the next part, under the picture (David, 2026-10-07: "at the end of the
+      first part of a video I uploaded, there's no button to take me to the next video").
+      The pager at the foot of the transcript carried it, and Theatre does not show the
+      transcript, so a part played to its end led nowhere. Shown once the voice reaches
+      the last line, or the film ends; a plain link, so it works off a disk, and the
+      script says beside it whether the part is still being made (design.md §12, "One
+      press gets the whole video, a part at a time"). Nothing is played by it: the next
+      part opens waiting for its press, like any text. -#}
+  {% if following and not standalone %}
+  <div class="film-next" id="film-next" dir="ltr">
+    <a class="film-next-go" href="{{ following.filename }}">{{ t("reader.film.next-part", "Next part") }}<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 8h10M9 4l4 4-4 4"></path></svg></a>
+    <span class="film-next-said" role="status"></span>
+    <button type="button" class="film-next-again" hidden>{{ t("reader.film.next-part-again", "Try again") }}</button>
+  </div>
+  {% endif %}
 </div>
 {#- The transcript's heading while it is a panel beside a large picture. -#}
 <div class="film-panel-head" id="film-panel-head" dir="ltr" hidden>
@@ -631,13 +646,21 @@
       not on a translation, and a button that names the wrong work makes a promise the
       click will not keep. -#}
   <p>{% if audio_waiting %}We haven't transcribed this part yet.{% else %}We haven't translated this chapter yet.{% endif %}</p>
-  <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}Transcribe{% else %}Translate{% endif %}</button>
+  {#- A recording's part has no press since 2026-10-07 (design.md §12, "One press gets the
+      whole video, a part at a time"): opening it starts it, the line under says it is
+      being made, and the page opens itself when it is. The button is only the way to
+      try again after a failure. Off a disk nothing runs, and the line above stands. -#}
+  {% if audio_waiting %}<p class="waiting-said" id="waiting-said" role="status"></p>{% endif %}
+  <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}{{ t("reader.film.next-part-again", "Try again") }}{% else %}Translate{% endif %}</button>
   {#- What the press spends, beside it and shown with it (copy audit, 2026-09-28): a
-      transcript by its part's minutes, a translation none. -#}
+      translation none. A part of a recording none either since 2026-10-07: the press on
+      its quote took the whole recording's credits, and said so (design.md §12, "One
+      press gets the whole video, a part at a time"). "Uses 3 credits" here was a second
+      price for something already paid for, and it asked again at every part. -#}
   {%- if not audio_waiting %}
   <span class="waiting-cost" id="waiting-cost" hidden>{{ t("reader.chapter.uses-no-credits", "Uses none of your credits") }}</span>
-  {%- elif waiting_credits %}
-  <span class="waiting-cost" id="waiting-cost" hidden>{{ tn("reader.chapter.uses-credits", waiting_credits, "Uses {n} credit", "Uses {n} credits") }}</span>
+  {%- else %}
+  <span class="waiting-cost" id="waiting-cost" hidden>{{ t("reader.chapter.part-paid", "Already in the credits you confirmed") }}</span>
   {%- endif %}
 </div>
 {% endif %}
@@ -930,7 +953,7 @@
 {% endif %}
 
 {% if not standalone %}
-<nav class="pager" data-chapter="{{ section.number }}" data-document="{{ document.content_hash }}">
+<nav class="pager" data-chapter="{{ section.number }}" data-document="{{ document.content_hash }}"{% if by_part %} data-by-part{% endif %}>
   {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>{% endif %}
   {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>{% endif %}
 </nav>
