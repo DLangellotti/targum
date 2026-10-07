@@ -2125,8 +2125,38 @@ class Library:
             return []
         gone = self.store.purge()
         for person_id in gone:
-            shutil.rmtree(self.out / f"p{person_id}", ignore_errors=True)
+            home = self.out / f"p{person_id}"
+            self._forget_in_ledger(home)
+            shutil.rmtree(home, ignore_errors=True)
         return gone
+
+    def _forget_in_ledger(self, home: Path) -> None:
+        """Take a departed reader's texts out of the corpus ledger (targum-internal#162).
+
+        Only what was theirs alone: a text somebody else has, or the shared shelf or the
+        weekly holds, is the same document and the same rows, and is corpus rather than
+        anybody's. Does nothing with the ledger off, and never stands in the way of the
+        deletion it is part of.
+        """
+        import sqlite3
+
+        from . import ledger as ledger_module
+
+        if ledger_module.path() is None:
+            return
+        try:
+            mine = ledger_module.documents_under(home)
+            if not mine:
+                return
+            others: set[str] = set()
+            roots = [self.shared, self.weekly]
+            if self.out.is_dir():
+                roots += [one for one in self.out.iterdir() if one.is_dir() and one != home]
+            for root in dict.fromkeys(roots):
+                others |= ledger_module.documents_under(root)
+            ledger_module.forget(mine - others)
+        except (OSError, sqlite3.Error) as error:
+            log.warning("corpus ledger: a departed reader's texts were not forgotten: %s", error)
 
     def empty_trash(self, days: int = TRASH_DAYS) -> list[str]:
         """Delete for real anything whose week is up. Called at start-up."""

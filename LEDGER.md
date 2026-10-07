@@ -103,7 +103,14 @@ generated from the same rows. The datasheet lists the sources and licences, ever
 schema. Because the bit is copied onto every row, the per-table counts in the datasheet
 are exactly `SELECT COUNT(*) … WHERE exportable` (criterion 3), and an empty licence can
 never appear (criterion 4). The private bucket (#161) is `texts.owner IS NOT NULL`. Those
-rows are never exported, and they are deleted with the account. `scores` rows have no
+rows are never exported, and they are deleted with the account.
+
+**Deletion is built ahead of `texts`** (2026-10-08). When `Library.purge_departed` removes
+a reader's home, `ledger.forget` first deletes every row, history included, for the
+documents named in that home and nowhere else — not on the shared shelf, the weekly, or
+another reader's home, since a text two people have is one document and one set of rows,
+and is corpus. The documents are read off the head of each artifact
+(`ledger.documents_under`), so no annotation is parsed whole. `scores` rows have no
 owner and survive the deletion (criterion 5).
 
 ## How the criteria get verified
