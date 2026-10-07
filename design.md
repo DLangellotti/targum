@@ -354,6 +354,37 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The large picture can be made smaller — 2026-10-07
+
+David, 2026-10-07, watching in Theatre: *"while in theater mode I want the ability to drag
+on the video and make it smaller or bigger, giving more room to text"* — and, of the
+default, *"I like the theater default though! It looks great."* So the picture keeps the
+size "A video stands beside its transcript, or large" (2026-10-05) gives it, and a reader
+may take it down from there.
+
+- **A grip on the picture's lower edge.** The edge, not a corner: the picture stands in
+  the middle and keeps its shape, so the one thing a reader trades is height, and the
+  line under it takes what the picture gives up. A corner would promise a free shape it
+  cannot have. Dragged, the picture scales and is never cropped, from its full size down
+  to three tenths of it (never under 280px wide); it never grows past the default.
+- **Quiet until wanted.** The grip is a short pale bar inside the picture's foot, shown
+  only while the pointer is over the picture or the grip has the keyboard, and faint on a
+  touch screen, which has no hover. It takes no room: a reader who never touches it sees
+  Theatre exactly as before, to the pixel, and a test pins that. It steps back with the
+  row while the film plays (C).
+- **Every hand.** Pointer drag with capture (mouse, touch, pen); from the keyboard it is a
+  separator — ↑ ↓ step a tenth, Home the smallest, End the full size — with the focus ring
+  in the focus colour and a 44px band to take hold of. A double press puts it back to the
+  default. No snap is animated, with or without `prefers-reduced-motion`.
+- **Kept per reader, like the view** (`targum:film-size`, a share of the full size), and
+  only in Theatre on a wide window. Beside is unchanged; a phone has no Theatre and no
+  grip. At the full size nothing is stored.
+
+What it does not reopen: "The picture can be picked up" (2026-09-13) stays retired. The
+picture does not move, has no corner and is sized only downward from where the layout
+puts it.
+
+
 ### A text you leave puts the desk in its language — 2026-10-07
 
 David, 2026-10-07: *"if I imported a text in russian from the mcp, then read it, when I
