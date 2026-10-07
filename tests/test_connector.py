@@ -139,6 +139,7 @@ def test_a_context_built_for_a_person_is_that_person_s(tmp_path: Path) -> None:
     assert ctx.person is not None and ctx.person.id == person.id
     assert ctx.home == library.home(person), "their own home, never the shared one"
     assert ctx.admin is False, "read from the store, and this address is not one"
+    assert ctx.via == "connector", "what it quotes is counted as the connector's (#408)"
 
 
 def test_a_context_built_for_nobody_is_the_machine_s_own_reader(tmp_path: Path) -> None:

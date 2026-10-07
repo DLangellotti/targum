@@ -148,6 +148,11 @@ class Ctx:
     #: granted `record`. Read by the one tool that is offered without that scope and
     #: carries the record when it has it (`how_to_talk`).
     sees_record: bool = True
+    #: Which surface the conversation came in through: "connector" over the remote or
+    #: stdio connector, empty in targum's own chat. Unlike `press_at` it survives a set
+    #: quoting its items `alone`, so a job made through a host says so on its own row
+    #: (targum-internal#408) and is counted from there, not from a second counter.
+    via: str = ""
 
     @property
     def person_id(self) -> int | None:
@@ -1230,6 +1235,8 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         }
 
     payload: dict[str, Any] = {**BUILD_OPTIONS, "to": wanted}
+    if ctx.via:
+        payload["via"] = ctx.via
     catalogue_id = str(args.get("catalogue_id") or "").strip()
     source = str(args.get("source") or "").strip()
     if catalogue_id:

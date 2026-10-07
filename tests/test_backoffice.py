@@ -383,3 +383,42 @@ def test_a_store_from_before_the_page_reads_as_unknown(tmp_path: Path) -> None:
     )
     found = survey(db, today=date(2026, 10, 1))
     assert [who.page for who in found.waiting_list] == [""]
+
+
+def test_the_page_counts_what_came_in_through_the_connector(store: sqlite3.Connection) -> None:
+    """targum-internal#408, off the rows that say so: no counter of its own."""
+    import json
+
+    made = stamp(date(2026, 9, 4))
+    via = json.dumps({"via": "connector"})
+    for n, (stage, claimed, options) in enumerate(
+        [
+            ("ready", 0, via),  # offered, never pressed
+            ("blocked", 0, via),  # refused at the quote
+            ("queued", 3, via),
+            ("done", 2, via),
+            ("failed", 1, via),  # pressed, then stopped
+            ("failed", 0, via),  # never got as far as a quote
+            ("done", 2, "{}"),  # targum's own chat
+        ]
+    ):
+        store.execute(
+            "INSERT INTO job (id, owner, home, source, options, stage, claimed, made)"
+            " VALUES (?, 1, 'h', 's', ?, ?, ?, ?)",
+            (f"j{n}", options, stage, claimed, made),
+        )
+    store.execute(
+        "INSERT INTO playlist (person, name, made_by, made) VALUES (1, 'Set', 'connector', ?)",
+        (made,),
+    )
+    store.execute(
+        "INSERT INTO job (id, owner, home, source, options, stage, made)"
+        " VALUES ('old', 1, 'h', 's', ?, 'done', ?)",
+        (via, stamp(date(2026, 6, 1))),
+    )
+    store.commit()
+
+    found = survey(store, today=date(2026, 9, 4))
+    assert found.connector == {"quoted": 6, "pressed": 3, "finished": 1, "sets": 1}
+    page = back_office_page(found, 30)
+    assert "Through the connector" in page and "6 texts offered" in page

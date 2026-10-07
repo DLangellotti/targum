@@ -120,6 +120,11 @@ class Survey:
     waiting_for_a_way_in: int = 0
     #: How many joined through each of targum's pages; "" is unknown.
     waiting_by_page: dict[str, int] = field(default_factory=dict)
+    #: What came in through the connector in the window (targum-internal#408): texts
+    #: quoted from a host, how many of those the reader pressed, how many finished, and
+    #: sets made there. Read off the job and playlist rows, which say so themselves, so
+    #: there is no counter of its own to drift from them.
+    connector: dict[str, int] = field(default_factory=dict)
 
     def active(self) -> int:
         """Accounts that did anything at all in the window."""
@@ -283,6 +288,34 @@ def survey(db: sqlite3.Connection, today: date | None = None, days: int = DAYS) 
             by_day[fell].read.add(int(row["person"]))
 
     found.days = [by_day[each] for each in window]
+
+    # A store from before the rows said where they came from has nothing to count.
+    with contextlib.suppress(sqlite3.Error):
+        quoted = _rows(
+            db,
+            "SELECT stage, claimed FROM job WHERE kind = 'build' AND made >= ?"
+            " AND json_extract(options, '$.via') = 'connector'",
+            since,
+        )
+        found.connector = {
+            "quoted": len(quoted),
+            # Pressed is anything past the quote: claimed, waiting its turn, under way,
+            # finished, or stopped after it began.
+            "pressed": sum(
+                1
+                for row in quoted
+                if row["stage"] not in ("reading", "ready", "blocked")
+                and (row["stage"] != "failed" or float(row["claimed"] or 0) > 0)
+            ),
+            "finished": sum(1 for row in quoted if row["stage"] == "done"),
+            "sets": int(
+                _rows(
+                    db,
+                    "SELECT COUNT(*) AS n FROM playlist WHERE made_by = 'connector' AND made >= ?",
+                    since,
+                )[0]["n"]
+            ),
+        }
     return found
 
 
