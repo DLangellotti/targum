@@ -1218,21 +1218,9 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     and one this account said it reads. What comes back is `Job.state()` verbatim —
     the page draws its card from that, and the card's button posts `/build`.
     """
-    from ..serve import Job
-
-    offered = {code for code, _ in INTO}
-    reads = (ctx.reads & offered) or offered
-    wanted = language_code(str(args.get("to") or "")) or (
-        "en" if "en" in reads else sorted(reads)[0]
-    )
-    if wanted not in offered:
-        names = ", ".join(f"{language_name(code)} ({code})" for code in sorted(offered))
-        return {"error": f"targum translates into {names}."}
-    if wanted not in reads:
-        return {
-            "error": f"{language_name(wanted)} isn't one of the reader's languages. They "
-            "can add it on targum, under Your languages."
-        }
+    wanted, refused = _wanted_language(ctx, args)
+    if refused:
+        return {"error": refused}
 
     payload: dict[str, Any] = {**BUILD_OPTIONS, "to": wanted}
     if ctx.via:
@@ -1283,6 +1271,30 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         payload["source"] = source
     else:
         return {"error": "Say what to build: a link, or a library text's id."}
+    return _quote(ctx, source, payload)
+
+
+def _wanted_language(ctx: Ctx, args: dict[str, Any]) -> tuple[str, str]:
+    """The language a quote translates into, or why not: `quote_build`'s own rule."""
+    offered = {code for code, _ in INTO}
+    reads = (ctx.reads & offered) or offered
+    wanted = language_code(str(args.get("to") or "")) or (
+        "en" if "en" in reads else sorted(reads)[0]
+    )
+    if wanted not in offered:
+        names = ", ".join(f"{language_name(code)} ({code})" for code in sorted(offered))
+        return "", f"targum translates into {names}."
+    if wanted not in reads:
+        return "", (
+            f"{language_name(wanted)} isn't one of the reader's languages. They "
+            "can add it on targum, under Your languages."
+        )
+    return wanted, ""
+
+
+def _quote(ctx: Ctx, source: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """A job for `source`, priced and left for the reader to press. Never claimed here."""
+    from ..serve import Job
 
     job = Job(
         id=secrets.token_hex(8),
@@ -1339,6 +1351,51 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             )
         ),
     }
+
+
+#: The most a reader may paste into a host for one text, in characters: about a long
+#: chapter. Longer goes in as a file on targum's own Add page, where it is read in parts.
+MOST_PASTED = 60_000
+#: The fewest worth a text of its own. Less is a phrase, and `how_to_talk` is for that.
+FEWEST_PASTED = 40
+
+
+def build_from_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Text the reader pasted into the host, made a text of theirs (targum-internal#406).
+
+    The Add page's pasted door, with the host as the hand that carries the words: they are
+    written as a file in the reader's own uploads, exactly where a dropped file lands, and
+    quoted the way `quote_build` quotes a link. Nothing is spent here. The quote comes back
+    as a link to targum's own page, and the reader presses there or not at all.
+
+    The words are the reader's own import, kept in their home and never shared or put on
+    a shelf, so a pasted page somebody owns stays theirs to read and nobody else's.
+    """
+    if ctx.person is None:
+        return {"error": "Pasted text needs an account: it becomes one of the reader's texts."}
+    text = str(args.get("text") or "").strip()
+    if len(text) < FEWEST_PASTED:
+        return {"error": "That's too short to make a text of. Paste a paragraph or more."}
+    if len(text) > MOST_PASTED:
+        return {
+            "error": "That's longer than targum takes through a chat. The reader can save it "
+            "as a .txt file and add it on targum's own Add page."
+        }
+    wanted, refused = _wanted_language(ctx, args)
+    if refused:
+        return {"error": refused}
+
+    title = " ".join(str(args.get("title") or "").split())[:80]
+    # The file's name becomes the text's title, so it is a name and never a path.
+    named = " ".join(re.sub(r"[^\w\s.-]", "", title).split()).strip(" .") or "Pasted text"
+    folder = ctx.home / "uploads" / secrets.token_hex(8)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{named}.txt"
+    path.write_text(text + "\n", encoding="utf-8")
+    payload: dict[str, Any] = {**BUILD_OPTIONS, "to": wanted, "source": str(path)}
+    if ctx.via:
+        payload["via"] = ctx.via
+    return _quote(ctx, str(path), payload)
 
 
 #: How many texts one set may hold: design.md §12's cap, and the playlist's own.
@@ -3364,6 +3421,27 @@ REGISTRY: tuple[Tool, ...] = (
         title="Get a text ready",
         writes=True,
         open_world=True,
+    ),
+    Tool(
+        "build_from_text",
+        "For text the reader pasted into this conversation and wants to read on targum: "
+        "the words themselves, not a link. Free. Keeps it as one of the reader's own texts "
+        "and returns its length, how much of it the reader knows, the credits it uses, and "
+        "a link the reader opens to confirm; you cannot confirm it. Pass the words exactly "
+        "as the reader gave them, never your own or a translation. For a link use "
+        "quote_build.",
+        _schema(
+            {
+                "text": {"type": "string", "description": "The reader's pasted words."},
+                "title": {"type": "string", "description": "A short name for it."},
+                "to": _TRANSLATE_INTO,
+            },
+            ("text",),
+        ),
+        build_from_text,
+        scope="chat",
+        title="Get pasted text ready",
+        writes=True,
     ),
     Tool(
         "describe_source",
