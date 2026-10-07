@@ -16,7 +16,7 @@ import pytest
 
 from targum import ledger
 from targum.cache import Cache
-from targum.models import Segment, Vocalization
+from targum.models import Annotation, Segment, Token, Vocalization
 from targum.paths import cache_dir
 
 POINTED = Vocalization(
@@ -285,3 +285,109 @@ class TestRebuildFromRows:
             "ab" + "4" * 62: POINTED,
             "cd" + "5" * 62: {**POINTED, "vocalizer": "nakdimon/2"},
         }
+
+
+def _annotation(annotator: str, lemma_of_bayit: str = "בית") -> dict[str, Any]:
+    """An annotation as the pipeline writes one: segments out of order, a token with a
+    nested field, and the method fields only a reader of the file wants."""
+    return Annotation(
+        document_hash="doc123",
+        language="he",
+        annotator=annotator,
+        method="test",
+        method_note="two segments",
+        scripture_share=0.5,
+        tokens={
+            "s1": [
+                Token(
+                    start=0,
+                    end=3,
+                    surface="בית",
+                    lemma=lemma_of_bayit,
+                    band=1,
+                    pos="NOUN",
+                    feats="Gender=Masc",
+                ),
+                Token(start=4, end=8, surface="גדול", lemma="גדול", band=2, pos="ADJ"),
+            ],
+            "s0": [Token(start=0, end=4, surface="שלום", lemma="שלום", band=0, pos="INTJ")],
+        },
+    ).model_dump(mode="json")
+
+
+class TestTokens:
+    """The second stage (David, 2026-10-03): one annotator's pass over a text, as rows."""
+
+    def test_an_annotation_comes_back_as_the_same_bytes(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        value = _annotation("grammar/2")
+        book.record("tokens", "doc123:grammar/2", value)
+        back = book.get("tokens", "doc123:grammar/2")
+        assert json.dumps(back, ensure_ascii=False) == json.dumps(value, ensure_ascii=False)
+        with sqlite3.connect(book.file) as db:
+            rows = db.execute(
+                "SELECT segment_id, ord, form, lemma, pos, features, band FROM tokens"
+                " ORDER BY segment_ord, ord"
+            ).fetchall()
+        assert rows == [
+            ("s1", 0, "בית", "בית", "NOUN", "Gender=Masc", 1),
+            ("s1", 1, "גדול", "גדול", "ADJ", None, 2),
+            ("s0", 0, "שלום", "שלום", "INTJ", None, 0),
+        ]
+
+    def test_two_annotators_on_one_text_can_be_compared_token_by_token(
+        self, tmp_path: Path
+    ) -> None:
+        """Criterion 2: a rename keeps the old pass, and agreement is one self-join."""
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("tokens", "doc123:grammar/2", _annotation("grammar/2"))
+        book.record("tokens", "doc123:grammar/3", _annotation("grammar/3", "בַּיִת"))
+        with sqlite3.connect(book.file) as db:
+            agree, total = db.execute(
+                "SELECT SUM(a.lemma = b.lemma), COUNT(*) FROM tokens a"
+                " JOIN annotations x ON x.id = a.annotation_id AND x.tool = 'grammar/2'"
+                " JOIN tokens b ON b.segment_id = a.segment_id AND b.ord = a.ord"
+                " JOIN annotations y ON y.id = b.annotation_id AND y.tool = 'grammar/3'"
+                "  AND y.document_hash = x.document_hash"
+            ).fetchone()
+        assert (agree, total) == (2, 3)
+
+    def test_the_same_pass_again_keeps_the_old_as_history(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("tokens", "k", _annotation("grammar/2"))
+        book.record("tokens", "k", _annotation("grammar/2", "בַּיִת"))
+        assert [key for key, _ in book.entries("tokens")] == ["k"]
+        assert len(book.history("tokens", "k")) == 2
+        assert book.get("tokens", "k")["tokens"]["s1"][0]["lemma"] == "בַּיִת"
+
+    @pytest.mark.parametrize(
+        "broken",
+        [
+            lambda v: {k: v[k] for k in v if k != "tokens"},
+            lambda v: {**v, "tokens": {"s0": "not a list"}},
+            lambda v: {**v, "tokens": {"s0": []}},
+        ],
+        ids=["no tokens", "a segment that is not a list", "an empty segment"],
+    )
+    def test_what_the_rows_could_not_give_back_is_refused(self, tmp_path: Path, broken) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        with pytest.raises(ValueError):
+            book.record("tokens", "k", broken(_annotation("grammar/2")))
+        assert book.get("tokens", "k") is None
+
+    def test_the_pipeline_records_the_pass_it_writes(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Where `annotation.json` is written, with the flag on, keyed by text and tool."""
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        value = _annotation("grammar/2")
+        ledger.mirror_put("tokens", "doc123:grammar/2", value)
+        assert ledger.Ledger(tmp_path / "corpus.db").get("tokens", "doc123:grammar/2") == value
+        import inspect
+
+        from targum import pipeline
+
+        said = inspect.getsource(pipeline.Build.annotate)
+        assert "mirror_put(" in said and '"tokens"' in said, (
+            "the build writes its pass to the ledger"
+        )

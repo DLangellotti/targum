@@ -991,6 +991,16 @@ class Build:
 
             self.moves = moves_module.keep(path.parent, moves_module.between(existing, annotation))
         annotation.write(path)
+        # The corpus ledger's `tokens` stage (targum-internal#162): annotation has no cache,
+        # so the file is the value and this is its second copy, keyed by the text and the
+        # annotator that read it. Off unless `TARGUM_LEDGER` is set; never fails a build.
+        from . import ledger as ledger_module
+
+        ledger_module.mirror_put(
+            "tokens",
+            f"{annotation.document_hash}:{annotation.annotator}",
+            annotation.model_dump(mode="json"),
+        )
         return annotation
 
     def annotate_commentaries(
