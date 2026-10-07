@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import os
 import socket
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -206,6 +207,54 @@ def free_port() -> Callable[[], int]:
             return int(sock.getsockname()[1])
 
     return pick
+
+
+class Chromium:
+    """One Chromium for a file of browser tests, launched again if it has gone.
+
+    One a file rather than one a test, because launching is most of a browser test's
+    time. But a browser that dies in one test used to stay dead for the rest of the file:
+    every later test failed on `Browser.new_context` with an error about the one before
+    it, and a single crash read as a file of failures (targum-internal#427, 2026-10-07).
+    So each test asks for it, and gets the same one only while it is still connected.
+    """
+
+    def __init__(self) -> None:
+        self._driver: Any = None
+        self._running: Any = None
+
+    def browser(self) -> Any:
+        if self._running is not None and self._running.is_connected():
+            return self._running
+        if self._driver is None:
+            from playwright.sync_api import sync_playwright
+
+            try:
+                self._driver = sync_playwright().start()
+            except Exception as why:  # pragma: no cover - environment, not behaviour
+                pytest.skip(f"Playwright will not start: {why}")
+        try:
+            # Muted, because a dialogue's tests watch the media clock and Chromium will
+            # not advance an unmuted one with no audio device under it — it reports
+            # playing and sits at zero. Nothing here listens; what is asserted is the clock.
+            self._running = self._driver.chromium.launch(args=["--mute-audio"])
+        except Exception as why:  # pragma: no cover - the browser itself is not installed
+            pytest.skip(f"no Chromium: run `playwright install chromium` ({why})")
+        return self._running
+
+    def close(self) -> None:
+        if self._running is not None and self._running.is_connected():
+            self._running.close()
+        if self._driver is not None:
+            self._driver.stop()
+
+
+@pytest.fixture(scope="module")
+def chromium() -> Iterator[Chromium]:
+    """The file's Chromium, for `test_reader_browser.browser` and the files importing it."""
+    holder = Chromium()
+    yield holder
+    holder.close()
 
 
 @pytest.fixture(autouse=True)
