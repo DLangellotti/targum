@@ -4400,12 +4400,22 @@ var targumReader = function () {
     };
     return Object.prototype.hasOwnProperty.call(words, english) ? words[english] : english;
   }
-  function builtIn(text) {
+  /* A piece that is the whole word over again names the word it comes from instead.
+   * DICTA does not always cut a pronoun ending off — the Aramaic ־הוֹן never — so
+   * תַּלְמִידֵיהוֹן came back as itself plus "with a pronoun on the end", and the card
+   * said the word was made from itself while תַּלְמִידֵי beside it said תלמיד. Mended
+   * here rather than in the annotation, because the verb tables read that piece as the
+   * verb as written, which it is.
+   */
+  function builtIn(text, surface, lemma) {
+    var whole = surface ? bareOf(surface) : "";
+    var head = lemma && bareOf(lemma) !== whole ? lemma : "";
     return String(text || "")
       .split(" + ")
       .map(function (piece) {
         var glued = /^([\u0590-\u05FF]+) (.+)$/.exec(piece);
         if (glued) return glued[1] + " " + builtWord(glued[2]);
+        if (head && bareOf(piece) === whole) return head;
         return /[\u0590-\u05FF]/.test(piece) ? piece : builtWord(piece);
       })
       .join(" + ");
@@ -5513,7 +5523,7 @@ var targumReader = function () {
       var pieces = document.createElement("span");
       pieces.className = "form";
       pieces.appendChild(document.createTextNode(t("reader.card.from", "from ")));
-      mixedLine(pieces, builtIn(built));
+      mixedLine(pieces, builtIn(built, surface, wordOf(lemma)));
       card.appendChild(pieces);
     } else if (wordOf(lemma) !== surface.toLowerCase() && wordOf(lemma) !== surface) {
       var form = document.createElement("span");
