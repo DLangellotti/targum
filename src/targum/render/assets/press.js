@@ -203,7 +203,10 @@
     started = Date.now();
     // The quote's guess is put away; from here the line below it is measured and true.
     if (quoted) quoted.hidden = true;
-    say(doing, t("press.page.getting-started", "We're getting it ready."));
+    /* Nothing under the button yet: the button itself now says "Getting it ready…", and
+       the same words again beneath it said nothing new (David, 2026-10-07). The line
+       comes back when there is something to add — a stage, a refusal, "It's ready." */
+    say(doing, "");
     if (note) note.hidden = true;
     if (away) away.hidden = false;
   }
