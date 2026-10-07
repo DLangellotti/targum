@@ -668,6 +668,15 @@ var targumReader = function () {
     .split("-")[0]
     .toLowerCase();
   var documentId = data.document || location.pathname;
+  /* A way out to the desk, in this text's language (design.md §12, 2026-10-07). Leaving
+     a Russian text by the mark in the corner landed on Learn in Hebrew, because the link
+     said nothing and the page opened in whatever the menu last held. The desk page takes
+     `learning` as it takes a press of its language menu, and ignores a language it has
+     no desk for, so this carries whatever the text is in and leaves the deciding there. */
+  function inItsLanguage(path) {
+    if (!language || language === "und") return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "learning=" + encodeURIComponent(language);
+  }
   var documentTitle = data.title || document.title || "";
   // Which part of the document this file is, and how many parts there are. A targum
   // finishes at the end of a chapter rather than at the end of a book, so what gets
@@ -5752,7 +5761,7 @@ var targumReader = function () {
     if (state.chat) {
       var on = document.createElement("a");
       on.className = "ask-on";
-      on.href = keyed("/chat") + "#" + encodeURIComponent(state.chat);
+      on.href = keyed(inItsLanguage("/chat")) + "#" + encodeURIComponent(state.chat);
       on.textContent = t("reader.ask.continue", "Continue in chat");
       // In the drawer, where there is one (2026-09-11): the conversation goes on here,
       // beside the text, rather than on a page of its own.
@@ -9941,7 +9950,7 @@ var targumReader = function () {
   var home = document.getElementById("home");
   var homePlain = document.getElementById("home-plain");
   if (home && served) {
-    home.href = keyed("/");
+    home.href = keyed(inItsLanguage("/"));
     home.hidden = false;
     // Two drawings of the same mark, one a link and one not, so a reader opened off the
     // disk shows the mark rather than a link to nowhere.

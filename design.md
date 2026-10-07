@@ -354,6 +354,43 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A text you leave puts the desk in its language — 2026-10-07
+
+David, 2026-10-07: *"if I imported a text in russian from the mcp, then read it, when I
+click out (i.e. by clicking logo in top left) I should arrive in that language's
+interface — not in Hebrew. This should work for any language that way."* The mark in the
+reader's corner went to `/` and carried nothing, so Learn opened in whatever the menu last
+said, which for almost everybody is Hebrew, because almost nobody opens the menu.
+
+**Leaving a text is a press of the language menu.** The mark, and "Continue in chat",
+carry the text's language as `?learning=ru`, and the desk page they land on takes it the
+way it takes a press: kept in this browser and on the account, so the next page and the
+other device open in it too. The page then drops it from its own address, so a reload or
+a bookmark is the plain page and not a second press. Not `?lang=`, which is the language
+the *page* speaks on every public page (§12, 2026-09-22): the front door would have
+answered a signed-out visitor leaving a Russian text in Russian chrome, which is a
+different question.
+
+- **A language the account has not ticked is turned on.** A text in Russian that came in
+  over the connector is on the shelf of an account that still says Hebrew alone. Opening
+  it and leaving it from its corner says what you are learning more plainly than a tick
+  on /you, for the reason asking to practise French did (2026-09-23), and like that it
+  only ever adds. Shown once and not kept, the desk would argue with itself a page later:
+  Learn in Russian, the Library back in Hebrew, and the phone in Hebrew. It writes one
+  row, spends nothing, and one untick on /you takes it back. `REQUIRED_LEARNING` still
+  keeps Hebrew on.
+- **A language targum has no desk for changes nothing.** A text in English, Spanish or
+  anything outside `READING` lands on Learn in the language it was already in. The
+  server refuses it as well; the page is not the boundary.
+- **Signed out, the browser keeps it,** as it keeps a menu press. The front door ignores
+  the word, and a signed-out visitor's page is unchanged.
+- **Readers built before this go home as they did** until they are written again. Their
+  script is inside the file, and every page answers with `Referrer-Policy: no-referrer`,
+  so Learn cannot see where it was arrived from. No rebuild is needed for it: every
+  deploy's `targum rebuild` writes every reader page again from what is cached, so the
+  next deploy carries the word into all of them.
+
+
 ### The connector finds with one tool — 2026-10-06
 
 Over the connector, Claude and ChatGPT were handed three tools for finding something

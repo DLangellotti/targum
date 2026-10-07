@@ -30,6 +30,15 @@ install({
 global.CustomEvent = global.window.CustomEvent;
 const heard = [];
 global.window.dispatchEvent = (event) => heard.push(event.detail);
+// The address the page was arrived at, for a link out of a reader that carries the text's
+// language (2026-10-07), and what the page put in its place.
+const replaced = [];
+if (payload.href) {
+  const at = new URL(payload.href);
+  Object.assign(global.location, { href: at.href, search: at.search, hash: at.hash, pathname: at.pathname });
+}
+global.history = { state: null, replaceState: (state, title, url) => replaced.push(url) };
+global.window.history = global.history;
 
 require(path.join(assets, "lang.js"));
 const lang = global.window.TargumLang;
@@ -70,6 +79,9 @@ process.stdout.write(
   JSON.stringify({
     before,
     current,
+    carried: lang.carried(),
+    replaced,
+    learning: global.localStorage.getItem("targum:learning"),
     openedPanel,
     picked,
     told,

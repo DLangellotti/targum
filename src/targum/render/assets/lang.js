@@ -87,8 +87,12 @@
   // language with nothing built or kept in it yet can be chosen — and a page asking only
   // of its own list then settled on Hebrew and wrote Hebrew back, so every change of page
   // put the reader back in Hebrew.
+  //
+  // And the language this page arrived carrying wins outright (2026-10-07): it was
+  // pressed a page ago, and the account's list may not have heard of it yet.
   function current(codes) {
     var was = stored(NAME);
+    if (carriedIn && was === carriedIn) return was;
     if (was && (codes.indexOf(was) >= 0 || learning().indexOf(was) >= 0)) return was;
     if (codes.indexOf(HOME) >= 0) return HOME;
     return codes[0] || HOME;
@@ -131,6 +135,58 @@
       if (b === HOME) return 1;
       return (names[a] || a).localeCompare(names[b] || b);
     });
+  }
+
+  /* A text's language, carried in from the corner of its reader (design.md §12,
+   * 2026-10-07).
+   *
+   * David left a Russian text he had imported over the connector by the mark in its
+   * corner and landed on Learn in Hebrew: the mark went to `/` and said nothing, so the
+   * page opened in whatever the menu last held. Now the reader's ways out carry
+   * `?learning=<code>`, and this takes it as the menu takes a press — kept in this
+   * browser here, and on the account by `sync.js` once it knows who is signed in, with
+   * leave to turn the language on. Not `?lang=`, which is the language a public page
+   * speaks: the front door would have answered a signed-out visitor in Russian chrome.
+   *
+   * Only a language targum has a desk for. The rest — a text in English, Spanish, Latin
+   * — leaves the page in the language it was already in. The list is `READING` in
+   * `translate/prompts.py`, which `test_lang_js.py` holds this to. The word comes off the
+   * address either way, so a reload or a bookmark is the plain page and not a second
+   * press. A reader built before this carries nothing, and goes home as it always did.
+   */
+  var CARRY = "learning";
+  var LEARNABLE = ["he", "arc", "yi", "fr", "ru", "it"];
+  var carriedIn = "";
+
+  function arrived() {
+    var code = "";
+    try {
+      var url = new URL(location.href);
+      if (!url.searchParams.has(CARRY)) return "";
+      code = String(url.searchParams.get(CARRY) || "").split("-")[0].toLowerCase();
+      url.searchParams.delete(CARRY);
+      history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+    } catch (e) {
+      return "";
+    }
+    return LEARNABLE.indexOf(code) >= 0 ? code : "";
+  }
+
+  carriedIn = arrived();
+  if (carriedIn) {
+    set(carriedIn);
+    // On the list in this browser as well, so the next page can be in it before the
+    // account has answered — and at all, where nobody is signed in to answer.
+    var listed = learning();
+    if (listed.indexOf(carriedIn) < 0) {
+      try {
+        localStorage.setItem(LEARNING, JSON.stringify(listed.concat([carriedIn])));
+      } catch (e) {}
+    }
+  }
+
+  function carried() {
+    return carriedIn;
   }
 
   /* The nav's host, which draws a menu rather than tabs. */
@@ -459,6 +515,7 @@
     learning: learning,
     into: into,
     current: current,
+    carried: carried,
     order: order,
     switcher: switcher,
     betaNote: betaNote,

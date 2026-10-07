@@ -6,6 +6,7 @@ Same harness shape as `test_progress_js.py`: a stub document in `tests/js/`, not
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -90,3 +91,82 @@ def test_each_language_wears_a_small_flag_and_a_language_with_no_country_keeps_t
     flag at all keeps an empty box the flag's width."""
     drawn = menu(stored={"targum:learning": json.dumps(["he", "fr", "yi", "arc", "de"])})
     assert drawn["flags"] == {"he": "flag", "fr": "flag", "yi": "flag", "arc": "flag", "de": "none"}
+
+
+# -- a text's language, carried out of its reader (design.md §12, 2026-10-07) ----------
+
+
+def test_a_page_arrived_at_from_a_russian_text_is_in_russian() -> None:
+    """David left a Russian text by the mark in its corner and landed on Learn in Hebrew.
+    The mark now carries `?learning=ru`, and the page takes it as the menu takes a press:
+    kept in this browser, said to be what the page is in, and gone from the address."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "ru"]), "targum:language": "he"},
+        href="http://learn.test/?learning=ru&k=key",
+        currentOf=["he", "ru"],
+    )
+    assert drawn["carried"] == "ru" and drawn["current"] == "ru"
+    assert drawn["stored"] == "ru", "the next page opens in it too"
+    assert drawn["replaced"] == ["/?k=key"], "a reload is the plain page, key kept"
+    assert "ru" in drawn["heard"]
+
+
+def test_a_page_arrived_at_from_a_hebrew_text_is_in_hebrew() -> None:
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "ru"]), "targum:language": "ru"},
+        href="http://learn.test/?learning=he",
+        currentOf=["he", "ru"],
+    )
+    assert drawn["current"] == "he" and drawn["stored"] == "he"
+
+
+def test_a_language_not_on_the_list_is_the_page_s_and_goes_on_it() -> None:
+    """A text imported over the connector, in a language the account has not ticked: the
+    page is in it before the account has answered, and on a page with nothing else in
+    it, and the browser's list carries it for the next page. The account is told by
+    `sync.js` (see `test_sync_js.py`)."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he"]), "targum:language": "he"},
+        href="http://learn.test/?learning=fr",
+        currentOf=["he"],
+    )
+    assert drawn["current"] == "fr" and drawn["stored"] == "fr"
+    assert json.loads(drawn["learning"]) == ["he", "fr"]
+
+
+@pytest.mark.parametrize("code", ["en", "es", "und", "%3Cscript%3E"])
+def test_a_language_with_no_desk_leaves_the_page_where_it_was(code: str) -> None:
+    """A text in English or Spanish has no Learn of its own: the page stays in the
+    language it was in, and the word still comes off the address."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "ru"]), "targum:language": "ru"},
+        href=f"http://learn.test/?learning={code}",
+        currentOf=["he", "ru"],
+    )
+    assert drawn["carried"] == "" and drawn["current"] == "ru"
+    assert drawn["stored"] == "ru" and drawn["replaced"] == ["/"]
+    assert json.loads(drawn["learning"]) == ["he", "ru"]
+
+
+def test_a_page_arrived_at_with_nothing_carried_is_untouched() -> None:
+    """What a reader built before 2026-10-07 sends: the page opens as it always did, and
+    its address is left alone."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "ru"]), "targum:language": "he"},
+        href="http://learn.test/?k=key",
+        currentOf=["he", "ru"],
+    )
+    assert drawn["carried"] == "" and drawn["current"] == "he" and drawn["replaced"] == []
+
+
+def test_the_languages_a_page_takes_are_the_ones_targum_teaches() -> None:
+    """`lang.js` keeps its own copy of `READING`, because a desk page has no other way to
+    know it; held to the source here so the two cannot drift."""
+    from targum.render.builder import ASSETS
+    from targum.translate.prompts import READING
+
+    source = (ASSETS / "lang.js").read_text(encoding="utf-8")
+    found = re.search(r"var LEARNABLE = \[([^\]]*)\]", source)
+    assert found is not None
+    listed = re.findall(r'"([a-z]+)"', found.group(1))
+    assert sorted(listed) == sorted(code for code, _ in READING)

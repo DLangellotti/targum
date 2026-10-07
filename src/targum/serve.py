@@ -8767,13 +8767,23 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        asked = str(payload.get("language") or "")
+        # A text left by its corner carries its language, and a language the account has
+        # not ticked is turned on rather than refused (design.md §12, 2026-10-07): a
+        # Russian text imported over the connector sits on the shelf of an account that
+        # still says Hebrew alone. Only ever adds, and only what targum offers to learn
+        # — `also_learning` refuses the rest, and `use_language` then refuses it below.
+        if payload.get("add") is True:
+            self.store.also_learning(person.id, asked)
         try:
-            chosen = self.store.use_language(person, str(payload.get("language") or ""))
+            chosen = self.store.use_language(person, asked)
         except ValueError as error:
             return self._json(
                 {"error": str(error), "language": self.store.language(person.id)}, 400
             )
-        self._json({"signedIn": True, "language": chosen})
+        # The list too, so the page's mirror of it learns of a language turned on here.
+        learning = sorted(self._learning(person))
+        self._json({"signedIn": True, "language": chosen, "learning": learning})
 
     def _asked_language(self, raw: object) -> str:
         """The language a page asked in, where it is one of the reader's; otherwise the
