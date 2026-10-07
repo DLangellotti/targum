@@ -934,6 +934,22 @@ fails leaves the link saved, and the invitation has already gone by then. `targu
 open-the-door` on the command line has no worker to build with, so it says which saved
 links it left unbuilt.
 
+### A word said from its card is on targum — 2026-10-07
+
+Every word card offers Hear (targum#618, after a tester asked for "a way to play the word
+so I can hear what it sounds like"). Where the page's recording covers the word it plays
+that. Everywhere else the press makes a clip with the voice, and David chose on 2026-10-07
+that **targum pays for it**: a word is about a second of speech, a fraction of a cent, and
+a reader should not weigh a cost before hearing one.
+
+So it is a `gift` on the same rails as the let-in build above. The press is the reader's
+own, it goes through `Library.claim_turn`, it is a `job` row of kind `chat`, and it is
+settled to the clip's measured seconds. As a gift it passes the account's money and hours
+rails and records no hours against their eight, and it is held to the box ceiling. The
+clip is kept by what was said, so the same word in the same language is made once and is
+free for everyone after. One word, or the few a fixed expression is: a sentence is the
+chat's to say, and is charged there.
+
 ### /about says what was built, day by day — 2026-09-29
 
 "I want /about to show that we're building in public, and display day by day what's been
