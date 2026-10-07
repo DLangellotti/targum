@@ -1706,6 +1706,25 @@ def test_a_split_words_pieces_are_said_in_the_pages_language() -> None:
     ]
 
 
+def test_a_word_left_whole_names_the_word_it_comes_from() -> None:
+    """DICTA left the Aramaic ־הוֹן on תַּלְמִידֵיהוֹן, so its pieces were itself plus a
+    pronoun and the card said the word came from itself (Boaz, 2026-10-06). The piece
+    that is the whole word again says the dictionary form; a real split is untouched."""
+    said = run(
+        [],
+        builtLines=[
+            ["תַּלְמִידֵיהוֹן + with a pronoun on the end", "תלמידיהון", "תלמיד"],
+            ["ו and + ל to + בית + his", "ולביתו", "בית"],
+            ["ספרו + with a pronoun on the end", "ספרו", "ספרו"],
+        ],
+    )["builts"]
+    assert said == [
+        "תלמיד + with a pronoun on the end",
+        "ו and + ל to + בית + his",
+        "ספרו + with a pronoun on the end",
+    ]
+
+
 def test_a_french_noun_is_kept_on_the_list_with_its_article() -> None:
     """targum-internal#263, change 4: the list and the file store the form a word was met
     in, so a noun met as *l'école* is kept with no way to see it is feminine — and the
