@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fabricated, in the shape of rssexport.rbc.ru/rbcnews/news/30/full.rss (2026-10-07):
+     no real article text. One item carries its whole text in rbc_news:full-text, as
+     plain lines with an entity and a stray tag; one carries none; one is a WordPress-
+     style item whose whole text is in content:encoded as markup. -->
+<rss xmlns:rbc_news="https://www.rbc.ru" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0">
+  <channel>
+    <title>Пример РБК</title>
+    <link>https://www.rbc.ru/</link>
+    <item>
+      <title>В парке открыли новую библиотеку</title>
+      <link>https://www.rbc.ru/society/07/10/2026/0000000000000000000000a1</link>
+      <description>В городском парке открыли библиотеку.</description>
+      <pubDate>Wed, 07 Oct 2026 09:00:00 +0300</pubDate>
+      <rbc_news:full-text><![CDATA[Кошка пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб.
+Собака ест хлеб, а кошка&nbsp;пьёт молоко. Собака ест хлеб, а кошка пьёт молоко. Собака ест хлеб, а кошка пьёт молоко. Собака ест хлеб, а кошка пьёт молоко.
+<a href="https://www.rbc.ru/x">Кошка</a> пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб.
+Собака ест хлеб, а кошка пьёт молоко. Собака ест хлеб, а кошка пьёт молоко. Собака ест хлеб, а кошка пьёт молоко. Собака ест хлеб, а кошка пьёт молоко.
+Кошка пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб. Кошка пьёт молоко, и собака ест хлеб.]]></rbc_news:full-text>
+    </item>
+    <item>
+      <title>Врач рассказал о новой клинике</title>
+      <link>https://www.rbc.ru/society/07/10/2026/0000000000000000000000b2</link>
+      <description>Врач рассказал об открытии клиники.</description>
+      <pubDate>Wed, 07 Oct 2026 08:00:00 +0300</pubDate>
+    </item>
+    <item>
+      <title>Город посадил деревья</title>
+      <link>https://wp.example/2026/10/07/derevya</link>
+      <description>Город посадил деревья.</description>
+      <pubDate>Wed, 07 Oct 2026 07:00:00 +0300</pubDate>
+      <content:encoded><![CDATA[<p>Город посадил&nbsp;деревья.</p>
+<p>Жители <a href="https://wp.example/y">помогали</a> весь день.</p><script>track()</script>]]></content:encoded>
+    </item>
+  </channel>
+</rss>

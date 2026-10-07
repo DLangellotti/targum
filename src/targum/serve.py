@@ -2694,6 +2694,13 @@ class Library:
                     # price. The estimate leans on what the address says; the worker
                     # fetches when the reader has said yes.
                     return self._prepare_episode(job, episode_module.Episode(audio_url=job.source))
+                if self.store is not None:
+                    # An article a followed feed carries whole, on a host the store
+                    # remembers refusing, is read from the feed without a knock
+                    # (`ingest.url.page`, 2026-10-07, targum-internal#424).
+                    from .ingest import url as url_module
+
+                    url_module.remember_shut(job.source, self.store.closed)
                 try:
                     found = episode_module.find(job.source)
                 except UnsupportedSource as refusal:

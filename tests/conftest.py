@@ -138,10 +138,11 @@ def nothing_described_yet(monkeypatch: pytest.MonkeyPatch):
     under `op run` has the YouTube key exported, which would send every YouTube lookup in
     the suite to Google first; the tests that mean to ask the API set a key of their own.
     """
-    from targum.ingest.url import PAGES
+    from targum.ingest.url import PAGES, SHUT
     from targum.translate import anthropic_provider
     from targum.video import youtube
     from targum.video.remembered import DESCRIBED
+    from targum.weekly.feeds import HELD
 
     monkeypatch.delenv(youtube.API_KEY_ENV, raising=False)
     monkeypatch.setattr(youtube._REST, "until", 0.0)
@@ -149,12 +150,19 @@ def nothing_described_yet(monkeypatch: pytest.MonkeyPatch):
     # And no article page kept (`ingest.url.Pages`, 2026-10-06), for the same reason: a
     # test that serves its own page at an address another test used must be read.
     PAGES.clear()
+    # And no feed's full texts held and no host remembered as refusing (2026-10-07,
+    # `weekly.feeds.HELD`, `ingest.url.SHUT`): a test that follows a feed must be the one
+    # whose articles `page` reads from it.
+    HELD.clear()
+    SHUT.clear()
     # And no body counted (`anthropic_provider._counted`): each test's stand-in for the
     # counting endpoint answers its own way.
     anthropic_provider._counted.clear()
     yield
     DESCRIBED.clear()
     PAGES.clear()
+    HELD.clear()
+    SHUT.clear()
     anthropic_provider._counted.clear()
 
 
