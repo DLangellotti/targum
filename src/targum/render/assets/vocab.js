@@ -343,6 +343,7 @@
       // store written a hundred times for one definition.
       note.addEventListener("input", function () {
         touched = true;
+        if (save) save.hidden = false;
         said(false);
         clearTimeout(pending);
         pending = setTimeout(commitNote, 400);
@@ -359,6 +360,11 @@
       save.type = "button";
       save.className = "note-save";
       save.textContent = t("vocab.save", "Save");
+      // Out of sight until there is something to save. Shown from the start, a dark Save
+      // was the loudest thing on the card, and on a phrase it stood over Keep: a tester
+      // kept pressing it to keep the phrase (2026-10-06). It comes with the first letter
+      // typed and stays to say Saved.
+      save.hidden = true;
       save.addEventListener("click", function (event) {
         event.stopPropagation();
         commitNote();

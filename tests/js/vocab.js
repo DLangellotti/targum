@@ -144,6 +144,7 @@ if (payload.copy === undefined)
     hasSave: Boolean(save),
     saveLabel: save ? save.textContent : null,
     saveDisabled: save ? Boolean(save.disabled) : null,
+    saveHidden: save ? Boolean(save.hidden) : null,
     saved,
     legend: (box.querySelector(".level-legend") || {}).textContent || null,
     kept,

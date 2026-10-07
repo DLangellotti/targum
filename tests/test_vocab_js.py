@@ -205,6 +205,17 @@ def test_the_field_offers_a_way_to_finish() -> None:
     assert built["saveLabel"] == "Save"
 
 
+def test_save_waits_for_something_to_save() -> None:
+    """A dark Save on an empty field was the loudest thing on the card, and on a phrase it
+    stood over Keep: "I kept clicking save instead of keep" (Boaz, 2026-10-06). It comes
+    with the first letter typed, and stays to say Saved."""
+    assert run()["saveHidden"] is True
+    assert run(note="scroll")["saveHidden"] is True, "a meaning already kept is not news"
+    assert run(type="s")["saveHidden"] is False
+    done = run(type="scroll", press=True)
+    assert done["saveHidden"] is False and done["saveLabel"] == "Saved"
+
+
 def test_pressing_save_keeps_what_was_typed() -> None:
     built = run(type="most of the leadership", press=True)
     assert built["kept"] == ["most of the leadership"]
