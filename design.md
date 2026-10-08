@@ -353,6 +353,38 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+
+### Every text has a picture — 2026-10-08
+
+David, 2026-10-08, deciding the calmer home and Library: they lean on pictures, and the
+laptop had drawn covers for 40 of 1,155 catalogue rows. targum-internal#429. A text's picture
+comes from three places, in this order.
+
+- **Its own.** A video's frame or poster, an article's lead image (`og:image`), a book's
+  cover in its EPUB, a PDF's first page, the first of a reader's pictures. An upload's is
+  captured once, when it is built, and kept beside its reader as `thumb.webp`.
+- **A publisher's picture stays with the reader who added it.** An upload's own picture is
+  served only from that reader's home, never off the shared shelf, and a build of a
+  library text captures nothing. The library's own pictures come from a batch
+  (`targum thumbs`) and only where the licence covers the picture: a video's poster under
+  the video's CC BY, a StoryWeaver book's cover, a Storybooks Canada story's first page
+  when the image bank's own table says CC BY. A news row's lead image is not taken, whatever
+  the article's own terms: the picture is often somebody else's. NonCommercial and
+  NoDerivatives pictures are not taken either. Each picture's origin and licence is written
+  in `thumbs/sources.json`.
+- **Drawn, for everything else.** The first letter on a colour by kind: teal news, iris
+  sets (the scenes, the liturgy, the rabbinic shelf), clay things said (a talk, a video),
+  muted for books, in card white. It costs no model, and no file is written for it. This
+  departs from §4 on purpose: teal is the desk's door and clay is cost and errors, and
+  here both colour a tile. One hue per tile, flat, and never on text. The earlier plan was
+  to draw the missing covers with an image model at about $0.03 each. That is not
+  done; the letter tile is the fallback.
+
+What it does not overturn: readers fetch nothing (every picture is fetched at most once,
+by the server, and then carried in the page or served from the box), and covers already
+drawn are kept.
+
+
 ### The reader's bar goes by how often a thing is pressed — 2026-10-08
 
 David, 2026-10-08, after nine complaints that came down to "everything is way too busy and

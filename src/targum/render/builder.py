@@ -3451,6 +3451,13 @@ def cover_uri(covers: Path | None, name: str) -> str:
     return f"data:image/webp;base64,{base64.b64encode(raw).decode('ascii')}"
 
 
+def own_cover_uri(folder: Path | None) -> str:
+    """An upload's own picture (`thumbs.THUMB`), carried in the page like a cover."""
+    from ..thumbs import THUMB
+
+    return _kept_uri(folder, THUMB) if folder is not None else ""
+
+
 def _kept_uri(folder: Path, relative: str) -> str:
     """A picture a post keeps beside its reader, as a `data:` URI, or "".
 
@@ -3994,7 +4001,8 @@ def render(
         if english_title(document, chrome) != english_title(document)
         else "en",
         # The whole tile, once, on the page that lists the chapters.
-        "cover": cover_uri(covers, drawn),
+        # An upload's is its own picture, kept beside it when it was added (#429).
+        "cover": cover_uri(covers, drawn) or own_cover_uri(folder),
         "sections": sections,
         # How long each section is, in the minutes the library already says a text is.
         # A targum finishes at the end of a chapter now (targum-internal#173), so the

@@ -3,7 +3,9 @@
 The shelf draws a cover where the library drew one and the text's first letter where it
 did not, and a video somebody brought in had only the letter. Its own film is the obvious
 picture, and it is already beside the reader. A YouTube thumbnail would be a fetch from
-somebody else's server, which neither the policy nor the fetch-nothing rule allows.
+somebody else's server for every reader's import. The library's own videos are the one
+exception, fetched once by `targum thumbs` under each video's CC BY and served from the
+box (design.md §12, "Every text has a picture").
 """
 
 from __future__ import annotations
