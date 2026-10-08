@@ -432,12 +432,29 @@ def test_theatre_ends_a_part_with_the_foot_under_the_picture(browser, tmp_path) 
     try:
         before = page.evaluate(END)
         assert not before["shown"] and not before["footInside"]
+        # The fixture carries no glosses; what the chips draw from one is what is tested.
+        page.evaluate(
+            """() => { window.TargumReader.unmarked = () => ({count: 2,
+              words: ['מטבעות', 'הכהן'],
+              glossed: [{word: 'מטבעות', gloss: 'coins; money', language: 'en'},
+                        {word: 'הכהן', gloss: '', language: 'en'}]}); }"""
+        )
         play_to_end(page)
         ended = page.evaluate(END)
         assert ended["shown"] and ended["head"] == "End of part 1 of 2", ended
         assert ended["footInside"] and ended["footShown"], ended
         assert ended["footBottom"] <= WIDE["height"], "inside the window"
         assert not ended["line"], "the line under the picture gave way"
+        chips = page.evaluate(
+            "() => [...document.querySelectorAll('#film-end .film-end-word')]"
+            ".map((c) => !!c.querySelector('.film-end-he'))"
+        )
+        assert chips == [True, True], "each chip carries the word as the text writes it"
+        glosses = page.evaluate(
+            "() => [...document.querySelectorAll('#film-end .film-end-word')]"
+            ".map((c) => c.querySelector('.film-end-gloss')?.textContent || '')"
+        )
+        assert glosses == ["coins", ""], "its first meaning beside it, where it has one"
         assert page.locator("#film-next").is_visible(), "and the next part is still the way on"
         shot(page, "theatre-end-block")
         page.click("#done-mark")
@@ -462,5 +479,8 @@ def test_the_unmarked_words_are_the_ones_the_press_would_mark(browser, built) ->
         press = page.locator("#done-mark").inner_text()
         assert rest["count"] > 4 and len(rest["words"]) == 4, rest
         assert str(rest["count"]) in press, (rest, press)
+        # And what each means, for the chips (design.md §12, 2026-10-09).
+        assert [one["word"] for one in rest["glossed"]] == rest["words"]
+        assert all("gloss" in one for one in rest["glossed"]), rest["glossed"]
     finally:
         context.close()

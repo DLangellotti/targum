@@ -2995,6 +2995,32 @@ body.voicing .pair:hover:not(.now):not(.here):not(.practising):not(:focus-visibl
 }
 
 .player[hidden] { display: none; }
+/* The view's drawings in the foot bar are a phone's (design.md §12, 2026-10-09). */
+.player-modes { display: none; }
+.player-modes button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.player-modes button + button { border-inline-start: 1px solid var(--rule); }
+.player-modes button svg {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.player-modes button svg .faint { opacity: 0.55; }
+.player-modes button.on { color: var(--teal); background: var(--teal-wash); }
+.player-modes button:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
 
 .player-play {
   flex: none;
@@ -4236,6 +4262,32 @@ html:fullscreen { background: var(--paper); }
      narrower than a phone, and a label on three lines is a strip three lines tall. */
   .player-said { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .player-rate-now { border: 1px solid var(--rule); padding: 0.15rem 0.5rem; }
+  /* The foot bar (board ReaderPhone; design.md §12, 2026-10-09): play, the track, the
+     speed and the view. The step, Hear first and the picture are rows of ⋯ on a phone,
+     and the bar's own play stands down while the foot bar is out. */
+  body .player, body.paged .player { padding-block: 0.25rem; }
+  .player-step,
+  .player > .player-first,
+  .player > .player-video { display: none; }
+  body.has-player .bar .listen { display: none; }
+  .player .player-play {
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    border: 0;
+    border-radius: 12px;
+    background: var(--teal);
+    color: var(--teal-ink);
+  }
+  .player .player-play:hover,
+  .player .player-play:active { background: var(--teal); filter: brightness(1.08); }
+  .player-modes {
+    display: inline-flex;
+    flex: none;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .player-modes button[data-mode="parallel"] { display: none; }
 
   /* --- the tab: in the strip's start, or the corner when there is no strip --- */
   body .list-tab,
@@ -4514,6 +4566,142 @@ html:fullscreen { background: var(--paper); }
 .list-nav .list-back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .list-up-next,
 .list-waiting { margin: 0; }
+/* Play on (design.md §12, 2026-10-09): a switch on the playlist's own line, drawn as a
+   pill that fills in the primary's wash while it is on. */
+.list-nav .list-play-on {
+  appearance: none;
+  padding: 0.1rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.list-nav .list-play-on[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-wash); color: var(--teal); }
+.list-nav .list-play-on:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) {
+  .list-nav .list-play-on { min-block-size: 44px; }
+}
+/* What plays now, once the player went on to another item behind a locked screen: one
+   line over the foot of the window, with the press that opens that item. */
+.list-now {
+  position: fixed;
+  inset-block-end: calc(var(--player-foot, 1.25rem) + var(--player-tall, 0px) + 0.75rem);
+  inset-inline: 1rem;
+  z-index: 30;
+  max-inline-size: 36rem;
+  margin: 0 auto;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: var(--shadow-raised);
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+.list-now-open { color: var(--teal); font-weight: 600; }
+.list-now-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The picture is this page's, and another item is playing: it is not drawn. */
+body.list-handed .video-el { visibility: hidden; }
+
+/* The rail, at a desk (board PlaylistSwipeDesk; design.md §12, 2026-10-09): the
+   playlist's pictures down the window's right edge, the one here ringed in the primary,
+   a step either way and the end at the foot. Nothing in it moves by itself. */
+.list-rail { display: none; }
+@media (min-width: 64rem) {
+  body.has-list-rail:not(.list-open) .list-rail {
+    position: fixed;
+    inset-block: 3.5rem 0;
+    right: 0;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    inline-size: 7rem;
+    padding: 0.9rem 0.5rem;
+    border-left: 1px solid var(--rule);
+    background: var(--paper);
+    font-family: var(--chrome);
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  body.reader.has-list-rail:not(.list-open) { padding-right: 7rem; }
+  body.has-list-rail:not(.list-open) > .bar { margin-right: -7rem; padding-right: 8.5rem; }
+  body.film-theatre.has-list-rail:not(.list-open) .video { right: 7rem; }
+  body.film-panel.has-list-rail:not(.list-open) .video { right: 33.25rem; }
+  body.film-panel.has-list-rail:not(.list-open) .film-panel-head:not([hidden]) { right: 7rem; }
+}
+.list-rail-name {
+  margin: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.list-rail-at { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.list-rail-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.list-rail-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 4.5rem;
+  block-size: 3.25rem;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+  text-decoration: none;
+}
+.list-rail-tile img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.list-rail-tile.is-here { box-shadow: 0 0 0 2px var(--teal); }
+.list-rail-tile.is-waiting { opacity: 0.5; }
+a.list-rail-tile:hover { box-shadow: 0 0 0 1px var(--ink-soft); }
+a.list-rail-tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.list-rail-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 4.5rem;
+  block-size: 2.25rem;
+  border: 1px dashed var(--rule);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.list-rail-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.0625rem;
+  cursor: pointer;
+}
+.list-rail-step:hover:not(:disabled) { background: var(--teal-wash); color: var(--ink); }
+.list-rail-step:disabled { opacity: 0.35; cursor: default; }
+.list-rail-step:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.list-rail-down { margin-block-start: auto; background: var(--teal-wash); color: var(--teal); }
 /* Past the last item the end card is the way on, so the press that led to it goes. */
 .list-ended .foot-press { display: none; }
 body.has-player.list-ended .list-end {
@@ -4522,6 +4710,8 @@ body.has-player.list-ended .list-end {
 
 /* In the picture's keys, Back and Next are pills among its own keys. */
 .list-key {
+  flex: none;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4549,9 +4739,12 @@ body.has-player.list-ended .list-end {
    while the picture stands large with the transcript put away (#422): beside the
    transcript, the foot of the text has its own. */
 .video-list-next,
-.video-list-back { display: none; }
+.video-list-back,
+.video-list-on { display: none; }
 body.film-theatre:not(.film-panel) .video-list-next,
-body.film-theatre:not(.film-panel) .video-list-back { display: inline-flex; }
+body.film-theatre:not(.film-panel) .video-list-back,
+body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
+.list-key.list-play-on[aria-pressed="true"] { background: var(--teal-wash); color: var(--teal); }
 
 .list-end {
   max-width: calc(var(--measure) * 2 + var(--gap));
@@ -5631,9 +5824,17 @@ body.film-ended .film-sub { display: none; }
   font-family: var(--reading);
   font-size: 1.0625rem;
 }
-.film-end-words[lang|="he"] .film-end-word,
-.film-end-words[lang|="yi"] .film-end-word,
-.film-end-words[lang|="arc"] .film-end-word { font-family: var(--reading-hebrew); }
+.film-end-words[lang|="he"] .film-end-he,
+.film-end-words[lang|="yi"] .film-end-he,
+.film-end-words[lang|="arc"] .film-end-he { font-family: var(--reading-hebrew); }
+/* What the word means, beside it in the chip (board ReaderTheatreEnd; design.md §12,
+   2026-10-09): the chrome's face, quieter, on the inline end of the word. */
+.film-end-word { display: inline-flex; align-items: baseline; gap: 0.5rem; }
+.film-end-gloss {
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
 .film-end-more { font-size: 0.8125rem; }
 .film-end .foot {
   max-width: none;

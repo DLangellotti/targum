@@ -754,6 +754,20 @@
       time the page opens and never remembered, because it is a way of practising rather
       than a setting; and it is here, on the transport, because a page with no recording
       has no strip and so no control. -#}
+  {#- The view, in the foot bar on a phone (board ReaderPhone; design.md §12, 2026-10-09):
+      the same presses as the bar's and ⋯'s, so one idea of which is on. Not drawn at a
+      desk, where the bar carries them; beside is not offered on one column. -#}
+  <span class="player-modes" role="group" aria-label="{{ t("reader.page.view", "View") }}">
+    {%- for key, label, path in [
+      ("parallel", t("reader.bar.beside", "Translation beside the text"), '<path d="M2.5 5h6M2.5 9h6M2.5 13H7M11.5 5h6M11.5 9h6M13 13h4.5"></path>'),
+      ("inter", t("reader.bar.under", "Translation under each line"), '<path d="M3 4h14M3 12h14"></path><path class="faint" d="M5 7.5h10M5 15.5h10"></path>'),
+      ("source", t("reader.bar.alone", "The text on its own"), '<path d="M3 5h14M6 9h11M3 13h14M9 17h8"></path>'),
+    ] %}
+    <button type="button" data-mode="{{ key }}"{% if loop.first %} class="on"{% endif %} aria-pressed="{{ 'true' if loop.first else 'false' }}" aria-label="{{ label }}" title="{{ label }}">
+      <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">{{ path|safe }}</svg>
+    </button>
+    {%- endfor %}
+  </span>
   <button type="button" class="player-first" aria-pressed="false">{{ t("reader.page.hear-first", "Hear first") }}</button>
   {#- The picture, from the transport that is always on screen. The same control as the
       one in the bar — same `data-video`, so `showVideo` presses both and neither can
