@@ -12237,6 +12237,21 @@ var targumReader = function () {
     //: per reader like the view; 1 is the default and is never written.
     var SIZE_STORE = "targum:film-size";
     var size = 1;
+    //: Beside, where the line between the picture and the transcript stands (David,
+    //: 2026-10-08), as a share of the room the two have; kept on this device, and 0 —
+    //: the layout's own place — is never written.
+    var SPLIT_STORE = "targum:film-split";
+    var split = 0;
+    try {
+      split = parseFloat(localStorage.getItem(SPLIT_STORE)) || 0;
+    } catch (e) {}
+    if (!(split > 0 && split < 1)) split = 0;
+    var splitEl = document.getElementById("film-split");
+    //: The transcript keeps a column a line can be read in; the picture keeps a face.
+    var SPLIT_TEXT = 352;
+    var SPLIT_LEAST = 240;
+    //: The bounds of the line, in pixels from the window's left, as `fit` last found them.
+    var splitAt = { room: 0, least: 0, most: 0, col: 0 };
     var fullW = 0;
     var sizeGrip = videoBox.querySelector(".film-size");
     //: The smallest it goes: three tenths of the full size and never under 280px wide,
@@ -12302,6 +12317,7 @@ var targumReader = function () {
        beside. Under 60rem the stylesheet has it: the picture is the window's width. */
     var fit = function () {
       var root = document.documentElement.style;
+      if (splitEl) splitEl.hidden = !(filmUp() && wideFilm.matches && view === "beside");
       if (!filmUp() || !wideFilm.matches) {
         root.removeProperty("--film-w");
         root.removeProperty("--film-col");
@@ -12329,8 +12345,28 @@ var targumReader = function () {
         sized(fullW);
       } else {
         // Room under it for the controls and the lines that say what it is.
-        w = Math.min((W - listed) * 0.6 - 80, (H - top - 210) * ratio);
+        var room = W - listed;
+        var tallest = (H - top - 210) * ratio;
+        w = Math.min(room * 0.6 - 80, tallest);
         col = w + 80;
+        // Where the reader moved the line to (2026-10-08): between a picture that still
+        // shows a face and a transcript a line can be read in, and never wider than the
+        // picture's height lets it be, so the line never stands off in empty paper.
+        var most = Math.max(SPLIT_LEAST + 80, Math.min(room - SPLIT_TEXT, tallest + 80));
+        var least = Math.min(most, SPLIT_LEAST + 80);
+        if (split) {
+          col = Math.max(least, Math.min(most, split * room));
+          w = col - 80;
+        }
+        splitAt = { room: room, least: least, most: most, col: col };
+        if (splitEl) {
+          var pc = function (px) {
+            return String(Math.round((px / room) * 100));
+          };
+          splitEl.setAttribute("aria-valuemin", pc(least));
+          splitEl.setAttribute("aria-valuemax", pc(most));
+          splitEl.setAttribute("aria-valuenow", pc(col));
+        }
       }
       w = Math.max(160, Math.round(w));
       root.setProperty("--film-w", w + "px");
@@ -12812,6 +12848,90 @@ var targumReader = function () {
       });
     }
 
+    /* --- Beside, the line between the picture and the transcript ------------------ */
+
+    /* David, 2026-10-08 (design.md §12): Theatre's picture could be made smaller, and
+       Beside should give the same say — a bigger picture, or more room for the text. The
+       line between them is taken and moved; the picture keeps its shape and fills the
+       column it is given, up to what the window's height allows. A share of the room is
+       kept, not pixels, on this device; a double press puts the layout's own place back
+       and forgets it. Nothing is animated — the line follows the hand. */
+    var setSplit = function (col, keep) {
+      if (col === null) split = 0;
+      else if (splitAt.room) {
+        var at = Math.max(splitAt.least, Math.min(splitAt.most, col));
+        split = at / splitAt.room;
+      }
+      fit();
+      if (keep) {
+        try {
+          if (!split) targumForget(SPLIT_STORE);
+          else targumKeep(SPLIT_STORE, String(Math.round(split * 1000) / 1000));
+        } catch (e) {}
+      }
+    };
+    if (splitEl) {
+      var splitHold = null;
+      var splitTap = 0;
+      splitEl.addEventListener("pointerdown", function (event) {
+        if (event.button > 0 || !filmUp() || view !== "beside" || !wideFilm.matches) return;
+        event.preventDefault();
+        splitHold = { id: event.pointerId, x: event.clientX, col: splitAt.col, moved: false };
+        try {
+          splitEl.setPointerCapture(event.pointerId);
+        } catch (e) {}
+        splitEl.classList.add("held");
+        body.classList.add("film-splitting");
+      });
+      splitEl.addEventListener("pointermove", function (event) {
+        if (!splitHold || event.pointerId !== splitHold.id) return;
+        var dx = event.clientX - splitHold.x;
+        if (Math.abs(dx) > 3) splitHold.moved = true;
+        if (!splitHold.moved) return;
+        setSplit(splitHold.col + dx, false);
+      });
+      var release = function (event) {
+        if (!splitHold || event.pointerId !== splitHold.id) return;
+        var moved = splitHold.moved;
+        splitHold = null;
+        try {
+          splitEl.releasePointerCapture(event.pointerId);
+        } catch (e) {}
+        splitEl.classList.remove("held");
+        body.classList.remove("film-splitting");
+        if (moved) {
+          setSplit(splitAt.col, true);
+          splitTap = 0;
+        } else if (event.type === "pointerup") {
+          var now = Date.now();
+          if (now - splitTap < 400) {
+            splitTap = 0;
+            setSplit(null, true);
+          } else {
+            splitTap = now;
+          }
+        }
+        sizeSettled();
+      };
+      splitEl.addEventListener("pointerup", release);
+      splitEl.addEventListener("pointercancel", release);
+      splitEl.addEventListener("keydown", function (event) {
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        var step = splitAt.room * 0.05;
+        var to;
+        // → moves the line right: a bigger picture. A twentieth of the room a press.
+        if (event.key === "ArrowLeft" || event.key === "ArrowUp") to = splitAt.col - step;
+        else if (event.key === "ArrowRight" || event.key === "ArrowDown") to = splitAt.col + step;
+        else if (event.key === "Home") to = splitAt.least;
+        else if (event.key === "End") to = splitAt.most;
+        else return;
+        event.preventDefault();
+        event.stopPropagation();
+        setSplit(to, true);
+        sizeSettled();
+      });
+    }
+
     /* --- C: it steps back while it plays ---------------------------------------- */
 
     /* Playing, the bar and the controls fade, and what is left is the picture, a hairline
@@ -12923,7 +13043,7 @@ var targumReader = function () {
         var on = document.activeElement;
         if (on && /^(INPUT|SELECT|TEXTAREA)$/.test(on.tagName)) return;
         // The size grip is a separator and its arrows are its own (2026-10-07).
-        if (on && (on.isContentEditable || on.getAttribute("role") === "slider" || on === sizeGrip)) return;
+        if (on && (on.isContentEditable || on.getAttribute("role") === "slider" || on === sizeGrip || on === splitEl)) return;
         if (body.classList.contains("pop-open")) return;
         var by = 0;
         if (event.key === "ArrowUp") by = -1;

@@ -2843,5 +2843,7 @@
   "reader.bar.case-loc": "prepositional",
   "reader.bar.watch-the-recording": "Watch the recording",
   "reader.bar.the-original": "The original",
-  "reader.bar.talk-to-targum": "Talk to targum"
+  "reader.bar.talk-to-targum": "Talk to targum",
+  "reader.film.split": "Video and transcript",
+  "reader.film.split-title": "Drag to give the video or the transcript more room. Double-click to put it back."
 }

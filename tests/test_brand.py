@@ -221,6 +221,8 @@ THUMBED = (
     ".more-on",
     # Theatre's size grip on the picture's foot (design.md §12, 2026-10-07).
     ".film-size",
+    # Beside, the line between the picture and the transcript (design.md §12, 2026-10-08).
+    ".film-split",
     # The next part under the picture, and its Try again (design.md §12, 2026-10-07).
     ".film-next-go",
     ".film-next-again",

@@ -727,3 +727,112 @@ def test_beside_and_the_phone_have_no_grip(browser, tmp_path) -> None:  # noqa: 
         assert not page.locator(".film-size").is_visible()
     finally:
         context.close()
+
+
+# -- Beside, the line between the picture and the transcript (David, 2026-10-08) ------
+
+SPLIT = """
+() => {
+  const line = document.getElementById('film-split');
+  const r = (s) => {
+    const el = document.querySelector(s);
+    if (!el || !el.getClientRects().length) return null;
+    const b = el.getBoundingClientRect();
+    return [b.left, b.top, b.width, b.height].map((v) => Math.round(v * 100) / 100);
+  };
+  return {
+    frame: r('.film-frame'),
+    line: r('#film-split'),
+    first: r('#reader .pair.voiced'),
+    value: line ? Number(line.getAttribute('aria-valuenow')) : null,
+    least: line ? Number(line.getAttribute('aria-valuemin')) : null,
+    most: line ? Number(line.getAttribute('aria-valuemax')) : null,
+    stored: localStorage.getItem('targum:film-split'),
+  };
+}
+"""
+
+
+def drag_split(page, dx: float) -> None:
+    line = page.evaluate(SPLIT)["line"]
+    x = line[0] + line[2] / 2
+    y = line[1] + line[3] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    for step in range(1, 6):
+        page.mouse.move(x + dx * step / 5, y)
+    page.mouse.up()
+    page.wait_for_timeout(50)
+
+
+def test_beside_the_line_between_picture_and_transcript_is_dragged_and_kept(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """The line is drawn on the picture column's edge, Beside only. Dragged left the picture
+    shrinks in its shape and the transcript takes the room; the place is kept on this
+    device across a reload; a double press puts the layout's own place back and forgets
+    it."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(
+        browser, built, viewport={"width": 1440, "height": 900}, view="beside"
+    )
+    try:
+        page.wait_for_timeout(100)
+        plain = page.evaluate(SPLIT)
+        assert plain["line"] and plain["stored"] is None, plain
+        assert page.get_attribute("#film-split", "role") == "separator"
+        assert page.get_attribute("#film-split", "aria-orientation") == "vertical"
+        drag_split(page, -200)
+        narrow = page.evaluate(SPLIT)
+        assert narrow["frame"][2] < plain["frame"][2] - 150, narrow
+        assert abs(narrow["frame"][2] / narrow["frame"][3] - 16 / 9) < 0.02, "kept its shape"
+        assert (
+            narrow["first"][0] < plain["first"][0] - 150 or narrow["first"][2] > plain["first"][2]
+        )
+        assert narrow["stored"], "kept"
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(SPLIT)["frame"] == narrow["frame"], "kept across the door"
+        line = narrow["line"]
+        page.mouse.dblclick(line[0] + line[2] / 2, line[1] + line[3] / 2)
+        page.wait_for_timeout(50)
+        back = page.evaluate(SPLIT)
+        assert back["frame"] == plain["frame"] and back["stored"] is None, back
+    finally:
+        context.close()
+
+
+def test_the_split_answers_the_keyboard_and_stands_only_beside(browser, tmp_path) -> None:  # noqa: F811
+    """← and → move the line a twentieth of the room, Home and End to its ends, and the
+    arrows are its own. Theatre and a phone draw no such line."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(
+        browser, built, viewport={"width": 1440, "height": 900}, view="beside"
+    )
+    try:
+        seek(page, 0.2)
+        page.focus("#film-split")
+        start = page.evaluate(SPLIT)
+        page.keyboard.press("ArrowLeft")
+        seen = page.evaluate(SPLIT)
+        assert seen["value"] < start["value"] and seen["stored"], seen
+        assert page.evaluate(FILM)["now"] == "שורה 1", "the arrow did not step the line"
+        page.keyboard.press("Home")
+        assert page.evaluate(SPLIT)["value"] == start["least"]
+        page.keyboard.press("End")
+        assert page.evaluate(SPLIT)["value"] == start["most"]
+        ring = page.evaluate(
+            "() => getComputedStyle(document.getElementById('film-split')).outlineColor"
+        )
+        assert ring == "rgb(184, 147, 94)", f"the focus colour: {ring}"
+        page.click("[data-film-view='theatre']")
+        assert not page.locator("#film-split").is_visible(), "Theatre has its own grip"
+    finally:
+        context.close()
+    context, page = film_open(browser, built, viewport=PHONE, view="beside")
+    try:
+        assert not page.locator("#film-split").is_visible()
+    finally:
+        context.close()
