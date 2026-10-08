@@ -179,6 +179,27 @@ scp -q deploy/targum-backup.service deploy/targum-backup.timer \
   deploy/targum-health.service deploy/targum-health.timer \
   deploy/targum-visits.service deploy/targum-visits.timer \
   deploy/targum-weekly-watch.service deploy/targum-weekly-watch.timer "$HOST:/tmp/targum-units/"
+# The library's cover pictures, drawn on this machine by `targum thumbs` and served from
+# beside the shelf. Content, like the catalogue, and nothing carried them: they went over
+# by hand on 2026-10-08. Read from the main checkout's targum-out by default, so a deploy
+# from a worktree, which has no targum-out of its own, still carries them; skipped when
+# there are none. Never --delete: the box draws a cover for every upload, named
+# <home>-<name>.webp, and this machine has none of those. Dotfiles and partial writes stay
+# behind (a cover is written as .<name>.part and renamed). macOS rsync is 2.6.9 and has
+# no --chown, so the files arrive as root and are handed to the service after.
+COMMON_GIT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$ROOT/.git")"
+MAIN_CHECKOUT="$(dirname "$COMMON_GIT")"
+THUMBS="${TARGUM_THUMBS:-$MAIN_CHECKOUT/targum-out/thumbs}"
+REMOTE_THUMBS="${TARGUM_REMOTE_THUMBS:-/var/lib/targum/targums/thumbs}"
+if [ -d "$THUMBS" ]; then
+  ssh "${SSH_OPTS[@]}" "$HOST" "mkdir -p '$REMOTE_THUMBS'"
+  # rsync's own ssh, kept talking like every other one here.
+  RSYNC_RSH="$(printf '%q ' ssh "${SSH_OPTS[@]}")" rsync -a -q --delay-updates \
+    --exclude='.*' --exclude='*.part' --exclude='*.tmp' --exclude='*~' \
+    "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
+  ssh "${SSH_OPTS[@]}" "$HOST" "chown -R targum:targum '$REMOTE_THUMBS'"
+  echo "   $(find "$THUMBS" -type f -name '*.webp' | wc -l | tr -d ' ') covers"
+fi
 
 # The keys, over the connection's own stdin rather than scp: nothing holding them is
 # written anywhere on either machine but the file itself. No single quotes inside MERGE:
