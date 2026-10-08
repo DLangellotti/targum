@@ -3309,7 +3309,7 @@ def playlists_page(token: str, language: str = "en") -> str:
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(language, "playlists."),
+            strings=script_strings(language, "playlists.", "home.kind."),
             token=token,
             languages=_language_names(language),
         )

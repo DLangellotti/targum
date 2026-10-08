@@ -4647,6 +4647,8 @@ body.film-theatre:not(.film-panel) .video-list-back { display: inline-flex; }
 .bar .group .more-sheet:hover,
 .bar .group .more-sheet:focus-visible { color: var(--ink); border-color: var(--rule); }
 .bar .group .more-playlist[aria-expanded="true"] { color: var(--ink); background: var(--teal-wash); }
+/* "Play next" beside it (targum-internal#434) is a button, drawn as the link is. */
+.bar .group button.more-playlist { font: inherit; font-family: var(--chrome); background: none; }
 .bar-more.open .group .more-playlist,
 .bar-more.open .group .more-sheet { border-color: var(--rule); }
 @media (hover: none) and (pointer: coarse) {

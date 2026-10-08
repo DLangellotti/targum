@@ -251,10 +251,16 @@ REGISTRATIONS_PER_HOUR = 60
 #    TABLE IF NOT EXISTS` is the whole of it. Nothing is backfilled: until now the place
 #    lived only in the browser, and the first sync from each browser carries it up.
 #
+# 41→42: playlist.at and playlist.visited — where in a playlist the reader is, and when
+#    they were last in it (targum-internal#434). The playlist visited last, and not yet
+#    gone through, is "the one you're in": its card is marked on the Playlists tab, and
+#    "Play next" puts a text after the item they are on. Columns on a table every box
+#    has, so they are in MIGRATIONS; NULL until the first item opened from a list.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 41
+SCHEMA_VERSION = 42
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -563,6 +569,10 @@ MIGRATIONS: tuple[str, ...] = (
     # see `Store.ledger_stamp`. Zero for everybody until their first such write, which
     # is a key like any other.
     "ALTER TABLE person ADD COLUMN ledger INTEGER NOT NULL DEFAULT 0",
+    # Where in a playlist the reader is and when they were last in it (#434): the one
+    # visited last is the one they are in, until they have gone through it.
+    "ALTER TABLE playlist ADD COLUMN at INTEGER",
+    "ALTER TABLE playlist ADD COLUMN visited INTEGER",
 )
 
 SCHEMA = """
@@ -4328,7 +4338,7 @@ class Store:
         if person_id is None:
             return []
         rows = self.db.execute(
-            "SELECT p.id, p.name, p.made_by, p.made,"
+            "SELECT p.id, p.name, p.made_by, p.made, p.at, p.visited,"
             " (SELECT COUNT(*) FROM playlist_item i WHERE i.playlist = p.id) AS count,"
             " (SELECT i.reader FROM playlist_item i WHERE i.playlist = p.id"
             "   AND i.reader IS NOT NULL AND i.failed = 0 ORDER BY i.position LIMIT 1) AS first"
@@ -4361,7 +4371,8 @@ class Store:
         if person_id is None:
             return None
         row = self.db.execute(
-            "SELECT id, name, made_by, made FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+            "SELECT id, name, made_by, made, at, visited FROM playlist"
+            " WHERE id = ? AND person = ? AND gone = 0",
             (playlist_id, person_id),
         ).fetchone()
         if row is None:
@@ -4463,7 +4474,109 @@ class Store:
                     "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
                     (new, playlist_id, old),
                 )
+            # The place the reader is at follows the text they are on (#434).
+            db.execute(
+                "UPDATE playlist SET at = CASE at WHEN ? THEN ? WHEN ? THEN ? ELSE at END"
+                " WHERE id = ?",
+                (position, other, other, position, playlist_id),
+            )
         return True
+
+    def move_to_in_playlist(self, person_id: int, playlist_id: int, position: int, to: int) -> bool:
+        """Move one text from its place to another, the ones between closing up behind it
+        or opening in front of it: a drag (targum-internal#434). False if either place is
+        not there. The place the reader is at follows the text they are on."""
+        with self.write() as db:
+            owned = db.execute(
+                "SELECT at FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+                (playlist_id, person_id),
+            ).fetchone()
+            if owned is None:
+                return False
+            count = int(
+                db.execute(
+                    "SELECT COUNT(*) AS n FROM playlist_item WHERE playlist = ?", (playlist_id,)
+                ).fetchone()["n"]
+            )
+            if not (0 <= position < count and 0 <= to < count):
+                return False
+            if position == to:
+                return True
+            step = 1 if to > position else -1
+            # Out of the way at -1, then each between shifted one place towards the gap,
+            # then into its new place: the key is (playlist, position), and a shift in
+            # one statement would collide halfway.
+            db.execute(
+                "UPDATE playlist_item SET position = -1 WHERE playlist = ? AND position = ?",
+                (playlist_id, position),
+            )
+            between = range(position + step, to + step, step)
+            for old in between:
+                db.execute(
+                    "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
+                    (old - step, playlist_id, old),
+                )
+            db.execute(
+                "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = -1",
+                (to, playlist_id),
+            )
+            at = owned["at"]
+            if at is not None:
+                at = int(at)
+                if at == position:
+                    at = to
+                elif at in between:
+                    at -= step
+                db.execute("UPDATE playlist SET at = ? WHERE id = ?", (at, playlist_id))
+        return True
+
+    def playlist_here(self, person_id: int, playlist_id: int, position: int) -> bool:
+        """The reader is at this place in this playlist, now (targum-internal#434). A
+        place past the last item is a playlist gone through, which no longer counts as the
+        one they are in."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist SET at = ?, visited = ? WHERE id = ? AND person = ? AND gone = 0",
+                (max(0, position), now(), playlist_id, person_id),
+            )
+            return cursor.rowcount > 0
+
+    def current_playlist(self, person_id: int | None) -> dict[str, Any] | None:
+        """The playlist the reader is in: the one they were in last, while there is still
+        something in it after where they are. None when there is none, or they finished
+        the last one they were in."""
+        if person_id is None:
+            return None
+        row = self.db.execute(
+            "SELECT p.id, p.name, p.at,"
+            " (SELECT COUNT(*) FROM playlist_item i WHERE i.playlist = p.id) AS count"
+            " FROM playlist p WHERE p.person = ? AND p.gone = 0 AND p.visited IS NOT NULL"
+            " ORDER BY p.visited DESC, p.id DESC LIMIT 1",
+            (person_id,),
+        ).fetchone()
+        if row is None or row["at"] is None or int(row["at"]) >= int(row["count"]):
+            return None
+        return {"id": int(row["id"]), "name": str(row["name"]), "at": int(row["at"])}
+
+    def play_next(
+        self, person_id: int, playlist_id: int, title: str, reader: str
+    ) -> dict[str, Any] | None:
+        """Put a text straight after the one the reader is on (targum-internal#434): added
+        if it is not in the playlist, moved if it is. None where it could not be — not
+        theirs, or full."""
+        added = self.add_to_playlist(person_id, playlist_id, title, reader=reader)
+        if added is None:
+            return None
+        found = self.playlist(person_id, playlist_id)
+        if found is None:
+            return None
+        at = found.get("at")
+        here = int(at) if at is not None else -1
+        position = int(added["position"])
+        to = here + 1 if position > here else here
+        to = max(0, min(to, len(found["items"]) - 1))
+        self.move_to_in_playlist(person_id, playlist_id, position, to)
+        return {**added, "position": to}
 
     def drop_from_playlist(self, person_id: int, playlist_id: int, position: int) -> bool:
         """Take one text out, closing the gap it leaves."""
@@ -4490,6 +4603,9 @@ class Store:
                     "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
                     (int(row["position"]) - 1, playlist_id, int(row["position"])),
                 )
+            db.execute(
+                "UPDATE playlist SET at = at - 1 WHERE id = ? AND at > ?", (playlist_id, position)
+            )
         return True
 
     def rename_playlist(self, person_id: int, playlist_id: int, name: str) -> bool:

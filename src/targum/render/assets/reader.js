@@ -13536,6 +13536,22 @@ else targumReader();
     );
   }
   group.hidden = false;
+  /* And "Play next" (targum-internal#434), where the reader is in a playlist and this
+     text was not opened from it: it goes straight after the one they are on. */
+  var lists = window.TargumPlaylistMenu;
+  if (lists && lists.current && !new URLSearchParams(location.search).get("list")) {
+    lists.current(key).then(function (playing) {
+      if (!playing) return;
+      group.appendChild(
+        lists.nextButton(
+          { name: name, title: link.getAttribute("data-title") || name },
+          key,
+          playing,
+          "more-playlist more-play-next"
+        )
+      );
+    });
+  }
 })();
 
 /* The week's sheet as a PDF (targum-internal#415), from the ⋯ menu, as the page is.

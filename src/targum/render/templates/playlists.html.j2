@@ -22,13 +22,20 @@
     and one press takes the set", 2026-09-23): texts kept in an order, to go through one
     after another. This page keeps them; the swipe that goes through them is #366. -#}
 <main>
-  {% set tab = 'playlists' %}{% include '_yours_tabs.html.j2' %}
+  {#- The tab, and one playlist on its own page (targum-internal#434, boards PlaylistsTab
+      and PlaylistDetail): `/playlists` is the tab, `/playlists/<id>` the one, and the
+      script decides which from the address. -#}
+  <div class="pl-tabs-row" id="tabs-row">
+    {% set tab = 'playlists' %}{% include '_yours_tabs.html.j2' %}
+    <button type="button" class="pl-new-press" id="new-press" hidden>{{ t("playlists.page.new-playlist", "New playlist") }}</button>
+  </div>
   <section class="panel" id="stranger" hidden>
     <p class="note">{{ t("playlists.page.sign-in", "Sign in to see your playlists.") }}</p>
   </section>
 
   {#- Reached from a shelf row or a reader's ⋯ menu with `?add=<name>&title=<title>`: the
-      one sheet both doors open. Every playlist is a button, and a new one is a name. -#}
+      one sheet both doors open. Every playlist is a button, and a new one is a name. The
+      name field is also what New playlist opens. -#}
   <section class="panel" id="adding" hidden aria-labelledby="adding-head">
     <h2 id="adding-head"></h2>
     <ul class="choose" id="choose"></ul>
@@ -43,21 +50,30 @@
     <p class="said" id="adding-said" role="status" hidden></p>
   </section>
 
+  <section class="pl-lists" id="lists" hidden aria-label="{{ t("playlists.page.title", "Your playlists") }}">
+    <p class="note" id="none" hidden>{{ t("playlists.page.none-yet", "No playlists yet. Use Add to playlist on any text to start one.") }}</p>
+    <div class="pl-grid" id="playlists"></div>
+    <p class="said" id="lists-said" role="status" hidden></p>
+  </section>
+
   {#- targum's own playlists (targum-internal#368): built once on the shared shelf, and
       opened as a playlist of the reader's own for nothing. Shown only when this box has
       one with something built in it. -#}
-  <section class="panel" id="from-targum" hidden aria-labelledby="from-targum-head">
-    <h2 id="from-targum-head">{{ t("playlists.page.from-targum", "From targum") }}</h2>
-    <p class="note">{{ t("playlists.page.from-targum-note", "Short videos and texts. Opening them uses no credits.") }}</p>
-    <ul class="choose" id="targum-sets"></ul>
+  <section class="pl-from-targum" id="from-targum" hidden aria-labelledby="from-targum-head">
+    <div class="pl-section-head">
+      <h2 id="from-targum-head">{{ t("playlists.page.from-targum", "From targum") }}</h2>
+      <p class="note">{{ t("playlists.page.from-targum-note", "Short videos and texts. Opening them uses no credits.") }}</p>
+    </div>
+    <ul class="pl-targum" id="targum-sets"></ul>
     <p class="said" id="targum-said" role="status" hidden></p>
   </section>
 
-  <section class="panel" id="lists" hidden>
-    <h2>{{ t("playlists.page.title", "Your playlists") }}</h2>
-    <p class="note" id="none" hidden>{{ t("playlists.page.none-yet", "No playlists yet. Use Add to playlist on any text to start one.") }}</p>
-    <div id="playlists"></div>
-    <p class="said" id="lists-said" role="status" hidden></p>
+  {#- One playlist (board PlaylistDetail): its cover, whose it is, what it adds up to,
+      where to pick it up, and its texts in order, moved by a drag or Alt+↑/↓. -#}
+  <section class="pl-one" id="one" hidden aria-labelledby="one-name">
+    <a class="pl-back" id="back" href="/playlists">{{ t("playlists.page.back", "Playlists") }}</a>
+    <div id="one-body"></div>
+    <p class="said" id="one-said" role="status" hidden></p>
   </section>
 </main>
 {% include '_foot.html.j2' %}
@@ -71,6 +87,7 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
+<script>{{ asset('covers.js') }}</script>
 <script>{{ asset('playlists.js') }}</script>
 </body>
 </html>
