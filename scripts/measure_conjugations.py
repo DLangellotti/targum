@@ -24,10 +24,12 @@ and nothing bought. Every verb token is put in one bucket:
     disagrees           page is another candidate's (#307)
   refused: read         one of the first three decided, and a form of the same word
     otherwise           on the page is read as one of the other verbs (#307)
+  refused: shin or sin  something above settled it, and the word is pointed with a
+                        שׂ where the verb's lemma has a שׁ, or the other way round (#307)
   still ambiguous       several, and nothing settles it — the card draws no table
   no candidate          the source has never heard of this verb
 
-The first six are coverage. The last four are the honest gaps, and `Table.of` answers
+The first six are coverage. The last five are the honest gaps, and `Table.of` answers
 None for all of them, because a wrong conjugation table is worse than none: the reader
 has no way to tell.
 
@@ -47,7 +49,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from targum.annotate.paradigms import (  # noqa: E402
     Table,
     bare,
-    binyan_of,
     pointed_form,
     table,
     written_form,
@@ -147,7 +148,7 @@ def bucket(
         return "unique"
     known = verbs.verbs
     pointed = verbs.pointed_as(candidates, surface)
-    built = [lid for lid in candidates if binyan and binyan_of(known[lid].lemma) == str(binyan)]
+    built = [lid for lid in candidates if binyan and verbs.binyan_of(lid) == str(binyan)]
     present = verbs._by_present(candidates, said)
     if len(pointed) == 1 and len(built) == 1:
         if pointed[0] != built[0]:
@@ -165,10 +166,13 @@ def bucket(
         if read is not None:
             if present is not None and known.get(present) is not read:
                 return "refused: the present disagrees"
+            lid = next((lid for lid in candidates if known.get(lid) is read), None)
+            if lid is not None and verbs.dotted_otherwise(lid, surface):
+                return "refused: shin or sin"
             return "settled by reading"
         if present is None:
             return "still ambiguous"
-        named = binyan_of(known[present].lemma)
+        named = verbs.binyan_of(present)
         if binyan and named and named != str(binyan):
             return "refused: conflict"
         chosen, where = present, "settled by the present"
@@ -176,6 +180,8 @@ def bucket(
         return "refused: the present disagrees"
     if verbs._read_otherwise(candidates, chosen, written):
         return "refused: read otherwise"
+    if verbs.dotted_otherwise(chosen, surface):
+        return "refused: shin or sin"
     return where
 
 
