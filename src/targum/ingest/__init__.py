@@ -154,7 +154,7 @@ def _load(source: str) -> Document:
     ingester = _BY_SUFFIX.get(suffix)
     if ingester is None:
         raise UnsupportedSource(
-            f"We can't read '{suffix or path.name}' files.",
+            f"We can't read {suffix or path.name} files. Paste the text instead.",
             f"Supported: {', '.join(sources())}",
             key="file.unreadable-kind",
             kind=suffix or path.name,

@@ -90,13 +90,13 @@
           return;
         }
         said.classList.add("bad");
-        said.textContent = answer.body.error || t("account.could-not-send", "We couldn't send a link. Try again.");
+        said.textContent = answer.body.error || t("account.could-not-send", "We couldn't send the link. Try again in a minute.");
         button.disabled = false;
       })
       .catch(function () {
         said.hidden = false;
         said.classList.add("bad");
-        said.textContent = t("signin.unreachable", "We couldn't connect. Check your connection and try again.");
+        said.textContent = t("signin.unreachable", "We can't reach targum. Check your connection and try again.");
         button.disabled = false;
       });
   });

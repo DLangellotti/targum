@@ -295,7 +295,7 @@ def test_a_connect_lost_on_the_way_through_the_mail_is_said_not_dropped(
     another, or whose cookie ran out — which used to be dropped in silence."""
     port, _, store_path = connected
     store = Store(store_path)
-    lost = "We couldn't finish connecting: you started in another browser, or too long ago."
+    lost = "We couldn't finish connecting. Sign in, then connect again from Claude or ChatGPT."
 
     elsewhere = _landing(port, f"/account/enter?t={store.start_sign_in('a@example.com')}&c=1")
     assert lost in elsewhere and "Sign in as" in elsewhere

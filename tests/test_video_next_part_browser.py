@@ -273,7 +273,9 @@ def test_a_refused_part_says_why_and_a_failed_one_offers_again(
     tmp_path,
 ) -> None:
     reader = two_parts(tmp_path, second_ready=False)
-    refusal = "That's a lot to get ready at once. Try again in 8 hours. The library still opens."
+    refusal = (
+        "That's a lot to get ready in one day. Try again in 24 hours. The library still opens."
+    )
     context, page, _asked = film_page(
         browser,
         reader,

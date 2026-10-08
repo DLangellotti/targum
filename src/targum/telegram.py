@@ -680,7 +680,7 @@ class Door:
                 or said_in(
                     ui,
                     "job.unreadable.other",
-                    "We couldn't read that. Try again, or paste the text itself.",
+                    "We couldn't read that page. Paste its text here instead.",
                 ),
             )
             return True

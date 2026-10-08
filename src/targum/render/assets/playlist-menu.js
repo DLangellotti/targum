@@ -109,14 +109,14 @@
           // sentence, and is said as the plain failure.
           var why = got.answer && got.answer.error;
           if (got.status === 404 || got.status === 401 || /^(not found|bad request)$/i.test(String(why || ""))) why = "";
-          status(menu, why || say("playlist-menu.failed", "We couldn't add it. Try again."), true);
+          status(menu, why || say("playlist-menu.failed", "We couldn't add it to the playlist. Try again."), true);
           return;
         }
         status(menu, say("playlist-menu.added", "Added to {name}.", { name: got.answer.name || target.name }));
         setTimeout(close, 900);
       })
       .catch(function () {
-        status(menu, say("playlist-menu.failed", "We couldn't add it. Try again."), true);
+        status(menu, say("playlist-menu.failed", "We couldn't add it to the playlist. Try again."), true);
       });
   }
 
@@ -291,7 +291,7 @@
           var why = got.answer && got.answer.error;
           if (got.status >= 400) {
             if (got.status === 404 || got.status === 401 || /^(not found|bad request)$/i.test(String(why || ""))) why = "";
-            press.textContent = why || say("playlist-menu.failed", "We couldn't add it. Try again.");
+            press.textContent = why || say("playlist-menu.failed", "We couldn't add it to the playlist. Try again.");
             press.disabled = false;
             return;
           }
@@ -300,7 +300,7 @@
           if (done) setTimeout(done, 900);
         })
         .catch(function () {
-          press.textContent = say("playlist-menu.failed", "We couldn't add it. Try again.");
+          press.textContent = say("playlist-menu.failed", "We couldn't add it to the playlist. Try again.");
           press.disabled = false;
         });
     };

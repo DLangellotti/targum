@@ -149,8 +149,8 @@ def test_a_sign_in_wall_is_named_and_says_to_paste_the_text(monkeypatch: Any) ->
     error = caught.value
     assert error.key == "fetch.needs-a-sign-in"
     assert error.fill == {"site": "paywall.example"}
-    assert "sign in" in error.message
-    assert "paste the text" in (error.hint or "")
+    assert "sign-in" in error.message
+    assert "paste it here" in (error.hint or "")
     # What Unreachable is for is untouched: still a shut door, with its status.
     assert error.status == 401 and error.host == "paywall.example" and door.shut(error)
 
@@ -237,7 +237,7 @@ def test_a_private_address_is_refused_before_any_knock(monkeypatch: Any) -> None
     monkeypatch.setattr(door, "POLITE_S", 0.0)
     with pytest.raises(TargumError) as caught:
         door.fetch("https://127.0.0.1/metadata")
-    assert "private network" in caught.value.message
+    assert "can't open pages on" in caught.value.message
     assert doors.direct.knocks == [], "refused at our end, never sent"
     assert not isinstance(caught.value, Unreachable), "so it is never recorded as a shut door"
 

@@ -68,7 +68,7 @@ def find(url: str) -> Episode | None:
         # saying what the episode is and pressing Continue looks for it where it can be
         # had. Offered, never run — the press is the reader's (targum-internal#252).
         raise UnsupportedSource(
-            "Spotify keeps its audio to itself, so we can't fetch it.",
+            "Spotify doesn't let us bring in its audio.",
             "Paste the show's page on Apple Podcasts, its RSS feed or the episode's own "
             "site — or say what the episode is and press Continue, and we'll look.",
             key="episode.spotify",

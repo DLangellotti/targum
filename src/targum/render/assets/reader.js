@@ -1781,7 +1781,7 @@ var targumReader = function () {
       })
       .catch(function () {
         asked[form] = false;
-        onDone(t("reader.error.connect", "We couldn't connect. Try again."));
+        onDone(t("reader.error.connect", "We can't reach targum. Try again."));
       });
   }
 
@@ -4525,7 +4525,7 @@ var targumReader = function () {
     }
     function failed(why) {
       button.removeAttribute("aria-busy");
-      say(why || t("reader.card.could-not-say", "We couldn't say that word just now."));
+      say(why || t("reader.card.could-not-say", "We couldn't say this word."));
     }
     button.addEventListener("click", function (event) {
       event.stopPropagation();
@@ -5275,7 +5275,7 @@ var targumReader = function () {
                     "reader.card.correction-taken",
                     "Thanks. We'll check it before it changes for anyone."
                   )
-                : t("reader.card.correction-lost", "We couldn't send that. Try again later.");
+                : t("reader.card.correction-lost", "We couldn't send your correction. Try again later.");
             row.appendChild(thanks);
           })
           .catch(function () {
@@ -6005,11 +6005,11 @@ var targumReader = function () {
         return response.json();
       })
       .catch(function () {
-        return { error: t("reader.error.connect", "We couldn't connect. Try again.") };
+        return { error: t("reader.error.connect", "We can't reach targum. Try again.") };
       })
       .then(function (got) {
         if (!got || got.error) {
-          return settle((got && got.error) || t("reader.error.connect", "We couldn't connect. Try again."), true);
+          return settle((got && got.error) || t("reader.error.connect", "We can't reach targum. Try again."), true);
         }
         state.chat = got.chat;
         followAsk(got.chat, got.turn, draw, settle);
@@ -6047,7 +6047,7 @@ var targumReader = function () {
             why = {};
           }
           settle(
-            why.message || t("reader.error.conversation", "We couldn't continue the chat. Try again."),
+            why.message || t("reader.error.conversation", "We couldn't answer that. Try again."),
             true
           );
         } else if (source.readyState === 2) {
@@ -6066,7 +6066,7 @@ var targumReader = function () {
           return response.json();
         })
         .catch(function () {
-          return { error: t("reader.error.connect", "We couldn't connect. Try again."), done: true };
+          return { error: t("reader.error.connect", "We can't reach targum. Try again."), done: true };
         })
         .then(function (state) {
           if (state.error && state.done) return settle(state.error, true);
@@ -11033,7 +11033,7 @@ var targumReader = function () {
             })
             .catch(function () {
               clearInterval(timer);
-              fail(said.t("reader.chapter.could-not-reach", "We couldn't reach targum. Try again."));
+              fail(said.t("reader.chapter.could-not-reach", "We can't reach targum. Try again."));
             });
         }, 1500);
       })
@@ -11358,7 +11358,7 @@ var targumReader = function () {
           why && why.name === "NotAllowedError"
             ? t(
                 "reader.player.sound-blocked",
-                "This tab isn't allowed to play sound. Allow sound for this site in the address bar, then try again."
+                "This tab is muted. Allow sound for targum in the address bar."
               )
             : t("reader.player.could-not-play", "We couldn't play this recording. Try again."),
           why
@@ -13528,7 +13528,7 @@ else targumReader();
         }, window.TargumVoice.POLL);
       })
       .catch(function () {
-        failed(S.t("reader.error.connect", "We couldn't connect. Try again."));
+        failed(S.t("reader.error.connect", "We can't reach targum. Try again."));
       });
   }
 
@@ -13565,7 +13565,7 @@ else targumReader();
         follow(state.id);
       })
       .catch(function () {
-        failed(S.t("reader.error.connect", "We couldn't connect. Try again."));
+        failed(S.t("reader.error.connect", "We can't reach targum. Try again."));
       });
   };
 
@@ -13740,7 +13740,7 @@ else targumReader();
   var t = window.TargumStrings ? window.TargumStrings.t : function (key, english) {
     return english;
   };
-  var NOT_NOW = t("reader.page.pdf-not-now", "The PDF can't be made right now. Try again in a minute.");
+  var NOT_NOW = t("reader.page.pdf-not-now", "We can't make the PDF right now. Try again in a minute.");
 
   function tell(text) {
     if (said) {

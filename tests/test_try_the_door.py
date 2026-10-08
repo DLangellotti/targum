@@ -158,7 +158,7 @@ def test_a_refusal_is_the_add_pages_own_and_offers_no_join(
     youtube_answers(monkeypatch, duration=0)
     status, page = post(port, "/try", {"link": VIDEO})
     assert status == 200
-    assert "That video has no length yet" in said(page)
+    assert "a live stream" in said(page)
     assert 'name="link" value=' not in page.split('<div class="tried"')[1]
 
     status, page = post(port, "/try", {"link": "not a link at all"})

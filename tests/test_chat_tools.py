@@ -1108,7 +1108,7 @@ def test_a_private_address_is_refused_by_the_fetch_door(world) -> None:
     got = tools.describe_source(
         context(library, store, person, home), {"url": "http://127.0.0.1:8420/health"}
     )
-    assert "private network" in got["error"], "the fetch door's own refusal, in its words"
+    assert "can't open pages on" in got["error"], "the fetch door's own refusal, in its words"
 
 
 def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path) -> None:

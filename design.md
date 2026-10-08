@@ -398,6 +398,43 @@ page; a swipe back plays nothing new; the end card still offers once and never r
 no count of items played; motion stays optional, and nothing here animates.
 
 
+### Refusals say what to do next — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, board ErrorSystem). A refusal is a sentence of what
+happened, in our words, and a sentence of what the reader can do now: upload a file,
+paste the text, wait a stated time. "Try again later" stays only where nobody knows when
+later is, and a reason the reader can do nothing with is left out. The copy lands
+first; the five surfaces it is drawn on (under a field, a line in a card, a panel in
+place, a connection banner, a whole page) come in a slice of their own.
+
+- **Until a surface is built, the sentence keeps its action.** Where the board moves "Try
+  again" into a button, or "the library still opens" into a panel's fact line, the words
+  stay in the sentence until that button or line is drawn, so no refusal loses its way
+  on in between.
+- **Upload is the verb for what the reader hands us**, in refusals as on the door: "Try
+  uploading it again", "Upload it again", "upload its pictures or video". Bring and Add
+  are retired there.
+- **Out of credits names Top up.** "You've used this month's credits. Top up, or they
+  come back on 1 November." The button is drawn but stays greyed until a payment
+  provider is chosen, and until then the date is the way on; "There is no top-up to send
+  them to yet" (the parts entry, 2026-10-07) is still true of the button.
+- **That refusal no longer recites the allowance and the rate.** The rate goes beside
+  every balance (2026-09-23), and a refusal for credits that are spent shows no balance:
+  the account page carries the number and its rate. "You've used your 480 credits for
+  this month, and a credit is a minute of audio" was two clauses before it said what to
+  do.
+- **The front door's too-many-links refusal keeps the waitlist nudge:** "Try again in an
+  hour, or join and upload them when you're in." The hour is the window the door counts.
+- **The PDF sentence is now "We can't make the PDF right now. Try again in a minute."**,
+  as the week's sheet entry quotes it.
+- **A refusal that already carries a hint says its way on there**, not twice: the
+  sign-in wall's and the private network's next steps moved into their hints, and a
+  picture with no text says "Try a clearer photo or a screenshot" from both places it is
+  refused.
+- **What the server cannot yet say is not written.** "Try again in 1 hour" for the box's
+  ceiling waits until the ceiling knows when it lifts, and the vague "we can't do this
+  one right now" waits until a blocked build carries its reason.
+
 ### A playlist is a card on its tab and a page of its own — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards PlaylistsTab and PlaylistDetail; targum-internal
@@ -1674,7 +1711,7 @@ on the box when pressed. Everything under "The week's sheet is the edition, twic
   portion takes its own haftarah and no date.
 - **Onkelos where the shelf has it**, the reader's language beside the portion where it
   does not, and the paper does not say which.
-- **A sheet that cannot be set is one sentence**, "The PDF can't be made right now. Try
+- **A sheet that cannot be set is one sentence**, "We can't make the PDF right now. Try
   again in a minute.", whatever the reason — no Pango, a corpus built before the sheet, a
   press that ran past its time. The reason is in the log.
 - **The paper is the page the reader was on** (David, 2026-10-04). The link carries the
