@@ -2026,10 +2026,12 @@ yours, last read first; Uploads is Your uploads, renamed with the word the produ
 for what a reader brought ("Uploaded by you", "Uploaded 2 days ago" on a row). Playlists
 is still its own page wearing the strip. **Subscriptions is new and answered in place**:
 the series that come out on their own clock, each with its switch, the subscribed ones
-first. It is today's "Following", renamed in the interface — the panel on the profile,
-the account's link and ⌘K say Subscriptions too, and a switch says Subscribe and
-Subscribed. Nothing about what can be subscribed to changes here: channels, podcasts and
-news topics with a monthly cap are the subscriptions slice, after playlists. The drawn
+first. It is today's "Following", renamed in the interface — the account's link and ⌘K
+say Subscriptions too, and a switch says Subscribe and Subscribed. The profile's own panel
+of the same rows gave way to one line linking to this tab (2026-10-09): one list of
+subscriptions, and unsubscribing is its switch there. Nothing about what can be
+subscribed to changes here: channels, podcasts and news topics with a monthly cap are the
+subscriptions slice, after playlists. The drawn
 definition of a targum left this page the same day (the FirstRun boards draw none); the
 arrival's welcome says what targum is.
 

@@ -345,15 +345,17 @@ def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases(
     assert 'id="claim-panel"' not in PAGES["texts"] and 'id="claim-here"' not in PAGES["texts"]
 
 
-def test_your_subscriptions_stand_on_the_profile_and_every_page_hears_them() -> None:
+def test_your_subscriptions_are_a_tab_of_home_and_every_page_hears_them() -> None:
     """2026-09-11: "subscriptions should be under the profile dropdown (perhaps on /you)
-    — let's keep the main pages as simple as possible". The row is a panel on the
-    profile, the account panel links to it, the Library carries nothing of it, and the
-    script that asks is in the bar on every page so the bell hears a landed instalment."""
+    — let's keep the main pages as simple as possible". Since 2026-10-08 they are a tab
+    of Your targums (design.md §12), the account panel links there, the profile keeps one
+    line to it rather than a second copy of the rows, the Library carries nothing of it,
+    and the script that asks is in the bar on every page so the bell hears a landed
+    instalment."""
     you = PAGES["you"]
-    assert 'id="subscriptions"' in you and 'id="series"' in you and "Subscriptions" in you
+    assert 'href="/?show=subscriptions"' in you and "Subscriptions" in you
+    assert 'id="series"' not in you, "one list of subscriptions, on home"
     assert 'id="subscriptions"' not in PAGES["library"] and 'id="series"' not in PAGES["texts"]
-    # And a tab on home (2026-10-08), the same rows drawn by the same script.
     assert 'id="subs-panel"' in PAGES["texts"] and 'id="home-series"' in PAGES["texts"]
     for name, page in PAGES.items():
         if 'class="site-head"' in page:

@@ -1,0 +1,73 @@
+/* Your targums, Your Words and Your Phrases — the three lists `yours.html.j2` draws.
+ *
+ * What the three share and nothing else does: the column they stand in, the line while
+ * the shelf is asked for, and what is said when there is nothing. The panels, rows and
+ * list controls are words.css's and library.css's; home's own head (Continue, the next
+ * one, the upload) is home.css. These rules were Learn's until Learn was taken apart
+ * (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08), and are
+ * kept here with the rest of Learn's sheet left behind. */
+
+/* The lists are pages to read down, not a reader to fill the desk with: they keep the
+   column every other list page stands in, header and all. */
+body.yours main {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+/* The type selector otherwise beats the user-agent [hidden] rule. */
+body.yours main[hidden] {
+  display: none;
+}
+body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
+@media (max-width: 40rem) {
+  body.yours main { padding: 0 0 5rem; }
+  /* The phone's gutter is 1rem, the mark's and the cards'. */
+  body.yours .site-head-row { padding-inline: 1rem; }
+}
+
+/* While the shelf is asked for (2026-09-14): one quiet line where the shelf will stand,
+   so the page under the bar is not blank for the seconds a large shelf takes. */
+.learn-waiting {
+  margin: 3rem auto;
+  max-width: 62rem;
+  padding-inline: 1.5rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.learn-waiting[hidden] { display: none; }
+
+/* Nothing yet, or nothing could be loaded. */
+body.yours .nothing {
+  max-width: 34rem;
+  margin: 4rem auto;
+  padding: 0 1.25rem;
+  text-align: center;
+  color: var(--ink-soft);
+}
+body.yours .nothing[hidden] {
+  display: none;
+}
+body.yours .nothing .lede {
+  margin: 0 0 0.5rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+body.yours .nothing a {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--hairline);
+}
+body.yours .nothing a:hover { border-block-end-color: var(--ink-soft); }
+@media (max-width: 40rem) {
+  body.yours .nothing { padding-inline: 1rem; }
+}
+
+/* The way back to Your targums from Your Words and Your Phrases; words.css draws it. */
+.back {
+  margin: 0;
+  font-size: 0.9375rem;
+}

@@ -1112,7 +1112,8 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
 
 def test_a_menu_chevron_points_down_in_either_direction(browser, tmp_path: Path) -> None:
     """A chevron drawn from two logical borders and a turn: under RTL the borders swap
-    sides, so the same turn pointed the language menu's and the doors' chevrons sideways."""
+    sides, so the same turn pointed the language menu's chevron sideways. (The doors'
+    menu, which had one too, went with Learn on 2026-10-08.)"""
     page_file = tmp_path / "home.html"
     page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
@@ -1126,11 +1127,9 @@ def test_a_menu_chevron_points_down_in_either_direction(browser, tmp_path: Path)
             const host = document.createElement('div');
             host.dir = dir;
             host.innerHTML = '<span class="lang-menu">'
-              + '<button class="lang-open">Hebrew</button></span>'
-              + '<button class="way-menu">Following</button>';
+              + '<button class="lang-open">Hebrew</button></span>';
             document.body.append(host);
-            for (const [name, sel, pseudo] of [['lang', '.lang-open', '::before'],
-                                                ['way', '.way-menu', '::after']]) {
+            for (const [name, sel, pseudo] of [['lang', '.lang-open', '::before']]) {
               const st = getComputedStyle(host.querySelector(sel), pseudo);
               const on = (side) => parseFloat(st['border' + side + 'Width']) > 0;
               // The corner the two borders make, as a vector, then turned by the transform.

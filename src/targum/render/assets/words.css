@@ -170,7 +170,7 @@ main {
   gap: 1.25rem;
 }
 /* Flat, and the hairline does the grouping. §9 allows one raised layer per view and the
-   cards at the top of Learn have it — learn.css:45 has said so since the three-up strip
+   cards at the top of Learn had it — Learn's sheet said so from the three-up strip
    was written, but the panels below went on wearing the raised fill anyway. Five pages
    share this class, and on four of them it was half the page: measured at 50% of Learn,
    against §9's budget of roughly 15% structural neutral. The page is near-white, not
@@ -291,7 +291,7 @@ table.rows td {
 }
 table.rows tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 table.rows .term { font-family: var(--reading); font-size: 1.05em; }
-/* Same tie as .card-title in learn.css, lost the same way: the term's own class beats
+/* Same tie as .card-title on Learn's cards, lost the same way: the term's own class beats
    reader.css's `:lang(he)`, and a Hebrew word set in a Latin face has no glyphs to
    set it with. */
 table.rows .term:lang(he),
