@@ -78,7 +78,11 @@ function partsOf(row) {
 /* --- where to start ---------------------------------------------------------
  *
  * "Start reading" goes to the first chapter. Come back and it says "Continue" and goes
- * to the chapter last opened, which the reader writes down under the text's hash.
+ * to the part the reader was last in — on this browser, or, signed in, on whichever
+ * device they read on last (targum-internal#430). The reader writes the place down as
+ * it is read (`TargumSync.place`); the account's copy is asked for here and wins when
+ * it is newer, and is kept in this browser too, so the part it opens puts the reader
+ * back on their sentence. Signed out, or off the disk, this browser's is the whole of it.
  */
 (function () {
   "use strict";
@@ -87,17 +91,66 @@ function partsOf(row) {
   var start = document.getElementById("start");
   var toc = document.querySelector(".toc[data-document]");
   if (!start || !toc) return;
-  var last = 0;
-  try {
-    last = Number(
-      JSON.parse(localStorage.getItem("targum:chapter") || "{}")[toc.getAttribute("data-document")]
-    );
-  } catch (e) {}
-  if (!last) return;
-  var row = toc.querySelector('[data-chapter="' + last + '"] a');
-  if (!row) return;
-  start.href = row.getAttribute("href");
-  start.textContent = t("contents.continue", "Continue");
+  var documentId = toc.getAttribute("data-document");
+  var PLACES = "targum:places";
+
+  function stored(name) {
+    try {
+      return JSON.parse(localStorage.getItem(name) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // The text's place as this browser has it. `targum:chapter` is the one number a
+  // browser kept before there were places, read for a text not opened since.
+  function mine() {
+    var place = stored(PLACES)[documentId];
+    if (place && place.section) return place;
+    var last = Number(stored("targum:chapter")[documentId]);
+    return last ? { section: String(last), at: 0 } : null;
+  }
+
+  function point(place) {
+    if (!place || !place.section) return;
+    var row = toc.querySelector('[data-chapter="' + place.section + '"] a');
+    if (!row) return;
+    start.href = row.getAttribute("href");
+    start.textContent = t("contents.continue", "Continue");
+  }
+
+  var here = mine();
+  point(here);
+
+  if (!/^https?:$/.test(location.protocol) || !window.fetch) return;
+  var key = new URLSearchParams(location.search).get("k") || "";
+  fetch(
+    "/account/places?limit=1&document=" +
+      encodeURIComponent(documentId) +
+      (key ? "&k=" + encodeURIComponent(key) : ""),
+    { credentials: "same-origin" }
+  )
+    .then(function (response) {
+      return response.ok ? response.json() : null;
+    })
+    .then(function (answer) {
+      var theirs = answer && answer.places && answer.places[0];
+      if (!theirs || !theirs.section) return;
+      if (Number(theirs.at || 0) <= Number((here && here.at) || 0)) return;
+      var all = stored(PLACES);
+      all[documentId] = {
+        section: String(theirs.section),
+        path: theirs.path || "",
+        segment: theirs.segment || "",
+        seconds: Number(theirs.seconds || 0),
+        at: Number(theirs.at || 0),
+      };
+      try {
+        targumKeep(PLACES, JSON.stringify(all));
+      } catch (e) {}
+      point(theirs);
+    })
+    .catch(function () {});
 })();
 
 /* --- a link to a verse ------------------------------------------------------

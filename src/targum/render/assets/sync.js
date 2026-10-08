@@ -321,6 +321,63 @@
     return touched;
   }
 
+  /* Where the reader left off in each text (targum-internal#430): the part, the sentence
+     in front of them and the second of its recording, one record a text. `reader.js`
+     writes it through `api.place` as the reader reads; it travels as one row a text, and
+     the newer record wins in both directions, so the device read on last is the one that
+     says where Continue goes. Kept here rather than only on the account so a reader who
+     is signed out still has a Continue, and capped so the store does not grow for every
+     text ever opened. */
+  var PLACES = "targum:places"; // { hash: { section, path, segment, seconds, at } }
+  var PLACES_KEPT = 100;
+
+  function localPlaces(since) {
+    var places = read(PLACES, "{}");
+    var out = [];
+    Object.keys(places).forEach(function (hash) {
+      var place = places[hash] || {};
+      var when = Number(place.at || 0);
+      if (when <= since) return;
+      out.push({
+        hash: hash,
+        section: String(place.section || ""),
+        path: place.path || "",
+        segment: place.segment || "",
+        seconds: Number(place.seconds || 0),
+        at: when,
+        seen: when,
+      });
+    });
+    return out;
+  }
+
+  function applyPlaces(rows) {
+    var places = read(PLACES, "{}");
+    var touched = false;
+    rows.forEach(function (row) {
+      if (!row.hash) return;
+      var mine = Number((places[row.hash] || {}).at || 0);
+      if (row.gone) {
+        if (mine && Number(row.seen || 0) > mine) {
+          delete places[row.hash];
+          touched = true;
+        }
+        return;
+      }
+      if (Number(row.at || 0) <= mine) return;
+      places[row.hash] = {
+        section: String(row.section || ""),
+        path: row.path || "",
+        segment: row.segment || "",
+        seconds: Number(row.seconds || 0),
+        at: Number(row.at),
+      };
+      touched = true;
+    });
+    if (touched) write(PLACES, places);
+    return touched;
+  }
+
   // Every day this browser knows about, or just today.
   //
   // The other collectors filter on `since` by comparing each record's own `seen` stamp
@@ -703,7 +760,56 @@
     doomed.forEach(drop);
   }
 
-  function exchange(full) {
+  /* How often a place goes up while somebody reads: at most once every half minute,
+   * and once more as the page is hidden or left. A scroll settles every second or so and
+   * a recording moves every five, so pushing each one would be a request a second for as
+   * long as somebody reads; the browser has the place to the second regardless, and the
+   * account only needs it by the time the reader picks up another device — which is
+   * after this one has been put down, and putting it down is the push that matters. */
+  var PLACE_EVERY = 30 * 1000;
+  var placeTimer = null;
+  var placeOwed = false;
+  var placeWatching = false;
+
+  function placeNow(leaving) {
+    if (placeTimer) {
+      clearTimeout(placeTimer);
+      placeTimer = null;
+    }
+    if (!placeOwed || !api.who) return;
+    // On the way out the page will not wait for a reply, so a push already in flight is
+    // no reason to hold this one back: the merge keeps the newer of the two either way.
+    if (busy && !leaving) {
+      again = true;
+      return;
+    }
+    exchange(false, leaving);
+  }
+
+  function placeSoon() {
+    placeOwed = true;
+    // Listened for from the first place onwards, not from load: the reader writes its
+    // last place from its own `pagehide`, registered before this, and listeners run in
+    // the order they were added — so this one finds that place already written.
+    if (!placeWatching) {
+      placeWatching = true;
+      window.addEventListener("pagehide", function () {
+        placeNow(true);
+      });
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "hidden") placeNow(true);
+      });
+    }
+    if (!api.who || placeTimer) return;
+    placeTimer = setTimeout(function () {
+      placeTimer = null;
+      placeNow(false);
+    }, PLACE_EVERY);
+  }
+
+  function exchange(full, leaving) {
+    // Whatever place is owed rides on this push, whichever page asked for it.
+    placeOwed = false;
     var was = state();
     var since = full ? 0 : Number(was.pushed || 0);
     var mark = Date.now();
@@ -716,9 +822,10 @@
       docs: localDocs(since),
       days: localDays(since),
       sections: localSections(since).concat(dead.sections),
+      places: localPlaces(since),
     };
     busy = true;
-    return ask("/sync", body)
+    return ask("/sync", body, !!leaving)
       .then(function (answer) {
         busy = false;
         if (!answer || answer.signedIn === false) return false;
@@ -735,6 +842,7 @@
         // afterwards is what keeps a chapter from being dropped by a title arriving.
         changed = applySections(answer.sections || []) || changed;
         changed = applyDays(answer.days || []) || changed;
+        changed = applyPlaces(answer.places || []) || changed;
         write(STATE, { email: was.email, revision: answer.revision, pushed: mark });
         if (again) {
           again = false;
@@ -843,6 +951,80 @@
       pending = setTimeout(function () {
         exchange(false);
       }, 1200);
+    },
+
+    /* Where the reader is in a text, as they read it (targum-internal#430). `fields` is
+       any of `section`, `path`, `segment` and `seconds`; what it leaves out is kept,
+       except that a different part starts at its own top. Written to this browser at
+       once, signed in or out, and pushed on the half-minute rule above. A call that
+       moves nothing writes nothing, so a reader sitting still sends nothing. */
+    place: function (hash, fields) {
+      if (!hash || !fields) return;
+      var all = read(PLACES, "{}");
+      var was = all[hash] || {};
+      var section = fields.section !== undefined ? String(fields.section) : String(was.section || "");
+      var moved = section !== String(was.section || "");
+      function kept(name, empty) {
+        if (fields[name] !== undefined) return fields[name];
+        return moved ? empty : was[name] === undefined ? empty : was[name];
+      }
+      var next = {
+        section: section,
+        path: String(kept("path", "")),
+        segment: String(kept("segment", "")),
+        seconds: Math.round((Number(kept("seconds", 0)) || 0) * 100) / 100,
+        // Past the last push's watermark, always: a place written in the millisecond an
+        // exchange began would otherwise sit at the mark and never be sent.
+        at: Math.max(Date.now(), Number(state().pushed || 0) + 1),
+      };
+      if (
+        all[hash] &&
+        next.section === String(was.section || "") &&
+        next.path === String(was.path || "") &&
+        next.segment === String(was.segment || "") &&
+        next.seconds === Number(was.seconds || 0)
+      ) {
+        return;
+      }
+      all[hash] = next;
+      Object.keys(all)
+        .sort(function (a, b) {
+          return Number(all[b].at || 0) - Number(all[a].at || 0);
+        })
+        .slice(PLACES_KEPT)
+        .forEach(function (stale) {
+          delete all[stale];
+        });
+      write(PLACES, all);
+      placeSoon();
+    },
+
+    // Where the reader left off in one text, as this browser has it, or null.
+    placeOf: function (hash) {
+      var place = read(PLACES, "{}")[hash];
+      return place ? place : null;
+    },
+
+    // The last `n` texts the reader was in, newest first, as this browser has them: what
+    // home's Continue falls back to for somebody signed out.
+    places: function (n) {
+      var all = read(PLACES, "{}");
+      return Object.keys(all)
+        .map(function (hash) {
+          var place = all[hash] || {};
+          return {
+            hash: hash,
+            section: String(place.section || ""),
+            path: place.path || "",
+            segment: place.segment || "",
+            seconds: Number(place.seconds || 0),
+            at: Number(place.at || 0),
+          };
+        })
+        .sort(function (a, b) {
+          return b.at - a.at;
+        })
+        .slice(0, n || 5);
     },
 
     // A word or phrase taken off the list. Recorded even when signed out, so that
