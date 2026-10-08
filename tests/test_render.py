@@ -3651,26 +3651,25 @@ def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) ->
         assert len(found) == 1, f"{marker}: expected one button, found {len(found)}"
         return found[0]
 
-    # Since the bar became one row (targum-internal#421) the switches live in Aa and ⋯,
-    # where each is a row with its name beside it, so the name is the visible label and
-    # the sentence stays on the hover. What is pinned is the same promise in its new
-    # place: a name that is a noun, never a state ("Vowels" / "No vowels"), and the
-    # longer sentence behind it.
+    # Since the bar went by how often it is pressed (design.md §12, 2026-10-08) the
+    # vowels are the bar's own press again, drawn as a pointed letter: its name is a noun
+    # for a screen reader, never a state ("Vowels" / "No vowels"), and the longer
+    # sentence is behind it on the hover.
     vowels = control("data-nikkud-toggle")
-    assert '<span class="aa-name">Vowel points</span>' in vowels
+    assert 'aria-label="Vowel points"' in vowels
+    assert 'class="marks-glyph" lang="he"' in vowels
     assert ">No vowels<" not in vowels
     assert "title=" in vowels, "the words move to the hover"
 
     # The marking control only renders on a text that has words to mark, so it is read
-    # from the template rather than from a fixture built without annotation. Behind ⋯
-    # its row names it (`data-what`), and the switch keeps its title and its label for
-    # anyone not hovering.
+    # from the template rather than from a fixture built without annotation. A row of Aa
+    # since 2026-10-08: its name is written beside its switch, and its title stays.
     template = _reader_template()
     mark = re.search(r"<button\b[^>]*data-marking.*?</button>", template, re.S)
     assert mark is not None
     assert 'class="sw"' in mark.group(0) and ">Mark<" not in mark.group(0)
-    assert "title=" in mark.group(0) and "aria-label=" in mark.group(0)
-    assert 'data-what="Highlight what you have not learned"' in template
+    assert "title=" in mark.group(0)
+    assert '<span class="aa-name">Highlight what you have not learned</span>' in mark.group(0)
 
 
 def test_the_speed_is_a_pair_in_the_player_and_only_where_there_is_a_voice(
@@ -3714,8 +3713,8 @@ def test_the_vowel_control_is_one_switch_not_two_choices(tmp_path: Path) -> None
     assert vowels is not None
     assert 'aria-pressed="false"' in vowels.group(0)
     assert "data-step" not in vowels.group(0)
-    # Drawn as a switch in Aa since targum-internal#421: one thing, on or off.
-    assert 'class="sw"' in vowels.group(0)
+    # One press in the bar since 2026-10-08, pressed or not: one thing, on or off.
+    assert 'class="bar-tool marks"' in vowels.group(0)
 
     from targum.render.builder import ASSETS
 

@@ -427,10 +427,9 @@ def test_on_the_switch_adds_its_pieces_and_nothing_else(
     stripped = DATA.sub(lambda m: m.group(1) + m.group(3), on)
     for piece in (
         r"<style>(?:(?!</style>).)*said-tie(?:(?!</style>).)*</style>",
-        # A row of Aa since targum-internal#421, with the rule that sets the switches off
-        # from the type below them.
-        r'    <button type="button" class="aa-switch" data-said-toggle.*?</button>\n'
-        r'    <div class="aa-rule" role="presentation"></div>\n',
+        # The bar's own press since 2026-10-08 (design.md §12), the one switch of marks
+        # French has.
+        r'      <button type="button" class="bar-tool marks" data-said-toggle.*?</button>\n',
         r"<dt>n</dt><dd>the French as said</dd>",
         r'<aside class="credits".*?</aside>\n',
         r"<script>(?:(?!</script>).)*targum:said(?:(?!</script>).)*</script>",

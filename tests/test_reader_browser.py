@@ -418,6 +418,11 @@ def press_in_aa(page, selector: str) -> None:
     """Press a control that lives in the Aa panel (targum-internal#421): open the panel,
     press, and put it away again with Escape, the way a reader goes back to the text —
     so the panel is never standing over whatever the test presses next."""
+    # Some of what Aa held stands in the bar since 2026-10-08 (design.md §12): the vowels.
+    # Pressed where it is, then, the way a reader would.
+    if page.locator(f".bar .bar-tools > {selector}").count():
+        page.click(f".bar .bar-tools > {selector}")
+        return
     if not page.evaluate("() => !!document.querySelector('#aa.open')"):
         page.click("#aa-open")
     page.click(selector)
@@ -436,7 +441,15 @@ def practise_by_section(page) -> None:
 
 
 def press_in_more(page, selector: str) -> None:
-    """Press a control that lives behind ⋯ (targum-internal#421), opening it first."""
+    """Press a control that lives behind ⋯ (targum-internal#421), opening it first.
+    The view's drawings stand in the bar since 2026-10-08, and the switches that set the
+    page out moved to Aa: each is pressed where it is."""
+    if page.locator(f".bar .bar-tools {selector}").first.is_visible():
+        page.click(f".bar .bar-tools {selector} >> nth=0")
+        return
+    if page.locator(f"#aa {selector}").count():
+        press_in_aa(page, selector)
+        return
     if not page.evaluate("() => !!document.querySelector('.bar-more.open')"):
         page.click(".bar-tools [data-more]")
     page.click(selector)
@@ -4073,7 +4086,11 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     Since targum-internal#421 (David, 2026-10-05) the row is the same at every width:
     the vowel points and the type are in Aa, and the reading modes are behind ⋯ with the
     other rare things. They were in the phone's row because a reader reaches for the
-    vowels mid-sentence; Aa is one press from them, and the row is calmer for it."""
+    vowels mid-sentence; Aa is one press from them, and the row is calmer for it.
+
+    And since 2026-10-08 (David, calmer surfaces, design.md §12) the vowels are back in
+    the row as a pointed letter, because that is how often they are pressed; the view's
+    drawings stand in the row on a wide window and are a row of ⋯ on a phone."""
     html = built.read_text(encoding="utf-8")
     if direction == "ltr":
         html = html.replace(
@@ -4115,8 +4132,8 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     assert measured["titleBetween"], "the title sits between the mark and the tools"
     assert measured["height"] <= 56, f"a bar {measured['height']}px tall is not one row"
     assert measured["more"] == 1 and measured["aa"] == 1
-    assert measured["modes"] == 0, "the reading modes are behind ⋯"
-    assert measured["nikkud"] == 0, "the vowel points are in Aa"
+    assert measured["modes"] == 0, "on a phone the reading modes are behind ⋯"
+    assert measured["nikkud"] == 1, "the vowel points are the row's own press"
     assert measured["others"] == 0, "nothing of a panel is drawn until it is opened"
     assert measured["width"] <= 390
 
@@ -4357,13 +4374,16 @@ def test_the_menu_is_drawn_over_the_sheet_and_a_tap_on_the_page_closes_it(
         "() => [...document.querySelectorAll('.bar-more.open .group[data-what]')]"
         ".map((g) => g.getAttribute('data-what'))"
     )
-    # The type moved to Aa with targum-internal#421; the pages switch is the setting
-    # that lays the page out again from inside ⋯ now.
-    assert "View" in names and "Pages, or one long scroll" in names, names
+    # The type moved to Aa with targum-internal#421, and the pages with it on
+    # 2026-10-08; on a phone the view is the setting that lays the page out again from
+    # inside ⋯, because the bar has no room for its drawings.
+    assert "View" in names, names
     assert "Type" not in names, "the type is in Aa"
-    was = page.get_attribute(".bar-more.open [data-paged]", "aria-pressed")
-    page.click(".bar-more.open [data-paged]")
-    assert page.get_attribute(".bar-more.open [data-paged]", "aria-pressed") != was
+    assert "Pages" not in names, "the pages are in Aa"
+    press = '.bar-more.open .more-modes [data-mode="source"]'
+    assert page.get_attribute(press, "aria-pressed") == "false"
+    page.click(press)
+    assert page.get_attribute(press, "aria-pressed") == "true"
     assert page.evaluate(BAND)["menu"], "the menu stayed up for its own control"
     page.mouse.click(page.viewport_size["width"] / 2, 200)
     assert not page.evaluate(BAND)["menu"], "a tap on the page closed it"
@@ -6153,9 +6173,9 @@ def test_stress_marks_ride_the_vowel_switch_and_move_no_word(browser, tmp_path: 
     (targum-internal#260)."""
     reader = russian(tmp_path / "reader", stressed=True)
     html = reader.read_text(encoding="utf-8")
-    # A named row in Aa since targum-internal#421: the name on it is what is read out.
-    assert '<span class="aa-name">Stress marks</span>' in html
-    assert '<span class="aa-name">Vowel points</span>' not in html
+    # The bar's own press since 2026-10-08: the name on it is what is read out.
+    assert 'data-nikkud-toggle aria-pressed="false" aria-label="Stress marks"' in html
+    assert 'aria-label="Vowel points"' not in html
     context, page = open_reader(browser, reader)
     bare = page.evaluate(CARD_LINES, "руку")
     page.keyboard.press("Escape")
@@ -6190,15 +6210,15 @@ def test_one_case_is_shown_at_a_time_and_only_when_asked(browser, tmp_path: Path
     options = page.evaluate(
         "() => [...document.querySelector('[data-case-lens]').options].map((o) => o.textContent)"
     )
-    assert options[:3] == ["cases", "nominative · 2", "genitive · 0"]
+    assert options[:3] == ["none", "nominative · 2", "genitive · 0"]
     assert "accusative · 1" in options and "instrumental · 1" in options
-    # Behind ⋯ since targum-internal#421. Escape takes the menu off first, one layer a
-    # press, and the case stays shown.
-    page.click(".bar-tools [data-more]")
+    # A row of Aa since 2026-10-08, how the text looks. Escape takes the panel off
+    # first, one layer a press, and the case stays shown.
+    page.click("#aa-open")
     page.select_option("[data-case-lens]", "Acc")
     assert page.evaluate(CASES_SHOWN) == ["руку"]
     page.keyboard.press("Escape")
-    assert page.evaluate("() => !document.querySelector('.bar-more.open')")
+    assert page.evaluate("() => !document.querySelector('#aa.open')")
     assert page.evaluate(CASES_SHOWN) == ["руку"]
     page.keyboard.press("c")
     assert page.evaluate("() => document.body.getAttribute('data-case')") == "Ins"

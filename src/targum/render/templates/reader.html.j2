@@ -73,7 +73,6 @@
           <path class="play" d="M5 3.2 12.8 8 5 12.8Z"></path>
           <path class="pause" d="M5.5 3.8v8.4M10.5 3.8v8.4"></path>
         </svg>
-        <span class="listen-word" aria-hidden="true">{{ t("reader.page.listen", "Listen") }}</span>
       </button>
       <span class="listen-track" aria-hidden="true"><span class="listen-fill"></span></span>
       <span class="listen-clock" dir="ltr" aria-hidden="true"></span>
@@ -95,12 +94,52 @@
         the picture is always above its transcript and the switch is not drawn. The
         controls under the picture play it, so Listen stands down while it is up. -#}
     {% if spoken_video %}
+    {#- Two drawings since 2026-10-08 (David, calmer surfaces): the picture with lines
+        beside it, and the picture large over its line. -#}
     <div class="film-views" id="film-views" role="group" aria-label="{{ t("reader.film.view", "How the video stands") }}">
-      <button type="button" class="film-view" data-film-view="beside" aria-pressed="true" title="{{ t("reader.film.beside-title", "The transcript beside the video (v)") }}">{{ t("reader.film.beside", "Beside") }}</button>
-      <button type="button" class="film-view" data-film-view="theatre" aria-pressed="false" title="{{ t("reader.film.theatre-title", "The video large, the line under it (v)") }}">{{ t("reader.film.theatre", "Theatre") }}</button>
+      <button type="button" class="film-view" data-film-view="beside" aria-pressed="true" aria-label="{{ t("reader.bar.video-beside", "Video beside the transcript") }}" title="{{ t("reader.film.beside-title", "The transcript beside the video (v)") }}">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2" y="5" width="9" height="7" rx="1.5"></rect><path d="M13.5 6H18M13.5 9H18M13.5 12H18M13.5 15H16"></path></svg>
+      </button>
+      <button type="button" class="film-view" data-film-view="theatre" aria-pressed="false" aria-label="{{ t("reader.film.theatre", "Theatre") }}" title="{{ t("reader.film.theatre-title", "The video large, the line under it (v)") }}">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2" y="3.5" width="16" height="10" rx="1.5"></rect><path d="M5 16.5h10"></path></svg>
+      </button>
     </div>
     {% endif %}
     <div class="bar-tools">
+      {#- By how often they are pressed (David, 2026-10-08, design.md §12): the speed, the
+          one switch of marks a language has, and the view, as drawings with their names
+          in a tooltip and for a screen reader. -#}
+      {% if spoken_audio %}
+      <button type="button" class="bar-tool bar-rate" data-pop="rates" aria-haspopup="true" aria-expanded="false" aria-controls="rates"
+              aria-label="{{ t("reader.page.speed", "Speed") }}" title="{{ t("reader.page.speed", "Speed") }}"><span class="film-rate-now" dir="ltr">1×</span></button>
+      {% endif %}
+      {% if has_nikkud and stress_marks %}
+      <button type="button" class="bar-tool marks" data-nikkud-toggle aria-pressed="false" aria-label="{{ t("reader.page.stress-marks", "Stress marks") }}"
+              title="{{ t("reader.page.stress-marks-n-we-mark-a-word", "Stress marks (n). We mark a word only where two sources agree, so some words stay bare.") }}"><span class="marks-glyph" lang="ru" aria-hidden="true">а́</span></button>
+      {% elif has_nikkud %}
+      <button type="button" class="bar-tool marks" data-nikkud-toggle aria-pressed="false" aria-label="{{ t("reader.page.vowel-points", "Vowel points") }}"
+              {%- if mark_guessed %} title="{{ t("reader.page.vowel-points-n-where-this-text-left", "Vowel points (n). Where this text left a word bare, we guessed — about 90% right on modern Hebrew, less on classical. We mark the sentences we guessed.") }}"
+              {%- elif source_pointed %} title="{{ t("reader.page.vowel-points-as-this-text-writes-them", "Vowel points, as this text writes them (n)") }}"
+              {%- else %} title="{{ t("reader.page.vowel-points-our-best-guess-about-90", "Vowel points, our best guess — about 90% right on modern Hebrew, less on classical (n)") }}"{% endif %}><span class="marks-glyph" lang="he" aria-hidden="true">אָ</span></button>
+      {% elif said %}
+      <button type="button" class="bar-tool marks" data-said-toggle aria-pressed="false" aria-label="{{ t("said.switch", "As said") }}"
+              title="{{ t("said.switch-title", "As said (n). The liaisons every speaker makes, the elisions, and the final letters nobody says.") }}"><span class="marks-glyph said-glyph" aria-hidden="true">/ə/</span></button>
+      {% endif %}
+      {#- Three ways to lay the text out: beside, under, or the text on its own. The
+          drawing is what each does. On one column (a phone) beside is not offered, and
+          on a phone the view is a row of ⋯ instead (below). -#}
+      <div class="group modes" id="modes" role="group" aria-label="{{ t("reader.page.view", "View") }}">
+        <span class="slide" aria-hidden="true"></span>
+        {%- for key, label, title, path in [
+          ("parallel", t("reader.bar.beside", "Translation beside the text"), t("reader.page.translation-beside-the-text-p", "Translation beside the text (p)"), '<path d="M2.5 5h6M2.5 9h6M2.5 13H7M11.5 5h6M11.5 9h6M13 13h4.5"></path>'),
+          ("inter", t("reader.bar.under", "Translation under each line"), t("reader.page.translation-under-each-line-l", "Translation under each line (l)"), '<path d="M3 4h14M3 12h14"></path><path class="faint" d="M5 7.5h10M5 15.5h10"></path>'),
+          ("source", t("reader.bar.alone", "The text on its own"), t("reader.page.the-text-on-its-own-o", "The text on its own (o)"), '<path d="M3 5h14M6 9h11M3 13h14M9 17h8"></path>'),
+        ] %}
+        <button type="button" data-mode="{{ key }}"{% if loop.first %} class="on"{% endif %} aria-pressed="{{ 'true' if loop.first else 'false' }}" aria-label="{{ label }}" title="{{ title }}">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">{{ path|safe }}</svg>
+        </button>
+        {%- endfor %}
+      </div>
       {#- Aa: how the text is set, and what stands beside it. -#}
       <button type="button" class="bar-tool aa-open" id="aa-open" data-pop="aa" aria-haspopup="true" aria-expanded="false" aria-controls="aa"
               aria-label="{{ t("reader.page.text-and-columns", "Text and columns") }}" title="{{ t("reader.page.text-and-columns", "Text and columns") }}"><span class="aa-glyph" aria-hidden="true">A<small>a</small></span></button>
@@ -139,7 +178,7 @@
       of the bar's panels so it is a visit like them: one at a time, focus in and back,
       Escape and a press outside shut it, and a sheet from the foot on a phone. Drawn
       under its own press rather than under the bar (`data-near`). -#}
-  {% if spoken_video %}
+  {% if spoken_audio or spoken_video %}
   <div class="bar-pop rates-pop" id="rates" role="group" aria-labelledby="rates-head" dir="ltr" data-near>
     <div class="more-head"><b id="rates-head">{{ t("reader.page.speed", "Speed") }}</b><button type="button" data-pop-close="rates" aria-label="{{ t("reader.page.close", "Close") }}">×</button></div>
     <div class="film-rates">
@@ -232,31 +271,15 @@
       </div>
     </div>
     {% endif %}
-    {% if has_nikkud or said or has_taamim %}
+    {#- The vowels, the stress marks and how French is said are the bar's own press since
+        2026-10-08 (David, calmer surfaces); the chanting marks stay here. -#}
+    {% if has_taamim %}
     <div class="aa-rule" role="presentation"></div>
-    {% endif %}
-    {#- The vowel points. Russian's stress marks ride the same switch, and say what they
-        are: marked only where two sources agree, so a word left bare is a doubt rather
-        than a gap (targum-internal#260). -#}
-    {% if has_nikkud and stress_marks %}
-    <button type="button" class="aa-switch" data-nikkud-toggle aria-pressed="false"
-            title="{{ t("reader.page.stress-marks-n-we-mark-a-word", "Stress marks (n). We mark a word only where two sources agree, so some words stay bare.") }}"><span class="aa-name">{{ t("reader.page.stress-marks", "Stress marks") }}</span><span class="sw" aria-hidden="true"></span></button>
-    {% elif has_nikkud %}
-    <button type="button" class="aa-switch" data-nikkud-toggle aria-pressed="false"
-            {%- if mark_guessed %} title="{{ t("reader.page.vowel-points-n-where-this-text-left", "Vowel points (n). Where this text left a word bare, we guessed — about 90% right on modern Hebrew, less on classical. We mark the sentences we guessed.") }}"
-            {%- elif source_pointed %} title="{{ t("reader.page.vowel-points-as-this-text-writes-them", "Vowel points, as this text writes them (n)") }}"
-            {%- else %} title="{{ t("reader.page.vowel-points-our-best-guess-about-90", "Vowel points, our best guess — about 90% right on modern Hebrew, less on classical (n)") }}"{% endif %}><span class="aa-name">{{ t("reader.page.vowel-points", "Vowel points") }}</span><span class="sw" aria-hidden="true"></span></button>
     {% endif %}
     {#- The chanting marks, on scripture that carries them. -#}
     {% if has_taamim %}
     <button type="button" class="aa-switch" data-taamim-toggle aria-pressed="true"
             title="{{ t("reader.page.the-chanting-marks-as-the-masorah-wrote", "The chanting marks, as the Masorah wrote them (a)") }}"><span class="aa-name">{{ t("reader.page.chanting-marks", "Chanting marks") }}</span><span class="sw" aria-hidden="true"></span></button>
-    {% endif %}
-    {#- How the French is said (targum-internal#266): the liaisons, the elisions and the
-        letters nobody says, drawn between and over the words, never into them. -#}
-    {% if said %}
-    <button type="button" class="aa-switch" data-said-toggle aria-pressed="false"
-            title="{{ t("said.switch-title", "As said (n). The liaisons every speaker makes, the elisions, and the final letters nobody says.") }}"><span class="aa-name">{{ t("said.switch", "As said") }}</span><span class="sw" aria-hidden="true"></span></button>
     {% endif %}
     <div class="aa-rule" role="presentation"></div>
     <div class="aa-row group" role="group" aria-label="{{ t("reader.page.type-size", "Type size") }}" data-what="Type">
@@ -273,6 +296,32 @@
         <svg viewBox="0 0 20 16" aria-hidden="true" focusable="false"><path d="M7 3.5h10M7 8h10M7 12.5h10M3 2.5v11M1.5 4 3 2.5 4.5 4M1.5 12 3 13.5 4.5 12"></path></svg>
       </button>
     </div>
+    {#- How the page is drawn, from ⋯ since 2026-10-08 (David, calmer surfaces): the
+        highlight of what is not learned yet, pages or one scroll, and one case at a time.
+        Highlighting is only offered on a text with words to mark. -#}
+    {% if words %}
+    <button type="button" class="aa-switch" data-marking aria-pressed="false"
+            title="{{ t("reader.page.highlight-the-words-you-have-not-learned", "Highlight the words you have not learned yet, and clear them as you mark them (m)") }}"><span class="aa-name">{{ t("reader.page.highlight-what-you-have-not-learned", "Highlight what you have not learned") }}</span><span class="sw" aria-hidden="true"></span></button>
+    {% endif %}
+    <button type="button" class="aa-switch" data-paged aria-pressed="false"
+            title="{{ t("reader.page.pages-or-one-long-scroll-b", "Pages, or one long scroll (b)") }}"><span class="aa-name">{{ t("reader.page.pages", "Pages") }}</span><span class="sw" aria-hidden="true"></span></button>
+    {#- One case at a time, on demand. Always-on grammar colouring costs comprehension
+        (Lee & Huang 2008), so nothing is shown until a case is chosen, only one is ever
+        shown, and it is never remembered (targum-internal#261). -#}
+    {% if cases %}
+    <div class="aa-row">
+      <span class="aa-label">{{ t("reader.page.show-one-case", "Show one case") }}</span>
+      <select data-case-lens aria-label="{{ t("reader.page.show-one-case", "Show one case") }}" title="{{ t("reader.page.show-every-word-in-one-case-c", "Show every word in one case (c)") }}">
+        <option value="">{{ t("reader.bar.case-none", "none") }}</option>
+        <option value="Nom">{{ t("reader.bar.case-nom", "nominative") }}</option>
+        <option value="Gen">{{ t("reader.bar.case-gen", "genitive") }}</option>
+        <option value="Dat">{{ t("reader.bar.case-dat", "dative") }}</option>
+        <option value="Acc">{{ t("reader.bar.case-acc", "accusative") }}</option>
+        <option value="Ins">{{ t("reader.bar.case-ins", "instrumental") }}</option>
+        <option value="Loc">{{ t("reader.bar.case-loc", "prepositional") }}</option>
+      </select>
+    </div>
+    {% endif %}
   </div>
 
   {#- Print (targum-internal#415, #421): the week's sheet as a PDF, as the page is when
@@ -290,49 +339,27 @@
   </div>
 
   {#- ⋯: the rare things, each a row named by what it says of itself (`data-what`), its
-      control at the end. Drawn under the press on a wide window and from the foot on a
-      phone, over the page rather than laying it out again (§12, 2026-09-14). -#}
+      control at the end, in the order of ReaderMenus (David, 2026-10-08): this text,
+      then listening, then the screen and the keys. Drawn under the press on a wide
+      window and from the foot on a phone, over the page rather than laying it out again
+      (§12, 2026-09-14). -#}
   <div class="bar-more" id="more" role="dialog" aria-label="{{ t("reader.page.this-text", "This text") }}" dir="ltr">
     <div class="more-head"><b>{{ t("reader.page.this-text", "This text") }}</b><button type="button" data-more aria-label="{{ t("reader.page.close", "Close") }}">×</button></div>
-    {#- Three ways to lay the text out: beside, under, or the text on its own. The
-        drawing is what each does. -#}
-    <div class="group modes" id="modes" role="group" aria-label="{{ t("reader.page.reading-mode", "Reading mode") }}" data-what="{{ t("reader.page.view", "View") }}">
-      <span class="slide" aria-hidden="true"></span>
-      <button type="button" data-mode="parallel" class="on" aria-label="{{ t("reader.page.parallel", "Parallel") }}" title="{{ t("reader.page.translation-beside-the-text-p", "Translation beside the text (p)") }}">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M2.5 4h4M2.5 8h4M2.5 12h4M9.5 4h4M9.5 8h4M9.5 12h4"/>
-        </svg>
+    {#- The view, on a phone, where the bar has no room for its drawings: the same
+        presses, so one idea of which is on. -#}
+    <div class="group modes more-modes" role="group" aria-label="{{ t("reader.page.view", "View") }}" data-what="{{ t("reader.page.view", "View") }}">
+      {%- for key, label, path in [
+        ("parallel", t("reader.bar.beside", "Translation beside the text"), '<path d="M2.5 5h6M2.5 9h6M2.5 13H7M11.5 5h6M11.5 9h6M13 13h4.5"></path>'),
+        ("inter", t("reader.bar.under", "Translation under each line"), '<path d="M3 4h14M3 12h14"></path><path class="faint" d="M5 7.5h10M5 15.5h10"></path>'),
+        ("source", t("reader.bar.alone", "The text on its own"), '<path d="M3 5h14M6 9h11M3 13h14M9 17h8"></path>'),
+      ] %}
+      <button type="button" data-mode="{{ key }}"{% if loop.first %} class="on"{% endif %} aria-pressed="{{ 'true' if loop.first else 'false' }}" aria-label="{{ label }}" title="{{ label }}">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">{{ path|safe }}</svg>
       </button>
-      <button type="button" data-mode="inter" aria-label="{{ t("reader.page.interlinear", "Interlinear") }}" title="{{ t("reader.page.translation-under-each-line-l", "Translation under each line (l)") }}">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M2.5 3.5h11M2.5 9.5h11"/>
-          <path d="M2.5 6.2h6M2.5 12.2h6" class="faint"/>
-        </svg>
-      </button>
-      <button type="button" data-mode="source" aria-label="{{ t("reader.page.source-only", "Source only") }}" title="{{ t("reader.page.the-text-on-its-own-o", "The text on its own (o)") }}">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M2.5 4h11M2.5 8h11M2.5 12h11"/>
-        </svg>
-      </button>
-    </div>
-    {#- Pages, or one long scroll. The drawing is two leaves. -#}
-    <div class="group" data-what="Pages, or one long scroll">
-      <button type="button" class="more-switch" data-paged aria-pressed="false"
-              title="{{ t("reader.page.pages-or-one-long-scroll-b", "Pages, or one long scroll (b)") }}" aria-label="{{ t("reader.page.pages", "Pages") }}">
-        <span class="sw" aria-hidden="true"></span>
-      </button>
-    </div>
-    {#- Reading, or marking. Off is reading: the page is just a page. Only offered on a
-        text that has words to mark — the rest carry no annotation at all. -#}
-    {% if words %}
-    <div class="group" data-what="Highlight what you have not learned">
-      <button type="button" class="more-switch" data-marking aria-pressed="false"
-              title="{{ t("reader.page.highlight-the-words-you-have-not-learned", "Highlight the words you have not learned yet, and clear them as you mark them (m)") }}"
-              aria-label="{{ t("reader.page.highlight-what-you-have-not-learned", "Highlight what you have not learned") }}">
-        <span class="sw" aria-hidden="true"></span>
-      </button>
+      {%- endfor %}
     </div>
     {#- The word list beside the text, which also has its tab at the foot. -#}
+    {% if words %}
     <div class="group" data-what="{{ t("reader.page.word-list", "Word list") }}">
       <button type="button" data-toggle="list" aria-controls="list" aria-label="{{ t("reader.page.word-list", "Word list") }}" title="{{ t("reader.page.word-list", "Word list") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -341,27 +368,40 @@
       </button>
     </div>
     {% endif %}
-    {#- One case at a time, on demand. Always-on grammar colouring costs comprehension
-        (Lee & Huang 2008), so nothing is shown until a case is chosen, only one is ever
-        shown, and it is never remembered (targum-internal#261). -#}
-    {% if cases %}
-    <div class="group" data-what="Show one case">
-      <select data-case-lens aria-label="{{ t("reader.page.show-one-case", "Show one case") }}" title="{{ t("reader.page.show-every-word-in-one-case-c", "Show every word in one case (c)") }}">
-        <option value="">cases</option>
-        <option value="Nom">nominative</option>
-        <option value="Gen">genitive</option>
-        <option value="Dat">dative</option>
-        <option value="Acc">accusative</option>
-        <option value="Ins">instrumental</option>
-        <option value="Loc">prepositional</option>
-      </select>
+    {#- Into a playlist (targum-internal#364). Shown by the script only where the page
+        arrived over a connection: a playlist is kept on the account. -#}
+    <div class="group to-playlist" id="to-playlist" hidden>
+      <a class="more-playlist" id="more-playlist" data-title="{{ title }}">{{ t("reader.page.add-to-playlist", "Add to playlist") }}</a>
+    </div>
+    {#- Talk to targum about this text (2026-09-11). Hidden until the page knows it is
+        served: off a disk there is nothing to talk to. -#}
+    <div class="group" data-what="{{ t("reader.bar.talk-to-targum", "Talk to targum") }}">
+      <button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="{{ t("reader.page.talk-to-targum-about-this-text", "Talk to targum about this text") }}" title="{{ t("reader.page.talk-to-targum-about-this-text", "Talk to targum about this text") }}" hidden>
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg>
+      </button>
+    </div>
+    {#- Where the video lives, opened at the line in front of the reader. Only where it
+        lives somewhere, and not on a post, whose film goes home from the post's head
+        (design.md §12, "A post keeps its shape"). No referrer on the way out. -#}
+    {% if spoken_home and not (post and post.home) %}
+    {#- Only YouTube's address takes a time; any other home opens at the video's start, so
+        its control does not promise the line. -#}
+    {% set home_says = t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") if spoken_home_timed else t("reader.page.open-on-service", "Open on {service}", service=spoken_home_named) %}
+    <div class="group" data-what="{{ t("reader.bar.the-original", "The original") }}">
+      <a class="home" data-home="{{ "at" if spoken_home_timed else "" }}" href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
+         title="{{ home_says }}" aria-label="{{ home_says }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M8.5 3.5H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8.5"/>
+          <path d="M7.5 8.5 13.5 2.5M9.5 2.5h4v4"/>
+        </svg>
+      </a>
     </div>
     {% endif %}
     {#- Watch the recording. Only on a text whose import kept its pictures, and on when
         the text opens: a text that carries media opens as its media (§1, §12). The
         strip at the foot carries the same toggle. -#}
     {% if spoken_video %}
-    <div class="group" data-what="Watch the recording">
+    <div class="group" data-what="{{ t("reader.bar.watch-the-recording", "Watch the recording") }}">
       <button type="button" data-video aria-pressed="false"
               title="{{ t("reader.page.the-video", "The video") }}" aria-label="{{ t("reader.page.the-video", "The video") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -386,49 +426,6 @@
       </button>
     </div>
     {% endif %}
-    {#- Where the video lives, opened at the line in front of the reader. Only where it
-        lives somewhere, and not on a post, whose film goes home from the post's head
-        (design.md §12, "A post keeps its shape"). No referrer on the way out. -#}
-    {% if spoken_home and not (post and post.home) %}
-    {#- Only YouTube's address takes a time; any other home opens at the video's start, so
-        its control does not promise the line. -#}
-    {% set home_says = t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") if spoken_home_timed else t("reader.page.open-on-service", "Open on {service}", service=spoken_home_named) %}
-    <div class="group" data-what="The original">
-      <a class="home" data-home="{{ "at" if spoken_home_timed else "" }}" href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
-         title="{{ home_says }}" aria-label="{{ home_says }}">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M8.5 3.5H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8.5"/>
-          <path d="M7.5 8.5 13.5 2.5M9.5 2.5h4v4"/>
-        </svg>
-      </a>
-    </div>
-    {% endif %}
-    {#- The browser's own full screen, where it has one. `reader.js` shows the row only
-        where the browser can do it (not Safari on a phone). -#}
-    <div class="group" data-what="Full screen" id="fullscreen-group" hidden>
-      <button type="button" data-fullscreen aria-pressed="false" title="{{ t("reader.page.full-screen-f", "Full screen (f)") }}" aria-label="{{ t("reader.page.full-screen", "Full screen") }}">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/>
-        </svg>
-      </button>
-    </div>
-    {#- Talk to targum about this text (2026-09-11). Hidden until the page knows it is
-        served: off a disk there is nothing to talk to. -#}
-    <div class="group" data-what="Talk to targum">
-      <button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="{{ t("reader.page.talk-to-targum-about-this-text", "Talk to targum about this text") }}" title="{{ t("reader.page.talk-to-targum-about-this-text", "Talk to targum about this text") }}" hidden>
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg>
-      </button>
-    </div>
-    {#- The keys say their word (targum-internal#338): a `?` in a corner reads as help.
-        Here the row is already named Keys, so the press keeps the mark. -#}
-    <div class="group" data-what="Keys">
-      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}" title="{{ t("reader.page.keyboard-shortcuts-2", "Keyboard shortcuts (?)") }}"><span class="keys-word">{{ t("reader.page.keys", "Keys") }}</span><span class="keys-mark" aria-hidden="true">?</span></button>
-    </div>
-    {#- Into a playlist (targum-internal#364). Shown by the script only where the page
-        arrived over a connection: a playlist is kept on the account. -#}
-    <div class="group to-playlist" id="to-playlist" hidden>
-      <a class="more-playlist" id="more-playlist" data-title="{{ title }}">{{ t("reader.page.add-to-playlist", "Add to playlist") }}</a>
-    </div>
     {#- Hear a silent text (2026-09-10, targum-internal#246): on a section with no
         recording, the one door that makes one — a call to action, so ink (§9) — with
         what it costs in the reader's own credits beside it (§12, 2026-09-23). Drawn only
@@ -453,6 +450,20 @@
       <button type="button" class="more-close">{{ t("reader.page.close-the-player", "Close the player") }}</button>
     </div>
     {% endif %}
+    {#- The browser's own full screen, where it has one. `reader.js` shows the row only
+        where the browser can do it (not Safari on a phone). -#}
+    <div class="group" data-what="{{ t("reader.page.full-screen", "Full screen") }}" id="fullscreen-group" hidden>
+      <button type="button" data-fullscreen aria-pressed="false" title="{{ t("reader.page.full-screen-f", "Full screen (f)") }}" aria-label="{{ t("reader.page.full-screen", "Full screen") }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/>
+        </svg>
+      </button>
+    </div>
+    {#- The keys say their word (targum-internal#338): a `?` in a corner reads as help.
+        Here the row is already named Keys, so the press keeps the mark. -#}
+    <div class="group" data-what="{{ t("reader.page.keys", "Keys") }}">
+      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}" title="{{ t("reader.page.keyboard-shortcuts-2", "Keyboard shortcuts (?)") }}"><span class="keys-word">{{ t("reader.page.keys", "Keys") }}</span><span class="keys-mark" aria-hidden="true">?</span></button>
+    </div>
   </div>
 </header>
 

@@ -32,8 +32,8 @@ forever** — no gradients, bevels or metallic ramps on them, ever. Interactive 
 UI elements may carry the gloss recipe and hover lift in §9. Metallic gold ramps stay banned
 everywhere.
 
-**A text that carries media opens as its media.** The bar says it can be heard — ▶ Listen,
-first among its tools — and the strip comes up when it is pressed (§12, 2026-10-05); a
+**A text that carries media opens as its media.** The bar says it can be heard — ▶, play,
+first among its tools (a drawing since 2026-10-08, §12) — and the strip comes up when it is pressed (§12, 2026-10-05); a
 picture is on. Nothing plays until pressed — inside a playlist a swipe is a press, see
 §12 (2026-09-23) — and the text is still the page. This replaced
 "the reader is a reader, not a player" on 2026-09-03 — see §12. What that sentence also
@@ -353,6 +353,39 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+
+### The reader's bar goes by how often a thing is pressed — 2026-10-08
+
+David, 2026-10-08, after nine complaints that came down to "everything is way too busy and
+it's hard to find anything" (the calmer-surfaces mockups, boards ReaderBeside and
+ReaderMenus). The one row of "The reader's bar is one row" (2026-10-05) stays one row and
+stays calm; what changes is what stands in it, and that it is drawn rather than written.
+
+- **In the bar, by how often it is pressed:** play (a drawing and, once the voice is
+  placed, its line and clock; no longer the word "Listen"), the speed ("1×", the six
+  speeds as the bar's panel, for every recorded text and not only a video), the one switch
+  of marks the language has (a pointed letter אָ for vowels, а́ for Russian stress, /ə/ for
+  how French is said; nothing where a language has none), the view as three line drawings
+  (beside, under, the text alone), and, on a video, Beside and Theatre as two drawings.
+  Then Aa and ⋯. **Icons, not words**: every one carries its name as `aria-label` and on
+  the hover as `title`, through the strings catalogue, so a Russian interface hears and
+  sees Russian.
+- **Aa is how the text looks and what stands beside it:** text size, line spacing, the
+  highlight of what you have not learned, pages or one scroll, one case at a time, then
+  the level, the translation, the columns, shnayim mikra and the chanting marks.
+- **⋯ keeps the rare things, in this order:** the word list, Add to playlist, talk, the
+  original, the picture, then the listening rows (Hear first, the step, Hear this
+  section, the recording), then full screen and Keys.
+- **On a phone** the row keeps play, the marks, Aa and ⋯; the view is the first row of ⋯
+  (two drawings, since one column has no "beside") and the speed is the strip's.
+- While the picture is up the row under it still plays it and sets its speed, so the
+  bar's play and speed stand down as Listen did.
+
+What it overturns from 2026-10-05: Listen as a word, the vowels as a row of Aa, and the
+view, the highlight, the pages and the case lens as rows of ⋯. What it keeps: one row,
+paper not glass, the live choice quiet raised paper rather than a filled pill, panels as
+visits, the bar stepping back, print where a portion has it, and §8's 44px for every new
+press (`test_brand.py` lists the view's drawings).
 
 ### An advanced reader is not asked about the commonest words — 2026-10-07
 

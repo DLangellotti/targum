@@ -7598,7 +7598,9 @@ var targumReader = function () {
     body.className = body.className.replace(/\bmode-\w+/g, "").trim();
     body.classList.add("mode-" + prefs.mode);
     Array.prototype.forEach.call(document.querySelectorAll("[data-mode]"), function (button) {
-      button.classList.toggle("on", button.getAttribute("data-mode") === prefs.mode);
+      var on = button.getAttribute("data-mode") === prefs.mode;
+      button.classList.toggle("on", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
     });
     placeSlide();
     hideCard();
@@ -8963,7 +8965,13 @@ var targumReader = function () {
 
   function pressOf(name) {
     if (name === "more") return document.querySelector(".bar-tools [data-more]");
-    return document.querySelector('[data-pop="' + name + '"]');
+    // The speed has two presses, the bar's and the one under the picture, and only one
+    // of them is on the screen at a time: that one.
+    var presses = document.querySelectorAll('[data-pop="' + name + '"]');
+    for (var i = 0; i < presses.length; i++) {
+      if (presses[i].getClientRects().length) return presses[i];
+    }
+    return presses[0] || null;
   }
 
   // The panel under its own press, on a wide window: its far edge at the press's. One
@@ -11321,8 +11329,9 @@ var targumReader = function () {
   var slower = player && player.querySelector(".player-slower");
   var faster = player && player.querySelector(".player-faster");
   var rateNow = player && player.querySelector(".player-rate-now");
-  // And the video's "1× ▾" with its six picks (#422), which say the same figure.
-  var filmRateNow = document.querySelector(".film-rate-now");
+  // And the video's "1× ▾" with its six picks (#422), and the bar's own since 2026-10-08,
+  // which all say the same figure.
+  var filmRateNows = Array.prototype.slice.call(document.querySelectorAll(".film-rate-now"));
   var ratePicks = Array.prototype.slice.call(document.querySelectorAll(".film-rate-pick"));
 
   /* Whatever was stored, the nearest step — a number from a version of this table that
@@ -11347,7 +11356,9 @@ var targumReader = function () {
     } catch (e) {}
     var i = RATES.indexOf(rate);
     if (rateNow) rateNow.textContent = rate + "×";
-    if (filmRateNow) filmRateNow.textContent = rate + "×";
+    filmRateNows.forEach(function (now) {
+      now.textContent = rate + "×";
+    });
     ratePicks.forEach(function (pick) {
       pick.setAttribute("aria-pressed", parseFloat(pick.getAttribute("data-rate")) === rate ? "true" : "false");
     });
@@ -11381,6 +11392,15 @@ var targumReader = function () {
     keptRate = localStorage.getItem(RATE_STORE) || 1;
   } catch (e) {}
   setRate(keptRate, false);
+  // The speed's six picks, from "1× ▾" in the bar or under the picture. The panel shuts
+  // itself and hands focus back.
+  ratePicks.forEach(function (pick) {
+    pick.addEventListener("click", function () {
+      setRate(pick.getAttribute("data-rate"), true);
+      var shut = document.querySelector('[data-pop-close="rates"]');
+      if (shut) shut.click();
+    });
+  });
   if (slower) slower.addEventListener("click", function () { stepRate(-1); });
   if (faster) faster.addEventListener("click", function () { stepRate(1); });
   /* The figure itself steps on, and round: on a phone it is the only speed control there
@@ -12538,14 +12558,6 @@ var targumReader = function () {
       });
     }
 
-    // The speed's six picks, from "1× ▾". The panel shuts itself and hands focus back.
-    ratePicks.forEach(function (pick) {
-      pick.addEventListener("click", function () {
-        setRate(pick.getAttribute("data-rate"), true);
-        var shut = document.querySelector('[data-pop-close="rates"]');
-        if (shut) shut.click();
-      });
-    });
 
     /* --- how it stands ------------------------------------------------------------ */
 

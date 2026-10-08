@@ -568,3 +568,75 @@ def test_shnayim_mikra_is_a_switch_and_a_column_press_puts_it_down(
     assert on["held"] and on["heldText"] == "Shown in Read" and on["grey"]
     assert back["on"] == "false" and not back["walking"] and not back["grey"]
     assert targum == "true", "the column pressed is on"
+
+
+# -- by how often it is pressed (David, 2026-10-08, design.md §12) ---------------------
+
+DRAWN = """
+() => {
+  const shown = (el) => !!el && el.getClientRects().length > 0;
+  const named = (el) => ({
+    label: el.getAttribute('aria-label'),
+    title: el.getAttribute('title'),
+    words: el.textContent.trim(),
+    drawn: !!el.querySelector('svg'),
+  });
+  const more = [...document.querySelectorAll('#more .group[data-what]')]
+    .filter((g) => !g.hidden)
+    .map((g) => g.getAttribute('data-what'));
+  return {
+    play: shown(document.querySelector('.bar .listen-play'))
+      && named(document.querySelector('.bar .listen-play')),
+    rate: shown(document.querySelector('.bar .bar-rate'))
+      && named(document.querySelector('.bar .bar-rate')),
+    modes: [...document.querySelectorAll('.bar .bar-tools > .modes button')]
+      .filter(shown).map(named),
+    aa: [...document.querySelectorAll('#aa .aa-name, #aa .aa-label')]
+      .map((e) => e.textContent.trim()),
+    more,
+  };
+}
+"""
+
+
+def test_the_bar_draws_play_the_speed_and_the_view_and_names_each(
+    browser, tmp_path, monkeypatch
+) -> None:  # noqa: F811
+    """Play is a drawing, not the word Listen; the speed stands beside it; the view is three
+    drawings, each named for a screen reader and on the hover. The page's settings that
+    are not pressed every minute are rows of Aa, and ⋯ keeps the rare things."""
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    reader = recorded(tmp_path / "recordings", tmp_path / "reader")
+    context, page = open_page(browser, reader)
+    drawn = page.evaluate(DRAWN)
+    page.click(".bar .bar-rate")
+    page.wait_for_selector("#rates.open")
+    page.click('#rates [data-rate="1.5"]')
+    after = page.evaluate(
+        """() => ({
+          figure: document.querySelector('.bar .bar-rate').textContent.trim(),
+          kept: localStorage.getItem('targum:player-rate'),
+          shut: !document.getElementById('rates').classList.contains('open'),
+        })"""
+    )
+    page.click('.bar [data-mode="inter"]')
+    pressed = page.evaluate(
+        "() => [...document.querySelectorAll('.bar .bar-tools > .modes button')]"
+        ".map((b) => b.getAttribute('aria-pressed'))"
+    )
+    context.close()
+
+    assert drawn["play"] and drawn["play"]["drawn"] and drawn["play"]["words"] == ""
+    assert drawn["play"]["label"], "named for a screen reader"
+    assert drawn["rate"] and drawn["rate"]["words"] == "1×" and drawn["rate"]["label"] == "Speed"
+    assert [m["label"] for m in drawn["modes"]] == [
+        "Translation beside the text",
+        "Translation under each line",
+        "The text on its own",
+    ]
+    assert all(m["drawn"] and m["words"] == "" and m["title"] for m in drawn["modes"])
+    assert after == {"figure": "1.5×", "kept": "1.5", "shut": True}
+    assert pressed == ["false", "true", "false"]
+    assert "Pages" in drawn["aa"] and "Text size" in drawn["aa"]
+    assert "View" in drawn["more"], "the phone's copy of the view is a row of ⋯"
+    assert "Pages, or one long scroll" not in drawn["more"]
