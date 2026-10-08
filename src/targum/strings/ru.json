@@ -3039,5 +3039,12 @@
   "reader.bar.the-original": "Оригинал",
   "reader.bar.talk-to-targum": "Поговорить с targum",
   "reader.film.split": "Видео и текст",
-  "reader.film.split-title": "Потяните, чтобы дать больше места видео или тексту. Двойной щелчок вернёт как было."
+  "reader.film.split-title": "Потяните, чтобы дать больше места видео или тексту. Двойной щелчок вернёт как было.",
+  "reader.film.end-of-part": "Конец части {n} из {count}",
+  "reader.film.end": "Конец",
+  "reader.film.end-ask.one": "{n} слово здесь вы ещё не отметили. Вы его знаете?",
+  "reader.film.end-ask.other": "{n} слова здесь вы ещё не отметили. Вы их знаете?",
+  "reader.film.end-more": "ещё {n}",
+  "reader.film.end-ask.few": "{n} слова здесь вы ещё не отметили. Вы их знаете?",
+  "reader.film.end-ask.many": "{n} слов здесь вы ещё не отметили. Вы их знаете?"
 }

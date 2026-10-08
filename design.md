@@ -404,6 +404,27 @@ be made smaller" (2026-10-07) said "Beside is unchanged"; this is the change.
   the keyboard (← → a twentieth of the room, Home and End its ends) with the focus ring
   and a 44px band under a thumb. Nothing is animated.
 - Beside on a wide window only. Theatre keeps its grip; a phone has one way of standing.
+### The end of a part is the end of a reading, in Theatre too — 2026-10-08
+
+David, 2026-10-08 (calmer surfaces, board ReaderTheatreEnd): Theatre gets the same end of
+a section as reading. Theatre shows no transcript, so the foot that ends every text —
+Done, and mark the words never marked, with its Undo — could not be reached from where a
+film ends; the part ended on "Next part" alone (2026-10-07).
+
+- **Played to its end in Theatre**, the line under the picture gives way to a block in
+  the picture's column: "End of part 2 of 4" ("The end" on a video in one part), how many
+  words here were never marked with the ones met most as quiet chips in the text's own
+  face, and the text's foot. The foot is **moved in, not drawn twice**: one press, one
+  Undo, one count, the same endpoints (the ledger's finish, the words marked known as
+  `markRest` marks them). Next part stays under it as the one primary, and Done steps
+  down to a text link beside it as it does Beside.
+- **It goes back** the moment the film plays or moves, the view changes or the
+  transcript opens: the foot returns under the transcript.
+- **What stays:** Beside, the foot under the transcript is the end, as before; the last
+  part of a recording cut in parts still opens the transcript to its foot, where the
+  library's offer also is; a playlist's end is its own card. The copy is the foot's own
+  ("Done, and mark 14 words known", "Done without marking"), not new words for the same
+  presses.
 
 ### An advanced reader is not asked about the commonest words — 2026-10-07
 
