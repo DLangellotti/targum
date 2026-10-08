@@ -4608,6 +4608,18 @@ class Store:
             )
         return True
 
+    def playlist_made_by(self, person_id: int, playlist_id: int, made_by: str) -> bool:
+        """Whose hand made a playlist, said after it was made: the end card's next set is
+        quoted through the chat's tool and is targum's pick (#435)."""
+        if made_by not in PLAYLIST_MAKERS:
+            return False
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist SET made_by = ? WHERE id = ? AND person = ? AND gone = 0",
+                (made_by, playlist_id, person_id),
+            )
+            return cursor.rowcount > 0
+
     def rename_playlist(self, person_id: int, playlist_id: int, name: str) -> bool:
         name = " ".join(name.split())[:PLAYLIST_NAME]
         if not name:

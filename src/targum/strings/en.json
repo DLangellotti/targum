@@ -2846,5 +2846,22 @@
   "reader.list.play-on": "Play on",
   "reader.list.play-on-title": "When a recording ends, the next one starts",
   "reader.list.of": "{at} of {count}",
-  "reader.list.rail-end": "End"
+  "reader.list.rail-end": "End",
+  "reader.list.minutes": "{n} min",
+  "reader.list.credits.one": "{n} credit",
+  "reader.list.credits.other": "{n} credits",
+  "reader.list.end-could-not": "We couldn't start it. Try again.",
+  "reader.list.end-started": "Getting it ready. It's in your playlists.",
+  "reader.list.end-open": "Open the playlist",
+  "reader.list.end-ready": "It's ready in your playlists.",
+  "reader.list.by-assistant": "From an assistant",
+  "reader.list.by-targum": "From targum",
+  "reader.list.texts.one": "{n} text",
+  "reader.list.texts.other": "{n} texts",
+  "reader.list.picked": "picked for the words you just met",
+  "reader.list.known": "{share}% known",
+  "reader.list.credits-in-all.one": "Uses {n} credit in all",
+  "reader.list.credits-in-all.other": "Uses {n} credits in all",
+  "reader.list.change": "Change what's in it",
+  "reader.list.confirm": "Confirm"
 }

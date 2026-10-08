@@ -223,36 +223,6 @@
   }
 
 
-  function tile(figure, label) {
-    var box = document.createElement("span");
-    box.className = "tile";
-    var b = document.createElement("b");
-    b.textContent = figure;
-    box.appendChild(b);
-    var under = document.createElement("span");
-    under.textContent = label;
-    box.appendChild(under);
-    return box;
-  }
-
-  function drawFigures(end) {
-    var sum = addUp(tallies()[list]);
-    if (!sum) return;
-    var row = document.createElement("p");
-    row.className = "list-end-tiles";
-    row.appendChild(
-      tile(String(sum.texts), tn("reader.list.end-texts", sum.texts, "text finished", "texts finished"))
-    );
-    row.appendChild(
-      tile("+" + sum.known, tn("reader.finish.known", sum.known, "word known", "words known"))
-    );
-    row.appendChild(tile(sum.share + "%", t("reader.finish.known-here", "known here")));
-    row.appendChild(
-      tile(String(sum.looked), tn("reader.finish.looked", sum.looked, "word looked up", "words looked up"))
-    );
-    end.appendChild(row);
-  }
-
   function backward(how) {
     if (near.back === null) return false;
     note(how);
@@ -260,86 +230,215 @@
     return true;
   }
 
-  /* The end card, once (#367): real counts, the words themselves, and one door, and
-   * nothing that loads more. When the end has nothing to say — end.json failed, or
-   * answered with neither — it still says where the reader is and where their
-   * playlists are. */
+  /* The end card, once (#367, #435; design.md §12, 2026-10-09): what the set held, the
+   * words met with what they mean, and one next set picked for them — confirmed here, on
+   * the card, or changed on its own page. Nothing that loads more. When the end has
+   * nothing to say it still says where the reader is and where their playlists are. */
+  function line(className, text) {
+    var node = document.createElement("p");
+    node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function wordsMet(end, words) {
+    end.appendChild(
+      line(
+        "list-end-words",
+        words.new
+          ? tn(
+              "reader.list.end-words-new",
+              words.met,
+              "You met {n} word, {new} of them new.",
+              "You met {n} words, {new} of them new.",
+              { new: words.new }
+            )
+          : tn("reader.list.end-words", words.met, "You met {n} word.", "You met {n} words.")
+      )
+    );
+    // The words, not only their count, the new ones first, as many as the server names;
+    // each with its meaning where the text's glossary has one.
+    var shown = Array.isArray(words.list) ? words.list : [];
+    if (!shown.length) return;
+    var chips = document.createElement("ul");
+    chips.className = "list-end-list";
+    shown.forEach(function (one) {
+      var row = document.createElement("li");
+      if (one.new) row.className = "new";
+      var word = document.createElement("bdi");
+      word.setAttribute("dir", "auto");
+      if (one.language) word.setAttribute("lang", String(one.language));
+      word.textContent = String(one.word || "");
+      row.appendChild(word);
+      if (one.gloss) {
+        var gloss = document.createElement("span");
+        gloss.className = "list-end-gloss";
+        gloss.setAttribute("dir", "ltr");
+        gloss.textContent = String(one.gloss).split(/[;,]/)[0].trim();
+        row.appendChild(gloss);
+      }
+      chips.appendChild(row);
+    });
+    end.appendChild(chips);
+  }
+
+  function minutesOf(n) {
+    return t("reader.list.minutes", "{n} min", { n: n });
+  }
+
+  function creditsOf(n) {
+    return tn("reader.list.credits", n, "{n} credit", "{n} credits");
+  }
+
+  // Confirm: the set's own press, here (`POST /set/<id>`, all or nothing).
+  function confirmSet(next, foot) {
+    var press = foot.querySelector(".list-end-confirm");
+    var said = foot.querySelector(".list-end-said");
+    press.disabled = true;
+    said.hidden = true;
+    var headers = { "Content-Type": "application/json", "X-Targum-Press": "1" };
+    if (key) headers["X-Targum-Key"] = key;
+    fetch(keyed("/set/" + next.id), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: headers,
+      body: JSON.stringify({
+        keep: (next.items || []).map(function (item, n) {
+          return n;
+        }),
+      }),
+    })
+      .then(function (answer) {
+        return answer
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (body) {
+            return { ok: answer.ok, body: body || {} };
+          });
+      })
+      .then(function (got) {
+        if (!got.ok) {
+          press.disabled = false;
+          said.hidden = false;
+          said.textContent = got.body.error || t("reader.list.end-could-not", "We couldn't start it. Try again.");
+          return;
+        }
+        started(next, foot);
+      })
+      .catch(function () {
+        press.disabled = false;
+        said.hidden = false;
+        said.textContent = t("reader.list.end-could-not", "We couldn't start it. Try again.");
+      });
+  }
+
+  function started(next, foot) {
+    foot.textContent = "";
+    var note = line("list-end-started", t("reader.list.end-started", "Getting it ready. It's in your playlists."));
+    note.setAttribute("role", "status");
+    foot.appendChild(note);
+    var go = document.createElement("a");
+    go.className = "list-end-next";
+    go.href = keyed(String(next.page || "/playlists"));
+    go.textContent = t("reader.list.end-open", "Open the playlist");
+    foot.appendChild(go);
+  }
+
+  function nextSet(end, next) {
+    var card = document.createElement("section");
+    card.className = "list-end-set";
+    card.appendChild(line("list-end-lead", t("reader.list.end-next", "Next playlist")));
+    var name = document.createElement("h3");
+    name.className = "list-end-name";
+    var bdi = document.createElement("bdi");
+    bdi.setAttribute("dir", "auto");
+    bdi.textContent = String(next.name || "");
+    name.appendChild(bdi);
+    card.appendChild(name);
+    var facts = [
+      next.made_by === "connector"
+        ? t("reader.list.by-assistant", "From an assistant")
+        : t("reader.list.by-targum", "From targum"),
+      tn("reader.list.texts", next.count || 0, "{n} text", "{n} texts"),
+    ];
+    if (next.seconds) facts.push(minutesOf(Math.round(next.seconds / 60)));
+    facts.push(t("reader.list.picked", "picked for the words you just met"));
+    card.appendChild(line("list-end-facts", facts.join(" · ")));
+    var rows = document.createElement("ul");
+    rows.className = "list-end-items";
+    (next.items || []).forEach(function (item) {
+      var row = document.createElement("li");
+      var title = document.createElement("bdi");
+      title.setAttribute("dir", "auto");
+      title.className = "list-end-item";
+      title.textContent = String(item.title || "");
+      row.appendChild(title);
+      var said = [];
+      if (item.minutes) said.push(minutesOf(item.minutes));
+      if (typeof item.known === "number") {
+        said.push(t("reader.list.known", "{share}% known", { share: Math.round(item.known * 100) }));
+      }
+      row.appendChild(line("list-end-item-facts", said.join(" · ")));
+      if (item.credits) row.appendChild(line("list-end-item-credits", creditsOf(item.credits)));
+      rows.appendChild(row);
+    });
+    card.appendChild(rows);
+    var foot = document.createElement("div");
+    foot.className = "list-end-foot";
+    if (next.state === "waiting") {
+      foot.appendChild(
+        line(
+          "list-end-total",
+          tn("reader.list.credits-in-all", next.credits || 0, "Uses {n} credit in all", "Uses {n} credits in all")
+        )
+      );
+      var change = document.createElement("a");
+      change.className = "list-end-change";
+      change.href = keyed(String(next.open));
+      change.textContent = t("reader.list.change", "Change what's in it");
+      foot.appendChild(change);
+      var press = document.createElement("button");
+      press.type = "button";
+      press.className = "list-end-confirm";
+      press.textContent = t("reader.list.confirm", "Confirm");
+      press.addEventListener("click", function () {
+        confirmSet(next, foot);
+      });
+      foot.appendChild(press);
+      var said = line("list-end-said");
+      said.setAttribute("role", "status");
+      said.hidden = true;
+      foot.appendChild(said);
+    } else {
+      started(next, foot);
+      if (next.state === "ready") {
+        foot.firstChild.textContent = t("reader.list.end-ready", "It's ready in your playlists.");
+      }
+    }
+    card.appendChild(foot);
+    end.appendChild(card);
+  }
+
   function drawEnd(end, said) {
     var words = said && said.words;
     var next = said && said.next;
-    drawFigures(end);
-    if (!(words && words.met) && !(next && next.open)) {
-      var over = withTitle(
-        document.createElement("p"),
-        t("reader.list.end-of", "That's the end of {name}."),
-        "name",
-        setName
-      );
-      over.className = "list-end-over";
-      end.appendChild(over);
-      var home = document.createElement("a");
-      home.className = "list-end-home";
-      home.href = keyed("/playlists");
-      home.textContent = t("reader.list.your-playlists", "Your playlists");
-      end.appendChild(home);
-      return;
-    }
-    if (words && words.met) {
-      var met = document.createElement("p");
-      met.className = "list-end-words";
-      met.textContent = words.new
-        ? tn(
-            "reader.list.end-words-new",
-            words.met,
-            "You met {n} word, {new} of them new.",
-            "You met {n} words, {new} of them new.",
-            { new: words.new }
-          )
-        : tn(
-            "reader.list.end-words",
-            words.met,
-            "You met {n} word.",
-            "You met {n} words."
-          );
-      end.appendChild(met);
-      // The words, not only their count (design.md §12: "the words met across the set"):
-      // the new ones first, as many as the server names — it caps them.
-      var shown = Array.isArray(words.list) ? words.list : [];
-      if (shown.length) {
-        var list = document.createElement("ul");
-        list.className = "list-end-list";
-        shown.forEach(function (one) {
-          var row = document.createElement("li");
-          if (one.new) row.className = "new";
-          var word = document.createElement("bdi");
-          word.setAttribute("dir", "auto");
-          if (one.language) word.setAttribute("lang", String(one.language));
-          word.textContent = String(one.word || "");
-          row.appendChild(word);
-          list.appendChild(row);
-        });
-        end.appendChild(list);
-      }
-    }
-    if (next && next.open) {
-      var lead = document.createElement("p");
-      lead.className = "list-end-lead";
-      lead.textContent = t("reader.list.end-next", "Next playlist");
-      end.appendChild(lead);
-      var door = document.createElement("a");
-      door.className = "list-end-next";
-      door.href = keyed(String(next.open));
-      // One span inside the pill, so the name and its count stay one line of text.
-      var label = document.createElement("span");
-      withTitle(
-        label,
-        tn("reader.list.end-next-door", next.count || 0, "{name}, {n} text", "{name}, {n} texts"),
-        "name",
-        String(next.name || "")
-      );
-      door.appendChild(label);
-      end.appendChild(door);
-    }
+    var over = withTitle(
+      document.createElement("h2"),
+      t("reader.list.end-of", "That's the end of {name}."),
+      "name",
+      setName
+    );
+    over.className = "list-end-over";
+    end.appendChild(over);
+    if (words && words.met) wordsMet(end, words);
+    if (next && next.open) nextSet(end, next);
+    var home = document.createElement("a");
+    home.className = "list-end-home";
+    home.href = keyed("/playlists");
+    home.textContent = t("reader.list.your-playlists", "Your playlists");
+    end.appendChild(home);
   }
   var ended = false;
   function fillEnd(end) {
