@@ -354,6 +354,139 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A subscription is the account's, and what it brings comes under Continue — 2026-10-09
+
+David, 2026-10-08 (the calmer-surfaces boards SubsTab, SubDetail, SubHome, SubConfirm,
+SubCapped and SubMail), building the Subscriptions tab that "Your targums has tabs" left
+for this slice. "Following" was a fact about a browser (`targum:follows`), mirrored to an
+address-keyed `follow` row for the mail. It is now a row on the account.
+
+- **Five things can be subscribed to.** targum's series (the weekly, the weekly portion,
+  each learning cycle) and news — a topic across the papers targum reads, or one outlet —
+  for free; and a YouTube channel or a podcast, which is the subject of the two entries
+  below. Subscribing happens on a series' own page, on a Library row, and from a
+  conversation or the connector, offered there and confirmed on targum's page. **Not at
+  onboarding**: the arrival asks nothing about it.
+- **What a subscription brings comes under Continue, marked New**, ahead of what the
+  reader opened, and in the one mail a day (below). A series' instalment and a channel's
+  video that got itself ready open as texts; a news article arrives as a link, and its
+  press is the Upload page with the address already in the box, as the connector's text
+  card does it — free to look at, built only on that press.
+- **Pause stops both the building and the mail.** On Resume, whatever came out in the
+  meantime is listed on the subscription's page with a press each, and is never built by
+  itself. **What came out before subscribing** is listed the same way. Neither is "missed":
+  a past instalment is marked Read or Started, or not marked at all.
+- **The tab is a table of them** — each with its newest item, how often it comes out and,
+  for a channel or a podcast, the month's credits against its cap — sorted into All,
+  Series, News, Channels and Podcasts, and **each has a page of its own**, `/subscriptions/
+  <id>`: its items newest first, its cap, Pause and Unsubscribe.
+- **Every existing follow carried across** to its account, once, with its stop token, so a
+  link in a mail already sent still stops it. The weekly's anonymous subscribers
+  (`/weekly/subscribe`, no account) are left exactly as they are.
+
+What it does not overturn: nothing a series or a news topic brings spends; the reader's
+own press is still the only way a link becomes a text; a subscription is never a feed that
+tops itself up for reading's sake — it brings what its source put out, once.
+
+
+### A channel or a podcast is subscribed to, never built from its address — 2026-10-09
+
+`video/youtube.py` refuses a channel address with "a channel is somebody's whole shelf",
+and "A playlist is swiped, and one press takes the set" (2026-09-23) kept the refusal as
+the harvest guard: an address names somebody else's list. David reversed it for one door
+on 2026-10-08: **a channel address — and a podcast's feed — is accepted only as a
+subscription.**
+
+- **Only going forward.** A subscription builds what the channel or the podcast puts out
+  *after* the reader subscribed, one item at a time, each as it comes out. Its back
+  catalogue is listed with a press each and never built in bulk; there is no "build the
+  channel".
+- **Every build is still one item through `Library.claim`.** Each new video or episode is
+  a `job` row of its own, of kind `subscription`, made the way a pasted link's is
+  (`Library.prepare`), priced, and claimed through `Library.press` — the plan's credits and
+  the box's ceiling exactly as for any build — then settled to what it spent and released
+  if it fails. There is no second path to the rails and no second counter.
+- **The other doors still refuse.** `quote_build`, `quote_set`, the Upload page and a
+  playlist still take one video at a time; a channel address pasted there is still told
+  so. The subscription's confirm page is the only place the address is read as a channel.
+- **Fetched the way a pasted video is.** Through the residential proxy and the token
+  minter, with no ceiling on the proxy's gigabytes (David, 2026-10-08). New uploads are
+  found with the Data API key `video/discover.py` already holds, a podcast's episodes from
+  its feed (`audio/episode.py`), and nothing is scraped.
+- **Private, as every import is.** A video a subscription built is the reader's own text,
+  never the catalogue's (#126), and never trains anything.
+
+
+### A monthly cap is the second press that lasts — 2026-10-09
+
+"A scope is a press that lasts" (2026-09-22) made one standing consent: the `chat` scope,
+under which `record_turn` spends without a card. A channel or a podcast that builds by
+itself needs a second, and this is it, said before any of it is built.
+
+- **The cap is set once, on targum's own confirm page**, in credits a month for that one
+  subscription: 30, 60, 120 or 240, **60 by default** (an hour), with what a new item
+  usually uses and how many that is. The press on Subscribe is the consent. It is changed
+  or stopped on the subscription's page and nowhere else; Pause and Unsubscribe stop it at
+  once.
+- **Inside every rail that already exists.** An item builds only if its credits fit the
+  month's cap *and* `Library.claim` passes it — the plan's credits for the month and the
+  box's ceiling, unchanged. The month's use is read off the subscription's own job rows
+  (`SUM(length)` since the 1st), so there is still one ledger. A refusal is not an error:
+  the item waits, says until when, and goes on its own when the month turns or the cap is
+  raised.
+- **The reader hears about it once.** The first item that waits is in the next day's mail
+  with "Raise the cap"; others that wait with it are not mailed again.
+- **The model never sets a cap.** `quote_subscription` returns a link to the confirm page
+  and nothing else; the cap is chosen there, by the reader. Nothing over MCP subscribes,
+  raises a cap or resumes a subscription.
+- **Paid plans only**, behind `TARGUM_PLANS`: a free account may subscribe to series and
+  news but not to a channel or a podcast. With the switch off, as it is until a payment
+  provider is chosen, everybody may.
+
+What it does not overturn: a build a reader asks for is still quoted and pressed; the
+`chat` scope stays the one standing consent a host can hold; and a cost is still credits,
+never money.
+
+
+### Everything new comes in one mail a day — 2026-10-09
+
+"Mail is drawn, and fetches nothing" (2026-09-27) said **daily series are not mailed**,
+because a mail every day is the ping a reader deletes an app over, and `series.mailed()`
+kept the cycles out. David reversed it on 2026-10-08, and the answer to the ping is the
+bundle: **one mail a day, with everything new** from every subscription — the daily cycles
+included, a channel's video that got itself ready, the news topic's articles as links, and
+an item waiting on its cap.
+
+- **One mail, not one per thing.** Nothing new, no mail. The weekly keeps its own Monday
+  mail and is not repeated in the daily one; an account subscribed to nothing but the
+  weekly gets nothing more than it did.
+- **A list, and it says so**: `List-Id`, `List-Unsubscribe` with RFC 8058's one-click
+  `List-Unsubscribe-Post`, which stops every subscription the mail carries, and under each
+  subscription in the body its own Unsubscribe. A paused subscription is left out.
+- **Drawn as every mail is**: the app's palette, nothing fetched, light only, and each
+  title in its own language's face.
+
+What it does not overturn: the weekly's Monday mail and its anonymous subscribers; no
+counts, no streaks and nothing urgent in a subject line.
+
+
+### A third card, the offer — 2026-10-09
+
+"A card in someone else's chat" (2026-10-06) allowed two cards, a text and a build, and
+said a third needs an entry here. This is it: **one offer card** for both things a model
+can offer a reader but never press — a set (`quote_set`) and a subscription
+(`quote_subscription`, new, under the `chat` scope).
+
+- **What it says.** For a set: its name, each text with its length and credits, the
+  total. For a subscription: the channel, podcast, series or topic, how often it puts
+  something out and what one usually uses, and that the cap is chosen on targum.
+- **One door, to targum's page** — the set's press page, or the subscription's confirm
+  page — saying Confirm. It is drawn as the other two are: chrome, the host's theme,
+  nothing fetched, no tool asked for, and **it never presses**.
+- **The model is told less**: one line, and the link on a line of its own, as every quote
+  already says.
+
+
 ### The end of a playlist offers a set picked for the words just met, confirmed on the card — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards PlaylistEnd and PlaylistEndPhone;
@@ -1840,7 +1973,8 @@ chose HTML for all seven.
   five are transactional or asked for once, and carry none of these.
 - **Daily series are not mailed.** A daily cycle's instalment lands on Learn and in the
   bell, but a mail every day is the ping a reader deletes an app over (Dmitry,
-  2026-09-16). Weekly or slower is mailed.
+  2026-09-16). Weekly or slower is mailed. *(Reversed 2026-10-09: everything new comes in one mail a
+  day, the cycles included — see "Everything new comes in one mail a day".)*
 - **The digest has one public name, Weekly News Digest** («Недельный обзор новостей»),
   in its subjects, pages and strings. "the weekly" is the team's word, which §6 names as
   the public-page failure mode. מבט השבוע stays as the issue's own Hebrew masthead.
@@ -2450,7 +2584,10 @@ of it is built.
   this one covers a list the reader can read before they press. What does **not** change
   is the harvest guard: a playlist, channel or feed *address* is still refused, because
   an address names somebody else's list, and the set is a list the reader (or a model on
-  their behalf) wrote out item by item. Every item is still their private import and
+  their behalf) wrote out item by item. *(Amended 2026-10-09: a channel or a podcast's
+  feed is accepted as a subscription, going forward only and an item at a time — see "A
+  channel or a podcast is subscribed to, never built from its address". Every other door
+  still refuses it.)* Every item is still their private import and
   never the catalogue (#126). A set is capped, at twenty to start — the number is the
   build's to tune, the cap is not.
 
