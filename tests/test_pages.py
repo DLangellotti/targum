@@ -495,9 +495,12 @@ def test_the_library_is_one_list() -> None:
     which room a text was in before they could find it, which is backwards for the one
     page whose whole job is finding something."""
     library = PAGES["library"]
-    assert 'id="shelves"' not in library, "no room switcher"
+    assert 'id="where"' in library
+    # The shelves by level (design.md §12, 2026-10-09) are not rooms: each is the one
+    # list under one band, and its See all is that list. What stays gone is the switch.
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert "SHELVES" not in source and "drawShelves" not in source
+    assert "SHELVES" not in source, "no room switcher"
+    assert "function seeBand(" in source and 'view.where = "library";' in source
     # The name came back on 2026-09-19 (design.md §12, targum-internal#340) and the rooms
     # did not: the Beit Midrash is a tab over the same list, which is the thing this test
     # was always protecting. It draws with the list's own rows and cards, it has no
@@ -714,7 +717,9 @@ def test_a_row_carries_a_cover_and_falls_back_to_the_text() -> None:
     """The covers are drawn one at a time and arrive over months. A library with none of
     them yet has to look deliberate rather than broken."""
     library = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert 'keyed("/thumb/"' in library, "it asks for a cover"
+    # Through the one helper, `?drawn=1`, since 2026-10-09: the server answers with the
+    # letter on the colour of its kind where there is no picture.
+    assert "window.TargumCovers.picture(" in library, "it asks for a cover"
 
     covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
     assert "glyph.textContent = letter" in covers, "and draws the first letter meanwhile"
@@ -727,10 +732,13 @@ def test_the_cover_tile_is_defined_once() -> None:
     tile that drifts: one page would keep a fix and the other would not."""
     covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
     assert "function tile(" in covers
-    for page in ("library.js", "shelf.js"):
+    for page, helper in (
+        ("library.js", "TargumCovers.picture("),
+        ("shelf.js", "TargumCovers.tile("),
+    ):
         source = (ASSETS / page).read_text(encoding="utf-8")
         assert "function thumb(" not in source, f"{page} should use the shared tile"
-        assert "TargumCovers.tile(" in source, f"{page} does not draw one"
+        assert helper in source, f"{page} does not draw one"
     # Home draws its pictures through the one helper (targum-internal#429 swaps it).
     home = (ASSETS / "home.js").read_text(encoding="utf-8")
     assert "covers.picture(" in home and "function tile(" not in home

@@ -25,6 +25,8 @@ const byId = install({
   TARGUM_KEY: "k",
   TARGUM_CATALOGUE: payload.catalogue,
   TARGUM_COLLECTIONS: payload.collections || [],
+  // targum's own playlists, a shelf of their own (design.md §12, 2026-10-09).
+  TARGUM_SETS: payload.sets || [],
   TARGUM_LANGUAGES: { he: "Hebrew", ru: "Russian" },
   // The page's words in a reader's language, as the builder hands them over; none is English.
   TARGUM_STRINGS: payload.strings,
@@ -55,6 +57,16 @@ const byId = install({
   },
 });
 
+/* Every picture the page asks the server for, so a test can see the address. */
+const asked = [];
+global.Image = function () {
+  return {
+    set src(value) {
+      asked.push(String(value));
+    },
+  };
+};
+
 /* The tree writes its address with `replaceState` (targum-internal#340). The stub keeps
    the hash the way a browser would, so a test can read where the page says it is. */
 global.history = global.window.history = {
@@ -64,7 +76,11 @@ global.history = global.window.history = {
   },
 };
 // Learn links here with the id in the hash, and `pointAt` is what answers it.
+/* The Library lands on its shelves since 2026-10-09 and the list is `#see`. Nearly every
+   test here is about the list, so that is where they open unless they say `shelves` —
+   which is a reader arriving at the Library with no address at all. */
 if (payload.hash) global.location.hash = payload.hash;
+else if (!payload.shelves) global.location.hash = "#see";
 
 /* Two answers now: the shelf, and what is building on it (design.md §12, 2026-09-17).
    The library asks for both at once, so the stub tells them apart by the address rather
@@ -123,6 +139,18 @@ setTimeout(() => {
     if (step.schedule) {
       const press = byId["portion-schedule"].children.find((c) => c.textContent === step.schedule);
       if (press) press.fire("click", {});
+    }
+    /* The shelves: `{see: "now"}` presses a shelf's See all, `{back: true}` the way back,
+       `{type: "ruth"}` types into the search box. */
+    if (step.see) {
+      const section = byId["shelves"].children.find((c) => c.getAttribute && c.getAttribute("data-band") === step.see);
+      const all = section && section.children[0].children.find((c) => c.className === "band-all");
+      if (all) all.fire("click", {});
+    }
+    if (step.back) byId["see-back-link"].fire("click", {});
+    if (step.type !== undefined) {
+      byId["find"].value = step.type;
+      byId["find"].fire("input", {});
     }
     if (step.crumb) {
       const back = byId["crumbs"].children.find((c) => c.tagName === "button");
@@ -265,10 +293,45 @@ setTimeout(() => {
       shapeOn:
         (byId["shape"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
       empty: byId["picked-empty"].textContent,
-      // The one line that says what the list is, and whether it was drawn under the
-      // heading (a first visit that opened on the Scenes) or under the controls.
-      note: byId["picked-lead"].hidden ? byId["picked-note"].textContent : byId["picked-lead"].textContent,
-      noteLeads: !byId["picked-lead"].hidden,
+      // The one line that says what the list is.
+      note: byId["picked-note"].textContent,
+      /* The shelves (design.md §12, 2026-10-09): whether they are up, and each shelf drawn,
+         in order, with its heading, its note and its cards. */
+      pictures: asked,
+      shelving: !byId["shelves"].hidden,
+      backShown: !!byId["see-back"] && !byId["see-back"].hidden,
+      shelves: (byId["shelves"].children || [])
+        .filter((c) => c.getAttribute && c.getAttribute("data-band"))
+        .map((section) => {
+          const head = section.children[0];
+          const note = section.children.find((c) => c.className === "band-note");
+          const list = section.children.find((c) => c.className === "band-cards");
+          return {
+            band: section.getAttribute("data-band"),
+            name: head.children[0].textContent,
+            seeAll: !!head.children.find((c) => c.className === "band-all"),
+            note: note ? note.textContent : "",
+            cards: list.children.map((item) => {
+              const open = item.children[0];
+              const part = (name) =>
+                (open.children.find((c) => String(c.className).split(" ").indexOf(name) >= 0) || {}).textContent || "";
+              const cover = open.children[0];
+              const pictures = (cover.children || []).filter((c) => String(c.className).indexOf("thumb") >= 0);
+              return {
+                id: item.getAttribute("data-row") || item.getAttribute("data-set") || "",
+                kind: part("band-kind"),
+                title: part("band-title"),
+                known: part("band-known"),
+                near: !!open.children.find((c) => String(c.className) === "band-known near"),
+                chip: part("row-next"),
+                opens: open.tagName,
+                href: open.href || "",
+                pictures: pictures.length,
+              };
+            }),
+          };
+        }),
+      shelvesNote: ((byId["shelves"].children || []).find((c) => String(c.className).indexOf("shelves-note") >= 0) || {}).textContent || "",
       // The heading over the share column, and whether it can be pressed.
       shareHead: (() => {
         const head = byId["rows-head"].children.find((c) => c.className === "drop" && /Hard words|Scene number/.test(c.textContent));

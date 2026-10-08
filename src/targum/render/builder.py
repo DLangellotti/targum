@@ -3349,7 +3349,7 @@ def library_page(token: str, language: str = "en") -> str:
     ship with targum, and a page that has to ask the server for them would be a page
     that can be empty.
     """
-    from ..catalogue import collections, everything
+    from ..catalogue import collections, everything, swipe_sets
 
     return (
         _environment()
@@ -3363,6 +3363,10 @@ def library_page(token: str, language: str = "en") -> str:
             # for the same reason — and only the members actually on the shelf, so a
             # collection can never open onto a row that is not there.
             collections=[group.state() for group in collections()],
+            # targum's own playlists, a shelf of their own (design.md §12, 2026-10-09).
+            # The page offers only the ones with members built on the shared shelf, as
+            # `Library.targum_sets` does, from what `/readers` says is there.
+            sets=[group.state() for group in swipe_sets()],
             languages=_language_names(language),
             strings=script_strings(language, "library."),
         )
