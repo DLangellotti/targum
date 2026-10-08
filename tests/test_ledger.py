@@ -212,6 +212,49 @@ class TestRoundTrip:
             assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("2",)
             assert db.execute("SELECT COUNT(*) FROM pointings").fetchone()[0] == 8
 
+    def test_a_migration_that_died_part_way_is_finished_by_the_next_open(
+        self, tmp_path: Path
+    ) -> None:
+        """Review, 2026-10-08: a copy that failed after making `vocalizations_2` left it
+        behind, and every later open failed on it, so the ledger stopped recording and a
+        departed reader's rows were never forgotten."""
+        file = tmp_path / "corpus.db"
+        ledger.Ledger(file).record("vocalize", "k1", POINTED)
+        with sqlite3.connect(file) as db:
+            db.executescript(
+                "CREATE TABLE v1 AS SELECT id, stage, cache_key, document_hash, language,"
+                " tool, tool_version, schema_version, written_at FROM vocalizations;"
+                " DROP TABLE vocalizations;"
+                " CREATE TABLE vocalizations (id INTEGER PRIMARY KEY, stage TEXT NOT NULL,"
+                " cache_key TEXT NOT NULL UNIQUE, document_hash TEXT NOT NULL,"
+                " language TEXT NOT NULL, tool TEXT NOT NULL, tool_version TEXT,"
+                " schema_version INTEGER NOT NULL, written_at TEXT NOT NULL);"
+                " INSERT INTO vocalizations SELECT * FROM v1; DROP TABLE v1;"
+                " DROP INDEX IF EXISTS vocalizations_current;"
+                " UPDATE meta SET value = '1' WHERE key = 'schema';"
+                # What a migration that died after its first statement left behind.
+                " CREATE TABLE vocalizations_2 (id INTEGER PRIMARY KEY);"
+            )
+        book = ledger.Ledger(file)
+        assert book.get("vocalize", "k1") == POINTED
+        book.record("vocalize", "k1", {**POINTED, "machine": []})
+        with sqlite3.connect(file) as db:
+            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("2",)
+            assert not db.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'vocalizations_2'"
+            ).fetchone()
+
+    def test_the_same_value_again_adds_no_history(self, tmp_path: Path) -> None:
+        """A rebuild that changed nothing writes nothing: otherwise every `rebuild --words`
+        adds a copy of every text's tokens (review, 2026-10-08)."""
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("vocalize", "k1", POINTED)
+        book.record("vocalize", "k1", POINTED)
+        book.record("tokens", "t", _annotation("grammar/2"))
+        book.record("tokens", "t", _annotation("grammar/2"))
+        assert len(book.history("vocalize", "k1")) == 1
+        assert len(book.history("tokens", "t")) == 1
+
     @pytest.mark.parametrize(
         "value",
         [

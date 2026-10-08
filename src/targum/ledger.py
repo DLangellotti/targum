@@ -172,6 +172,10 @@ class Ledger:
             raise ValueError(f"the ledger does not record {stage!r} yet")
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
+            # The same value again is not history: a rebuild that changed nothing writes
+            # nothing, or every `rebuild --words` would add a copy of every text.
+            if _bytes(_read(db, stage, key)) == _bytes(value):
+                return
             # What the key held stays, as history; it is only no longer the answer.
             db.execute(
                 f"UPDATE {_HEAD[stage]} SET superseded_at = ?"  # noqa: S608 - a fixed name
@@ -412,7 +416,18 @@ def _migrate(db: sqlite3.Connection) -> None:
     found = db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()
     if found is None or int(found[0]) >= LEDGER_SCHEMA:
         return
-    with db:
+    # One transaction, opened by hand and holding the write lock from the start. Python's
+    # sqlite3 commits a CREATE TABLE on its own outside an explicit BEGIN, so a copy that
+    # failed after it left `vocalizations_2` behind, and every later open then failed on
+    # it (review, 2026-10-08). Asked again inside the lock, because another process may
+    # have migrated while this one waited for it.
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        again = db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()
+        if again is None or int(again[0]) >= LEDGER_SCHEMA:
+            db.execute("ROLLBACK")
+            return
+        db.execute("DROP TABLE IF EXISTS vocalizations_2")
         db.execute(
             "CREATE TABLE vocalizations_2 (id INTEGER PRIMARY KEY, stage TEXT NOT NULL,"
             " cache_key TEXT NOT NULL, document_hash TEXT NOT NULL, language TEXT NOT NULL,"
@@ -428,6 +443,10 @@ def _migrate(db: sqlite3.Connection) -> None:
         db.execute("DROP TABLE vocalizations")
         db.execute("ALTER TABLE vocalizations_2 RENAME TO vocalizations")
         db.execute("UPDATE meta SET value = ? WHERE key = 'schema'", (str(LEDGER_SCHEMA),))
+        db.execute("COMMIT")
+    except BaseException:
+        db.execute("ROLLBACK")
+        raise
 
 
 def _read(db: sqlite3.Connection, stage: str, key: str) -> dict[str, Any] | None:

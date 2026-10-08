@@ -241,6 +241,26 @@ def test_half_a_chapter_is_not_a_chapter_read(tmp_path: Path, monkeypatch) -> No
     }
 
 
+def test_a_chapter_is_read_only_when_all_its_verses_are_whichever_text_held_them(
+    tmp_path: Path,
+) -> None:
+    """Review, 2026-10-08: Noach starts at Genesis 6:9, so finishing it is not reading
+    Genesis 6. With the map's verse count, a chapter is read when that many of its verses
+    have been, across every text the reader finished them in."""
+    first = _jonah(tmp_path / "one")
+    second = _jonah(tmp_path / "two")
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return {"one": (first, "he"), "two": (second, "he")}.get(document)
+
+    # The fixture carries Jonah 1:1 and 1:4 of chapter 1, and 2:1 of chapter 2.
+    assert finished_chapters([("one", "1", 1)], folder_for, verses={"Jonah 1": 3}) == set()
+    assert finished_chapters([("one", "1", 1)], folder_for, verses={"Jonah 1": 2}) == {"Jonah 1"}
+    assert finished_chapters(
+        [("one", "1", 1), ("two", "2", 2)], folder_for, verses={"Jonah 1": 2, "Jonah 2": 1}
+    ) == {"Jonah 1", "Jonah 2"}, "verses pooled across two texts"
+
+
 def test_met_reads_the_store_s_finished_sections(tmp_path: Path) -> None:
     """End to end from the `section` rows a finished chapter syncs, un-finishes included."""
     folder = _jonah(tmp_path / "jonah")

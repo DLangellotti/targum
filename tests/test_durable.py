@@ -501,6 +501,7 @@ def test_a_settled_job_stops_being_held_and_a_running_one_never_does(tmp_path: P
     working.stage, working.made = "working", now() - 2 * DAY_MS
     lib.remember(settled)
     lib.remember(working)
+    settled.finished = now() - 2 * DAY_MS  # it ended long ago, as well as began
 
     assert lib.jobs.sweep(now() - lib.jobs.HELD_MS) == 1
     assert working.id in lib.jobs, "a worker is writing to it"
@@ -521,3 +522,17 @@ def test_held_jobs_are_swept_as_new_ones_arrive(tmp_path: Path, monkeypatch) -> 
         turn.stage, turn.made = "done", now() - 2 * DAY_MS
         after.jobs[turn.id] = turn
     assert len(after.jobs) < 10, "never more than one sweep's worth held"
+
+
+def test_a_done_build_still_finishing_is_not_let_go(tmp_path: Path) -> None:
+    """Review, 2026-10-08: a build says "done" when its reader is up and its worker goes
+    on looking up meanings. Pressed a day after its quote, `made` is old; `finished` is
+    not, and it is held until both are."""
+    lib, _ = library(tmp_path)
+    late = job(lib, 0.1, id="late")
+    late.made = now() - 2 * DAY_MS
+    late.stage = "done"
+    lib.remember(late)
+    assert late.finished > now() - DAY_MS, "stamped as it settled, just now"
+    assert lib.jobs.sweep(now() - lib.jobs.HELD_MS) == 0
+    assert lib.jobs.get("late") is late, "the worker's own object, not a second one"
