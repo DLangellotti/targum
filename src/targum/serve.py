@@ -10128,7 +10128,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _finished_chapters(self, person: Person) -> set[str]:
         """The chapters this reader has read through, in any Hebrew text that names its
-        verses: the map draws them solid leaf (targum-internal#144)."""
+        verses: the map checks them (targum-internal#144)."""
         from . import occurrences as occurrences_module
 
         homes = [self.library.home(person), self.library.shared, self.library.weekly]

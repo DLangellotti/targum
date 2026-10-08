@@ -275,26 +275,57 @@ def test_the_squares_take_their_shade_and_the_card_says_what_one_is(
     opened.close()
 
 
-def test_a_chapter_read_through_is_solid_leaf_and_its_card_says_so(
+def test_a_chapter_read_through_keeps_its_shade_wears_a_check_and_its_card_says_so(
     browser: Any, shelf: None
 ) -> None:
-    """targum-internal#144: finished chapters are solid leaf, whatever share of their
-    words is known, and a book the library lacks never is."""
-    answer = {**ANSWER, "finished": ["Genesis 3", "Exodus 3"]}
+    """targum-internal#144 (design.md §12, 2026-10-08): a finished chapter keeps the
+    step its words are on and wears a check inside it, so it is not mistaken for one
+    95% known; the legend's swatch wears the same check, and a book the library lacks
+    never does."""
+    answer = {**ANSWER, "finished": ["Genesis 1", "Genesis 3", "Exodus 3"]}
     opened, page = _open(
         browser, tanakh_map_page(""), answer, viewport={"width": 1280, "height": 900}
     )
     classes = "(ref) => document.querySelector(`[data-ref='${ref}']`).className"
+    step = "(ref) => document.querySelector(`[data-ref='${ref}']`).getAttribute('data-step')"
     assert "read" in page.evaluate(classes, "Genesis 3").split()
-    assert "read" not in page.evaluate(classes, "Genesis 1").split()
+    assert "read" not in page.evaluate(classes, "Genesis 2").split()
     assert "read" not in page.evaluate(classes, "Exodus 3").split(), "not in the library"
-    fill = (
-        "(ref) => getComputedStyle(document.querySelector(`[data-ref='${ref}']`)).backgroundColor"
+    assert page.evaluate(step, "Genesis 1") == "4" and page.evaluate(step, "Genesis 3") == "0"
+
+    look = """(sel) => {
+        const cell = document.querySelector(sel);
+        const mark = getComputedStyle(cell, '::after');
+        return {fill: getComputedStyle(cell).backgroundColor, content: mark.content,
+                width: mark.width, height: mark.height, edge: mark.borderRightWidth,
+                foot: mark.borderBottomWidth, top: mark.borderTopWidth,
+                colour: mark.borderRightColor, transform: mark.transform};
+    }"""
+    shaded = page.evaluate(look, "[data-ref='Genesis 2']")
+    deep, low = (page.evaluate(look, f"[data-ref='Genesis {n}']") for n in (1, 3))
+    unread = page.evaluate(look, "[data-ref='Genesis 4']")
+    away = page.evaluate(look, "[data-ref='Exodus 3']")
+    legend = page.evaluate(look, ".tanakh-legend .cell.read")
+
+    for mark in (deep, low, legend):
+        assert mark["content"] not in ("none", "normal"), "a read chapter wears the check"
+        assert mark["transform"] != "none" and mark["top"] == "0px"
+        assert mark["edge"] != "0px" and mark["foot"] != "0px"
+    for mark in (shaded, unread, away):
+        assert mark["content"] in ("none", "normal"), "only a read chapter is checked"
+
+    step_4 = page.evaluate(look, "[data-ref='Genesis 1']")["fill"]
+    plain = page.evaluate(
+        "() => { const c = document.querySelector(`[data-ref='Genesis 1']`);"
+        " c.classList.remove('read'); const f = getComputedStyle(c).backgroundColor;"
+        " c.classList.add('read'); return f; }"
     )
-    legend = page.evaluate(
-        "getComputedStyle(document.querySelector('.tanakh-legend .cell.read')).backgroundColor"
-    )
-    assert page.evaluate(fill, "Genesis 3") == legend, "the legend's swatch is the square"
+    assert step_4 == plain, "the read square keeps its step's shade"
+    assert low["fill"] != deep["fill"], "two read chapters on two steps still differ"
+    assert deep["colour"] != low["colour"], "the check turns to read on a deep step"
+    same = ("width", "height", "edge", "foot", "transform", "content")
+    assert all(legend[k] == low[k] for k in same), "the legend's swatch is the square's check"
+
     page.hover("[data-ref='Genesis 3']")
     assert "You've read it" in page.inner_text("#tanakh-card")
     assert not page.thrown
