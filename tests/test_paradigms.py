@@ -28,6 +28,7 @@ from targum.annotate.paradigms import (
     Paradigm,
     Table,
     bare,
+    binyan_from_forms,
     binyan_of,
     binyan_unpointed,
     family_of,
@@ -709,8 +710,11 @@ def test_shin_and_sin_are_two_letters() -> None:
 def test_the_present_refuses_what_another_signal_settled_on_another_verb() -> None:
     """`חוֹשֵׁב` "thinks" is tagged פּוּעַל often enough to settle the wrong table. Where
     the present names one verb and the binyan another, neither is taken."""
+    # The unpointed `עומד` is read as a פֻּעַל by its shape (`binyan_unpointed`), which
+    # every signal asks since 2026-10-08, and the present still refuses it.
     shelf = standing()
-    assert shelf.of("עומד", binyan="פועל") is None, "`עוּמַּד`'s binyan is not read"
+    assert (found := shelf.of("עומד", binyan="פועל")) is not None and found.lemma == "עומד"
+    assert shelf.of("עומד", binyan="פועל", said=(("עומד", PRESENT, "עוֹמֵד"),)) is None
     two = Table(
         verbs={
             "a": standing().verbs["a"],
@@ -901,3 +905,172 @@ def test_the_coverage_measurement_counts_what_the_pointing_settles(tmp_path: Pat
     assert tally["settled by pointing"] == 1
     assert tally["refused: conflict"] == 1
     assert tally["still ambiguous"] == 1
+
+
+# -- a binyan from the verb's own forms (targum-internal#307, 2026-10-08) --------------
+
+PAST_3MS = ("3rd", "masculine", "past", "singular")
+PRESENT_MS = ("masculine", "present", "singular")
+IMPERATIVE = ("2nd", "imperative", "masculine", "singular")
+
+
+def forms(past: str, present: str, *more: tuple[str, tuple[str, ...]]) -> tuple[Form, ...]:
+    """A verb's past and present as the source writes them: letters only."""
+    return (
+        Form(written=past, features=PAST_3MS),
+        Form(written=present, features=PRESENT_MS),
+        *(Form(written=written, features=features) for written, features in more),
+    )
+
+
+@pytest.mark.parametrize(
+    ("lemma", "past", "present", "imperative", "binyan"),
+    [
+        ("ילד", "ילד", "יולד", "", "פעל"),
+        ("חטא", "חטא", "חוטא", "", "פעל"),
+        # A stative: its present is its past.
+        ("קרב", "קרב", "קרב", "", "פעל"),
+        ("רָץ", "רץ", "רץ", "", "פעל"),
+        ("נִתַּן", "ניתן", "ניתן", "", "נפעל"),
+        ("הִכָּה", "הכה", "מכה", "הכה", "הפעיל"),
+        ("איפשר", "איפשר", "מאפשר", "אפשר", "פיעל"),
+        ("נִכָּה", "ניכה", "מנכה", "נכה", "פיעל"),
+    ],
+)
+def test_a_verb_s_past_and_present_say_its_binyan(
+    lemma: str, past: str, present: str, imperative: str, binyan: str
+) -> None:
+    """The source stores `ילד` and `קרב` unpointed, and `binyan_of` reads nothing off bare
+    letters. The past against the present is each binyan's own frame around the root."""
+    more = ((imperative, IMPERATIVE),) if imperative else ()
+    assert binyan_from_forms(lemma, forms(past, present, *more)) == binyan
+
+
+@pytest.mark.parametrize(
+    ("lemma", "past", "present"),
+    [
+        # A הִפְעִיל of a root beginning with י, or the הֻפְעַל of one: `הוליד`, `הולד`.
+        ("הוליד", "הוליד", "מוליד"),
+        # A הִפְעִיל of a root beginning with ת, or a הִתְפַּעֵל.
+        ("התקין", "התקין", "מתקין"),
+        ("הסתדר", "הסתדר", "מסתדר"),
+        # A פֻּעַל written full, or a פִּיעֵל of a root with a ו second.
+        ("צווה", "צווה", "מצווה"),
+        # Nothing a binyan frames.
+        ("ילד", "ילד", "מולדת"),
+    ],
+)
+def test_a_past_and_present_two_binyanim_share_say_nothing(
+    lemma: str, past: str, present: str
+) -> None:
+    assert binyan_from_forms(lemma, forms(past, present, ("x", IMPERATIVE))) is None
+
+
+def test_a_passive_spelled_like_an_active_is_refused() -> None:
+    """Unpointed, the הֻפְעַל `הקנה` is letter for letter the הִפְעִיל, and the פֻּעַל `ארגן`
+    the פִּיעֵל. Only an imperative, which a passive has none of, tells them apart."""
+    assert binyan_from_forms("הֻקְנָה", forms("הקנה", "מקנה")) is None
+    assert binyan_from_forms("אֻרְגַּן", forms("ארגן", "מארגן")) is None
+    assert binyan_from_forms("הִקְנָה", forms("הקנה", "מקנה", ("הקנה", IMPERATIVE))) == "הפעיל"
+
+
+def test_forms_that_do_not_agree_say_nothing() -> None:
+    # Two pasts.
+    two = (*forms("ילד", "יולד"), Form(written="יילד", features=PAST_3MS))
+    assert binyan_from_forms("יִלֵּד", two) is None
+    # Two presents that frame two binyanim.
+    both = (*forms("ילד", "יולד"), Form(written="מילד", features=PRESENT_MS))
+    assert binyan_from_forms("ילד", both) is None
+    # An unpointed lemma that is not its own past.
+    assert binyan_from_forms("ילדה", forms("ילד", "יולד")) is None
+    # A pointed lemma that is another word than the past.
+    assert binyan_from_forms("כָּתַב", forms("ילד", "יולד")) is None
+    # No present at all.
+    assert binyan_from_forms("ילד", (Form(written="ילד", features=PAST_3MS),)) is None
+
+
+def test_what_the_rule_filled_in_is_not_asked() -> None:
+    """A stub's present filled by `conjugate` came from a pattern the binyan was guessed
+    for. Reading the binyan back off it would be the guess vouching for itself."""
+    filled = (
+        Form(written="ילד", features=PAST_3MS),
+        Form(written="יולד", features=PRESENT_MS, ruled=True),
+    )
+    assert binyan_from_forms("ילד", filled) is None
+
+
+def born() -> Table:
+    """`ילד` as the shipped table has it: an unpointed פעל beside a pointed פִּיעֵל."""
+    paal = Paradigm(lemma="ילד", forms=forms("ילד", "יולד", ("לד", IMPERATIVE)))
+    piel = Paradigm(lemma="יִלֵּד", forms=forms("יילד", "מיילד", ("ילד", IMPERATIVE)))
+    return Table(verbs={"a": paal, "i": piel}, by_form={"ילד": ("a", "i")})
+
+
+def test_an_unpointed_paal_is_the_verb_its_binyan_names() -> None:
+    """targum-internal#307: `ילד` tagged פעל was 510 tokens with no table, because the
+    only פעל among its candidates was stored unpointed."""
+    shelf = born()
+    assert shelf.binyan_of("a") == "פעל"
+    assert (found := shelf.of("ילד", binyan="פעל")) is not None and found.lemma == "ילד"
+    assert (found := shelf.of("ילד", binyan="פיעל")) is not None and found.lemma == "יִלֵּד"
+    assert shelf.of("ילד", binyan="הפעיל") is None
+
+
+def test_the_lemma_s_letters_and_the_forms_disagreeing_say_nothing() -> None:
+    """`אוכל` is a פֻּעַל by its shape (`binyan_unpointed`); a table whose present is its
+    past is a פעל by its forms. Two answers is none."""
+    odd = Paradigm(lemma="אוכל", forms=forms("אוכל", "אוכל"))
+    shelf = Table(verbs={"x": odd, "a": eats().verbs["a"]}, by_form={"אוכל": ("x", "a")})
+    assert binyan_unpointed("אוכל") == "פועל"
+    assert binyan_from_forms("אוכל", odd.forms) == "פעל"
+    assert shelf.binyan_of("x") is None
+
+
+def test_a_pointed_lemma_is_never_overruled_by_its_forms() -> None:
+    """Wikidata's `קִבֵּל` is conjugated `קובל`, the פעל "complained". The lemma says
+    פִּיעֵל, and the lemma is asked first."""
+    odd = Paradigm(lemma="קִבֵּל", forms=forms("קבל", "קובל"))
+    assert binyan_from_forms(odd.lemma, odd.forms) == "פעל"
+    shelf = Table(verbs={"k": odd}, by_form={"קבל": ("k",)})
+    assert shelf.binyan_of("k") == "פיעל"
+
+
+def test_a_shin_where_the_word_has_a_sin_is_another_verb() -> None:
+    """`שָׂטִית` "you went astray" has the letters of a form of `שָׁט` "roamed". Once `שָׁט`'s
+    binyan could be read, its binyan matched; the dot is what says it is not the word."""
+    roam = Paradigm(lemma="שָׁט", forms=forms("שט", "שט", ("שטית", ("2nd", "feminine", "past"))))
+    other = Paradigm(lemma="שיטה", forms=forms("שיטה", "משטה", ("שטה", IMPERATIVE)))
+    shelf = Table(verbs={"r": roam, "o": other}, by_form={"שטה": ("r", "o")})
+    assert shelf.of("שטה", seen="שָׂטִית", binyan="פעל") is None
+    assert (found := shelf.of("שטה", seen="שָׁטִית", binyan="פעל")) is not None
+    assert found.lemma == "שָׁט"
+
+
+def test_the_forms_agree_with_every_lemma_that_can_be_read(shipped: Table) -> None:
+    """The rule checked against the lemmas `binyan_of` *can* read: on 2026-10-08 it
+    agreed on 1,990 of the 2,015 it decided, and the 25 it did not were the lemma's
+    reading at fault — quadriliteral פִּיעֵלים read as נִפְעָלִים — or a lexeme conjugated
+    as another verb. A rule that agrees less than this has changed."""
+    agree = decided = 0
+    for verb in shipped.verbs.values():
+        said = binyan_of(verb.lemma)
+        if said is None or (forms_say := binyan_from_forms(verb.lemma, verb.forms)) is None:
+            continue
+        decided += 1
+        agree += forms_say == said
+    assert decided > 1500
+    assert agree / decided > 0.98
+
+
+def test_the_unpointed_paal_lifts_coverage_on_the_shipped_table(shipped: Table) -> None:
+    """The measure in miniature, with no readings: the commonest verbs whose פעל the
+    source stores unpointed now draw it, and `הִכָּה` its הִפְעִיל."""
+    bare_shelf = Table(verbs=shipped.verbs, by_form=shipped.by_form)
+    for lemma, binyan, expected in (
+        ("ילד", "פעל", "ילד"),
+        ("קרב", "פעל", "קרב"),
+        ("חטא", "פעל", "חטא"),
+        ("נכה", "הפעיל", "הִכָּה"),
+    ):
+        found = bare_shelf.of(lemma, binyan=binyan)
+        assert found is not None and found.lemma == expected, lemma
