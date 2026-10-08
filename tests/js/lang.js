@@ -58,7 +58,13 @@ const panel = nav.children[1];
 const items = panel ? panel.children.filter((c) => c.getAttribute("role") === "menuitemradio") : [];
 const before = {
   hidden: nav.hidden,
-  label: open ? open.textContent : "",
+  // The name alone; the badge beside it is its own field (design.md §12, 2026-10-09).
+  label: open ? (open.children.find((c) => String(c.className) === "lang-name") || {}).textContent || "" : "",
+  badge: open ? (open.children.find((c) => String(c.className).indexOf("lang-status") === 0) || {}).textContent || "" : "",
+  badges: items.map((i) => {
+    const named = i.children.find((c) => String(c.className) === "lang-item") || { children: [] };
+    return (named.children.find((c) => String(c.className).indexOf("lang-status") === 0) || {}).textContent || "";
+  }),
   items: items.map((i) => i.getAttribute("data-code")),
   checked: items.filter((i) => i.getAttribute("aria-checked") === "true").map((i) => i.getAttribute("data-code")),
   more: panel ? (panel.children.find((c) => String(c.className) === "lang-more") || {}).href || "" : "",

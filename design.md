@@ -387,6 +387,22 @@ What it does not overturn: the end offers once and never refills; the press is t
 reader's own on targum's page, never a model's; a quote is information.
 
 
+### A language wears how far along it is — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards LangMenuDesk and LangMenuPhone): every
+language in the top bar's menu, and the one the menu is showing, wears a small badge —
+**Hebrew Beta; Russian, Italian and French Alpha; Aramaic and Yiddish Experimental** — and
+nothing more. No line says what the words mean. It replaces "experimental" on every
+language but Hebrew in that menu, which said the same of a Russian shelf of 268 texts and a
+Yiddish one with none. The first-run language choice is to wear the same badges when its
+own slice is built.
+
+- **One hue a badge, at a wash, the text at its working cut:** ink-soft on raised paper
+  for Beta, iris for Alpha, clay for Experimental. This departs from §4 on purpose as the
+  drawn tiles do: clay is cost and errors, and here it says "least far along". The word
+  carries it too, so no badge rests on colour alone.
+- The list is one table in `lang.js` (`STATUS`); a language not in it wears nothing.
+
 ### Listening plays on by itself, and reading still waits for a swipe — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards PlaylistSwipeDesk, PlaylistSwipePhone,

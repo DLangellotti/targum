@@ -376,6 +376,22 @@ body {
    marks the page you are on. A bar at the edge of a rounded row read as a crescent. */
 .lang-panel button[aria-checked="true"] { font-weight: 600; color: var(--teal); background: var(--teal-wash); }
 .lang-panel .lang-item { display: inline-flex; align-items: center; gap: 0.55rem; }
+/* How far along a language is (design.md §12, 2026-10-09): a badge, nothing more. One
+   hue a badge, at a wash: ink-soft on raised paper for Beta, iris for Alpha, clay for
+   Experimental. Text at the working cuts, never the wash. */
+.lang-status {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.lang-status.is-beta { color: var(--ink-soft); background: var(--paper-raised); }
+.lang-status.is-alpha { color: var(--iris); background: color-mix(in srgb, var(--iris) 12%, transparent); }
+.lang-status.is-experimental { color: var(--clay); background: color-mix(in srgb, var(--clay) 12%, transparent); }
 /* The language's own name after the English one, quieter, in its own face. */
 .lang-native { color: var(--ink-soft); font-weight: 400; }
 .lang-native:lang(he), .lang-native:lang(yi), .lang-native:lang(arc) { font-family: var(--reading-hebrew); }
