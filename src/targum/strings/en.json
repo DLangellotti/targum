@@ -2817,5 +2817,19 @@
   "tanakh.card.finished": "You've read it",
   "tanakh.page.finished": "Read through",
   "library.door.tanakh-map": "Every chapter on one map",
-  "tanakh.page.year": "The year of portions"
+  "tanakh.page.year": "The year of portions",
+  "reader.bar.video-beside": "Video beside the transcript",
+  "reader.bar.beside": "Translation beside the text",
+  "reader.bar.under": "Translation under each line",
+  "reader.bar.alone": "The text on its own",
+  "reader.bar.case-none": "none",
+  "reader.bar.case-nom": "nominative",
+  "reader.bar.case-gen": "genitive",
+  "reader.bar.case-dat": "dative",
+  "reader.bar.case-acc": "accusative",
+  "reader.bar.case-ins": "instrumental",
+  "reader.bar.case-loc": "prepositional",
+  "reader.bar.watch-the-recording": "Watch the recording",
+  "reader.bar.the-original": "The original",
+  "reader.bar.talk-to-targum": "Talk to targum"
 }

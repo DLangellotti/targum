@@ -3009,5 +3009,19 @@
   "tanakh.card.finished": "Вы её прочли",
   "tanakh.page.finished": "Прочитано",
   "library.door.tanakh-map": "Все главы на одной карте",
-  "tanakh.page.year": "Недельные главы за год"
+  "tanakh.page.year": "Недельные главы за год",
+  "reader.bar.video-beside": "Видео рядом с текстом",
+  "reader.bar.beside": "Перевод рядом",
+  "reader.bar.under": "Перевод под строкой",
+  "reader.bar.alone": "Только текст",
+  "reader.bar.case-none": "нет",
+  "reader.bar.case-nom": "именительный",
+  "reader.bar.case-gen": "родительный",
+  "reader.bar.case-dat": "дательный",
+  "reader.bar.case-acc": "винительный",
+  "reader.bar.case-ins": "творительный",
+  "reader.bar.case-loc": "предложный",
+  "reader.bar.watch-the-recording": "Смотреть запись",
+  "reader.bar.the-original": "Оригинал",
+  "reader.bar.talk-to-targum": "Поговорить с targum"
 }

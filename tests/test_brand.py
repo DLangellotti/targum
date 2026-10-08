@@ -369,6 +369,9 @@ THUMBED = (
     ".bar-pop .recordings .recording-key",
     ".bar-pop .to-sheet .more-sheet",
     ".cmp-add",
+    # The bar by how often it is pressed (design.md §12, 2026-10-08): the view's three
+    # drawings stand in the bar. The speed and the marks are `.bar-tool`s.
+    ".bar .bar-tools > .modes button",
     # The build card's door, in somebody else's chat (design.md §12, 2026-10-06).
     ".card-door",
     # And the text card's Listen, beside its door (2026-10-06).
