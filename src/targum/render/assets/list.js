@@ -534,7 +534,7 @@
     );
     where.className = "list-where";
     nav.appendChild(where);
-    if (document.body.classList.contains("has-voice")) {
+    if (voiced()) {
       nav.appendChild(document.createTextNode(" · "));
       nav.appendChild(playOnSwitch());
     }
@@ -616,14 +616,14 @@
           forward("list-next");
         })
       );
-      if (document.body.classList.contains("has-voice")) {
+      if (voiced()) {
         var onKey = playOnSwitch();
         onKey.classList.add("list-key", "video-list-on");
         keys.appendChild(onKey);
       }
     }
     if (wideRail && wideRail.matches) drawRail();
-    if (document.body.classList.contains("has-voice")) whenPlayer(listenTo);
+    if (voiced()) whenPlayer(listenTo);
     document.dispatchEvent(new CustomEvent("targum:list", { detail: { list: list, at: at } }));
   }
 
@@ -637,6 +637,13 @@
    * that ended hands its media element to the next item's recording and the page stays
    * what it was, saying what plays now. An item with nothing to hear is where it stops.
    */
+  /* Whether this item can be heard: its play control is drawn by the server, so this is
+     known before the reader's own script has run, which a list that answers quickly can
+     beat (#434). */
+  function voiced() {
+    return !!document.querySelector("[data-play-scene]") || document.body.classList.contains("has-voice");
+  }
+
   var PLAY_ON = "targum:play-on";
   function playOn() {
     try {
@@ -870,6 +877,8 @@
     element.addEventListener("play", function () {
       if (!handed) lockScreen(at, true);
     });
+    // Named from the start, so the lock screen has it whenever the voice begins.
+    lockScreen(at, !element.paused);
     lockKeys();
     // Arriving listening: where the voice had got to, and on from there (`addressOf`).
     var seconds = Number(asked.get("t") || 0);
