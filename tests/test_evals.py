@@ -367,18 +367,46 @@ def _eval_align():  # type: ignore[no-untyped-def]
     return module
 
 
-def test_the_boundary_score_is_off_the_ends_and_not_counted_twice() -> None:
-    """A start is the previous end by construction here — the words were said one at a
-    time and joined — so scoring both would count every boundary twice and halve the
-    error it reports."""
+def test_a_word_is_scored_against_its_own_speech_not_the_join() -> None:
+    """targum-internal#265, rescored 2026-10-08. Each word is said alone and the clips are
+    joined, so a join sits in the silence the voice leaves around a word. Scored against
+    the join, an aligner that found every word was 340-400 ms "out"; scored against where
+    each clip's speech is, it is the aligner's own error."""
     align = _eval_align()
-    # Three words, true ends at 1.0, 2.0, 3.0; found 20ms, 80ms and 0ms out.
-    found = [(0.0, 1.02, 1.0), (1.02, 1.92, 1.0), (1.92, 3.0, 1.0)]
-    truth = [1.0, 2.0, 3.0]
-    marks = align.scored(found, truth)
-    assert marks["boundary_ms_mean"] == round((20 + 80 + 0) / 3, 1)
-    assert marks["boundary_ms_median"] == 20.0
-    assert marks["within_50ms"] == round(2 / 3, 4), "the 80ms one is not close"
+    # Speech at 0.3-0.8, 1.3-1.9, 2.25-2.8; joins at 1.0 and 2.0.
+    spans = [(0.3, 0.8), (1.3, 1.9), (2.25, 2.8)]
+    found = [(0.32, 0.8, 1.0), (1.3, 1.98, 1.0), (2.25, 2.8, 1.0)]
+    marks = align.scored(found, spans, [1.0, 2.0, 3.0])
+    assert marks["onset_ms_median"] == 0.0 and marks["onset_ms_mean"] == round(20 / 3, 1)
+    assert marks["end_ms_median"] == 0.0 and marks["end_ms_mean"] == round(80 / 3, 1)
+    assert marks["within_50ms"] == round(2 / 3, 4), "the 80 ms end is not close"
+    assert marks["seam_in_gap"] == 1.0, "both joins fall between the words they divide"
+    late = [(0.3, 1.2, 1.0), (1.3, 1.9, 1.0), (2.25, 2.8, 1.0)]
+    assert align.scored(late, spans, [1.0, 2.0, 3.0])["seam_in_gap"] == 0.5
+
+
+def test_a_clip_s_speech_is_read_off_its_loudness(tmp_path: Path) -> None:
+    import math
+    import struct
+    import wave
+
+    align = _eval_align()
+    rate = align.ALIGN_RATE
+    pcm = []
+    for start, stop in ((0.2, 0.6), (0.3, 0.7)):  # two one-second clips, a tone in each
+        clip = [0.0] * rate
+        for n in range(int(start * rate), int(stop * rate)):
+            clip[n] = 0.5 * math.sin(2 * math.pi * 220 * n / rate)
+        pcm += clip
+    path = tmp_path / "two.wav"
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(rate)
+        out.writeframes(b"".join(struct.pack("<h", int(x * 32767)) for x in pcm))
+    spans = align.spoken_spans(path, [1.0, 2.0])
+    assert abs(spans[0][0] - 0.2) < 0.02 and abs(spans[0][1] - 0.6) < 0.02
+    assert abs(spans[1][0] - 1.3) < 0.02 and abs(spans[1][1] - 1.7) < 0.02
 
 
 def test_a_mismatched_alignment_is_refused_rather_than_scored_short() -> None:
@@ -389,7 +417,7 @@ def test_a_mismatched_alignment_is_refused_rather_than_scored_short() -> None:
 
     align = _eval_align()
     with _pytest.raises(ValueError):
-        align.scored([(0.0, 1.0, 1.0)], [1.0, 2.0])
+        align.scored([(0.0, 1.0, 1.0)], [(0.0, 1.0), (1.0, 2.0)])
 
 
 def test_the_words_drawn_stop_at_what_was_asked_for() -> None:
