@@ -49,16 +49,16 @@
   // over after the nav.
   function places() {
     return [
-      { kind: "place", title: t("nav.learn", "Learn"), href: "/" },
-      // Second, as in the nav. It had no row here, so ⌘K could find every text of yours
-      // by name and not the page that holds them (design.md §12, 2026-09-25).
-      { kind: "place", title: t("yours.page.your-targums", "Your targums"), href: "/texts" },
+      // Home, first as in the nav (design.md §12, 2026-10-08). Learn had this row until
+      // it was taken apart; Your targums had none until 2026-09-25, so ⌘K could find
+      // every text of yours by name and not the page that holds them.
+      { kind: "place", title: t("yours.page.your-targums", "Your targums"), href: "/" },
       { kind: "place", title: t("nav.library", "Library"), href: "/library" },
       { kind: "place", title: t("palette.progress", "Your Progress"), href: "/progress" },
       { kind: "place", title: t("nav.your-words-and-phrases", "Your words and phrases"), href: "/words" },
       { kind: "place", title: t("nav.your-subscriptions", "Following"), href: "/you#subscriptions" },
       { kind: "place", title: t("nav.your-profile", "Your profile"), href: "/you" },
-      { kind: "place", title: t("palette.add", "Add a text"), href: "/add" },
+      { kind: "place", title: t("palette.upload", "Upload a text"), href: "/add" },
       { kind: "talk", title: t("nav.talk-to-targum", "Talk to targum") },
     ];
   }

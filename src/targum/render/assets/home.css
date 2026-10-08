@@ -1,0 +1,303 @@
+/* Home — Your targums, led by Continue (design.md §12, "Home is Your targums, and
+ * Continue leads it", 2026-10-08; the calm-surfaces boards Main and HomePhone).
+ *
+ * The desk's own system (§13): cards on the ground, raised by their shadow, the reading
+ * face only where a text's own title stands, teal for what is pressed and leaf for how
+ * far through. The shelf under it keeps its own rules in library.css. */
+
+body.yours main { gap: 2.25rem; }
+
+/* --- Continue ------------------------------------------------------------------------- */
+
+.continue[hidden] { display: none; }
+.continue-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-block-end: 1rem;
+}
+.continue-top h2 {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.continue-note {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.continue-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 1.25rem;
+}
+@media (min-width: 64rem) {
+  .continue-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.home-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.25rem;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+  transition: box-shadow 240ms var(--ease), transform 160ms var(--ease);
+}
+@media (hover: hover) {
+  .home-card:not(.is-building):hover { box-shadow: var(--shadow-raised); }
+}
+.home-card:not(.is-building):active { transform: scale(0.98); }
+.home-card:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* The title is the press, stretched over the card, so the whole card opens and a
+   keyboard reaches it as one stop. */
+.home-card-open {
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+.home-card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+}
+
+/* The picture, across the card's head. A cover is portrait and a frame is wide, so it is
+   cropped to the box from its centre, where a drawn tile keeps its letter. */
+.home-thumb { position: relative; }
+.home-thumb img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+.home-card .home-thumb {
+  inline-size: 100%;
+  block-size: 9rem;
+  border: 0;
+  border-radius: var(--radius-row);
+}
+/* Three lines at most: a news headline is a paragraph, and the card is a way back, not
+   the text. */
+.home-card-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-family: var(--reading);
+  font-size: 1.25rem;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.home-card-title:lang(he),
+.home-card-title:lang(yi),
+.home-card-title:lang(arc) {
+  font-family: var(--reading-hebrew);
+}
+.home-card-facts {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.home-card-go {
+  margin-block-start: auto;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--teal);
+}
+.home-card-go::after { content: " \2192"; }
+.home-card-go:dir(rtl)::after { content: " \2190"; }
+.home-card-go.is-waiting { color: var(--ink-soft); font-weight: 400; }
+.home-card-go.is-waiting::after { content: none; }
+
+.home-tag {
+  align-self: flex-start;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+}
+.home-tag.is-building { color: var(--teal); border-color: var(--teal); }
+.home-tag.is-new { color: var(--iris); border-color: var(--iris); }
+
+/* How far through, in leaf (§4: green is progress); a build's in the primary. */
+.home-bar {
+  display: block;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.home-fill {
+  display: block;
+  block-size: 100%;
+  inline-size: calc(var(--done, 0) * 100%);
+  background: var(--leaf);
+}
+.home-bar.is-building .home-fill { background: var(--teal); }
+
+/* --- a build's picture: its letter, until it has a folder for the server to draw from --- */
+.home-thumb.is-letter { border: 0; background: var(--paper-raised); }
+.home-thumb.is-letter .glyph { font-size: 2.75rem; }
+
+/* --- nothing yet ------------------------------------------------------------------------ */
+
+.first-home {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 1.0625rem;
+  color: var(--ink-soft);
+}
+.first-home[hidden] { display: none; }
+
+/* --- the shelf, and beside it the next one and the upload ------------------------------- */
+
+.home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
+}
+@media (min-width: 64rem) {
+  .home-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+}
+/* Nothing yet (FirstRun): no shelf beside them, so the two cards stand in one column
+   under the line that says what will appear. */
+.home-grid.is-empty { grid-template-columns: minmax(0, 30rem); }
+.home-grid.is-empty .home-shelf { display: none; }
+.home-shelf { min-inline-size: 0; display: flex; flex-direction: column; gap: 1rem; }
+.home-shelf > .tabs[hidden] { display: none; }
+.home-side { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.try-next {
+  display: flex;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+}
+.try-next[hidden] { display: none; }
+.try-next .home-thumb {
+  flex: none;
+  inline-size: 5.25rem;
+  block-size: 7.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+}
+.try-what { display: flex; flex-direction: column; gap: 0.4rem; min-inline-size: 0; }
+.home-label {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.try-what .home-card-facts { margin: 0; }
+.try-open {
+  align-self: flex-start;
+  margin-block-start: 0.35rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--teal);
+  text-decoration: none;
+}
+.try-open:hover { text-decoration: underline; }
+.try-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+
+/* Upload: the page's one filled press (§13), the primary with the card's colour on it. */
+.upload-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--teal);
+  color: var(--card);
+  border-radius: var(--radius-card);
+  font-family: var(--chrome);
+  text-decoration: none;
+  transition: transform 160ms var(--ease);
+}
+.upload-card:active { transform: scale(0.98); }
+.upload-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.upload-card-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.upload-glyph {
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.upload-card-says { font-size: 0.875rem; }
+
+/* --- a phone (HomePhone): Continue, the upload, the shelf, then the next one ------------ */
+@media (max-width: 40rem) {
+  /* A 16px gutter: the cards are on the ground, not a sheet to the edges. */
+  body.yours main { gap: 1.5rem; padding-inline: 1rem; padding-block-start: 1.25rem; }
+  .home-tag { justify-self: start; }
+  .continue-cards { grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+  /* Two, not four: the first screen is for picking up, and the rest are on the shelf. */
+  .continue-cards > li:nth-child(n + 3) { display: none; }
+  .home-card {
+    display: grid;
+    grid-template-columns: 4rem minmax(0, 1fr);
+    grid-auto-flow: row dense;
+    column-gap: 0.9rem;
+    row-gap: 0.3rem;
+    padding: 0.9rem;
+  }
+  .home-card .home-thumb {
+    grid-column: 1;
+    grid-row: 1 / span 5;
+    inline-size: 4rem;
+    block-size: 5.5rem;
+    border-radius: var(--radius-control);
+  }
+  .home-card > :not(.home-thumb) { grid-column: 2; }
+  .home-card .home-thumb.is-letter .glyph { font-size: 1.75rem; }
+  .home-card-title { font-size: 1.0625rem; }
+  .home-side { display: contents; }
+  .home-grid { display: flex; flex-direction: column; align-items: stretch; gap: 1.5rem; }
+  .upload-card { order: -1; }
+  .home-shelf { order: 0; }
+  .try-next { order: 1; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  /* §8: what a thumb presses answers a tap over 44px. A card's press is the whole card;
+     the next one's Open and the upload are drawn at that height. */
+  .home-card-open::after { min-block-size: 44px; }
+  .try-open { min-block-size: 44px; display: inline-flex; align-items: center; }
+  .upload-card { min-block-size: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-card,
+  .upload-card { transition: none; }
+  .home-card:not(.is-building):active,
+  .upload-card:active { transform: none; }
+}

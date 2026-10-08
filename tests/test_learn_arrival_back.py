@@ -11,7 +11,7 @@ from __future__ import annotations
 import shutil
 
 import pytest
-from test_learn_js import THREE, draw, seeded
+from test_arrival_js import THREE, draw, seeded
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 

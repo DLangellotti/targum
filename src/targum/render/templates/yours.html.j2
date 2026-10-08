@@ -10,7 +10,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ heading }} — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}{% if which == 'texts' %}{{ asset('home.css') }}{% endif %}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
@@ -36,35 +36,26 @@
 
 <main id="page" hidden>
   {%- if which == 'texts' %}
-  {#- The tabs first, so they stand where they stand on /playlists, which has no
-      definition: under the heading, as the Library's do. Below the definition they
-      jumped a screen up the page the moment Playlists was pressed (2026-09-27). -#}
-  {% set tab = 'all' %}{% include '_yours_tabs.html.j2' %}
-
-  {#- What a targum is, shown rather than only said (design.md §12, 2026-09-26): one
-      sentence, and a line of Hebrew with its translation under it and one word tapped.
-      Type and the palette, no picture file. Hebrew whatever the shelf's language: it is
-      the word the product is named for. -#}
-  {#- Drawn whole until the reader has finished a text; after that one line, pressed to
-      open it again (David, 2026-09-27, targum-internal#374): a phone's first screen was
-      the definition on every visit to a shelf of seventy. `yours.js` folds it. -#}
-  <section class="defined" id="defined" aria-labelledby="defined-head">
-    <button type="button" class="defined-open" id="defined-open" aria-expanded="false" aria-controls="defined" hidden>{{ t("yours.defined.head", "What's a targum?") }}</button>
-    <div class="defined-words">
-      <h2 id="defined-head">{{ t("yours.defined.head", "What's a targum?") }}</h2>
-      <p>{{ t("yours.defined.body", "A text you read in the language you're learning, with its translation held line by line under it. Tap any word for what it means.") }}</p>
+  {#- Home (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08).
+      Learn is gone and this is the first page after signing in: Continue at the top, the
+      shelf under it in its tabs, and beside the shelf one text to try next and the way
+      to upload. `home.js` draws the head, `yours.js` the shelf. -#}
+  <section class="continue" id="continue" aria-labelledby="continue-head" hidden>
+    <div class="continue-top">
+      <h2 id="continue-head">{{ t("home.continue.head", "Continue") }}</h2>
+      <p class="continue-note">{{ t("home.continue.note", "What you opened or uploaded, newest first") }}</p>
     </div>
-    <figure class="defined-example" aria-label="{{ t("yours.defined.example", "An example of a targum") }}">
-      <p class="defined-line" lang="he" dir="rtl">הַסֵּפֶר עַל <mark class="defined-word">הַשֻּׁלְחָן</mark></p>
-      <p class="defined-under">{{ t("yours.defined.translation", "The book is on the table") }}</p>
-      <span class="defined-card" aria-hidden="true">
-        <bdi class="defined-card-word" lang="he">שֻׁלְחָן</bdi>
-        <span class="defined-card-means">{{ t("yours.defined.meaning", "table") }}</span>
-        <span class="defined-card-what">{{ t("yours.defined.part", "noun") }}</span>
-      </span>
-    </figure>
+    <ul class="continue-cards" id="continue-cards"></ul>
   </section>
 
+  {#- A reader with nothing yet (the FirstRun boards): what will appear here, and under it
+      the one to start with and the upload. -#}
+  <p class="first-home" id="first-home" hidden>{{ t("home.empty", "Nothing here yet. What you open or upload appears here.") }}</p>
+
+  <div class="home-grid">
+  <div class="home-shelf">
+  {#- The tabs, then the shelf (design.md §12, "Your targums has tabs", 2026-09-26). -#}
+  {% set tab = 'all' %}{% include '_yours_tabs.html.j2' %}
 
   <section class="panel" id="shelf-panel">
     {#- Sifting (2026-09-26): drawn by `yours.js` only on a shelf of six or more. -#}
@@ -90,6 +81,19 @@
     <ul class="books shelf-rows shelf-cards" id="library-list"></ul>
     <p class="empty" id="shelf-empty" hidden></p>
   </section>
+  </div>
+
+  {#- One text to try next — or, for a reader with nothing yet, one to start with — and the
+      way to upload. Learn's suggestion, kept when the rest of Learn went (2026-10-08). On
+      a phone the upload stands under Continue and the suggestion under the shelf. -#}
+  <aside class="home-side" aria-label="{{ t("home.side", "Something new") }}">
+    <section class="try-next" id="try-next" hidden></section>
+    <a class="upload-card" href="/add" data-home-link>
+      <span class="upload-card-head"><svg class="upload-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg>{{ t("home.upload.head", "Upload something to read") }}</span>
+      <span class="upload-card-says">{{ t("home.upload.says", "Paste a link, drop a file, or bring a post") }}</span>
+    </a>
+  </aside>
+  </div>
 
   <section class="panel trash" id="trash-panel" hidden>
     <h2>{{ t("yours.page.trash", "Trash") }}</h2>
@@ -219,14 +223,25 @@
   {#- Your targums is a place in the nav since 2026-09-24; a way back to Learn at its foot
       was left from when it hung off Learn. The lists behind the account keep theirs. -#}
   {%- if which != 'texts' %}
-  <p><a class="back" href="/" data-back>{{ t("yours.page.learn", "Learn") }}</a></p>
+  <p><a class="back" href="/" data-back>{{ t("yours.page.your-targums", "Your targums") }}</a></p>
   {%- endif %}
 </main>
 
+{%- if which == 'texts' %}
+{#- While the shelf is asked for, and when it could not be (2026-09-14): a page that stood
+    blank until `/readers` answered, or said "Nothing here yet" to a reader with a shelf
+    whose connection dropped, was saying the wrong thing. -#}
+<p class="learn-waiting" id="home-waiting" role="status">{{ t("learn.page.opening-your-texts", "Opening your texts…") }}</p>
+<section class="nothing" id="nothing" role="alert" hidden>
+  <p class="lede">{{ t("learn.page.we-couldn-t-load-your-texts", "We couldn't load your texts.") }}</p>
+  <p>{{ t("learn.page.reload-the-page-to-try-again-everything", "Reload the page to try again. Everything you've read is still here.") }}</p>
+</section>
+{%- else %}
 <section class="nothing" id="nothing" hidden>
   <p class="lede">{{ t("yours.page.nothing-here-yet", "Nothing here yet.") }}</p>
   <p><a href="/library">{{ t("yours.page.find-something-in-the-library", "Find something in the Library.") }}</a></p>
 </section>
+{%- endif %}
 
 {% include '_foot.html.j2' %}
 
@@ -248,6 +263,9 @@ window.TARGUM_LIST = "{{ which }}";
 <script>{{ asset('shelf.js') }}</script>
 {%- if which == 'words' %}
 <script>{{ asset('claim.js') }}</script>
+{%- endif %}
+{%- if which == 'texts' %}
+<script>{{ asset('home.js') }}</script>
 {%- endif %}
 <script>{{ asset('yours.js') }}</script>
 </body>

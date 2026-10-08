@@ -784,7 +784,7 @@ def test_a_build_already_running_is_watched_and_offers_the_way_out() -> None:
     assert 'data-job="abc123"' in page and 'data-made="1758600000000"' in page
     assert 'data-usually="420"' in page
     assert 'id="press-doing"' in page and 'id="press-left"' in page
-    assert "/texts" in page, "no way off the page while it builds"
+    assert '<a href="/">' in page, "no way off the page while it builds: home, the shelf"
 
 
 def test_a_queued_or_costing_build_is_a_wait_and_not_a_refusal() -> None:

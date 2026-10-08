@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from targum.render.builder import learn_page
+from targum.render.builder import list_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -75,7 +75,7 @@ class Box:
             },
         }
         self.asked: list[str] = []
-        self.html = learn_page(TOKEN)
+        self.html = list_page(TOKEN, "texts")
 
     def answer(self, route: Any, request: Any) -> None:
         url = request.url
@@ -101,8 +101,10 @@ class Box:
 def opened_page(browser: Any, box: Box) -> Any:
     context = browser.new_context(viewport={"width": 1100, "height": 800})
     page = context.new_page()
+    # Home, past the arrival a new account is sent to first (2026-10-08).
+    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
     page.route("http://learn.test/**", box.answer)
-    page.goto(f"http://learn.test/learn?k={TOKEN}")
+    page.goto(f"http://learn.test/?k={TOKEN}")
     page.wait_for_selector("#notices-count:not([hidden])")
     page.click("#notices-open")
     page.wait_for_selector("li[data-id='job:run'] .notices-row")

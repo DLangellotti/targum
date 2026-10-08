@@ -14,8 +14,8 @@ import shutil
 from typing import Any
 
 import pytest
-from test_learn_js import THREE, reader, seeded
-from test_learn_js import draw as _draw
+from test_arrival_js import THREE, reader, seeded
+from test_arrival_js import draw as _draw
 
 
 def draw(*args: Any, **kwargs: Any) -> dict[str, Any]:

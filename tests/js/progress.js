@@ -10,7 +10,7 @@
  * The growth line and the tiles are stubbed — they draw into an SVG and are not what
  * this is for. Everything else, including `collect()`, is the page's own code. The word
  * table and the phrase list used to be stubbed here too; they live on Learn now, and
- * `tests/js/learn.js` runs them.
+ * `tests/js/arrival.js` runs them.
  */
 
 "use strict";

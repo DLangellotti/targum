@@ -200,7 +200,7 @@ def served(tmp_path: Path) -> Iterator[tuple[int, str, Path]]:
         {
             "library": Library(out),
             "token": token,
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "progress": "<html>your progress</html>",
             "shelf": "<html>library</html>",
             "lists": {k: "<html></html>" for k in ("texts", "words", "phrases")},

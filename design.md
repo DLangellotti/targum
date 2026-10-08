@@ -384,6 +384,51 @@ What it does not overturn: readers fetch nothing (every picture is fetched at mo
 by the server, and then carried in the page or served from the box), and covers already
 drawn are kept.
 
+### Home is Your targums, and Continue leads it — 2026-10-08
+
+David, 2026-10-08, in the same pass as the reader's bar ("everything is way too busy and
+it's hard to find anything"; the calmer-surfaces boards Main, HomePhone and FirstRun).
+Learn is taken apart, and **Your targums is the first page after signing in**, at `/`.
+This reverses "Learn is most visits" in the nav's order, the sheet and the row of doors
+(§13, 2026-09-11), "Learn on a phone is cards, not a reader" (2026-09-14) and the rail
+beside the sheet (2026-09-18): there is no sheet, no rail and no row of doors any more.
+
+- **Continue leads home.** The last few texts the reader opened or uploaded, newest first,
+  four at a desk and two on a phone, each a card with its picture, what it is, its title
+  in its own face, how far through in leaf, and one press that picks up exactly where
+  they stopped: the part, the sentence and the second (`Store.places`, targum-internal#430;
+  this browser's `targum:places` for somebody signed out). A text still being built is a
+  card too, and opens when it is ready. A followed series' newest instalment leads it
+  once, marked New, and rings the bell, as it took the sheet before.
+- **Under Continue, the shelf**, in the tabs it already had (2026-09-26); **beside it, one
+  text to try next** — Learn's suggestion, the one piece of the lobby kept — **and the
+  upload**, the page's one filled press. On a phone the upload comes straight after
+  Continue and the suggestion after the shelf.
+- **A reader with nothing yet** is told so in a line ("Nothing here yet. What you open or
+  upload appears here."), with one to start with and the upload under it. The drawn
+  definition of a targum leaves home: the FirstRun boards draw none, and the arrival's
+  welcome already says what targum is.
+- **The arrival is a page of its own, `/welcome`.** The same questions, one a screen, as
+  the FirstRun boards draw them. Home sends a Hebrew reader who has opened nothing and
+  answered nothing there; it sends anybody with nothing to ask straight back, and the
+  last answer still opens the text it chose.
+- **What else Learn held goes.** The greeting, the date and the count of known words
+  (Your Progress counts); What to work on and Words you may already know (Your Words,
+  where both already lived); the connector's banner (it is met on the way in and on
+  /connect). The conversation was already only the pill at the foot (§13), and stays so.
+- **The places are four: Your targums · Library · Your Progress · + Upload**, and the
+  last says **Upload**, not Add (Russian «Загрузить»): the less ambiguous word, and the
+  one the product uses for what a reader brought. The page it opens keeps its address.
+- **No link breaks.** `/` is home; `/texts`, Your targums' address until today, and
+  `/learn` send there with what they asked for (`/texts?show=uploads` is the uploads tab).
+- **Every card wears its text's picture** (`TargumCovers.picture`, through
+  `/thumb/<name>?drawn=1`): its own picture where it has one and the server's letter on
+  the colour of its kind where it has none ("Every text has a picture", above). Home
+  draws no letter of its own, except for a build, which has no folder yet.
+
+What it does not overturn: nothing on home spends — the suggestion and every card are
+links, and a build is still pressed for on the page it opens. Light only, no streaks, no
+counts to beat. Talk is a pill only.
 
 ### The reader's bar goes by how often a thing is pressed — 2026-10-08
 
@@ -4220,8 +4265,8 @@ every message.
 
 ## 13 · The desk — the chrome's own system
 
-The reader is the page. Everything around it — Learn, the conversation, the library, Your
-Progress, the account, the Add page — is the desk the page lies on, and is built to be
+The reader is the page. Everything around it — home (Your targums), the conversation, the
+library, Your Progress, the account, the Upload page — is the desk the page lies on, and is built to be
 operated rather than read. Added 2026-09-11; the reasons are in §12. The pages in front of
 the door — sign-in, the holding page and its 404, What's built — stand on the desk too
 since 2026-09-14 (targum-internal#276): the ground, the chrome's face, the door and the
@@ -4241,14 +4286,14 @@ than at being shown), its title, Expand and Open under it — a shadow offset `2
 a page casts, no card chrome. The header is glass (decided 2026-09-11; it was the ink bar, `#171614`, for a
 morning): sticky, no rule under it, the places as tint pills with the current one in the
 primary, the bell and the account as round buttons; the reader keeps its own bar. On a
-phone (under 40rem) the four places — Learn, Library, Your Progress, Add — are a bar at
-the foot of the window on glass, a glyph over each word, and at a desk only Add keeps its
+phone (under 40rem) the four places — Your targums, Library, Your Progress, Upload (2026-10-08, §12) — are a bar at
+the foot of the window on glass, a glyph over each word, and at a desk only Upload keeps its
 glyph, a `+` before the word; the top bar keeps the mark, the language (its flag alone), the
 bell and the account, with find as a row in the account's sheet; the pill
 that opens the conversation is a round button above the bar, and every panel comes up
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
-alike — no taller than the screen less a strip of the page, over the page dimmed. Learn on
-a phone is quiet (2026-09-14, "the whole page is just way too busy"): the greeting and the
+alike — no taller than the screen less a strip of the page, over the page dimmed. Learn (until 2026-10-08, when home became Your targums — §12) on
+a phone was quiet (2026-09-14, "the whole page is just way too busy"): the greeting and the
 count without the date, and no sheet and no row of doors: a column of cards, one for every
 text the page can offer — the one carried on with, a new instalment, the suggestion, what
 was read lately, what is followed — each raised on the desk with its cover, what it is to

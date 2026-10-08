@@ -61,14 +61,14 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
             "token": token,
             # Every chrome page carries the talk drawer's frame, and so does a reader;
             # the framed conversation carries none (2026-09-11).
-            "page": '<html>start<iframe id="talk-frame"></iframe></html>',
+            "welcome": '<html>start<iframe id="talk-frame"></iframe></html>',
             "chatting": '<html><body class="chat"><div class="site-head"></div>'
             '<iframe id="talk-frame"></iframe></body></html>',
             "embedded": '<html><body class="chat embed"></body></html>',
             "progress": '<html>your progress<iframe id="talk-frame"></iframe></html>',
             "shelf": "<html>library</html>",
             "lists": {
-                "texts": "<html>your targums</html>",
+                "texts": '<html>your targums<iframe id="talk-frame"></iframe></html>',
                 "words": "<html>your words</html>",
                 "phrases": "<html>your phrases</html>",
             },
@@ -289,10 +289,21 @@ def test_the_old_words_address_lands_on_the_words(served: tuple[int, str, Path])
 
 
 def test_each_list_has_a_page_of_its_own(served: tuple[int, str, Path]) -> None:
-    """Learn caps every list it draws. These are where the rest of each one is."""
+    """Your targums is home since 2026-10-08, at `/`; the other two are behind the
+    account. `/texts` and `/learn`, the addresses that were, open home with what they
+    asked for (design.md §12)."""
     port, token, _ = served
+    for route, where in (
+        (f"/texts?k={token}", f"/?k={token}"),
+        (f"/texts?show=uploads&k={token}", f"/?show=uploads&k={token}"),
+        (f"/learn?k={token}", f"/?k={token}"),
+    ):
+        status, _, location = call(port, "GET", route)
+        assert status == 302 and location == where, route
+    status, body, _ = call(port, "GET", f"/welcome?k={token}")
+    assert status == 200 and b"start" in body, "the arrival's own page"
     for route, expected in (
-        ("/texts", b"your targums"),
+        ("/", b"your targums"),
         ("/words", b"your words"),
         ("/phrases", b"your phrases"),
     ):
@@ -1686,7 +1697,7 @@ def hosted(tmp_path: Path) -> tuple[int, threading.Thread, ThreadingHTTPServer]:
             "store": Store(tmp_path / "w.db"),
             "mailer": ConsoleMailer(stream=io.StringIO()),
             "address": "https://targum.page",
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "progress": "<html>your progress</html>",
             "shelf": "<html>library</html>",
         },
@@ -1877,9 +1888,9 @@ def test_signing_out_shows_the_holding_page_once_an_account_exists(tmp_path: Pat
 def test_the_about_page_is_reachable_from_inside_the_app() -> None:
     """It is the open-source half made visible, and a link only on the front door means
     nobody who is signed in ever finds it."""
-    from targum.render.builder import add_page, learn_page, library_page, progress_page
+    from targum.render.builder import add_page, library_page, list_page, progress_page
 
-    for page in (library_page("k"), learn_page("k"), progress_page("k"), add_page("k")):
+    for page in (library_page("k"), list_page("k", "texts"), progress_page("k"), add_page("k")):
         assert 'href="/about"' in page
 
 

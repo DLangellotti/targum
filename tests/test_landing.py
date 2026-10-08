@@ -46,7 +46,7 @@ def served(tmp_path: Path) -> Iterator[tuple[int, Store, io.StringIO]]:
             "token": "test-key",
             # Hosted: a stranger at the door is the whole subject here.
             "require_account": True,
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "store": store,
             "mailer": library.mailer,
             "address": f"http://127.0.0.1:{port}",

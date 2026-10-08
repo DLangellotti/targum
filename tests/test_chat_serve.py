@@ -73,7 +73,7 @@ def chatting(tmp_path: Path) -> Iterator[tuple[int, str, Store, session_module.C
         {
             "library": library,
             "token": "k",
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "chatting": "<html>chat</html>",
             "chats": chats,
             "store": store,
@@ -209,7 +209,7 @@ def test_a_handler_without_a_chat_answers_not_found(tmp_path: Path) -> None:
         {
             "library": Library(out),
             "token": "k",
-            "page": "<html></html>",
+            "welcome": "<html></html>",
             "store": Store(tmp_path / "w.db"),
             "mailer": ConsoleMailer(),
             "address": f"http://127.0.0.1:{port}",

@@ -1,7 +1,7 @@
 /* The cover tile, drawn the same way everywhere it appears.
  *
- * Two pages show one: the library, where every text is a row, and Learn, where a book
- * opens into its chapters. Written once because a second copy is a tile that drifts —
+ * Every page that shows a text shows one: the library's rows, Your targums, and home's
+ * Continue (`picture`, below). Written once because a second copy is a tile that drifts —
  * one page would keep a fix and the other would not, and nobody would notice for months.
  *
  * A tile is a letter until it is a picture. The text's own first letter is drawn
@@ -67,5 +67,28 @@
     return book + "-c" + padded;
   }
 
-  window.TargumCovers = { tile: tile, chapterName: chapterName };
+  /* A text's picture, wherever home draws one (design.md §12, "Every text has a
+     picture", 2026-10-08): `/thumb/<name>?drawn=1` answers with the text's own picture,
+     an upload's from the asker's own home, a video's frame, or — where there is none —
+     the server's letter on the colour of its kind. So this draws no letter of its own
+     for a text with a name; a build, which has no folder yet, rests on its letter.
+     `keyed` adds the start-up key to the address on a machine somebody runs itself. */
+  function picture(reader, options) {
+    var settings = options || {};
+    var address =
+      settings.keyed ||
+      function (path) {
+        return path;
+      };
+    var named = reader.entry || reader.id || reader.name || "";
+    var source = named ? address("/thumb/" + encodeURIComponent(named) + "?drawn=1") : "";
+    return tile(source, {
+      title: reader.title,
+      language: reader.language,
+      drawn: !!source,
+      className: settings.className || "thumb home-thumb",
+    });
+  }
+
+  window.TargumCovers = { tile: tile, chapterName: chapterName, picture: picture };
 })();
