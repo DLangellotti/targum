@@ -111,7 +111,7 @@ def test_a_sheet_the_box_cannot_make_says_so_in_one_sentence(
         waiting[0].fulfill(status=503, body="no", content_type="text/plain")
         note = page.locator(".sheet-note")
         note.wait_for(state="visible")
-        assert note.inner_text() == "Сейчас не получается сделать PDF. Попробуйте через минуту."
+        assert note.inner_text() == "Сейчас мы не можем сделать PDF. Попробуйте через минуту."
         assert note.get_attribute("role") == "status"
         assert page.locator("form.sheet-choices button").inner_text() == "Скачать PDF"
     finally:
