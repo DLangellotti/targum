@@ -507,7 +507,9 @@
     return Promise.all([me, placed, sawSeries]).then(function (all) {
       var who = all[0];
       var places = mergePlaces(all[1]);
-      if (first && arriving(who, readers, places, code)) {
+      // Only from a page a server is behind: off the disk there is no `/welcome`.
+      var served = !window.location.protocol || /^https?:$/.test(window.location.protocol);
+      if (first && served && arriving(who, readers, places, code)) {
         window.location.replace(keyed("/welcome"));
         return false;
       }

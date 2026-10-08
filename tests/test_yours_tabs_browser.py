@@ -69,7 +69,8 @@ def browser():
 def shelf(browser, tmp_path: Path, width: int = 1280, html: str | None = None):
     page_file = tmp_path / "texts.html"
     page_file.write_text(html or list_page("test-key", "texts"), encoding="utf-8")
-    context = browser.new_context(viewport={"width": width, "height": 900})
+    # Tall enough that the shelf under home's Continue is on screen (2026-10-08).
+    context = browser.new_context(viewport={"width": width, "height": 2000})
     page = context.new_page()
     thrown: list[str] = []
     page.on("pageerror", lambda error: thrown.append(str(error)))
@@ -161,14 +162,6 @@ def test_a_short_shelf_is_not_handed_controls(browser, tmp_path: Path) -> None:
     hidden = page.locator("#sift-shelf").is_hidden()
     context.close()
     assert hidden, "five uploads is a shelf that needs no sifting"
-
-
-def test_the_page_says_what_a_targum_is_by_showing_one(browser, tmp_path: Path) -> None:
-    context, page, _ = shelf(browser, tmp_path)
-    line = page.locator(".defined-line").inner_text()
-    under = page.locator(".defined-under").inner_text()
-    context.close()
-    assert "הַשֻּׁלְחָן" in line and under == "The book is on the table"
 
 
 def test_the_desk_draws_cards_and_a_phone_draws_rows(browser, tmp_path: Path) -> None:
@@ -278,11 +271,10 @@ def test_a_series_begun_and_not_finished_says_started(browser, tmp_path: Path) -
     assert status.strip() == "Started"
 
 
-def test_a_reader_with_nothing_still_sees_what_a_targum_is_and_the_tabs(
-    browser, tmp_path: Path
-) -> None:
-    """The definition and the tabs were inside the part of the page an empty shelf kept
-    hidden, so the reader who most needed them saw one line (2026-09-27)."""
+def test_a_reader_with_nothing_is_told_what_will_appear_here(browser, tmp_path: Path) -> None:
+    """The FirstRun boards (design.md §12, 2026-10-08): with nothing on the shelf, home
+    says what will appear here and offers the upload; the tabs and the shelf, which have
+    nothing to show, stay away."""
     page_file = tmp_path / "texts.html"
     page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
     context = browser.new_context(viewport={"width": 390, "height": 900})
@@ -292,38 +284,12 @@ def test_a_reader_with_nothing_still_sees_what_a_targum_is_and_the_tabs(
         "{readers: [], shared: [], trash: []})));"
     )
     page.goto(page_file.as_uri())
-    page.wait_for_selector("#nothing:not([hidden])")
-    defined = page.locator(".defined").is_visible()
+    page.wait_for_selector("#first-home:not([hidden])")
+    upload = page.locator(".upload-card").is_visible()
     tabs = page.locator("#yours-tabs").is_visible()
     shelf_shown = page.locator("#shelf-panel").is_visible()
     context.close()
-    assert defined and tabs and not shelf_shown
-
-
-def test_what_a_targum_is_folds_once_one_is_finished(browser, tmp_path: Path) -> None:
-    """Whole until a text is finished, then one line that opens it (David, 2026-09-27,
-    targum-internal#374). The default fixture has two finished episodes."""
-    context, page, _ = shelf(browser, tmp_path, width=390)
-    folded = page.locator(".defined").get_attribute("class") or ""
-    example = page.locator(".defined-example").is_visible()
-    line = page.locator("#defined-open").is_visible()
-    page.click("#defined-open")
-    opened = page.locator(".defined-example").is_visible()
-    expanded = page.get_attribute("#defined-open", "aria-expanded")
-    context.close()
-    assert "is-folded" in folded and not example and line
-    assert opened and expanded == "true"
-
-    global DOCS
-    kept, DOCS = DOCS, {}
-    try:
-        context, page, _ = shelf(browser, tmp_path, width=390)
-        whole = page.locator(".defined-example").is_visible()
-        no_line = page.locator("#defined-open").is_hidden()
-        context.close()
-    finally:
-        DOCS = kept
-    assert whole and no_line, "nothing finished: the definition is whole"
+    assert upload and not tabs and not shelf_shown
 
 
 def test_a_letter_tile_is_a_strip_and_a_picture_keeps_its_frame(browser, tmp_path: Path) -> None:

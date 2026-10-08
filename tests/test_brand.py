@@ -338,7 +338,6 @@ THUMBED = (
     ".scene",
     ".steps > li",
     ".yours-tabs .tab",
-    ".defined-open",
     ".sift-shelf .chip",
     ".sift-shelf .find",
     ".sift-shelf .pick select",

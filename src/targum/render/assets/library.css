@@ -1314,76 +1314,12 @@
 
 /* --- Your targums (design.md §12, "Your targums has tabs", 2026-09-26) ------------ */
 
-/* What a targum is, shown: a sentence beside a small page of the thing itself. On the
-   desk ground rather than a panel, because §9 allows one raised layer per view and the
-   example card is it. */
-.defined {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
-  align-items: center;
-  gap: 1.5rem;
-  margin: 0 0 1.25rem;
-}
-.defined h2 { margin: 0 0 0.3rem; font-family: var(--chrome); font-size: 1.25rem; font-weight: 600; }
-.defined-words p { margin: 0; max-inline-size: 30rem; color: var(--ink-soft); font-size: 0.9375rem; line-height: 1.55; }
-.defined-example {
-  position: relative;
-  margin: 0;
-  padding: 1rem 1.25rem 1.1rem;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-raised);
-}
-.defined-line {
-  margin: 0;
-  font-family: var(--reading-hebrew);
-  font-size: 1.5rem;
-  line-height: 1.5;
-  color: var(--ink);
-}
-/* The tapped word: the reader's accent wash under it, the way a word looks the moment
-   its card is up. */
-.defined-word {
-  padding: 0 0.2em;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: inherit;
-}
-.defined-under {
-  margin: 0.15rem 0 0;
-  font-family: var(--reading);
-  font-size: 0.9375rem;
-  color: var(--ink-soft);
-}
-/* The word's card, small, pinned to the word's corner as it is in a reader. */
-.defined-card {
-  position: absolute;
-  inset-block-start: -0.9rem;
-  inset-inline-start: 1rem;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.45rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  background: var(--bar);
-  color: var(--bar-ink);
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-  box-shadow: var(--shadow-raised);
-}
-.defined-card-word { font-family: var(--reading-hebrew); font-size: 0.9375rem; }
-.defined-card-means { font-weight: 600; }
-.defined-card-what { color: var(--bar-muted); }
 @media (max-width: 40rem) {
-  /* Learn's phone rule takes the page's gutter away for its edge-to-edge panels; these
-     two stand on the ground and need it back. */
-  .defined { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; padding: 1rem 1rem 0; }
-  body.learn .yours-tabs { margin-inline: 1rem; }
+  /* Home gives the page its gutter on a phone (home.css), so the strip needs none of
+     its own. */
   /* And the strip at the same height on all three tabs: Learn's phone main has no top
      padding, so /playlists drops its own. */
   body.playlists main { padding-block-start: 0; }
-  .defined-example { margin-block-start: 0.6rem; }
-  .defined-line { font-size: 1.25rem; }
 }
 
 /* The strip is links (one of them is another page), dressed as the Library's tabs. */
@@ -1412,33 +1348,11 @@
 @media (max-width: 40rem) { .sift-shelf .find { max-inline-size: none; } }
 .sift-shelf .pick select { min-block-size: 2.25rem; font-size: 0.8125rem; }
 
-/* Folded, once a text has been finished (targum-internal#374): one ghost line that
-   opens it, and nothing else of the block. Open again, the line stays as its close. */
-.defined-open {
-  grid-column: 1 / -1;
-  justify-self: start;
-  padding: 0.3rem 0;
-  border: 0;
-  background: none;
-  color: var(--teal);
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.defined-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.defined.is-folded { gap: 0; }
-.defined.is-folded .defined-words,
-.defined.is-folded .defined-example { display: none; }
-.defined:not(.is-folded) .defined-open:not([hidden]) + .defined-words h2 { display: none; }
-
 /* §8 under a thumb (2026-09-27): the tabs, the chips, the search, the order and the way
    back out of a series were 30-36px, and none was in the registry. The Library's Filters
    too. */
 @media (hover: none) and (pointer: coarse) {
   .yours-tabs .tab,
-  .defined-open,
   .sift-shelf .chip,
   .series-back,
   .filters > summary { min-block-size: 44px; display: inline-flex; align-items: center; }
