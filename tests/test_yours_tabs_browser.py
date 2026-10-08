@@ -184,7 +184,7 @@ def test_playlists_wears_the_same_tabs_and_lights_your_targums(browser, tmp_path
     current = page.get_attribute("#yours-tabs [aria-current='page']", "data-tab")
     here = page.get_attribute(".site-nav a[aria-current='page']", "data-nav")
     context.close()
-    assert tabs == ["all", "uploads", "playlists"]
+    assert tabs == ["recent", "playlists", "subscriptions", "uploads"]
     assert current == "playlists" and here == "texts"
 
 
@@ -232,7 +232,7 @@ def test_a_search_does_not_follow_the_reader_to_a_tab_with_no_search_box(
     page.fill("#shelf-find", "zzz")
     page.click("#yours-tabs [data-tab='uploads']")
     uploads = titles(page)
-    page.click("#yours-tabs [data-tab='all']")
+    page.click("#yours-tabs [data-tab='recent']")
     everything = titles(page)
     typed = page.input_value("#shelf-find")
     context.close()
@@ -327,3 +327,42 @@ def test_a_series_is_read_through_pointing_marks_and_hebrew_numerals(
     assert "The Chapter 11 story" in folded and "The Chapter 7 again" in folded
     assert [t.split()[-1] for t in opened] == ["ב", "י", "כג"]
     assert not thrown
+
+
+def test_subscriptions_is_a_tab_that_draws_the_series_in_place(browser, tmp_path: Path) -> None:
+    """Your targums' tabs are Recent · Playlists · Subscriptions · Uploads (design.md §12,
+    2026-09-26, amended 2026-10-08). Subscriptions is answered in place: the series with
+    their switches, subscribed first, and the address says the tab."""
+    page_file = tmp_path / "texts.html"
+    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    series = [
+        {"id": "weekly", "name": "Weekly", "hebrew": "מבט השבוע", "what": "", "page": "/weekly"},
+        {"id": "parasha", "name": "The weekly portion", "what": "", "page": "/parasha"},
+    ]
+    page.add_init_script(
+        "localStorage.setItem('targum:follows', JSON.stringify({parasha: 1}));"
+        f"const said = {json.dumps({'readers': MINE, 'shared': SHARED, 'trash': []})};"
+        f"const series = {json.dumps({'series': series})};"
+        "window.fetch = (url) => { const path = String(url).split('?')[0];"
+        "  const body = path.endsWith('/readers') ? said : path.endsWith('/series') ? series : {};"
+        "  return Promise.resolve(new Response(JSON.stringify(body))); };"
+    )
+    page.goto(page_file.as_uri())
+    page.wait_for_selector("#library-list li")
+    page.click("#yours-tabs [data-tab='subscriptions']")
+    page.wait_for_selector("#home-series .series-row")
+    got = page.evaluate(
+        """() => ({
+          rows: [...document.querySelectorAll('#home-series .series-row')]
+            .map((li) => [li.dataset.series, li.querySelector('.switch-word').textContent]),
+          shelf: document.getElementById('shelf-panel').hidden,
+          current: document.querySelector('#yours-tabs [aria-current=page]').dataset.tab,
+          address: location.search,
+        })"""
+    )
+    context.close()
+    assert got["rows"] == [["parasha", "Subscribed"], ["weekly", "Subscribe"]], got
+    assert got["shelf"] and got["current"] == "subscriptions", got
+    assert "show=subscriptions" in got["address"], got

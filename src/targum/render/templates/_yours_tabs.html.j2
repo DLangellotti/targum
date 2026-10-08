@@ -1,12 +1,13 @@
-{#- Your targums' three tabs (design.md §12, "Your targums has tabs", 2026-09-26): All
-    targums and Your uploads, which are two views of one shelf, and Playlists, which is its
-    own page wearing the same strip. Links rather than buttons, because the third is a page
-    and a tab strip that is half buttons and half a link is two controls pretending to be
-    one; `yours.js` answers the first two in place. Set `tab` to "all", "uploads" or
-    "playlists" before including. -#}
+{#- Your targums' four tabs (design.md §12, "Your targums has tabs", 2026-09-26, and its
+    amendment of 2026-10-08): Recent, Playlists, Subscriptions and Uploads. Recent,
+    Subscriptions and Uploads are home itself, answered in place by `yours.js`; Playlists
+    is its own page wearing the same strip. Links rather than buttons, because one of them
+    is a page and a strip that is half buttons and half a link is two controls pretending
+    to be one. Set `tab` to "recent", "playlists", "subscriptions" or "uploads". -#}
 {%- set keyed = ('k=' ~ token) if token else '' %}
 <nav class="tabs yours-tabs" id="yours-tabs" aria-label="{{ t("yours.tabs.label", "Your targums") }}">
-  <a class="tab" data-tab="all" href="/{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'all' %} aria-current="page"{% endif %}>{{ t("yours.tabs.all", "All targums") }}</a>
-  <a class="tab" data-tab="uploads" href="/?show=uploads{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'uploads' %} aria-current="page"{% endif %}>{{ t("yours.tabs.uploads", "Your uploads") }}</a>
+  <a class="tab" data-tab="recent" href="/{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'recent' %} aria-current="page"{% endif %}>{{ t("yours.tabs.recent", "Recent") }}</a>
   <a class="tab" data-tab="playlists" href="/playlists{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'playlists' %} aria-current="page"{% endif %}>{{ t("yours.tabs.playlists", "Playlists") }}</a>
+  <a class="tab" data-tab="subscriptions" href="/?show=subscriptions{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'subscriptions' %} aria-current="page"{% endif %}>{{ t("yours.tabs.subscriptions", "Subscriptions") }}</a>
+  <a class="tab" data-tab="uploads" href="/?show=uploads{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'uploads' %} aria-current="page"{% endif %}>{{ t("yours.tabs.uploads", "Uploads") }}</a>
 </nav>

@@ -257,7 +257,7 @@
       toggle.appendChild(word);
       function settle() {
         var on = following(one.id);
-        word.textContent = on ? t("follow.following", "Following") : t("follow.follow", "Follow");
+        word.textContent = on ? t("follow.subscribed", "Subscribed") : t("follow.subscribe", "Subscribe");
         toggle.setAttribute("aria-checked", on ? "true" : "false");
         li.classList.toggle("followed", on);
       }

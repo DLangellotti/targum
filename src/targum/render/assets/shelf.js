@@ -424,7 +424,7 @@
     // When it came, for a text the reader brought; when they last had it open, for one
     // from the library, which came to everybody at once.
     if (!reader.entry && reader.built) {
-      said.push(t("shelf.added", "Added {when}", { when: ago(reader.built * 1000) }));
+      said.push(t("shelf.uploaded", "Uploaded {when}", { when: ago(reader.built * 1000) }));
     } else if (reader.opened) {
       said.push(t("shelf.opened", "Opened {when}", { when: ago(reader.opened) }));
     }

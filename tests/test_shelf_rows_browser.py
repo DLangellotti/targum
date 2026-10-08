@@ -137,7 +137,7 @@ def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> Non
     assert "10 min video" in facts
     assert "Bet · A2" in facts
     assert "You know 72%" in facts
-    assert "Added 7 hours ago" in facts
+    assert "Uploaded 7 hours ago" in facts
     assert "In Morning" in facts
     assert [one.strip() for one in statuses] == ["Finished", "3 of 6", "New"]
     assert not thrown
@@ -148,7 +148,7 @@ def test_a_library_text_says_when_it_was_opened_not_added(browser, tmp_path: Pat
     facts = page.locator("#library-list li").nth(2).locator(".book-facts").inner_text()
     context.close()
     assert "3 min read" in facts
-    assert "Added" not in facts, "a library text came to everybody at once"
+    assert "Uploaded" not in facts, "a library text came to everybody at once"
 
 
 def test_add_to_playlist_never_wraps(browser, tmp_path: Path) -> None:

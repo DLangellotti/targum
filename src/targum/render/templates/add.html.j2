@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{{ t("add.page.add-targum", "Add — targum") }}</title>
+<title>{{ t("add.page.upload-targum", "Upload — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('add.css') }}</style>
 {{ hebrew_face() }}
@@ -23,7 +23,7 @@
   {#- This page used to be the front door and opened by saying what targum is. Reached
       from the nav by somebody who already has an account and a shelf, that reads as a
       stranger's greeting to a regular. It says what it is for instead. -#}
-  <h1 class="lede">{{ t("add.page.add", "Add") }}</h1>
+  <h1 class="lede">{{ t("add.page.upload", "Upload") }}</h1>
   {#- Worth a look before waiting for a build, and no more than that: the catalogue is a
       few hundred texts, not most of what anybody wants. -#}
   <p class="hint"><a class="to-library" href="/library">{{ t("add.page.it-may-already-be-in-the-library", "It may already be in the Library.") }}</a></p>
