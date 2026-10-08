@@ -1074,3 +1074,18 @@ def test_the_unpointed_paal_lifts_coverage_on_the_shipped_table(shipped: Table) 
     ):
         found = bare_shelf.of(lemma, binyan=binyan)
         assert found is not None and found.lemma == expected, lemma
+
+
+def test_an_infinitive_s_vowel_settles_nothing(shipped: Table) -> None:
+    """targum-internal#307, 2026-10-08: no table holds an infinitive, so its vowel was
+    matched against an unrelated cell that opens the same way. `רְבוֹת` drew `רַב`."""
+    assert shipped.of("רבה", seen="רְבוֹת") is not None, "the bug this guards against"
+    assert shipped.of("רבה", seen="רְבוֹת", infinitive=True) is None
+
+
+def test_an_infinitive_s_binyan_still_names_its_verb(shipped: Table) -> None:
+    """Only the vowel is set aside: a binyan the annotator gave still settles it."""
+    struck = shipped.of("נכה", seen="לְהַכּוֹת", binyan="הפעיל", infinitive=True)
+    assert struck is not None and struck.lemma == "הִכָּה"
+    born = shipped.of("ילד", seen="לָלֶדֶת", binyan="פעל", infinitive=True)
+    assert born is not None and born.lemma == "ילד"

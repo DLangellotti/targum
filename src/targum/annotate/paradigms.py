@@ -662,6 +662,7 @@ class Table:
         binyan: str | None = None,
         written: Iterable[str] = (),
         said: Iterable[tuple[str, str, str]] = (),
+        infinitive: bool = False,
     ) -> Paradigm | None:
         """The paradigm for a lemma or any inflected form of it.
 
@@ -699,6 +700,12 @@ class Table:
         tagged present is the one and not the other. Where it names a verb, it also
         refuses a table anything else settled on another.
 
+        `infinitive`, where the occurrence was tagged one, keeps the pointing from settling
+        it (targum-internal#307, 2026-10-08). No table holds an infinitive, so its vowel is
+        matched against some other cell that happens to open the same way: `רְבוֹת` was
+        read as `רַב` and `לִשְׂחוֹת` as `שָׂח`. Its binyan, its readings and its present still
+        have their say, and `seen` still answers shin against sin.
+
         None where nothing matches at all, and None where nothing settles it: a wrong
         conjugation table is worse than no table, and the way out to Pealim is still on
         the card.
@@ -708,7 +715,7 @@ class Table:
             return None
         if len(found) == 1:
             return self.verbs.get(found[0])
-        pointed = self.pointed_as(found, seen)
+        pointed = [] if infinitive else self.pointed_as(found, seen)
         built = []
         if binyan:
             built = [lid for lid in found if self.binyan_of(lid) == binyan]

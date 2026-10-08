@@ -124,6 +124,7 @@ def measure(
                 token.get("binyan"),
                 tuple(written[(lemma, str(token.get("headword") or ""))]),
                 tuple(said[(lemma, str(token.get("headword") or ""))]),
+                infinitive="VerbForm=Inf" in str(token.get("feats") or ""),
             )
             tally[where] += 1
             lemmas[where].add(lemma)
@@ -137,6 +138,7 @@ def bucket(
     binyan: object,
     written: tuple[str, ...] = (),
     said: tuple[tuple[str, str, str], ...] = (),
+    infinitive: bool = False,
 ) -> str:
     """Which bucket one verb token falls in. The same questions `Table.of` asks, kept
     apart here so the answer says *why* rather than only yes or no."""
@@ -147,7 +149,8 @@ def bucket(
     if len(candidates) == 1:
         return "unique"
     known = verbs.verbs
-    pointed = verbs.pointed_as(candidates, surface)
+    # An infinitive's vowel names no cell of the table (`Table.of`, 2026-10-08).
+    pointed = [] if infinitive else verbs.pointed_as(candidates, surface)
     built = [lid for lid in candidates if binyan and verbs.binyan_of(lid) == str(binyan)]
     present = verbs._by_present(candidates, said)
     if len(pointed) == 1 and len(built) == 1:

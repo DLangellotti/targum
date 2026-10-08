@@ -2257,7 +2257,8 @@ def _paradigm_at(
     if not lemma or getattr(token, "pos", "") != "VERB":
         return 0
     binyan = str(getattr(token, "binyan", "") or "")
-    key = f"{lemma}\u0000{binyan}"
+    infinitive = "VerbForm=Inf" in str(getattr(token, "feats", "") or "")
+    key = f"{lemma}\u0000{binyan}" + ("\u0000\u0003inf" if infinitive else "")
     if not binyan and written:
         key += "\u0000" + "|".join(sorted(set(written)))
     if said:
@@ -2266,7 +2267,9 @@ def _paradigm_at(
         key += "\u0000\u0002" + seen
     if key in table_at:
         return table_at[key]
-    found = paradigm_table().of(lemma, seen=seen, binyan=binyan or None, written=written, said=said)
+    found = paradigm_table().of(
+        lemma, seen=seen, binyan=binyan or None, written=written, said=said, infinitive=infinitive
+    )
     if found is None:
         table_at[key] = 0
         return 0
