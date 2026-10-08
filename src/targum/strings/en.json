@@ -2845,5 +2845,10 @@
   "reader.bar.the-original": "The original",
   "reader.bar.talk-to-targum": "Talk to targum",
   "reader.film.split": "Video and transcript",
-  "reader.film.split-title": "Drag to give the video or the transcript more room. Double-click to put it back."
+  "reader.film.split-title": "Drag to give the video or the transcript more room. Double-click to put it back.",
+  "reader.film.end-of-part": "End of part {n} of {count}",
+  "reader.film.end": "The end",
+  "reader.film.end-ask.one": "{n} word here you haven't marked. Do you know it?",
+  "reader.film.end-ask.other": "{n} words here you haven't marked. Do you know them?",
+  "reader.film.end-more": "+{n} more"
 }

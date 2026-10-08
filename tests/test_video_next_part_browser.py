@@ -19,7 +19,7 @@ import pytest
 
 pytest.importorskip("playwright.sync_api")
 
-from test_reader_browser import address, browser, opened  # noqa: E402, F401
+from test_reader_browser import address, browser, built, opened  # noqa: E402, F401
 
 WIDE = {"width": 1440, "height": 900}
 
@@ -395,5 +395,72 @@ def test_beside_has_one_primary_at_the_end_of_a_part(browser, tmp_path) -> None:
     try:
         done = page.evaluate(looks)
         assert "gradient" in done["bg"] and done["line"] != "underline", done
+    finally:
+        context.close()
+
+
+# -- the end of a part in Theatre (David, 2026-10-08; design.md §12) -------------------
+
+END = """
+() => {
+  const end = document.getElementById('film-end');
+  const foot = document.getElementById('foot');
+  const shown = (el) => !!el && el.getClientRects().length > 0;
+  return {
+    shown: shown(end),
+    head: end ? end.querySelector('.film-end-head').textContent.trim() : null,
+    footInside: !!end && end.contains(foot),
+    footShown: shown(foot),
+    footBottom: foot ? foot.getBoundingClientRect().bottom : null,
+    line: shown(document.getElementById('film-sub')),
+    press: document.getElementById('done-mark').textContent.trim(),
+    finished: !document.getElementById('finished').hidden,
+  };
+}
+"""
+
+
+def test_theatre_ends_a_part_with_the_foot_under_the_picture(browser, tmp_path) -> None:  # noqa: F811
+    """Played to its end in Theatre, the line under the picture gives way to "End of part 1
+    of 2" and the text's own foot — Done, the press that marks the rest known — moved in,
+    so a part can be finished without opening the transcript. Next part is still there.
+    Moving the film again puts the foot back under the transcript."""
+    reader = two_parts(tmp_path)
+    context, page, _ = film_page(
+        browser, reader, "sec-0001.html", "theatre", (200, {"ready": True})
+    )
+    try:
+        before = page.evaluate(END)
+        assert not before["shown"] and not before["footInside"]
+        play_to_end(page)
+        ended = page.evaluate(END)
+        assert ended["shown"] and ended["head"] == "End of part 1 of 2", ended
+        assert ended["footInside"] and ended["footShown"], ended
+        assert ended["footBottom"] <= WIDE["height"], "inside the window"
+        assert not ended["line"], "the line under the picture gave way"
+        assert page.locator("#film-next").is_visible(), "and the next part is still the way on"
+        shot(page, "theatre-end-block")
+        page.click("#done-mark")
+        assert page.evaluate(END)["finished"], "the part is finished from here"
+        page.evaluate("() => window.TargumPlayer.seek(0.1)")
+        page.wait_for_timeout(150)
+        back = page.evaluate(END)
+        assert not back["shown"] and not back["footInside"], back
+    finally:
+        context.close()
+
+
+def test_the_unmarked_words_are_the_ones_the_press_would_mark(browser, built) -> None:  # noqa: F811
+    """What the end of a part asks about is what the foot's press marks: the same count,
+    and the words met most first."""
+    context = opened(browser, WIDE)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector(".pair")
+        rest = page.evaluate("() => window.TargumReader.unmarked(4)")
+        press = page.locator("#done-mark").inner_text()
+        assert rest["count"] > 4 and len(rest["words"]) == 4, rest
+        assert str(rest["count"]) in press, (rest, press)
     finally:
         context.close()

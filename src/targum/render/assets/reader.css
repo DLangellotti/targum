@@ -2303,7 +2303,8 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
    §12, "One press gets the whole video, a part at a time"): two teal pills a screen
    apart is the shape "The foot is one block" took apart. Theatre has no foot on screen,
    and a playlist's press is its Next, so neither changes. */
-body.film-beside:not(.in-list):has(#film-next) .foot-go {
+body.film-beside:not(.in-list):has(#film-next) .foot-go,
+body.film-ended:not(.in-list):has(#film-next) .foot-go {
   min-block-size: 2.75rem;
   padding: 0;
   background: none;
@@ -2313,7 +2314,8 @@ body.film-beside:not(.in-list):has(#film-next) .foot-go {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
-body.film-beside:not(.in-list):has(#film-next) .foot-go:hover { filter: none; color: var(--ink); }
+body.film-beside:not(.in-list):has(#film-next) .foot-go:hover,
+body.film-ended:not(.in-list):has(#film-next) .foot-go:hover { filter: none; color: var(--ink); }
 .foot-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* The same press without the marking: a text link under it, never a second button. */
 .foot-plain {
@@ -5594,3 +5596,47 @@ body.film .bar .bar-rate { display: none; }
 }
 /* While it is held the page does not select text under the pointer. */
 body.film-splitting { user-select: none; -webkit-user-select: none; cursor: col-resize; }
+/* --- the end of a part in Theatre (David, 2026-10-08; design.md §12) ---
+   Played to its end, the line under the picture gives way to what ended, the words here
+   never marked as quiet chips in the text's own face, and the foot of the text moved in
+   from under the transcript: the same press, the same Undo, the same count. */
+.film-end[hidden] { display: none; }
+body.film-ended .film-sub { display: none; }
+.film-end {
+  margin-block-start: 1.25rem;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  text-align: start;
+}
+.film-end-head { margin: 0; color: var(--ink); font-size: 1.0625rem; font-weight: 600; }
+.film-end-ask { margin: 0.4rem 0 0; }
+.film-end-ask[hidden], .film-end-words[hidden] { display: none; }
+.film-end-words {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.film-end-word {
+  padding: 0.1rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+}
+.film-end-words[lang|="he"] .film-end-word,
+.film-end-words[lang|="yi"] .film-end-word,
+.film-end-words[lang|="arc"] .film-end-word { font-family: var(--reading-hebrew); }
+.film-end-more { font-size: 0.8125rem; }
+.film-end .foot {
+  max-width: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  border: 0;
+}
+body.film-theatre .film-end + .film-next { justify-content: flex-start; }

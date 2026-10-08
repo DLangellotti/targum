@@ -580,6 +580,18 @@
     {% if translated %}<p class="film-tr" lang="{{ target_language }}" dir="{{ target_direction }}"></p>{% endif %}
     <p class="film-far film-after" lang="{{ source_language }}" dir="{{ source_direction }}" aria-hidden="true"></p>
   </div>
+  {#- The end of a part in Theatre (David, 2026-10-08; design.md §12, "The end of a part is
+      the end of a reading"): Theatre shows no transcript, so the foot that ends every
+      text — Done, and mark the words never marked — could not be reached from where a
+      film ends. Once the film has played to its end the line under the picture gives way
+      to this: what ended, the words here never marked, and the foot itself, moved in by
+      the script rather than drawn twice, so it is one press with one Undo. -#}
+  <section class="film-end" id="film-end" aria-labelledby="film-end-head" dir="ltr" hidden>
+    <h2 class="film-end-head" id="film-end-head">{% if not standalone %}{{ t("reader.film.end-of-part", "End of part {n} of {count}", n=section.number, count=section_count) }}{% else %}{{ t("reader.film.end", "The end") }}{% endif %}</h2>
+    <p class="film-end-ask" hidden></p>
+    <ul class="film-end-words" lang="{{ source_language }}" dir="{{ source_direction }}" hidden></ul>
+    <div class="film-end-foot"></div>
+  </section>
   {#- The way on to the next part, under the picture (David, 2026-10-07: "at the end of the
       first part of a video I uploaded, there's no button to take me to the next video").
       The pager at the foot of the transcript carried it, and Theatre does not show the

@@ -10453,6 +10453,37 @@ var targumReader = function () {
     inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
+    // The words here never marked, the ones met most first, and how many there are: for
+    // the end of a part under a large picture (design.md §12, 2026-10-08), which asks
+    // about them before the press that marks them.
+    unmarked: function (limit) {
+      var seen = {};
+      Object.keys(wordData).forEach(function (segmentId) {
+        (wordData[segmentId] || []).forEach(function (token) {
+          if (isName(token)) return;
+          var lemma = lemmas[token[4]];
+          if (!lemma || !asksAbout(lemma)) return;
+          if (!seen[lemma]) {
+            // As the text writes it, the first time it does: the form a reader met.
+            var surface = segmentText(segmentId).slice(token[0], token[1]) || lemma;
+            seen[lemma] = { lemma: lemma, surface: surface, n: 0 };
+          }
+          seen[lemma].n++;
+        });
+      });
+      var all = Object.keys(seen).map(function (lemma) {
+        return seen[lemma];
+      });
+      all.sort(function (a, b) {
+        return b.n - a.n;
+      });
+      return {
+        count: all.length,
+        words: all.slice(0, limit || 4).map(function (entry) {
+          return entry.surface;
+        }),
+      };
+    },
     // The press at the foot, as a playlist asks for it (design.md §12, "The foot is one
     // block"): what the press says and what moving on is, and the press itself made
     // before the playlist moves on. `press` and `unpress` are the same press and its
@@ -12476,6 +12507,81 @@ var targumReader = function () {
       var last = order.length ? order[order.length - 1].id : null;
       var end = filmUp() && (videoEl.ended || (!!last && subId === last));
       body.classList.toggle("film-at-end", !!end);
+      showEnd(
+        filmUp() && playedOut && videoEl.ended && view === "theatre" && !panel && wideFilm.matches && !inList && !lastOfMany()
+      );
+    };
+    // Played to its end, not only stood at it: a seek to the last frame with nothing
+    // playing is a reader looking for something, and the line under the picture stays.
+    // `running` is whether the film has been playing since the last such seek.
+    var playedOut = false;
+    var running = false;
+    // The last part of a recording cut in parts ends at the foot of its transcript, where
+    // the library's offer is as well, and Theatre opens the transcript to it (below).
+    var lastOfMany = function () {
+      var pages = document.querySelector(".pager[data-by-part]");
+      return !!pages && !pages.querySelector("[data-next]");
+    };
+
+    /* The end of a part in Theatre (David, 2026-10-08; design.md §12). Played to its end,
+       the line under the picture gives way to what ended, the words here never marked,
+       and the foot of the text — moved in, not copied, so its press, its Undo and its
+       count are the ones the transcript's foot has. Put back where it came from the
+       moment the film plays or moves again, the view changes or the transcript opens. */
+    var endBox = document.getElementById("film-end");
+    var endFoot = endBox ? endBox.querySelector(".film-end-foot") : null;
+    var endAsk = endBox ? endBox.querySelector(".film-end-ask") : null;
+    var endWords = endBox ? endBox.querySelector(".film-end-words") : null;
+    var footHome = null;
+    var paintEnd = function () {
+      var reader = window.TargumReader;
+      var rest = reader && reader.unmarked ? reader.unmarked(4) : { count: 0, words: [] };
+      if (endAsk) {
+        endAsk.hidden = !rest.count;
+        endAsk.textContent = rest.count
+          ? S.tn(
+              "reader.film.end-ask",
+              rest.count,
+              "{n} word here you haven't marked. Do you know it?",
+              "{n} words here you haven't marked. Do you know them?"
+            )
+          : "";
+      }
+      if (endWords) {
+        endWords.textContent = "";
+        rest.words.forEach(function (word) {
+          var chip = document.createElement("li");
+          chip.className = "film-end-word";
+          chip.textContent = word;
+          endWords.appendChild(chip);
+        });
+        if (rest.count > rest.words.length) {
+          var more = document.createElement("li");
+          more.className = "film-end-more";
+          more.setAttribute("dir", "ltr");
+          more.setAttribute("lang", document.documentElement.lang || "en");
+          more.textContent = S.t("reader.film.end-more", "+{n} more", { n: rest.count - rest.words.length });
+          endWords.appendChild(more);
+        }
+        endWords.hidden = !rest.count;
+      }
+    };
+    var showEnd = function (on) {
+      if (!endBox || !endFoot) return;
+      var foot = document.getElementById("foot");
+      on = !!on && !!foot;
+      var was = !endBox.hidden;
+      if (on) paintEnd();
+      if (on === was) return;
+      endBox.hidden = !on;
+      body.classList.toggle("film-ended", on);
+      if (on) {
+        footHome = { parent: foot.parentNode, next: foot.nextSibling };
+        endFoot.appendChild(foot);
+      } else if (footHome && foot.parentNode === endFoot) {
+        footHome.parent.insertBefore(foot, footHome.next);
+        footHome = null;
+      }
     };
     filmCaption = function (id) {
       // The transcript lights the line held as well, paused or playing: moving the voice
@@ -13068,6 +13174,8 @@ var targumReader = function () {
        playlist's end opens it to its card (#422). Not inside a playlist, whose own end
        does that. */
     videoEl.addEventListener("ended", function () {
+      playedOut = running;
+      running = false;
       atEnd();
       var pages = document.querySelector(".pager[data-by-part]");
       if (!pages || pages.querySelector("[data-next]") || inList) return;
@@ -13075,10 +13183,16 @@ var targumReader = function () {
       var foot = document.getElementById("foot");
       if (foot && foot.scrollIntoView) foot.scrollIntoView({ block: "center", behavior: behaviour() });
     });
-    videoEl.addEventListener("seeking", atEnd);
+    videoEl.addEventListener("seeking", function () {
+      playedOut = false;
+      if (videoEl.paused) running = false;
+      atEnd();
+    });
 
     /* The voice starts and stops. */
     audio.addEventListener("play", function () {
+      playedOut = false;
+      running = true;
       startTicking();
       if (filmUp()) settle();
       atEnd();
