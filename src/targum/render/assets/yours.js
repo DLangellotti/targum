@@ -135,7 +135,12 @@
    * chips for where you are with a text, a search, an order, and series folded into one
    * row. The third tab, Playlists, is a page of its own. */
   var view = {
-    tab: new URLSearchParams(location.search).get("show") === "uploads" ? "uploads" : "all",
+    // Recent, Uploads or Subscriptions, from `?show=` (design.md §12, 2026-10-08); the
+    // fourth tab, Playlists, is a page of its own.
+    tab: (function () {
+      var show = new URLSearchParams(location.search).get("show");
+      return show === "uploads" || show === "subscriptions" ? show : "recent";
+    })(),
     status: "all",
     query: "",
     order: "read",
@@ -213,7 +218,7 @@
   }
 
   function onTab(reader) {
-    return view.tab === "all" || isUpload(reader);
+    return view.tab !== "uploads" || isUpload(reader);
   }
 
   function matches(reader) {
@@ -369,7 +374,35 @@
         });
       }
 
+      /* Subscriptions (design.md §12, 2026-10-08): what used to be called Following —
+         the series that come out on their own clock, each with its switch — drawn by
+         `follow.js`, which also draws them on the profile. The full feature, channels and
+         podcasts with a cap, is a later slice. */
+      var subsPanel = document.getElementById("subs-panel");
+      var subsAsked = null;
+      function drawSubscriptions() {
+        var follow = window.TargumFollow;
+        if (!subsPanel || !follow) return;
+        if (!subsAsked) subsAsked = follow.list();
+        subsAsked.then(function (series) {
+          var host = document.getElementById("home-series");
+          var none = document.getElementById("subs-empty");
+          var order = series.slice().sort(function (a, b) {
+            return (follow.following(b.id) ? 1 : 0) - (follow.following(a.id) ? 1 : 0);
+          });
+          follow.draw(host, order);
+          if (none) none.hidden = series.length > 0;
+        });
+      }
+
       function render() {
+        var subscribing = view.tab === "subscriptions";
+        if (subsPanel) subsPanel.hidden = !subscribing;
+        document.getElementById("shelf-panel").hidden = subscribing || nothingYet;
+        if (subscribing) {
+          drawSubscriptions();
+          return;
+        }
         var mine = readers.filter(function (reader) {
           return shelf.base(reader.language) === shown && onTab(reader);
         });
@@ -428,7 +461,7 @@
         if (!rows.length && mine.length) {
           empty = t("yours.sift.none", "Nothing here matches that. Try another search or filter.");
         } else if (!rows.length && view.tab === "uploads") {
-          empty = t("yours.uploads.empty", "Nothing you've added yet. What you paste, upload or link on Add is kept here.");
+          empty = t("yours.uploads.none", "Nothing you’ve uploaded yet. What you paste, upload or link is kept here.");
         } else if (!rows.length) {
           // The rows are handed over already sifted, so `shelf.draw` cannot tell an empty
           // language from an empty shelf; this can.
@@ -487,7 +520,7 @@
           // The address says the tab, so a reload or a shared link opens on it. Only the
           // query changes: the key in it stays, and so does the path.
           var query = new URLSearchParams(location.search);
-          if (view.tab === "uploads") query.set("show", "uploads");
+          if (view.tab !== "recent") query.set("show", view.tab);
           else query.delete("show");
           var search = query.toString();
           try {

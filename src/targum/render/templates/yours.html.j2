@@ -55,7 +55,7 @@
   <div class="home-grid">
   <div class="home-shelf">
   {#- The tabs, then the shelf (design.md §12, "Your targums has tabs", 2026-09-26). -#}
-  {% set tab = 'all' %}{% include '_yours_tabs.html.j2' %}
+  {% set tab = 'recent' %}{% include '_yours_tabs.html.j2' %}
 
   <section class="panel" id="shelf-panel">
     {#- Sifting (2026-09-26): drawn by `yours.js` only on a shelf of six or more. -#}
@@ -80,6 +80,15 @@
     <p class="note" id="shelf-note"></p>
     <ul class="books shelf-rows shelf-cards" id="library-list"></ul>
     <p class="empty" id="shelf-empty" hidden></p>
+  </section>
+
+  {#- Subscriptions (design.md §12, 2026-10-08): the series that come out on their own
+      clock, each with its switch, the ones subscribed to first. Drawn by `follow.js`
+      through `yours.js` when the tab is pressed. -#}
+  <section class="panel subs" id="subs-panel" hidden>
+    <p class="note">{{ t("home.subs.note", "Series that come out on a schedule. Each new one goes under Continue when it’s out, and the weekly ones come by mail too.") }}</p>
+    <ul class="series" id="home-series"></ul>
+    <p class="empty" id="subs-empty" hidden>{{ t("home.subs.none", "There’s nothing to subscribe to here yet.") }}</p>
   </section>
   </div>
 

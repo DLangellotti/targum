@@ -351,11 +351,14 @@ def test_your_subscriptions_stand_on_the_profile_and_every_page_hears_them() -> 
     profile, the account panel links to it, the Library carries nothing of it, and the
     script that asks is in the bar on every page so the bell hears a landed instalment."""
     you = PAGES["you"]
-    assert 'id="subscriptions"' in you and 'id="series"' in you and "Following" in you
+    assert 'id="subscriptions"' in you and 'id="series"' in you and "Subscriptions" in you
     assert 'id="subscriptions"' not in PAGES["library"] and 'id="series"' not in PAGES["texts"]
+    # And a tab on home (2026-10-08), the same rows drawn by the same script.
+    assert 'id="subs-panel"' in PAGES["texts"] and 'id="home-series"' in PAGES["texts"]
     for name, page in PAGES.items():
         if 'class="site-head"' in page:
-            assert 'class="to-you" href="/you#subscriptions"' in page, name
+            # Home's Subscriptions tab since 2026-10-08 (design.md §12).
+            assert 'class="to-you" href="/?show=subscriptions"' in page, name
             assert "TargumFollow" in page, f"{name}: the bell hears a landed instalment"
             assert page.index("TargumFollow") < page.index('getElementById("notices-open")'), name
 
@@ -369,7 +372,7 @@ def test_add_no_longer_introduces_the_product() -> None:
     add = PAGES["add"]
     assert "Hebrew, with the translation beside it" not in add
     # "Add", since a recording is as welcome as a text: the page's one word is the act.
-    assert '<h1 class="lede">Add</h1>' in add
+    assert '<h1 class="lede">Upload</h1>' in add
 
 
 def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
@@ -378,7 +381,7 @@ def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
     "Library", card "Explore the Library", route /library — so it is Library everywhere
     now, and the route it always was."""
     add = PAGES["add"]
-    said = add[add.index('<h1 class="lede">Add</h1>') : add.index('id="drop"')]
+    said = add[add.index('<h1 class="lede">Upload</h1>') : add.index('id="drop"')]
     assert "Library" in said and 'href="/library"' in said
 
 
