@@ -12947,13 +12947,7 @@ var targumReader = function () {
         if (out && !player.hidden) {
           player.hidden = true;
           body.classList.remove("has-player");
-        } else if (
-          !out &&
-          window.TargumPlayer &&
-          window.TargumPlayer.show &&
-          (!audio.paused || (window.TargumPlayer.footBar && window.TargumPlayer.footBar()))
-        ) {
-          // Playing, or on a phone, where the strip is the foot bar and stands (#434).
+        } else if (!out && !audio.paused && window.TargumPlayer && window.TargumPlayer.show) {
           window.TargumPlayer.show();
         }
       }
@@ -12962,6 +12956,19 @@ var targumReader = function () {
         quiet(false);
       }
       place(held);
+      // On a phone the strip is the foot bar and stands once the picture is put away
+      // (#434): after the page is placed, and placed again once the bar has its room.
+      if (
+        player &&
+        player.hidden &&
+        !out &&
+        window.TargumPlayer &&
+        window.TargumPlayer.footBar &&
+        window.TargumPlayer.footBar()
+      ) {
+        window.TargumPlayer.show();
+        place(held);
+      }
     };
 
     flips.forEach(function (button) {
