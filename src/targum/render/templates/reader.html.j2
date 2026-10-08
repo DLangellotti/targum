@@ -601,6 +601,11 @@
   <span>{{ t("reader.page.transcript", "Transcript") }}</span>
   <button type="button" class="film-panel-close" aria-label="{{ t("reader.film.close-transcript", "Close the transcript") }}" title="{{ t("reader.film.close-transcript", "Close the transcript") }}">×</button>
 </div>
+{#- Beside, the line between the picture and its transcript can be taken and moved (David,
+    2026-10-08; design.md §12): a wider picture or more room for the text, kept on this
+    device. Shown only Beside on a wide window. -#}
+<div class="film-split" id="film-split" role="separator" tabindex="0" aria-orientation="vertical" aria-controls="video" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"
+     aria-label="{{ t("reader.film.split", "Video and transcript") }}" title="{{ t("reader.film.split-title", "Drag to give the video or the transcript more room. Double-click to put it back.") }}" hidden><span class="film-split-line" aria-hidden="true"></span></div>
 {% endif %}
 <main id="reader">
 {#- Small on purpose. A chapter page is for reading, and an image that competed with the

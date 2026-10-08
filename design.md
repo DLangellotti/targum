@@ -353,7 +353,6 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
-
 ### The reader's bar goes by how often a thing is pressed — 2026-10-08
 
 David, 2026-10-08, after nine complaints that came down to "everything is way too busy and
@@ -386,6 +385,25 @@ view, the highlight, the pages and the case lens as rows of ⋯. What it keeps: 
 paper not glass, the live choice quiet raised paper rather than a filled pill, panels as
 visits, the bar stepping back, print where a portion has it, and §8's 44px for every new
 press (`test_brand.py` lists the view's drawings).
+### Beside, the line between the picture and the transcript moves — 2026-10-08
+
+David, 2026-10-08 (calmer surfaces, board ReaderBeside): Theatre's picture could be made
+smaller since the day before, and Beside should give the same say. "The large picture can
+be made smaller" (2026-10-07) said "Beside is unchanged"; this is the change.
+
+- **A hairline between the picture's column and the transcript**, in the rule colour,
+  darkening under the pointer, with the keyboard in it, and while held. Dragged, the
+  picture keeps its shape and fills the column it is given; the transcript takes the
+  rest. Never narrower than a picture that shows a face (240px), never leaving the
+  transcript less than a column a line can be read in (352px), and never wider than the
+  window's height lets the picture be, so the line never stands off in empty paper.
+- **Kept on this device** (`targum:film-split`, a share of the room, in `localStorage`),
+  not on the account: a laptop and a large screen want different splits. The layout's own
+  place is never written, and a double press puts it back and forgets it.
+- **Every hand**, as Theatre's grip: pointer drag with capture; a vertical separator from
+  the keyboard (← → a twentieth of the room, Home and End its ends) with the focus ring
+  and a 44px band under a thumb. Nothing is animated.
+- Beside on a wide window only. Theatre keeps its grip; a phone has one way of standing.
 
 ### An advanced reader is not asked about the commonest words — 2026-10-07
 

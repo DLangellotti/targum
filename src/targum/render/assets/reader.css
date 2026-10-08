@@ -5553,3 +5553,44 @@ body.film .bar .bar-rate { display: none; }
 @media (max-width: 46rem) {
   .bar-more.open .more-modes [data-mode="parallel"] { display: none; }
 }
+/* Beside, the line between the picture and the transcript (David, 2026-10-08; design.md
+   §12): a hairline the reader can take and move, a wider picture or more room for the
+   text. It stands on the picture column's edge, which holds the left whichever way the
+   text reads (the picture does), so it is placed from the left as the column is. A 12px
+   band to take hold of, 44px under a thumb; the line darkens under the pointer, with the
+   keyboard in it, and while it is held. Wide windows only. */
+.film-split { display: none; }
+@media (min-width: 60.01rem) {
+  body.film-beside .film-split:not([hidden]) {
+    display: block;
+    position: fixed;
+    z-index: 15;
+    inset-block: var(--bar-foot, 3.5rem) 0;
+    left: calc(var(--film-col, 50vw) - 6px);
+    inline-size: 12px;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .film-split-line {
+    position: absolute;
+    inset-block: 1.5rem;
+    left: 5.5px;
+    inline-size: 1px;
+    background: var(--rule);
+    transition: background-color 150ms ease;
+  }
+  .film-split:hover .film-split-line,
+  .film-split:focus-visible .film-split-line,
+  .film-split.held .film-split-line { background: var(--ink-soft); }
+  .film-split:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .film-split { min-inline-size: 44px; }
+  body.film-beside .film-split:not([hidden]) { left: calc(var(--film-col, 50vw) - 22px); }
+  .film-split-line { left: 21.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .film-split-line { transition: none; }
+}
+/* While it is held the page does not select text under the pointer. */
+body.film-splitting { user-select: none; -webkit-user-select: none; cursor: col-resize; }

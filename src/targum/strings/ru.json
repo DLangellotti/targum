@@ -3037,5 +3037,7 @@
   "reader.bar.case-loc": "предложный",
   "reader.bar.watch-the-recording": "Смотреть запись",
   "reader.bar.the-original": "Оригинал",
-  "reader.bar.talk-to-targum": "Поговорить с targum"
+  "reader.bar.talk-to-targum": "Поговорить с targum",
+  "reader.film.split": "Видео и текст",
+  "reader.film.split-title": "Потяните, чтобы дать больше места видео или тексту. Двойной щелчок вернёт как было."
 }
