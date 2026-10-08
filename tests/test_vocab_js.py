@@ -364,7 +364,7 @@ def test_with_no_way_to_copy_it_says_so_rather_than_throwing() -> None:
     assert done["after"] == {
         "text": "Not copied",
         "copied": True,
-        "announced": "We couldn't copy that.",
+        "announced": "We couldn't copy that. Select the text and copy it from there.",
     }
 
 
