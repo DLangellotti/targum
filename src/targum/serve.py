@@ -1310,9 +1310,10 @@ class Jobs(dict[str, Job]):
     That is not a second policy to keep in step with the first — it is the same
     condition, which is why `waiting` takes the cutoff rather than deciding one.
 
-    **What this deliberately does not change is what the server remembers.** `self` still
-    holds every job, `/job/<id>` still answers about one from three months ago, and the
-    ledger on disk is still the record. Only the per-request cost moves.
+    **What the server holds is a day, and what it can answer is everything.** Since
+    2026-10-08 (#231's memory half) `self` holds the unsettled jobs and a day of the rest;
+    `get` reads any other back from its row, so `/job/<id>` still answers about one from
+    three months ago, and the table on disk is still the record.
 
     The index is maintained here rather than at the thirteen places that assign a job,
     because an index the caller has to remember to update is an index that drifts. The
@@ -1376,15 +1377,19 @@ class Jobs(dict[str, Job]):
         return found
 
     def sweep(self, cutoff: int) -> int:
-        """Stop holding what is settled and was made before `cutoff`. Returns how many.
+        """Stop holding what is settled and both made and finished before `cutoff`.
+        Returns how many.
 
         Only settled jobs go: one still reading, waiting or working is held whatever its
-        age, because a worker thread is writing to that very object. A copy is taken
-        first for the same reason `waiting` takes one.
+        age, because a worker thread is writing to that very object. Finished counts too,
+        not only made: a build says "done" when its reader is up and its worker goes on
+        looking up meanings until it settles, and a quote pressed a day after it was made
+        would otherwise be let go mid-way, leaving two objects for one id (review,
+        2026-10-08). A copy is taken first for the same reason `waiting` takes one.
         """
         gone = 0
         for key, job in list(self.items()):
-            if job.stage in Library.SETTLED and job.made < cutoff:
+            if job.stage in Library.SETTLED and max(job.made, job.finished) < cutoff:
                 self.pop(key, None)
                 self.builds.pop(key, None)
                 gone += 1
@@ -10139,8 +10144,12 @@ class Handler(BaseHTTPRequestHandler):
                 folders[hash_] = self.library.document_folder(homes, hash_)
             return folders[hash_]
 
+        from . import coverage as coverage_module
+
+        counted = coverage_module.read_map()
+        verses = {ref: chapter.verses for ref, chapter in counted.chapters.items()}
         return occurrences_module.finished_chapters(
-            self.store.finished(person.id), folder_for, "he"
+            self.store.finished(person.id), folder_for, "he", verses
         )
 
     @staticmethod

@@ -53,7 +53,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -438,17 +438,22 @@ def finished_chapters(
     finished: Iterable[tuple[str, str, int]],
     folder_for: FolderFor,
     language: str = "he",
+    verses: Mapping[str, int] | None = None,
 ) -> set[str]:
     """The chapters a reader has read every verse of, named as the Tanakh map names
     them, "Genesis 12" (targum-internal#144: "chapters the reader has finished are solid
     leaf").
 
-    A chapter is read when every verse of it the text carries words for sits in a
-    section the reader finished. Whole chapters only: a text that cuts a long chapter into
-    two sections finishes it with the second. Texts with no verse references, which name
-    no chapter, add nothing.
+    `verses`, where given, is how many verses each chapter has — the Tanakh map's own
+    count — and then a chapter is read only when that many of its verses have been read,
+    whichever texts they were read in: Noach starts at Genesis 6:9, so finishing it reads
+    6:9–22 and not 6:1–8, and Bereshit's last section is what completes the chapter
+    (review, 2026-10-08). A chapter the count does not know is read when every verse of
+    it the text carries sits in a finished section. Texts with no verse references, which
+    name no chapter, add nothing.
     """
     out: set[str] = set()
+    pooled: dict[str, set[str]] = {}
     for _document, sections, counted in _finished_texts(finished, folder_for, language):
         every: dict[str, set[str]] = {}
         read: dict[str, set[str]] = {}
@@ -459,7 +464,13 @@ def finished_chapters(
             every.setdefault(chapter, set()).add(ref)
             if section in sections:
                 read.setdefault(chapter, set()).add(ref)
-        out.update(chapter for chapter, refs in read.items() if refs == every[chapter])
+        for chapter, refs in read.items():
+            if verses is not None and chapter in verses:
+                pooled.setdefault(chapter, set()).update(refs)
+            elif refs == every[chapter]:
+                out.add(chapter)
+    if verses is not None:
+        out.update(chapter for chapter, refs in pooled.items() if len(refs) >= verses[chapter] > 0)
     return out
 
 
