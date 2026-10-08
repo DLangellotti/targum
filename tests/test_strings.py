@@ -155,6 +155,35 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         )
 
 
+#: Where a script hands English straight to the reader without a key: a message to
+#: `refused`, `failed`, `tell` or `say`, a label or title set to a literal, either half of
+#: a ternary of two sentences, and a sentence after `||`. Found in the recording player in
+#: October 2026, where a Russian page said its playback messages and step labels in
+#: English.
+_UNKEYED = (
+    r'\b(?:refused|failed|tell|say|announce)\(\s*"[A-Z][^"]*\s[^"]*"',
+    r'setAttribute\(\s*"(?:aria-label|title|placeholder)",\s*(?:[^;]*?\?\s*)?"[A-Z][^"]*"',
+    r'\?\s*"[A-Z][a-z]+\s[^"]*"\s*:\s*"[A-Z][^"]*"',
+    r'\|\|\s*"[A-Z][a-z]+\s[^"]*[.]"',
+    r'textContent\s*=\s*"[A-Z][a-z]+\s[^"]*"',
+)
+
+
+def test_no_script_says_english_without_a_key() -> None:
+    """`t()` falls back to its English, so a sentence written without one looks like a
+    working page in the wrong language rather than like a bug. Every script is scanned,
+    not a list of them, so a new one is covered the day it is written."""
+    assets = Path(strings.__file__).parents[1] / "render" / "assets"
+    found = []
+    for script in sorted(assets.glob("*.js")):
+        source = script.read_text(encoding="utf-8")
+        for pattern in _UNKEYED:
+            for match in re.finditer(pattern, source):
+                line = source.count("\n", 0, match.start()) + 1
+                found.append(f"{script.name}:{line} {match.group()[:80]!r}")
+    assert not found, "said in English with no key:\n" + "\n".join(found)
+
+
 def test_a_desk_script_is_handed_only_its_own_keys_and_english_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

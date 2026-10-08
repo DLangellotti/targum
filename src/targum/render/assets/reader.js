@@ -3894,7 +3894,7 @@ var targumReader = function () {
     grab.type = "button";
     grab.className = "grab";
     // The bar carries no text, so it says what it is here rather than in the page.
-    grab.setAttribute("aria-label", "Close");
+    grab.setAttribute("aria-label", t("reader.page.close", "Close"));
     grab.addEventListener("click", close);
     return grab;
   }
@@ -11005,6 +11005,10 @@ var targumReader = function () {
     return;
   }
   if (!speech || !speech.audio) return;
+  // The player's words in the reader's language, from the first closure's catalogue.
+  var t = window.TargumStrings ? window.TargumStrings.t : function (key, english) {
+    return english;
+  };
   // Said for the first-run line, which is another closure's: there is something to play.
   document.body.classList.add("has-voice");
 
@@ -11247,7 +11251,13 @@ var targumReader = function () {
     try {
       audio.currentTime = from;
     } catch (why) {
-      return refused("We can't play this recording in this browser. Try another browser.", why);
+      return refused(
+        t(
+          "reader.player.cannot-seek",
+          "We can't play this recording in this browser. Try another browser."
+        ),
+        why
+      );
     }
     /* Drawn before the first `timeupdate` rather than by it. The clock is empty until
        that tick, and the strip is anchored to the foot of the window — so when its text
@@ -11265,8 +11275,11 @@ var targumReader = function () {
         // file: the control flipped back and the page had nothing to say for itself.
         refused(
           why && why.name === "NotAllowedError"
-            ? "This tab isn't allowed to play sound. Allow sound for this site in the address bar, then try again."
-            : "We couldn't play this recording. Try again.",
+            ? t(
+                "reader.player.sound-blocked",
+                "This tab isn't allowed to play sound. Allow sound for this site in the address bar, then try again."
+              )
+            : t("reader.player.could-not-play", "We couldn't play this recording. Try again."),
           why
         );
       });
@@ -11584,12 +11597,18 @@ var targumReader = function () {
   function labelSteps() {
     var byWord = starts().length > 0;
     stepBacks.forEach(function (stepBack) {
-      stepBack.setAttribute("aria-label", byWord ? "Back a word" : "Back five seconds");
-      stepBack.setAttribute("title", byWord ? "Back a word" : "Back five seconds");
+      var back = byWord
+        ? t("reader.player.back-a-word", "Back a word")
+        : t("reader.player.back-five-seconds", "Back five seconds");
+      stepBack.setAttribute("aria-label", back);
+      stepBack.setAttribute("title", back);
     });
     stepOns.forEach(function (stepOn) {
-      stepOn.setAttribute("aria-label", byWord ? "Forward a word" : "Forward five seconds");
-      stepOn.setAttribute("title", byWord ? "Forward a word" : "Forward five seconds");
+      var on = byWord
+        ? t("reader.player.forward-a-word", "Forward a word")
+        : t("reader.player.forward-five-seconds", "Forward five seconds");
+      stepOn.setAttribute("aria-label", on);
+      stepOn.setAttribute("title", on);
     });
   }
   labelSteps();
@@ -11714,7 +11733,11 @@ var targumReader = function () {
       if (!on && hearing) { hearing.classList.remove("hearing"); hearing = null; }
       var reader = window.TargumReader;
       if (reader && reader.say) {
-        reader.say(on ? "Hear first. Press a line to hear it before you see it." : "Hear first is off.");
+        reader.say(
+          on
+            ? t("reader.player.hear-first-on", "Hear first. Press a line to hear it before you see it.")
+            : t("reader.player.hear-first-off", "Hear first is off.")
+        );
       }
     });
   });
@@ -13064,6 +13087,12 @@ else targumReader();
   var go = document.getElementById("voice-go");
   var said = document.getElementById("voice-said");
   if (!offer || !go) return;
+  var S = window.TargumStrings || {
+    t: function (key, english) { return english; },
+    tn: function (key, count, one, other) {
+      return (count === 1 ? one : other).replace("{n}", String(count));
+    },
+  };
   if (location.protocol === "file:") {
     offer.hidden = true;
     return;
@@ -13102,7 +13131,11 @@ else targumReader();
       .then(function (state) {
         if (state.error && !state.stage) return failed(state.error);
         if (state.stage === "failed" || state.stage === "blocked") {
-          return failed(state.error || state.blocked || "We couldn't make the recording. Try again.");
+          return failed(
+            state.error ||
+              state.blocked ||
+              S.t("reader.voice.could-not-make", "We couldn't make the recording. Try again.")
+          );
         }
         if (state.stage === "done") {
           tell("Ready.");
@@ -13114,7 +13147,7 @@ else targumReader();
         }, window.TargumVoice.POLL);
       })
       .catch(function () {
-        failed("We couldn't connect. Try again.");
+        failed(S.t("reader.error.connect", "We couldn't connect. Try again."));
       });
   }
 
@@ -13126,7 +13159,14 @@ else targumReader();
   go.onclick = function () {
     go.disabled = true;
     var minutes = Math.max(1, Math.round(Number(offer.getAttribute("data-seconds") || 0) / 60));
-    tell("Thanks. We're recording this section now. It runs about " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
+    tell(
+      S.tn(
+        "reader.voice.recording-now",
+        minutes,
+        "Thanks. We're recording this section now. It runs about {n} minute.",
+        "Thanks. We're recording this section now. It runs about {n} minutes."
+      )
+    );
     fetch(keyed("/voice"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
@@ -13144,7 +13184,7 @@ else targumReader();
         follow(state.id);
       })
       .catch(function () {
-        failed("We couldn't connect. Try again.");
+        failed(S.t("reader.error.connect", "We couldn't connect. Try again."));
       });
   };
 
