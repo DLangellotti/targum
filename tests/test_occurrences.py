@@ -205,7 +205,7 @@ def test_a_reader_met_a_word_only_in_sections_they_finished(tmp_path: Path) -> N
 def test_a_chapter_is_read_when_every_verse_of_it_is_in_a_finished_section(
     tmp_path: Path,
 ) -> None:
-    """The Tanakh map's solid leaf (targum-internal#144), named as the map names a
+    """The Tanakh map's check (targum-internal#144), named as the map names a
     chapter. A text that cuts a chapter in two finishes it with its second section."""
     folder = _jonah(tmp_path / "jonah")
 

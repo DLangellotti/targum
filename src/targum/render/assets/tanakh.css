@@ -44,8 +44,26 @@
 .tanakh .cell[data-step="2"] { background: var(--step-2); box-shadow: none; }
 .tanakh .cell[data-step="3"] { background: var(--step-3); box-shadow: none; }
 .tanakh .cell[data-step="4"] { background: var(--step-4); box-shadow: none; }
-/* Read through (#144): solid leaf, over whatever step its words are on. */
-.tanakh .cell.read { background: var(--leaf); box-shadow: none; }
+/* Read through (#144; §12, 2026-10-08): the square keeps its step and wears a check
+   inside it, drawn as two sides of a turned box, so a chapter read is not mistaken for
+   one 95% known. Ink on the pale steps and the hairline, the card's tone on the two
+   deep ones, so it reads on every shade. */
+.tanakh .cell { position: relative; }
+.tanakh .cell.read::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  inline-size: calc(var(--cell) * 0.28);
+  block-size: calc(var(--cell) * 0.52);
+  box-sizing: border-box;
+  border: solid var(--ink);
+  border-width: 0 max(1px, calc(var(--cell) * 0.13)) max(1px, calc(var(--cell) * 0.13)) 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+  pointer-events: none;
+}
+.tanakh .cell.read[data-step="3"]::after,
+.tanakh .cell.read[data-step="4"]::after { border-color: var(--card); }
 .tanakh .cell.aramaic { background: var(--off); box-shadow: none; }
 .tanakh .cell.away {
   background: transparent;

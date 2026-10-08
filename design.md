@@ -1312,6 +1312,10 @@ leaf fill never was.
   A square not yet shaded — signed out, or before the answer lands — is a hairline.
 - **This week's portion is ink**, a ring inside the square so the shade under it still
   reads.
+- **A chapter read through keeps its shade and wears a check inside it** (2026-10-08,
+  David). It was solid leaf, which is the colour of 95% known, so a chapter read and a
+  chapter nearly known looked the same; the check is ink on the pale steps and the card's
+  tone on the two deep ones, and the legend's swatch wears it too.
 - **The squares are pointed at, not pressed, on a phone.** At seven pixels a square
   cannot take §8's 44px without taking its neighbours' taps, so under a coarse pointer a
   tap shows the card and the card's **Read**, tonal, is the press and is in the thumb

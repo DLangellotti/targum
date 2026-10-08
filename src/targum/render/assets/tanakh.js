@@ -82,7 +82,7 @@
         cell.removeAttribute("data-step");
       }
       cell.classList.toggle("week", !!week[ref]);
-      // Read through: solid leaf, whatever share of its words is known (#144).
+      // Read through: a check over the square's own step (#144; §12, 2026-10-08).
       cell.classList.toggle("read", !!finished[ref] && !cell.classList.contains("away"));
     });
     var sum = document.getElementById("tanakh-sum");
