@@ -4628,8 +4628,11 @@ body.list-handed .video-el { visibility: hidden; }
     overflow-y: auto;
     scrollbar-width: none;
   }
-  body.reader.has-list-rail:not(.list-open) { padding-right: 7rem; }
-  body.has-list-rail:not(.list-open) > .bar { margin-right: -7rem; padding-right: 8.5rem; }
+  /* The rail stands at the right whichever way the text reads; the bar is laid out left
+     to right, so its inline end is the right. */
+  html:not([dir="rtl"]) body.reader.has-list-rail:not(.list-open) { padding-inline-end: 7rem; }
+  html[dir="rtl"] body.reader.has-list-rail:not(.list-open) { padding-inline-start: 7rem; }
+  body.has-list-rail:not(.list-open) > .bar { margin-inline-end: -7rem; padding-inline-end: 8.5rem; }
   body.film-theatre.has-list-rail:not(.list-open) .video { right: 7rem; }
   body.film-panel.has-list-rail:not(.list-open) .video { right: 33.25rem; }
   body.film-panel.has-list-rail:not(.list-open) .film-panel-head:not([hidden]) { right: 7rem; }
