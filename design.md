@@ -354,6 +354,39 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The end of a playlist offers a set picked for the words just met, confirmed on the card — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards PlaylistEnd and PlaylistEndPhone;
+targum-internal#435). "The end offers more, once" (2026-09-23) promised a next set "chosen
+for the words just met", and what was built chose it the way `suggest_next` chooses, the
+gentlest texts first, and sent the reader to `/set/<id>` to press. Both change.
+
+- **Picked for the words just met.** The words met across the playlist that the reader
+  has not marked, or has at a learning stage (1 to 3), are the ones to meet again. Every
+  library text in the playlist's language that the reader would follow — three words in
+  four or more known, by the catalogue's own index — is ranked by how many of those words
+  it repeats, then by how much of it they know; the first five make the set. Nothing
+  just read, or finished in the last weeks, is offered. It is free and local: the index
+  is already beside the catalogue and no model is asked. Where there is no index, or
+  nothing within reach repeats a word, it falls back to the gentlest texts, as before.
+- **Confirmed on the card.** The card names each text with its length, how much of it
+  is known and its credits, says the total, and Confirm claims the whole set there and
+  then: the same press as `/set/<id>`, through `Library.claim_set`, all or nothing.
+  "Change what's in it" still opens `/set/<id>` to untick. Confirmed, the card says the
+  set is getting ready and where to find it; a set already confirmed says so instead of
+  asking again.
+- **The words met, and no figures.** The card shows the words, each with its meaning
+  where the text's glossary has one, and the count of them, new first. The four figure
+  tiles ("The finished box is three figures", 2026-09-25, as a playlist added them up)
+  are gone from it: the words are the only number at the end, as the 2026-09-23 entry
+  said.
+- **Byline.** A next set targum picked reads "From targum"; a set an assistant made over
+  the connector still reads "From an assistant".
+
+What it does not overturn: the end offers once and never refills; the press is the
+reader's own on targum's page, never a model's; a quote is information.
+
+
 ### Listening plays on by itself, and reading still waits for a swipe — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards PlaylistSwipeDesk, PlaylistSwipePhone,
