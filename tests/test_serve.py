@@ -2431,6 +2431,65 @@ def test_a_video_import_without_a_cover_shows_its_own_frame(
     assert climbing == 404
 
 
+def test_an_uploads_own_picture_is_served_to_its_reader_only(
+    served: tuple[int, str, Path],
+) -> None:
+    """targum-internal#429: a publisher's picture is kept with the reader who added it. The
+    same folder name on the shared shelf answers nothing, so a picture there could never
+    reach every reader."""
+    port, key, out = served
+    for home in ("local", "shared"):
+        (out / home / "article").mkdir(parents=True)
+    (out / "local" / "article" / "thumb.webp").write_bytes(b"RIFF0000WEBPmine")
+    (out / "shared" / "shelved").mkdir(parents=True)
+    (out / "shared" / "shelved" / "thumb.webp").write_bytes(b"RIFF0000WEBPtheirs")
+
+    def fetch(path: str) -> tuple[int, bytes, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read(), response.getheader("Content-Type") or ""
+        finally:
+            connection.close()
+
+    status, body, kind = fetch(f"/thumb/article?k={key}")
+    assert status == 200 and body.endswith(b"mine") and kind == "image/webp"
+    shelved, _, _ = fetch(f"/thumb/shelved?k={key}")
+    assert shelved == 404
+
+
+def test_a_text_with_no_picture_is_drawn_when_asked(served: tuple[int, str, Path]) -> None:
+    """`?drawn=1` answers with the tile instead of a 404: the first letter on the kind's
+    colour, drawn on the server from what it knows, and nothing fetched or stored."""
+    port, key, out = served
+    folder = out / "local" / "notes"
+    folder.mkdir(parents=True)
+    (folder / "document.json").write_text(
+        '{"source": "https://example.org/a", "title": "«שלום»", "language": "he"}',
+        encoding="utf-8",
+    )
+
+    def fetch(path: str) -> tuple[int, str, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            body = response.read().decode("utf-8", "replace")
+            return response.status, body, response.getheader("Content-Type") or ""
+        finally:
+            connection.close()
+
+    missing, _, _ = fetch(f"/thumb/psalms-c003?k={key}")
+    assert missing == 404, "unasked, nothing changes for the pages that draw their own letter"
+    status, body, kind = fetch(f"/thumb/psalms-c003?k={key}&drawn=1")
+    assert status == 200 and kind == "image/svg+xml" and body.startswith("<svg")
+    status, body, _ = fetch(f"/thumb/notes?k={key}&drawn=1")
+    assert status == 200 and ">ש</text>" in body and "#1f6f6b" in body, "an article is news"
+    nobody, _, _ = fetch(f"/thumb/..%2Fnotes?k={key}&drawn=1")
+    assert nobody == 404
+
+
 def built_catalogue_text(out: Path, entry_id: str, titles: list[str]) -> Path:
     """One catalogue text on disk, with chapters, as a build would leave it."""
     from targum.catalogue import CATALOGUE

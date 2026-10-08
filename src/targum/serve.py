@@ -83,6 +83,7 @@ from .render.builder import (
     weekly_page,
 )
 from .segment.stanza_segmenter import telling
+from .thumbs import THUMB
 from .usage import Usage
 from .video import MAX_VIDEO_BYTES
 from .vision import MAX_PAGES, PICTURE_SUFFIXES
@@ -2598,7 +2599,10 @@ class Library:
                 }
             )
             # A video import's own frame, where it has one, is its picture.
-            if not found[-1]["drawn"] and (folder / POSTER).is_file():
+            # And an upload's own picture, kept when it was added (#429).
+            if not found[-1]["drawn"] and (
+                (folder / POSTER).is_file() or (folder / THUMB).is_file()
+            ):
                 found[-1]["drawn"] = True
         found.sort(key=lambda reader: reader["built"], reverse=True)
         return found
@@ -11627,7 +11631,19 @@ class Handler(BaseHTTPRequestHandler):
         # No cover drawn: a video import's own frame, from the asker's shelf or the shared
         # one (design.md §12, 2026-09-24). By folder name only, and resolved inside the
         # shelf, so a name cannot reach anywhere else.
-        if "/" not in wanted and "\\" not in wanted and wanted not in ("", ".", ".."):
+        from . import thumbs as thumbs_module
+
+        plain = "/" not in wanted and "\\" not in wanted and wanted not in ("", ".", "..")
+        if plain:
+            # An upload's own picture, kept when it was added (targum-internal#429). From
+            # the asker's own home only: a publisher's picture is kept with the reader
+            # who brought it and is never served off the shared shelf.
+            base = self._home().resolve()
+            own = (base / wanted / thumbs_module.THUMB).resolve()
+            if base in own.parents and own.is_file():
+                return self._send(
+                    200, own.read_bytes(), "image/webp", cache="private, max-age=86400"
+                )
             for shelf in (self._home(), self.library.shared):
                 base = shelf.resolve()
                 poster = (base / wanted / POSTER).resolve()
@@ -11635,7 +11651,43 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(
                         200, poster.read_bytes(), "image/jpeg", cache="private, max-age=86400"
                     )
+        # Nothing of its own: the drawn tile, for a page that asks for one with
+        # `?drawn=1` rather than drawing its own letter (#429). Made here, from what the
+        # catalogue or the reader's own folder says the text is; nothing is stored.
+        if "drawn" in parse_qs(urlparse(self.path).query):
+            drawing = self._drawn_thumb(wanted, chapterless, plain)
+            if drawing:
+                return self._send(
+                    200, drawing.encode("utf-8"), "image/svg+xml", cache="private, max-age=86400"
+                )
         return self._send(404, b"not found", "text/plain")
+
+    def _drawn_thumb(self, wanted: str, chapterless: str, plain: bool) -> str:
+        """The drawn tile for a library row or one of the asker's own texts, or ""."""
+        from . import catalogue as catalogue_module
+        from . import thumbs as thumbs_module
+
+        entry = next((e for e in catalogue_module.CATALOGUE if e.id in (wanted, chapterless)), None)
+        if entry is not None:
+            return thumbs_module.drawn(
+                entry.title, entry.kind.value, entry.register.value, entry.language
+            )
+        if not plain:
+            return ""
+        base = self._home().resolve()
+        folder = (base / wanted).resolve()
+        if base not in folder.parents or not (folder / "document.json").is_file():
+            return ""
+        try:
+            said = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return ""
+        return thumbs_module.drawn(
+            str(said.get("title") or wanted),
+            thumbs_module.kind_of_upload(str(said.get("source") or ""), folder),
+            "",
+            str(said.get("language") or ""),
+        )
 
     def _short_reader(self, short: str) -> None:
         """A short link the connector handed a host, sent on to the reader it names.

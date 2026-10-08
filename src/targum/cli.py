@@ -2124,6 +2124,107 @@ def posters(
 
 
 @app.command()
+def thumbs(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the targums are. Default: ./targum-out"),
+    ] = None,
+    fetch: Annotated[
+        bool,
+        typer.Option(
+            "--fetch/--no-fetch",
+            help="Fetch a row's own picture where its licence allows. Off, only the disk is read.",
+        ),
+    ] = True,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Count what would happen; write nothing.")
+    ] = False,
+) -> None:
+    """Give every library text its picture: its own where its licence allows, drawn if not.
+
+    A row keeps a cover it already has. Then a video's frame from a copy built on this
+    disk; then, with --fetch, a video's own poster or a picture book's own cover, and only
+    where the row's licence (or, for Global Storybooks, the image bank's) allows a
+    derivative and has no NonCommercial term. Everything else is drawn: its first letter
+    on its kind's colour, made when it is asked for, so nothing is written for it.
+
+    Spends no model money. Writes `thumbs/<entry id>.webp` and `thumbs/sources.json`.
+    """
+    from collections import Counter
+
+    from . import catalogue as catalogue_module
+    from . import thumbs as thumbs_module
+    from .audio.manifest import POSTER
+    from .ingest import url as url_module
+
+    root = out or Path.cwd() / "targum-out"
+    where = root / "thumbs"
+    if not thumbs_module.can_keep():
+        fail(TargumError("Nothing here can shrink a picture.", "uv sync --extra covers"))
+    sources = thumbs_module.read_sources(where)
+
+    # A video's frame, from any copy of it built on this disk.
+    frames: dict[str, Path] = {}
+    if root.is_dir():
+        for poster_file in root.rglob(POSTER):
+            try:
+                said = json.loads((poster_file.parent / "document.json").read_text("utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            frames.setdefault(str(said.get("source") or ""), poster_file)
+
+    gsn: dict[str, str] = {}
+    if fetch:
+        try:
+            gsn = thumbs_module.gsn_licences(url_module.get(thumbs_module.GSN_LICENCES))
+        except TargumError as error:
+            console.print(f"[yellow]The image bank's licences did not load:[/yellow] {error}")
+
+    counts: Counter[str] = Counter()
+    by_language: Counter[tuple[str, str]] = Counter()
+    for entry in catalogue_module.CATALOGUE:
+        got = "drawn"
+        if thumbs_module.has_picture(where, entry.id):
+            got = sources.get(entry.id, {}).get("from") or "drawn cover"
+        elif entry.source in frames:
+            target = where / f"{entry.id}.webp"
+            if dry_run or thumbs_module.keep(frames[entry.source].read_bytes(), target):
+                got = "video frame"
+                sources[entry.id] = {"from": got, "licence": entry.licence}
+        elif fetch:
+            try:
+                found = thumbs_module.remote_picture(entry, url_module.fetch, gsn)
+                if found is not None:
+                    address, licence, what = found
+                    target = where / f"{entry.id}.webp"
+                    if dry_run or thumbs_module.keep(url_module.fetch(address).raw, target):
+                        got = what
+                        sources[entry.id] = {"from": what, "url": address, "licence": licence}
+            except (TargumError, ValueError) as error:
+                console.print(f"[dim]{entry.id}: {error}[/dim]")
+        counts[got] += 1
+        by_language[(entry.language, "drawn" if got == "drawn" else "own")] += 1
+
+    if not dry_run and sources:
+        write_atomic(
+            where / thumbs_module.SOURCES,
+            json.dumps(sources, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+        )
+    table = Table("picture", "rows")
+    for what, number in counts.most_common():
+        table.add_row(what, str(number))
+    console.print(table)
+    console.print(
+        "[dim]"
+        + " · ".join(
+            f"{code} {by_language[(code, 'own')]} pictured, {by_language[(code, 'drawn')]} drawn"
+            for code in sorted({language for language, _ in by_language})
+        )
+        + "[/dim]"
+    )
+
+
+@app.command()
 def refs(
     out: Annotated[
         Path | None,

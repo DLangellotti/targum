@@ -2431,6 +2431,13 @@ class Build:
         # reader somebody opens first.
         if self.beside is not None:
             self.beside(self.resolved_out, plan.document)
+        # And the text's own picture, where it brought one: an article's lead image, a
+        # book's cover, a PDF's first page (targum-internal#429). Here rather than at
+        # ingest, which a quote runs too: a picture is fetched for a text being built,
+        # never for one only priced. Never a library text's — see `thumbs.capture`.
+        from . import thumbs
+
+        thumbs.capture(str(self.source), self.resolved_out)
 
         result = Result(
             out_dir=self.resolved_out,
