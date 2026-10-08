@@ -221,10 +221,12 @@ def opened(browser, url: str, viewport: dict[str, int], scrolling: bool = False,
 
 
 def listen(page, touch: bool = False) -> None:
+    # The bar's play at a desk; on a phone the foot bar's (design.md §12, 2026-10-09).
+    press = ".listen-play" if page.locator(".listen-play").is_visible() else "#player .player-play"
     if touch:
-        page.tap(".listen-play")
+        page.tap(press)
     else:
-        page.click(".listen-play")
+        page.click(press)
         page.mouse.move(600, 500)
     page.wait_for_function("() => document.getElementById('listen').classList.contains('playing')")
 

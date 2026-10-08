@@ -10506,10 +10506,21 @@ var targumReader = function () {
       all.sort(function (a, b) {
         return b.n - a.n;
       });
+      var shown = all.slice(0, limit || 4);
       return {
         count: all.length,
-        words: all.slice(0, limit || 4).map(function (entry) {
+        words: shown.map(function (entry) {
           return entry.surface;
+        }),
+        // And what each means, from the glosses the page already carries (design.md §12,
+        // 2026-10-09): the reader's own meaning first, then the text's.
+        glossed: shown.map(function (entry) {
+          var index = lemmas.indexOf(entry.lemma);
+          return {
+            word: entry.surface,
+            gloss: meaningOf(entry.lemma) || (index >= 0 ? glosses[index] || "" : ""),
+            language: targetLanguage,
+          };
         }),
       };
     },
@@ -11798,7 +11809,32 @@ var targumReader = function () {
       var ranges = audio.seekable;
       return !!(ranges && ranges.length && ranges.end(ranges.length - 1) > 0);
     },
+    /* For a playlist (targum-internal#434; design.md §12, "Listening plays on by itself",
+       2026-10-09): the one media element, whether the whole recording is running, a
+       press of play that starts it where it stands, and `release`, which hands the
+       element over to the next item's recording once this one has ended with the screen
+       locked. Released, nothing here writes this text's place or marks its lines. */
+    element: function () { return audio; },
+    following: function () { return following && !audio.paused; },
+    play: function () {
+      if (!following || audio.paused) toggleScene();
+    },
+    release: release,
   };
+
+  var released = false;
+  function release() {
+    if (released) return audio;
+    halt();
+    released = true;
+    audio.removeEventListener("timeupdate", onTime);
+    audio.removeEventListener("ended", halt);
+    audio.removeEventListener("pause", keepHeard);
+    audio.removeEventListener("pause", stretchOver);
+    audio.removeEventListener("ended", stretchOver);
+    document.body.classList.add("player-handed");
+    return audio;
+  }
 
   /* How tall the strip is, for the things that stand above it. The picture's dock used
      a figure written into the stylesheet, and the strip is not one height: it grows a
@@ -11964,6 +12000,12 @@ var targumReader = function () {
   }
 
   function toggleScene() {
+    // Handed to the next item of a playlist: play and pause are that player's (#434).
+    if (released) {
+      if (audio.paused) audio.play().catch(function () {});
+      else audio.pause();
+      return;
+    }
     if (playing) {                      /* a single line was running; that ends here */
       if (stopAt) { clearTimeout(stopAt); stopAt = null; }
       playing.classList.remove("saying");
@@ -12133,7 +12175,15 @@ var targumReader = function () {
     // the same since #422: while the picture is up the controls under it play it, and
     // once it is put away the page is an audio reader, with Listen and this strip.
     var listenFirst = scenes.length > 1;
-    if (listenFirst) {
+    /* On a phone the strip is the foot bar, and stands from the start (board ReaderPhone;
+       design.md §12, 2026-10-09): play, the track, the speed and the view, where a thumb
+       is. Not over a picture, whose own controls play it; when the picture is put away,
+       the bar comes up (`showVideo`). */
+    var footBar = window.matchMedia ? window.matchMedia("(max-width: 40rem)") : null;
+    var standsAtFoot = function () {
+      return !!(footBar && footBar.matches) && !(videoBox && !videoBox.hidden) && !videoEl;
+    };
+    if (listenFirst && !standsAtFoot()) {
       player.hidden = true;
       remeasure();
     }
@@ -12162,7 +12212,12 @@ var targumReader = function () {
     }
     // And on its own, without starting the voice: for a page that frames this one, and
     // for the browser tests about the transport, which are about the transport.
-    if (window.TargumPlayer) window.TargumPlayer.show = bringUp;
+    if (window.TargumPlayer) {
+      window.TargumPlayer.show = bringUp;
+      window.TargumPlayer.footBar = function () {
+        return !!(footBar && footBar.matches);
+      };
+    }
   }
 
   /* Chanted or spoken (targum-internal#412). A portion's aliyah carries the chanting and
@@ -12590,10 +12645,27 @@ var targumReader = function () {
       }
       if (endWords) {
         endWords.textContent = "";
-        rest.words.forEach(function (word) {
+        // The word as the text writes it, and what it means beside it in the reader's
+        // language (board ReaderTheatreEnd; design.md §12, 2026-10-09).
+        var glossed = rest.glossed || rest.words.map(function (word) {
+          return { word: word, gloss: "" };
+        });
+        var glossLanguage = document.documentElement.lang || "en";
+        glossed.forEach(function (one) {
           var chip = document.createElement("li");
           chip.className = "film-end-word";
-          chip.textContent = word;
+          var word = document.createElement("span");
+          word.className = "film-end-he";
+          word.textContent = one.word;
+          chip.appendChild(word);
+          if (one.gloss) {
+            var gloss = document.createElement("span");
+            gloss.className = "film-end-gloss";
+            gloss.setAttribute("lang", one.language || glossLanguage);
+            gloss.setAttribute("dir", "ltr");
+            gloss.textContent = String(one.gloss).split(/[;,]/)[0].trim();
+            chip.appendChild(gloss);
+          }
           endWords.appendChild(chip);
         });
         if (rest.count > rest.words.length) {
@@ -12884,6 +12956,19 @@ var targumReader = function () {
         quiet(false);
       }
       place(held);
+      // On a phone the strip is the foot bar and stands once the picture is put away
+      // (#434): after the page is placed, and placed again once the bar has its room.
+      if (
+        player &&
+        player.hidden &&
+        !out &&
+        window.TargumPlayer &&
+        window.TargumPlayer.footBar &&
+        window.TargumPlayer.footBar()
+      ) {
+        window.TargumPlayer.show();
+        place(held);
+      }
     };
 
     flips.forEach(function (button) {
@@ -13347,9 +13432,18 @@ var targumReader = function () {
     });
   });
 
-  /* Leaving the page mid-sentence should not leave a voice talking into an empty room. */
+  /* Leaving the page mid-sentence should not leave a voice talking into an empty room;
+     a phone locked in a pocket is not an empty room (design.md §12, 2026-10-09). A whole
+     recording that is playing goes on behind a locked screen or another app; a line
+     pressed on its own stops. Handed to a playlist's next item, it is not this page's to
+     stop. */
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden) halt();
+    if (!document.hidden || released) return;
+    if (following && !audio.paused) return;
+    halt();
+  });
+  window.addEventListener("pagehide", function () {
+    if (!released) halt();
   });
 })();
 

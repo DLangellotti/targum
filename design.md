@@ -354,6 +354,50 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### Listening plays on by itself, and reading still waits for a swipe — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards PlaylistSwipeDesk, PlaylistSwipePhone,
+PlaylistLock, ReaderPhone and ReaderTheatreEnd; targum-internal#434): a playlist is the
+queue. "A swipe is a press" (2026-09-23) made every item wait for a hand, and a phone in a
+pocket has no hand on it: it stopped at the end of each item. This amends that entry for
+one case, listening, and keeps it for the other, reading.
+
+- **Listening is the screen locked, targum behind another app, or Play on.** When an
+  item's recording plays to its end then, the next item's recording starts by itself.
+  Play on is a switch in the playlist's own line, kept on this device and off until a
+  reader turns it on; with it on and the screen in front of them, the end of a recording
+  moves to the next item the way a swipe does. Without it, the end of a recording with
+  the screen on waits, as before, for a swipe, the arrow, the wheel or Next.
+- **One player across items.** A locked phone does not load a page and start it, so the
+  item that ended hands its player to the next item's recording and keeps it: one
+  player, one entry on the lock screen. Coming back to the screen, the page shows what it
+  showed, and its line says what is playing now, with a press that opens that item
+  where the voice is. A video's sound plays on; its picture is the page's own business
+  and is not drawn under somebody else's transcript.
+- **The voice goes on with the screen locked.** It used to stop the moment the page was
+  hidden, on the reasoning that a voice should not talk into an empty room; a locked
+  phone in a pocket is not an empty room. A whole recording that is playing goes on; a
+  single line pressed stops, and leaving the page stops everything, as before.
+- **An item with nothing to hear is never skipped.** The queue stops at a text without a
+  recording, and the lock screen shows it as next. An article is read before it is left.
+- **The lock screen** (Media Session) says the text's title, the playlist and the place
+  ("Mornings · 2 of 6"), and the text's picture; its previous and next move between
+  items. With the screen on, they are a press like Next and Back.
+- **At a desk a playlist is Theatre with a rail:** the playlist's pictures down the side,
+  the one playing marked, its end at the foot. ↓ or the wheel moves to the next item, and
+  only at the end of a text, as the arrow and the swipe already did; a rail picture is a
+  press like Next.
+- **On a phone the recording has a foot bar:** play, the track and its clock, the speed,
+  and the view as the three drawings. The bar's row at the top keeps the marks, Aa and ⋯.
+- **The words at the end of a part say what they mean.** The chips under the picture
+  (2026-10-08) carry their English (or the reader's own language) beside the word, from
+  the gloss the page already has; nothing is asked of a model.
+
+What it does not overturn: nothing plays on arrival from a link, the bell or the playlist
+page; a swipe back plays nothing new; the end card still offers once and never refills;
+no count of items played; motion stays optional, and nothing here animates.
+
+
 ### A playlist is a card on its tab and a page of its own — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards PlaylistsTab and PlaylistDetail; targum-internal

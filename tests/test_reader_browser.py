@@ -3122,6 +3122,38 @@ def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> Non
     context.close()
 
 
+def test_on_a_phone_the_recording_has_a_foot_bar_from_the_start(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """Board ReaderPhone (design.md §12, 2026-10-09): on a phone the strip is the foot
+    bar and stands as the text opens — play, the track, the speed and the view — and the
+    bar's own play at the top stands down. The view is the same press as everywhere."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader")
+    context = opened(browser, viewport=PHONE)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#player:not([hidden])")
+    shown = page.evaluate(
+        """() => {
+          const seen = (sel) => [...document.querySelectorAll(sel)]
+            .filter((el) => el.getClientRects().length > 0).length;
+          return {
+            play: seen('#player .player-play'),
+            rate: seen('#player .player-rate-now'),
+            modes: seen('#player .player-modes button'),
+            step: seen('#player .player-step'),
+            barPlay: seen('.bar .listen-play'),
+          };
+        }"""
+    )
+    assert shown == {"play": 1, "rate": 1, "modes": 2, "step": 0, "barPlay": 0}, shown
+    page.click('#player .player-modes [data-mode="source"]')
+    assert page.evaluate("() => document.body.classList.contains('mode-source')")
+    assert page.get_attribute('#player [data-mode="source"]', "aria-pressed") == "true"
+    context.close()
+
+
 # The foot of a phone.
 #
 # Everything fixed at the foot of a narrow window — the words sheet, the turning arrows,

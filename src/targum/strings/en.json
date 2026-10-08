@@ -2838,5 +2838,13 @@
   "playlists.up-to": "Up to 20 texts",
   "playlists.page.back": "Playlists",
   "playlist-menu.play-next": "Play next in {name}",
-  "playlist-menu.plays-next": "It plays next in {name}."
+  "playlist-menu.plays-next": "It plays next in {name}.",
+  "reader.list.where-short": "{name} · {at} of {count}",
+  "reader.list.open-it": "Open it",
+  "reader.list.up-to-read": "Up next, to read: {title}",
+  "reader.list.now-playing": "Now playing {at} of {count}: {title}",
+  "reader.list.play-on": "Play on",
+  "reader.list.play-on-title": "When a recording ends, the next one starts",
+  "reader.list.of": "{at} of {count}",
+  "reader.list.rail-end": "End"
 }

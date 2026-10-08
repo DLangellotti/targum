@@ -3026,5 +3026,13 @@
   "playlists.up-to": "До 20 текстов",
   "playlists.page.back": "Плейлисты",
   "playlist-menu.play-next": "Следующим в «{name}»",
-  "playlist-menu.plays-next": "Будет следующим в «{name}»."
+  "playlist-menu.plays-next": "Будет следующим в «{name}».",
+  "reader.list.where-short": "{name} · {at} из {count}",
+  "reader.list.open-it": "Открыть",
+  "reader.list.up-to-read": "Дальше — читать: {title}",
+  "reader.list.now-playing": "Сейчас играет {at} из {count}: {title}",
+  "reader.list.play-on": "Играть дальше",
+  "reader.list.play-on-title": "Когда запись закончится, начнётся следующая",
+  "reader.list.of": "{at} из {count}",
+  "reader.list.rail-end": "Конец"
 }

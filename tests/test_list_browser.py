@@ -556,3 +556,164 @@ def test_a_swipe_finishes_without_marking(browser, tmp_path) -> None:  # noqa: F
         assert state["sections"], "and the item is finished"
     finally:
         context.close()
+
+
+# -- one player across items (targum-internal#434; design.md §12, 2026-10-09) -----------
+
+HIDE = """() => {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+  document.dispatchEvent(new Event('visibilitychange'));
+}"""
+
+PLAY = """() => {
+  window.TargumPlayer.play();
+}"""
+
+
+def ready_to_play(page) -> None:
+    page.wait_for_selector("#list-nav", state="attached")
+    page.wait_for_function("() => !!(window.TargumPlayer && window.TargumPlayer.length() > 0)")
+
+
+def test_the_lock_screen_names_the_item_and_where_it_is(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        ready_to_play(page)
+        page.evaluate(PLAY)
+        page.wait_for_function(
+            "() => !!(navigator.mediaSession && navigator.mediaSession.metadata)"
+        )
+        said = page.evaluate(
+            "() => ({title: navigator.mediaSession.metadata.title,"
+            " artist: navigator.mediaSession.metadata.artist})"
+        )
+        assert said == {"title": "Item 1", "artist": "Reels · 1 of 2"}
+    finally:
+        context.close()
+
+
+def test_with_the_screen_locked_the_next_item_plays_in_the_same_player(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """Listening, the end of a recording starts the next one, in the one player, without
+    loading a page; back at the screen, a line says what plays and opens it there."""
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        ready_to_play(page)
+        before = page.url
+        page.evaluate(PLAY)
+        page.wait_for_function("() => window.TargumPlayer.following()")
+        page.evaluate(HIDE)
+        page.wait_for_selector("#list-now", state="attached", timeout=10000)
+        said = page.locator("#list-now").inner_text()
+        playing = page.evaluate(
+            "() => { const el = window.TargumPlayer.element();"
+            " return {src: el.currentSrc || el.src, handed: document.body.classList"
+            ".contains('list-handed')}; }"
+        )
+        assert page.url == before, "no page was loaded"
+        assert said.startswith("Now playing 2 of 2"), said
+        assert playing["handed"]
+        assert "Item 2" in said
+        href = page.get_attribute("#list-now .list-now-open", "href") or ""
+        assert "/two/" in href and "go=1" in href and "listen=1" in href
+        page.wait_for_function("() => navigator.mediaSession.metadata.artist === 'Reels · 2 of 2'")
+    finally:
+        context.close()
+
+
+def test_reading_with_the_screen_on_the_end_waits_for_a_press(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        ready_to_play(page)
+        page.evaluate(PLAY)
+        page.wait_for_function("() => window.TargumPlayer.element().ended", timeout=10000)
+        page.wait_for_timeout(300)
+        assert "/one/" in page.url, "the end of a recording, read with the screen on, waits"
+        assert page.locator("#list-now").count() == 0
+    finally:
+        context.close()
+
+
+def test_play_on_moves_on_by_itself_with_the_screen_on(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        ready_to_play(page)
+        switch = page.locator("#video .list-play-on")
+        assert switch.get_attribute("aria-pressed") == "false", "off until turned on"
+        switch.click()
+        assert switch.get_attribute("aria-pressed") == "true"
+        page.evaluate(PLAY)
+        page.wait_for_url("**/two/**go=1&listen=1", timeout=10000)
+        page.wait_for_selector("#list-nav", state="attached")
+        kept = page.evaluate("() => localStorage.getItem('targum:play-on')")
+        assert kept == "1", "kept on this device"
+    finally:
+        context.close()
+
+
+def test_at_a_desk_the_playlist_is_a_rail_beside_the_picture(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two), viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-rail")
+        rail = page.evaluate(
+            """() => {
+              const rail = document.getElementById('list-rail');
+              const box = rail.getBoundingClientRect();
+              const video = document.querySelector('#video').getBoundingClientRect();
+              return {
+                tiles: [...rail.querySelectorAll('.list-rail-tile')].map((t) => ({
+                  here: t.classList.contains('is-here'),
+                  href: t.getAttribute('href'),
+                })),
+                end: rail.querySelector('.list-rail-end').textContent,
+                at: rail.querySelector('.list-rail-at').textContent,
+                right: Math.round(box.right),
+                clear: video.right <= box.left + 1,
+              };
+            }"""
+        )
+        assert rail["right"] == 1440 and rail["clear"], rail
+        assert rail["tiles"][0] == {"here": True, "href": None}
+        assert "/two/" in rail["tiles"][1]["href"] and "go=1" in rail["tiles"][1]["href"]
+        assert rail["end"] == "End" and rail["at"] == "1 of 2"
+    finally:
+        context.close()
+
+
+def test_the_wheel_moves_on_from_the_end_of_a_text_only(browser, tmp_path) -> None:  # noqa: F811
+    text = chapter(tmp_path / "text" / "reader")
+    one = video_reader(tmp_path / "film")
+    context, _ = listed(browser, playlist(text, one), viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        page.goto(at(text, 0))
+        page.wait_for_selector("#list-nav", state="attached")
+        page.evaluate("() => window.scrollTo(0, 0)")
+        page.mouse.move(600, 400)
+        page.mouse.wheel(0, 400)
+        page.wait_for_timeout(400)
+        assert "/film/" not in page.url, "the wheel mid-text scrolls the text"
+        page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
+        page.wait_for_timeout(400)
+        page.mouse.wheel(0, 200)
+        page.wait_for_url("**/film/**go=1")
+    finally:
+        context.close()
