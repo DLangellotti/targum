@@ -262,11 +262,8 @@ THUMBED = (
     ".account > button",
     ".palette-open",
     ".palette-row",
-    # And the row of doors above the sheet on Learn, and the subscriptions menu's rows
-    # (2026-09-11).
-    ".way",
-    ".ways-item",
-    ".ways-link",
+    # (The row of doors above Learn's sheet and its subscriptions menu went with Learn,
+    # design.md §12, 2026-10-08.)
     # And the door that makes a silent section's audio (2026-09-10, #246).
     ".voice-go",
     # And the Weekly portion shelf's Diaspora / Israel switch (targum-internal#411).
@@ -696,7 +693,7 @@ def test_a_toggle_the_page_marks_pressed_is_styled_pressed() -> None:
     assert pressed, "no pressable control found in arrival.js — has the arrival moved?"
     for name in sorted(pressed):
         assert re.search(r"\." + re.escape(name) + r'\[aria-pressed="true"\]', sheet), (
-            f".{name} is marked aria-pressed by learn.js and styled by nothing in learn.css"
+            f".{name} is marked aria-pressed by arrival.js and styled by nothing in arrival.css"
         )
 
 

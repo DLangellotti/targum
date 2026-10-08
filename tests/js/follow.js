@@ -43,12 +43,13 @@ global.fetch = (url, options) => {
   return Promise.resolve({ ok: true, json: () => Promise.resolve({ series: payload.series || [] }) });
 };
 
-const section = document.getElementById("subscriptions");
-section.hidden = true;
-const host = document.getElementById("series");
+const host = document.getElementById("home-series");
 require(path.join(assets, "follow.js"));
 
 (async () => {
+  // As home's Subscriptions tab draws them (`yours.js`).
+  const named = await global.window.TargumFollow.list();
+  global.window.TargumFollow.draw(host, named);
   for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
   const rowOf = (id) => host.children.find((li) => li.attrs["data-series"] === id);
   for (const step of payload.do || []) {
@@ -58,7 +59,7 @@ require(path.join(assets, "follow.js"));
   process.stdout.write(
     JSON.stringify({
       asked,
-      shown: !section.hidden,
+      shown: named.length > 0,
       rows: host.children.map((li) => {
         const by = (cls) => li.querySelector("." + cls);
         return {

@@ -80,6 +80,10 @@
     <h2>{{ t("you.page.your-reading", "Your reading") }}</h2>
     <p class="tally" id="you-kept"></p>
     <p class="elsewhere"><a href="/progress">{{ t("you.page.your-progress", "Your Progress") }}</a> {{ t("you.page.has-the-whole-of-it", "has the details.") }}</p>
+    {#- Subscriptions are a tab of Your targums (design.md §12, 2026-10-08), where each
+        series has its switch; the profile keeps one line to them rather than a second copy
+        of the same rows. -#}
+    <p class="elsewhere"><a href="/?show=subscriptions">{{ t("you.page.subscriptions", "Subscriptions") }}</a> {{ t("you.page.are-a-tab-of-your-targums", "are a tab of Your targums.") }}</p>
   </section>
 
   {#- What is recorded of a sitting (targum-internal#127): on from the first session, by
@@ -111,12 +115,6 @@
   </section>
 
   {#- Last, and quiet. Everything here is either slow to undo or impossible. -#}
-  {#- Your subscriptions (2026-09-11): what comes out on its own clock — the weekly, the
-      weekly portion, a learning cycle — each with where it is this week, one press to
-      subscribe and one to open. Subscribing puts the newest instalment under home's Continue
-      when it lands, in the bell, and in your inbox. Here, behind the account, and not on
-      the Library: the main pages stay as simple as they can. Drawn by `follow.js`;
-      hidden until the server has named a series. -#}
   {#- What is connected, and the way to end it (targum-internal#80). Here because this
       is where a reader comes to take something back, and because design.md §12 ("A
       scope is a press that lasts") rests on the grant being visible somewhere they can:
@@ -167,12 +165,6 @@
       <button type="button" class="tonal" id="prompt-save">{{ t("you.page.prompt-save", "Save") }}</button>
     </p>
     <p class="said" id="prompts-said" hidden></p>
-  </section>
-
-  <section class="panel" id="subscriptions" hidden>
-    <h2>{{ t("you.page.subscriptions", "Subscriptions") }}</h2>
-    <p class="note">{{ t("you.page.series-that-come-out-on-their-own", "Series that come out on a schedule. Subscribe to one and we'll put each new instalment on Your targums when it's out, and email you about the weekly ones.") }}</p>
-    <ul class="series" id="series"></ul>
   </section>
 
   <section class="panel" id="ending" hidden>

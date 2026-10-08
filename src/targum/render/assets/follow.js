@@ -211,8 +211,8 @@
     return node;
   }
 
-  /* The row on the Library: each series with what it is, where it is this week, one
-     press to follow it and one to open its page. */
+  /* A row per series — what it is, where it is this week, its switch and its Open — drawn
+     where home's Subscriptions tab asks (`yours.js`, design.md §12, 2026-10-08). */
   function draw(host, series) {
     host.textContent = "";
     series.forEach(function (one) {
@@ -292,23 +292,4 @@
     schedule: schedule,
     setSchedule: setSchedule,
   };
-
-  // The profile carries the row; anywhere else this only answers questions. This
-  // script rides in the bar, ahead of the page's own markup, so the row is looked for
-  // once the document is complete.
-  function mount() {
-    var host = document.getElementById("series");
-    var section = document.getElementById("subscriptions");
-    if (!host || !section) return;
-    list().then(function (series) {
-      if (!series.length) return;
-      draw(host, series);
-      section.hidden = false;
-    });
-  }
-  if (document.readyState === "loading" && document.addEventListener) {
-    document.addEventListener("DOMContentLoaded", mount);
-  } else {
-    mount();
-  }
 })();
