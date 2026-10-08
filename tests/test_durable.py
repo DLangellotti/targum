@@ -66,7 +66,7 @@ def test_the_budget_still_refuses_after_a_restart(tmp_path: Path) -> None:
     )
     blocked = second.claim(job(second, 4.0, id="j2"))
     assert blocked, "the second build should not fit in what is left"
-    assert "at once" in blocked or "our limit" in blocked
+    assert "in one day" in blocked or "our limit" in blocked
 
 
 def test_a_failed_build_gives_its_money_back(tmp_path: Path) -> None:
@@ -269,7 +269,7 @@ def test_a_hosted_box_without_ytdlp_does_not_tell_the_reader_to_install_it(
         failed = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
         box.prepare(failed)
         assert failed.stage == "failed"
-        assert "can't fetch from YouTube" in failed.error
+        assert "can't bring in YouTube" in failed.error
         assert ("install yt-dlp" in failed.error) is install, failed.error
 
 

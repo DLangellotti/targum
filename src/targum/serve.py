@@ -167,7 +167,7 @@ MAX_FILE_MB = int(MAX_UPLOAD / 1.37 / (1024 * 1024))
 # Said once, in the page, rather than as a stack trace after the wait. Without a key the
 # builder can still open everything already built, so this blocks a text rather than
 # stopping the server.
-NO_KEY = "We can't make anything new right now. Everything you have still opens."
+NO_KEY = "We can't get anything new ready right now. Everything you have still opens."
 
 
 def tried_for(job: Any, ui: str) -> dict[str, Any]:
@@ -1289,10 +1289,10 @@ def unreadable(error: Exception, ui: str = "en") -> str:
         return said_in(
             ui,
             "job.unreadable.broken",
-            "That site didn't answer properly. Try again, or paste the text itself.",
+            "That site didn't answer. Try again in a minute.",
         )
     return said_in(
-        ui, "job.unreadable.other", "We couldn't read that. Try again, or paste the text itself."
+        ui, "job.unreadable.other", "We couldn't read that page. Paste its text here instead."
     )
 
 
@@ -1926,9 +1926,8 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.credits",
-                "You've used your {credits} credits for this month, and a credit is a "
-                "minute of audio. They come back on {date}. Text uploads still work, and "
-                "the library still opens.",
+                "You've used this month's credits. Top up, or they come back on {date}. "
+                "Text uploads still work, and the library still opens.",
                 credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
@@ -1939,8 +1938,8 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.account",
-                "That's a lot to get ready at once. Try again in {hours} hours. The library "
-                "still opens.",
+                "That's a lot to get ready in one day. Try again in {hours} hours. The "
+                "library still opens.",
                 hours=BUDGET_HOURS,
             )
         if whose == "talk-hours":
@@ -1950,9 +1949,8 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.talk-credits",
-                "You've used your {credits} credits of audio and chat for this month, and "
-                "a credit is a minute. They come back on {date}. "
-                "Your texts and the library still open.",
+                "You've used this month's credits for audio and talk. Top up, or they come "
+                "back on {date}. Your texts and the library still open.",
                 credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
@@ -1962,7 +1960,7 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.chat",
-                "That's a lot of chatting for one day. Try again in {hours} hours. The "
+                "That's a lot of talking for one day. Try again in {hours} hours. The "
                 "library still opens.",
                 hours=BUDGET_HOURS,
             )
@@ -1996,8 +1994,7 @@ class Library:
             return said_in(
                 ui,
                 "job.too-long",
-                "That's too long to take in one go. Try a shorter piece, or something from the "
-                "library.",
+                "That's too long to get ready in one go. Upload a shorter piece.",
             )
         if estimate > self.remaining():
             return said_in(
@@ -3210,7 +3207,9 @@ class Library:
             vetted=youtube_module.is_youtube,
             described=youtube_module.describe,
             unavailable=said_in(
-                job.ui, "job.youtube-unavailable", "We can't fetch from YouTube here."
+                job.ui,
+                "job.youtube-unavailable",
+                "We can't bring in YouTube videos right now. Upload the video file instead.",
             ),
             subtitled=True,
         )
@@ -3238,7 +3237,9 @@ class Library:
             vetted=instagram_module.is_reel,
             described=described,
             unavailable=said_in(
-                job.ui, "job.instagram-unavailable", "We can't fetch from Instagram here."
+                job.ui,
+                "job.instagram-unavailable",
+                "We can't bring in Instagram videos right now. Upload the video file instead.",
             ),
             # Instagram never says how long a reel runs; `describe` reads the header, and
             # where even that is silent the reel is priced long rather than refused as a
@@ -3322,7 +3323,9 @@ class Library:
             vetted=tiktok_module.is_tiktok,
             described=described,
             unavailable=said_in(
-                job.ui, "job.tiktok-unavailable", "We can't fetch from TikTok here."
+                job.ui,
+                "job.tiktok-unavailable",
+                "We can't bring in TikTok videos right now. Upload the video file instead.",
             ),
         )
         if job.stage == "failed":
@@ -3366,7 +3369,9 @@ class Library:
             vetted=facebook_module.is_facebook,
             described=described,
             unavailable=said_in(
-                job.ui, "job.facebook-unavailable", "We can't fetch from Facebook here."
+                job.ui,
+                "job.facebook-unavailable",
+                "We can't bring in Facebook videos right now. Upload the video file instead.",
             ),
         )
         if job.stage == "failed":
@@ -3641,7 +3646,7 @@ class Library:
             job.error = said_in(
                 job.ui,
                 "job.live-stream",
-                "That video has no length yet. We can't bring in a live stream.",
+                "That's a live stream. Paste the link again once it has ended.",
             )
             job.stage = "failed"
             return
@@ -3650,7 +3655,7 @@ class Library:
             job.error = said_in(
                 job.ui,
                 "job.video-too-long",
-                "That video is over {hours} hours. Try a shorter one.",
+                "That video is over {hours} hours. Upload a shorter one.",
                 hours=f"{hours:g}",
             )
             job.stage = "failed"
@@ -5493,7 +5498,7 @@ class Handler(BaseHTTPRequestHandler):
             log.warning("sheet %s refused: %s (%s)", slug, error.message, error.hint or "")
             said = self._say(
                 "parasha.sheet.not-now",
-                "The PDF can't be made right now. Try again in a minute.",
+                "We can't make the PDF right now. Try again in a minute.",
             )
             return self._send(503, said.encode("utf-8"), "text/plain; charset=utf-8")
         if made is None:
@@ -6025,8 +6030,8 @@ class Handler(BaseHTTPRequestHandler):
                 "refused": said_in(
                     said,
                     "door.too-often",
-                    "That's a lot of links for one hour. Try again later, or join and bring "
-                    "them when you're in.",
+                    "That's a lot of links for one hour. Try again in an hour, or join and "
+                    "upload them when you're in.",
                 )
             }
         else:
@@ -7013,8 +7018,8 @@ class Handler(BaseHTTPRequestHandler):
                 said=(
                     self._say(
                         "signin.page.connect-lost",
-                        "We couldn't finish connecting: you started in another browser, or "
-                        "too long ago. Sign in, then connect again from Claude or ChatGPT.",
+                        "We couldn't finish connecting. Sign in, then connect again from "
+                        "Claude or ChatGPT.",
                     )
                     if marked and not waiting
                     else ""
@@ -8133,7 +8138,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.that-s-too-long-for-one-2",
-                        "That's too long for one message. Try a shorter one.",
+                        "That's too long for one message. Send a shorter one.",
                     )
                 },
                 413,
@@ -9942,7 +9947,7 @@ class Handler(BaseHTTPRequestHandler):
                     self._page_language(),
                     "set.page.only-this-many-fit",
                     "These texts need {total} credits and you have {n} left. "
-                    "Untick some and try again.",
+                    "Untick some, then confirm.",
                     total=sum(credits_of(job.seconds) for job in chosen if job.audio),
                     n=fits,
                 )
@@ -10663,7 +10668,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.we-lost-that-build-when-we-2",
-                        "We lost that build when we restarted. Start it again, and "
+                        "We restarted while this was getting ready. Start it again, and "
                         "nothing counts twice.",
                     )
                 },
@@ -11055,7 +11060,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.we-couldn-t-look-that-word",
-                        "We couldn't look that word up just now. Try again in a moment.",
+                        "We couldn't look this word up. Try again in a moment.",
                     )
                 },
                 502,
@@ -11126,7 +11131,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.we-couldn-t-look-that-phrase",
-                        "We couldn't look that phrase up just now. Try again in a moment.",
+                        "We couldn't look this phrase up. Try again in a moment.",
                     )
                 },
                 502,
@@ -11247,7 +11252,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise TargumError(
                     self._say(
                         "serve.post-lost",
-                        "We lost that post when we restarted. Bring it again.",
+                        "We restarted and lost this post. Upload it again.",
                     )
                 )
             if said.get("url"):
@@ -11552,7 +11557,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.that-chunk-is-too-big",
-                        "Part of the upload was too big. Send it again.",
+                        "Part of the upload didn't reach us. Send it again.",
                     )
                 },
                 413,

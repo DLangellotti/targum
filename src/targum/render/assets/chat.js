@@ -17,7 +17,7 @@
   // The conversation is Hebrew whatever they are.
   var t = window.TargumStrings.t;
   var tn = window.TargumStrings.tn;
-  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer questions right now. Your texts and the library still open.");
+  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer right now. Your texts and the library still open.");
 
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
@@ -106,7 +106,7 @@
   // The language a word's meaning is looked up in: the one the conversation's meanings
   // arrive in, which the list names (targum-internal#287).
   var meaningsIn = "en";
-  var UNREACHED = { error: t("chat.unreached", "We couldn't connect. Check your connection and try again.") };
+  var UNREACHED = { error: t("chat.unreached", "We can't reach targum. Check your connection and try again.") };
   function ask(path, body) {
     return fetch(keyed(path), {
       method: body ? "POST" : "GET",
@@ -305,7 +305,7 @@
               line.removeChild(look);
               line.appendChild(document.createTextNode(" · " + got.meaning));
             } else {
-              look.textContent = (got && got.error) || t("chat.not-found", "we couldn't find it");
+              look.textContent = (got && got.error) || t("chat.not-found", "we couldn't find a meaning for this word");
             }
           }
         );

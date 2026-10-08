@@ -294,7 +294,7 @@ function partsOf(row) {
           })
           .catch(function () {
             get.disabled = false;
-            get.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
+            get.textContent = t("contents.unreachable", "We can't reach targum. Try again.");
           });
       };
       row.appendChild(get);
@@ -393,7 +393,7 @@ function partsOf(row) {
         .catch(function () {
           clearInterval(timer);
           button.disabled = false;
-          button.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
+          button.textContent = t("contents.unreachable", "We can't reach targum. Try again.");
         });
     }, 1500);
   }
@@ -490,13 +490,13 @@ function partsOf(row) {
             .catch(function () {
               clearInterval(timer);
               press.disabled = false;
-              press.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
+              press.textContent = t("contents.unreachable", "We can't reach targum. Try again.");
             });
         }, 1500);
       })
       .catch(function () {
         press.disabled = false;
-        press.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
+        press.textContent = t("contents.unreachable", "We can't reach targum. Try again.");
       });
   };
 

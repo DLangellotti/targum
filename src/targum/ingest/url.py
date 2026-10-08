@@ -110,8 +110,8 @@ def _reachable(url: str) -> None:
         # multicast in one check, on both IPv4 and IPv6.
         if not address.is_global:
             raise TargumError(
-                f"{host} is on a private network, so we won't fetch it.",
-                "Paste a public web address, or save the page and drop in the file.",
+                f"We can't open pages on {host}.",
+                "Save the page and upload the file.",
                 key="fetch.private-network",
                 host=host,
             )
@@ -277,8 +277,8 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
                 # there. Here the hint is a sentence and does travel: the way in is to
                 # paste the text, which is the whole point of naming the refusal.
                 raise Unreachable(
-                    f"{host} asks you to sign in, so we can't open it.",
-                    "Open it yourself and paste the text into the box instead.",
+                    f"{host} asks for a sign-in, so we can't open it.",
+                    "Copy the text and paste it here.",
                     status=status,
                     host=host,
                     challenge=challenge,

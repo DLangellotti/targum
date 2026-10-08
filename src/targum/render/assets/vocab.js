@@ -489,7 +489,7 @@
       event.stopPropagation();
       copy(text).then(function (ok) {
         said(ok ? t("vocab.copied", "Copied") : t("vocab.not-copied", "Not copied"));
-        (options.say || announce)(ok ? t("vocab.copied.said", "Copied.") : t("vocab.copy-failed", "We couldn't copy that."));
+        (options.say || announce)(ok ? t("vocab.copied.said", "Copied.") : t("vocab.copy-failed", "We couldn't copy that. Select the text and copy it from there."));
       });
     });
     // Enter on the button is the button's; the reader's Enter opens and closes cards.

@@ -194,7 +194,7 @@
         if (answer.sent) form.hidden = true;
       })
       .catch(function () {
-        say(t("account.could-not-send", "We couldn't send a link. Try again."), false, true);
+        say(t("account.could-not-send", "We couldn't send the link. Try again in a minute."), false, true);
       });
   });
 
@@ -219,7 +219,7 @@
   var arrived = new URLSearchParams(location.search).get("signin");
   if (arrived === "welcome") say(t("account.welcome", "You're signed in."), true);
   if (arrived === "expired") {
-    say(t("account.expired", "That link no longer works. Enter your email for a new one."), true, true);
+    say(t("account.expired", "This link has expired. Enter your email and we'll send a new one."), true, true);
   }
   if (arrived) {
     // Take it out of the address so a refresh does not say it again.

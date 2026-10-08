@@ -328,7 +328,7 @@ def test_the_chat_rail_refuses_and_names_when_it_lifts(tmp_path: Path) -> None:
     feed = chats.feed_for(first.chat_id, second.n)
     assert feed is not None
     errors = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert errors and "chatting" in errors[0]["message"]
+    assert errors and "talking" in errors[0]["message"]
     assert "Try again in" in errors[0]["message"] and "library still open" in errors[0]["message"]
     assert "$" not in errors[0]["message"]
     turn = next(t for t in store.chat_turns(first.chat_id) if t["n"] == second.n)
@@ -701,7 +701,7 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"][0]["message"]
-    assert "credits of audio and chat" in said and "library still open" in said
+    assert "credits for audio and talk" in said and "library still open" in said
     assert "$" not in said
     assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"
 

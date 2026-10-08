@@ -176,7 +176,7 @@ def test_a_sheet_that_cannot_be_set_is_one_sentence(
     status, headers, body = fetch(port, f"/parasha/{SLUG}.pdf")
     assert status == 503 and headers["content-type"].startswith("text/plain")
     # The reader's sentence, not the operator's.
-    assert body.decode() == "The PDF can't be made right now. Try again in a minute."
+    assert body.decode() == "We can't make the PDF right now. Try again in a minute."
 
 
 def test_the_portions_page_offers_the_download_with_its_choices(serving: tuple[int, str]) -> None:

@@ -562,7 +562,7 @@ def test_the_sheet_says_it_is_being_made_until_it_comes(browser, served: str) ->
 
 def test_a_sheet_the_box_cannot_make_says_so_in_one_sentence(browser, served: str) -> None:
     context, page = opened(browser, served, DESK)
-    sentence = "The PDF can't be made right now. Try again in a minute."
+    sentence = "We can't make the PDF right now. Try again in a minute."
     page.route(
         "**/*.pdf*",
         lambda route: route.fulfill(

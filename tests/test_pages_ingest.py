@@ -351,7 +351,7 @@ def test_the_add_page_names_no_refusal_before_it_is_met() -> None:
     # Each refusal carries its own way on, where it happens.
     assert english["episode.spotify.hint"].endswith("and we'll look.")
     assert "drop that in instead" in english["upload.protected.hint"]
-    assert "paste the text into the box" in english["fetch.needs-a-sign-in.hint"]
+    assert "paste it here" in english["fetch.needs-a-sign-in.hint"]
     from targum.ingest import pdf as pdf_module
 
     assert hasattr(pdf_module, "rasterise"), "the scan's way on is a real button"

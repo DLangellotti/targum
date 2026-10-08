@@ -385,7 +385,7 @@ def test_a_box_without_ytdlp_says_so_rather_than_failing_later(tmp_path: Path, m
     job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
     library.prepare(job)
     assert job.stage == "failed"
-    assert "can't fetch from YouTube" in job.error
+    assert "can't bring in YouTube" in job.error
 
 
 def test_a_watch_page_never_reaches_the_generic_ingester(tmp_path: Path, monkeypatch) -> None:

@@ -254,7 +254,7 @@
           settle();
           sheetNote.textContent = t(
             "parasha.sheet.not-now",
-            "The PDF can't be made right now. Try again in a minute."
+            "We can't make the PDF right now. Try again in a minute."
           );
           sheetNote.hidden = false;
         });

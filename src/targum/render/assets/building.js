@@ -141,7 +141,7 @@
     var slot = { title: SLOT };
     if (job.stage === "done") return filled(t("building.ready", "{title} is ready.", slot), title);
     if (job.stage === "failed") {
-      var failed = job.error || t("building.failed", "we couldn't get it ready. Try adding it again.");
+      var failed = job.error || t("building.failed", "we couldn't get it ready. Try uploading it again.");
       return filled(SLOT + ": " + failed, title);
     }
     if (job.stage === "blocked") {
@@ -236,7 +236,7 @@
       var why = document.createElement("p");
       why.className = "notices-said";
       why.textContent =
-        job.said || job.error || t("building.failed", "we couldn't get it ready. Try adding it again.");
+        job.said || job.error || t("building.failed", "we couldn't get it ready. Try uploading it again.");
       box.appendChild(why);
       return box;
     }

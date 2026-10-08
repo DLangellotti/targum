@@ -2921,7 +2921,7 @@ def _said(job: Any, left: int | None, behind: int, language: str = "en") -> str:
         return said_in(language, "job.said.ready", "It's ready to read.")
     if job.stage == "failed":
         what = job.error or said_in(
-            language, "job.said.went-wrong", "Something went wrong on our side. Try again later."
+            language, "job.said.went-wrong", "We couldn't get it ready. Try again later."
         )
         said = said_in(language, "job.said.failed", "We couldn't get it ready. {why}", why=what)
         if job.spent <= 0:

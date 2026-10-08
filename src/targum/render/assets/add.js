@@ -1470,7 +1470,7 @@
           line(
             typeof why === "string"
               ? why
-              : t("add.unreachable", "We couldn't reach targum. Check your connection and try again.")
+              : t("add.unreachable", "We can't reach targum. Check your connection and try again.")
           ),
           true
         );
@@ -2102,7 +2102,7 @@
         })
         .catch(function (why) {
           // A sentence the upload door said, or else the connection.
-          stop(typeof why === "string" ? why : t("add.unreachable", "We couldn't reach targum. Check your connection and try again."));
+          stop(typeof why === "string" ? why : t("add.unreachable", "We can't reach targum. Check your connection and try again."));
         });
     };
   })();
@@ -2179,7 +2179,7 @@
               t("add.credits.rate", "That's about {clock} of audio, and the library costs none of it.", {
                 clock: clockOf(left),
               })
-            : t("add.credits.none", "You've used all your credits this month. They come back on {date}, and the library still opens.", {
+            : t("add.credits.none", "You've used all your credits this month. Top up, or they come back on {date}. The library still opens.", {
                 date: hours.ends || "",
               });
         hoursLine.hidden = false;

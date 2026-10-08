@@ -131,7 +131,7 @@ class EpubIngester:
         container = _soup(archive.read("META-INF/container.xml").decode("utf-8", "replace"))
         full_path = _attr(container.find("rootfile"), "full-path")
         if not full_path:
-            raise TargumError("We couldn't read this book. It may be damaged.")
+            raise TargumError("We couldn't open this book. Upload another copy of it.")
         return full_path
 
     @staticmethod

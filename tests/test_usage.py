@@ -7,6 +7,7 @@ spending limit and a guess with a limit written on it.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -178,7 +179,7 @@ def test_one_reader_running_away_does_not_stop_another(tmp_path: Path) -> None:
     assert library.claim(owned(library, 1, 2.5, "a1")) == ""
     refused = library.claim(owned(library, 1, 2.5, "a2"))
     assert refused, "the same reader should hit their own ceiling"
-    assert "at once" in refused
+    assert "in one day" in refused
 
     # Somebody else is unaffected: it is a rail per reader, not a shared tap.
     assert library.claim(owned(library, 2, 2.5, "b1")) == ""
@@ -414,8 +415,8 @@ def test_recordings_spend_the_hours_and_then_are_refused(tmp_path: Path) -> None
     assert library.claim(recording(library, 1, 3 * HOUR, "b")) == ""
     refused = library.claim(recording(library, 1, 2 * HOUR, "c"))
     assert refused, "eleven hours does not fit in ten"
-    # Said in credits since 2026-09-23 (design.md §12): ten hours is 600 of them.
-    assert "600 credits" in refused
+    # Said in credits since 2026-09-23, and with no figure since 2026-10-09 (design.md §12).
+    assert "this month's credits" in refused
 
 
 def test_the_hours_are_counted_per_reader(tmp_path: Path) -> None:
@@ -446,31 +447,29 @@ def test_a_failed_recording_gives_its_hours_back(tmp_path: Path) -> None:
     assert library.claim(recording(library, 1, 10 * HOUR, "again")) == ""
 
 
-def test_the_hours_refusal_names_the_number_and_what_still_works(tmp_path: Path) -> None:
-    """The one refusal the pricing page promised, so it says what that page said."""
+def test_the_hours_refusal_says_what_to_do_and_what_still_works(tmp_path: Path) -> None:
+    """The one refusal the pricing page promised. Since 2026-10-09 (design.md §12,
+    "Refusals say what to do next") it says what to do, Top up or wait for the date, and
+    leaves the allowance and its rate to the account page's balance."""
     library = with_hours(tmp_path, hours=10)
     library.claim(recording(library, 1, 10 * HOUR, "a"))
     refused = library.claim(recording(library, 1, 1 * HOUR, "b"))
 
-    assert "600 credits" in refused, "the number the page named, in the unit it names it"
-    assert "a credit is a minute" in refused, "§12: the rate goes beside the balance"
+    assert "Top up" in refused, "what the reader can do now"
+    assert "come back on" in refused, "and when it lifts by itself"
     assert "library" in refused, "and what is still free"
     assert "Text uploads" in refused, "and that text is not affected"
     assert "$" not in refused, "never in money"
 
 
-def test_the_hours_refusal_names_this_library_s_allowance(tmp_path: Path) -> None:
-    """Not the module constant. A server given a different allowance must quote the one
-    it actually enforces — the refusal and the rail were free to disagree while both
-    happened to say ten, and the disagreement only surfaced when the constant moved."""
+def test_the_hours_refusal_quotes_no_allowance(tmp_path: Path) -> None:
+    """It once quoted the module constant on a server given a different allowance. It
+    quotes no figure now (design.md §12, 2026-10-09), so it cannot quote the wrong one."""
     library = with_hours(tmp_path, hours=3)
     library.claim(recording(library, 1, 3 * HOUR, "a"))
     refused = library.claim(recording(library, 1, 1 * HOUR, "b"))
 
-    assert "180 credits" in refused, "the allowance this library was built with"
-    from targum.serve import UPLOAD_CREDITS
-
-    assert f"{UPLOAD_CREDITS} credits" not in refused, "never the constant it was not given"
+    assert re.search(r"\d+ credits", refused) is None, refused
 
 
 def test_an_admin_is_not_held_to_the_hours(tmp_path: Path) -> None:
@@ -684,4 +683,4 @@ def test_a_refusal_is_said_in_the_language_of_whoever_asked(
     assert library.claim(Job(id="j", source="s", estimate=1.0, ui="ru")) == "Слишком длинно."
     refusal = library._out_of("hours", "ru")
     assert refusal.startswith("Кредиты закончились, вернутся 1 ")
-    assert library._out_of("hours").startswith("You've used your")
+    assert library._out_of("hours").startswith("You've used this month's credits")
