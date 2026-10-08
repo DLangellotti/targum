@@ -4767,6 +4767,12 @@ def _forget_cookie(name: str) -> str:
 SENT = "Thanks. Check your email."
 
 
+#: How many texts the end card's next set holds, and how much of a text the reader must
+#: already know for it to be within reach (#435): three words in four, the floor of the
+#: Library's "A stretch".
+NEXT_SET_SIZE = 5
+NEXT_SET_WITHIN = 0.75
+
 #: One end card at a time decides its playlist's next set, so two visits at once cannot
 #: quote two (targum-internal#367). The store's guard is the second line of that.
 _ENDING = threading.Lock()
@@ -8797,12 +8803,23 @@ class Handler(BaseHTTPRequestHandler):
                 marked[language] = self.store.marked(person, language)
             word = {"word": lemma, "language": language}
             (known if lemma in marked[language] else fresh).append(word)
-        return {
-            "met": len(met),
-            "new": len(fresh),
-            "list": [{**one, "new": True} for one in fresh[:END_WORDS]]
-            + [{**one, "new": False} for one in known[: max(0, END_WORDS - len(fresh))]],
-        }
+        listed = [{**one, "new": True} for one in fresh[:END_WORDS]] + [
+            {**one, "new": False} for one in known[: max(0, END_WORDS - len(fresh))]
+        ]
+        # What each means, from the texts' own glossaries, in the reader's language where
+        # one was built and in English otherwise (#435). Nothing is asked of a model.
+        from .models import glossaries_in
+
+        wanted = self._page_language().split("-")[0]
+        books = [glossaries_in(folder) for folder, _ in folders]
+        for one in listed:
+            for shelf in books:
+                book = shelf.get(wanted) or shelf.get("en")
+                said = book.entries.get(str(one["word"]), "") if book is not None else ""
+                if said:
+                    one["gloss"] = said
+                    break
+        return {"met": len(met), "new": len(fresh), "list": listed}
 
     def _not_again(self, person: Person, found: dict[str, Any]) -> list[str]:
         """The catalogue ids a next set must not offer: every text in the playlist just
@@ -8860,12 +8877,17 @@ class Handler(BaseHTTPRequestHandler):
         )
         try:
             skip = self._not_again(person, found)
-            picked = tools_module.suggest_next(
-                ctx, {"language": language, "limit": 5, "skip": skip}
-            )
-            # And again here, whatever `suggest_next` did with it: the one thing this card
-            # must never do is offer back what was just read.
-            rows = [row for row in picked.get("suggestions") or [] if row.get("id") not in skip]
+            # Picked for the words just met (#435); the gentlest texts only where that
+            # cannot be asked, as before.
+            rows = self._picked_for_words(person, found, language, skip)
+            if rows is None:
+                picked = tools_module.suggest_next(
+                    ctx, {"language": language, "limit": 5, "skip": skip}
+                )
+                rows = list(picked.get("suggestions") or [])
+            # And again here, whatever picked them: the one thing this card must never do
+            # is offer back what was just read.
+            rows = [row for row in rows if row.get("id") not in skip]
             if not rows:
                 return 0
             quoted = tools_module.quote_set(
@@ -8885,21 +8907,132 @@ class Handler(BaseHTTPRequestHandler):
             log.exception("could not quote the next set for playlist %s", found.get("id"))
             return 0
         made = (quoted.get("set") or {}).get("id")
+        if made:
+            # targum picked it, whoever's tool quoted it: "From targum" (#435).
+            self.store.playlist_made_by(person.id, int(made), "targum")
         return int(made) if made else 0
 
+    def _picked_for_words(
+        self, person: Person, found: dict[str, Any], language: str, skip: list[str]
+    ) -> list[dict[str, Any]] | None:
+        """The next set, picked for the words just met (targum-internal#435; design.md §12,
+        2026-10-09): the words across the playlist the reader has not marked or has at a
+        learning stage, and the library texts within reach — three words in four or more
+        known — ranked by how many of them each repeats, then by how much of it is known.
+        Free and local: the catalogue's own index, no model.
+
+        None where it cannot be asked — no index, no words met, nothing within reach that
+        repeats one — and the caller falls back to the gentlest texts.
+        """
+        from . import catalogue as catalogue_module
+        from . import coverage as coverage_module
+
+        base = language.split("-")[0].lower()
+        marked = self.store.marked(person, base)
+        focus: set[str] = set()
+        for folder, folder_language in self._built_folders(found):
+            if folder_language and folder_language != base:
+                continue
+            for lemma in coverage_module.lemmas(folder):
+                if marked.get(lemma) in (None, 1, 2, 3):
+                    focus.add(lemma)
+        if not focus:
+            return None
+        index = coverage_module.read_index(catalogue_module.lemmas_path())
+        if not index.texts:
+            return None
+        skipped = set(skip)
+        ranked: list[tuple[int, float, Any]] = []
+        for entry in catalogue_module.everything():
+            if entry.id in skipped or entry.language.split("-")[0].lower() != base:
+                continue
+            measured = index.against(entry.id, marked)
+            if measured is None or measured.known < NEXT_SET_WITHIN:
+                continue
+            repeats = len(focus.intersection(index.lemmas_for(entry.id)))
+            if repeats:
+                ranked.append((repeats, measured.known, entry))
+        if not ranked:
+            return None
+        ranked.sort(key=lambda one: (-one[0], -one[1]))
+        return [
+            {"id": entry.id, "title": entry.title, "repeats": repeats}
+            for repeats, _, entry in ranked[:NEXT_SET_SIZE]
+        ]
+
     def _next_set_answer(self, person_id: int, offered: int) -> dict[str, Any] | None:
-        """The offered set as the end card draws it, or None: none was made, or the
-        reader has since taken it away."""
+        """The offered set as the end card draws it (#435), or None: none was made, or the
+        reader has since taken it away. Each text with its length, how much of it is known
+        and its credits, the total, and where it stands — waiting for its press, being
+        made, or ready — so the card can be the press, or say it was pressed."""
+        from . import catalogue as catalogue_module
+        from . import coverage as coverage_module
+        from . import spoken
+
         if not offered:
             return None
         found = self.store.playlist(person_id, offered)
         if found is None:
             return None
+        person = self._person()
+        index = coverage_module.read_index(catalogue_module.lemmas_path())
+        by_source = {
+            catalogue_module._key(entry.source): entry for entry in catalogue_module.CATALOGUE
+        }
+        marked: dict[str, dict[str, int]] = {}
+        items = []
+        total = 0
+        seconds = 0.0
+        waiting = making = 0
+        for item in found.get("items") or []:
+            job = self._own_job(str(item["job"])) if item.get("job") else None
+            entry = by_source.get(catalogue_module._key(job.source)) if job is not None else None
+            credits = credits_of(job.seconds) if job is not None and job.audio else 0
+            if item.get("failed"):
+                state = "failed"
+            elif item.get("reader"):
+                state = "ready"
+            elif job is not None and job.stage == "ready":
+                state = "waiting"
+                waiting += 1
+                total += credits
+            else:
+                state = "making"
+                making += 1
+            known = None
+            if entry is not None and person is not None:
+                language = entry.language.split("-")[0].lower()
+                if language not in marked:
+                    marked[language] = self.store.marked(person, language)
+                measured = index.against(entry.id, marked[language])
+                known = round(measured.known, 4) if measured is not None else None
+            minutes = (
+                int(-(-job.seconds // 60))
+                if job is not None and job.audio and job.seconds
+                else (entry.minutes if entry is not None else 0)
+            )
+            seconds += minutes * 60
+            items.append(
+                {
+                    "title": item.get("title") or "",
+                    "minutes": minutes,
+                    "known": known,
+                    "credits": credits,
+                    "video": bool(entry is not None and spoken.is_video(entry.source)),
+                    "state": state,
+                }
+            )
         return {
             "id": found["id"],
             "name": found["name"],
-            "count": len(found.get("items") or []),
+            "made_by": found.get("made_by") or "",
+            "count": len(items),
+            "items": items,
+            "credits": total,
+            "seconds": round(seconds),
+            "state": "waiting" if waiting else ("making" if making else "ready"),
             "open": f"/set/{found['id']}",
+            "page": f"/playlists/{found['id']}",
         }
 
     def _playlists_post(self, which: str | None, payload: dict[str, Any]) -> None:

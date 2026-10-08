@@ -251,3 +251,81 @@ def test_a_text_with_no_annotation_is_not_counted_as_zero(door, monkeypatch) -> 
     store.add_to_playlist(person.id, int(made["id"]), "Bare", reader="bare")
     _, said = get(port, f"/playlists/{made['id']}/end.json", mine)
     assert said["words"] is None
+
+
+# -- picked for the words just met (targum-internal#435; design.md §12, 2026-10-09) ------
+
+
+def test_the_next_set_is_picked_for_the_words_just_met(door, monkeypatch) -> None:
+    """Ranked by how many of the playlist's new and learning words each text repeats,
+    within reach (three in four known), and made targum's: "From targum"."""
+    from types import SimpleNamespace
+
+    from targum import catalogue, coverage
+
+    port, library, store, person, mine, _ = door
+    playlist = finished_playlist(library, store, person)
+    # ספר is at a learning stage, ילד and ים are new, בית is known.
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": "בית", "status": 9, "band": "easy", "at": 1, "seen": 1},
+                {"language": "he", "lemma": "ספר", "status": 2, "band": "easy", "at": 2, "seen": 1},
+                {"language": "he", "lemma": "אב", "status": 9, "band": "easy", "at": 3, "seen": 1},
+                {"language": "he", "lemma": "אם", "status": 9, "band": "easy", "at": 4, "seen": 1},
+                {"language": "he", "lemma": "דג", "status": 9, "band": "easy", "at": 5, "seen": 1},
+                {"language": "he", "lemma": "עץ", "status": 9, "band": "easy", "at": 6, "seen": 1},
+                {"language": "he", "lemma": "חג", "status": 9, "band": "easy", "at": 7, "seen": 1},
+            ]
+        },
+    )
+    words = tuple(sorted(("בית", "ספר", "ילד", "ים", "אב", "אם", "זר", "דג", "עץ", "חג")))
+    at = {word: n for n, word in enumerate(words)}
+
+    def ids(*these: str) -> tuple[int, ...]:
+        return tuple(sorted(at[word] for word in these))
+
+    texts = {
+        # Two repeats, and well within reach: first.
+        "both": ids("ספר", "ילד", "בית", "אב", "אם", "דג", "עץ", "חג"),
+        # One repeat: second.
+        "one": ids("ים", "בית", "אב", "אם"),
+        # Three repeats, but a stranger's text: out of reach.
+        "hard": ids("ספר", "ילד", "ים", "זר"),
+        # Nothing repeated: not picked.
+        "none": ids("בית", "אב", "אם"),
+        "ru": ids("ספר", "בית", "אב", "אם"),
+    }
+    monkeypatch.setattr(
+        coverage, "read_index", lambda path: coverage.Index(words=words, texts=texts)
+    )
+    monkeypatch.setattr(
+        catalogue,
+        "everything",
+        lambda: [
+            SimpleNamespace(
+                id=name,
+                source=f"https://example.com/x-{name}",
+                title=name.title(),
+                language="ru" if name == "ru" else "he",
+            )
+            for name in texts
+        ],
+    )
+    monkeypatch.setattr(
+        tools, "suggest_next", lambda ctx, args: pytest.fail("ranked by words, not easiest")
+    )
+    quoted: list[dict[str, Any]] = []
+
+    def quote(ctx: tools.Ctx, args: dict[str, Any]) -> dict[str, Any]:
+        quoted.append(args)
+        made = store.make_playlist(person.id, str(args["name"]), made_by="chat")
+        assert made is not None
+        return {"set": {"id": made["id"], "name": made["name"]}}
+
+    monkeypatch.setattr(tools, "quote_set", quote)
+    _, said = get(port, f"/playlists/{playlist}/end.json", mine)
+    assert [one["catalogue_id"] for one in quoted[0]["items"]] == ["both", "one"]
+    assert said["next"]["made_by"] == "targum", "targum picked it"
+    assert said["next"]["state"] == "ready" and said["next"]["count"] == 0

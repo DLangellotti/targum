@@ -4760,26 +4760,6 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
    its one door, a tonal pill (§13) — nothing that moves. Chrome, so the chrome's face;
    the words themselves are content, and keep the reading face. */
 .list-end { font-family: var(--chrome); font-size: 0.9375rem; color: var(--ink); }
-/* The playlist added up (§12, "The finished box is three figures"): the same figures
-   as the box, on paper here — the box above is the page's one ink block. */
-.list-end-tiles {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem;
-  margin: 0.5rem 0 1rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-}
-.list-end-tiles .tile b {
-  font-family: var(--reading);
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.list-end-tiles .tile:nth-child(2) b { color: var(--leaf); }
-.list-end-tiles .tile span { color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.3; }
 .list-end-words,
 .list-end-lead,
 .list-end-over { margin: 0.5rem 0; }
@@ -4796,6 +4776,91 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 }
 .list-end-list li { color: var(--ink-soft); }
 .list-end-list li.new { color: var(--ink); }
+/* Since 2026-10-09 (#435): the words are chips, each with what it means beside it, and
+   the card under them is the next set, confirmed here. */
+.list-end-over {
+  margin: 1rem 0 0.5rem;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+.list-end-list { gap: 0.5rem; }
+.list-end-list li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.15rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+}
+.list-end-list li[class~="new"] { border-color: var(--ink-soft); }
+.list-end-list bdi:lang(he),
+.list-end-list bdi:lang(yi),
+.list-end-list bdi:lang(arc) { font-family: var(--reading-hebrew); }
+.list-end-gloss { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
+.list-end-set {
+  margin: 1.25rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--paper);
+}
+.list-end-name {
+  margin: 0.25rem 0;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.list-end-facts { margin: 0 0 0.75rem; color: var(--ink-soft); font-size: 0.875rem; }
+.list-end-items { list-style: none; margin: 0; padding: 0; }
+.list-end-items li {
+  display: grid;
+  /* The title on its own line and its facts under it: the card stands in the
+     transcript's narrow column as often as across a page. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  padding-block: 0.6rem;
+  border-block-start: 1px solid var(--hairline);
+}
+.list-end-item { grid-column: 1 / -1; font-family: var(--reading-hebrew); font-size: 1.0625rem; overflow-wrap: anywhere; }
+.list-end-item-facts,
+.list-end-item-credits { margin: 0; color: var(--ink-soft); font-size: 0.875rem; white-space: nowrap; }
+.list-end-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  padding-block-start: 0.9rem;
+  border-block-start: 1px solid var(--hairline);
+}
+.list-end-total { margin: 0 auto 0 0; }
+.list-end-change { color: var(--teal); font-weight: 600; text-decoration: none; }
+.list-end-change:hover { text-decoration: underline; }
+.list-end-confirm {
+  min-block-size: 2.75rem;
+  padding: 0 1.4rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.list-end-confirm:hover { filter: brightness(1.08); }
+.list-end-confirm:disabled { opacity: 0.6; cursor: default; }
+.list-end-confirm:focus-visible,
+.list-end-change:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.list-end-said { flex: 1 0 100%; margin: 0; color: var(--clay); }
+.list-end-started { margin: 0; flex: 1 1 auto; }
+@media (max-width: 40rem) {
+  .list-end-item-facts { white-space: normal; }
+  .list-end-confirm { flex: 1 0 100%; order: 1; }
+  .list-end-change { order: 2; margin-inline: auto; }
+}
 .list-end-next,
 .list-end-home {
   display: inline-flex;

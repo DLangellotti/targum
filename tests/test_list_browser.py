@@ -253,39 +253,72 @@ def test_the_ones_not_ready_are_passed_and_the_last_leads_to_the_end(
         context.close()
 
 
-def test_the_end_says_what_the_set_held_and_offers_one_next_set(
+NEXT = {
+    "id": 9,
+    "name": "After Reels",
+    "made_by": "targum",
+    "count": 2,
+    "seconds": 360,
+    "credits": 6,
+    "state": "waiting",
+    "open": "/set/9",
+    "page": "/playlists/9",
+    "items": [
+        {"title": "מה השעה?", "minutes": 2, "known": 0.95, "credits": 2, "state": "waiting"},
+        {"title": "בבית קפה", "minutes": 4, "known": 0.92, "credits": 4, "state": "waiting"},
+    ],
+}
+
+
+def test_the_end_offers_one_next_set_and_confirms_it_on_the_card(
     browser,  # noqa: F811
     tmp_path,
 ) -> None:
-    """#367: the end card is filled once from end.json, and its one door is a press page."""
+    """#367, #435: the end card is filled once from end.json; its next set names each
+    text, its credits and the total, and Confirm is the set's own press, here."""
     one, two = two_films(tmp_path)
     context, _ = listed(browser, playlist(one, two))
     ended: list[str] = []
+    pressed: list[tuple[str, dict, str]] = []
 
     def answer_end(route) -> None:  # type: ignore[no-untyped-def]
         ended.append(route.request.url)
         route.fulfill(
             status=200,
             content_type="application/json",
-            body=json.dumps(
-                {
-                    "words": {"met": 84, "new": 12},
-                    "next": {"id": 9, "name": "After Reels", "count": 5, "open": "/set/9"},
-                }
-            ),
+            body=json.dumps({"words": {"met": 84, "new": 12}, "next": NEXT}),
         )
 
+    def answer_press(route) -> None:  # type: ignore[no-untyped-def]
+        request = route.request
+        pressed.append(
+            (
+                request.method,
+                json.loads(request.post_data or "{}"),
+                request.headers.get("x-targum-press", ""),
+            )
+        )
+        route.fulfill(status=200, content_type="application/json", body='{"started": ["a", "b"]}')
+
     context.route("**/playlists/7/end.json", answer_end)
+    context.route("**/set/9*", answer_press)
     page = context.new_page()
     try:
         page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
         page.click("#video .video-list-next")
-        page.wait_for_selector("#list-end .list-end-next")
+        page.wait_for_selector("#list-end .list-end-confirm")
         said = page.inner_text("#list-end")
+        assert "That's the end of Reels." in said
         assert "You met 84 words, 12 of them new." in said
-        assert "After Reels, 5 texts" in said
-        assert page.get_attribute("#list-end .list-end-next", "href").startswith("/set/9")
+        assert "From targum · 2 texts · 6 min · picked for the words you just met" in said
+        assert "Uses 6 credits in all" in said and "4 credits" in said
+        assert page.get_attribute("#list-end .list-end-change", "href").startswith("/set/9")
+        assert page.locator("#list-end .list-end-tiles").count() == 0, "no figures, words only"
+        page.click("#list-end .list-end-confirm")
+        page.wait_for_selector("#list-end .list-end-started")
+        assert pressed == [("POST", {"keep": [0, 1]}, "1")]
+        assert page.get_attribute("#list-end .list-end-next", "href").startswith("/playlists/9")
         # Another press at the end loads nothing more and asks for nothing more.
         page.evaluate(
             "() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown'}))"
@@ -297,30 +330,53 @@ def test_the_end_says_what_the_set_held_and_offers_one_next_set(
         context.close()
 
 
-def test_the_end_card_adds_up_what_each_item_came_to(browser, tmp_path) -> None:  # noqa: F811
-    """design.md §12, "The finished box is three figures" (2026-09-25): each press keeps
-    what its item came to, and the end card adds them up across the playlist."""
-    one = chapter(tmp_path / "one" / "reader")
-    two = other_text(tmp_path / "two" / "reader")
+def test_a_refused_confirm_says_why_and_can_be_pressed_again(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
     context, _ = listed(browser, playlist(one, two))
     context.route(
         "**/playlists/7/end.json",
-        lambda route: route.fulfill(status=200, content_type="application/json", body="{}"),
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"next": NEXT})
+        ),
+    )
+    refusal = "These texts need 6 credits and you have 2 left. Untick some and try again."
+    context.route(
+        "**/set/9*",
+        lambda route: route.fulfill(
+            status=402, content_type="application/json", body=json.dumps({"error": refusal})
+        ),
     )
     page = context.new_page()
     try:
-        page.goto(at(one, 0))
+        page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
-        page.evaluate("() => document.getElementById('done-mark').click()")
-        page.wait_for_url("**/two/**go=1")
+        page.click("#video .video-list-next")
+        page.click("#list-end .list-end-confirm")
+        page.wait_for_selector("#list-end .list-end-said:not([hidden])")
+        assert page.inner_text("#list-end .list-end-said") == refusal
+        assert page.locator("#list-end .list-end-confirm").is_enabled()
+    finally:
+        context.close()
+
+
+def test_a_set_already_confirmed_is_not_asked_for_again(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    context.route(
+        "**/playlists/7/end.json",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"next": {**NEXT, "state": "making"}}),
+        ),
+    )
+    page = context.new_page()
+    try:
+        page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
-        page.evaluate("() => document.getElementById('done-mark').click()")
-        page.wait_for_selector("#list-end .list-end-tiles")
-        tiles = page.inner_text("#list-end .list-end-tiles")
-        assert "2\ntexts finished" in tiles, tiles
-        assert re.search(r"\+[1-9]\d*\nwords known", tiles), tiles
-        assert "100%\nknown here" in tiles, "every word marked, across both"
-        assert "0\nwords looked up" in tiles
+        page.click("#video .video-list-next")
+        page.wait_for_selector("#list-end .list-end-started")
+        assert page.locator("#list-end .list-end-confirm").count() == 0
     finally:
         context.close()
 
@@ -334,7 +390,7 @@ def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> No
     one, two = two_films(tmp_path)
     context, _ = listed(browser, playlist(one, two))
     words = [
-        {"word": "שלום", "language": "he", "new": True},
+        {"word": "שלום", "language": "he", "new": True, "gloss": "peace; hello"},
         {"word": "בית", "language": "he", "new": False},
     ]
     context.route(
@@ -345,7 +401,7 @@ def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> No
             body=json.dumps(
                 {
                     "words": {"met": 2, "new": 1, "list": words},
-                    "next": {"id": 9, "name": "More like Reels", "count": 5, "open": "/set/9"},
+                    "next": {**NEXT, "name": "More like Reels"},
                 }
             ),
         ),
@@ -355,23 +411,26 @@ def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> No
         page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
         page.click("#video .video-list-next")
-        page.wait_for_selector("#list-end .list-end-next")
+        page.wait_for_selector("#list-end .list-end-home")
         got = page.evaluate(
             """() => {
-              const door = getComputedStyle(document.querySelector('#list-end .list-end-next'));
+              const door = getComputedStyle(document.querySelector('#list-end .list-end-home'));
               return {
                 words: [...document.querySelectorAll('#list-end .list-end-list bdi')]
                   .map((w) => [w.textContent, w.getAttribute('lang')]),
                 decoration: door.textDecorationLine,
                 radius: door.borderRadius,
                 dir: document.getElementById('list-end').getAttribute('dir'),
+                glosses: [...document.querySelectorAll('#list-end .list-end-list li')]
+                  .map((w) => w.querySelector('.list-end-gloss')?.textContent || ''),
               };
             }"""
         )
         assert got["words"] == [["שלום", "he"], ["בית", "he"]]
         assert got["decoration"] == "none" and got["radius"] == "999px"
         assert got["dir"] == "ltr"
-        assert "More like Reels, 5 texts" in page.inner_text("#list-end")
+        assert got["glosses"] == ["peace", ""], "each word with its first meaning"
+        assert "More like Reels" in page.inner_text("#list-end")
     finally:
         context.close()
 
