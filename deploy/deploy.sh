@@ -193,8 +193,10 @@ THUMBS="${TARGUM_THUMBS:-$MAIN_CHECKOUT/targum-out/thumbs}"
 REMOTE_THUMBS="${TARGUM_REMOTE_THUMBS:-/var/lib/targum/targums/thumbs}"
 if [ -d "$THUMBS" ]; then
   ssh "${SSH_OPTS[@]}" "$HOST" "mkdir -p '$REMOTE_THUMBS'"
-  rsync -a -q --delay-updates --exclude='.*' --exclude='*.part' --exclude='*.tmp' \
-    --exclude='*~' -e "ssh ${SSH_OPTS[*]}" "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
+  # rsync's own ssh, kept talking like every other one here.
+  RSYNC_RSH="$(printf '%q ' ssh "${SSH_OPTS[@]}")" rsync -a -q --delay-updates \
+    --exclude='.*' --exclude='*.part' --exclude='*.tmp' --exclude='*~' \
+    "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
   ssh "${SSH_OPTS[@]}" "$HOST" "chown -R targum:targum '$REMOTE_THUMBS'"
   echo "   $(find "$THUMBS" -type f -name '*.webp' | wc -l | tr -d ' ') covers"
 fi

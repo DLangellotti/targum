@@ -35,6 +35,7 @@ esac
 
 FAKE_RSYNC = """#!/usr/bin/env bash
 echo "rsync $*" >> "$CALLS"
+echo "rsh $RSYNC_RSH" >> "$CALLS"
 args=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -121,4 +122,5 @@ def test_covers_arrive_box_only_covers_stay_and_partials_stay_behind(tmp_path: P
     # Handed to the service after the copy, since 2.6.9 has no --chown.
     assert calls[-1] == f"ssh chown -R targum:targum '{box}'"
     assert any(call.startswith("rsync ") for call in calls[:-1])
+    assert "rsh ssh -o ServerAliveInterval=60 " in calls
     assert "2 covers" in said
