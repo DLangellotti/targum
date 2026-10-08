@@ -391,3 +391,124 @@ def test_a_claimed_word_keeps_its_source_across_a_sync() -> None:
     assert answer["pushed"] == [["שולחן", "claimed"]], "it goes up as what it is"
     assert answer["words"]["כיסא"]["source"] == "claimed", "and comes back down as it"
     assert answer["words"]["שולחן"]["source"] == "claimed", "and the one already here keeps it"
+
+
+def test_a_place_is_kept_at_once_and_pushed_at_most_every_half_minute() -> None:
+    """targum-internal#430. The reader writes its place as it reads — a scroll settles
+    every second, a recording moves every five — and every write lands in this browser at
+    once. The account hears on the next exchange, then at most once every thirty seconds,
+    and once more, kept alive, when the page is put down. A place that did not move
+    writes nothing. A newer place from another device wins on the way in."""
+    stored = {
+        "targum:sync": json.dumps({"email": "reader@example.com", "revision": 1, "pushed": 1}),
+        "targum:places": json.dumps(
+            {"ruth": {"section": "1", "path": "", "segment": "b1", "seconds": 0, "at": 10}}
+        ),
+    }
+    answer = {
+        "revision": 2,
+        "places": [
+            {"hash": "ruth", "section": "2", "path": "/r/sec-2.html", "segment": "b5",
+             "seconds": 7.5, "at": 99, "seen": 99, "gone": 0},
+        ],
+    }  # fmt: skip
+    program = """
+      const {{ install }} = require({dom});
+      const stored = {stored};
+      install({{ TARGUM_KEY: "", stored }});
+      const answer = {answer};
+      const timers = [];
+      global.setTimeout = function (run, wait) {{
+        timers.push({{ run, wait, live: true }});
+        return timers.length;
+      }};
+      global.clearTimeout = function (id) {{ if (timers[id - 1]) timers[id - 1].live = false; }};
+      const syncs = [];
+      global.fetch = function (url, options) {{
+        const me = String(url).indexOf("/account/me") >= 0;
+        if (!me) syncs.push({{ body: JSON.parse(options.body), keepalive: !!options.keepalive }});
+        const reply = me
+          ? {{ signedIn: true, email: "reader@example.com", reads: [], learning: [] }}
+          : answer;
+        return Promise.resolve({{ ok: true, status: 200, json: () => Promise.resolve(reply) }});
+      }};
+      require({where});
+      const sync = window.TargumSync;
+      sync.start().then(function () {{
+        const pulled = sync.placeOf("ruth");
+        sync.place("gen", {{ section: "3", path: "/g/sec-3.html", segment: "b1" }});
+        const first = JSON.parse(stored["targum:places"]).gen.at;
+        sync.place("gen", {{ section: "3", segment: "b1" }});
+        const unmoved = JSON.parse(stored["targum:places"]).gen.at === first;
+        sync.place("gen", {{ section: "3", segment: "b2" }});
+        sync.place("gen", {{ section: "3", seconds: 12.345 }});
+        const kept = sync.placeOf("gen");
+        sync.place("gen", {{ section: "4" }});
+        const moved = sync.placeOf("gen");
+        const waiting = timers.filter((t) => t.live).map((t) => t.wait);
+        const before = syncs.length;
+        document.visibilityState = "hidden";
+        document.fire("visibilitychange");
+        setImmediate(function () {{
+          console.log(JSON.stringify({{
+            pulled, unmoved, kept, moved, waiting, before,
+            after: syncs.length,
+            last: syncs[syncs.length - 1],
+            live: timers.filter((t) => t.live).length,
+            recent: sync.places(1).map((p) => p.hash),
+          }}));
+        }});
+      }});
+    """.format(
+        dom=json.dumps(str(DOM)),
+        stored=json.dumps(stored),
+        answer=json.dumps(answer),
+        where=json.dumps(str(ASSETS / "sync.js")),
+    )
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    seen = json.loads(done.stdout)
+
+    assert seen["pulled"]["section"] == "2" and seen["pulled"]["segment"] == "b5", (
+        "the account's newer place replaced this browser's"
+    )
+    assert seen["unmoved"], "a place that did not move is not written again"
+    assert seen["kept"]["segment"] == "b2" and seen["kept"]["seconds"] == 12.35
+    assert seen["kept"]["path"] == "/g/sec-3.html", "what a call leaves out is kept"
+    assert seen["moved"]["segment"] == "" and seen["moved"]["seconds"] == 0, (
+        "a different part starts at its own top"
+    )
+    assert seen["waiting"] == [30000], "one push owed, half a minute out"
+    assert seen["before"] == 1, "four places written, and only the opening exchange sent"
+    assert seen["after"] == 2 and seen["live"] == 0, "putting the page down sends the rest"
+    assert seen["last"]["keepalive"] is True
+    [sent] = [row for row in seen["last"]["body"]["places"] if row["hash"] == "gen"]
+    assert sent["section"] == "4" and sent["seen"] == sent["at"]
+    assert seen["recent"] == ["gen"]
+
+
+def test_a_place_is_kept_for_somebody_signed_out() -> None:
+    """No account, no push — and still a place, for this browser's Continue."""
+    program = """
+      const {{ install }} = require({dom});
+      const stored = {{}};
+      install({{ TARGUM_KEY: "", stored }});
+      let posts = 0;
+      global.fetch = function (url, options) {{
+        if (options && options.method === "POST") posts += 1;
+        const reply = {{ signedIn: false }};
+        return Promise.resolve({{ ok: true, status: 200, json: () => Promise.resolve(reply) }});
+      }};
+      require({where});
+      window.TargumSync.start().then(function () {{
+        window.TargumSync.place("gen", {{ section: "2", segment: "b3" }});
+        document.visibilityState = "hidden";
+        document.fire("visibilitychange");
+        console.log(JSON.stringify({{ posts, place: window.TargumSync.placeOf("gen") }}));
+      }});
+    """.format(dom=json.dumps(str(DOM)), where=json.dumps(str(ASSETS / "sync.js")))
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    seen = json.loads(done.stdout)
+    assert seen["posts"] == 0
+    assert seen["place"]["section"] == "2" and seen["place"]["segment"] == "b3"

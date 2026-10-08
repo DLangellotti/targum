@@ -7129,6 +7129,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._totals()
         if route == "/account/reading":
             return self._reading()
+        if route == "/account/places":
+            return self._places(parse_qs(urlparse(self.path).query))
         if route == "/word/met":
             if not shows_occurrences():
                 return self._send(404, b"not found", "text/plain")
@@ -9866,6 +9868,26 @@ class Handler(BaseHTTPRequestHandler):
         self.store.forget(person)
         self._sign_out()
 
+    def _places(self, query: dict[str, list[str]]) -> None:
+        """Where the reader left off, newest first (targum-internal#430): `limit` texts,
+        or the one `document` names. The contents page's Continue asks for its own text's;
+        home asks for the last few. Signed out, there is no account to ask, and the page
+        keeps to what this browser wrote down."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            limit = int(query.get("limit", ["5"])[0])
+        except ValueError:
+            limit = 5
+        document = query.get("document", [""])[0]
+        self._json(
+            {
+                "signedIn": True,
+                "places": self.store.places(person.id, limit=limit, document=document),
+            }
+        )
+
     def _sync(self, payload: dict[str, Any]) -> None:
         """Take what the browser has, hand back what it is missing.
 
@@ -9890,7 +9912,8 @@ class Handler(BaseHTTPRequestHandler):
             # `sections` since 2026-09-27: `sync.js` has pushed a row per finished chapter
             # since targum-internal#173, and this list dropped every one of them, so a
             # chapter finished on a phone never reached the laptop (found building #291).
-            for name in ("words", "meanings", "phrases", "docs", "days", "sections")
+            # `places` since targum-internal#430: where the reader left off in each text.
+            for name in ("words", "meanings", "phrases", "docs", "days", "sections", "places")
             if isinstance(payload.get(name), list)
         }
         # Asked before the push, when a section with no row is one being finished now.

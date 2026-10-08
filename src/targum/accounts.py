@@ -246,10 +246,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    a change to either is a new key and nothing kept is read across it. On a table every
 #    box has, so it is in MIGRATIONS.
 #
+# 40→41: the place table — where a reader left off in each text, one row a text, so
+#    Continue picks up on any device (targum-internal#430). A new table, so `CREATE
+#    TABLE IF NOT EXISTS` is the whole of it. Nothing is backfilled: until now the place
+#    lived only in the browser, and the first sync from each browser carries it up.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 40
+SCHEMA_VERSION = 41
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -310,6 +315,7 @@ WIPED = (
     "doc",
     "day",
     "section",
+    "place",
     "reading",
     "event",
     "chosen",
@@ -742,6 +748,30 @@ CREATE TABLE IF NOT EXISTS section (
   gone     INTEGER NOT NULL DEFAULT 0,
   revision INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (person, hash, section)
+);
+
+-- Where a reader left off in a text, one row a text (targum-internal#430): which part of
+-- it, which sentence, and how far into its recording. Continue reads it, on whichever
+-- device the reader picks the text up on next.
+--
+-- One row a text rather than a row a part, because the question it answers is "where
+-- was I", and that has one answer per text: a reader who went back to chapter two to
+-- look something up has their place in chapter two. Last write wins on `seen`, like
+-- every other kind, so the device read on most recently is the one that says. `path` is
+-- the page's own address on this box, for a row that has to link without the contents
+-- page in hand; `seconds` is 0 for a text with no recording or one not started.
+CREATE TABLE IF NOT EXISTS place (
+  person   INTEGER NOT NULL,
+  hash     TEXT    NOT NULL,
+  section  TEXT    NOT NULL DEFAULT '',
+  path     TEXT    NOT NULL DEFAULT '',
+  segment  TEXT    NOT NULL DEFAULT '',
+  seconds  REAL    NOT NULL DEFAULT 0,
+  at       INTEGER NOT NULL DEFAULT 0,
+  seen     INTEGER NOT NULL DEFAULT 0,
+  gone     INTEGER NOT NULL DEFAULT 0,
+  revision INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, hash)
 );
 
 -- What a reader knew of a section, the moment they finished it (targum-internal#291):
@@ -1318,7 +1348,9 @@ def _kept(row: sqlite3.Row) -> Kept:
 # data rather than four near-identical functions, because the merge is the same
 # argument four times and the only thing that differs is the shape.
 # Fields that default to a number rather than to empty text when nothing is known.
-NUMERIC = frozenset({"at", "updated", "opened", "done", "span_start", "span_end", "count"})
+NUMERIC = frozenset(
+    {"at", "updated", "opened", "done", "span_start", "span_end", "count", "seconds"}
+)
 
 
 def exportable_corrections(
@@ -1420,6 +1452,12 @@ KINDS: dict[str, Kind] = {
     # section number the build gave that part, which is the identity its filename, its
     # row on the contents page and its pager all already use.
     "sections": Kind(table="section", key=("hash", "section"), fields=("at",)),
+    # Where the reader left off in each text (targum-internal#430). One row a text; the
+    # browser writes it as the reader reads and pushes it at most every half minute, and
+    # on the way out — see `sync.js`.
+    "places": Kind(
+        table="place", key=("hash",), fields=("section", "path", "segment", "seconds", "at")
+    ),
 }
 
 
@@ -3030,6 +3068,8 @@ class Store:
                     "section",
                     # And what they knew of each one (targum-internal#291).
                     "reading",
+                    # And where they left off in each text (targum-internal#430).
+                    "place",
                     # And what they did in each text (targum-internal#127).
                     "event",
                     "chosen",
@@ -3553,6 +3593,37 @@ class Store:
             (person_id,),
         ).fetchall()
         return {str(row["hash"]) for row in rows}
+
+    #: The most places one read hands back. Home shows a few; the rest is the export's.
+    PLACES_AT_MOST = 20
+
+    def places(
+        self, person_id: int | None, limit: int = 5, document: str = ""
+    ) -> list[dict[str, Any]]:
+        """Where this person left off, newest first: the last `limit` texts they were in,
+        each with the part, the sentence and the second of its recording, and the
+        title and language its `doc` row carries (targum-internal#430).
+
+        For Continue — the contents page asks for one text's, home for the last few. A
+        text taken off the shelf is left out; its place stays, so putting it back
+        brings it back where it was.
+        """
+        if person_id is None:
+            return []
+        limit = max(1, min(self.PLACES_AT_MOST, int(limit)))
+        where = "p.person = ? AND p.gone = 0 AND COALESCE(d.gone, 0) = 0"
+        args: list[Any] = [person_id]
+        if document:
+            where += " AND p.hash = ?"
+            args.append(document)
+        rows = self.db.execute(
+            "SELECT p.hash, p.section, p.path, p.segment, p.seconds, p.at,"
+            " COALESCE(d.title, '') AS title, COALESCE(d.language, '') AS language"
+            " FROM place p LEFT JOIN doc d ON d.person = p.person AND d.hash = p.hash"
+            f" WHERE {where} ORDER BY p.at DESC LIMIT ?",
+            (*args, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def read_times(self, person_id: int | None) -> dict[str, dict[str, int]]:
         """When this person last opened each text and when they finished it, by hash, in

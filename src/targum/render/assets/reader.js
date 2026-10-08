@@ -7326,6 +7326,10 @@ var targumReader = function () {
   // would sit in the store for good; a reader coming back to a page they left half-read
   // comes back to it within a hundred pages of reading, or they are not coming back.
   var PLACES = 100;
+  // Whether a place was put back on this page, and whether the reader has moved since:
+  // either means a place arriving late from the account is not wanted (#430).
+  var placeFound = false;
+  var placeLeft = false;
 
   // On the way out. Written from the same anchor a change of layout holds, so leaving a
   // reader and switching it to source keep the same place by the same rule: the word if
@@ -7333,10 +7337,21 @@ var targumReader = function () {
   function leavePlace() {
     var here = living ? anchor() : null;
     if (!here) return;
+    placeLeft = true;
     var span = here.word ? here.word.getAttribute("data-bare") || "" : "";
+    var atTop = !here.word && window.scrollY <= 2;
+    // And the text's one place, for Continue on any device (targum-internal#430): the
+    // part and the sentence. `sync.js` keeps it and decides when the account hears.
+    if (window.TargumSync && window.TargumSync.place) {
+      window.TargumSync.place(documentId, {
+        section: sectionId,
+        path: location.pathname,
+        segment: atTop ? "" : here.pair.getAttribute("data-id") || "",
+      });
+    }
     try {
       var all = read(PLACE, "{}");
-      if (!here.word && window.scrollY <= 2) {
+      if (atTop) {
         // A text the reader never moved in has no place in it: they opened it and left it
         // where it opened, and where it opens is where it opens again. Kept as the
         // absence of a record rather than as a record of the top, so that a place from an
@@ -7455,8 +7470,15 @@ var targumReader = function () {
     // this reader was a moment ago rather than where they were last time.
     if (location.hash || window.scrollY > 2) return;
     var kept = read(PLACE, "{}")[placeKey] || {};
+    // Where this browser kept nothing for the page, the text's own place — which may have
+    // come from another device (targum-internal#430) — if it is in this part.
+    if (!kept.segment && window.TargumSync && window.TargumSync.placeOf) {
+      var far = window.TargumSync.placeOf(documentId);
+      if (far && String(far.section) === sectionId && far.segment) kept = { segment: far.segment };
+    }
     var pair = kept.segment ? pairBySegment[kept.segment] : null;
     if (!pair) return;
+    placeFound = true;
     var word = null;
     if (/^\d+$/.test(String(kept.word || ""))) {
       // Its spans may never have been drawn: only a screenful is marked up front, and
@@ -10294,6 +10316,10 @@ var targumReader = function () {
   // Or where a link said. After the layout, like `resume`, and for the same reason: a
   // verse's page is only known once the pages have been cut.
   arrive();
+  // This part is where the reader is in this text now, for Continue (#430).
+  if (window.TargumSync && window.TargumSync.place) {
+    window.TargumSync.place(documentId, { section: sectionId, path: location.pathname });
+  }
   took("back where the reader left off");
   showTab(prefs.listTab);
   waitForMeanings();
@@ -10318,6 +10344,9 @@ var targumReader = function () {
       picks = read(PICKED, "{}");
       redraw();
       took("marks redrawn from the account");
+      // A place from another device, for a page this browser had none for and the
+      // reader has not moved on yet (targum-internal#430).
+      if (!placeFound && !placeLeft && (!paged() || current === 0)) resume();
     });
     window.TargumSync.start();
   }
@@ -11005,10 +11034,12 @@ var targumReader = function () {
   if (!node) return;
   var speech;
   var spokenOf = "";
+  var spokenPart = "1";
   try {
     var loaded = JSON.parse(node.textContent) || {};
     speech = loaded.speech;
     spokenOf = loaded.document || location.pathname;
+    spokenPart = String(loaded.section || 1);
   } catch (e) {
     return;
   }
@@ -11664,8 +11695,13 @@ var targumReader = function () {
     var now = audio.currentTime;
     try {
       var all = JSON.parse(localStorage.getItem(HEARD) || "{}");
-      if (now <= 0.5 || length - now <= tail(length)) delete all[heardOf];
+      var over = now <= 0.5 || length - now <= tail(length);
+      if (over) delete all[heardOf];
       else all[heardOf] = { at: Math.round(now * 100) / 100, when: Date.now() };
+      // And the second, on the text's one place for Continue (targum-internal#430).
+      if (heardOf === spokenOf && window.TargumSync && window.TargumSync.place) {
+        window.TargumSync.place(spokenOf, { section: spokenPart, seconds: over ? 0 : now });
+      }
       Object.keys(all)
         .sort(function (a, b) { return (all[b].when || 0) - (all[a].when || 0); })
         .slice(HEARDS)
@@ -11683,6 +11719,11 @@ var targumReader = function () {
     try {
       kept = JSON.parse(localStorage.getItem(HEARD) || "{}")[heardOf];
     } catch (e) {}
+    // Or the second the text's place says, which may be another device's (#430).
+    if (!kept && heardOf === spokenOf && window.TargumSync && window.TargumSync.placeOf) {
+      var far = window.TargumSync.placeOf(spokenOf);
+      if (far && String(far.section) === spokenPart && far.seconds) kept = { at: Number(far.seconds) };
+    }
     if (!kept || !kept.at || kept.at >= length - tail(length)) return;
     try {
       audio.currentTime = kept.at;
