@@ -33,7 +33,15 @@ def test_a_tile_is_coloured_by_what_the_text_is() -> None:
 
 
 def test_every_tile_colour_is_in_the_palette() -> None:
-    from tests.test_brand import PALETTE
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "brand", Path(__file__).with_name("test_brand.py")
+    )
+    assert spec is not None and spec.loader is not None
+    brand = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(brand)
+    PALETTE = brand.PALETTE
 
     for colour in [*thumbs.TONES.values(), thumbs.ON_TONE]:
         assert colour in PALETTE, colour
