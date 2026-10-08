@@ -6,7 +6,7 @@
     "playlists" before including. -#}
 {%- set keyed = ('k=' ~ token) if token else '' %}
 <nav class="tabs yours-tabs" id="yours-tabs" aria-label="{{ t("yours.tabs.label", "Your targums") }}">
-  <a class="tab" data-tab="all" href="/texts{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'all' %} aria-current="page"{% endif %}>{{ t("yours.tabs.all", "All targums") }}</a>
-  <a class="tab" data-tab="uploads" href="/texts?show=uploads{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'uploads' %} aria-current="page"{% endif %}>{{ t("yours.tabs.uploads", "Your uploads") }}</a>
+  <a class="tab" data-tab="all" href="/{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'all' %} aria-current="page"{% endif %}>{{ t("yours.tabs.all", "All targums") }}</a>
+  <a class="tab" data-tab="uploads" href="/?show=uploads{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'uploads' %} aria-current="page"{% endif %}>{{ t("yours.tabs.uploads", "Your uploads") }}</a>
   <a class="tab" data-tab="playlists" href="/playlists{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'playlists' %} aria-current="page"{% endif %}>{{ t("yours.tabs.playlists", "Playlists") }}</a>
 </nav>

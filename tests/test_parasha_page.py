@@ -75,7 +75,7 @@ def serving(tmp_path: Path, built: Index) -> Iterator[int]:
         {
             "library": Library(out),
             "token": "test-key",
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "shelf": "<html>library</html>",
             "store": Store(tmp_path / "words.db"),
             "mailer": ConsoleMailer(),

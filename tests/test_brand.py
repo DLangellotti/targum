@@ -338,7 +338,6 @@ THUMBED = (
     ".scene",
     ".steps > li",
     ".yours-tabs .tab",
-    ".defined-open",
     ".sift-shelf .chip",
     ".sift-shelf .find",
     ".sift-shelf .pick select",
@@ -378,6 +377,11 @@ THUMBED = (
     ".card-door",
     # And the text card's Listen, beside its door (2026-10-06).
     ".card-play",
+    # Home (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08):
+    # a Continue card, the next one's Open, and the upload.
+    ".home-card-open",
+    ".try-open",
+    ".upload-card",
 )
 
 
@@ -668,18 +672,19 @@ def test_a_toggle_the_page_marks_pressed_is_styled_pressed() -> None:
     """A control the script toggles must look toggled, or the press does nothing visible.
 
     Shipped broken on 2026-09-17 and deployed: the arrival's subject chips set
-    `aria-pressed` and `.is-picked` in `learn.js`, and the one rule that styled them was
-    a grouped selector — `.arrival-door[aria-pressed="true"], .arrival-rung[...]`. A
-    clean-up that dropped every rule naming `.arrival-rung` took the door half with it,
-    so picking a subject changed nothing on screen and nothing failed.
+    `aria-pressed` and `.is-picked` in `learn.js` (now `arrival.js`), and the one rule
+    that styled them was a grouped selector —
+    `.arrival-door[aria-pressed="true"], .arrival-rung[...]`. A clean-up that dropped
+    every rule naming `.arrival-rung` took the door half with it, so picking a subject
+    changed nothing on screen and nothing failed.
 
-    Checked from the script, not from a list here: whatever `learn.js` marks as pressed
-    is what `learn.css` has to answer for, so a new toggle cannot be added without one.
+    Checked from the script, not from a list here: whatever `arrival.js` marks as pressed
+    is what `arrival.css` has to answer for, so a new toggle cannot be added without one.
     """
     import re
 
-    script = (ASSETS / "learn.js").read_text(encoding="utf-8")
-    sheet = (ASSETS / "learn.css").read_text(encoding="utf-8")
+    script = (ASSETS / "arrival.js").read_text(encoding="utf-8")
+    sheet = (ASSETS / "arrival.css").read_text(encoding="utf-8")
     # The class given to the *same* element that is marked `aria-pressed`. Bound by the
     # variable, not by nearness: a first cut looked within 400 characters and caught
     # `arrival-rung-letter`, a span inside the button, which is never pressed itself.
@@ -688,7 +693,7 @@ def test_a_toggle_the_page_marks_pressed_is_styled_pressed() -> None:
         for holder, name in re.findall(r"(\w+)\.className\s*=\s*\"([a-z-]+)\"", script)
         if re.search(re.escape(holder) + r'\.setAttribute\("aria-pressed"', script)
     }
-    assert pressed, "no pressable control found in learn.js — has the arrival moved?"
+    assert pressed, "no pressable control found in arrival.js — has the arrival moved?"
     for name in sorted(pressed):
         assert re.search(r"\." + re.escape(name) + r'\[aria-pressed="true"\]', sheet), (
             f".{name} is marked aria-pressed by learn.js and styled by nothing in learn.css"

@@ -4794,7 +4794,7 @@ class Handler(BaseHTTPRequestHandler):
     hosts: frozenset[str] = frozenset(SAFE_HOSTS)
     library: Library
     token: str
-    page: str
+    welcome: str
     adding: str
     progress: str
     #: The Tanakh map (targum-internal#144). Empty on a handler built by hand, which is
@@ -4918,6 +4918,10 @@ class Handler(BaseHTTPRequestHandler):
             "/jobs",
             "/account/export",
             "/account/follows",
+            # The arrival's own page since Learn was taken apart (2026-10-08), and the
+            # address Learn never had but somebody may have typed: it opens home.
+            "/welcome",
+            "/learn",
         }
     )
     #: `/open/` is here because a person clicks it (targum-internal#313): a signed-out
@@ -7022,7 +7026,20 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/thumb/"):
             return self._serve_thumb(route[len("/thumb/") :])
         if route == "/":
-            return self._send(200, self._desk("page", self.page).encode("utf-8"), HTML)
+            # Home is Your targums since 2026-10-08 (design.md §12, "Home is Your targums,
+            # and Continue leads it"): Continue at the top, the shelf under it. Learn,
+            # which stood here, is gone; its questions for a new reader are `/welcome`.
+            # A handler made by hand (the tests make one) may carry no lists at all.
+            page = self._desk("lists:texts", self.lists.get("texts") or self.welcome)
+            return self._send(200, page.encode("utf-8"), HTML)
+        if route in ("/texts", "/learn"):
+            # Your targums' old address, and Learn's name, both open home with what they
+            # asked for: `/texts?show=uploads` is still the uploads tab. A 302, because a
+            # door may change what it opens onto (`_sent_on`).
+            query = urlparse(self.path).query
+            return self._sent_on("/" + (f"?{query}" if query else ""))
+        if route == "/welcome":
+            return self._send(200, self._desk("welcome", self.welcome).encode("utf-8"), HTML)
         if route == "/add":
             return self._send(
                 200, self._desk("adding", self.adding).encode("utf-8"), "text/html; charset=utf-8"
@@ -11883,12 +11900,12 @@ def start(
         LISTS,
         add_page,
         chat_page,
-        learn_page,
         library_page,
         list_page,
         playlists_page,
         progress_page,
         tanakh_map_page,
+        welcome_page,
         you_page,
     )
     from .translate.anthropic_provider import AnthropicProvider
@@ -11948,7 +11965,7 @@ def start(
             # runs themselves and useless in an email: hosted, the link has to name the
             # address the reader can actually reach, not the one the server binds to.
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
-            "page": learn_page(token, connector=connector_is_open()),
+            "welcome": welcome_page(token, connector=connector_is_open()),
             "you": you_page(token),
             "playlists": playlists_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
@@ -11966,7 +11983,7 @@ def start(
                 code: {
                     "progress": progress_page(token, language=code),
                     "tanakh": tanakh_map_page(token, language=code),
-                    "page": learn_page(token, language=code, connector=connector_is_open()),
+                    "welcome": welcome_page(token, language=code, connector=connector_is_open()),
                     "you": you_page(token, language=code),
                     "playlists": playlists_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),

@@ -7,9 +7,9 @@
  * across pages once opened (`targum:talk`), since somebody mid-conversation who follows a
  * link has not finished talking.
  *
- * A text the conversation offers is opened by the page holding the drawer: Learn puts it
- * in its sheet (`TargumLearn.open`), any other page goes to the reader itself. Nothing is
- * taken from a message that did not come from the drawer's own frame on this origin.
+ * A text the conversation offers opens the reader itself, from whatever page holds the
+ * drawer (Learn's sheet, which held it in place, went with Learn on 2026-10-08). Nothing
+ * is taken from a message that did not come from the drawer's own frame on this origin.
  */
 (function () {
   "use strict";
@@ -172,20 +172,12 @@
     if (event.origin !== window.location.origin) return;
     if (!frame.contentWindow || event.source !== frame.contentWindow) return;
     var data = event.data || {};
-    var learn = window.TargumLearn;
     if (data.type === "targum:open" && data.reader) {
       var path = String(data.reader);
-      if (learn && learn.open) {
-        learn.open(path);
-        // On a phone the drawer covers the sheet the text just opened in.
-        if (window.matchMedia && window.matchMedia("(max-width: 48rem)").matches) show(false);
-        return;
-      }
       window.location.href = keyed(
         "/reader/" + path.split("/").map(encodeURIComponent).join("/")
       );
     }
-    if (data.type === "targum:changed" && learn && learn.changed) learn.changed();
   });
 
   var wasOpen = false;

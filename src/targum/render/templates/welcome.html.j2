@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("welcome.page.title", "Welcome — targum") }}</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('arrival.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+{#- The arrival, on a page of its own (design.md §12, "Home is Your targums, and Continue
+    leads it", 2026-10-08). It stood at the top of Learn; Learn is gone, and the FirstRun
+    boards draw the questions as screens of their own, one a screen, before home. Home
+    sends a new reader here (`home.js`), and `arrival.js` sends anybody it has nothing to
+    ask straight back. -#}
+<body class="words welcome">
+{% set here = 'welcome' %}
+{% set title = '' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+
+<main id="page">
+  <section class="arrival" id="arrival" hidden aria-labelledby="arrival-asks">
+    <div class="arrival-top">
+      <p class="arrival-step" id="arrival-step"></p>
+      {#- EN · RU, for a Russian reader whose browser did not say so: Latin letters, so a
+          reader who does not read Russian sees none (design.md §12, 2026-09-28). Drawn
+          by `learn.js` only while the language question is not asked. -#}
+      <p class="arrival-switch" id="arrival-switch" hidden></p>
+    </div>
+    {#- Which language they read, before anything that has to be read (2026-09-20). Asked
+        in every language it offers at once, each row in its own name, because a reader
+        who cannot read "What are you interested in?" cannot be asked it. Drawn by
+        `learn.js`, and only for somebody who has never said: an account the operator
+        marked, a press on the front door's switcher and the conversation's own
+        question are all answers already. -#}
+    <div class="arrival-screen" id="arrival-language" hidden>
+      <p class="arrival-asks" id="arrival-asks-language"></p>
+      <div class="arrival-levels arrival-tongues" id="arrival-tongues" role="group" aria-labelledby="arrival-asks-language"></div>
+    </div>
+    {#- The welcome (David, 2026-09-28: "very weird to come and see this as first
+        screen. No welcome, no telling you where you are, no asking your name, just a
+        question"). Says where they are and what happens next, and asks what to call
+        them — optional, and only where there is an account to keep it. Not a question
+        the bars count. -#}
+    <div class="arrival-screen" id="arrival-welcome" hidden>
+      <p class="arrival-asks" id="arrival-asks-welcome">{{ t("learn.arrival.welcome", "Welcome to targum") }}</p>
+      <p class="arrival-hint">{{ t("learn.arrival.welcome-what", "You learn Hebrew here from real texts and videos, with a translation beside every line and any word explained with a tap.") }}</p>
+      <p class="arrival-hint">{{ t("learn.arrival.welcome-next", "A few quick questions first, then we’ll open something for you.") }}</p>
+      <div class="arrival-name" id="arrival-name-row" hidden>
+        <label for="arrival-name">{{ t("learn.arrival.what-to-call-you", "What should we call you?") }} <span class="arrival-optional">{{ t("learn.arrival.optional-word", "Optional") }}</span></label>
+        <input id="arrival-name" type="text" autocomplete="given-name" maxlength="60" spellcheck="false">
+      </div>
+    </div>
+    <div class="arrival-screen" id="arrival-subjects">
+      <p class="arrival-asks" id="arrival-asks">{{ t("learn.arrival.what-are-you-interested-in", "What are you interested in?") }}</p>
+      <p class="arrival-hint">{{ t("learn.arrival.pick-three-or-more", "Pick three or more. We'll use them to choose texts for you.") }}</p>
+      <div class="arrival-doors" id="arrival-doors" role="group" aria-labelledby="arrival-asks"></div>
+    </div>
+    <div class="arrival-screen" id="arrival-level" hidden>
+      <p class="arrival-asks" id="arrival-asks-level">{{ t("learn.arrival.how-much-hebrew", "How much Hebrew do you know?") }}</p>
+      <p class="arrival-hint">{{ t("learn.arrival.level-hint", "You’ll start there, and we’ll adjust as you mark words.") }}</p>
+      <div class="arrival-levels" id="arrival-levels" role="group" aria-labelledby="arrival-asks-level"></div>
+    </div>
+    {#- The way into Claude and ChatGPT, last, and only to a signed-in reader with no
+        connection while the connector is open (design.md §12, "The connector is met on
+        the way in"). It tells rather than asks: the address and Copy, every app's steps
+        in a new tab, and Open for the text the answers chose. Filled by `learn.js`. -#}
+    <div class="arrival-screen" id="arrival-connect" hidden>
+      <p class="arrival-optional arrival-optional-lead">{{ t("learn.arrival.optional-word", "Optional") }}</p>
+      <p class="arrival-asks" id="arrival-asks-connect">{{ t("learn.arrival.connect-asks", "Use targum in Claude or ChatGPT") }}</p>
+      <p class="arrival-hint">{{ t("learn.arrival.connect-hint", "You don’t need this to use targum. If you use Claude or ChatGPT, you can add targum there and practise Hebrew with the words you know. You can do it later.") }}</p>
+      <div class="arrival-connect-steps" id="arrival-connect-steps"></div>
+      <p class="arrival-connect-more"><a href="/connect#install" target="_blank" rel="noopener">{{ t("learn.arrival.connect-every-app", "Learn more") }}</a></p>
+    </div>
+    <p class="arrival-foot">
+      {#- The way back from the second question to the first (2026-09-20). A reader who
+          pressed Next a subject early, or wants to see what they chose, had no way to:
+          the arrival went one way. Drawn on the second screen only, and a ghost like
+          Skip — going back is not an answer. -#}
+      <button type="button" class="arrival-skip arrival-back" id="arrival-back" hidden>{{ t("learn.arrival.back", "Back") }}</button>
+      <button type="button" class="arrival-done" id="arrival-done" disabled>{{ t("learn.arrival.next", "Next") }}</button>
+      <button type="button" class="arrival-skip" id="arrival-skip">{{ t("learn.arrival.skip", "Skip") }}</button>
+      <span class="arrival-count" id="arrival-count" aria-live="polite"></span>
+    </p>
+  </section>
+  <p class="arrival-waiting" id="arrival-waiting" role="status">{{ t("welcome.page.opening", "Opening…") }}</p>
+</main>
+
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_INTO = {{ into|tojson }};
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+window.TARGUM_CONNECTOR = {{ connector|tojson }};
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('charts.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+{#- What was pressed on the way in (targum-internal#127): a `control` event carries a name
+    and the window's width, never which text. Silent signed out and where turned off. -#}
+<script>{{ asset('events.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('covers.js') }}</script>
+<script>{{ asset('shelf.js') }}</script>
+<script>{{ asset('scenes.js') }}</script>
+<script>{{ asset('arrival.js') }}</script>
+</body>
+</html>

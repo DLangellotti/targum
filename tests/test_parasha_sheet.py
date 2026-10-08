@@ -66,7 +66,7 @@ def serving(tmp_path: Path, built: Index) -> Iterator[tuple[int, str]]:  # noqa:
         {
             "library": Library(out),
             "token": "test-key",
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "shelf": "<html>library</html>",
             "store": store,
             "mailer": ConsoleMailer(),

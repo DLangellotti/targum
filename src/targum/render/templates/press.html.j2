@@ -66,7 +66,7 @@
       <button class="go" type="submit">{{ t("press.page.see-how-it-s-going", "See how it's going") }}</button>
     </form>
     <p class="aside">{{ t("press.page.close-find-it-in-your-targums", "You can close this page. You'll find it in Your targums.") }}
-      <a href="/texts">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
+      <a href="/">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
 
   {% elif job.stage == 'ready' %}
     <h1>{{ job.title }}</h1>
@@ -115,12 +115,12 @@
         "go to your texts" would be pointing at a text that is not there. -#}
     <p class="aside" id="press-note">{{ t("press.page.you-asked-for-this-somewhere-else", "You asked for this somewhere else. Nothing has been made yet.") }}</p>
     <p class="aside" id="press-away" hidden>{{ t("press.page.close-find-it-in-your-targums", "You can close this page. You'll find it in Your targums.") }}
-      <a href="/texts">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
+      <a href="/">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
 
   {% else %}
     <h1>{{ t("press.page.we-can-t-make-this-one", "We can't make this one") }}</h1>
     <p class="said">{{ job.error or job.blocked or t("press.page.that-quote-has-gone-stale", "We couldn't get this one ready. Ask for it again where you asked before.") }}</p>
-    <p class="aside"><a href="/texts">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
+    <p class="aside"><a href="/">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
   {% endif %}
   </div>
 </main>

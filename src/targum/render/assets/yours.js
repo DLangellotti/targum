@@ -1,8 +1,9 @@
-/* One of Learn's lists, whole.
+/* Your targums — which is home since 2026-10-08 — and the lists behind the account.
  *
- * Learn caps every list it shows and points here for the rest. Which list this is comes
- * from `window.TARGUM_LIST`; the drawing is the same `TargumShelf` and `TargumLists` that
- * Learn uses, so a row cannot look one way there and another way here.
+ * Which list this is comes from `window.TARGUM_LIST`: `texts` is the shelf under home's
+ * Continue (`home.js` draws the head), `words` and `phrases` the lists behind the account.
+ * The drawing is the same `TargumShelf` and `TargumLists` every page uses, so a row
+ * cannot look one way here and another way there.
  *
  * The language switcher is the same one too, and it decides what a list holds: words are
  * kept per language, and a shelf of Hebrew is not a shelf of Russian.
@@ -325,36 +326,17 @@
       });
       codes = lang.order(codes, names);
 
-      /* What a targum is, folded to one line once the reader has finished one: they
-         know by then (targum-internal#374). Opened again for this visit by its line. */
-      var defined = document.getElementById("defined");
-      var definedOpen = document.getElementById("defined-open");
-      var finishedOne = readers.some(function (reader) {
-        return shelf.status(reader).kind === "finished";
-      });
-      if (defined && definedOpen && finishedOne) {
-        defined.classList.add("is-folded");
-        definedOpen.hidden = false;
-        definedOpen.onclick = function () {
-          var folded = defined.classList.toggle("is-folded");
-          definedOpen.setAttribute("aria-expanded", String(!folded));
-        };
-      }
-
-      // Nothing yet: the page still says what a targum is and where the tabs go, which is
-      // what the reader with nothing needs most; only the shelf's panel stays shut.
-      if (!readers.length && !building.length) {
-        document.getElementById("page").hidden = false;
-        document.getElementById("shelf-panel").hidden = true;
-        document.getElementById("nothing").hidden = false;
-        Array.prototype.forEach.call(document.querySelectorAll("#yours-tabs [data-tab]"), function (link) {
-          var here = link.getAttribute("data-tab");
-          if (here === view.tab) link.setAttribute("aria-current", "page");
-          else if (here !== "playlists") link.removeAttribute("aria-current");
-        });
-        return;
-      }
-      document.getElementById("page").hidden = false;
+      /* Home (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08):
+         Continue, one text to try next and the way to upload stand over the shelf, and
+         `home.js` draws them. A reader with nothing yet still has a page: it says what
+         will appear here, and offers one to start with and the upload. */
+      var home = window.TargumHome || null;
+      var nothingYet = !readers.length && !building.length;
+      var tabStrip = document.getElementById("yours-tabs");
+      if (tabStrip) tabStrip.hidden = nothingYet;
+      document.getElementById("shelf-panel").hidden = nothingYet;
+      var grid = document.querySelector(".home-grid");
+      if (grid) grid.classList.toggle("is-empty", nothingYet);
       var shown = "";
 
       var sift = document.getElementById("sift-shelf");
@@ -475,7 +457,20 @@
         lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         // No ceiling: this page is the whole of it, which is what it is for.
-        render();
+        if (!nothingYet) render();
+        // The head of home, in the same language; the page is shown once it is drawn, so
+        // a reader sent on to the arrival never sees it flash first.
+        var drawn = home ? home.draw(code, readers, building) : Promise.resolve(true);
+        return drawn
+          .catch(function () {
+            return true;
+          })
+          .then(function (stay) {
+            if (stay === false) return;
+            var waiting = document.getElementById("home-waiting");
+            if (waiting) waiting.hidden = true;
+            document.getElementById("page").hidden = false;
+          });
       }
 
       Array.prototype.forEach.call(tabs, function (link) {
@@ -543,12 +538,15 @@
             building = now;
             if (!finished) {
               render();
+              if (home) home.draw(shown, readers, building);
               return follow();
             }
             return ask("/readers").then(function (data) {
               readers = gather(data, stored("targum:opened"));
               trash = (data && data.trash) || trash;
               render();
+              // Continue's card for the build becomes the text it built.
+              if (home) home.draw(shown, readers, building);
               follow();
             });
           })
@@ -608,6 +606,8 @@
 
   drawing.catch(function () {
     // Signed out, or the server went away. The nav is still there to leave by.
+    var waiting = document.getElementById("home-waiting");
+    if (waiting) waiting.hidden = true;
     document.getElementById("nothing").hidden = false;
   });
 

@@ -1224,7 +1224,7 @@ def test_the_progress_page_stands_on_its_own() -> None:
     assert '"targum:vocab:"' in script
     assert '"targum:picked:"' in script
     assert '"targum:docs"' in script
-    for page in ("progress.js", "learn.js"):
+    for page in ("progress.js", "arrival.js", "home.js"):
         source = (ASSETS / page).read_text(encoding="utf-8")
         assert "function collect(" not in source, f"{page} should share the collector"
 
@@ -1249,7 +1249,7 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
     the front door had already gone that way on 2026-09-16. What is pinned here is the
     absence: no second palette, no switch, no stamp, and no page that reads the old key.
     """
-    from targum.render.builder import ASSETS, add_page, learn_page, library_page, progress_page
+    from targum.render.builder import ASSETS, add_page, library_page, progress_page, welcome_page
 
     assert not (ASSETS / "theme.js").exists(), "what was left of it is keep.js"
     keep = (ASSETS / "keep.js").read_text(encoding="utf-8")
@@ -1269,7 +1269,7 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
     )
     pages = {
         "add": add_page("k"),
-        "learn": learn_page("k"),
+        "welcome": welcome_page("k"),
         "library": library_page("k"),
         "progress": progress_page("k"),
         "reader": render(document, segmented, [translation], tmp_path / "r")[0].read_text(
@@ -2094,9 +2094,9 @@ def test_every_page_shares_one_language_choice() -> None:
     the module that keeps that choice has to be on every page that offers it. Hebrew
     is the default and the only one not marked beta.
     """
-    from targum.render.builder import add_page, learn_page, library_page, progress_page
+    from targum.render.builder import add_page, library_page, list_page, progress_page
 
-    for html in (add_page("k"), learn_page("k"), progress_page("k"), library_page("k")):
+    for html in (add_page("k"), list_page("k", "texts"), progress_page("k"), library_page("k")):
         assert "TargumLang" in html, "the shared language choice is missing"
         assert 'HOME = "he"' in html
 
@@ -2456,8 +2456,8 @@ def test_every_page_carries_the_identity(rendered: Path) -> None:
     assert 'href="brand/' not in html
 
 
-def test_the_way_back_goes_to_learn(tmp_path: Path) -> None:
-    """Both back links say Learn, so both go there.
+def test_the_way_back_goes_home(tmp_path: Path) -> None:
+    """Both back links go home, which is Your targums since 2026-10-08.
 
     Somebody leaving a text wants their own shelf and the thing they were part way
     through — not the catalogue. The contents page and the section pages set the link
@@ -2481,8 +2481,8 @@ def test_the_way_back_goes_to_learn(tmp_path: Path) -> None:
         # The mark in the corner is the way back — the oldest convention there is, and
         # it was sitting inert beside a link that said the same thing.
         assert '<a class="bar-brand" id="home" href="/"' in html
-        assert 'title="Your Learn page"' in html
-        assert ">Learn</a>" not in html, "the word beside it said it twice"
+        assert 'title="Your targums"' in html
+        assert ">Your targums</a>" not in html, "the word beside it said it twice"
         assert '"/library"' not in html, "the way out is not the catalogue any more"
 
 
@@ -5913,7 +5913,7 @@ def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
 @pytest.mark.parametrize(
     ("page", "key", "english"),
     [
-        ("learn_page", "learn.page.continue-reading", "Continue reading"),
+        ("welcome_page", "learn.arrival.welcome", "Welcome to targum"),
         ("library_page", "nav.library", "Library"),
         ("you_page", "nav.your-account", "Your account"),
         ("add_page", "add.page.what-would-you-like-to-read", "What would you like to learn from?"),
@@ -5967,12 +5967,12 @@ def test_a_desk_page_in_another_language_says_so_to_a_screen_reader() -> None:
     """A page whose words are Russian is marked Russian, or a screen reader reads the
     Cyrillic with an English voice; a language with no catalogue falls back to English
     words and says English (targum-internal#184)."""
-    from targum.render.builder import learn_page, list_page
+    from targum.render.builder import list_page, welcome_page
 
-    assert '<html lang="en">' in learn_page("k")
-    assert '<html lang="ru">' in learn_page("k", language="ru")
+    assert '<html lang="en">' in welcome_page("k")
+    assert '<html lang="ru">' in welcome_page("k", language="ru")
     assert '<html lang="ru">' in list_page("k", "words", language="ru-RU")
-    assert '<html lang="en">' in learn_page("k", language="xx")
+    assert '<html lang="en">' in welcome_page("k", language="xx")
 
 
 def test_the_conversation_page_is_said_in_the_language_asked(

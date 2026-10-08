@@ -18,7 +18,7 @@ import pytest
 
 from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
 from targum.render import render
-from targum.render.builder import learn_page
+from targum.render.builder import list_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -89,7 +89,7 @@ def leave(
     """Open `reader`, press its mark, and say where Learn landed and what it told the
     account. The account learns `learning` and was last in `chosen`, and its shelf holds
     the text being left."""
-    html = learn_page(TOKEN)
+    html = list_page(TOKEN, "texts")
     account = {"language": chosen, "learning": list(learning)}
     told: list[dict[str, Any]] = []
 

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_learn_js import reader, vocabulary, word
+from test_arrival_js import reader, vocabulary, word
 
 HARNESS = Path(__file__).resolve().parent / "js" / "yours.js"
 

@@ -307,7 +307,7 @@ def test_the_back_office_decides_and_a_stranger_cannot(world, shelf, monkeypatch
         {
             "library": library,
             "token": "k",
-            "page": "<html></html>",
+            "welcome": "<html></html>",
             "store": store,
             "mailer": ConsoleMailer(),
             "address": f"http://127.0.0.1:{port}",

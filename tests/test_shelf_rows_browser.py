@@ -104,7 +104,9 @@ def _readers() -> list[dict]:
 def shelf(browser, tmp_path: Path, width: int):
     page_file = tmp_path / "texts.html"
     page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
-    context = browser.new_context(viewport={"width": width, "height": 900})
+    # Tall enough that the shelf under home's Continue is on screen without a scroll: a
+    # scroll closes an open ⋯, which is right for a reader and not what these are about.
+    context = browser.new_context(viewport={"width": width, "height": 2000})
     page = context.new_page()
     thrown: list[str] = []
     page.on("pageerror", lambda error: thrown.append(str(error)))
@@ -197,14 +199,15 @@ def test_on_a_phone_the_status_folds_into_the_facts(browser, tmp_path: Path) -> 
     assert not thrown
 
 
-def test_the_nav_has_the_shelf_second_and_marks_it_here(browser, tmp_path: Path) -> None:
+def test_the_nav_has_the_shelf_first_and_marks_it_here(browser, tmp_path: Path) -> None:
     context, page, _ = shelf(browser, tmp_path, 1280)
     places = page.eval_on_selector_all(
         ".site-nav a[data-nav]", "all => all.map(a => a.dataset.nav)"
     )
     here = page.get_attribute(".site-nav a[aria-current='page']", "data-nav")
     context.close()
-    assert places == ["learn", "texts", "library", "progress", "add"]
+    # First since 2026-10-08, when Your targums became home (design.md §12).
+    assert places == ["texts", "library", "progress", "add"]
     assert here == "texts"
 
 

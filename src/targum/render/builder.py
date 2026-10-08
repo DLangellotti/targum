@@ -1408,7 +1408,7 @@ def speech(document: Document, segments: list[Segment], folder: Path | None = No
 
 
 def _this_week() -> dict[str, Any] | None:
-    """The newest readable issue of the weekly, as Learn needs it."""
+    """The newest readable issue of the weekly, as Your Progress needs it."""
     from ..weekly import index as weekly
     from ..weekly.models import LEVELS, folder
 
@@ -1573,81 +1573,51 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
     return out
 
 
-def learn_page(token: str, language: str = "en", connector: bool = False) -> str:
-    """The page you land on: carry on, what you have, what you know.
+def welcome_page(token: str, language: str = "en", connector: bool = False) -> str:
+    """The arrival: what a new reader is asked, one question a screen.
 
-    In that order on purpose. Most visits are somebody returning to a text rather than
-    looking for a new one, and the brand rule is that engagement is welcome but arcade is
-    not (§1) — so the numbers sit under the thing you came to do, not over it. This used
-    to cite "the reader is a reader, not a player", which was withdrawn on 2026-09-03;
-    the half of it that governs this page was not.
-
-    Nothing about the reader is baked in. The shelf comes from `/readers` and the words
-    from the browser's own stores, which is what lets one rendered page serve everybody.
+    It was the top of Learn until 2026-10-08, when Learn was taken apart and home became
+    Your targums (design.md §12, "Home is Your targums, and Continue leads it"). Home
+    sends a reader with nothing of their own here, and `arrival.js` sends anybody it has
+    nothing to ask straight back. Nothing about the reader is baked in: the shelf comes
+    from `/readers` and the answers from the account, so one page serves everybody.
     """
-    from ..catalogue import everything
     from ..translate.prompts import INTO
 
     return (
         _environment()
-        .get_template("learn.html.j2")
+        .get_template("welcome.html.j2")
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(language, "learn.", "shelf.", "playlist-menu."),
+            strings=script_strings(
+                language, "learn.arrival.", "learn.level.", "learn.connect.", "welcome."
+            ),
             token=token,
             languages=_language_names(language),
-            # Which languages the conversation's "= " lines can be in, for the first
-            # visit's one question (targum-internal#243).
+            # Which languages a translation can be in, for the first question
+            # (targum-internal#243).
             into=[code for code, _ in INTO],
-            # The week's issue, if there is a readable one. Learn is the only surface
-            # that knows who is reading, so it is the only one that can open the digest
-            # at the reader's own rung rather than asking them to pick a level — see
-            # `charts.levelFor`. Absent where no issue has been published and built.
-            weekly=_this_week(),
-            # Enough of the catalogue to suggest the next thing to read and then to
-            # build it: a title and a line about it, the two numbers that say whether it
-            # is the right size and the right difficulty for this reader, and what a
-            # build is started from. The last two are here because the suggestion is
-            # taken up on this page — it used to be a link to the catalogue, and a page
-            # that can only point at a text has to send the reader somewhere to act.
-            #
-            # Sources rather than whole translation records: `/prepare` wants a list of
-            # them and the page has no use for a publisher or a licence it never shows.
-            catalogue=[
-                {
-                    "id": entry.id,
-                    "title": entry.title,
-                    "english": entry.english,
-                    "language": entry.language,
-                    "blurb": entry.blurb,
-                    "difficulty": entry.difficulty,
-                    "minutes": entry.minutes,
-                    "source": entry.source,
-                    "translations": [t.source for t in entry.translations],
-                }
-                for entry in everything()
-            ],
-            # Whether Learn draws a door to the connector (#80). The page is rendered
-            # once at start-up, so this is read then and not per request — which is the
-            # same thing the switch means: the day it opens is a restart.
+            # Whether the last card offers the connector (#80). Read at start-up, which is
+            # what the switch means: the day it opens is a restart.
             connector=connector,
         )
     )
 
 
-#: What each of the three list pages is called, in the order Learn shows them. The route
-#: names are code — "texts" rather than "targums" — and the heading is the copy.
+#: What each of the three list pages is called. The route names are code — "texts"
+#: rather than "targums" — and the heading is the copy. `texts` is home since 2026-10-08,
+#: served at `/`; `/texts` sends there.
 LISTS = {"texts": "Your targums", "words": "Your Words", "phrases": "Your Phrases"}
 
 
 def list_page(token: str, which: str, language: str = "en") -> str:
-    """One of Learn's three lists, whole, its words said in `language` (targum-internal#184).
+    """One of the three lists, whole, its words said in `language` (targum-internal#184).
 
-    Learn caps every list it draws, because a page somebody lands on with four hundred
-    rows on it is not a landing page. This is where the rest of a list is, and it is the
-    same template three times rather than three templates: the difference between them is
-    which section is rendered, and nothing else.
+    `texts` is home (design.md §12, "Home is Your targums, and Continue leads it",
+    2026-10-08): Continue, one text to try next and the upload over the shelf. `words` and
+    `phrases` are behind the account. One template three times rather than three
+    templates: the difference between them is which section is rendered.
     """
 
     if which not in LISTS:
@@ -1662,7 +1632,15 @@ def list_page(token: str, which: str, language: str = "en") -> str:
             which=which,
             languages=_language_names(language),
             strings=script_strings(
-                language, "yours.", "lists.", "vocab.", "claim.", "shelf.", "playlist-menu."
+                language,
+                "yours.",
+                "lists.",
+                "vocab.",
+                "claim.",
+                "shelf.",
+                "playlist-menu.",
+                "home.",
+                "follow.",
             ),
         )
     )
@@ -1671,7 +1649,7 @@ def list_page(token: str, which: str, language: str = "en") -> str:
 def add_page(token: str, no_key: str = "", language: str = "en") -> str:
     """Bringing a text targum does not have.
 
-    No longer the page anybody lands on — Learn is — so it introduces nothing and says
+    No longer the page anybody lands on — home is — so it introduces nothing and says
     what it is for. It is still the only place in the product with a file input, a free
     source field, a choice of language pair, and a price shown before anything is spent.
 
