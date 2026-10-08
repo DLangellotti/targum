@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-07
+A video in parts offers the next part at the end of each, and one press gets every part.
+A word's card can say any word aloud, even where no recording of the text covers it.
+A reader who starts as advanced is not asked about the commonest Hebrew words.
+
 2026-10-06
 A text that is getting ready can be opened from the bell, to follow how far it has got as it happens.
 In Claude and ChatGPT, a text targum finds shows as a card that opens it, and plays it if it has a recording.
