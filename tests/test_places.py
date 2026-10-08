@@ -100,7 +100,7 @@ def test_a_database_from_before_places_is_brought_up_to_date(tmp_path: Path) -> 
     old.close()
 
     store = Store(path)
-    assert int(store.db.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION == 41
+    assert int(store.db.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION >= 41
     person = somebody(store)
     store.push(person, {"places": [place("gen", 1, section="1")]})
     assert [row["hash"] for row in store.places(person.id)] == ["gen"]

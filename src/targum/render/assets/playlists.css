@@ -1,5 +1,453 @@
-/* Your playlists (targum-internal#364): the sheet a shelf row and a reader's ⋯ menu open,
-   and the playlists under it, each a list of texts in order. */
+/* Your playlists (targum-internal#364): the Playlists tab of Your targums, one playlist
+   on its own page (targum-internal#434; boards PlaylistsTab, PlaylistDetail and their
+   phone halves), and the sheet a shelf row and a reader's ⋯ menu open.
+
+   The desk's own system (§13), as home has it: cards on the ground raised by their
+   shadow, teal for what is pressed, leaf for how much is known, the reading face only
+   where a playlist's or a text's own name stands. */
+
+body.playlists main { gap: 1.75rem; }
+
+/* --- the strip, and New playlist beside it ---------------------------------------- */
+
+.pl-tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+.pl-tabs-row[hidden] { display: none; }
+.pl-tabs-row .yours-tabs { margin: 0; }
+.pl-new-press {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-block-size: 2.75rem;
+  padding: 0 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--teal);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pl-new-press::before { content: "+"; font-weight: 400; font-size: 1.25rem; line-height: 1; }
+.pl-new-press[hidden] { display: none; }
+.pl-new-press:hover { background: var(--teal-wash); }
+
+.pl-glyph {
+  inline-size: 1em;
+  block-size: 1em;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- the cover: four pictures in a square ----------------------------------------- */
+
+.pl-mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  aspect-ratio: 1;
+  inline-size: 100%;
+  border-radius: var(--radius-row);
+  overflow: hidden;
+  background: var(--rule);
+}
+.pl-mosaic .pl-cell {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  border: 0;
+  border-radius: 0;
+}
+.pl-mosaic .pl-cell img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.pl-mosaic .pl-empty { background: var(--desk); }
+.pl-mosaic .pl-cell.is-letter { background: var(--paper-raised); }
+.pl-mosaic .pl-cell .glyph { font-size: 1.75rem; }
+.pl-mosaic.is-small { inline-size: 6rem; flex: 0 0 auto; border-radius: var(--radius-control); }
+.pl-mosaic.is-small .glyph { font-size: 0.875rem; }
+.pl-mosaic.is-large { inline-size: 15rem; flex: 0 0 auto; }
+
+/* --- how much is known, in leaf (§4) ---------------------------------------------- */
+
+.pl-known {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.pl-bar {
+  display: block;
+  inline-size: 6rem;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.pl-fill {
+  display: block;
+  block-size: 100%;
+  inline-size: calc(var(--done, 0) * 100%);
+  background: var(--leaf);
+}
+
+/* --- the tab: a card a playlist --------------------------------------------------- */
+
+.pl-lists[hidden],
+.pl-from-targum[hidden],
+.pl-one[hidden] { display: none; }
+
+.pl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 1.25rem;
+}
+@media (min-width: 64rem) {
+  .pl-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.pl-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+  transition: box-shadow 240ms var(--ease);
+}
+@media (hover: hover) {
+  .pl-card:not(.pl-new-card):hover { box-shadow: var(--shadow-raised); }
+}
+.pl-card:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The one you're in (board PlaylistsTab): ringed in the primary, and said on its cover. */
+.pl-card.is-current { box-shadow: inset 0 0 0 2px var(--teal), var(--shadow-rest); }
+.pl-card-cover { position: relative; display: block; }
+.pl-here {
+  position: absolute;
+  inset-block-start: 0.6rem;
+  inset-inline-start: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.pl-card-name {
+  margin: 0.25rem 0 0;
+  font-family: var(--reading);
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+/* The name is the press, stretched over the card: the whole card opens the playlist,
+   and a keyboard reaches it as one stop. */
+.pl-card-open { color: var(--ink); text-decoration: none; outline: none; }
+.pl-card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+}
+.pl-facts {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.pl-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  margin-block-start: auto;
+  padding-block-start: 0.6rem;
+  border-block-start: 1px solid var(--hairline);
+  font-size: 0.875rem;
+}
+.pl-getting-ready { color: var(--teal); }
+.pl-not-yet { color: var(--ink-soft); }
+/* Above the stretched name, so the set's own page is a press of its own. */
+.pl-confirm {
+  position: relative;
+  z-index: 1;
+  color: var(--teal);
+  font-weight: 600;
+  text-decoration: none;
+}
+.pl-confirm:hover { text-decoration: underline; }
+.pl-new-card {
+  align-items: center;
+  justify-content: center;
+  min-block-size: 12rem;
+  border: 1px dashed var(--well);
+  background: transparent;
+  box-shadow: none;
+  color: var(--teal);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pl-new-card .pl-glyph { inline-size: 1.5rem; block-size: 1.5rem; }
+.pl-new-card:hover { background: var(--teal-wash); }
+
+/* --- targum's own ------------------------------------------------------------------ */
+
+.pl-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  margin-block-end: 1rem;
+}
+.pl-section-head h2 {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 400;
+}
+.pl-section-head .note { margin: 0; font-size: 0.875rem; color: var(--ink-soft); }
+.pl-targum {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 1rem;
+}
+.pl-targum-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+}
+.pl-targum-what {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-inline-size: 0;
+}
+.pl-targum-name { font-family: var(--reading); font-size: 1.0625rem; overflow-wrap: anywhere; }
+
+/* --- one playlist ----------------------------------------------------------------- */
+
+.pl-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-block-end: 1.5rem;
+  color: var(--teal);
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+.pl-back:dir(rtl) .pl-glyph { transform: scaleX(-1); }
+.pl-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 2.25rem;
+  margin-block-end: 2rem;
+}
+.pl-head-what {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-inline-size: 0;
+}
+.pl-byline { margin: 0; font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
+.pl-name {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 2.25rem;
+  font-weight: 400;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.pl-head .pl-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+.pl-presses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-block-start: 0.75rem;
+}
+.pl-presses .pl-foot { border: 0; padding: 0; margin: 0; }
+.pl-more-wrap { position: relative; display: inline-flex; }
+.playlists .pl-more {
+  inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--rule);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.pl-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 0.4rem);
+  inset-inline-start: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-inline-size: 11rem;
+  padding: 0.4rem;
+  background: var(--card);
+  border-radius: var(--radius-row);
+  box-shadow: var(--shadow-floating);
+}
+.pl-menu[hidden] { display: none; }
+.playlists .pl-menu .ghost { justify-content: flex-start; }
+.pl-head .rename { flex: 1; }
+
+/* The texts in order: number or where you are, the grip, the picture, the title and its
+   kind, how long, how much is known, and the keys. A table at a desk; a list of two
+   lines on a phone, where the columns fold under the title. */
+.pl-items {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 1.25rem;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+}
+.pl-items:empty { display: none; }
+.pl-items .item {
+  display: grid;
+  grid-template-columns: 2rem 2.75rem 4rem minmax(0, 1fr) 5.5rem 10rem auto;
+  align-items: center;
+  column-gap: 1rem;
+  padding-block: 0.6rem;
+  border-block-start: 1px solid var(--hairline);
+}
+.pl-items .item:first-child { border-block-start: 0; }
+.pl-items .item.is-here {
+  margin-inline: -1.25rem;
+  padding-inline: 1.25rem;
+  background: var(--teal-wash);
+}
+.pl-items .item.is-dragged {
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-raised);
+  border-radius: var(--radius-row);
+}
+.pl-items.is-sorting { user-select: none; }
+.item-mark {
+  justify-self: center;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.item.is-here .item-mark { color: var(--teal); }
+.grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: grab;
+  touch-action: none;
+}
+.grip .pl-glyph { inline-size: 1.1rem; block-size: 1.1rem; }
+.grip:hover { background: var(--desk); color: var(--ink); }
+.pl-items.is-sorting .grip { cursor: grabbing; }
+.pl-thumb {
+  position: relative;
+  inline-size: 4rem;
+  block-size: 3rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+.pl-thumb img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.item-what { display: flex; flex-direction: column; gap: 0.15rem; min-inline-size: 0; }
+.item-title {
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.item-title bdi:lang(he),
+.item-title bdi:lang(yi),
+.item-title bdi:lang(arc) { font-family: var(--reading-hebrew); }
+a.item-title:hover { text-decoration: underline; }
+.item-kind { font-size: 0.8125rem; color: var(--ink-soft); }
+.item-kind.is-here { color: var(--teal); font-weight: 600; }
+.item-folded { display: none; font-weight: 400; color: var(--ink-soft); }
+.item.failed .item-title { color: var(--ink-soft); }
+.item-length { font-size: 0.875rem; color: var(--ink-soft); white-space: nowrap; }
+.item-known .pl-bar { inline-size: 4.5rem; }
+.item-keys { display: flex; gap: 0.15rem; }
+.playlists .item-keys .ghost { min-inline-size: 2.25rem; padding: 0 0.5rem; }
+.item-keys .pl-glyph { inline-size: 0.9rem; block-size: 0.9rem; }
+
+.pl-add {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 1.25rem 0 0;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+}
+.pl-add-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--teal);
+  font-weight: 600;
+  text-decoration: none;
+}
+.pl-cap { color: var(--ink-soft); font-size: 0.875rem; }
+
+/* --- the sheet --------------------------------------------------------------------- */
 
 .playlists .choose {
   list-style: none;
@@ -9,6 +457,7 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+.playlists .choose:empty { display: none; }
 .playlists .choose .count { color: var(--ink-soft); font-weight: 400; white-space: nowrap; }
 
 .playlists .new-list {
@@ -18,17 +467,12 @@
   gap: 0.5rem;
 }
 
-.playlists .playlist { padding-block: 0.75rem; border-top: 1px solid var(--hairline); }
-.playlists .playlist:first-child { border-top: 0; }
-
-.playlists .playlist-head,
 .playlists .rename {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
-.playlists .playlist-head h3 { margin: 0; margin-inline-end: auto; font-size: 1.0625rem; }
 /* Fields are wells (§13): no line, the ground mixed into the card, 12px corners, the
    primary's ring on focus — the new playlist's name and a rename alike. */
 .playlists .rename input,
@@ -48,25 +492,12 @@
 .playlists .rename input:focus-visible,
 .playlists .new-list .field input:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--teal); }
 .playlists .new-list .field { flex: 1 1 14rem; min-inline-size: 0; }
-
-.playlists .items { margin: 0.5rem 0 0; padding-inline-start: 1.5rem; }
-.playlists .item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding-block: 0.25rem;
-}
-.playlists .item-title { margin-inline-end: auto; color: var(--ink); }
-.playlists .item-state,
-.playlists .item.failed .item-title { color: var(--ink-soft); }
-.playlists .item-keys { display: flex; gap: 0.25rem; }
-.playlists .item-keys .ghost { min-inline-size: 2.25rem; padding: 0 0.6rem; }
 .playlists .said.bad { color: var(--clay); }
 
-/* §13's three kinds of button, and no more: filled in the primary, one per view (Confirm);
-   tonal for the ordinary press (Start, Rename, Save, a playlist to add to); ghost for
-   moving, removing and deleting. All pills, at control height. */
+/* §13's three kinds of button, and no more: filled in the primary, one per view (Confirm
+   on the tab, Continue on a playlist); tonal for the ordinary press (Open, Save, a
+   playlist to add to); ghost for moving, removing and deleting. All pills, at control
+   height. */
 .playlists .filled,
 .playlists .tonal,
 .playlists .ghost {
@@ -88,6 +519,7 @@
 }
 .playlists .filled { background: var(--teal); color: var(--teal-ink); }
 .playlists .filled:hover { filter: brightness(1.08); }
+.playlists .pl-presses .filled { min-block-size: 2.75rem; padding: 0 1.25rem; }
 .playlists .tonal { background: var(--teal-wash); color: var(--teal); }
 .playlists .tonal:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 .playlists .ghost { background: transparent; color: var(--ink-soft); }
@@ -96,8 +528,10 @@
 .playlists .ghost[disabled] { opacity: 0.4; cursor: default; }
 .playlists .filled:focus-visible,
 .playlists .tonal:focus-visible,
-.playlists .ghost:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
-/* After the three kinds, so a named press wraps where `.tonal` would not. */
+.playlists .ghost:focus-visible,
+.grip:focus-visible,
+.pl-new-press:focus-visible,
+.pl-new-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* A playlist's name is the reader's and runs to 80 characters, so a press that carries
    one wraps inside the pill instead of running off a phone's edge (2026-09-24). */
 .playlists .choose li { max-inline-size: 100%; }
@@ -111,11 +545,99 @@
   row-gap: 0;
 }
 .playlists .named .name { overflow-wrap: anywhere; min-inline-size: 0; }
-.playlists .playlist-head h3 { overflow-wrap: anywhere; min-inline-size: 0; }
-@media (pointer: coarse) {
+
+/* --- a phone (boards PlaylistsTabPhone and PlaylistDetailPhone) -------------------- */
+
+@media (max-width: 40rem) {
+  .pl-new-press { display: none; }
+  /* A card is a row: the cover beside the name, its facts under it. */
+  .pl-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    background: var(--card);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-rest);
+    padding-inline: 1rem;
+  }
+  .pl-card {
+    display: grid;
+    grid-template-columns: 4.75rem minmax(0, 1fr);
+    align-content: center;
+    column-gap: 1rem;
+    row-gap: 0.2rem;
+    padding: 0.9rem 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    border-block-start: 1px solid var(--hairline);
+  }
+  .pl-card:first-child { border-block-start: 0; }
+  .pl-card.is-current { box-shadow: none; }
+  .pl-card.is-current .pl-mosaic { box-shadow: 0 0 0 2px var(--teal); }
+  .pl-card > :not(.pl-card-cover) { grid-column: 2; }
+  .pl-card-cover { display: contents; }
+  .pl-card-cover .pl-mosaic { grid-column: 1; grid-row: 1 / span 5; align-self: start; }
+  .pl-mosaic { border-radius: var(--radius-control); }
+  .pl-mosaic .pl-cell .glyph { font-size: 0.8125rem; }
+  .pl-here { position: static; justify-self: start; grid-column: 2; }
+  .pl-card-name { margin: 0; font-family: var(--chrome); font-size: 1.0625rem; font-weight: 700; }
+  .pl-card-open::after { border-radius: 0; }
+  .pl-foot { border: 0; padding: 0; margin: 0; }
+  .pl-known .pl-bar { display: none; }
+  .pl-grid .pl-new-card {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    min-block-size: 3.5rem;
+    margin: 1rem -1rem 0;
+    border-radius: var(--radius-row);
+  }
+  .pl-targum { grid-template-columns: minmax(0, 1fr); }
+  .pl-mosaic.is-small { inline-size: 4rem; }
+
+  .pl-head { flex-wrap: wrap; align-items: center; gap: 1rem; margin-block-end: 1.25rem; }
+  .pl-mosaic.is-large { inline-size: 7.5rem; }
+  .pl-head-what { flex: 1 1 10rem; }
+  .pl-name { font-size: 1.75rem; }
+  .pl-items { padding-inline: 0.75rem; }
+  .pl-items .item {
+    grid-template-columns: 2.75rem 3.5rem minmax(0, 1fr) auto;
+    column-gap: 0.6rem;
+  }
+  .pl-items .item.is-here { margin-inline: -0.75rem; padding-inline: 0.75rem; }
+  .item-mark,
+  .item-length,
+  .item-known { display: none; }
+  .item-folded { display: inline; }
+  .pl-thumb { inline-size: 3.5rem; block-size: 3.5rem; }
+  /* Move up and Move down stay for a screen reader, which cannot drag, and step out of
+     a thumb's way: the grip is the move under a finger. */
+  .item-keys .up,
+  .item-keys .down {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .pl-add { flex-direction: column; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  /* §8: what a thumb presses answers a tap over 44px. */
   .playlists .filled,
   .playlists .tonal,
   .playlists .ghost,
   .playlists .rename input,
-  .playlists .new-list .field input { min-block-size: 2.75rem; }
+  .playlists .new-list .field input,
+  .grip,
+  .pl-new-card,
+  .pl-confirm { min-block-size: 44px; }
+  .pl-confirm { display: inline-flex; align-items: center; }
+  .playlists .item-keys .ghost { min-inline-size: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-card { transition: none; }
 }

@@ -255,5 +255,65 @@
     });
   }
 
-  window.TargumPlaylistMenu = { attach: attach, close: close };
+  /* "Play next" (targum-internal#434): a text put straight after the one the reader is
+   * on, in the playlist they are in — the one they opened an item of last and have not
+   * gone through. Asked for once a page; `playing()` is what came back, or null before
+   * it has, so a menu drawn in the same moment as it is opened can offer it or not. */
+  var currentAsk = null;
+  var currentNow = null;
+  function current(key) {
+    if (!currentAsk) {
+      currentAsk = ask("GET", "/playlists/current.json", key)
+        .then(function (got) {
+          currentNow = got.status < 400 && got.answer && got.answer.current ? got.answer.current : null;
+          return currentNow;
+        })
+        .catch(function () {
+          return null;
+        });
+    }
+    return currentAsk;
+  }
+
+  /* The press itself, for any menu: "Play next in Mornings". Pressed, it says what it
+   * did in its own place and hands `done` the line, so the menu it stands in can close. */
+  function nextButton(text, key, playlist, className, done) {
+    var press = document.createElement("button");
+    press.type = "button";
+    press.className = className || "pm-next";
+    var label = say("playlist-menu.play-next", "Play next in {name}", { name: playlist.name });
+    press.textContent = label;
+    press.onclick = function (event) {
+      event.preventDefault();
+      press.disabled = true;
+      ask("POST", "/playlists/" + playlist.id, key, { do: "next", reader: text.name, title: text.title })
+        .then(function (got) {
+          var why = got.answer && got.answer.error;
+          if (got.status >= 400) {
+            if (got.status === 404 || got.status === 401 || /^(not found|bad request)$/i.test(String(why || ""))) why = "";
+            press.textContent = why || say("playlist-menu.failed", "We couldn't add it. Try again.");
+            press.disabled = false;
+            return;
+          }
+          press.textContent = say("playlist-menu.plays-next", "It plays next in {name}.", { name: playlist.name });
+          press.setAttribute("role", "status");
+          if (done) setTimeout(done, 900);
+        })
+        .catch(function () {
+          press.textContent = say("playlist-menu.failed", "We couldn't add it. Try again.");
+          press.disabled = false;
+        });
+    };
+    return press;
+  }
+
+  window.TargumPlaylistMenu = {
+    attach: attach,
+    close: close,
+    current: current,
+    playing: function () {
+      return currentNow;
+    },
+    nextButton: nextButton,
+  };
 })();

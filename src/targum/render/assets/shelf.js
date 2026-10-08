@@ -88,6 +88,10 @@
 
   function drawShelf(code, readers, options) {
     var settings = options || {};
+    // Which playlist the reader is in, asked once, so a row's ⋯ can offer "Play next".
+    if (window.TargumPlaylistMenu && window.TargumPlaylistMenu.current) {
+      window.TargumPlaylistMenu.current(key);
+    }
     var list = document.getElementById("library-list");
     var note = document.getElementById("shelf-note");
     var head = document.getElementById("shelf-head");
@@ -522,6 +526,21 @@
       var menu = document.createElement("div");
       menu.className = "row-menu";
       menu.setAttribute("role", "menu");
+      // "Play next" (targum-internal#434), first: the playlist the reader is in takes
+      // this text straight after the one they are on.
+      var lists = window.TargumPlaylistMenu;
+      var playing = lists && lists.playing ? lists.playing() : null;
+      if (playing && reader.name) {
+        var next = lists.nextButton(
+          { name: reader.name, title: reader.title || reader.name },
+          key,
+          playing,
+          "play-next",
+          closeMenu
+        );
+        next.setAttribute("role", "menuitem");
+        menu.appendChild(next);
+      }
       if (reader.chapters && reader.chapters.length) {
         var chapters = opener(reader, item);
         chapters.setAttribute("role", "menuitem");

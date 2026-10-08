@@ -354,6 +354,34 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A playlist is a card on its tab and a page of its own — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards PlaylistsTab and PlaylistDetail; targum-internal
+#434). Playlists was one long page with every playlist opened out under the last. It is
+now the tab's grid of cards, and each playlist has its own page at `/playlists/<id>`.
+
+- **A card says what the playlist is at a glance:** a cover made of its first four texts'
+  own pictures (a text still being made rests on its letter, and fewer than four leave
+  the square empty), its name in the reading face, whose hand made it, how many texts and
+  minutes, and how much of it the reader knows, in leaf, weighted by words. The one they
+  are in is ringed in the primary and says "You're in it · 2 of 6".
+- **The byline is the hand, said three ways.** "By you" for the reader's own; "From
+  targum" for targum's sets and for anything targum's own chat made, because that chat
+  is targum; "From an assistant" for anything made over the connector, without saying
+  which one.
+- **The one you're in** is the playlist an item was last opened from, kept on the account
+  (`playlist.at`, `playlist.visited`), until it has been gone through. **Play next**, in
+  a text's ⋯ on a shelf row and in a reader's ⋯, puts that text straight after the item
+  the reader is on there.
+- **Reordering is a drag by the grip**, with a pointer or a finger, and Alt+↑ or Alt+↓
+  from any press in the row. Move up and Move down stay, for a keyboard and a screen
+  reader; on a phone they leave the eye and stay for the screen reader.
+- A set still waiting for its press says "Not confirmed yet" and goes to its own page to
+  be pressed: the card shows the credits and never presses.
+
+Saving for offline is the next slice's; the card and the page leave it a place.
+
+
 ### Every text has a picture — 2026-10-08
 
 David, 2026-10-08, deciding the calmer home and Library: they lean on pictures, and the

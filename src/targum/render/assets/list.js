@@ -355,6 +355,7 @@
       // the panel opens, so the card is on the page and not behind the picture (#422).
       if (window.TargumVideo && window.TargumVideo.transcript) window.TargumVideo.transcript(true);
       if (end.scrollIntoView) end.scrollIntoView({ block: "start" });
+      tellHere(items.length);
       fillEnd(end);
       document.dispatchEvent(new CustomEvent("targum:list-end", { detail: { list: list } }));
     }
@@ -370,9 +371,27 @@
     return button;
   }
 
+  /* Where the reader is in the playlist, kept on the account (targum-internal#434): the
+   * playlist opened last is "the one you're in" on the Playlists tab, and "Play next"
+   * puts a text after this place. Past the last item is a playlist gone through. Said
+   * and forgotten: a page that cannot say it still reads. */
+  function tellHere(position) {
+    var headers = { "Content-Type": "application/json" };
+    if (key) headers["X-Targum-Key"] = key;
+    try {
+      fetch(keyed("/playlists/" + list), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: headers,
+        body: JSON.stringify({ do: "here", position: position }),
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   function draw(set) {
     items = (set && set.items) || [];
     if (!items[at]) return;
+    tellHere(at);
     near = neighbours(items, at);
     setName = String((set && set.name) || "");
 

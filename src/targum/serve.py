@@ -2517,95 +2517,96 @@ class Library:
         if not home.is_dir():
             return found
         for folder in home.iterdir():
-            index = folder / "reader" / "index.html"
-            if not index.is_file():
+            if not (folder / "reader" / "index.html").is_file():
                 continue
-            when = self.trashed_at(folder)
-            if bool(when) != trashed:
+            if bool(self.trashed_at(folder)) != trashed:
                 continue
-            # Every read below goes through `remembered`: the answers are small and the
-            # files they come from are not (2026-09-14, Learn waiting 31 s on a cold box).
-            remember = self.remembered.get
-            document = folder / "document.json"
-            facts = remember(
-                folder, "document", [document], partial(self._document_facts, document)
-            )
-            title = facts["title"] or folder.name
-            language = facts["language"]
-            words = facts["words"]
-            translations = sorted((folder / "translations").glob("*.json"))
-            chapters = remember(
-                folder,
-                "chapters",
-                [folder / "segments.json", *translations],
-                partial(self.chapters, folder),
-            )
-            sections = remember(
-                folder,
-                "sections",
-                # A section added or taken away changes the folder's own time.
-                [folder / "reader"],
-                partial(self._sections, folder),
-            )
-            found.append(
-                {
-                    "name": folder.name,
-                    "title": title,
-                    "author": facts["author"],
-                    "language": language,
-                    "languages": facts["contains"] or ([language] if language else []),
-                    # And which languages it can be read *into*. A text built twice is
-                    # one text with two translations, and a shelf that said only what
-                    # language it was in could not tell a reader of two which of them
-                    # this one would open in.
-                    "targets": remember(
-                        folder, "targets", translations, partial(self.targets, folder)
-                    ),
-                    "document": facts["content_hash"],
-                    "words": words,
-                    **self._shape(folder, facts["source"], language, words),
-                    # What the shelf row says at a glance (design.md §12, 2026-09-24): the
-                    # recording's own length where there is one, and the rung the text
-                    # needs. Both cached on the files they are read from.
-                    "seconds": remember(
-                        folder,
-                        "seconds",
-                        [folder / "audio.json"],
-                        partial(self._recording_seconds, folder),
-                    ),
-                    "level": remember(
-                        folder,
-                        # Named for the threshold, so a change of it is a recount
-                        # rather than a stale answer kept in shelf.json (#372).
-                        f"level90:{language}",
-                        # A post's manifest too, since its hashtags and mentions are
-                        # not counted once it is there; only where there is one, so
-                        # every other row keeps the answer it already has.
-                        [
-                            folder / "annotation.json",
-                            *([folder / "post.json"] if (folder / "post.json").is_file() else []),
-                        ],
-                        partial(self._text_level, folder / "annotation.json", language),
-                    ),
-                    "sections": sections or 1,
-                    "chapters": chapters,
-                    "readyChapters": sum(1 for c in chapters if c["ready"]),
-                    "trashed": when,
-                    # How long is left, so the page can say it rather than imply it.
-                    "goesIn": max(0, TRASH_DAYS - (now() - when) // (24 * 60 * 60 * 1000))
-                    if when
-                    else 0,
-                    "built": int(index.stat().st_mtime),
-                }
-            )
-            # A video import's own frame, where it has one, is its picture.
-            # And an upload's own picture, kept when it was added (#429).
-            if not found[-1]["drawn"] and (
-                (folder / POSTER).is_file() or (folder / THUMB).is_file()
-            ):
-                found[-1]["drawn"] = True
+            row = self.reader_row(folder)
+            if row is not None:
+                found.append(row)
         found.sort(key=lambda reader: reader["built"], reverse=True)
         return found
+
+    def reader_row(self, folder: Path) -> dict[str, Any] | None:
+        """One built text as the shelf describes it, or None where nothing is built
+        there. What `readers` says of every folder, for a page that wants a few by name —
+        a playlist's members (targum-internal#434) — without listing a whole home."""
+        index = folder / "reader" / "index.html"
+        if not index.is_file():
+            return None
+        when = self.trashed_at(folder)
+        # Every read below goes through `remembered`: the answers are small and the
+        # files they come from are not (2026-09-14, Learn waiting 31 s on a cold box).
+        remember = self.remembered.get
+        document = folder / "document.json"
+        facts = remember(folder, "document", [document], partial(self._document_facts, document))
+        title = facts["title"] or folder.name
+        language = facts["language"]
+        words = facts["words"]
+        translations = sorted((folder / "translations").glob("*.json"))
+        chapters = remember(
+            folder,
+            "chapters",
+            [folder / "segments.json", *translations],
+            partial(self.chapters, folder),
+        )
+        sections = remember(
+            folder,
+            "sections",
+            # A section added or taken away changes the folder's own time.
+            [folder / "reader"],
+            partial(self._sections, folder),
+        )
+        row: dict[str, Any] = {
+            "name": folder.name,
+            "title": title,
+            "author": facts["author"],
+            "language": language,
+            "languages": facts["contains"] or ([language] if language else []),
+            # And which languages it can be read *into*. A text built twice is
+            # one text with two translations, and a shelf that said only what
+            # language it was in could not tell a reader of two which of them
+            # this one would open in.
+            "targets": remember(folder, "targets", translations, partial(self.targets, folder)),
+            "document": facts["content_hash"],
+            "words": words,
+            **self._shape(folder, facts["source"], language, words),
+            # What the shelf row says at a glance (design.md §12, 2026-09-24): the
+            # recording's own length where there is one, and the rung the text
+            # needs. Both cached on the files they are read from.
+            "seconds": remember(
+                folder,
+                "seconds",
+                [folder / "audio.json"],
+                partial(self._recording_seconds, folder),
+            ),
+            "level": remember(
+                folder,
+                # Named for the threshold, so a change of it is a recount
+                # rather than a stale answer kept in shelf.json (#372).
+                f"level90:{language}",
+                # A post's manifest too, since its hashtags and mentions are
+                # not counted once it is there; only where there is one, so
+                # every other row keeps the answer it already has.
+                [
+                    folder / "annotation.json",
+                    *([folder / "post.json"] if (folder / "post.json").is_file() else []),
+                ],
+                partial(self._text_level, folder / "annotation.json", language),
+            ),
+            "sections": sections or 1,
+            "chapters": chapters,
+            "readyChapters": sum(1 for c in chapters if c["ready"]),
+            "trashed": when,
+            # How long is left, so the page can say it rather than imply it.
+            "goesIn": max(0, TRASH_DAYS - (now() - when) // (24 * 60 * 60 * 1000)) if when else 0,
+            "built": int(index.stat().st_mtime),
+        }
+        # A video import's own frame, where it has one, is its picture.
+        # And an upload's own picture, kept when it was added (#429).
+        if not row["drawn"] and ((folder / POSTER).is_file() or (folder / THUMB).is_file()):
+            row["drawn"] = True
+        return row
 
     def document_folder(self, homes: list[Path], document_hash: str) -> tuple[Path, str] | None:
         """The built folder a reader's page names as its `document`, and its language.
@@ -4766,6 +4767,10 @@ SENT = "Thanks. Check your email."
 _ENDING = threading.Lock()
 
 
+#: One playlist's own page (#434), `/playlists/<id>`: the same page as the tab.
+PLAYLIST_PAGE = re.compile(r"/playlists/\d+")
+
+
 def playlist_answer(found: dict[str, Any]) -> dict[str, Any]:
     """A playlist as `/playlists/<id>.json` says it: each text with the address it opens
     at, and `null` for one still being made or one that could not be (#364, #366)."""
@@ -4950,6 +4955,7 @@ class Handler(BaseHTTPRequestHandler):
             route in self.PAGES
             or route.lstrip("/") in self.lists
             or route.startswith(self.PAGE_PREFIXES)
+            or bool(PLAYLIST_PAGE.fullmatch(route))
         )
 
     def _not_found(self) -> None:
@@ -6912,7 +6918,7 @@ class Handler(BaseHTTPRequestHandler):
             # page rather than a 401 — and not the sign-in page either, because a door
             # shown to somebody with no key is a wall that looks like a mistake. The
             # door is one click away, in the corner.
-            if route.startswith(
+            if not PLAYLIST_PAGE.fullmatch(route) and route.startswith(
                 (
                     "/readers",
                     "/job/",
@@ -7083,7 +7089,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
             )
-        if route == "/playlists":
+        if route == "/playlists" or PLAYLIST_PAGE.fullmatch(route):
+            # One page for the tab and for one playlist (#434): the script reads which
+            # from the address.
             page = self._desk("playlists", self.playlists)
             return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/slips":
@@ -7105,6 +7113,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"slips": oldest})
         if route == "/playlists.json":
             return self._playlists_get(None)
+        if route == "/playlists/current.json":
+            # The playlist the reader is in (#434), for a text's "Play next": light,
+            # where `/playlists.json` measures every playlist.
+            person = self._person()
+            if person is None:
+                return self._json({"signedIn": False}, 401)
+            return self._json({"current": self.store.current_playlist(person.id)})
         if route.startswith("/playlists/") and route.endswith("/end.json"):
             return self._playlist_end(route[len("/playlists/") : -len("/end.json")])
         if route.startswith("/playlists/") and route.endswith(".json"):
@@ -8532,22 +8547,148 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        vocabulary: dict[str, dict[str, int]] = {}
         if which is None:
             language = self._page_language()
+            current = self.store.current_playlist(person.id)
+            mine = []
+            for one in self.store.playlists(person.id):
+                found = self.store.playlist(person.id, int(one["id"]))
+                if found is None:
+                    continue
+                shown = self._playlist_facts(person, found, vocabulary)
+                summary = {key: value for key, value in shown.items() if key != "items"}
+                mine.append({**one, **summary})
+            targum = []
+            for collection, built in self.library.targum_sets():
+                members = [
+                    {"reader": folder, "title": entry.title, "position": n, "failed": False}
+                    for n, (entry, folder) in enumerate(built)
+                ]
+                shown = self._playlist_facts(person, {"items": members}, vocabulary)
+                targum.append(
+                    {
+                        "id": collection.id,
+                        "name": collection.name_in(language),
+                        "english": collection.english,
+                        "count": len(built),
+                        **{key: value for key, value in shown.items() if key != "items"},
+                    }
+                )
             return self._json(
                 {
-                    "playlists": self.store.playlists(person.id),
+                    "playlists": mine,
                     # targum's own (#368), each with how many of its texts this box has.
-                    "targum": [
-                        {"id": one.id, "name": one.name_in(language), "count": len(built)}
-                        for one, built in self.library.targum_sets()
-                    ],
+                    "targum": targum,
+                    # The one the reader is in (#434): marked on its card, and where
+                    # "Play next" puts a text.
+                    "current": current,
                 }
             )
         found = self.store.playlist(person.id, int(which)) if which.isdigit() else None
         if found is None:
             return self._json({"error": "not found"}, 404)
-        return self._json(playlist_answer(found))
+        return self._json(self._playlist_facts(person, found, vocabulary))
+
+    def _playlist_facts(
+        self,
+        person: Person,
+        found: dict[str, Any],
+        vocabulary: dict[str, dict[str, int]],
+    ) -> dict[str, Any]:
+        """A playlist as its card and its page draw it (targum-internal#434): each text
+        with its kind, its length and how much of it the reader knows, and the playlist
+        added up — its first four for the cover, its minutes, the share of its words the
+        reader knows weighted by words, where they are in it, and what is still waiting.
+
+        A member is looked for on the reader's own shelf and then the shared one, as
+        `_built_folders` looks. `vocabulary` is the reader's marked words per language,
+        filled as languages come up, so a page of playlists asks once per language.
+        """
+        from . import coverage as coverage_module
+
+        answer = playlist_answer(found)
+        home = self._home()
+        seconds = 0.0
+        known_words = 0.0
+        words = 0
+        ready = waiting = failed = 0
+        unconfirmed = 0
+        credits = 0
+        for item in answer["items"]:
+            name = str(item.get("reader") or "")
+            row: dict[str, Any] | None = None
+            if name and not item.get("failed") and "/" not in name and not name.startswith("."):
+                for root in (home, self.library.shared):
+                    row = self.library.reader_row(root / name)
+                    if row is None:
+                        continue
+                    language = str(row.get("language") or "")
+                    if language and language not in vocabulary:
+                        vocabulary[language] = self.store.marked(person, language)
+                    measured = (
+                        coverage_module.against(root / name, vocabulary[language])
+                        if language
+                        else None
+                    )
+                    if measured is not None:
+                        row.update(measured.state())
+                    break
+            if item.get("failed"):
+                failed += 1
+            elif item.get("open"):
+                ready += 1
+            else:
+                waiting += 1
+                job = self._own_job(str(item["job"])) if item.get("job") else None
+                if job is not None and job.stage == "ready":
+                    unconfirmed += 1
+                    credits += credits_of(job.seconds) if job.audio else 0
+            if row is None:
+                item["facts"] = None
+                continue
+            length = float(row.get("seconds") or 0) or float(row.get("minutes") or 0) * 60
+            seconds += length
+            if isinstance(row.get("known"), (int, float)) and row.get("words"):
+                known_words += float(row["known"]) * int(row["words"])
+                words += int(row["words"])
+            item["facts"] = {
+                key: row.get(key)
+                for key in (
+                    "name",
+                    "entry",
+                    "language",
+                    "kind",
+                    "video",
+                    "heard",
+                    "seconds",
+                    "minutes",
+                    "known",
+                    "words",
+                    "chapters",
+                    "sections",
+                )
+            }
+            item["facts"]["chapters"] = len(row.get("chapters") or [])
+        covers = [
+            {
+                "name": (item["facts"] or {}).get("entry") or item.get("reader") or "",
+                "title": item.get("title") or "",
+                "language": (item["facts"] or {}).get("language") or "",
+            }
+            for item in answer["items"][:4]
+        ]
+        return {
+            **answer,
+            "covers": covers,
+            "seconds": round(seconds),
+            "known": round(known_words / words, 4) if words else None,
+            "ready": ready,
+            "waiting": waiting,
+            "failed": failed,
+            "unconfirmed": unconfirmed,
+            "credits": credits,
+        }
 
     def _targum_set(self, collection_id: str) -> None:
         """Open one of targum's playlists: copied into the reader's own and answered like
@@ -8805,10 +8946,38 @@ class Handler(BaseHTTPRequestHandler):
                     },
                     400,
                 )
+        elif doing == "move" and payload.get("to") is not None:
+            # A drag (#434): from one place straight to another.
+            self.store.move_to_in_playlist(
+                person.id, playlist_id, position, int(payload.get("to") or 0)
+            )
         elif doing == "move":
             self.store.move_in_playlist(
                 person.id, playlist_id, position, 1 if int(payload.get("by") or 0) > 0 else -1
             )
+        elif doing == "here":
+            # The reader opened this item from the list (#434): it is the one they are in.
+            self.store.playlist_here(person.id, playlist_id, position)
+            return self._json({"here": position})
+        elif doing == "next":
+            # "Play next" (#434): straight after the item the reader is on.
+            reader = str(payload.get("reader") or "")
+            if not reader or (
+                self.store.play_next(
+                    person.id, playlist_id, str(payload.get("title") or reader), reader
+                )
+                is None
+            ):
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.playlist-full",
+                            "A playlist holds up to {most} texts.",
+                            most=MOST_IN_PLAYLIST,
+                        )
+                    },
+                    400,
+                )
         elif doing == "drop":
             self.store.drop_from_playlist(person.id, playlist_id, position)
         elif doing == "rename":
@@ -8819,7 +8988,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             return self._json({"error": "bad request"}, 400)
         found = self.store.playlist(person.id, playlist_id)
-        return self._json(playlist_answer(found) if found else {"gone": True})
+        return self._json(self._playlist_facts(person, found, {}) if found else {"gone": True})
 
     def _disconnect(self, payload: dict[str, Any]) -> None:
         """Take a connector's tokens back — the other half of the approval page.
