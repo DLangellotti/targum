@@ -517,6 +517,17 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
 @media (max-width: 40rem) {
   .claim-actions { inset-block-end: calc(4.25rem + env(safe-area-inset-bottom)); padding-inline-end: 4.5rem; }
 }
+/* On Your Words the strip stands above the table and stays at the top of the window
+   while the rows go under it. Held to the foot, it stood over the table's own head
+   whenever the head was low on the screen, and over the first rows a reader was meant to
+   tick (design review, 2026-10-09). In the conversation it keeps the foot. */
+#claim-body { display: flex; flex-direction: column; }
+#claim-body > .claim-actions {
+  order: -1;
+  inset-block: 0.75rem auto;
+  margin-block-end: 0.75rem;
+  padding-inline-end: 0.8rem;
+}
 /* Labels in normal case (2026-09-11). */
 table.rows th, .list-controls .section-sub { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
 

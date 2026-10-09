@@ -66,7 +66,9 @@ def browser():
     driver.stop()
 
 
-def shelf(browser, tmp_path: Path, width: int = 1280, html: str | None = None):
+def shelf(
+    browser, tmp_path: Path, width: int = 1280, html: str | None = None, mine: list | None = None
+):
     page_file = tmp_path / "texts.html"
     page_file.write_text(html or list_page("test-key", "texts"), encoding="utf-8")
     # Tall enough that the shelf under home's Continue is on screen (2026-10-08).
@@ -74,10 +76,11 @@ def shelf(browser, tmp_path: Path, width: int = 1280, html: str | None = None):
     page = context.new_page()
     thrown: list[str] = []
     page.on("pageerror", lambda error: thrown.append(str(error)))
+    said = {"readers": MINE if mine is None else mine, "shared": SHARED, "trash": []}
     page.add_init_script(
         f"localStorage.setItem('targum:docs', {json.dumps(json.dumps(DOCS))});"
         f"localStorage.setItem('targum:opened', {json.dumps(json.dumps(OPENED))});"
-        f"const said = {json.dumps({'readers': MINE, 'shared': SHARED, 'trash': []})};"
+        f"const said = {json.dumps(said)};"
         "window.fetch = (url) => Promise.resolve(new Response(JSON.stringify("
         "  String(url).split('?')[0].endsWith('/readers') ? said : {})));"
     )
@@ -89,6 +92,30 @@ def shelf(browser, tmp_path: Path, width: int = 1280, html: str | None = None):
 
 def titles(page) -> list[str]:
     return [one.strip() for one in page.locator("#library-list .book-title").all_inner_texts()]
+
+
+def test_a_continue_card_s_bar_is_the_share_it_says_you_know(browser, tmp_path: Path) -> None:
+    """The bar under "You know 40%" is 40% full (board Main: "274 of 379 known" over a bar
+    72% full). It drew the parts finished, so an opened text showed an empty track under
+    its known share (design review, 2026-10-09); a text with no share has no bar."""
+    mine = [
+        _text("known", "ידוע", english="Known", known=0.4, words=120),
+        _text("unmeasured", "לא נמדד", english="Unmeasured"),
+    ]
+    context, page, thrown = shelf(browser, tmp_path, mine=mine)
+    page.wait_for_selector("#continue-cards li")
+    cards = page.evaluate(
+        """() => [...document.querySelectorAll('#continue-cards .home-card')].map(card => ({
+             title: card.querySelector('.home-card-title').textContent,
+             facts: (card.querySelector('.home-card-facts') || {}).textContent || '',
+             done: card.querySelector('.home-fill')
+               ? card.querySelector('.home-fill').style.getPropertyValue('--done') : null }))"""
+    )
+    context.close()
+    by = {card["title"]: card for card in cards}
+    assert "You know 40%" in by["ידוע"]["facts"] and by["ידוע"]["done"] == "0.4"
+    assert by["לא נמדד"]["done"] is None, "no figure, no bar"
+    assert not thrown
 
 
 def test_a_series_is_one_row_until_it_is_opened(browser, tmp_path: Path) -> None:

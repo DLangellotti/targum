@@ -2546,6 +2546,38 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
     context.close()
 
 
+@pytest.mark.parametrize("viewport", [WINDOW, PHONE], ids=["desk", "phone"])
+def test_the_foot_shows_the_words_its_press_would_mark(browser, tmp_path, viewport) -> None:
+    """ "Done, and mark 66 words known" marked words nobody had been shown (design review,
+    2026-10-09). The foot asks about them above the press, as the end of a part does
+    under a large picture: how many, then the ones met most as chips behind "Show them",
+    and the rest one press away. The count is the press's own."""
+    first = chapter(tmp_path / "reader", parts=2).parent / "sec-0001.html"
+    context = opened(browser, viewport)
+    page = context.new_page()
+    page.goto(address(first))
+    page.wait_for_selector(".pair")
+    page.locator("#done-mark").scroll_into_view_if_needed()
+    press = page.inner_text("#done-mark")
+    count = int(press.split("mark ", 1)[1].split(" ", 1)[0])
+    assert page.locator("#foot-words").is_visible()
+    ask = page.inner_text("#foot-words .foot-ask")
+    assert ask.startswith(f"{count} word"), (ask, press)
+    chips = page.locator("#foot-words .film-end-word")
+    # One line until asked for, so the foot keeps the height a page was cut for.
+    assert chips.count() == 0
+    page.click("#foot-words .foot-show")
+    assert 0 < chips.count() <= min(count, 8)
+    if count > 8:
+        page.click("#foot-words .foot-more")
+        assert chips.count() == count, "the rest, one press away"
+    # Marked, there is nothing left to ask about.
+    page.click("#done-mark")
+    page.wait_for_function("() => !document.getElementById('finished').hidden")
+    assert page.locator("#foot-words").is_hidden()
+    context.close()
+
+
 def _sitting(browser, tmp_path, monkeypatch, me: dict) -> list[dict]:
     """Open a voiced scene with markable words, look a word up, play a moment, leave —
     and answer with everything the page handed to `/events`."""

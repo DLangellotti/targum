@@ -388,14 +388,20 @@
 
   /* --- one subscription ------------------------------------------------------------- */
 
-  function itemsHead(kind) {
+  /* A series' items are named for what the series is (design review, 2026-10-09):
+     "Instalments" was the catalogue's word for all three. */
+  function itemsHead(one) {
+    if (one.kind === "series") {
+      if (one.key === "weekly") return t("subs.items.issues", "Issues");
+      if (one.key === "parasha") return t("subs.items.portions", "Portions");
+      return t("subs.items.days", "Days");
+    }
     return {
-      series: t("subs.items.series", "Instalments"),
       topic: t("subs.items.news", "Articles"),
       outlet: t("subs.items.news", "Articles"),
       channel: t("subs.items.channel", "Videos"),
       podcast: t("subs.items.podcast", "Episodes"),
-    }[kind];
+    }[one.kind];
   }
 
   function itemRow(one, item, back) {
@@ -538,7 +544,7 @@
     var before = items.filter(function (item) {
       return item.came === "before";
     });
-    var main = section(itemsHead(one.kind), t("subs.items.newest", "Newest first"), now, one, back);
+    var main = section(itemsHead(one), t("subs.items.newest", "Newest first"), now, one, back);
     if (main) body.appendChild(main);
     else body.appendChild(el("p", "note sub-none", t("subs.items.none", "Nothing yet. New ones appear here as they come out.")));
     var meanwhile = section(t("subs.paused.head", "Out while it was paused"), t("subs.not-by-itself", "Not got ready unless you choose"), paused, one, back);

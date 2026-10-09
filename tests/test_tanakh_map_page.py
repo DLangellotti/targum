@@ -125,6 +125,16 @@ def test_it_stands_in_the_library_and_fetches_nothing_but_its_own_answer() -> No
     assert not re.search(r'(src|href)="https?://', page.split("<footer", 1)[0])
 
 
+def test_the_corner_knows_a_reader_is_signed_in() -> None:
+    """The account's corner asks `sync.js` who is signed in, and the map carried
+    `account.js` without it: a reader whose own words shaded the squares was offered
+    "Sign in" above them (design review, 2026-10-09)."""
+    page = tanakh_map_page("k")
+    assert 'id="account-open"' in page
+    assert "window.TargumSync = api;" in page, "the account's corner has nothing to ask"
+    assert page.index("window.TargumSync = api;") < page.index("window.TargumSync.onChange(")
+
+
 def test_it_speaks_russian() -> None:
     page = tanakh_map_page("k", language="ru")
     assert "<h1>Танах</h1>" in page and "Писания" in page

@@ -119,6 +119,11 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
 <script>{{ asset('strings.js') }}</script>
+{#- The account's corner asks `sync.js` who is signed in, as on every desk page.
+    Without it the corner said "Sign in" over a map shaded with the reader's own
+    words (2026-10-09). -#}
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('tanakh.js') }}</script>
 </body>
