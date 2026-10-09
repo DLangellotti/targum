@@ -365,7 +365,9 @@ Your Progress's "Practise these words", one language at a time, the one the menu
 - **A head**: "← Your Progress", what the list adds up to in this language ("4,796 on your
   list · 3,162 known · 131 learned on targum"; Aramaic's says its list is kept apart from
   the Hebrew one), and **Words and Phrases as tabs** with their counts, each its own page.
-  The way back to Your targums at the foot goes: the nav already has it.
+  The phrases no longer stand under the words on /words (2026-09-11 put them there):
+  they are the Phrases tab. The way back to Your targums at the foot goes: the nav
+  already has it.
 - **The stage is chips, not a select**: To work on (steps 1 to 3, where it opens), Just
   met, Getting there, Nearly there, Known, All — the step names the control itself uses
   (`vocab.js` `steps()`), and the choice remembered in this browser.

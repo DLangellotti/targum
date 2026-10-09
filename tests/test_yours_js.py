@@ -148,8 +148,8 @@ def test_an_ignored_word_does_not_blank_the_table() -> None:
     drawn = draw(
         vocabulary(word("ספר", "book", status=9), word("עיר", "city", status=0)), filter="all"
     )
-    rows = {row["term"]: row["well"] for row in drawn["words"]}
-    assert rows["עיר"] == "ignored" and rows["ספר"] == "known"
+    rows = {row["term"]: row["stage"] for row in drawn["words"]}
+    assert rows["עיר"] == 0 and rows["ספר"] == 9
 
 
 def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -> None:
@@ -971,3 +971,50 @@ def test_the_same_phrase_kept_twice_is_named_once_in_the_line() -> None:
     )
     drawn = draw(stored, do=[{"type": "talk"}])
     assert drawn["talk"]["said"].count("ולקחו אותו לחקירה") == 1
+
+
+# -- Your Words, by stage (design.md §12, "Your Words is reached from Your Progress, by
+#    stage", 2026-10-09) ---------------------------------------------------------------
+
+
+def test_the_head_says_what_the_list_adds_up_to_and_counts_each_tab() -> None:
+    drawn = draw(
+        vocabulary(
+            word("ספר", "book", status=9),
+            word("דרך", "road", status=2),
+            word("עיר", "city", status=1),
+        )
+    )
+    assert drawn["summary"] == "3 on your list · 1 known"
+    assert drawn["counts"]["words"] == "3"
+
+
+def test_the_stages_are_chips_and_the_table_opens_on_what_to_work_on() -> None:
+    drawn = draw(vocabulary(word("ספר", "book", status=9), word("דרך", "road", status=2)))
+    assert drawn["chips"] == [
+        "To work on",
+        "Just met",
+        "Getting there",
+        "Nearly there",
+        "Known",
+        "All",
+    ]
+    assert drawn["chipOn"] == "To work on"
+
+    known = draw(
+        vocabulary(word("ספר", "book", status=9), word("דרך", "road", status=2)),
+        do=[{"type": "chip", "stage": "9"}],
+    )
+    assert known["chipOn"] == "Known"
+    assert [row["term"] for row in known["words"]] == ["ספר"]
+
+
+def test_every_row_carries_the_five_stages_and_a_press_moves_the_word() -> None:
+    """Never Known / Learning buttons: the row is the same five-step control the card is
+    (vocab.js `steps()`), and a press on it writes the word's stage."""
+    drawn = draw(
+        vocabulary(word("דרך", "road", status=2)),
+        do=[{"type": "stage", "word": "דרך", "value": 3}],
+    )
+    assert json.loads(drawn["stored"])["דרך"]["status"] == 3
+    assert drawn["words"][0]["stage"] == 3

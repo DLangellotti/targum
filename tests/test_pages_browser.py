@@ -2418,3 +2418,63 @@ def test_a_new_reader_is_asked_first_and_then_sees_an_honest_home(browser) -> No
     context.close()
     assert went == []
     assert got == {"label": "One to start with", "tabs": "none", "shelf": True}, got
+
+
+WORDS_SEEN = """() => ({
+  back: document.querySelector('.words-back').getAttribute('href'),
+  summary: document.getElementById('words-summary').textContent,
+  tabs: [...document.querySelectorAll('.list-tabs a')].map(
+    (a) => a.textContent.trim().replace(/\\s+/g, ' ')
+  ),
+  current: document.querySelector('.list-tabs a[aria-current="page"]').textContent.trim(),
+  chips: [...document.querySelectorAll('#stage-chips .chip')].map((c) => c.textContent),
+  steps: [...document.querySelectorAll('#word-rows tr')].map(
+    (row) => [...row.querySelectorAll('.stage .level')].map((b) => b.textContent)
+  ),
+  sideways: document.documentElement.scrollWidth > window.innerWidth,
+})"""
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
+    browser, width: int
+) -> None:
+    """design.md §12, "Your Words is reached from Your Progress, by stage" (2026-10-09)."""
+    import os
+
+    html = list_page(TOKEN, "words")
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = context.new_page()
+    page.add_init_script(
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({"
+        "'ספר': {surface: 'ספר', status: 9, at: 1},"
+        "'דרך': {surface: 'דרכים', status: 2, at: 2},"
+        "'עיר': {surface: 'עיר', status: 1, at: 3}}));"
+        "localStorage.setItem('targum:language', 'he')"
+    )
+    page.route("http://words.test/**", answer)
+    page.goto(f"http://words.test/words?k={TOKEN}")
+    page.wait_for_timeout(500)
+    got = page.evaluate(WORDS_SEEN)
+    shots = os.environ.get("TARGUM_SHOTS")
+    if shots:
+        page.screenshot(path=f"{shots}/words-{width}.png", full_page=True)
+    page.locator("#word-rows tr", has_text="עיר").locator(".level-3").click()
+    page.wait_for_timeout(200)
+    stored = page.evaluate("JSON.parse(localStorage.getItem('targum:vocab:he'))['עיר'].status")
+    context.close()
+
+    assert got["back"].startswith("/progress")
+    assert got["summary"] == "3 on your list · 1 known"
+    assert got["tabs"] == ["Words 3", "Phrases 0"] and got["current"].startswith("Words")
+    assert got["chips"][0] == "To work on" and "Getting there" in got["chips"]
+    five = ["1", "2", "3", "known", "ignore"]
+    assert got["steps"] and all(steps == five for steps in got["steps"])
+    assert not got["sideways"], got
+    assert stored == 3

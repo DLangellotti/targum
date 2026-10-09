@@ -51,7 +51,8 @@ install({
    neither. Made here with the value the payload asks for: the page reads `.value`
    before it has drawn a row. */
 byId.search = Object.assign(element("input"), { value: payload.search || "" });
-byId["status-filter"] = Object.assign(element("select"), { value: payload.filter || "learning" });
+// The stage the table opens on, as the chips remember it (design.md §12, 2026-10-09).
+if (payload.filter) global.localStorage.setItem("targum:words-stage", payload.filter);
 // The panel the checklist fills, hidden until it has rows, as the template draws it.
 document.getElementById("claim-panel").hidden = true;
 const claimBody = document.getElementById("claim-body");
@@ -68,7 +69,8 @@ global.window.TargumVocab.editor = (options) => {
   scale.className = "levels";
   [1, 2, 3, 9, 0].forEach((value) => {
     const button = element("button");
-    button.className = "level level-" + value;
+    button.className = "level level-" + value + (options.status === value ? " on" : "");
+    button.setAttribute("data-value", String(value));
     button.addEventListener("click", () => options.onStatus && options.onStatus(value));
     scale.appendChild(button);
   });
@@ -141,14 +143,22 @@ function words() {
     .children.filter((row) => !String(row.className).includes("editor-row"))
     .map((row) => {
       const cells = row.children.map((cell) => cell.textContent);
-      const said = row.children[2] || {};
+      const said = row.children[1] || {};
+      const word = row.children[0] || { children: [] };
+      const form = word.children.find((node) => String(node.className).includes("form"));
+      const scale = ((row.children[2] || { children: [] }).children[0] || { children: [] }).children[0];
+      const on = scale ? scale.children.find((b) => String(b.className).includes(" on")) : null;
       return {
-        term: cells[0],
-        lemma: cells[1],
-        meaning: cells[2],
+        term: word.children[0] ? word.children[0].textContent : "",
+        lemma: form ? form.textContent : "",
+        meaning: cells[1],
         lang: said.getAttribute ? said.getAttribute("lang") || "" : "",
         dir: said.getAttribute ? said.getAttribute("dir") || "" : "",
-        well: cells[4],
+        stage: on ? Number(on.getAttribute("data-value")) : null,
+        press: (value) => {
+          const button = scale.children.find((b) => b.getAttribute("data-value") === String(value));
+          button.fire("click");
+        },
       };
     });
 }
@@ -267,6 +277,16 @@ function phrases() {
       const button = at("list-card").querySelector(".level-" + step.value);
       if (button) button.fire("click", { stopPropagation() {} });
     }
+    // A step pressed on a table row: `{type: "stage", word: "…", value: 9}`.
+    if (step.type === "stage") {
+      const row = words().find((one) => one.term === step.word);
+      if (row) row.press(step.value);
+    }
+    // A stage chip over the table: `{type: "chip", stage: "9"}`.
+    if (step.type === "chip") {
+      const chip = at("stage-chips").children.find((c) => c.getAttribute("data-stage") === step.stage);
+      if (chip) chip.fire("click");
+    }
     // The fold's door out: `{type: "talk"}`. It writes a line and leaves for /chat.
     if (step.type === "talk") at("work-talk").fire("click");
     for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
@@ -325,6 +345,13 @@ function phrases() {
         })),
       },
       wordsTitle: at("words-title").textContent,
+      // The head (design.md §12, 2026-10-09): what the list adds up to, the tab counts,
+      // and the stage chips with the one pressed.
+      summary: at("words-summary").textContent,
+      counts: { words: at("count-words").textContent, phrases: at("count-phrases").textContent },
+      chips: at("stage-chips").children.map((c) => c.textContent),
+      chipOn: (at("stage-chips").children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
+      stored: global.localStorage.getItem("targum:vocab:he"),
       wordsEmpty: at("words-empty").hidden ? "" : at("words-empty").textContent,
       phrases: phrases(),
       phrasesTitle: at("phrases-title").textContent,
