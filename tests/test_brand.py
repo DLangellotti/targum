@@ -373,8 +373,10 @@ THUMBED = (
     # The fold over the words to know before a chapter (design.md §12, 2026-09-28).
     ".preread > summary",
     # The root on a word card, where it opens the words of it a reader has met
-    # (targum-internal#96, behind `TARGUM_OCCURRENCES`).
-    ".gloss-card .verb .root-open",
+    # (targum-internal#96, behind `TARGUM_OCCURRENCES`), in the card's list since audit
+    # Q6 (2026-10-09), and the way to all its forms or cases under the list.
+    ".gloss-card .card-facts .root-open",
+    ".gloss-card .card-all",
     # The vowel switch on /how (targum-internal#401).
     ".how-switch",
     # The Tanakh map's Read, the press a phone's tap on a square leads to (design.md §12,

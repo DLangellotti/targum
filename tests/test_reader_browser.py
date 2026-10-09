@@ -6216,6 +6216,7 @@ def russian(out: Path, stressed: bool = False) -> Path:
                 "взять",
                 "UPOS=VERB|Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Fin",
             ),
+            ("за", "за", "UPOS=ADP"),
             ("руку", "рука", "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing|Animacy=Inan"),
         ],
         1: [
@@ -6329,6 +6330,38 @@ def test_a_russian_card_says_the_case_and_the_other_forms_here(
     assert verb["use"] == "past · perfective · m" and verb["forms"] is None, "nothing to list"
     assert verb["partner"] is None and verb["moves"] is None, "built without the tables"
     context.close()
+
+
+def test_a_russian_card_lists_what_the_word_is_as_the_board_draws_it(
+    browser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Board WordCardDesk (audit Q6, 2026-10-09): the kind of word at the right of the
+    head, then Dictionary and In this line as a list of two columns, the line's form with
+    the preposition that governs it, the way to all its cases under them, and ignore at
+    the end of the stage's line."""
+    from targum.annotate import openrussian
+
+    monkeypatch.setattr(openrussian, "lexicon", lambda: None)
+    context, page = open_reader(browser, russian(tmp_path / "reader"))
+    page.evaluate(CARD_LINES, "руку")
+    said = page.evaluate(
+        """() => {
+          const card = document.querySelector('.gloss-card');
+          const all = card.querySelector('.card-facts .card-all');
+          return {
+            kind: card.querySelector('.copy-line .card-pos').textContent,
+            facts: [...card.querySelectorAll('.card-facts dt, .card-facts dd')]
+              .map((el) => el.textContent),
+            href: all ? all.getAttribute('href') : null,
+            stage: [...card.querySelectorAll('.card-stage > *')].map((el) => el.className),
+          };
+        }"""
+    )
+    context.close()
+    assert said["kind"] == "noun, feminine"
+    assert said["facts"] == ["Dictionary", "рука", "In this line", "за руку", "", "All its cases →"]
+    assert said["href"] == "https://en.openrussian.org/ru/%D1%80%D1%83%D0%BA%D0%B0"
+    assert said["stage"] == ["level-legend", "level level-0"]
 
 
 def test_a_russian_verb_names_its_partner_and_goes_to_it(
@@ -6827,10 +6860,12 @@ SAYS = """
   if (!card || card.hidden) return null;
   const meaning = card.querySelector('.meaning');
   const use = card.querySelector('.use');
+  const kind = card.querySelector('.card-pos');
   return {
     meaning: meaning ? meaning.textContent : null,
     asking: !!card.querySelector('.look-up'),
     use: use ? use.textContent : "",
+    kind: kind ? kind.textContent : "",
   };
 }
 """
@@ -6889,12 +6924,13 @@ def test_a_name_is_one_chip_that_says_what_it_is_and_means_nothing(browser, tmp_
 
     page.evaluate(TAP_AGAIN, "דוד בן־גוריון")
     card = page.evaluate(SAYS)
-    assert card["use"] == "name"
+    # What kind of word it is stands at the right of the word (audit Q6, 2026-10-09).
+    assert card["kind"] == "name" and card["use"] == ""
     assert not card["meaning"] and not card["asking"], f"a name was glossed: {card}"
 
     page.evaluate(TAP_AGAIN, "בירושלים")
     card = page.evaluate(SAYS)
-    assert card["use"] == "place" and not card["meaning"] and not card["asking"]
+    assert card["kind"] == "place" and not card["meaning"] and not card["asking"]
 
     page.evaluate(TAP_AGAIN, "רבי")
     assert page.evaluate(SAYS)["meaning"] == "rabbi", "a title keeps its meaning"

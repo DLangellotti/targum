@@ -4438,6 +4438,105 @@ var targumReader = function () {
     return "";
   }
 
+  /* --- the card's list of what a word is (board WordCardDesk) -------------------------
+   * Two columns, a label and its value, drawn only where it holds a row. Rows are added
+   * after it is placed, so the list stands where the first of them belongs. */
+  function cardFacts() {
+    var list = document.createElement("dl");
+    list.className = "card-facts";
+    var placed = false;
+    var tail = null;
+    return {
+      add: function (label, value) {
+        if (!value) return;
+        var name = document.createElement("dt");
+        name.textContent = label;
+        if (!label) name.className = "card-facts-none";
+        var said = document.createElement("dd");
+        said.appendChild(value);
+        list.appendChild(name);
+        list.appendChild(said);
+        list.hidden = false;
+      },
+      place: function (host) {
+        if (placed) return;
+        placed = true;
+        list.hidden = !list.firstChild;
+        host.appendChild(list);
+      },
+      // Something wider than the list's second column, under the list.
+      after: function () {
+        var anchor = tail || list;
+        for (var i = 0; i < arguments.length; i++) {
+          if (!arguments[i]) continue;
+          anchor.parentNode.insertBefore(arguments[i], anchor.nextSibling);
+          anchor = tail = arguments[i];
+        }
+      },
+    };
+  }
+
+  // The kinds of word whose table of cases is worth a look: nouns, adjectives, pronouns.
+  var DECLINES = { NOUN: true, ADJ: true, PRON: true, DET: true, NUM: true };
+
+  // The word as this line has it, with the preposition that governs it where one stands
+  // straight before it: "в Петербурге", not "Петербурге" (board WordCardDesk).
+  function withGoverning(word, shown) {
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
+    var row = rowOf(word);
+    if (!pair || !row || besideCell(word)) return shown;
+    var id = pair.getAttribute("data-id");
+    var rows = wordData[id] || [];
+    var at = rows.indexOf(row);
+    if (at < 1) return shown;
+    var before = rows[at - 1];
+    var line = before.length > 8 ? grammarTable[before[8]] || "" : "";
+    if (feat(line, "UPOS") !== "ADP") return shown;
+    var text = segmentText(id);
+    if (!/^\s+$/.test(text.slice(before[1], row[0]))) return shown;
+    return text.slice(before[0], before[1]) + " " + shown;
+  }
+
+  // The languages whose board says "noun" with no gender after it.
+  var NOUN_GENDER_UNSAID = { he: true, arc: true };
+
+  // What kind of word it is, in a word or two, at the right of the card's head.
+  function posLabel(line) {
+    var pos = feat(line, "UPOS");
+    var gendered = feat(line, "Gender");
+    var gender =
+      gendered === "Masc"
+        ? gt("reader.grammar.masculine", "masculine")
+        : gendered === "Fem"
+          ? gt("reader.grammar.feminine", "feminine")
+          : gendered === "Neut"
+            ? gt("reader.grammar.neuter", "neuter")
+            : "";
+    var plural = feat(line, "Number") === "Plur";
+    if (pos === "NOUN") {
+      var noun = gt("reader.grammar.pos.noun", "noun");
+      // The Hebrew board says noun alone, and its gender is in the Here line where it matters.
+      if (gender && !NOUN_GENDER_UNSAID[language]) noun = gt("reader.grammar.pos.noun-gender", "noun, {gender}", { gender: gender });
+      return plural ? noun + " · " + gt("reader.grammar.pos.plural", "plural") : noun;
+    }
+    var words = {
+      PROPN: gt("reader.grammar.pos.proper", "noun, proper"),
+      VERB: gt("reader.grammar.pos.verb", "verb"),
+      AUX: gt("reader.grammar.pos.verb", "verb"),
+      ADJ: gt("reader.grammar.pos.adjective", "adjective"),
+      ADV: gt("reader.grammar.pos.adverb", "adverb"),
+      PRON: gt("reader.grammar.pos.pronoun", "pronoun"),
+      DET: gt("reader.grammar.pos.determiner", "determiner"),
+      NUM: gt("reader.grammar.pos.number", "number"),
+      ADP: gt("reader.grammar.preposition", "preposition"),
+      CCONJ: gt("reader.grammar.conjunction", "conjunction"),
+      SCONJ: gt("reader.grammar.conjunction", "conjunction"),
+      PART: gt("reader.grammar.particle", "particle"),
+      INTJ: gt("reader.grammar.pos.interjection", "interjection"),
+    };
+    return Object.prototype.hasOwnProperty.call(words, pos) ? words[pos] : "";
+  }
+
   // Case and aspect are said wherever a word carries them, and only Russian's words do:
   // DICTA never tags either, so every Hebrew line comes out exactly as it did
   // (targum-internal#258). They go last on the line, after what the word is, because the
@@ -5284,7 +5383,8 @@ var targumReader = function () {
     var box = document.createElement("details");
     box.className = "card-conj";
     var head = document.createElement("summary");
-    head.textContent = t("reader.card.the-table", "All its forms");
+    // Board WordCardDesk: "All forms of אָמַר →".
+    mixedLine(head, t("reader.card.all-forms-of", "All forms of {word}", { word: wordOf(lemmas[index]) }) + " \u2192");
     box.appendChild(head);
 
     // Grouped by tense, in the order a table is laid out, with anything the source did
@@ -5630,7 +5730,14 @@ var targumReader = function () {
     if (!said) return null;
     var box = document.createElement("span");
     box.className = "card-round";
+    // How many of the reader's texts it was met in, as the board's label over the stage
+    // control says it ("Met in 3 texts"), then how often here and in the Tanakh. The
+    // texts themselves are named on the label for a pointer and a screen reader.
     var counts = [];
+    var texts = said.met && said.met.length ? said.met.length + (Number(said.more) || 0) : 0;
+    if (texts) {
+      counts.push(tn("reader.card.met-in-texts", texts, "Met in {n} text", "Met in {n} texts", { n: texts }));
+    }
     if (said.here) counts.push(t("reader.card.times-here", "{n}× in this text", { n: said.here }));
     if (said.tanakh) {
       counts.push(t("reader.card.times-tanakh", "{n}× in the Tanakh", { n: said.tanakh }));
@@ -5641,18 +5748,17 @@ var targumReader = function () {
       often.textContent = counts.join(" · ");
       box.appendChild(often);
     }
-    if (said.met && said.met.length) {
+    if (texts) {
       var places = said.met.join(", ");
-      var where = document.createElement("span");
-      where.className = "card-met";
+      var named = said.more
+        ? t("reader.card.met-in-more", "met in {places} and {n} more", { places: places, n: said.more })
+        : t("reader.card.met-in", "met in {places}", { places: places });
+      box.title = named;
+      var spoken = document.createElement("span");
+      spoken.className = "card-met card-met-said";
       // A title may be Hebrew in an English line; each run gets its own `bdi`.
-      mixedLine(
-        where,
-        said.more
-          ? t("reader.card.met-in-more", "met in {places} and {n} more", { places: places, n: said.more })
-          : t("reader.card.met-in", "met in {places}", { places: places })
-      );
-      box.appendChild(where);
+      mixedLine(spoken, named);
+      box.appendChild(spoken);
     }
     return box.firstChild ? box : null;
   }
@@ -5897,22 +6003,41 @@ var targumReader = function () {
     // nothing here.
     var row = rowOf(word);
     var built = row && row.length > 7 ? builts[row[7]] || "" : "";
+    // The rest of what the word is, as a list of two columns (board WordCardDesk):
+    // Dictionary, In this line, Root, Binyan, and the way to all its forms under them.
+    var facts = cardFacts();
     if (built) {
       var pieces = document.createElement("span");
       pieces.className = "form";
-      pieces.appendChild(document.createTextNode(t("reader.card.from", "from ")));
       mixedLine(pieces, builtIn(built, surface, wordOf(lemma)));
-      card.appendChild(pieces);
+      facts.add(t("reader.card.dictionary", "Dictionary"), pieces);
     } else if (wordOf(lemma) !== surface.toLowerCase() && wordOf(lemma) !== surface) {
-      var form = document.createElement("span");
-      form.className = "form";
-      form.appendChild(document.createTextNode(t("reader.card.from", "from ")));
       var bdi = document.createElement("bdi");
+      bdi.className = "form";
       bdi.setAttribute("lang", wordLanguage(index));
       bdi.textContent = wordOf(lemma);
-      form.appendChild(bdi);
-      card.appendChild(form);
+      facts.add(t("reader.card.dictionary", "Dictionary"), bdi);
     }
+    // A word with a case, as this line has it, with the preposition that governs it
+    // ("в Петербурге"), and the way to the whole table (board WordCardDesk, Russian).
+    var caseLine = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
+    if (caseWord(feat(caseLine, "Case"))) {
+      var inLine = document.createElement("bdi");
+      inLine.className = "form";
+      inLine.setAttribute("lang", wordLanguage(index));
+      inLine.textContent = withGoverning(word, shown);
+      facts.add(t("reader.card.in-this-line", "In this line"), inLine);
+      if (language === "ru" && DECLINES[feat(caseLine, "UPOS")]) {
+        var cases = document.createElement("a");
+        cases.className = "card-all";
+        cases.href = "https://en.openrussian.org/ru/" + encodeURIComponent(wordOf(lemma));
+        cases.target = "_blank";
+        cases.rel = "noopener noreferrer";
+        cases.textContent = t("reader.card.all-cases", "All its cases") + " \u2192";
+        facts.add("", cases);
+      }
+    }
+    facts.place(card);
 
     // The other shapes this word takes in this text. A Russian noun is met in one to three
     // forms far more often than in its table (Janda & Tyers 2018), and seeing руку and
@@ -5939,21 +6064,18 @@ var targumReader = function () {
     // binyan still shows on its own, and Pealim answers the rest.
     var root = roots[index];
     var binyan = binyanim[index];
+    var table = null;
     if (root || binyan) {
-      var verb = document.createElement("span");
-      verb.className = "verb";
       if (root) {
-        verb.appendChild(document.createTextNode(t("reader.card.root", "root ")));
         var shoresh = document.createElement("bdi");
         shoresh.className = "root";
         shoresh.setAttribute("lang", language);
         // Spaced out the way a root is written, so it reads as three letters rather
         // than as a word: כ־ת־ב, not כתב.
         shoresh.textContent = root.split("").join("\u05be");
-        verb.appendChild(rootLink(shoresh, index, root, redrawCard));
+        facts.add(t("reader.card.root-label", "Root"), rootLink(shoresh, index, root, redrawCard));
       }
       if (binyan) {
-        if (root) verb.appendChild(document.createTextNode(" · "));
         // Not `built`: that name is the pieces line above, and `var` is one binding
         // per function — shadowing it here silenced the split caveat for every verb.
         var pattern = document.createElement("bdi");
@@ -5962,10 +6084,14 @@ var targumReader = function () {
         // a worker, or for "verb" (2026-09-14). The stored name stays as the analyser
         // wrote it, so nothing already built needs building again.
         pattern.textContent = POINTED_BINYANIM[binyan] || binyan;
-        verb.appendChild(pattern);
+        facts.add(t("reader.card.binyan", "Binyan"), pattern);
       }
+      // All its forms, under the list: the table this page carries where it carries one
+      // (targum-internal#300, about six verbs in ten), and Pealim for the rest, and for
+      // anybody who wants more than a table.
+      table = conjugations(index, word.textContent, word, row);
       var pealim = document.createElement("a");
-      pealim.className = "pealim";
+      pealim.className = table ? "pealim" : "pealim card-all";
       // Pealim has a Russian site; a Russian page's reader goes to it (targum-internal#287).
       pealim.href =
         "https://www.pealim.com/" +
@@ -5974,14 +6100,15 @@ var targumReader = function () {
         encodeURIComponent(lemma);
       pealim.target = "_blank";
       pealim.rel = "noopener noreferrer";
-      pealim.textContent = t("reader.card.conjugations", "conjugations on Pealim");
-      verb.appendChild(pealim);
-      card.appendChild(verb);
-      // The table itself, where this page carries one (targum-internal#300). About six
-      // verbs in ten have one; Pealim above stays for the rest, and for anybody who
-      // wants more than a table.
-      var drawn = conjugations(index, word.textContent, word, row);
-      if (drawn) card.appendChild(drawn);
+      if (table) {
+        pealim.textContent = t("reader.card.conjugations", "conjugations on Pealim");
+      } else {
+        mixedLine(pealim, t("reader.card.all-forms-of", "All forms of {word}", { word: wordOf(lemma) }) + " \u2192");
+      }
+      if (table) facts.after(table, pealim);
+      else facts.add("", pealim);
+    }
+    if (root || binyan) {
       var kin = siblingLine(index);
       if (kin) card.appendChild(kin);
       var rootMet = root ? rootFamilyLine(index, root, redrawCard) : null;
@@ -6025,6 +6152,16 @@ var targumReader = function () {
     if (entity === "date") {
       var dated = gt("reader.grammar.date", "date");
       usage = usage ? dated + " · " + usage : dated;
+    }
+    // What kind of word it is, at the right of the word (board WordCardDesk: "verb",
+    // "noun, proper"); a name, a place or a number says which.
+    var kindOf = kindWord || posLabel(grammarHere);
+    if (kindOf) {
+      var posTag = document.createElement("span");
+      posTag.className = "card-pos";
+      posTag.textContent = kindOf;
+      headline.appendChild(posTag);
+      if (kindWord && usage === kindWord) usage = "";
     }
     if (usage) {
       var use = document.createElement("span");
@@ -6131,6 +6268,17 @@ var targumReader = function () {
     // The word said, at the end of the stage control (board WordCardDesk): the press a
     // reader makes after reading the meaning, beside the one they make after hearing it.
     var steps = card.querySelector(".vocab-editor .levels");
+    // The stage's name under the control and ignore at the other end of its line (board
+    // WordCardDesk: "Known · · · ignore").
+    var legendLine = card.querySelector(".vocab-editor .level-legend");
+    var ignoring = steps ? steps.querySelector(".level-" + IGNORED) : null;
+    if (legendLine && ignoring) {
+      var stageLine = document.createElement("div");
+      stageLine.className = "card-stage";
+      legendLine.parentNode.insertBefore(stageLine, legendLine);
+      stageLine.appendChild(legendLine);
+      stageLine.appendChild(ignoring);
+    }
     if (hear && steps) {
       var hearFrom = hear.parentNode;
       hear.classList.add("card-hear");

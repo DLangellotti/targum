@@ -5544,6 +5544,89 @@ body.list-ended .list-end .list-end-over {
 #gloss-card .note-open[hidden] { display: none; }
 /* The ×: the sheet's, not the card's. */
 #gloss-card .card-x { display: none; }
+/* The head: the word, and what kind of word it is at the other end (board WordCardDesk). */
+#gloss-card .copy-line:has(.lemma) { display: flex; align-items: baseline; gap: 0.5rem; }
+#gloss-card .card-pos {
+  margin-inline-start: auto;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+/* Dictionary, In this line, Root, Binyan: a label and its value, two columns, and the way
+   to all its forms under the values. */
+#gloss-card .card-facts {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.35rem 1rem;
+  align-self: stretch;
+  margin: 0.15rem 0 0;
+  font-size: 0.875rem;
+}
+#gloss-card .card-facts[hidden] { display: none; }
+#gloss-card .card-facts dt { color: var(--ink-soft); }
+#gloss-card .card-facts dd { margin: 0; color: var(--ink); min-inline-size: 0; }
+#gloss-card .card-facts dd bdi:lang(he),
+#gloss-card .card-facts dd bdi:lang(yi),
+#gloss-card .card-facts dd bdi:lang(arc) { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+#gloss-card .card-facts .form { color: var(--ink); font-size: 0.875rem; }
+#gloss-card .card-all,
+#gloss-card .card-conj > summary {
+  color: var(--teal);
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+#gloss-card .card-conj > summary { list-style: none; padding-inline-start: 6.5rem; }
+/* Under the values, where the board draws "All forms of אָמַר →". */
+#gloss-card .card-facts + .card-conj { margin-block-start: 0; }
+#gloss-card .card-conj + .pealim,
+#gloss-card .card-facts + .pealim {
+  align-self: start;
+  margin-inline-start: 6.5rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  border-block-end: 1px solid color-mix(in srgb, var(--teal) 35%, transparent);
+}
+#gloss-card .card-conj + .pealim:hover { color: var(--teal); }
+#gloss-card .card-facts .root { letter-spacing: 0.02em; font-weight: 600; }
+#gloss-card .card-facts .root-open {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-block-end: 1px solid color-mix(in srgb, var(--teal) 35%, transparent);
+  border-radius: 0;
+  color: var(--teal);
+  font: inherit;
+  cursor: pointer;
+}
+#gloss-card .card-facts .root-open bdi { color: inherit; }
+#gloss-card .card-conj > summary::-webkit-details-marker { display: none; }
+#gloss-card .card-conj { align-self: stretch; }
+/* The label over the stage control: how many texts it was met in, and how often here. */
+#gloss-card .card-often { color: var(--ink-soft); font-size: 0.8125rem; }
+#gloss-card .card-met-said {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* The stage's name under the control and ignore at the end of its line. */
+#gloss-card .card-stage { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+#gloss-card .card-stage .level {
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+#gloss-card .card-stage .level.on { color: var(--ink); font-weight: 600; }
 
 @media (max-width: 60rem) {
   /* The sheet from the foot on a dimmed page (board WordCardPhone): the card's white, the
