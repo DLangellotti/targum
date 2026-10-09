@@ -845,25 +845,32 @@ def _scripture_face() -> Markup:
 
 #: The chrome's own face (design.md §13, 2026-09-11): Source Sans 3, Adobe's, under the
 #: OFL, the variable Latin cut from Google Fonts and its italic. Carried in the page like
-#: the Hebrew faces, on chrome pages only: a reader fetches nothing and keeps system-ui in
-#: its bar, and a chrome page that merely named the face would get whatever the machine
-#: has, which is the wall of text §12 records.
+#: the Hebrew faces, because a page fetches nothing and one that merely named the face
+#: would get whatever the machine has, which is the wall of text §12 records. Chrome
+#: pages carry both cuts; a reader carries the upright, for its menus (2026-10-09).
 CHROME_FACE = ("Source Sans 3", "fonts/SourceSans3.woff2", "fonts/SourceSans3-Italic.woff2")
 
 
 @cache
-def _chrome_face() -> Markup:
+def _chrome_face(italic: bool = True) -> Markup:
     """The chrome's face, in the page. `--chrome` in reader.css names it with its
-    fallbacks; this is what makes the name true."""
-    family, upright, italic = CHROME_FACE
-    return Markup(
-        "<style>"
+    fallbacks; this is what makes the name true.
+
+    A reader carries the upright cut alone (`italic=False`): its menus speak in the
+    chrome's face since 2026-10-09 (design.md §12, "The reader's menus are the board's"),
+    and nothing in them is set in italic, so the second thirty kilobytes would ride in
+    every section of every book for nothing."""
+    family, upright, slanted = CHROME_FACE
+    faces = (
         f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:normal;'
         f'src:url({_data_uri(upright)}) format("woff2");font-display:block}}'
-        f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
-        f'src:url({_data_uri(italic)}) format("woff2");font-display:block}}'
-        "</style>"
     )
+    if italic:
+        faces += (
+            f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
+            f'src:url({_data_uri(slanted)}) format("woff2");font-display:block}}'
+        )
+    return Markup(f"<style>{faces}</style>")
 
 
 @cache

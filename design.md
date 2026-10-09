@@ -357,6 +357,61 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The reader's menus are the board's — 2026-10-09
+
+David, 2026-10-09, on the live ⋯ menu: "these menus do not look nicely organized as they
+do in the mockup". It was one flat column in four control styles: three drawings for the
+view, a saved size with an underlined link under it, rows, an "Add to playlist" pill, a
+toggle, two step icons, "The recording" with another underlined link, and no group heads.
+His ruling the same day: where the calmer-surfaces boards and this document disagree,
+**the mockups win**, and **the reader joins the new system**: teal actions, Source Sans 3
+for its chrome, menus as sheets. This entry applies that to **Aa and ⋯ only** (boards
+ReaderMenus and OffSaving, with ReaderBeside and ReaderPhone; the design review's §3.8).
+The rest of the reader's chrome waits for its own entry.
+
+- **Groups under quiet heads, in the board's order.** ⋯: *This text* (Save for offline,
+  the word list, Add to a playlist, Talk to targum about it, the original, the picture),
+  *Listening* (Hear first, Step line by line, Hear this section, Save the audio with whose
+  reading it is under it, and on a phone Close the player), then a group with no head
+  (Full screen, Keys). Aa: *How the text looks* (text size, line spacing, the highlight,
+  pages, one case at a time, the chanting marks), then *Beside the text* (the level, the
+  translation, the columns, shnayim mikra). A hairline between groups. The chanting marks
+  are with how the text looks, not after the columns as 2026-10-08 listed them.
+- **One row anatomy.** A drawing at the start (§7's strokes, 16px), the name, and the
+  value or the control at the end, every row 44px tall at the least. The board's desk
+  drawing leaves most rows without a drawing; the phone sheet keeps the column for one, so
+  every row has one, which is also what keeps the names in a line.
+- **Three kinds of control, no more.** A switch for on or off, now **teal** when on (it
+  was leaf, which §4 keeps for progress); a **segmented control** for a choice of a few —
+  the view, the renderings, the level, the way shnayim mikra is kept, the step back and
+  on — with the live one in the teal wash; and **the row itself** for a press. No pill
+  and no underlined link inside either menu. Line spacing is a row that steps through
+  four spacings and says which it is on ("Comfortable"), where it was a lone drawing.
+- **The key that does the same** stands quiet at the end of its row (s, f, ?) where there
+  is a keyboard, as the board draws it. Talk has none: `t` reports how long the page took
+  to draw, and the board's `t` was wrong.
+- **Save for offline is a row** (`offline.js`; "A text is kept for offline by a press",
+  below): an arrow, "Save for offline" and what it takes; saving, the bar under the
+  name and Stop at the end; saved, a tick, "Saved on this device" and the size, with
+  **Remove from this device as a row of its own** under it. The bar is teal: a save in
+  hand is a control at work, not something learned.
+- **The chrome's face in the reader.** A reader carries Source Sans 3, the upright cut
+  only (about 38 kB in the page), and the menus speak in it. §5's "a reader keeps
+  system-ui in its bar" is overturned for these menus; nothing is fetched.
+- **The card on its shadow.** On a wide window each menu is a card (`--card`, 12px corners,
+  the floating shadow, no border) under its press. **On a phone each is a sheet** from the
+  foot with a handle to pull it down by or tap, the rows ruled one under the next, and the
+  page dimmed under it; a press on the dimmed page puts it away, as a tap on the page did.
+- **Every listening row on every width.** Hear first and the step were in ⋯ only while
+  the picture was up, and Save the audio only on a phone; the board draws them in ⋯ at a
+  desk too, and they stay one switch and one press with the strip's.
+- **On a phone the title gives way before the tools.** A long headline kept 254 of 390px
+  and pushed ⋯ off the screen; it shrinks first now.
+
+What it does not change: what each row does, what is drawn only where it applies, the
+order of 2026-10-08 inside each group, the bar itself, and the print, speed and reading
+panels, which keep their look until they are asked for.
+
 ### The account menu is who, what is left, and three rows — 2026-10-09
 
 David, 2026-10-09: "this menu can now be cleaned up as many things are accessible

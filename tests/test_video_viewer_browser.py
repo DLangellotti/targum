@@ -489,7 +489,7 @@ def test_every_thing_the_picture_had_is_still_under_more(browser, tmp_path) -> N
     context, page = film_open(browser, built)
     try:
         page.click(".bar-tools [data-more]")
-        for row in (".group [data-video]", ".more-first", ".more-back", ".more-on", ".more-get"):
+        for row in (".m-row[data-video]", ".more-first", ".more-back", ".more-on", ".more-get"):
             assert page.locator(row).is_visible(), f"{row} is under ⋯"
         assert page.locator("#fullscreen-group [data-fullscreen]").count() == 1
         page.click(".more-first")
@@ -509,7 +509,7 @@ def test_a_picture_put_away_is_an_audio_reader_and_comes_back(browser, tmp_path)
     built = video_reader(tmp_path)
     context, page = film_open(browser, built)
     try:
-        press_in_more(page, ".group [data-video]")
+        press_in_more(page, ".m-row[data-video]")
         page.wait_for_selector("#video[hidden]", state="attached")
         seen = page.evaluate(FILM)
         assert not seen["film"], seen

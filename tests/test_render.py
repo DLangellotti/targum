@@ -1607,7 +1607,7 @@ def test_the_page_carries_the_face_it_needs_and_not_the_other(tmp_path: Path) ->
     Two faces, one per shelf, and a page carries exactly one: paying for both would
     double the cost of the thing for no reader's benefit.
     """
-    from targum.render.builder import BIBLICAL_FACE, MODERN_FACE
+    from targum.render.builder import BIBLICAL_FACE, CHROME_FACE, MODERN_FACE
 
     segment = hebrew(0, TROPE_TEXT)
     voc = vocalization_for([segment], {segment.id: TROPE_TEXT}, [])
@@ -1617,14 +1617,16 @@ def test_the_page_carries_the_face_it_needs_and_not_the_other(tmp_path: Path) ->
     # What matters is which face is *embedded*, not which names appear: `--reading-hebrew`
     # in reader.css still lists the faces worth reaching for, and one of them shares a
     # name with the face this shelf carries.
+    # The chrome's face rides in every reader too, upright only, for its menus (design.md
+    # §12, 2026-10-09); it is no Hebrew face and is counted apart.
     def embedded(html: str) -> set[str]:
-        return set(re.findall(r'@font-face\{font-family:"([^"]+)"', html))
+        return set(re.findall(r'@font-face\{font-family:"([^"]+)"', html)) - {CHROME_FACE[0]}
 
     assert embedded(scripture) == {BIBLICAL_FACE[0]}, "scripture carries the wrong face"
     assert embedded(news) == {MODERN_FACE[0]}, "a modern text carries the wrong face"
-    # One face per page, and one only: paying for both helps no reader.
-    assert scripture.count("url(data:font/woff2") == 1
-    assert news.count("url(data:font/woff2") == 1
+    # One Hebrew face per page, and one only: paying for both helps no reader.
+    assert scripture.count("url(data:font/woff2") == 2
+    assert news.count("url(data:font/woff2") == 2
     # And the face is actually reached for, not merely defined.
     assert f'--reading-hebrew:"{BIBLICAL_FACE[0]}"' in scripture
     # Carried in the page, not fetched. `test_loads_nothing_from_the_network` holds the
@@ -1657,7 +1659,9 @@ def test_a_french_page_carries_no_hebrew_face(tmp_path: Path) -> None:
         segments={segment.id: "The cat sleeps."},
     )
     html = render(document, segmented, [translation], tmp_path / "r")[0].read_text(encoding="utf-8")
-    assert 'lang="fr"' in html and "url(data:font/woff2" not in html
+    # The one face it carries is the chrome's, for the menus (design.md §12, 2026-10-09).
+    assert 'lang="fr"' in html and html.count("url(data:font/woff2") == 1
+    assert '@font-face{font-family:"Source Sans 3"' in html
 
 
 def test_the_page_is_measured_again_when_the_face_arrives(tmp_path: Path) -> None:
@@ -3680,7 +3684,9 @@ def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) ->
     assert mark is not None
     assert 'class="sw"' in mark.group(0) and ">Mark<" not in mark.group(0)
     assert "title=" in mark.group(0)
-    assert '<span class="aa-name">Highlight what you have not learned</span>' in mark.group(0)
+    assert '<span class="m-label aa-name">Highlight what you have not learned</span>' in mark.group(
+        0
+    )
 
 
 def test_the_speed_is_a_pair_in_the_player_and_only_where_there_is_a_voice(
@@ -5372,7 +5378,7 @@ def _markup(html: str) -> str:
 
 
 def _switch(html: str) -> str:
-    found = re.search(r'<div class="group renderings" id="translation".*?</div>', html, re.S)
+    found = re.search(r'<div class="m-end m-seg renderings" id="translation".*?</div>', html, re.S)
     return found.group(0) if found else ""
 
 
@@ -5382,12 +5388,14 @@ def _companions(html: str) -> str:
     In the Aa panel since targum-internal#421, where each is a row with its name and a
     drawn switch. The drawing is taken off here so what the tests read is the name on
     the press, as it was: `...>Rashi</button>`."""
-    found = re.search(r'<div class="group companions".*?</div>', html, re.S)
+    found = re.search(r'<div class="companions" id="companions".*?</div>', html, re.S)
     if not found:
         return ""
+    # Each row starts with its drawing since the menus became the board's (design.md
+    # §12, 2026-10-09); that is taken off too.
     return (
-        found.group(0)
-        .replace('<span class="aa-name">', "")
+        re.sub(r'<span class="m-icon".*?</svg></span>', "", found.group(0), flags=re.S)
+        .replace('<span class="m-label aa-name">', "")
         .replace('</span><span class="sw" aria-hidden="true"></span>', "")
     )
 
