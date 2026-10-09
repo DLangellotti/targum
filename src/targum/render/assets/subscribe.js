@@ -46,10 +46,21 @@
 
   // The switch for one series: Subscribe until pressed, Subscribed after.
   function seriesSwitch(press, series, words) {
-    var on = false;
+    // A page that drew the switch already knows its state (`aria-pressed`): a series'
+    // own page is drawn by the server for the account asking (design.md §12, "A series
+    // is one page of the desk, for everyone", 2026-10-09).
+    var on = press.getAttribute("aria-pressed") === "true";
+    var label = press.querySelector(".series-switch-label");
     function settle() {
-      press.textContent = on ? words.subscribed : words.subscribe;
+      if (label) label.textContent = on ? words.subscribed : words.subscribe;
+      else press.textContent = on ? words.subscribed : words.subscribe;
       press.setAttribute("aria-pressed", on ? "true" : "false");
+      // Two states that look different: Subscribe filled, Subscribed tonal.
+      if (press.classList && press.classList.contains("series-switch")) {
+        press.classList.toggle("filled", !on);
+        press.classList.toggle("tonal", on);
+        press.classList.toggle("is-on", on);
+      }
     }
     settle();
     press.addEventListener("click", function () {

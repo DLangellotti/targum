@@ -5498,6 +5498,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         if not parasha_is_indexed():
             self._robots_tag = "noindex"
+        from . import series_view
         from .parasha import build as corpus
         from .parasha.calendar import Schedule
 
@@ -5593,6 +5594,18 @@ class Handler(BaseHTTPRequestHandler):
             # collection; a visitor has the list at the foot of this page.
             signed_in=self._person() is not None,
             week=parts,
+            view=series_view.portion_view(
+                self._series_reader(),
+                portion,
+                index=index,
+                schedule=schedule,
+                shabbat=shabbat,
+                haftarah=haftarah,
+                readable=readable,
+            ),
+            subscribed=self._series_subscribed("parasha"),
+            token=self._series_token(),
+            pictures=self._authorised(),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -5725,6 +5738,7 @@ class Handler(BaseHTTPRequestHandler):
         still on the shelf under its own name, which is where somebody looking for last
         spring's mishnayot is actually going.
         """
+        from . import series_view
         from .daily import build as corpus
         from .daily.calendar import Day, for_day, today
         from .daily.cycles import ABSENT, BY_SLUG, CYCLES
@@ -5793,6 +5807,9 @@ class Handler(BaseHTTPRequestHandler):
             is_today=when == today(),
             address=self.address,
             signed_in=self._person() is not None,
+            view=series_view.cycle_view(self._series_reader(), cycle, day),
+            subscribed=self._series_subscribed(slug),
+            token=self._series_token(),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -5905,6 +5922,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         if not weekly_is_indexed():
             self._robots_tag = "noindex"
+        from . import series_view
         from .weekly import index as weekly
         from .weekly.models import Level
 
@@ -5979,7 +5997,7 @@ class Handler(BaseHTTPRequestHandler):
             newest = published[0] if published else None
             if newest is None:
                 return self._send(404, b"not found", "text/plain")
-            return self._go(f"/weekly/{newest.id}/{self._opens_at(newest).value}{kept}")
+            return self._go(f"/weekly/{newest.id}/{self._level_for(newest, published).value}{kept}")
 
         week, _, wanted = rest.partition("/")
         issue = next((one for one in published if one.id == week), None)
@@ -5989,7 +6007,7 @@ class Handler(BaseHTTPRequestHandler):
             # is coming.
             return self._send(404, b"not found", "text/plain")
         if not wanted:
-            return self._go(f"/weekly/{issue.id}/{self._opens_at(issue).value}{kept}")
+            return self._go(f"/weekly/{issue.id}/{self._level_for(issue, published).value}{kept}")
         if wanted not in set(Level) or issue.edition(Level(wanted)) is None:
             return self._send(404, b"not found", "text/plain")
 
@@ -6005,6 +6023,10 @@ class Handler(BaseHTTPRequestHandler):
             # built into it, and English otherwise (targum-internal#288).
             edition=weekly.reading_in(issue, language),
             signed_in=self._person() is not None,
+            # The account's half (design.md §12, "A series is one page of the desk").
+            view=series_view.weekly_view(self._series_reader(), issue, Level(wanted), published),
+            subscribed=self._series_subscribed("weekly"),
+            token=self._series_token(),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -6491,6 +6513,35 @@ class Handler(BaseHTTPRequestHandler):
         wanted = bool(payload.get("on", True))
         store.follow(person.email, wanted, self._page_language())
         return self._json({"following": store.following(person.email)})
+
+    def _series_reader(self) -> Any:
+        """Who is asking a series' page, for what the account knows (`series_view`)."""
+        from .series_view import Reader
+
+        return Reader(self.store, self._person())
+
+    def _series_subscribed(self, series: str) -> bool:
+        """Whether this account takes one series: the weekly on its own rails
+        (`subscriber`), every other one a `follow` row, as `/account/follows` answers."""
+        person = self._person()
+        store = self.store
+        if person is None or store is None:
+            return False
+        if series == "weekly":
+            return bool(store.following(person.email))
+        return series in store.series_followed(person.email)
+
+    def _series_token(self) -> str:
+        """The page's key, only for somebody it already answers to: a public page a
+        stranger can reach never carries it."""
+        return self.token if self._authorised() else ""
+
+    def _level_for(self, issue: WeeklyIssue, published: list[WeeklyIssue]) -> WeeklyLevel:
+        """Which level `/weekly` opens for whoever asks: the one they would follow, else
+        the one they read last, else the usual one (design.md §12, 2026-10-09)."""
+        from .series_view import weekly_level
+
+        return weekly_level(self._series_reader(), issue, published, self._opens_at(issue))
 
     @staticmethod
     def _opens_at(issue: WeeklyIssue) -> WeeklyLevel:
