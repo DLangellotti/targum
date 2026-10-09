@@ -451,6 +451,114 @@ places:
 A reader on Plan who runs out is offered Top up instead (PlanTopUp): 60, 180 or 300
 credits, greyed, with Prices beside it. Nothing changes with the switch off: the refusal
 is the `top-up` one it was, and there is no word cap to meet.
+### The connector's pages are the boards' — 2026-10-09
+
+P14 of the polish plan, after "The boards are the desk" and "The desk's controls are one
+layer" (the same day). Boards ConnConnect, ConnConnectPhone, ConnApprove, ConnConfirm,
+ConnConfirmPhone and ConnCards, with David's calls of 2026-10-08.
+
+**/connect** is the board's page, for everyone:
+
+- **The hero** says "Learn Hebrew in" and the chosen app's name in teal, underlined in
+  the mark's gold, over the line it always said. Under it, the address in a field with
+  Copy, and three facts: free to connect, set up in two minutes, chatting is included.
+  Beside it, a conversation in a host's own plain chrome with targum's text card in it,
+  drawn as ConnCards draws it, so the first thing on the page is what a reader gets. The
+  name in the heading is the app chosen in the tabs below; it no longer turns over by
+  itself.
+- **"Connect in two minutes."** The apps as pills, each with its letter, the chosen one
+  in the teal wash; its steps in one card, numbered in round counters; and beside them
+  the approval page in small ("You see what it can do before you connect"), in the same
+  catalogue keys as the real one, so this page cannot promise what that page does not ask.
+- **"Every chat starts from what you know."** Six cards in a three by two grid, each a
+  line glyph in the teal wash, a title and one sentence: something to read next, the fix
+  and why, words where you met them, playlists, subscriptions, and nothing starts without
+  you.
+- **"Before you connect."** The questions as hairline rows with a chevron, the title in
+  the serif beside them at a desk.
+
+What goes: the dark "How it works" block (the board has none; the dark block David kept
+on 2026-10-08 is the host cards' dark reading, not this), the playing demo and the
+animated set-up screens, the "Works with" row (the tabs are the same list), "What it
+sees" as a section of its own (it is the small approval page beside the steps now), and
+the specimens inside the feature tiles. A signed-in reader gets the app's bar, as on
+every desk page; a stranger gets the public bar, "You'll need a targum account", "New to
+targum?" and the waitlist close, because the page is still the one a stranger is sent
+to, and an account still comes off the waitlist.
+
+**The approval page** keeps the sign-in family's lockup and one card (it is the middle of
+something started elsewhere) and takes the board's furniture: "Signed in as" the
+address, with its letter, and **Not you?**, which signs out and comes back to the same
+request, so somebody at a shared computer grants nothing on another's account. Each scope
+has its line glyph in the teal wash, between hairlines. The `chat` scope's line is the
+catalogue's, with "And offer texts, playlists and subscriptions, which you confirm here,
+on targum" under it, and then a well: "Chatting is included." over what a confirmed text
+uses and the credits left this month, with the time they come to. Where the reader is
+held to no allowance the well leaves the count out. This amends "The grant is one
+press, and chatting is included" (2026-09-24) on one point, the board's: the page used to
+name no allowance at all, and now names the month's balance with the time of audio it
+comes to beside it, never a cost of chatting, so a reader knows what a confirm will draw
+on before granting the scope that lets one be offered. Connect, in the primary with its
+arrow, and Not now, quiet, sit on one line. The grant is still one press ("The grant is
+one press, and chatting is included", 2026-09-24), and nothing on it is ticked.
+
+**Signing in on the way** says "Sign in to finish connecting {app}." as its heading, and a
+connection lost on the way through the mail (connect-lost) is drawn on the door as the
+board draws it: the clay mark, "We couldn't finish connecting", the reason in one
+sentence ("You started in another browser, or too long ago"), and Sign in. A request we
+could not check keeps its page, with the same clay mark over it.
+
+**The press pages keep the full top bar** (David, 2026-10-08). The press for one text
+(`/build/`) and for a set (`/set/`) stand in the app's shell as the subscription's confirm
+page already does: the bar, a 640px card in the column, "From an assistant" as a chip at
+its head. One text says its length and how much is known over its title, the English
+under it, how long until it is ready and in how many parts, then a hairline, the credits
+it uses with what is left this month, and **Confirm** — it said "Read this" — with Not now
+beside it, which goes to Your targums and presses nothing. A set says "A playlist" over
+its name with how many texts, each text a row with its tick, its letter tile, its title
+and what it uses, then the total with what is left, and Confirm. The press is still the
+form post it was, and `Library.press` and `claim_set` are still the only roads to the
+rails: the bar adds ways off the page, never a way to press.
+
+**The host cards** take the board where the host lets them, and keep the dark reading:
+each card opens on a head row, the mark, **targum** and what it is (Something to read,
+For you to confirm, Getting it ready, Ready to read); a text card is one card with a row
+for each text, its picture, its title, its facts with a small leaf meter of how much is
+known, Listen as a round button and the door as a teal word with its arrow; the offer card
+ends on a foot that says nothing starts until you confirm, beside "Confirm on targum".
+The one card for a set and a subscription is "A third card, the offer". **A word's
+stages, where a host card ever draws them, are read-only**, with "Open on targum" as the
+way to change them (David, 2026-10-08): a card never presses, and a stage is a write.
+There is no word card yet, so nothing draws them today.
+
+What still differs, deliberately: the board's frame from the video over the press for
+one text is not drawn, because a text not yet made has no picture of ours to show, and
+fetching the platform's would be a page of ours loading somebody else's image.
+
+### A card's picture comes from targum.page — 2026-10-09
+
+"A card in someone else's chat" (2026-10-06) said a card fetches nothing but a
+recording. The boards draw each text in a card with its picture, and a row of titles
+without them reads as a list of strings. So a text card may now load **an image from our
+own origin, and only a picture of ours**:
+
+- **Covers only.** A library text's cover, drawn for targum, served by `/cover/<id>`: a
+  door of its own, with no cookie and no key, because a host's frame never carries
+  either. It answers only for an id the catalogue has, so a reader's upload, its picture
+  or anything in somebody's home is never behind it; everything else is the same 404 as
+  an address that is not there.
+- **News keeps its drawn tile.** An article a publisher put out is drawn as a letter on
+  the news colour, as on the desk: its picture is the publisher's, and a card never
+  shows it. So is a text of the reader's own, whose picture is theirs.
+- **A letter first.** Where there is no cover, or it does not load, the row is the
+  letter on the colour of its kind, never a broken square.
+- **Declared, not assumed.** The card's frame names targum.page in `resourceDomains`
+  (the extension's field that reaches `img-src` as well as `media-src`), and nothing
+  else. The address goes in the result's `_meta`, beside the door, never in what the
+  model reads.
+
+It still fetches no script, style or font, and nothing from anybody else. The connect
+page's example card is drawn from the same door.
 
 ### Your account is the board's sections, and Saved on this device its two columns — 2026-10-09
 

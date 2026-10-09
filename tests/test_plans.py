@@ -355,5 +355,5 @@ def test_a_press_refused_for_credits_draws_the_plan_on_free_and_top_up_off(
         refused = library.press(job)
         assert refused.act == act
         page = press_page(job.state())
-        assert ("Start a plan" in page) is (act == "plan")
+        assert ('class="fault-panel fault-upgrade"' in page) is (act == "plan")
         assert ('href="/plans"' in page) is (act == "plan")

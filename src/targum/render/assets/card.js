@@ -25,6 +25,7 @@
   var said = document.getElementById("said");
   var stopped = document.getElementById("stopped");
   var door = document.getElementById("door");
+  var foot = document.getElementById("foot");
 
   // The longest a held `check_job` waits, the tool's own `WAIT_MOST`.
   var WAIT = 25;
@@ -95,9 +96,11 @@
     if (rows.open) {
       door.setAttribute("href", String(rows.open));
       door.hidden = false;
+      foot.hidden = false;
     } else {
       door.removeAttribute("href");
       door.hidden = true;
+      foot.hidden = true;
     }
 
     if (!mirrored && channel && job) {

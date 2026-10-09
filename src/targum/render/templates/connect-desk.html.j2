@@ -1,0 +1,30 @@
+{#- /connect for a signed-in reader: the app's bar and foot round the page's body
+    (`_connect_body.html.j2`; design.md §12, "The connector's pages are the boards'",
+    2026-10-09; board ConnConnect, drawn signed in). A stranger's is `connect.html.j2`. -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('connect.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+<body class="connect" data-shell="desk">
+{#- The page's own heading is the hero's; the bar draws no title over it. -#}
+{% set here = 'connect' %}{% set title = '' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+
+{% include '_connect_body.html.j2' %}
+
+{% include '_foot.html.j2' %}
+<script>window.TARGUM_LANGUAGES = { {% for code, name in names %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('connect.js') }}</script>
+</body>
+</html>

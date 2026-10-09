@@ -6,9 +6,11 @@
     ours. `Handler._build` remains the only path to `Library.claim`, and the model still
     cannot press anything.
 
-    It is the sign-in family's furniture — the lockup, one card, no navigation — for the
-    reason that page gives: somebody is in the middle of something that started
-    elsewhere, and three ways off this page would be three ways to lose them.
+    It keeps the full top bar (David, 2026-10-08; design.md §12, "The connector's pages
+    are the boards'", 2026-10-09; boards ConnConfirm and ConnConfirmPhone): the app's
+    shell, and the board's 640px card in the column, as the subscription's confirm page
+    stands. The bar adds ways off the page, never a way to press: the press is still the
+    one form below, and `Handler._press` still the only road to `Library.press`.
 
     §6 governs the words. A wait is said in minutes and a cost in credits — one credit is
     one minute of audio or video (§12, 2026-09-23) — and never as a price: this page never
@@ -17,28 +19,26 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('signin.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('subs.css') }}</style>
 {{ hebrew_face() }}
-{{ chrome_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
-<body class="signin">
-<main class="gate">
-  <a class="brand" href="/" aria-label="targum">
-    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-    </svg>
-    <span>targum</span>
-  </a>
+<body class="press">
+{% set here = 'press' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+<main class="sub-gate">
+  <div class="card sub-confirm press-confirm">
+  <p class="sub-via"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>{{ t("press.page.from-an-assistant", "From an assistant") }}</p>
 
-  <div class="door">
   {% if job.reader %}
     {#- Already built, which is what a second visit to the same link looks like. Not an
         error, and the way on is the reader itself. -#}
-    <h1>{{ t("press.page.this-one-is-ready", "This one is ready") }}</h1>
+    <h1 class="press-title">{{ t("press.page.this-one-is-ready", "This one is ready") }}</h1>
     <p class="said">{{ job.title }}</p>
     <form method="get" action="/reader/{{ job.reader }}">
       <button class="btn filled go" type="submit"><span class="go-says">{{ t("press.page.open-it", "Open it") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
@@ -56,7 +56,7 @@
         `queued` and `looking up words` are waits too, and fell to the refusal below:
         every press without script landed on "We can't make this one" while the build
         was on its way (copy audit, 2026-09-28). A quote still being costed says so. -#}
-    <h1>{{ t("press.page.we-re-making-it", "We're making it") }}</h1>
+    <h1 class="press-title">{{ t("press.page.we-re-making-it", "We're making it") }}</h1>
     <p class="said">{{ job.title }}</p>
     <div id="press-watch" data-job="{{ job.id }}" data-made="{{ job.made|int }}"
          data-usually="{{ job.usually|round|int }}"></div>
@@ -69,46 +69,53 @@
       <a href="/">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
 
   {% elif job.stage == 'ready' %}
-    <h1>{{ job.title }}</h1>
-    {%- if job.english %}<p class="said">{{ job.english }}</p>{% endif %}
-    <ul class="scopes">
+    {#- The board's card (ConnConfirm): what it is over its title, the English under it,
+        how long until it is ready and in how many parts, then a hairline, what it uses
+        with what the month has left, and Confirm. -#}
+    {%- set minutes = ((job.seconds or 0) / 60)|round|int %}
+    {%- if job.audio and minutes %}
+    <p class="press-kicker">{{ t("library.minutes", "{n} min", n=minutes) }}{% if job.known_line %} · {{ job.known_line }}{% endif %}</p>
+    {%- elif job.known_line %}
+    <p class="press-kicker">{{ job.known_line }}</p>
+    {%- endif %}
+    <h1 class="press-title" dir="auto">{{ job.title }}</h1>
+    {%- if job.english %}<p class="press-english">{{ job.english }}</p>{% endif %}
+    <ul class="press-facts">
       {#- `usually` is seconds — `Library._how_long` says so. It was rendered as minutes
-          here, which promised "about 420 minutes" for a seven-minute build. -#}
+          here, which promised "about 420 minutes" for a seven-minute build. The quote's
+          guess is put away the moment the press lands, because from then on the page is
+          watching this build and can say something truer (2026-09-23). -#}
       {%- if job.usually and job.usually >= 30 %}
-      {#- The quote's guess, from what builds of this shape took here lately. It is put
-          away the moment the press lands, because from then on the page is watching this
-          build and can say something truer: a 68-chapter text was quoted a minute, and
-          the card went on saying "Ready in about 1 minute" while the line under it said
-          this was taking longer than usual (2026-09-23). Two numbers about the same wait,
-          disagreeing, on one card. -#}
-      <li id="press-quoted"><span class="scope-says">{{ tn("press.page.ready-in-about-minutes", (job.usually / 60)|round|int, "Ready in about {n} minute", "Ready in about {n} minutes") }}</span></li>
+      <li id="press-quoted"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.25l2 1.25"/></svg>{{ tn("press.page.ready-in-about-minutes", (job.usually / 60)|round|int, "Ready in about {n} minute", "Ready in about {n} minutes") }}</li>
       {%- endif %}
-      {%- if job.known_line %}
-      <li><span class="scope-says">{{ job.known_line }}</span></li>
-      {%- endif %}
-      {%- if job.audio %}
-      {#- A cost is credits since 2026-09-23 (§12), and a credit is a minute of audio or
-          video. This line read "Uses 1 minutes of your hours" for a one-minute video,
-          which is the whole reason the vocabulary changed; the rate lives beside the
-          balance, so a cost point says the figure alone. -#}
-      <li>
-        {#- The cost alone: "It has audio" beside it said what the reader already asked
-            for, and was dropped on 2026-09-25. -#}
-        <span class="scope-says">{{ tn("press.page.uses-credits", (job.seconds / 60)|round|int, "Uses {n} credit", "Uses {n} credits") }}</span>
-      </li>
       {#- One press gets the whole of it (David, 2026-10-07; design.md §12, "One press gets
-          the whole video, a part at a time"), so the page says how it arrives: the first
-          part now, each of the rest as the one before it is opened. The credits above are
-          the whole recording's, and nothing asks again. -#}
-      {%- if job.parts and job.parts > 1 %}
-      <li><span class="scope-says">{{ tn("press.page.in-parts", job.parts, "In {n} part, each made as you reach it", "In {n} parts, each made as you reach it") }}</span></li>
-      {%- endif %}
+          the whole video, a part at a time"), so the page says how it arrives. -#}
+      {%- if job.audio and job.parts and job.parts > 1 %}
+      <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 4.5h8M2.5 8h8M2.5 11.5h5M11.5 9.5v4l2.5-2z"/></svg>{{ tn("press.page.in-parts", job.parts, "In {n} part, each made as you reach it", "In {n} parts, each made as you reach it") }}</li>
       {%- endif %}
     </ul>
-    <form method="post" action="/build/{{ job.id }}" id="press" data-job="{{ job.id }}"
-          data-usually="{{ job.usually|round|int }}">
-      <button class="btn filled go" type="submit"><span class="go-says">{{ t("press.page.read-this", "Read this") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
-    </form>
+    <div class="press-foot">
+      <p class="press-cost">
+        {%- if job.audio %}
+        {#- A cost is credits since 2026-09-23 (§12), a credit a minute of audio or video;
+            the month's balance beside it, with the time it comes to. -#}
+        <b>{{ tn("press.page.uses-credits", minutes, "Uses {n} credit", "Uses {n} credits") }}</b>
+        {%- if credits.left is not none and credits.left is defined %}
+        <span>{{ tn("press.page.left-this-month", credits.left, "{n} left this month · about {clock} of audio", "{n} left this month · about {clock} of audio", clock=clock) }}</span>
+        {%- endif %}
+        {%- else %}
+        <b>{{ t("press.page.uses-no-credits", "Reading it uses no credits") }}</b>
+        {%- endif %}
+      </p>
+      <div class="press-acts">
+        {#- Not now presses nothing: it goes to Your targums, and the quote waits. -#}
+        <a class="btn ghost" href="/">{{ t("connect.page.not-now", "Not now") }}</a>
+        <form method="post" action="/build/{{ job.id }}" id="press" data-job="{{ job.id }}"
+              data-usually="{{ job.usually|round|int }}">
+          <button class="btn filled go" type="submit"><span class="go-says">{{ t("press.page.confirm", "Confirm") }}</span></button>
+        </form>
+      </div>
+    </div>
     <p class="said" id="press-doing" role="status" hidden></p>
     <p class="said" id="press-left" role="status" hidden></p>
     {#- Said before the press, and replaced by the way out once it is pressed: until then
@@ -118,7 +125,7 @@
       <a href="/">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
 
   {% else %}
-    <h1>{{ t("press.page.we-can-t-make-this-one", "We can't make this one") }}</h1>
+    <h1 class="press-title">{{ t("press.page.we-can-t-make-this-one", "We can't make this one") }}</h1>
     {%- if job.act == 'plan' and job.blocked and not job.error %}
     {#- A free reader out of credits, offered the plan in place (design.md §12, "A free
         reader meets the plan where they reach for it", 2026-10-09). -#}
@@ -131,8 +138,13 @@
   {% endif %}
   </div>
 </main>
+{% include '_foot.html.j2' %}
+<script>window.TARGUM_LANGUAGES = { {% for code, name in names %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
 <script>{{ asset('press.js') }}</script>
 </body>
 </html>

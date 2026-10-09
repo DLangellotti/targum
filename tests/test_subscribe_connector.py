@@ -170,7 +170,9 @@ def test_the_offer_card_fetches_nothing_and_presses_nothing() -> None:
         assert tool.name not in script, f"the card names {tool.name}"
     for door in ("ui/message", "ui/update-model-context", "sendFollowUpMessage"):
         assert door not in script, door
-    assert "createElement" not in script and "innerHTML" not in script
+    # Its tiles are letters it draws itself, never a picture (design.md §12, 2026-10-09).
+    assert set(re.findall(r'createElement\("(\w+)"\)', script)) == {"span"}
+    assert "innerHTML" not in script and ".src" not in script
     assert page.count("ui/initialize") == 1 and "var TargumCard" in page
 
 

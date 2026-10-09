@@ -160,7 +160,7 @@
   function stop(why) {
     if (button) {
       button.disabled = false;
-      says.textContent = t("press.page.read-this", "Read this");
+      says.textContent = t("press.page.confirm", "Confirm");
     }
     say(doing, why);
     say(left, "");

@@ -7,6 +7,7 @@
     about a build comes in from the tool result (`card.js`).
 
     No control here starts, confirms or spends anything. The door opens a page of ours. -#}
+{% from '_card_head.html.j2' import head %}
 <!doctype html>
 <html lang="{{ page_language }}">
 <head>
@@ -21,13 +22,14 @@
   data-working="{{ t("card.build.working", "Getting it ready") }}"
   data-ready="{{ t("card.build.ready", "Ready to read") }}"
   data-not-ready="{{ t("card.build.not-ready", "Not ready") }}">
-  <p class="card-label" id="label">{{ t("card.build.working", "Getting it ready") }}</p>
+  {% call head() %}<span class="card-kind" id="label">{{ t("card.build.working", "Getting it ready") }}</span>{% endcall %}
   <h1 class="card-title" id="title" dir="auto" hidden></h1>
   <p class="card-english" id="english" hidden></p>
   <div class="card-bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-labelledby="said" hidden><span id="fill"></span></div>
   <p class="card-said" id="said">{{ t("card.build.looking", "We're looking at where it has got to.") }}</p>
   <p class="card-stopped" id="stopped" hidden>{{ t("card.build.stopped", "We stopped following it here. Ask again to see where it has got to.") }}</p>
-  <a class="card-door" id="door" target="_blank" rel="noopener" hidden>{{ t("card.build.open", "Open") }}</a>
+  {#- The foot, once there is a door: where the text is kept, and Open (board ConnCards). -#}
+  <p class="card-foot" id="foot" hidden><span>{{ t("card.build.kept", "In Your targums") }}</span><a class="card-door" id="door" target="_blank" rel="noopener" hidden>{{ t("card.build.open", "Open") }}<svg class="card-arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.5 3.5h6v6M12.5 3.5 4 12"></path></svg></a></p>
 </article>
 <script>{{ asset('card-bridge.js') }}</script>
 <script>{{ asset('card.js') }}</script>

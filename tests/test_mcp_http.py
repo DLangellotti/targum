@@ -958,11 +958,12 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
     """The pill from the 2026-09-24 sneak peek, brought into the app.
 
     Its shape travels to every door's press (`.btn filled go`); its arrow does not. An arrow
-    says "this takes you somewhere", which is true of Read this, Open it and Connect and
-    false of Send a link — so it is written into the buttons that mean it, and a shared rule
-    cannot give it to the ones that do not. Its mark travels nowhere: two bars inside a
-    button say "targum, over here", which is worth saying inside somebody else's app and not
-    on a page that already carries the lockup.
+    says "this takes you somewhere", which is true of Open it and Connect and false of
+    Send a link, and of Confirm, which stays to show the build (design.md §12, "The
+    connector's pages are the boards'", 2026-10-09) — so it is written into the buttons
+    that mean it, and a shared rule cannot give it to the ones that do not. Its mark
+    travels nowhere: two bars inside a button say "targum, over here", which is worth
+    saying inside somebody else's app and not on a page that already carries the lockup.
     """
     import re
 
@@ -977,7 +978,7 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
         return found
 
     job = _quoted(audio=True, seconds=62.0, usually=420.0)
-    assert presses(builder.press_page(job)) == {"Read this": True}
+    assert presses(builder.press_page(job)) == {"Confirm": False}
     assert presses(builder.press_page({**job, "stage": "working"})) == {
         "See how it's going": False
     }, "looking again keeps you here"
@@ -1406,3 +1407,32 @@ def test_each_call_logs_its_tool_and_how_long_it_took(
 def test_instructions_leave_the_following_to_the_card() -> None:
     """A host that draws the build card is told not to poll beside it (2026-10-06)."""
     assert "card follows the build" in mcp_http.INSTRUCTIONS
+
+
+def test_the_press_pages_keep_the_full_top_bar_and_say_confirm() -> None:
+    """David, 2026-10-08 (design.md §12, "The connector's pages are the boards'"): the
+    press for one text and for a set stand in the app's shell, the bar over the board's
+    card, and the press says Confirm beside what the month has left. The press itself is
+    still the one form post; the bar adds no way to press."""
+    import re
+
+    from targum.render import builder
+
+    job = _quoted(audio=True, seconds=24 * 60.0, usually=360.0, parts=4)
+    page = builder.press_page(job, credits={"left": 354, "back": "November 1"})
+    assert '<header class="site-head">' in page and "From an assistant" in page
+    assert "Uses 24 credits" in page and "354 left this month · about 5 h 54 min of audio" in page
+    assert re.findall(r'<form[^>]*method="post"[^>]*>', page) == [
+        '<form method="post" action="/build/abc123" id="press" data-job="abc123"\n'
+        '              data-usually="360">'
+    ]
+    assert 'href="/">Not now</a>' in page, "Not now presses nothing"
+
+    items = [{"position": 0, "title": "בבית קפה", "job": "a"}]
+    jobs = [{"id": "a", "stage": "ready", "audio": True, "seconds": 300.0, "known_line": ""}]
+    held = builder.set_page(
+        {"id": 7, "name": "For the bus", "items": items}, jobs, balance={"left": 354, "back": "x"}
+    )
+    assert '<header class="site-head">' in held and "A playlist" in held
+    assert "Uses 5 credits in all" in held and ">Confirm</button>" in held
+    assert "354 left this month · comes back x" in held
