@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-08
+Home opens on the texts you were reading, each picking up at the sentence you left, on any device.
+Every text in the Library has a picture on its card, and an upload gets its own when it is added.
+The Tanakh map puts a check on each chapter you have read, with the Torah's year above it.
+
 2026-10-07
 A video in parts offers the next part at the end of each, and one press gets every part.
 A word's card can say any word aloud, even where no recording of the text covers it.
