@@ -1641,6 +1641,7 @@ def list_page(token: str, which: str, language: str = "en") -> str:
                 "playlist-menu.",
                 "home.",
                 "follow.",
+                "subs.",
             ),
         )
     )
@@ -3310,6 +3311,24 @@ def playlists_page(token: str, language: str = "en") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             strings=script_strings(language, "playlists.", "home.kind."),
+            token=token,
+            languages=_language_names(language),
+        )
+    )
+
+
+def subscription_page(token: str, language: str = "en") -> str:
+    """One subscription's own page (design.md §12, "A subscription is the account's",
+    2026-10-09): what it brought, newest first, its cap, Pause and Unsubscribe. Built like
+    Playlists: the server hands over the page and the browser asks for the subscription
+    the address names."""
+    return (
+        _environment()
+        .get_template("subscription.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            strings=script_strings(language, "subs.", "home.kind."),
             token=token,
             languages=_language_names(language),
         )

@@ -374,25 +374,14 @@
         });
       }
 
-      /* Subscriptions (design.md §12, 2026-10-08): what used to be called Following —
-         the series that come out on their own clock, each with its switch — drawn by
-         `follow.js`, which also draws them on the profile. The full feature, channels and
-         podcasts with a cap, is a later slice. */
+      /* Subscriptions (design.md §12, "A subscription is the account's", 2026-10-09):
+         every subscription as a row, drawn by `subs.js` (`TargumSubs.drawTab`), which
+         falls back to `follow.js`'s list of series for a reader signed out. */
       var subsPanel = document.getElementById("subs-panel");
-      var subsAsked = null;
       function drawSubscriptions() {
-        var follow = window.TargumFollow;
-        if (!subsPanel || !follow) return;
-        if (!subsAsked) subsAsked = follow.list();
-        subsAsked.then(function (series) {
-          var host = document.getElementById("home-series");
-          var none = document.getElementById("subs-empty");
-          var order = series.slice().sort(function (a, b) {
-            return (follow.following(b.id) ? 1 : 0) - (follow.following(a.id) ? 1 : 0);
-          });
-          follow.draw(host, order);
-          if (none) none.hidden = series.length > 0;
-        });
+        var subs = window.TargumSubs;
+        if (!subsPanel || !subs) return;
+        subs.drawTab(subsPanel);
       }
 
       function render() {

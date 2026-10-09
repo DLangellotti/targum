@@ -3482,6 +3482,8 @@ def test_the_way_out_is_in_the_language_the_reader_followed_in(
     at a reader whose library, whose letter and whose follow button were all Russian."""
     port, key, out = served
     book = Store(out.parent / "words.db")
+    # An account to subscribe with (design.md §12, 2026-10-09).
+    book.finish_sign_in(book.start_sign_in("r@example.org"))
     book.follow_series("r@example.org", "parasha", language="ru")
     ((_, stop, said),) = book.followers("parasha")
     assert said == "ru"

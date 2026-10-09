@@ -4781,6 +4781,10 @@ _ENDING = threading.Lock()
 #: One playlist's own page (#434), `/playlists/<id>`: the same page as the tab.
 PLAYLIST_PAGE = re.compile(r"/playlists/\d+")
 
+#: One subscription's own page (design.md §12, "A subscription is the account's",
+#: 2026-10-09), `/subscriptions/<id>`.
+SUBSCRIPTION_PAGE = re.compile(r"/subscriptions/(\d+)")
+
 
 def playlist_answer(found: dict[str, Any]) -> dict[str, Any]:
     """A playlist as `/playlists/<id>.json` says it: each text with the address it opens
@@ -4817,6 +4821,9 @@ class Handler(BaseHTTPRequestHandler):
     #: how the tests build one that serves no map.
     tanakh: str = ""
     playlists: str
+    #: One subscription's page (design.md §12, 2026-10-09). Empty on a handler built by
+    #: hand that serves none.
+    subscription_html: str = ""
     catalogue: str
     you: str
     #: The conversation page, and the workers that answer it. Empty and None on a
@@ -4967,6 +4974,7 @@ class Handler(BaseHTTPRequestHandler):
             or route.lstrip("/") in self.lists
             or route.startswith(self.PAGE_PREFIXES)
             or bool(PLAYLIST_PAGE.fullmatch(route))
+            or bool(SUBSCRIPTION_PAGE.fullmatch(route))
         )
 
     def _not_found(self) -> None:
@@ -7100,6 +7108,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
             )
+        if SUBSCRIPTION_PAGE.fullmatch(route):
+            # One subscription's page; the script reads which from the address.
+            page = self._desk("subscription", self.subscription_html)
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/subscriptions.json":
+            return self._subscriptions_get(None)
+        if route.startswith("/subscriptions/") and route.endswith(".json"):
+            return self._subscriptions_get(route[len("/subscriptions/") : -len(".json")])
         if route == "/playlists" or PLAYLIST_PAGE.fullmatch(route):
             # One page for the tab and for one playlist (#434): the script reads which
             # from the address.
@@ -7391,6 +7407,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._telegram_account(payload)
         if route == "/account/prompts":
             return self._prompts(payload)
+        if route == "/subscriptions/seen":
+            return self._subscription_seen(payload)
+        if SUBSCRIPTION_PAGE.fullmatch(route):
+            return self._subscriptions_post(route[len("/subscriptions/") :], payload)
         if route == "/playlists":
             return self._playlists_post(None, payload)
         if route.startswith("/playlists/targum/"):
@@ -8548,6 +8568,122 @@ class Handler(BaseHTTPRequestHandler):
                 400,
             )
         self._json({"written": written, "prompts": self.store.prompts(person.id)})
+
+    def _subscriptions_get(self, which: str | None) -> None:
+        """The reader's subscriptions, or one of them with what it brought (design.md
+        §12, 2026-10-09). Theirs and nobody else's: another account's id is a 404, the
+        same answer as an id that does not exist."""
+        from . import subscriptions as subs
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        from . import series as series_module
+
+        schedule = parse_qs(urlparse(self.path).query).get("schedule", ["diaspora"])[0]
+        language = self._ui_language()
+        month_from = self.library._month_from()
+        public = shelves_are_public()
+        if which is not None:
+            found = (
+                subs.one(
+                    self.store,
+                    person.id,
+                    int(which),
+                    month_from=month_from,
+                    now_ms=now(),
+                    schedule=schedule,
+                    public=public,
+                    language=language,
+                )
+                if which.isdigit()
+                else None
+            )
+            if found is None:
+                return self._json({"error": "not found"}, 404)
+            return self._json(
+                {"signedIn": True, "subscription": found, **self._sub_credits(person)}
+            )
+        rows = subs.shown(
+            self.store,
+            person.id,
+            month_from=month_from,
+            now_ms=now(),
+            schedule=schedule,
+            public=public,
+            language=language,
+        )
+        offered = [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "hebrew": row.get("hebrew", ""),
+                "what": row.get("what", ""),
+                "page": row.get("page", ""),
+            }
+            for row in series_module.current(schedule, public=public, language=language)
+        ]
+        return self._json(
+            {
+                "signedIn": True,
+                "subscriptions": rows,
+                # The series this box has, so the tab can offer the ones not taken.
+                "series": offered,
+                **self._sub_credits(person),
+            }
+        )
+
+    def _sub_credits(self, person: Person) -> dict[str, Any]:
+        """The month's credits beside a subscription: what is left of the plan's, and
+        when they come back. None where the reader is held to no monthly allowance."""
+        allowed = self.library.upload_seconds
+        if allowed is None or person.admin:
+            return {
+                "credits": {"left": None, "back": self.library._month_ends(self._ui_language())}
+            }
+        used = self.store.hours_used(person.id, self.library._month_from())
+        return {
+            "credits": {
+                "left": max(0, int((allowed - used) // SECONDS_A_CREDIT)),
+                "back": self.library._month_ends(self._ui_language()),
+            }
+        }
+
+    def _subscriptions_post(self, which: str, payload: dict[str, Any]) -> None:
+        """Pause, resume or stop one subscription, on the reader's own press. Every
+        change is the reader's: nothing a model holds reaches this door."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        sub_id = int(which) if which.isdigit() else 0
+        found = self.store.subscription(person.id, sub_id)
+        if found is None:
+            return self._json({"error": "not found"}, 404)
+        action = str(payload.get("action") or "")
+        states = {"pause": "paused", "resume": "on", "unsubscribe": "off"}
+        if action not in states:
+            return self._json(
+                {"error": self._say("serve.subscription-what", "We couldn't tell what to change.")},
+                400,
+            )
+        self.store.set_subscription_state(person.id, sub_id, states[action])
+        if found["kind"] == "series" and found["key"] == "weekly":
+            # The weekly's mail is `subscriber`'s: kept in step, as `/account/follows` keeps it.
+            self.store.follow(person.email, states[action] == "on", self._page_language())
+        return self._subscriptions_get(str(sub_id))
+
+    def _subscription_seen(self, payload: dict[str, Any]) -> None:
+        """An item opened from home is no longer New."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            sub_id = int(payload.get("subscription") or 0)
+        except (TypeError, ValueError):
+            sub_id = 0
+        key = str(payload.get("key") or "")
+        done = bool(sub_id and key) and self.store.saw_sub_item(person.id, sub_id, key)
+        return self._json({"seen": done})
 
     def _playlists_get(self, which: str | None) -> None:
         """The reader's playlists, or one of them with its texts (targum-internal#364).
@@ -12211,6 +12347,7 @@ def start(
         list_page,
         playlists_page,
         progress_page,
+        subscription_page,
         tanakh_map_page,
         welcome_page,
         you_page,
@@ -12275,6 +12412,7 @@ def start(
             "welcome": welcome_page(token, connector=connector_is_open()),
             "you": you_page(token),
             "playlists": playlists_page(token),
+            "subscription_html": subscription_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
             "chatting": chat_page(token),
@@ -12293,6 +12431,7 @@ def start(
                     "welcome": welcome_page(token, language=code, connector=connector_is_open()),
                     "you": you_page(token, language=code),
                     "playlists": playlists_page(token, language=code),
+                    "subscription": subscription_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
                     "catalogue": library_page(token, language=code),
                     "chatting": chat_page(token, language=code),

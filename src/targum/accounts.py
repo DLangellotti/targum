@@ -38,7 +38,7 @@ import secrets
 import sqlite3
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -257,10 +257,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    "Play next" puts a text after the item they are on. Columns on a table every box
 #    has, so they are in MIGRATIONS; NULL until the first item opened from a list.
 #
+# 42→43: the subscription and sub_item tables — what a reader subscribed to and what each
+#    one brought (design.md §12, "A subscription is the account's", 2026-10-09). New
+#    tables, so `CREATE TABLE IF NOT EXISTS` makes them; MIGRATIONS carries every `follow`
+#    row across to its account, and every account's own weekly subscription, once each
+#    (`INSERT OR IGNORE`, so running it again on every open changes nothing). `follow` is
+#    no longer written.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 42
+SCHEMA_VERSION = 43
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -334,7 +341,21 @@ WIPED = (
     "link",
 )
 #: Keyed by person and emptied by hand in `Store.wipe`, their children first.
-WIPE_BY_HAND = ("chat", "playlist")
+WIPE_BY_HAND = ("chat", "playlist", "subscription")
+
+#: What can be subscribed to (design.md §12, "A subscription is the account's",
+#: 2026-10-09): targum's series, a news topic, one outlet, a YouTube channel, a podcast.
+SUB_KINDS = ("series", "topic", "outlet", "channel", "podcast")
+#: The two that get each new item ready by themselves, inside a monthly cap.
+SUB_BUILDS = ("channel", "podcast")
+SUB_STATES = ("on", "paused", "off")
+#: The caps a reader chooses from, in credits a month, and the one chosen for them
+#: (David, 2026-10-08: sixty credits, an hour).
+CAPS = (30, 60, 120, 240)
+DEFAULT_CAP = 60
+#: A credit is a minute of audio or video (design.md §12, 2026-09-23) — the same minute
+#: as `serve.SECONDS_A_CREDIT`, said here because the store counts a cap in it.
+SECONDS_A_CREDIT = 60
 
 # Who is not a reader but the person running the box. An address here is exempt from the
 # per-account spend rails — see `serve.Library.claim` — because the limits exist to stop
@@ -573,6 +594,25 @@ MIGRATIONS: tuple[str, ...] = (
     # visited last is the one they are in, until they have gone through it.
     "ALTER TABLE playlist ADD COLUMN at INTEGER",
     "ALTER TABLE playlist ADD COLUMN visited INTEGER",
+    # Every follow, carried to its account (schema 43, design.md §12, 2026-10-09) with
+    # its stop token, so a link in a mail already sent still stops it, and with what it
+    # last sent, so nothing is mailed twice. A follow whose address has no account has
+    # nowhere to go and stays where it was. `OR IGNORE`: a row already carried, or made
+    # since, is never overwritten — this runs on every open, like everything here.
+    "INSERT OR IGNORE INTO subscription"
+    " (person, kind, key, language, state, stop, since, ended, sent, instalment, said)"
+    " SELECT person.id, 'series', follow.series, 'he', follow.state, follow.stop,"
+    " follow.since, follow.ended, follow.sent, follow.instalment, follow.language"
+    " FROM follow JOIN person ON person.email = follow.email",
+    # And each account's own weekly, which lived only in `subscriber`. Its mail stays
+    # there — the Monday mailout reads `subscriber`, and its anonymous subscribers are
+    # left exactly as they are — and this row is what the Subscriptions tab shows.
+    "INSERT OR IGNORE INTO subscription"
+    " (person, kind, key, language, state, stop, since, said)"
+    " SELECT person.id, 'series', 'weekly', 'he', 'on', lower(hex(randomblob(16))),"
+    " MAX(subscriber.joined, subscriber.asked), subscriber.language"
+    " FROM subscriber JOIN person ON person.email = subscriber.email"
+    " WHERE subscriber.state = 'on'",
 )
 
 SCHEMA = """
@@ -1255,6 +1295,71 @@ CREATE TABLE IF NOT EXISTS playlist_item (
   PRIMARY KEY (playlist, position)
 );
 CREATE INDEX IF NOT EXISTS playlist_item_job ON playlist_item (job);
+
+-- What a reader subscribed to (design.md §12, "A subscription is the account's",
+-- 2026-10-09): one of targum's series, a news topic or outlet, a YouTube channel or a
+-- podcast. On the account, where `follow` was a fact about an address. A row is never
+-- deleted while the account stands: `state` is on, paused or off, because "they asked to
+-- stop" and "they never subscribed" are different facts, as they are for `subscriber`.
+--
+-- `key` is what the kind names it by: the series' id, the topic, the outlet's key in
+-- sources.json, the channel's id (UC…), the podcast's feed address. `source` is the
+-- address the reader gave, where there was one. `language` is the language of what it
+-- brings; `said` the one the reader reads targum in, which the mail and the stop page are
+-- in. `cap` is the month's credits a channel or a podcast may build with (the second
+-- press that lasts, design.md §12); 0 for everything else, which builds nothing. `stop`
+-- is in the clear for the reason `subscriber.stop` is. `sent` and `instalment` are what
+-- the per-series mail last sent, carried from `follow`.
+CREATE TABLE IF NOT EXISTS subscription (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  person     INTEGER NOT NULL,
+  kind       TEXT    NOT NULL,
+  key        TEXT    NOT NULL,
+  name       TEXT    NOT NULL DEFAULT '',
+  language   TEXT    NOT NULL DEFAULT '',
+  source     TEXT    NOT NULL DEFAULT '',
+  cap        INTEGER NOT NULL DEFAULT 0,
+  state      TEXT    NOT NULL DEFAULT 'on',
+  stop       TEXT    NOT NULL,
+  since      INTEGER NOT NULL,
+  paused     INTEGER NOT NULL DEFAULT 0,
+  ended      INTEGER NOT NULL DEFAULT 0,
+  polled     INTEGER NOT NULL DEFAULT 0,
+  sent       INTEGER NOT NULL DEFAULT 0,
+  instalment TEXT    NOT NULL DEFAULT '',
+  said       TEXT    NOT NULL DEFAULT '',
+  UNIQUE (person, kind, key)
+);
+CREATE INDEX IF NOT EXISTS subscription_stop ON subscription (stop);
+
+-- One thing a subscription brought: an instalment, an article, a video, an episode. Keyed
+-- by what its source calls it, so finding it twice finds it once. `state` says what it is
+-- now: `ready` (it opens, at `reader`), `listed` (a link with a press each: news, and
+-- anything from before subscribing or from while paused), `due` (a channel's or a
+-- podcast's, to be got ready by itself), `building` (its `job` is running), `waiting`
+-- (`why` says on what: the cap, the plan, the box) or `failed`. `came` is '' for what
+-- came out while subscribed, `before` for what was already out and `paused` for what came
+-- out while paused: those two are never built by themselves. `seen` is when the reader
+-- opened it from home, `mailed` when it went out in a mail.
+CREATE TABLE IF NOT EXISTS sub_item (
+  subscription INTEGER NOT NULL,
+  key        TEXT    NOT NULL,
+  title      TEXT    NOT NULL DEFAULT '',
+  link       TEXT    NOT NULL DEFAULT '',
+  reader     TEXT    NOT NULL DEFAULT '',
+  published  INTEGER NOT NULL DEFAULT 0,
+  found      INTEGER NOT NULL,
+  seconds    REAL    NOT NULL DEFAULT 0,
+  state      TEXT    NOT NULL DEFAULT 'listed',
+  why        TEXT    NOT NULL DEFAULT '',
+  job        TEXT    NOT NULL DEFAULT '',
+  credits    INTEGER NOT NULL DEFAULT 0,
+  came       TEXT    NOT NULL DEFAULT '',
+  seen       INTEGER NOT NULL DEFAULT 0,
+  mailed     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (subscription, key)
+);
+CREATE INDEX IF NOT EXISTS sub_item_state ON sub_item (state);
 
 CREATE INDEX IF NOT EXISTS oauth_token_person ON oauth_token (person, kind, revoked);
 CREATE INDEX IF NOT EXISTS oauth_grant_person ON oauth_grant (person);
@@ -2089,6 +2194,7 @@ class Store:
                     "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
                     (now(), address),
                 )
+                self._weekly_row(db, address, False, "")
                 return False
             db.execute(
                 """
@@ -2107,6 +2213,7 @@ class Store:
                     spoken,
                 ),
             )
+            self._weekly_row(db, address, True, spoken)
         return True
 
     def subscription_language(self, token: str) -> str:
@@ -2151,6 +2258,8 @@ class Store:
                 "UPDATE subscriber SET state = 'on', confirm = NULL, joined = ? WHERE email = ?",
                 (now(), row["email"]),
             )
+            # An account at this address sees it on its Subscriptions tab too.
+            self._weekly_row(db, str(row["email"]), True, "")
             return str(row["email"])
 
     def stop_subscription(self, token: str) -> bool:
@@ -2165,6 +2274,7 @@ class Store:
                 "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
                 (now(), row["email"]),
             )
+            self._weekly_row(db, str(row["email"]), False, "")
             return True
 
     # -- the waitlist (2026-09-16) ----------------------------------------------------
@@ -2350,67 +2460,372 @@ class Store:
             )
         return self.person_by_email(address)
 
-    # -- series (2026-09-11) ---------------------------------------------------------
+    # -- subscriptions (design.md §12, "A subscription is the account's", 2026-10-09) ---
+    #
+    # What a reader subscribed to is a row on their account. A series' follow was a row
+    # keyed by address (`follow`, 2026-09-11) and is carried across by MIGRATIONS; the
+    # methods that spoke of following keep their names and their answers, and read and
+    # write `subscription` underneath, so the per-series mail and its stop page go on
+    # working on the rows they always had.
+
+    def _subscription_row(self, row: sqlite3.Row | None) -> dict[str, Any] | None:
+        return dict(row) if row is not None else None
+
+    def add_subscription(
+        self,
+        person_id: int,
+        kind: str,
+        key: str,
+        *,
+        name: str = "",
+        language: str = "",
+        source: str = "",
+        cap: int = 0,
+        said: str = "",
+    ) -> dict[str, Any]:
+        """Subscribe, or subscribe again. Returns the row.
+
+        A subscription that was off is on again from now: what came out while it was off
+        is from before, and is listed rather than built (design.md §12). One that is
+        paused stays paused — subscribing is not resuming, which is its own press. `cap`
+        is written only where one is given; `said` on every press, for the reason
+        `follow_series` gave.
+        """
+        if kind not in SUB_KINDS or not key:
+            raise ValueError("No such subscription.")
+        code = _language_code(said) if said else ""
+        stamp = now()
+        with self.write() as db:
+            db.execute(
+                """
+                INSERT INTO subscription
+                    (person, kind, key, name, language, source, cap, state, stop, since, said)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'on', ?, ?, ?)
+                ON CONFLICT(person, kind, key) DO UPDATE SET
+                    since = CASE WHEN state = 'off' THEN excluded.since ELSE since END,
+                    ended = CASE WHEN state = 'off' THEN 0 ELSE ended END,
+                    state = CASE WHEN state = 'off' THEN 'on' ELSE state END,
+                    name = CASE WHEN excluded.name != '' THEN excluded.name ELSE name END,
+                    language = CASE WHEN excluded.language != '' THEN excluded.language
+                        ELSE language END,
+                    source = CASE WHEN excluded.source != '' THEN excluded.source
+                        ELSE source END,
+                    cap = CASE WHEN excluded.cap > 0 THEN excluded.cap ELSE cap END,
+                    said = CASE WHEN excluded.said != '' THEN excluded.said ELSE said END
+                """,
+                (
+                    person_id,
+                    kind,
+                    key,
+                    name,
+                    language,
+                    source,
+                    max(0, int(cap)),
+                    secrets.token_urlsafe(TOKEN_BYTES),
+                    stamp,
+                    code,
+                ),
+            )
+            row = db.execute(
+                "SELECT * FROM subscription WHERE person = ? AND kind = ? AND key = ?",
+                (person_id, kind, key),
+            ).fetchone()
+        return dict(row)
+
+    def set_subscription_state(self, person_id: int, sub_id: int, state: str) -> bool:
+        """Pause, resume or stop one of this reader's subscriptions. False where it is not
+        theirs or is already off. Pausing stops the building and the mail; resuming
+        builds nothing that came out meanwhile — the poll listed it as `paused`."""
+        if state not in SUB_STATES:
+            raise ValueError("No such state.")
+        stamp = now()
+        with self.write() as db:
+            found = db.execute(
+                "SELECT state FROM subscription WHERE id = ? AND person = ?", (sub_id, person_id)
+            ).fetchone()
+            if found is None or (str(found["state"]) == "off" and state != "on"):
+                return False
+            db.execute(
+                "UPDATE subscription SET state = ?,"
+                " paused = CASE WHEN ? = 'paused' THEN ? ELSE 0 END,"
+                " ended = CASE WHEN ? = 'off' THEN ? ELSE 0 END,"
+                " since = CASE WHEN state = 'off' THEN ? ELSE since END"
+                " WHERE id = ?",
+                (state, state, stamp, state, stamp, stamp, sub_id),
+            )
+            # A paused or stopped subscription builds nothing: what was waiting for its
+            # turn is listed with a press, never left to go by itself on a resume.
+            if state != "on":
+                db.execute(
+                    "UPDATE sub_item SET state = 'listed', why = '', came = 'paused'"
+                    " WHERE subscription = ? AND state IN ('due', 'waiting')",
+                    (sub_id,),
+                )
+        return True
+
+    def set_subscription_cap(self, person_id: int, sub_id: int, cap: int) -> bool:
+        """Change a channel's or a podcast's monthly cap, on the reader's own press. Only
+        to one of the caps the page offers; anything else changes nothing."""
+        if cap not in CAPS:
+            return False
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE subscription SET cap = ? WHERE id = ? AND person = ?"
+                " AND kind IN ('channel', 'podcast')",
+                (cap, sub_id, person_id),
+            ).rowcount
+        return bool(done)
+
+    def subscription(self, person_id: int | None, sub_id: int) -> dict[str, Any] | None:
+        """One of this reader's subscriptions, or None — never somebody else's."""
+        if person_id is None:
+            return None
+        return self._subscription_row(
+            self.db.execute(
+                "SELECT * FROM subscription WHERE id = ? AND person = ?", (sub_id, person_id)
+            ).fetchone()
+        )
+
+    def subscription_for(self, person_id: int | None, kind: str, key: str) -> dict[str, Any] | None:
+        if person_id is None:
+            return None
+        return self._subscription_row(
+            self.db.execute(
+                "SELECT * FROM subscription WHERE person = ? AND kind = ? AND key = ?",
+                (person_id, kind, key),
+            ).fetchone()
+        )
+
+    def subscriptions(self, person_id: int | None, *, every: bool = False) -> list[dict[str, Any]]:
+        """This reader's subscriptions, the ones they stopped left out unless `every`:
+        each row, with how many of its items are new to them and its newest item."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT * FROM subscription WHERE person = ?"
+            + ("" if every else " AND state != 'off'")
+            + " ORDER BY since",
+            (person_id,),
+        ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            one = dict(row)
+            latest = self.db.execute(
+                "SELECT * FROM sub_item WHERE subscription = ? AND came = ''"
+                " ORDER BY published DESC, found DESC LIMIT 1",
+                (one["id"],),
+            ).fetchone()
+            one["latest"] = dict(latest) if latest is not None else None
+            fresh = self.db.execute(
+                "SELECT COUNT(*) AS n FROM sub_item WHERE subscription = ? AND came = ''"
+                " AND seen = 0 AND state IN ('ready', 'listed')",
+                (one["id"],),
+            ).fetchone()
+            one["new"] = int(fresh["n"])
+            out.append(one)
+        return out
+
+    def live_subscriptions(self) -> list[dict[str, Any]]:
+        """Every subscription that is on or paused, for the poll: a paused one is still
+        looked at, so what comes out meanwhile can be listed when it resumes."""
+        rows = self.db.execute(
+            "SELECT s.*, p.email AS email FROM subscription s JOIN person p ON p.id = s.person"
+            " WHERE s.state IN ('on', 'paused') AND p.leaving IS NULL ORDER BY s.polled, s.id"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def polled(self, sub_id: int) -> None:
+        """Stamp a subscription as looked at: the poll's checkpoint, written once its
+        items are, so a run that dies resumes with the ones it had not reached."""
+        with self.write() as db:
+            db.execute("UPDATE subscription SET polled = ? WHERE id = ?", (now(), sub_id))
+
+    def sub_items(self, sub_id: int, limit: int = 60) -> list[dict[str, Any]]:
+        """What one subscription brought, newest first."""
+        rows = self.db.execute(
+            "SELECT * FROM sub_item WHERE subscription = ?"
+            " ORDER BY published DESC, found DESC LIMIT ?",
+            (sub_id, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def add_sub_items(self, sub_id: int, items: Iterable[Mapping[str, Any]]) -> int:
+        """Write what a look found. An item already here is left as it is, so a look that
+        runs twice finds nothing the second time. Returns how many were new."""
+        stamp = now()
+        added = 0
+        with self.write() as db:
+            for item in items:
+                key = str(item.get("key") or "")
+                if not key:
+                    continue
+                added += db.execute(
+                    "INSERT OR IGNORE INTO sub_item"
+                    " (subscription, key, title, link, reader, published, found, seconds,"
+                    " state, came)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        sub_id,
+                        key,
+                        str(item.get("title") or ""),
+                        str(item.get("link") or ""),
+                        str(item.get("reader") or ""),
+                        int(item.get("published") or 0),
+                        stamp,
+                        float(item.get("seconds") or 0),
+                        str(item.get("state") or "listed"),
+                        str(item.get("came") or ""),
+                    ),
+                ).rowcount
+        return added
+
+    #: What `set_sub_item` may change.
+    SUB_ITEM_FIELDS = frozenset({"state", "why", "job", "reader", "credits", "seen", "mailed"})
+
+    def set_sub_item(self, sub_id: int, key: str, **fields: Any) -> None:
+        wrong = set(fields) - self.SUB_ITEM_FIELDS
+        if wrong or not fields:
+            raise ValueError(f"Not a field of a subscription's item: {sorted(wrong)}")
+        sets = ", ".join(f"{name} = ?" for name in fields)
+        with self.write() as db:
+            db.execute(
+                f"UPDATE sub_item SET {sets} WHERE subscription = ? AND key = ?",
+                (*fields.values(), sub_id, key),
+            )
+
+    def sub_items_in(self, states: Iterable[str]) -> list[dict[str, Any]]:
+        """Every item in these states, with its subscription's owner, kind and cap."""
+        wanted = tuple(states)
+        holes = ", ".join("?" for _ in wanted)
+        rows = self.db.execute(
+            "SELECT i.*, s.person AS person, s.kind AS kind, s.cap AS cap, s.state AS sub_state,"
+            " s.language AS language, s.said AS said"
+            f" FROM sub_item i JOIN subscription s ON s.id = i.subscription"
+            f" WHERE i.state IN ({holes}) ORDER BY i.published, i.found",
+            wanted,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def month_credits(self, person_id: int, sub_id: int, month_from: int) -> int:
+        """What one subscription has built with this month, in credits — read off its own
+        job rows, the same `length` `claim` holds the plan to, so there is one ledger."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(length), 0) AS used FROM job"
+            " WHERE kind = 'subscription' AND owner = ? AND made >= ?"
+            " AND json_extract(options, '$.subscription') = ?",
+            (person_id, month_from, sub_id),
+        ).fetchone()
+        return round(float(row["used"]) / SECONDS_A_CREDIT)
+
+    def new_sub_items(self, person_id: int | None, limit: int = 6) -> list[dict[str, Any]]:
+        """What this reader's subscriptions brought that they have not opened from home,
+        newest first: Continue's New cards. Only what came while they were subscribed and
+        that opens or is a link — nothing still being made, and nothing paused."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT i.*, s.kind AS kind, s.key AS sub_key, s.name AS sub_name,"
+            " s.language AS language FROM sub_item i JOIN subscription s"
+            " ON s.id = i.subscription"
+            " WHERE s.person = ? AND s.state = 'on' AND i.came = '' AND i.seen = 0"
+            " AND i.state IN ('ready', 'listed') AND i.found >= s.since"
+            " ORDER BY i.published DESC, i.found DESC LIMIT ?",
+            (person_id, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def saw_sub_item(self, person_id: int, sub_id: int, key: str) -> bool:
+        """The reader opened it from home: it is no longer New."""
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE sub_item SET seen = ? WHERE subscription = ? AND key = ?"
+                " AND subscription IN (SELECT id FROM subscription WHERE person = ?)",
+                (now(), sub_id, key, person_id),
+            ).rowcount
+        return bool(done)
+
+    def subscription_by_stop(self, token: str) -> dict[str, Any] | None:
+        """The subscription a stop link names, for the page it opens."""
+        if not token:
+            return None
+        return self._subscription_row(
+            self.db.execute("SELECT * FROM subscription WHERE stop = ?", (token,)).fetchone()
+        )
+
+    def _weekly_row(self, db: sqlite3.Connection, email: str, on: bool, said: str) -> None:
+        """Keep an account's own weekly row in step with `subscriber`, which is where the
+        Monday mail is read from. Nothing for an address without an account."""
+        person = db.execute("SELECT id FROM person WHERE email = ?", (tidy(email),)).fetchone()
+        if person is None:
+            return
+        stamp = now()
+        if on:
+            db.execute(
+                "INSERT INTO subscription (person, kind, key, language, state, stop, since, said)"
+                " VALUES (?, 'series', 'weekly', 'he', 'on', ?, ?, ?)"
+                " ON CONFLICT(person, kind, key) DO UPDATE SET state = 'on', ended = 0,"
+                " said = CASE WHEN excluded.said != '' THEN excluded.said ELSE said END",
+                (int(person["id"]), secrets.token_urlsafe(TOKEN_BYTES), stamp, said),
+            )
+        else:
+            # A paused weekly is left paused: pausing is what turned its mail off.
+            db.execute(
+                "UPDATE subscription SET state = 'off', ended = ?"
+                " WHERE person = ? AND kind = 'series' AND key = 'weekly' AND state = 'on'",
+                (stamp, int(person["id"])),
+            )
+
+    # -- series (2026-09-11), on the subscription rows since 2026-10-09 --------------
 
     def follow_series(self, email: str, series: str, on: bool = True, language: str = "") -> bool:
-        """Follow, or stop following, one series. Signed in, so nothing is confirmed.
+        """Subscribe to, or stop, one series, for the account at this address.
 
         `language` is the one the reader was reading in when they pressed, kept so the
-        mail and the stop page can be in it (targum-internal#289). It is written on every
-        press rather than only the first, because a reader who changed language and
-        followed again means the new one; and it is never cleared on a stop, so somebody
-        who follows again after stopping keeps what they last said.
+        mail and the stop page can be in it (targum-internal#289). Written on every press,
+        and never cleared on a stop. An address with no account behind it has nothing to
+        subscribe with since 2026-10-09, and is answered False.
         """
         address = tidy(email)
         if not address or not series:
             raise ValueError("No address or no series given.")
-        code = language.split("-")[0].lower() if language else ""
-        with self.write() as db:
-            if not on:
-                db.execute(
-                    "UPDATE follow SET state = 'off', ended = ? WHERE email = ? AND series = ?",
-                    (now(), address, series),
-                )
-                return False
-            db.execute(
-                """
-                INSERT INTO follow (email, series, state, stop, since, language)
-                VALUES (?, ?, 'on', ?, ?, ?)
-                ON CONFLICT(email, series)
-                    DO UPDATE SET state = 'on', since = ?, language = ?
-                """,
-                (
-                    address,
-                    series,
-                    secrets.token_urlsafe(TOKEN_BYTES),
-                    now(),
-                    code,
-                    now(),
-                    code,
-                ),
-            )
+        person = self.person_by_email(address)
+        if person is None:
+            return False
+        if not on:
+            found = self.subscription_for(person.id, "series", series)
+            if found is not None:
+                self.set_subscription_state(person.id, int(found["id"]), "off")
+            return False
+        self.add_subscription(person.id, "series", series, language="he", said=language)
         return True
 
     def series_followed(self, email: str) -> list[str]:
+        """The series this address's account is subscribed to, the weekly left out: it is
+        `subscriber`'s, and `following` answers for it."""
         rows = self.db.execute(
-            "SELECT series FROM follow WHERE email = ? AND state = 'on' ORDER BY series",
+            "SELECT s.key FROM subscription s JOIN person p ON p.id = s.person"
+            " WHERE p.email = ? AND s.kind = 'series' AND s.key != 'weekly'"
+            " AND s.state = 'on' ORDER BY s.key",
             (tidy(email),),
         ).fetchall()
-        return [str(row["series"]) for row in rows]
+        return [str(row["key"]) for row in rows]
 
     def followers(self, series: str, not_sent: str = "") -> list[tuple[str, str, str]]:
         """Everyone to mail about this instalment, with the token that stops it and the
-        language they follow in.
+        language they subscribed in.
 
         Selected on "has not had this one", as the weekly's are, so a run that died
-        halfway resumes and one started twice sends nothing the second time.
+        halfway resumes and one started twice sends nothing the second time. A paused
+        subscription is not mailed.
         """
         rows = self.db.execute(
-            "SELECT email, stop, language FROM follow WHERE series = ? AND state = 'on' "
-            "AND (? = '' OR instalment != ?) ORDER BY since",
+            "SELECT p.email AS email, s.stop AS stop, s.said AS said"
+            " FROM subscription s JOIN person p ON p.id = s.person"
+            " WHERE s.kind = 'series' AND s.key = ? AND s.state = 'on'"
+            " AND p.leaving IS NULL AND (? = '' OR s.instalment != ?) ORDER BY s.since",
             (series, not_sent, not_sent),
         ).fetchall()
-        return [(str(row["email"]), str(row["stop"]), str(row["language"] or "en")) for row in rows]
+        return [(str(row["email"]), str(row["stop"]), str(row["said"] or "en")) for row in rows]
 
     def following_language(self, token: str) -> str:
         """The language behind a stop token, for the page it opens.
@@ -2418,38 +2833,48 @@ class Store:
         A stop link is followed with no session and no account — that is the whole point
         of it — so the token is the only thing the page has to go on.
         """
-        if not token:
-            return "en"
-        row = self.db.execute("SELECT language FROM follow WHERE stop = ?", (token,)).fetchone()
-        return str(row["language"] or "en") if row is not None else "en"
+        found = self.subscription_by_stop(token)
+        return str(found["said"] or "en") if found is not None else "en"
 
     def following_series(self, token: str) -> str:
         """Which series a stop token is for, or "" — so the page it opens can name it."""
-        if not token:
+        found = self.subscription_by_stop(token)
+        if found is None or found["kind"] != "series":
             return ""
-        row = self.db.execute("SELECT series FROM follow WHERE stop = ?", (token,)).fetchone()
-        return str(row["series"] or "") if row is not None else ""
+        return str(found["key"])
 
     def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
         with self.write() as db:
             db.execute(
-                "UPDATE follow SET sent = ?, instalment = ? WHERE email = ? AND series = ?",
-                (now(), instalment, tidy(email), series),
+                "UPDATE subscription SET sent = ?, instalment = ?"
+                " WHERE kind = 'series' AND key = ?"
+                " AND person = (SELECT id FROM person WHERE email = ?)",
+                (now(), instalment, series, tidy(email)),
             )
 
     def stop_following(self, token: str) -> bool:
-        """One click, from an email, with no account and no JavaScript."""
-        if not token:
+        """One click, from an email, with no account and no JavaScript: stops the one
+        subscription the link names. True where the token names one."""
+        found = self.subscription_by_stop(token)
+        if found is None:
             return False
         with self.write() as db:
-            row = db.execute("SELECT email, series FROM follow WHERE stop = ?", (token,)).fetchone()
-            if row is None:
-                return False
             db.execute(
-                "UPDATE follow SET state = 'off', ended = ? WHERE email = ? AND series = ?",
-                (now(), row["email"], row["series"]),
+                "UPDATE subscription SET state = 'off', ended = ? WHERE id = ?",
+                (now(), int(found["id"])),
             )
-            return True
+            db.execute(
+                "UPDATE sub_item SET state = 'listed', why = '', came = 'paused'"
+                " WHERE subscription = ? AND state IN ('due', 'waiting')",
+                (int(found["id"]),),
+            )
+            if found["kind"] == "series" and found["key"] == "weekly":
+                db.execute(
+                    "UPDATE subscriber SET state = 'off', ended = ?"
+                    " WHERE email = (SELECT email FROM person WHERE id = ?)",
+                    (now(), int(found["person"])),
+                )
+        return True
 
     def subscribers(self, not_sent: str = "") -> list[tuple[str, str, str]]:
         """Everyone to mail about this issue, with the token that stops it and the
@@ -2618,8 +3043,14 @@ class Store:
                 (person.id,),
             )
             db.execute("DELETE FROM playlist WHERE person = ?", (person.id,))
-            # Kept by address rather than by person: the series it followed, and a
-            # language the operator marked it as reading.
+            db.execute(
+                "DELETE FROM sub_item WHERE subscription IN"
+                " (SELECT id FROM subscription WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM subscription WHERE person = ?", (person.id,))
+            # Kept by address rather than by person: the series it followed before
+            # 2026-10-09, and a language the operator marked it as reading.
             db.execute("DELETE FROM follow WHERE email = ?", (person.email,))
             db.execute("DELETE FROM reads WHERE email = ?", (person.email,))
             db.execute(
@@ -3039,6 +3470,13 @@ class Store:
                 (person.id,),
             )
             db.execute("DELETE FROM playlist WHERE person = ?", (person.id,))
+            # And what they subscribed to: nothing more is built or mailed for them.
+            db.execute(
+                "DELETE FROM sub_item WHERE subscription IN"
+                " (SELECT id FROM subscription WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM subscription WHERE person = ?", (person.id,))
             # The weekly stops too. A subscription is deliberately not part of the
             # account — it outlives one, and that is the point of keeping it in its own
             # table — but somebody who asked to be forgotten did not mean "keep mailing
@@ -3098,6 +3536,12 @@ class Store:
                     (person_id,),
                 )
                 db.execute("DELETE FROM chat WHERE person = ?", (person_id,))
+                db.execute(
+                    "DELETE FROM sub_item WHERE subscription IN"
+                    " (SELECT id FROM subscription WHERE person = ?)",
+                    (person_id,),
+                )
+                db.execute("DELETE FROM subscription WHERE person = ?", (person_id,))
                 db.execute("DELETE FROM person WHERE id = ?", (person_id,))
         return gone
 
@@ -3312,6 +3756,15 @@ class Store:
         # Which clients they connected, and what they let each one do. The digests stay
         # out, for the reason at the top of this method.
         out["connections"] = self.connections(person.id)
+        # What they subscribed to, and its cap: their choices, as their playlists are. The
+        # stop token stays out — it is a way to change the row, not a fact about it.
+        out["subscriptions"] = [
+            {
+                key: row[key]
+                for key in ("kind", "key", "name", "language", "source", "cap", "state", "since")
+            }
+            for row in self.subscriptions(person.id, every=True)
+        ]
         # And what they wrote for those clients to offer. Theirs in the plainest sense:
         # they typed it.
         out["prompts"] = self.prompts(person.id)
