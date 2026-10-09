@@ -1443,7 +1443,7 @@ def test_the_tab_opens_on_its_doors_with_what_stands_behind_each(tmp_path: Path)
     """Sefaria's shape: the top of the tree first, each door saying what it holds — a
     count, the way every chip on this page carries one (design.md §12). Only doors with
     something behind them: the fixture has no Mishnah, so there is no Mishnah door."""
-    drawn = draw(tmp_path, views=TREE)
+    drawn = draw(tmp_path, views=TREE, hash="#bm")
     assert [door["id"] for door in drawn["doors"]] == ["tanakh", "targum"]
     assert drawn["doors"][0]["says"] == ["תנ״ך", "Tanakh", "6 texts"]
     assert drawn["doors"][1]["says"][1:] == ["Aramaic translations", "2 texts"]
@@ -1469,7 +1469,7 @@ def test_the_level_band_does_not_cut_branches_off_the_tree(tmp_path: Path) -> No
     stand, and each row still says how much of it they know."""
     narrowed = {"he": {"where": "midrash", "door": "tanakh", "shape": "cards", "fit": "now"}}
     known = {"ruth": {"known": 0.95}, "job": {"known": 0.05}}
-    drawn = draw(tmp_path, views=narrowed, catalogueKnown=known)
+    drawn = draw(tmp_path, views=narrowed, catalogueKnown=known, hash="#bm/tanakh")
     titles = [row["title"] for row in drawn["rows"]]
     assert len(titles) == 6, titles
 
@@ -1478,7 +1478,11 @@ def test_the_targums_have_a_door_and_stay_aramaic(tmp_path: Path) -> None:
     """The one place the Hebrew shelf shows another language's rows (David, 2026-09-19):
     Sefaria files Targum under Tanakh, and a Torah student looks for Onkelos there. They
     are Aramaic rows still — under All texts they are on the Aramaic shelf and not here."""
-    behind = draw(tmp_path, views={"he": {"where": "midrash", "door": "targum", "shape": "cards"}})
+    behind = draw(
+        tmp_path,
+        views={"he": {"where": "midrash", "door": "targum", "shape": "cards"}},
+        hash="#bm/targum",
+    )
     assert [row["title"] for row in behind["rows"]] == [
         "תרגום אונקלוס · בראשית",
         "תרגום אונקלוס · שמות",
@@ -1492,13 +1496,17 @@ def test_it_is_the_one_list_and_not_a_second_room(tmp_path: Path) -> None:
     under All texts, with the same id — one catalogue, one address per text."""
     everywhere = draw(tmp_path, unfolded=True, view={"fit": ""})
     all_ids = {row["id"] for row in everywhere["rows"]}
-    behind = draw(tmp_path, views={"he": {"where": "midrash", "door": "tanakh", "shape": "list"}})
+    behind = draw(
+        tmp_path,
+        views={"he": {"where": "midrash", "door": "tanakh", "shape": "list"}},
+        hash="#bm/tanakh",
+    )
     ids = {row["id"] for row in behind["rows"] if row["id"]}
     assert ids and ids <= all_ids, ids - all_ids
 
 
 def test_the_way_back_is_the_trail_and_an_address_lands_inside(tmp_path: Path) -> None:
-    back = draw(tmp_path, views=TREE, do=[{"door": "tanakh"}, {"crumb": True}])
+    back = draw(tmp_path, views=TREE, hash="#bm", do=[{"door": "tanakh"}, {"crumb": True}])
     assert [door["id"] for door in back["doors"]] == ["tanakh", "targum"] and back["hash"] == "#bm"
 
     landed = draw(tmp_path, hash="#bm/tanakh", view={"shape": "cards"})
