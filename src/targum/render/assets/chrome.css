@@ -1147,4 +1147,7 @@ body .site-footer { max-inline-size: var(--column); }
 }
 @media (max-width: 22.5rem) {
   .lang-menu .lang-open .lang-status { display: none; }
+  /* "Your targums" read whole at 320px: the foot's cells give up their side padding. */
+  .site-head-row .site-nav { gap: 0; padding-inline: 0.25rem; }
+  .site-nav a { padding-inline: 0; }
 }
