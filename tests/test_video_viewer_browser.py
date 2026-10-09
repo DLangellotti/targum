@@ -206,12 +206,17 @@ def test_theatre_opens_with_the_transcript_at_the_right_until_it_is_put_away(
         assert seen["theatre"] and seen["panel"] and seen["transcript"], seen
         at = page.evaluate(BOXES, {"picture": ".film-frame", "line": FIRST_LINE})
         assert at["line"]["left"] >= at["picture"]["right"], at
+        # The line being said is drawn once, in the transcript; not again under the
+        # picture (audit Q10, 2026-10-09).
+        sub = "() => getComputedStyle(document.getElementById('film-sub')).display"
+        assert page.evaluate(sub) == "none"
         page.click(".film-panel-close")
         page.reload()
         page.wait_for_selector("#video:not([hidden])")
         page.wait_for_timeout(100)
         seen = page.evaluate(FILM)
         assert seen["theatre"] and not seen["panel"], "put away, it stays away"
+        assert page.evaluate(sub) != "none", "with the transcript away the line is under it"
         page.click(".film-transcript")
         page.reload()
         page.wait_for_selector("#video:not([hidden])")
@@ -337,6 +342,10 @@ def test_a_word_is_tapped_beside_and_in_theatre(browser, tmp_path) -> None:  # n
 
         page.keyboard.press("Escape")
         page.click("[data-film-view='theatre']")
+        # The line under the picture is drawn with the transcript put away: beside an
+        # open transcript the line is the transcript's alone (audit Q10, 2026-10-09).
+        if page.get_attribute(".film-transcript", "aria-pressed") == "true":
+            page.click(".film-transcript")
         page.wait_for_selector("#film-sub .film-now .w")
         assert page.evaluate(
             "() => [...document.querySelectorAll('#film-sub .film-now .w')]"

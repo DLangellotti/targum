@@ -5096,6 +5096,10 @@ body.film-splitting { user-select: none; -webkit-user-select: none; cursor: col-
    from under the transcript: the same press, the same Undo, the same count. */
 .film-end[hidden] { display: none; }
 body.film-ended .film-sub { display: none; }
+/* With the transcript open beside a large picture, the line being said is the
+   transcript's alone, lit there: set again under the picture it was read twice (audit
+   Q10, 2026-10-09). */
+body.film-theatre.film-panel .film-sub { display: none; }
 .film-end {
   margin-block-start: 1.25rem;
   font-family: var(--chrome);

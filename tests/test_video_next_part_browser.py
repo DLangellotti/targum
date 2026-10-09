@@ -476,6 +476,26 @@ def test_theatre_ends_a_part_with_the_foot_under_the_picture(browser, tmp_path) 
         context.close()
 
 
+def test_inside_a_playlist_theatre_ends_a_part_under_the_picture_too(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """Audit Q10 (2026-10-09): inside a playlist the end of a part stood at the foot of the
+    transcript, far under the picture. It comes under the picture as it does outside one,
+    the column stepping aside, and the foot moved in is the playlist's."""
+    reader = two_parts(tmp_path)
+    context, page, _ = film_page(
+        browser, reader, "sec-0001.html?list=1&at=0", "theatre", (200, {"ready": True})
+    )
+    try:
+        play_to_end(page)
+        ended = page.evaluate(END)
+        assert ended["shown"] and ended["footInside"] and ended["footShown"], ended
+        assert not page.evaluate("() => document.body.classList.contains('film-panel')")
+    finally:
+        context.close()
+
+
 def test_the_unmarked_words_are_the_ones_the_press_would_mark(browser, built) -> None:  # noqa: F811
     """What the end of a part asks about is what the foot's press marks: the same count,
     and the words met most first."""
