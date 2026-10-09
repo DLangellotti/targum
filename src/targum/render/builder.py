@@ -737,6 +737,14 @@ def _asset(name: str) -> Markup:
     return Markup(_strip(name, (ASSETS / name).read_text(encoding="utf-8")))
 
 
+@cache
+def worker_script() -> str:
+    """targum's worker as it is served from `/sw.js` (design.md §12, 2026-10-09): the one
+    script that is a file of its own rather than baked into a page, because a worker is
+    named by an address and cannot be inline."""
+    return _strip("sw.js", (ASSETS / "sw.js").read_text(encoding="utf-8"))
+
+
 # The Hebrew faces, one per register, and why they are in the page rather than named.
 #
 # The stack asked for "Frank Ruhl CLM" and "Taamey Frank CLM" and never got either: they

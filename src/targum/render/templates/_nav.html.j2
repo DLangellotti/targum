@@ -146,3 +146,6 @@
   <ul class="palette-list" id="palette-list" role="listbox"></ul>
 </div>
 <script>{{ asset('palette.js') }}</script>
+{#- Saving for offline, and the worker that answers what was saved when the network is
+    not there (design.md §12, 2026-10-09). -#}
+<script>{{ asset('offline.js') }}</script>
