@@ -1,5 +1,6 @@
 /* Saving texts for offline, from the page (design.md §12, "A worker keeps what the reader
- * saved, and fetches nothing else", 2026-10-09).
+ * saved, and fetches nothing else", and "A text is kept for offline by a press, or by
+ * being opened", both 2026-10-09).
  *
  * The page saves and the worker answers. Saving happens here, in the page the reader is
  * looking at, so it lasts exactly as long as the page is open: there is no saving in the
@@ -10,7 +11,15 @@
  * What is kept lives in one cache, `targum-offline`, with its index beside the files as
  * one JSON entry at `/offline/index`, so the worker can read it as easily as a page can.
  * A text is kept under the address its files are served under — `/reader/<name>/reader/`
- * — and that address is its id here.
+ * — and that address is its id here. A playlist is `playlist:<id>`, and holds texts.
+ *
+ * Two ways in, one index:
+ *
+ * - **Saved on its own.** Opening a text keeps it (`how: "auto"`), and the oldest of these
+ *   is let go once there are more than the reader's number (5 unless they chose 3, 10 or
+ *   none). Opening a text from a playlist keeps the whole playlist the same way.
+ * - **Saved by you.** Save for offline, in a text's ⋯ or on a playlist's page
+ *   (`how: "you"`): kept until it is removed.
  *
  * Nothing here runs on a page opened off a disk: there is no origin to keep anything for.
  */
@@ -21,6 +30,12 @@
   var INDEX = "/offline/index";
   var VERSION = 1;
   var READER = /^\/(?:reader\/[^/]+\/reader|parasha\/read\/[^/]+\/reader|[^/]+\/read\/\d{4}-\d{2}-\d{2}\/reader)\//;
+  // What the reader chose about saving on its own: this device's, so this browser's.
+  var CHOICES = "targum:offline";
+  // A save under way in some tab of this browser, with when it last moved: the sweep of
+  // files nobody indexed leaves them alone while it is fresh.
+  var BUSY = "targum:offline:busy";
+  var RECENT_CHOICES = [0, 3, 5, 10];
 
   var served = /^https?:$/.test(location.protocol);
   var able =
@@ -29,6 +44,14 @@
     typeof fetch === "function" &&
     "serviceWorker" in navigator;
   var key = window.TARGUM_KEY || new URLSearchParams(location.search).get("k") || "";
+
+  function t(name, english, fill) {
+    var strings = window.TargumStrings;
+    if (strings && strings.t) return strings.t(name, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, field) {
+      return fill && field in fill ? String(fill[field]) : all;
+    });
+  }
 
   /* The address a file is kept under — the worker's `keyOf`, the same rule written twice
      because the two never share a scope: a reader's own files lose their whole query, and
@@ -62,12 +85,47 @@
     return head;
   }
 
+  /* --- what the reader chose -------------------------------------------------- */
+
+  function choices() {
+    var kept = {};
+    try {
+      kept = JSON.parse(localStorage.getItem(CHOICES) || "{}") || {};
+    } catch (e) {
+      kept = {};
+    }
+    var recent = Number(kept.recent);
+    return {
+      recent: RECENT_CHOICES.indexOf(recent) >= 0 ? recent : 5,
+      playlist: kept.playlist !== false,
+      // A film saves with its picture unless the reader chose sound and text.
+      film: kept.film !== false,
+    };
+  }
+
+  function choose(patch) {
+    var next = choices();
+    Object.keys(patch || {}).forEach(function (name) {
+      next[name] = patch[name];
+    });
+    try {
+      localStorage.setItem(CHOICES, JSON.stringify(next));
+    } catch (e) {}
+    return trim().then(function () {
+      return next;
+    });
+  }
+
   /* --- the index ------------------------------------------------------------- */
 
   var known = null; // the index as last read or written by this page
 
+  function empty() {
+    return { version: VERSION, items: {} };
+  }
+
   function readIndex() {
-    if (!able) return Promise.resolve({ version: VERSION, items: {} });
+    if (!able) return Promise.resolve(empty());
     return caches
       .open(STORE)
       .then(function (cache) {
@@ -77,11 +135,11 @@
         return answer ? answer.json() : null;
       })
       .then(function (index) {
-        known = index && index.items ? index : { version: VERSION, items: {} };
+        known = index && index.items ? index : empty();
         return known;
       })
       .catch(function () {
-        known = { version: VERSION, items: {} };
+        known = empty();
         return known;
       });
   }
@@ -141,27 +199,32 @@
      `film: false` leaves the picture out, for "Sound and text": the page carries its own
      sound, so a film's text without its sidecar still plays. */
   function plan(page, options) {
-    var wantFilm = !(options && options.film === false);
+    var wantFilm = options && options.film !== undefined ? options.film : choices().film;
     return fetch(keyed("/offline.json?page=" + encodeURIComponent(textOf(page) || page)), {
       headers: headers(),
       credentials: "same-origin",
     })
       .then(function (answer) {
-        if (!answer.ok) throw new Error(String(answer.status));
+        if (!answer.ok) throw reasoned("failed");
         return answer.json();
       })
       .then(function (told) {
         var files = (told.files || []).filter(function (file) {
           return wantFilm || !file.film;
         });
-        var hasFilm = (told.files || []).some(function (file) {
-          return file.film;
-        });
         return {
           id: told.base || textOf(page),
           title: told.title || "",
+          kind: told.kind || "",
+          name: told.name || "",
+          pages: told.pages || 0,
           files: files,
-          film: hasFilm,
+          film: (told.files || []).some(function (file) {
+            return file.film;
+          }),
+          sound: files.some(function (file) {
+            return /\.mp3$/i.test(file.url);
+          }),
           bytes: files.reduce(function (sum, file) {
             return sum + Number(file.bytes || 0);
           }, 0),
@@ -196,11 +259,26 @@
     return !!error && (error.name === "QuotaExceededError" || error.code === 22);
   }
 
+  function reasoned(reason) {
+    var error = new Error(reason);
+    error.reason = reason;
+    return error;
+  }
+
+  function busy() {
+    try {
+      localStorage.setItem(BUSY, String(Date.now()));
+    } catch (e) {}
+  }
+
   /* Save the text `page` belongs to. Returns a handle at once:
        { done: Promise<item>, stop(), id }
      and calls `options.progress({done, total})` as bytes land. A failure rejects with
      `reason` "full" (the device has no room), "stopped" or "failed"; whatever this save
-     had already put away is taken back out, unless the text was saved before it began. */
+     had already put away is taken back out, unless the text was saved before it began.
+
+     A file already in the cache is not fetched again: a save the reader left halfway —
+     they turned the page, and the page is what was saving — picks up where it stopped. */
   function save(page, options) {
     options = options || {};
     var stopping = typeof AbortController === "function" ? new AbortController() : null;
@@ -226,6 +304,7 @@
         var total = planned.bytes;
         var done = 0;
         function told() {
+          busy();
           if (options.progress) {
             try {
               options.progress({ done: Math.min(done, total), total: total });
@@ -240,20 +319,28 @@
             .reduce(function (before, file) {
               return before.then(function () {
                 if (stopped) throw reasoned("stopped");
-                return fetch(keyed(file.url), {
-                  headers: headers({ "X-Targum-Save": "1" }),
-                  credentials: "same-origin",
-                  signal: stopping ? stopping.signal : undefined,
-                }).then(function (answer) {
-                  if (!answer.ok) throw reasoned("failed");
-                  put.push(keyOf(file.url));
-                  return cache.put(
-                    keyOf(file.url),
-                    keep(answer, function (n) {
-                      done += n;
-                      told();
-                    })
-                  );
+                var at = keyOf(file.url);
+                return cache.match(at).then(function (had) {
+                  if (had) {
+                    done += Number(file.bytes || 0);
+                    told();
+                    return null;
+                  }
+                  return fetch(keyed(file.url), {
+                    headers: headers({ "X-Targum-Save": "1" }),
+                    credentials: "same-origin",
+                    signal: stopping ? stopping.signal : undefined,
+                  }).then(function (answer) {
+                    if (!answer.ok) throw reasoned("failed");
+                    put.push(at);
+                    return cache.put(
+                      at,
+                      keep(answer, function (n) {
+                        done += n;
+                        told();
+                      })
+                    );
+                  });
                 });
               });
             }, Promise.resolve())
@@ -262,15 +349,21 @@
               told();
               return change(function (index) {
                 var was = index.items[planned.id] || {};
+                var held = (was.held || []).slice();
+                if (options.held && held.indexOf(options.held) < 0) held.push(options.held);
                 index.items[planned.id] = {
                   id: planned.id,
                   title: options.title || was.title || planned.title,
-                  kind: options.kind || was.kind || "",
+                  kind: options.kind || was.kind || planned.kind,
+                  name: planned.name || was.name || "",
+                  pages: planned.pages,
                   open: was.open || keyOf(options.open || page),
                   // Once a reader has saved it themselves, opening it again never makes
                   // it one of the texts that are kept on their own and let go.
                   how: was.how === "you" || options.how === "you" ? "you" : "auto",
+                  held: held,
                   film: planned.film,
+                  sound: planned.sound,
                   withFilm: planned.files.some(function (f) {
                     return f.film;
                   }),
@@ -278,7 +371,8 @@
                   files: planned.files.map(function (f) {
                     return keyOf(f.url);
                   }),
-                  at: Date.now(),
+                  at: was.at || Date.now(),
+                  opened: options.opened ? Date.now() : was.opened || 0,
                 };
                 return index;
               }).then(function (index) {
@@ -297,17 +391,108 @@
     return handle;
   }
 
-  function reasoned(reason) {
-    var error = new Error(reason);
-    error.reason = reason;
-    return error;
+  /* Save a playlist, every text in it that can be opened, one after another. The handle
+     is a text's; `progress` hears `{done, total}` in texts. One text that cannot be had
+     does not stop the rest, and the set is said to have failed at the end; a device with
+     no room stops it at once. */
+  function saveSet(id, options) {
+    options = options || {};
+    var current = null;
+    var stopped = false;
+    var setId = "playlist:" + id;
+    var handle = {
+      id: setId,
+      stop: function () {
+        stopped = true;
+        if (current) current.stop();
+      },
+      done: null,
+    };
+    if (!able) {
+      handle.done = Promise.reject(reasoned("failed"));
+      return handle;
+    }
+    handle.done = fetch(keyed("/playlists/" + encodeURIComponent(id) + ".json"), {
+      headers: headers({ Accept: "application/json" }),
+      credentials: "same-origin",
+    })
+      .then(function (answer) {
+        if (!answer.ok) throw reasoned("failed");
+        return answer.json();
+      })
+      .then(function (playlist) {
+        var items = (playlist.items || []).filter(function (item) {
+          return item.open && !item.failed;
+        });
+        var members = [];
+        var missed = 0;
+        var done = 0;
+        function told() {
+          if (options.progress) {
+            try {
+              options.progress({ done: done, total: items.length });
+            } catch (e) {}
+          }
+        }
+        told();
+        return items
+          .reduce(function (before, item) {
+            return before.then(function () {
+              if (stopped) throw reasoned("stopped");
+              current = save(item.open, {
+                how: "auto",
+                held: setId,
+                title: item.title,
+                kind: (item.facts && item.facts.kind) || "",
+              });
+              return current.done.then(
+                function (saved) {
+                  members.push(saved.id);
+                  done += 1;
+                  told();
+                },
+                function (error) {
+                  if (error && (error.reason === "full" || error.reason === "stopped")) throw error;
+                  missed += 1;
+                }
+              );
+            });
+          }, Promise.resolve())
+          .then(function () {
+            return change(function (index) {
+              var was = index.items[setId] || {};
+              index.items[setId] = {
+                id: setId,
+                kind: "playlist",
+                title: playlist.name || was.title || "",
+                how: was.how === "you" || options.how === "you" ? "you" : "auto",
+                members: members,
+                count: items.length,
+                bytes: members.reduce(function (sum, member) {
+                  return sum + Number((index.items[member] || {}).bytes || 0);
+                }, 0),
+                at: was.at || Date.now(),
+                opened: Date.now(),
+              };
+              return index;
+            });
+          })
+          .then(function (index) {
+            if (missed) throw reasoned("failed");
+            return index.items[setId];
+          });
+      })
+      .catch(function (error) {
+        throw reasoned(stopped ? "stopped" : (error && error.reason) || "failed");
+      });
+    return handle;
   }
 
   // Take files out of the cache, unless another saved text still keeps them.
   function forgetFiles(keys, index) {
     if (!keys.length) return Promise.resolve();
     var still = {};
-    var items = (index || known || { items: {} }).items;
+    var items = (index || known || empty()).items;
     Object.keys(items).forEach(function (id) {
       (items[id].files || []).forEach(function (file) {
         still[file] = true;
@@ -329,13 +514,92 @@
       .catch(function () {});
   }
 
+  /* Take a text or a playlist off this device. A playlist lets go of the texts it held,
+     and a text it held that nothing else keeps goes with it — unless it was opened, in
+     which case it is one of the recent texts and `trim` decides. */
   function remove(id) {
     var files = [];
     return change(function (index) {
       var item = index.items[id];
       if (!item) return index;
-      files = item.files || [];
       delete index.items[id];
+      if (item.kind === "playlist") {
+        Object.keys(index.items).forEach(function (other) {
+          var text = index.items[other];
+          if (!text.held || text.held.indexOf(id) < 0) return;
+          text.held = text.held.filter(function (one) {
+            return one !== id;
+          });
+          if (text.how === "auto" && !text.held.length && !text.opened) {
+            files = files.concat(text.files || []);
+            delete index.items[other];
+          }
+        });
+      } else {
+        files = item.files || [];
+        // And out of any playlist that held it.
+        Object.keys(index.items).forEach(function (other) {
+          var set = index.items[other];
+          if (set.members) {
+            set.members = set.members.filter(function (one) {
+              return one !== id;
+            });
+          }
+        });
+      }
+      return index;
+    })
+      .then(function (index) {
+        return forgetFiles(files, index);
+      })
+      .then(trim);
+  }
+
+  /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved. */
+  function keepIt(id) {
+    return change(function (index) {
+      if (index.items[id]) index.items[id].how = "you";
+      return index;
+    });
+  }
+
+  /* Let go of the texts kept on their own beyond the reader's number, oldest opened first,
+     and the playlist kept on its own when the reader turned that off. A text a playlist
+     still holds is the playlist's to let go. */
+  function trim() {
+    if (!able) return Promise.resolve();
+    var chosen = choices();
+    var files = [];
+    return change(function (index) {
+      var items = index.items;
+      if (!chosen.playlist) {
+        Object.keys(items).forEach(function (id) {
+          var set = items[id];
+          if (set.kind !== "playlist" || set.how !== "auto") return;
+          delete items[id];
+          Object.keys(items).forEach(function (other) {
+            if (items[other].held) {
+              items[other].held = items[other].held.filter(function (one) {
+                return one !== id;
+              });
+            }
+          });
+        });
+      }
+      var mine = Object.keys(items)
+        .map(function (id) {
+          return items[id];
+        })
+        .filter(function (item) {
+          return item.kind !== "playlist" && item.how === "auto" && !(item.held || []).length;
+        })
+        .sort(function (a, b) {
+          return Number(b.opened || 0) - Number(a.opened || 0);
+        });
+      mine.slice(chosen.recent).forEach(function (item) {
+        files = files.concat(item.files || []);
+        delete items[item.id];
+      });
       return index;
     }).then(function (index) {
       return forgetFiles(files, index);
@@ -348,11 +612,419 @@
     return caches
       .delete(STORE)
       .then(function () {
-        known = { version: VERSION, items: {} };
+        known = empty();
         tellWorker();
         announce();
       })
       .catch(function () {});
+  }
+
+  /* Files in the cache that no saved text names: a save the page was closed in the middle
+     of. Left alone while any tab of this browser is still saving. */
+  function sweep() {
+    var since = 0;
+    try {
+      since = Number(localStorage.getItem(BUSY) || 0);
+    } catch (e) {}
+    if (Date.now() - since < 60 * 1000) return Promise.resolve();
+    return Promise.all([readIndex(), caches.open(STORE)])
+      .then(function (both) {
+        var index = both[0];
+        var cache = both[1];
+        var named = {};
+        named[new URL(INDEX, location.origin).href] = true;
+        Object.keys(index.items).forEach(function (id) {
+          (index.items[id].files || []).forEach(function (file) {
+            named[file] = true;
+          });
+        });
+        return cache.keys().then(function (requests) {
+          return Promise.all(
+            requests
+              .filter(function (request) {
+                return !named[request.url];
+              })
+              .map(function (request) {
+                return cache.delete(request);
+              })
+          );
+        });
+      })
+      .catch(function () {});
+  }
+
+  /* --- how much room ---------------------------------------------------------- */
+
+  // A size the way the menus say it: "3 MB", "1.2 MB", "103 MB", "1.4 GB".
+  function size(bytes) {
+    var mb = Number(bytes || 0) / 1e6;
+    if (mb >= 1000) {
+      return t("offline.gb", "{n} GB", { n: tidy(mb / 1000) });
+    }
+    return t("offline.mb", "{n} MB", { n: tidy(mb) });
+  }
+
+  // One place after the point under ten, none above; never "0".
+  function tidy(n) {
+    if (n >= 10) return String(Math.round(n));
+    var one = Math.round(n * 10) / 10;
+    if (one === 0) one = 0.1;
+    return String(one).replace(/\.0$/, "").replace(".", t("offline.decimal-point", "."));
+  }
+
+  function sizeOf(done, total) {
+    var mb = Number(total || 0) / 1e6;
+    if (mb >= 1000) {
+      return t("offline.of-gb", "{done} of {total} GB", {
+        done: tidy(Number(done) / 1e9),
+        total: tidy(mb / 1000),
+      });
+    }
+    return t("offline.of-mb", "{done} of {total} MB", {
+      done: tidy(Number(done) / 1e6),
+      total: tidy(mb),
+    });
+  }
+
+  /* --- drawn --------------------------------------------------------------------- */
+
+  function element(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function press(className, label, onPress) {
+    var button = element("button", className, label);
+    button.type = "button";
+    button.addEventListener("click", onPress);
+    return button;
+  }
+
+  function bar(share) {
+    var track = element("span", "offline-bar");
+    var fill = element("span", "offline-fill");
+    fill.style.inlineSize = Math.round(Math.max(0, Math.min(1, share)) * 100) + "%";
+    track.appendChild(fill);
+    track.setAttribute("aria-hidden", "true");
+    return track;
+  }
+
+  /* The saves this page is making, by id, so a menu drawn again while one runs shows it
+     and a second press does not start another. */
+  var running = {};
+
+  /* One row that says where a text or a playlist stands and offers the one thing to do
+     next: save, stop, remove, try again. `what` is { id, title, start(progress) → handle,
+     kind: "text"|"playlist" }, and `row` is redrawn in place. */
+  function drawRow(row, what) {
+    row.textContent = "";
+    row.className = row.className.replace(/\boffline-(idle|saving|saved|failed|full)\b/g, "").trim();
+    var state = running[what.id];
+    var item = known && known.items[what.id];
+    var playlist = what.kind === "playlist";
+    function redraw() {
+      drawRow(row, what);
+    }
+    function begin() {
+      var job = { progress: { done: 0, total: 0 }, error: null };
+      running[what.id] = job;
+      job.handle = what.start(function (progress) {
+        job.progress = progress;
+        if (running[what.id] === job) redraw();
+      });
+      job.handle.done.then(
+        function () {
+          delete running[what.id];
+          redraw();
+        },
+        function (error) {
+          job.error = (error && error.reason) || "failed";
+          job.handle = null;
+          if (job.error === "stopped") delete running[what.id];
+          redraw();
+        }
+      );
+      redraw();
+    }
+    if (state && state.handle) {
+      row.classList.add("offline-saving");
+      var head = element("span", "offline-what");
+      head.appendChild(element("span", "offline-label", t("offline.saving", "Saving for offline")));
+      var counted = playlist
+        ? t("offline.of-texts", "{done} of {total}", {
+            done: state.progress.done,
+            total: state.progress.total,
+          })
+        : sizeOf(state.progress.done, state.progress.total);
+      head.appendChild(element("span", "offline-size", counted));
+      row.appendChild(head);
+      row.appendChild(
+        press("offline-stop", t("offline.stop", "Stop"), function () {
+          state.handle.stop();
+        })
+      );
+      row.appendChild(bar(state.progress.total ? state.progress.done / state.progress.total : 0));
+      row.appendChild(
+        element("p", "offline-note", t("offline.keep-open", "Keep this page open until it's saved."))
+      );
+      return;
+    }
+    if (state && state.error) {
+      // A line in a card (design.md §12, "A refusal is drawn on one of five surfaces"):
+      // what went wrong in words, and the one thing to do about it.
+      var full = state.error === "full";
+      row.classList.add(full ? "offline-full" : "offline-failed");
+      var sentence = full
+        ? t(
+            "offline.full",
+            "This device is full, so we couldn't save {title}. Remove something you've finished and try again.",
+            { title: what.title || t("offline.this-text", "this text") }
+          )
+        : t("offline.failed", "We couldn't save this for offline.");
+      var again = function () {
+        delete running[what.id];
+        begin();
+      };
+      var fault = window.TargumFault;
+      if (fault && fault.line) {
+        var said = fault.line(sentence, t("offline.try-again", "Try again"), again);
+        said.classList.add("offline-said");
+        row.appendChild(said);
+      } else {
+        row.appendChild(element("p", "offline-said", sentence));
+        row.appendChild(press("offline-again", t("offline.try-again", "Try again"), again));
+      }
+      return;
+    }
+    if (item) {
+      row.classList.add("offline-saved");
+      var saved = element("span", "offline-what");
+      saved.appendChild(
+        element(
+          "span",
+          "offline-label",
+          playlist
+            ? t("offline.saved-playlist", "Saved for offline")
+            : t("offline.saved", "Saved on this device")
+        )
+      );
+      saved.appendChild(element("span", "offline-size", size(item.bytes)));
+      row.appendChild(saved);
+      row.appendChild(
+        press(
+          "offline-remove",
+          playlist ? t("offline.remove", "Remove") : t("offline.remove-here", "Remove from this device"),
+          function () {
+            remove(what.id).then(redraw);
+          }
+        )
+      );
+      return;
+    }
+    row.classList.add("offline-idle");
+    var go = press("offline-go", "", begin);
+    go.appendChild(element("span", "offline-label", t("offline.save", "Save for offline")));
+    var meta = element("span", "offline-size", what.bytes ? size(what.bytes) : "");
+    go.appendChild(meta);
+    row.appendChild(go);
+  }
+
+  /* --- in a reader --------------------------------------------------------------- */
+
+  function inReader() {
+    var row = document.getElementById("offline-row");
+    var here = textOf(location.href);
+    if (!row || !here) return;
+    try {
+      if (window.top !== window) return;
+    } catch (e) {
+      return;
+    }
+    var titled = row.getAttribute("data-title") || document.title;
+    var what = {
+      id: here,
+      title: titled,
+      kind: "text",
+      bytes: 0,
+      start: function (progress) {
+        return save(location.href, { how: "you", title: titled, progress: progress });
+      },
+    };
+    function draw() {
+      drawRow(row, what);
+    }
+    readIndex().then(function () {
+      row.hidden = false;
+      draw();
+      // The size, asked once the reader opens the menu: what it will take, before it is
+      // pressed. Not asked while the menu is shut, which is most of the time.
+      var more = document.getElementById("more");
+      var asked = false;
+      function sized() {
+        if (asked || !more || !more.classList.contains("open")) return;
+        asked = true;
+        plan(location.href).then(
+          function (planned) {
+            what.bytes = planned.bytes;
+            if (!running[here] && !(known && known.items[here])) draw();
+          },
+          function () {}
+        );
+      }
+      if (more && typeof MutationObserver === "function") {
+        new MutationObserver(sized).observe(more, { attributes: true, attributeFilter: ["class"] });
+      }
+      sized();
+    });
+    onChange(function () {
+      if (!running[here]) draw();
+    });
+    // Saved on its own: this text, once the page has settled, then the playlist it was
+    // opened from. Never in a frame, never off a disk, and not when the reader chose none.
+    whenSettled(function () {
+      var chosen = choices();
+      var list = new URLSearchParams(location.search).get("list");
+      var first = chosen.recent > 0 ? autoText(what, draw) : Promise.resolve();
+      first.then(function () {
+        if (list && /^\d+$/.test(list) && chosen.playlist) return autoSet(list);
+        return null;
+      });
+    });
+  }
+
+  function whenSettled(then) {
+    function later() {
+      setTimeout(then, 1500);
+    }
+    if (document.readyState === "complete") later();
+    else window.addEventListener("load", later);
+  }
+
+  // This text, kept on its own: opened again it is only marked as opened, never fetched
+  // again (the worker already keeps its pages as they were last opened).
+  function autoText(what, draw) {
+    return readIndex().then(function (index) {
+      var item = index.items[what.id];
+      if (item) {
+        return change(function (fresh) {
+          if (fresh.items[what.id]) fresh.items[what.id].opened = Date.now();
+          return fresh;
+        }).then(trim);
+      }
+      if (running[what.id]) return null;
+      var job = { progress: { done: 0, total: 0 }, error: null };
+      running[what.id] = job;
+      job.handle = save(location.href, {
+        how: "auto",
+        opened: true,
+        title: what.title,
+        progress: function (progress) {
+          job.progress = progress;
+          if (running[what.id] === job) draw();
+        },
+      });
+      draw();
+      return job.handle.done.then(
+        function () {
+          delete running[what.id];
+          draw();
+          return trim();
+        },
+        function (error) {
+          job.handle = null;
+          job.error = (error && error.reason) || "failed";
+          if (job.error === "stopped") delete running[what.id];
+          draw();
+        }
+      );
+    });
+  }
+
+  function autoSet(list) {
+    var id = "playlist:" + list;
+    return readIndex().then(function (index) {
+      var set = index.items[id];
+      if (running[id]) return null;
+      // Kept already, and nothing added since it was: only marked as opened.
+      if (set && set.members && set.members.length >= Number(set.count || 0)) {
+        return change(function (fresh) {
+          if (fresh.items[id]) fresh.items[id].opened = Date.now();
+          return fresh;
+        });
+      }
+      var job = { progress: { done: 0, total: 0 }, error: null };
+      running[id] = job;
+      job.handle = saveSet(list, {
+        how: "auto",
+        progress: function (progress) {
+          job.progress = progress;
+        },
+      });
+      return job.handle.done.then(
+        function () {
+          delete running[id];
+          announce();
+        },
+        function (error) {
+          job.handle = null;
+          job.error = (error && error.reason) || "failed";
+          announce();
+        }
+      );
+    });
+  }
+
+  /* --- on a playlist's card and its page (playlists.js's slot) -------------------- */
+
+  function onPlaylist(one, slot, where) {
+    if (!able || !one || one.id === undefined) return false;
+    var id = "playlist:" + one.id;
+    var what = {
+      id: id,
+      title: one.name || "",
+      kind: "playlist",
+      bytes: 0,
+      start: function (progress) {
+        return saveSet(one.id, { how: "you", progress: progress });
+      },
+    };
+    slot.classList.add("offline-row");
+    if (where === "card") {
+      // A card says only what is so: saved, or being saved. The press is on its page.
+      var drawCard = function () {
+        slot.textContent = "";
+        var state = running[id];
+        var item = known && known.items[id];
+        if (state && state.handle) {
+          slot.textContent = t("offline.saving-texts", "Saving for offline · {done} of {total}", {
+            done: state.progress.done,
+            total: state.progress.total,
+          });
+        } else if (item) {
+          slot.textContent = t("offline.saved-size", "Saved for offline · {size}", {
+            size: size(item.bytes),
+          });
+        }
+        slot.hidden = !slot.textContent;
+      };
+      readIndex().then(drawCard);
+      onChange(drawCard);
+      return true;
+    }
+    function draw() {
+      drawRow(slot, what);
+    }
+    readIndex().then(draw);
+    onChange(function () {
+      if (!running[id] || !running[id].handle) draw();
+    });
+    return true;
+  }
+
+  function onChange(listener) {
+    listeners.push(listener);
   }
 
   function register() {
@@ -365,11 +1037,14 @@
       return;
     }
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+    sweep();
   }
 
   if (able) {
     if (document.readyState === "complete") register();
     else window.addEventListener("load", register);
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", inReader);
+    else inReader();
   }
 
   window.TargumOffline = {
@@ -378,8 +1053,14 @@
     textOf: textOf,
     plan: plan,
     save: save,
+    saveSet: saveSet,
     remove: remove,
     removeAll: removeAll,
+    keep: keepIt,
+    trim: trim,
+    choices: choices,
+    choose: choose,
+    size: size,
     list: function () {
       return readIndex().then(function (index) {
         return Object.keys(index.items).map(function (id) {
@@ -393,9 +1074,8 @@
       if (!known) return null;
       return known.items[id] || false;
     },
-    onChange: function (listener) {
-      listeners.push(listener);
-    },
+    playlist: onPlaylist,
+    onChange: onChange,
     ready: readIndex,
   };
 })();

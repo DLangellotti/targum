@@ -259,3 +259,247 @@ def test_a_page_opened_off_the_disk_registers_nothing(browser, tmp_path: Path) -
         assert page.evaluate("() => window.TargumOffline.able") is False
     finally:
         context.close()
+
+
+# -- saving: on its own, by a press, and a playlist (design.md §12, 2026-10-09) ------------
+
+LIST = """async () => (await window.TargumOffline.list())
+  .map((i) => ({ id: i.id, how: i.how, kind: i.kind || '', held: i.held || [],
+                 members: i.members || [], files: (i.files || []).length }))"""
+
+#: Nothing kept on its own, so a test about the press sees only the press.
+NONE_ON_ITS_OWN = (
+    "try { localStorage.setItem('targum:offline',"
+    " JSON.stringify({ recent: 0, playlist: false })); } catch (e) {}"
+)
+
+
+def kept(page, id_: str):
+    # Off the index as this page last wrote it: the saving is this page's own.
+    page.wait_for_function("(id) => !!window.TargumOffline.saved(id)", arg=id_, timeout=15000)
+
+
+def test_the_last_five_texts_opened_are_kept_on_their_own(browser, served: Served) -> None:  # noqa: F811
+    for n in range(6):
+        book(served.out / "local" / f"text-{n}", chapters=1)
+    context, page = opened(browser, served, "/reader/text-0/reader/index.html")
+    try:
+        for n in range(6):
+            page.goto(served.url(f"/reader/text-{n}/reader/index.html"))
+            kept(page, f"/reader/text-{n}/reader/")
+        saved = page.evaluate(LIST)
+        assert sorted(item["id"] for item in saved) == [
+            f"/reader/text-{n}/reader/" for n in range(1, 6)
+        ], "the first one opened made room for the sixth"
+        assert {item["how"] for item in saved} == {"auto"}
+        keys = page.evaluate(KEYS)
+        assert not any("/text-0/" in url for url in keys), "and its files went with it"
+
+        # Opened again, it is only marked: nothing of it is fetched.
+        before = len(served.asked)
+        opened_before = page.evaluate(
+            "() => window.TargumOffline.saved('/reader/text-3/reader/').opened"
+        )
+        page.goto(served.url("/reader/text-3/reader/index.html"))
+        page.evaluate(f"() => {{ window.OPENED_BEFORE = {opened_before}; }}")
+        page.wait_for_function(
+            "() => { const it = window.TargumOffline.saved('/reader/text-3/reader/');"
+            " return it && it.opened > window.OPENED_BEFORE; }",
+            timeout=15000,
+        )
+        fetched = [p.split("?")[0] for p in served.asked[before:] if p.startswith("/reader/")]
+        assert fetched == ["/reader/text-3/reader/index.html"], "only the page, by opening it"
+
+        page.evaluate("() => window.TargumOffline.choose({ recent: 3 })")
+        assert len(page.evaluate(LIST)) == 3, "three, when the reader chose three"
+    finally:
+        context.close()
+
+
+def test_save_for_offline_says_the_room_then_saves_and_removes(browser, served: Served) -> None:  # noqa: F811
+    book(served.out / "local" / "book-he")
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/book-he/reader/sec-0001.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.click(".bar-tools [data-more]")
+        row = page.locator("#offline-row")
+        page.wait_for_function(
+            "() => /MB/.test(document.querySelector('#offline-row .offline-size').textContent)"
+        )
+        assert row.locator(".offline-label").inner_text() == "Save for offline"
+        planned = page.evaluate("() => window.TargumOffline.plan(location.href)")
+        assert (
+            row.locator(".offline-size").inner_text() == f"{round(planned['bytes'] / 1e6, 1):g} MB"
+        )
+        row.locator(".offline-go").click()
+        page.wait_for_selector("#offline-row.offline-saved")
+        assert row.locator(".offline-label").inner_text() == "Saved on this device"
+        assert page.evaluate(LIST)[0]["how"] == "you"
+        row.locator(".offline-remove").click()
+        page.wait_for_selector("#offline-row.offline-idle")
+        assert page.evaluate(LIST) == []
+    finally:
+        context.close()
+
+
+HANG = """
+(() => {
+  const real = window.fetch;
+  window.fetch = (url, options) => {
+    const saving = options && options.headers && options.headers['X-Targum-Save'];
+    if (saving && window.FAIL_ON && String(url).includes(window.FAIL_ON)) {
+      return Promise.resolve(new Response('', { status: 500 }));
+    }
+    if (saving && String(url).includes(window.HANG_ON || '\\u0000')) {
+      return new Promise((resolve, reject) => {
+        options.signal && options.signal.addEventListener('abort', () => {
+          reject(new DOMException('stopped', 'AbortError'));
+        });
+      });
+    }
+    return real(url, options);
+  };
+})();
+"""
+
+
+def test_a_save_can_be_stopped_and_a_failure_tried_again(browser, served: Served) -> None:  # noqa: F811
+    book(served.out / "local" / "book-he")
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.add_init_script(HANG)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/book-he/reader/sec-0001.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.click(".bar-tools [data-more]")
+        row = page.locator("#offline-row")
+        page.evaluate("() => { window.HANG_ON = 'sec-0003'; }")
+        row.locator(".offline-go").click()
+        page.wait_for_selector("#offline-row.offline-saving")
+        assert "of" in row.locator(".offline-size").inner_text()
+        assert row.locator(".offline-note").inner_text() == "Keep this page open until it's saved."
+        row.locator(".offline-stop").click()
+        page.wait_for_selector("#offline-row.offline-idle")
+        assert [url for url in page.evaluate(KEYS) if "/reader/" in url] == []
+
+        page.evaluate("() => { window.HANG_ON = ''; window.FAIL_ON = 'sec-0002'; }")
+        row.locator(".offline-go").click()
+        page.wait_for_selector("#offline-row.offline-failed")
+        assert "We couldn't save this for offline." in row.inner_text()
+        assert [url for url in page.evaluate(KEYS) if "/reader/" in url] == [], "nothing half-kept"
+        page.evaluate("() => { window.FAIL_ON = ''; }")
+        row.locator(".fault-act").click()
+        page.wait_for_selector("#offline-row.offline-saved")
+    finally:
+        context.close()
+
+
+FULL = """
+(() => {
+  const put = Cache.prototype.put;
+  Cache.prototype.put = function (request, response) {
+    const url = typeof request === 'string' ? request : request.url;
+    if (window.FULL && url.includes('/reader/')) {
+      return Promise.reject(new DOMException('full', 'QuotaExceededError'));
+    }
+    return put.call(this, request, response);
+  };
+})();
+"""
+
+
+def test_a_full_device_is_said_with_the_text_s_name(browser, served: Served) -> None:  # noqa: F811
+    book(served.out / "local" / "book-he")
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    context.add_init_script(FULL)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/book-he/reader/sec-0001.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.evaluate("() => { window.FULL = true; }")
+        page.click(".bar-tools [data-more]")
+        page.locator("#offline-row .offline-go").click()
+        page.wait_for_selector("#offline-row.offline-full")
+        said = page.locator("#offline-row").inner_text()
+        title = page.locator("#offline-row").get_attribute("data-title")
+        assert f"This device is full, so we couldn't save {title}." in said
+        assert page.evaluate(LIST) == []
+    finally:
+        context.close()
+
+
+PLAYLIST = """
+(() => {
+  const real = window.fetch;
+  window.fetch = (url, options) => {
+    if (/\\/playlists\\/7\\.json/.test(String(url))) {
+      return Promise.resolve(new Response(JSON.stringify({
+        id: 7, name: 'Mornings',
+        items: [
+          { position: 0, title: 'One', open: '/reader/one-he/reader/index.html',
+            facts: { kind: 'story' } },
+          { position: 1, title: 'Two', open: '/reader/two-he/reader/index.html',
+            facts: { kind: 'article' } },
+          { position: 2, title: 'Waiting', open: null, job: 'j' },
+        ],
+      }), { headers: { 'Content-Type': 'application/json' } }));
+    }
+    return real(url, options);
+  };
+})();
+"""
+
+
+def test_a_playlist_opened_is_kept_whole_and_its_page_saves_and_removes_it(
+    browser,  # noqa: F811
+    served: Served,
+) -> None:
+    book(served.out / "local" / "one-he", chapters=1)
+    book(served.out / "local" / "two-he", chapters=2)
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(PLAYLIST)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/one-he/reader/index.html") + "&list=7&at=0")
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        kept(page, "playlist:7")
+        saved = {item["id"]: item for item in page.evaluate(LIST)}
+        assert saved["playlist:7"]["kind"] == "playlist"
+        assert saved["playlist:7"]["how"] == "auto"
+        assert saved["playlist:7"]["members"] == [
+            "/reader/one-he/reader/",
+            "/reader/two-he/reader/",
+        ]
+        assert saved["/reader/two-he/reader/"]["held"] == ["playlist:7"]
+        assert saved["/reader/two-he/reader/"]["kind"] == "article"
+
+        # The playlist's own page: what is so, and Remove.
+        page.evaluate(
+            """() => { const slot = document.createElement('span'); slot.id = 'slot';
+                 document.body.appendChild(slot);
+                 window.TargumOffline.playlist({ id: 7, name: 'Mornings' }, slot, 'page'); }"""
+        )
+        page.wait_for_selector("#slot.offline-saved")
+        assert page.locator("#slot .offline-label").inner_text() == "Saved for offline"
+        page.locator("#slot .offline-remove").click()
+        page.wait_for_selector("#slot.offline-idle")
+        left = [item["id"] for item in page.evaluate(LIST)]
+        assert left == ["/reader/one-he/reader/"], "the text opened stays; the one only held goes"
+
+        page.locator("#slot .offline-go").click()
+        page.wait_for_selector("#slot.offline-saved")
+        saved = {item["id"]: item for item in page.evaluate(LIST)}
+        assert saved["playlist:7"]["how"] == "you"
+        card = page.evaluate(
+            """() => { const slot = document.createElement('span');
+                 window.TargumOffline.playlist({ id: 7, name: 'Mornings' }, slot, 'card');
+                 return new Promise((r) => setTimeout(() => r(slot.textContent), 300)); }"""
+        )
+        assert card.startswith("Saved for offline · ") and card.endswith("MB")
+    finally:
+        context.close()

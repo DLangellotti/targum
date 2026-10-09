@@ -411,6 +411,38 @@ What it does not overturn: offline. "You're offline" and the saved-for-offline l
 their own slice and are not drawn here; the banner says only that targum is out of reach.
 
 
+### A text is kept for offline by a press, or by being opened — 2026-10-09
+
+David, 2026-10-08: "Offline is automatic plus manual", and in the night's calls, "Offline
+video saves the whole video by default, and the reader can change that in settings". The
+worker (the entry below) answers what is saved. This is how things come to be saved.
+
+- **Saved on its own.** Opening a text keeps it, once the page has settled. The reader's
+  last five texts are kept, and the oldest opened is let go when a sixth arrives. Opening
+  a text from a playlist keeps the whole playlist the same way. The number (Off, 3, 5 or
+  10) and the playlist switch belong to this device, and are kept in this browser. Opening
+  a text that is already kept fetches nothing: it is only marked as opened, and the worker
+  has already refreshed the page itself.
+- **Saved by you.** Save for offline is in a text's ⋯, with the room it will take beside
+  it before it is pressed, and on a playlist's own page. What the reader saves stays until
+  they remove it. A text kept on its own and then saved by the reader is not fetched again;
+  it only changes hands.
+- **A film saves with its picture**, unless the reader chose "Sound and text" for this
+  device. There is no choice at each save. The room the menu shows is the room the reader's
+  choice will take: a minute of film is about six times a minute of sound.
+- **Five states, in the row itself**: what it will take; Saving for offline, with the
+  megabytes so far, a leaf bar, Stop and "Keep this page open until it's saved."; Saved on
+  this device, with its size and Remove; "We couldn't save this for offline." with Try
+  again; and "This device is full, so we couldn't save …". The last two are lines in a
+  card, the error surface of 2026-10-09.
+- **Saving stops when the page does.** Nothing is saved in the background, so the line
+  asks the reader to keep the page open. A save cut off by turning the page continues from
+  where it stopped the next time it is asked: a file already in the cache is not fetched
+  twice, and files that no saved text names are swept away once no tab is saving.
+- **A card says only what is so.** A playlist's card on the tab says "Saved for offline ·
+  79 MB" or "Saving for offline · 4 of 6", and offers no press. The press is on the
+  playlist's own page, beside Start.
+
 ### A worker keeps what the reader saved, and fetches nothing else — 2026-10-09
 
 David, 2026-10-08 ("Offline is automatic plus manual"; boards OffSaving, OffSaved and

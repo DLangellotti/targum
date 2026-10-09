@@ -221,6 +221,12 @@ THUMBED = (
     ".more-on",
     # Theatre's size grip on the picture's foot (design.md §12, 2026-10-07).
     ".film-size",
+    # Saving for offline (design.md §12, 2026-10-09): save, stop, try again and remove, in
+    # a reader's ⋯ and on a playlist's page.
+    ".offline-go",
+    ".offline-stop",
+    ".offline-again",
+    ".offline-remove",
     # Beside, the line between the picture and the transcript (design.md §12, 2026-10-08).
     ".film-split",
     # The next part under the picture, and its Try again (design.md §12, 2026-10-07).
