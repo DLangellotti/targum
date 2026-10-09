@@ -247,7 +247,7 @@
     };
     if (code === "ru") {
       return [
-        L("talk", t("welcome.level.ru.talk", "I can read a video talk")),
+        L("talk", t("welcome.level.ru.talk", "I can follow a short video")),
         L("story", t("welcome.level.ru.story", "I can read a short story (Chekhov)")),
         L("news", t("welcome.level.ru.news", "I can read a news article (РБК)")),
         L("novel", t("welcome.level.ru.novel", "I can read a novel (Tolstoy)")),
@@ -256,7 +256,7 @@
     if (code === "it") {
       return [
         L("picture", t("welcome.level.it.picture", "I can read a picture book")),
-        L("talk", t("welcome.level.it.talk", "I can read a video talk")),
+        L("talk", t("welcome.level.it.talk", "I can follow a short video")),
         L("story", t("welcome.level.it.story", "I can read a short story")),
         L("news", t("welcome.level.it.news", "I can read a news article")),
       ];
