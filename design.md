@@ -366,6 +366,22 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The Talk pill keeps its own room at a desk — 2026-10-09
+
+Audit 2, gap 3. The pill floats at the window's bottom-right corner, and since "The boards
+are the desk" the column runs to that corner too. It covered the Library's second
+"See all →", the Words table and the Upload card on home. Only a phone kept room for it
+(#684).
+
+- **At a desk the pill says "Talk"**, as the boards draw it and as the phone's pill
+  already does ("Поговорить" in Russian). Its accessible name is still "Talk to targum". At 1440 it now fits in the margin outside
+  the 1248px column, and nothing on the page moves.
+- **Narrower than that, the page gives up the pill's reach at its end edge only.**
+  `talk.js` measures the reach as `--talk-room`, and the body's end padding is that
+  reach less the column's own padding. The bar keeps the whole width. A control clear of
+  the pill across the window is clear of it at every scroll position.
+  `test_at_a_desk_the_talk_pill_covers_nothing` holds this at 1024, 1280 and 1440.
+
 ### A drawer left open comes back undimmed — 2026-10-09
 
 Audit 2, gap 4. "Talk is a sheet over a dimmed page" (below, the same day) put the scrim

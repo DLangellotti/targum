@@ -312,9 +312,76 @@ def test_a_longer_pill_takes_more_room(browser, tmp_path: Path) -> None:
     too and not only the English the width was first seen in."""
     context, page, _ = shelf(browser, tmp_path, 1024)
     page.evaluate(
-        "() => { document.querySelector('#talk-open span').textContent = 'Поговорить с targum'; }"
+        "() => { document.querySelector('#talk-open .talk-short').textContent ="
+        " 'Поговорить с targum'; }"
     )
     page.wait_for_timeout(100)
     got = page.evaluate(UNDER_THE_PILL)
     context.close()
     assert got["keys"] and got["under"] == 0, got
+
+
+#: Every link, button and field on a desk page that the pill's column of the window
+#: reaches, outside the bar and the pill's own drawer. The pill is fixed and a page
+#: scrolls only up and down, so a control clear of it across the window is clear of it at
+#: every scroll position.
+CLEAR_OF_THE_PILL = """() => {
+  const pill = document.getElementById('talk-open');
+  const box = pill.getBoundingClientRect();
+  const away = '.site-head, #talk-open, .talk-drawer, .palette, .talk-scrim, .palette-scrim';
+  const under = [...document.querySelectorAll('a, button, input, select, textarea, summary')]
+    .filter((el) => !el.closest(away))
+    .filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.right > box.left && r.left < box.right;
+    })
+    .map((el) => el.outerHTML.slice(0, 80));
+  const row = document.querySelector('.site-head-row').getBoundingClientRect();
+  return {
+    shown: !pill.hidden && box.width > 0,
+    pill: [Math.round(box.left), Math.round(box.right)],
+    under,
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    bar: [Math.round(row.left), Math.round(row.right)],
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [1024, 1280, 1440])
+@pytest.mark.parametrize("which", ["texts", "library", "progress", "add"])
+def test_at_a_desk_the_talk_pill_covers_nothing(browser, which: str, width: int) -> None:
+    """Audit 2, gap 3: the pill sat on the Library's second "See all →", the Words table
+    and the Upload card, because only a phone kept room for it. At a desk the page keeps
+    its end edge clear of what the pill reaches; at 1440 the pill says "Talk" and stands
+    in the margin outside the column, and the bar keeps the whole width."""
+    from targum.render.builder import add_page, library_page, progress_page
+
+    html = {
+        "texts": lambda: list_page("test-key", "texts"),
+        "library": lambda: library_page("test-key"),
+        "progress": lambda: progress_page("test-key"),
+        "add": lambda: add_page("test-key"),
+    }[which]()
+
+    def answer(route, request):  # type: ignore[no-untyped-def]
+        if request.resource_type == "document":
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        path = request.url.split("?")[0]
+        said: dict = {"readers": _readers(), "trash": []} if path.endswith("/readers") else {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(said))
+
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = context.new_page()
+    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
+    page.route("http://desk.test/**", answer)
+    page.goto(f"http://desk.test/{which}?k=test-key")
+    page.wait_for_timeout(600)
+    got = page.evaluate(CLEAR_OF_THE_PILL)
+    context.close()
+    assert got["shown"], got
+    assert got["under"] == [], got
+    assert not got["sideways"], got
+    if width == 1440:
+        # The pill stands in the margin: nothing moved, and the column is the board's.
+        assert got["bar"][1] - got["bar"][0] >= 1248, got
