@@ -5651,3 +5651,11 @@ body.film-theatre .film-end { margin-inline: auto; }
 .film-end .film-end-words { direction: ltr; justify-content: flex-start; }
 .foot .film-end-he,
 .film-end .film-end-he { unicode-bidi: isolate; }
+
+/* A drawer left open on the page before comes back beside this one, undimmed and under
+   its bar, without moving in (audit 2, 2026-10-09; design.md §12, "A drawer left open
+   comes back undimmed"). Only a press on this page dims the page under it. */
+.talk-drawer.talk-aside { animation: none; }
+@media (min-width: 60.01rem) {
+  .talk-drawer.talk-aside { inset-block-start: var(--talk-top, 0px); }
+}

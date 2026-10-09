@@ -366,6 +366,27 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A drawer left open comes back undimmed — 2026-10-09
+
+Audit 2, gap 4. "Talk is a sheet over a dimmed page" (below, the same day) put the scrim
+under the drawer, and the drawer stays open across pages (§13), so after one conversation
+every later page opened dimmed under a 460px sheet until it was closed: a modal that
+followed the reader around.
+
+- **Only a press dims.** The scrim stands under the drawer when the reader presses Talk
+  on this page, or a door that opens it (Ask targum on Add, a conversation from the
+  palette). Escape, ×, the grab and a tap on the scrim close it, as before.
+- **A drawer brought back is a panel beside the page.** When a page opens the drawer
+  because it was left open on the one before, it comes back without the scrim and
+  without moving in. At a desk it stands under the page's bar, so the bar stays usable.
+  On a phone it is still the sheet, because there is no room beside the page.
+- **It still stays open across pages.** Somebody mid-conversation who follows a link has
+  not finished talking.
+
+**A default, David to overrule.** The other answer is to close the drawer on navigation
+and keep only the conversation. The pill would then be the one way back to it, and
+`targum:talk` would stop being read on load. That is a one-line change in `talk.js`.
+
 ### Home says welcome back after a week away — 2026-10-09
 
 P16 of the polish plan. Boards WelcomeBackDesk and WelcomeBackPhone: home, for a reader
