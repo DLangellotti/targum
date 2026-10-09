@@ -7921,6 +7921,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._reading()
         if route == "/account/story":
             return self._story(parse_qs(urlparse(self.path).query))
+        if route == "/account/words":
+            return self._words_page(parse_qs(urlparse(self.path).query))
         if route == "/account/places":
             return self._places(parse_qs(urlparse(self.path).query))
         if route == "/word/met":
@@ -11660,6 +11662,110 @@ class Handler(BaseHTTPRequestHandler):
                 },
             }
         )
+
+    def _words_page(self, query: dict[str, list[str]]) -> None:
+        """What Your Words knows about one language's list beyond the browser's own rows
+        (design.md §12, "Your Words is one table and a practice card", 2026-10-09).
+
+        - `met`: in how many texts each word on the list was met, met the way the card
+          and Your Progress mean it — inside a section the reader finished. A word met
+          nowhere is left out. The "Met in" column and the "Met often" tab read it.
+        - `practise`: up to ten words still being learned, most met first, each with a
+          line the reader read it in, the word's place in that line, and the line's
+          translation into `into`. The practice card reads it.
+        - `notes`: what a row says beside a word's meaning, where the language has
+          something and this machine has the data: a French word's pronunciation and the
+          English word it is a false friend of, each behind the switch the reader's card
+          is behind; the case a Russian word is mostly met in.
+
+        All of it is read off builds and lists already on this machine: nothing is
+        fetched and nothing spends. Signed out there is no list, and the page draws from
+        the browser alone.
+        """
+        from . import meetings as meetings_module
+        from . import occurrences as occurrences_module
+        from . import touchstones
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str((query.get("language") or [""])[0]).split("-")[0].strip().lower()
+        if not language:
+            return self._json({"error": "no language"}, 400)
+        into = str((query.get("into") or ["en"])[0]).split("-")[0].strip().lower() or "en"
+        marked = self.store.marked(person, language)
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        finished = self.store.finished(person.id)
+        met = occurrences_module.texts_met(list(marked), finished, folder_for, language)
+        learning = [lemma for lemma in touchstones.learning(marked) if met.get(lemma, 0) > 0]
+        learning.sort(key=lambda lemma: (-met[lemma], lemma))
+        lines = meetings_module.lines_met(
+            learning[: meetings_module.PRACTISE], finished, folder_for, language
+        )
+        practise = []
+        for lemma in learning[: meetings_module.PRACTISE]:
+            line = lines.get(lemma)
+            said = meetings_module.card_line(line, into) if line else None
+            if said:
+                practise.append(said)
+        self._json(
+            {
+                "signedIn": True,
+                "language": language,
+                "met": met,
+                "often": touchstones.OFTEN,
+                "practise": practise,
+                "notes": self._word_notes(language, into, list(marked), finished, folder_for),
+            }
+        )
+
+    @staticmethod
+    def _word_notes(
+        language: str,
+        into: str,
+        lemmas: list[str],
+        finished: list[tuple[str, str, int]],
+        folder_for: Callable[[str], tuple[Path, str] | None],
+    ) -> dict[str, dict[str, Any]]:
+        """The line a row of Your Words says beside a word's meaning, per language, where
+        there is one. French: how it is said (Morphalou, behind `TARGUM_FRENCH_IPA`) and
+        the English it looks like and does not mean (targum's list, behind
+        `TARGUM_FALSE_FRIENDS`, and only read into English) — the same switches the
+        reader's card is behind. Russian: the case it is mostly met in. Nothing for a
+        language with nothing to say, and nothing guessed."""
+        from . import meetings as meetings_module
+
+        notes: dict[str, dict[str, Any]] = {}
+        if language == "fr":
+            from .annotate import false_friends, french_said, morphalou
+
+            lexicon = morphalou.lexicon() if french_said.is_on() else None
+            friends = false_friends.is_on() and into == "en"
+            for lemma in lemmas:
+                note: dict[str, Any] = {}
+                if lexicon is not None:
+                    reading = french_said.reading(lexicon, lemma)
+                    if reading:
+                        note["said"] = french_said.everyday(reading)
+                if friends:
+                    found = false_friends.friend_of(lemma)
+                    if found:
+                        note["friend"] = {"looks": found[0], "means": found[1]}
+                if note:
+                    notes[lemma] = note
+        elif language == "ru":
+            for lemma, (case, form) in meetings_module.cases_met(
+                lemmas, finished, folder_for, language
+            ).items():
+                notes[lemma] = {"case": case, "form": form}
+        return notes
 
     def _story(self, query: dict[str, list[str]]) -> None:
         """Your Progress's story for one language (design.md §12, "Your Progress is a

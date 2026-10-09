@@ -2391,10 +2391,25 @@ WORDS_SEEN = """() => ({
     (a) => a.textContent.trim().replace(/\\s+/g, ' ')
   ),
   current: document.querySelector('.list-tabs a[aria-current="page"]').textContent.trim(),
-  chips: [...document.querySelectorAll('#stage-chips .chip')].map((c) => c.textContent),
+  chips: [...document.querySelectorAll('#stage-chips .tab')].map((c) => c.textContent),
   steps: [...document.querySelectorAll('#word-rows tr')].map(
     (row) => [...row.querySelectorAll('.stage .level')].map((b) => b.textContent)
   ),
+  met: [...document.querySelectorAll('#word-rows tr')].map(
+    (row) => row.querySelector('.status').textContent
+  ),
+  practise: (() => {
+    const card = document.getElementById('practise');
+    if (!card || card.hidden) return null;
+    const box = card.getBoundingClientRect();
+    const table = document.querySelector('.words-card').getBoundingClientRect();
+    return {
+      word: card.querySelector('.practise-word').textContent,
+      at: document.getElementById('practise-at').textContent,
+      meaningShown: getComputedStyle(card.querySelector('.practise-meaning')).display !== 'none',
+      first: box.top < table.top,
+    };
+  })(),
   sideways: document.documentElement.scrollWidth > window.innerWidth,
 })"""
 
@@ -2403,15 +2418,39 @@ WORDS_SEEN = """() => ({
 def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     browser, width: int
 ) -> None:
-    """design.md §12, "Your Words is reached from Your Progress, by stage" (2026-10-09)."""
+    """design.md §12, "Your Words is reached from Your Progress, by stage", and "Your Words
+    is one table and a practice card" (both 2026-10-09)."""
     import os
 
     html = list_page(TOKEN, "words")
+    said = "בְּדַרְכֵי הָעִיר"
+    facts = {
+        "signedIn": True,
+        "met": {"עיר": 3, "דרך": 1},
+        "often": 2,
+        "notes": {},
+        "practise": [
+            {
+                "lemma": "עיר",
+                "line": said,
+                "start": said.index("הָעִיר"),
+                "end": len(said),
+                "word": "הָעִיר",
+                "translation": "in the ways of the city",
+                "title": "רות",
+                "chapter": 2,
+                "name": "ruth",
+                "language": "he",
+                "case": "",
+            }
+        ],
+    }
 
     def answer(route, request):
         if request.resource_type == "document":
             return route.fulfill(status=200, content_type="text/html", body=html)
-        route.fulfill(status=200, content_type="application/json", body="{}")
+        body = json.dumps(facts) if "/account/words" in request.url else "{}"
+        route.fulfill(status=200, content_type="application/json", body=body)
 
     context = browser.new_context(viewport={"width": width, "height": 900})
     page = context.new_page()
@@ -2442,6 +2481,12 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     assert got["steps"] and all(steps == five for steps in got["steps"])
     assert not got["sideways"], got
     assert stored == 3
+    # Most met first, with how often on the row, and the card a line the reader read: the
+    # meaning on show beside the table, asked for first on a phone, where the card leads.
+    assert got["met"][0].startswith("Just met")
+    assert got["practise"]["word"] == "הָעִיר" and got["practise"]["at"] == "1 of 1"
+    assert got["practise"]["meaningShown"] == (width > 640)
+    assert got["practise"]["first"] == (width <= 640)
 
 
 #: What a card is, as the browser draws it: the card's paper, a shadow, and a card's

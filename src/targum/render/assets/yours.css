@@ -81,9 +81,233 @@ body.yours .nothing a:hover { border-block-end-color: var(--ink-soft); }
 .words-summary { margin: 0; font-size: 0.9375rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .words-summary:empty { display: none; }
 
-.stage-chips { flex-basis: 100%; }
+/* --- Your Words is one table and a practice card (design.md §12, 2026-10-09) -----------
+   Boards WordsDesk and WordsPhone: the head on the desk, the exports quiet at its end;
+   then the list's card — Words and Phrases as tabs with the find field in its head, the
+   stages as tabs, the table, and "Most met first" with Show more at its foot — and the
+   practice card beside it, which comes first on a phone. */
+body.yours .visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.words-sum { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.4rem 1.25rem; }
+.words-exports { margin: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.link-quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link-quiet:hover { color: var(--ink); }
+.link-quiet[hidden] { display: none; }
 
-/* A row's word, its dictionary form under it, and the stage control in its own cell. */
-table.rows .word-cell .form { margin-inline-start: 0.5rem; font-size: 0.8125rem; color: var(--ink-soft); }
-table.rows td.stage { white-space: nowrap; cursor: auto; }
-table.rows td.stage .vocab-editor { gap: 0; }
+.words-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22.5rem;
+  gap: 1.5rem;
+  align-items: start;
+}
+.words-grid:has(> .practise[hidden]) { grid-template-columns: minmax(0, 1fr); }
+.words-grid > .practise { position: sticky; inset-block-start: 1rem; }
+.words-grid > .practise[hidden] { display: none; }
+.words-card { min-inline-size: 0; }
+.words-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+.words-card-head .find { flex: 0 1 16rem; min-inline-size: 0; min-block-size: 2.5rem; font-size: 0.875rem; }
+.stage-tabs { margin-block-end: 0.75rem; }
+.stage-tabs .tab-often { margin-inline-start: 0.75rem; }
+.meaning-langs { margin-block-end: 0.75rem; }
+
+/* The table: the word, its meaning, in how many texts it was met, its stage by name on
+   the ramp's colour, and the five stages. */
+table.words-table { inline-size: 100%; border-collapse: collapse; font-size: 0.875rem; }
+table.words-table th {
+  padding: 0 0.75rem 0.5rem 0;
+  border-block-end: 1px solid var(--hairline);
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-align: start;
+  white-space: nowrap;
+}
+table.words-table td {
+  padding: 0.7rem 0.75rem 0.7rem 0;
+  border-block-end: 1px solid var(--hairline);
+  vertical-align: middle;
+}
+table.words-table tbody tr { cursor: pointer; }
+table.words-table tbody tr:hover { background: var(--teal-wash); }
+table.words-table:not(.has-met) .met { display: none; }
+table.words-table .term { font-family: var(--reading); font-size: 1.25rem; line-height: 1.35; }
+table.words-table .term:lang(he),
+table.words-table .term:lang(yi),
+table.words-table .term:lang(arc) { font-family: var(--reading-hebrew); }
+table.words-table .word-cell .form,
+table.words-table .word-cell .said { display: block; font-size: 0.8125rem; color: var(--ink-soft); }
+table.words-table .word-cell .said { color: var(--iris); font-family: var(--reading); }
+table.words-table.is-rtl .word-cell { text-align: end; }
+table.words-table td.meaning { min-inline-size: 7rem; }
+.word-note { display: block; margin-block-start: 0.2rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.word-note.friend { color: var(--clay); }
+.word-note .friend-tag { color: var(--clay); border-color: var(--clay); }
+table.words-table td.met { color: var(--ink-soft); white-space: nowrap; }
+table.words-table td.status { white-space: nowrap; }
+table.words-table .status-met { display: none; }
+table.words-table td.stage { white-space: nowrap; cursor: auto; }
+table.words-table td.stage .vocab-editor { gap: 0; }
+table.words-table td.stage .vocab-editor .levels { flex-wrap: nowrap; }
+/* The copy waits like the reader's list's does, beside the word and out of its way. */
+table.words-table .copy { opacity: 0; margin-inline-start: 0.35rem; }
+table.words-table tr:hover .copy,
+table.words-table .copy:focus-visible,
+table.words-table .copy.copied { opacity: 1; }
+.dot {
+  display: inline-block;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  margin-inline-end: 0.45rem;
+  border-radius: 50%;
+  background: var(--well);
+  vertical-align: 0.05em;
+}
+.dot-1 { background: color-mix(in srgb, var(--leaf) 32%, var(--paper)); }
+.dot-2 { background: color-mix(in srgb, var(--leaf) 55%, var(--paper)); }
+.dot-3 { background: color-mix(in srgb, var(--leaf) 78%, var(--paper)); }
+.dot-9 { background: var(--leaf); }
+.dot-0 { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-soft); }
+.words-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-block-start: 0.9rem; }
+.words-order { font-size: 0.8125rem; color: var(--ink-soft); }
+.words-foot .more {
+  display: inline-block;
+  inline-size: auto;
+  margin: 0 0 0 auto;
+  padding: 0.35rem 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.words-foot .more[hidden] { display: none; }
+
+/* Practise these: one word at a time, in a line the reader read. */
+.practise-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.practise-top .section-title { margin: 0; }
+.practise-at { font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.practise-note { margin: 0.35rem 0 1rem; font-size: 0.875rem; color: var(--ink-soft); }
+.practise-well { padding: 1rem 1.1rem; border: 1px solid var(--hairline); border-radius: 12px; }
+.practise-from { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.75rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.practise-from .practise-thumb { flex: none; inline-size: 1.75rem; block-size: 1.75rem; border-radius: 6px; overflow: hidden; font-size: 0.875rem; }
+.practise-from .practise-thumb img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.practise-line { margin: 0 0 0.9rem; font-family: var(--reading); font-size: 1.25rem; line-height: 1.65; color: var(--ink); }
+.practise-line:lang(he),
+.practise-line:lang(yi),
+.practise-line:lang(arc) { font-family: var(--reading-hebrew); }
+.practise-word {
+  padding: 0 0.15em;
+  border-radius: 6px;
+  background: var(--teal-wash);
+  box-shadow: inset 0 0 0 1.5px var(--teal);
+  color: inherit;
+}
+.practise-meaning { padding-block-start: 0.8rem; border-block-start: 1px solid var(--hairline); }
+.practise-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; margin: 0 0 0.3rem; }
+.practise-head .term { font-family: var(--reading); font-size: 1.25rem; }
+.practise-head .term:lang(he),
+.practise-head .term:lang(yi),
+.practise-head .term:lang(arc) { font-family: var(--reading-hebrew); }
+.practise-sense { font-weight: 600; font-size: 0.9375rem; }
+.practise-translation { margin: 0.4rem 0 0; font-family: var(--reading); font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
+.practise-ask { display: none; }
+.practise-question { margin: 0 0 0.6rem; font-size: 0.875rem; color: var(--ink-soft); }
+.practise-reveal { inline-size: 100%; }
+.practise-stage { margin-block: 1rem 0.25rem; }
+.practise-next {
+  display: block;
+  margin-inline-start: auto;
+  padding: 0.4rem 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.practise-next[hidden] { display: none; }
+.practise-coming { margin-block-start: 0.75rem; padding-block-start: 0.75rem; border-block-start: 1px solid var(--hairline); }
+.practise-coming-head { margin: 0 0 0.35rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.practise-coming-words { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0; }
+.practise-go {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  cursor: pointer;
+}
+.practise-go:lang(he),
+.practise-go:lang(yi),
+.practise-go:lang(arc) { font-family: var(--reading-hebrew); }
+.practise-go:hover { color: var(--teal); }
+
+/* Narrower than the column and the card beside it: one column, the card first. */
+@media (max-width: 64rem) {
+  .words-grid { grid-template-columns: minmax(0, 1fr); }
+  .words-grid > .practise { position: static; order: -1; }
+}
+
+/* A phone (board WordsPhone): each word a row of its own — what it means and the word
+   on one line, its stage and how often it was met under them, and the stages a thumb
+   tall — and the practice card asks before it tells. */
+@media (max-width: 40rem) {
+  .words-card-head .find { flex: 1 1 100%; }
+  table.words-table,
+  table.words-table tbody,
+  table.words-table tr,
+  table.words-table td { display: block; }
+  table.words-table thead { display: none; }
+  table.words-table tbody tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "word meaning" "status status" "stage stage";
+    align-items: baseline;
+    gap: 0.35rem 0.75rem;
+    padding-block: 0.9rem;
+    border-block-end: 1px solid var(--hairline);
+  }
+  table.words-table.is-rtl tbody tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "meaning word" "status status" "stage stage";
+  }
+  table.words-table td { padding: 0; border: 0; }
+  table.words-table td.word-cell { grid-area: word; }
+  table.words-table td.meaning { grid-area: meaning; min-inline-size: 0; }
+  table.words-table:not(.is-rtl) td.meaning { text-align: end; }
+  table.words-table td.met { display: none; }
+  table.words-table td.status { grid-area: status; font-size: 0.8125rem; color: var(--ink-soft); white-space: normal; }
+  table.words-table .status-met { display: inline; }
+  table.words-table td.stage { grid-area: stage; }
+  table.words-table td.stage .vocab-editor .level { min-inline-size: 3rem; }
+  .practise-body:not(.is-shown) .practise-meaning,
+  .practise-body:not(.is-shown) .practise-stage,
+  .practise-body:not(.is-shown) .practise-next,
+  .practise-body:not(.is-shown) .practise-coming { display: none; }
+  .practise-body:not(.is-shown) .practise-ask { display: block; }
+}

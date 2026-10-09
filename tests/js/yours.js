@@ -127,8 +127,14 @@ global.fetch = (url, options) => {
   }
   // What is building (design.md §12, 2026-09-25): a row at the top of Your targums.
   if (clean.indexOf("/jobs") === 0) answer = { jobs: payload.jobs || [] };
-  // Lines that came back changed (targum-internal#290).
-  if (clean.indexOf("/slips") === 0) answer = { slips: payload.slips || [] };
+  // Lines that came back changed (targum-internal#290): the queue, and with `all=1` the
+  // record, which is the queue and the ones already known.
+  if (clean.indexOf("/slips") === 0) {
+    answer = { slips: clean.indexOf("all=1") > 0 ? payload.slips || [] : payload.queue || payload.slips || [] };
+  }
+  // What the server knows about the list (design.md §12, "Your Words is one table and
+  // a practice card", 2026-10-09). Signed out, refused.
+  if (clean.indexOf("/account/words") === 0) answer = payload.facts || { signedIn: false };
   return Promise.resolve({ ok: true, json: () => Promise.resolve(answer) });
 };
 
@@ -138,30 +144,59 @@ require(path.join(assets, "yours.js"));
 const at = (id) => byId[id] || { textContent: "", children: [], hidden: true };
 const part = (name) => claimBody.querySelector("." + name) || { hidden: true, children: [], textContent: "" };
 
-/** The word rows the table drew: term, dictionary form, meaning, how well. */
+/** The word rows the table drew: term, dictionary form, meaning, in how many texts it
+ *  was met, its stage by name, and the five stages to press. */
 function words() {
-  return at("word-rows")
-    .children.filter((row) => !String(row.className).includes("editor-row"))
-    .map((row) => {
-      const cells = row.children.map((cell) => cell.textContent);
-      const said = row.children[1] || {};
-      const word = row.children[0] || { children: [] };
-      const form = word.children.find((node) => String(node.className).includes("form"));
-      const scale = ((row.children[2] || { children: [] }).children[0] || { children: [] }).children[0];
-      const on = scale ? scale.children.find((b) => String(b.className).includes(" on")) : null;
-      return {
-        term: word.children[0] ? word.children[0].textContent : "",
-        lemma: form ? form.textContent : "",
-        meaning: cells[1],
-        lang: said.getAttribute ? said.getAttribute("lang") || "" : "",
-        dir: said.getAttribute ? said.getAttribute("dir") || "" : "",
-        stage: on ? Number(on.getAttribute("data-value")) : null,
-        press: (value) => {
-          const button = scale.children.find((b) => b.getAttribute("data-value") === String(value));
-          button.fire("click");
-        },
-      };
-    });
+  return at("word-rows").children.map((row) => {
+    const [word, said, met, status, stage] = row.children;
+    const find = (node, name) => (node && node.querySelector(name)) || null;
+    const form = (word.children || []).find((node) => String(node.className).includes("form"));
+    const scale = ((stage || { children: [] }).children[0] || { children: [] }).children[0];
+    const on = scale ? scale.children.find((b) => String(b.className).includes(" on")) : null;
+    return {
+      term: word.children[0] ? word.children[0].textContent : "",
+      lemma: form ? form.textContent : "",
+      said: (find(word, ".said") || {}).textContent || "",
+      meaning: (find(said, ".sense") || {}).textContent || "",
+      notes: (said.children || [])
+        .filter((node) => String(node.className).includes("word-note"))
+        .map((node) => node.textContent),
+      lang: said.getAttribute ? said.getAttribute("lang") || "" : "",
+      dir: said.getAttribute ? said.getAttribute("dir") || "" : "",
+      met: met ? met.textContent : "",
+      status: status ? (find(status, ".status-name") || {}).textContent || "" : "",
+      stage: on ? Number(on.getAttribute("data-value")) : null,
+      press: (value) => {
+        const button = scale.children.find((b) => b.getAttribute("data-value") === String(value));
+        button.fire("click");
+      },
+    };
+  });
+}
+
+/** The practice card (board WordsDesk): what it says about the word it is on. */
+function practise() {
+  const host = at("practise");
+  if (host.hidden) return null;
+  const body = at("practise-body");
+  const find = (name) => body.querySelector(name);
+  const line = find(".practise-line");
+  const scale = find(".levels");
+  const on = scale ? scale.children.find((b) => String(b.className).includes(" on")) : null;
+  const next = find(".practise-next");
+  return {
+    count: at("practise-at").textContent,
+    from: (find(".practise-place") || {}).textContent || "",
+    line: line ? line.textContent : "",
+    word: (find(".practise-word") || {}).textContent || "",
+    lang: line ? line.getAttribute("lang") : "",
+    meaning: (find(".practise-sense") || {}).textContent || "",
+    note: (find(".word-note") || {}).textContent || "",
+    translation: (find(".practise-translation") || {}).textContent || "",
+    stage: on ? Number(on.getAttribute("data-value")) : null,
+    next: next ? !next.hidden : false,
+    coming: (find(".practise-coming-words") || { children: [] }).children.map((b) => b.textContent),
+  };
 }
 
 /** A tile, if one was drawn there: its class, and the letter it rests on. */
@@ -205,19 +240,6 @@ function shelf() {
   });
 }
 
-/** A row of the fold's Phrases tab: a kept phrase, or a corrected line by its recast. */
-function phraseRow(item) {
-  const slip = String(item.className).includes("work-slip");
-  return {
-    kind: slip ? "slip" : "phrase",
-    term: slip
-      ? (item.querySelector(".rewrote-recast") || {}).textContent || ""
-      : (item.querySelector(".term") || {}).textContent || "",
-    meaning: (item.querySelector(".work-meaning") || {}).textContent || "",
-    keys: keysOf(item),
-  };
-}
-
 /** Phrases, grouped the way the page grouped them: {text: [phrase, ...]}. */
 function phrases() {
   const out = {};
@@ -228,33 +250,6 @@ function phrases() {
   return out;
 }
 
-/* A press on a row's answers. A word's or a phrase's row carries the five stages
-   (design.md §12, 2026-10-09): `key` 0 is known, 1 is the step it is already on — which
-   passes it over, as "Still learning" did — and `value` is any step by its number. A
-   corrected line keeps its two buttons, pressed by position. */
-function keysOf(item) {
-  const keys = item.querySelector(".work-keys") || { children: [] };
-  if (String(keys.className).includes("work-stages")) {
-    return keys.children[0].children[0].children.map((b) => b.textContent);
-  }
-  return keys.children.map((key) => key.textContent);
-}
-
-function pressKeys(row, step) {
-  const keys = row.querySelector(".work-keys");
-  if (!keys) return;
-  if (!String(keys.className).includes("work-stages")) {
-    keys.children[step.key || 0].fire("click");
-    return;
-  }
-  const scale = keys.children[0].children[0];
-  const on = scale.children.find((b) => String(b.className).includes(" on"));
-  const want =
-    step.value !== undefined ? String(step.value) : step.key ? (on ? on.getAttribute("data-value") : "") : "9";
-  const button = scale.children.find((b) => b.getAttribute("data-value") === want);
-  if (button) button.fire("click");
-}
-
 (async () => {
   for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
   for (const step of payload.do || []) {
@@ -263,32 +258,30 @@ function pressKeys(row, step) {
       part("claim-all").onchange();
     }
     if (step.type === "yes" && !part("claim-yes").disabled) part("claim-yes").onclick();
-    /* A press in the fold: `{type: "work", word: "…", key: 0}` — 0 is "I know this" and
-       1 is "Still learning". By the word rather than by position, so a test says which
-       word it answered and not which row happened to be there. */
-    if (step.type === "work") {
-      const row = at("work-rows").children.find(
-        (item) => item.getAttribute("data-word") === step.word,
-      );
-      // `fire`, not `onclick`: the fold registers its handlers with addEventListener.
-      if (row) pressKeys(row, step);
-    }
     /* A press on an export: `{type: "export", which: "anki"}`. The buttons are hidden
        until sync says there is an account, and a test that only wants the file should
        not have to stand up an account to get one — so the press is on the button
        whatever its `hidden` says, which is what a signed-in reader is pressing. */
     if (step.type === "export") at("export-" + step.which).fire("click");
-    // The press that turns the fold over (targum-internal#336): `{type: "more"}`.
-    if (step.type === "more") at("work-more").fire("click");
-    // A tab in the fold: `{type: "tab", which: "phrases"}`.
-    if (step.type === "tab") at("work-tab-" + step.which).fire("click");
-    /* A press on a row of the Phrases tab: `{type: "phrase", term: "…", key: 0}`, where
-       the term is a kept phrase's text or a corrected line's recast. */
-    if (step.type === "phrase") {
-      const row = at("work-phrase-rows").children.find((item) => phraseRow(item).term === step.term);
-      if (row) pressKeys(row, step);
+    // The practice card: `{type: "next"}`, `{type: "practise", value: 9}`, and a word
+    // under Coming up by its place, `{type: "go", at: 1}`.
+    if (step.type === "next") at("practise-body").querySelector(".practise-next").fire("click");
+    if (step.type === "practise") {
+      const button = at("practise-body").querySelector(".levels").children.find(
+        (b) => b.getAttribute("data-value") === String(step.value),
+      );
+      if (button) button.fire("click");
     }
-    /* A press on a row that opens its card (2026-09-18): `{type: "open", in: "work-rows",
+    if (step.type === "go") {
+      at("practise-body").querySelector(".practise-coming-words").children[step.at].fire("click");
+    }
+    // "I know this" on a corrected line in the record: `{type: "slip", id: 7}`.
+    if (step.type === "slip") {
+      const row = at("rewrote-rows").children.find((item) => item.getAttribute("data-slip") === String(step.id));
+      const button = row && row.querySelector(".work-known");
+      if (button) button.fire("click");
+    }
+    /* A press on a row that opens its card (2026-09-18): `{type: "open", in: "word-rows",
        term: "…"}`, where `in` is the list the row stands in and `term` its first word. */
     if (step.type === "open") {
       const host = at(step.in);
@@ -311,13 +304,11 @@ function pressKeys(row, step) {
       const row = words().find((one) => one.term === step.word);
       if (row) row.press(step.value);
     }
-    // A stage chip over the table: `{type: "chip", stage: "9"}`.
+    // A stage tab over the table: `{type: "chip", stage: "9"}`, "often" for Met often.
     if (step.type === "chip") {
       const chip = at("stage-chips").children.find((c) => c.getAttribute("data-stage") === step.stage);
       if (chip) chip.fire("click");
     }
-    // The fold's door out: `{type: "talk"}`. It writes a line and leaves for /chat.
-    if (step.type === "talk") at("work-talk").fire("click");
     for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
   }
   process.stdout.write(
@@ -337,28 +328,9 @@ function pressKeys(row, step) {
           ),
         ),
       },
-      /* What to work on (targum-internal#103): the fold above the table, and whether it
-         is drawn at all. A reader with nothing to work on sees no fold, so `hidden` is
-         as much of the answer as the rows are. */
-      workOn: {
-        hidden: at("work-on").hidden,
-        // The two tabs: whether they are drawn, and which one is open.
-        tabs: at("work-tabs").hidden
-          ? null
-          : ["words", "phrases"].find((which) => at("work-tab-" + which).attrs["aria-selected"] === "true"),
-        wordsHidden: at("work-rows").hidden,
-        phrasesHidden: at("work-phrase-rows").hidden,
-        phrases: at("work-phrase-rows").children.map(phraseRow),
-        button: at("work-talk").textContent,
-        // Whether the fold offers to turn over, and where it will open next time.
-        more: !at("work-more").hidden,
-        left: global.localStorage.getItem("targum:work-at:he"),
-        rows: at("work-rows").children.map((item) => ({
-          term: (item.querySelector(".term") || {}).textContent || "",
-          meaning: (item.querySelector(".work-meaning") || {}).textContent || "",
-          keys: keysOf(item),
-        })),
-      },
+      practise: practise(),
+      order: at("words-order").textContent,
+      hasMet: !!(byId["word-table"] && byId["word-table"].classList.contains("has-met")),
       rewrote: {
         hidden: at("rewrote-heading").hidden,
         rows: at("rewrote-rows").children.map((item) => ({
@@ -369,9 +341,9 @@ function pressKeys(row, step) {
             .filter((bit) => String(bit.className).includes("rewrote-changed"))
             .map((bit) => bit.textContent),
           why: (item.querySelector(".rewrote-why") || {}).textContent || "",
+          known: !!item.querySelector(".work-known"),
         })),
       },
-      wordsTitle: at("words-title").textContent,
       // The head (design.md §12, 2026-10-09): what the list adds up to, the tab counts,
       // and the stage chips with the one pressed.
       summary: at("words-summary").textContent,
@@ -390,14 +362,6 @@ function pressKeys(row, step) {
       /* What the presses above downloaded: the name off the anchor is not readable here,
          so a file is its type and its text, which is the half a format test is about. */
       saved: saved.map((file) => ({ name: file.name || "", type: file.type, text: file.text })),
-      /* The fold's door out: the line left for the conversation, and where the press
-         sent the reader. Both matter — a line written and nobody taken to it is a line
-         nobody reads. */
-      talk: {
-        foot: at("work-foot").hidden,
-        said: global.localStorage.getItem("targum:say") || "",
-        went: global.window.location.href || "",
-      },
       claim: {
         hidden: at("claim-panel").hidden,
         rows: (part("claim-rows").children || []).map((tr) => tr.children[1].textContent),

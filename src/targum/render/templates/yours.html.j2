@@ -136,100 +136,89 @@
   {%- endif %}
 
   {%- if which in ('words', 'phrases') %}
-  {#- The head of Your Words (board WordsDesk, 2026-10-08; design.md §12, "Your Words is
-      reached from Your Progress, by stage", 2026-10-09): the way back to Your Progress,
-      what the list adds up to in this language, and Words and Phrases as tabs. Filled by
-      `lists.js` for the language the menu is on. -#}
+  {#- The head of Your Words (board WordsDesk; design.md §12, "Your Words is reached from
+      Your Progress, by stage", and "Your Words is one table and a practice card", both
+      2026-10-09): the way back to Your Progress, what the list adds up to in this
+      language, and the exports as quiet links at its end. Filled by `lists.js` for the
+      language the menu is on. Hidden until sync says there is an account to export from;
+      named by what comes out, so two presses never both say Export. -#}
   <div class="words-head">
     <a class="words-back" href="/progress" data-back>← {{ t("you.page.your-progress", "Your Progress") }}</a>
-    <p class="words-summary" id="words-summary"></p>
-    <nav class="tabs list-tabs" aria-label="{{ t("lists.work.words-or-phrases", "Words or phrases") }}">
-      <a class="tab" href="/words" data-back{% if which == 'words' %} aria-current="page"{% endif %}>{{ t("lists.work.words", "Words") }} <span class="tab-count" id="count-words"></span></a>
-      <a class="tab" href="/phrases" data-back{% if which == 'phrases' %} aria-current="page"{% endif %}>{{ t("lists.work.phrases", "Phrases") }} <span class="tab-count" id="count-phrases"></span></a>
-    </nav>
+    <div class="words-sum">
+      <p class="words-summary" id="words-summary"></p>
+      <p class="words-exports">
+        {%- if which == 'words' %}
+        <button type="button" class="link-quiet" id="export-anki" hidden>{{ t("yours.page.export-anki", "Export as an Anki deck") }}</button>
+        <button type="button" class="link-quiet" id="export-words" hidden>{{ t("yours.page.csv", "CSV") }}</button>
+        {%- else %}
+        <button type="button" class="link-quiet" id="export-phrases" hidden>{{ t("yours.page.csv", "CSV") }}</button>
+        {%- endif %}
+      </p>
+    </div>
   </div>
   {%- endif %}
 
+  {#- Words and Phrases as tabs, each its own page, with their counts: in the head of the
+      list's card, as the board draws them. -#}
+  {%- macro list_tabs() %}
+  <nav class="tabs list-tabs" aria-label="{{ t("lists.work.words-or-phrases", "Words or phrases") }}">
+    <a class="tab" href="/words" data-back{% if which == 'words' %} aria-current="page"{% endif %}>{{ t("lists.work.words", "Words") }} <span class="tab-count" id="count-words"></span></a>
+    <a class="tab" href="/phrases" data-back{% if which == 'phrases' %} aria-current="page"{% endif %}>{{ t("lists.work.phrases", "Phrases") }} <span class="tab-count" id="count-phrases"></span></a>
+  </nav>
+  {%- endmacro %}
+
   {%- if which == 'words' %}
-  {#- What to work on (targum-internal#103). The words the reader flagged and never came
-      back to: still learning, oldest first, twenty at most.
-
-      Dmitry Z, 2026-09-16, on why a list like this is the thing worth paying for: "anki
-      requires bookkeeping and discipline that I lack", and "anki srs is kinda dumb in the
-      sense it doesnt really know what you get wrong beyond what you tell it". And, three
-      minutes later, the constraint: "if smth gonna ping me or bother me like duolingo
-      I'll fucking delete it".
-
-      So it is pull and never push. Nothing here is scheduled, nothing is due, nothing is
-      counted and nothing is sent. It is a view of rows that already exist, waiting when
-      the reader arrives and silent when they do not.
-
-      A reader with nothing to work on sees no fold at all — not an empty state and not an
-      invitation. `lists.js` hides the section, which is why it starts hidden here. -#}
-  <section class="panel work" id="work-on" hidden>
-    <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
-    {#- Two halves, one question (2026-09-18): the words, and the phrases — the ones kept
-        from a text and the lines the conversation corrected, oldest first across both.
-        The tabs are drawn only when both have rows. -#}
-    <div class="tabs work-tabs" id="work-tabs" role="tablist" aria-label="{{ t("lists.work.words-or-phrases", "Words or phrases") }}" hidden>
-      <button type="button" class="tab" role="tab" id="work-tab-words" data-work="words" aria-controls="work-rows" aria-selected="true">{{ t("lists.work.words", "Words") }}</button>
-      <button type="button" class="tab" role="tab" id="work-tab-phrases" data-work="phrases" aria-controls="work-phrase-rows" aria-selected="false" tabindex="-1">{{ t("lists.work.phrases", "Phrases") }}</button>
+  {#- One table and a practice card (design.md §12, "Your Words is one table and a
+      practice card", 2026-10-09; boards WordsDesk, WordsPhone, Words{Fr,Ru,Arc}). The
+      fold that stood over the table — What to work on, targum-internal#103 — listed the
+      words the To work on tab lists, a second time; the card beside the table is where
+      they are gone over now, one at a time, in a line the reader read. On a phone the
+      card comes first. -#}
+  <div class="words-grid">
+  <section class="card words-card" aria-label="{{ t("yours.page.your-words", "Your Words") }}">
+    <div class="words-card-head">
+      {{ list_tabs() }}
+      <input type="search" class="well find" id="search" dir="auto" autocomplete="off" spellcheck="false"
+        placeholder="{{ t("yours.page.find-a-word", "Find a word") }}" aria-label="{{ t("yours.page.find-a-word", "Find a word") }}">
     </div>
-    <ul class="work-rows" id="work-rows" role="tabpanel" aria-labelledby="work-tab-words"></ul>
-    <ul class="work-rows" id="work-phrase-rows" role="tabpanel" aria-labelledby="work-tab-phrases" hidden></ul>
-
-    {#- One door out of the fold, at its foot (targum-internal#103).
-
-        The rows have two answers each and no third: a row is where the reader says what
-        they know, and twenty of anything else on it makes the list a console. This is
-        the other thing a reader looking at these words might want — to meet them in a
-        sentence rather than in a list — and one control for the sitting is the size that
-        thought actually is.
-
-        It opens the conversation with a line written and unsent. The press is not a
-        send: the reader reads the line, edits it or does not, and presses Send with
-        their own hand, which is the same rule every other door in the product obeys.
-        Nothing here spends. -#}
-    <p class="work-foot" id="work-foot" hidden>
-      <button type="button" id="work-talk">{{ t("lists.work.talk-words", "Practise these words") }}</button>
-        <button type="button" class="work-more" id="work-more" hidden><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.5v2.6h-2.6"/></svg> {{ t("lists.work.more", "Show others") }}</button>
-    </p>
-  </section>
-
-  <section class="panel">
-    <div class="list-controls">
-      <h2><span id="words-title">{{ t("yours.page.your-words", "Your Words") }}</span></h2>
-      {#- Which language the meanings are in. Drawn only for somebody who has meanings in
-          more than one, the same way the language switcher is: a control with one answer
-          in it is only a question nobody asked. -#}
-      <div class="tabs meaning-langs" id="meaning-langs" role="tablist"
-           aria-label="{{ t("yours.page.translations-in", "Translations in") }}" hidden></div>
-      <input type="search" class="well" id="search" dir="auto" placeholder="{{ t("yours.page.search-a-word-or-a-meaning", "Search a word or a meaning") }}" spellcheck="false">
-      {#- Which stage, as chips (board WordsDesk): to work on — steps 1 to 3 — then each
-          step, known, and everything. They were a select. -#}
-      <div class="chips stage-chips" id="stage-chips" role="group" aria-label="{{ t("yours.page.filter-by-how-well-you-know-them", "Filter by how well you know them") }}"></div>
-      {#- Hidden until sync says there is an account to export from. Named by what
-          comes out rather than "Export": two buttons that both said Export would have
-          left the reader to find out which was which by pressing one. -#}
-      <button type="button" id="export-words" hidden>{{ t("yours.page.csv", "CSV") }}</button>
-      <button type="button" id="export-anki" hidden>{{ t("yours.page.anki", "Anki") }}</button>
-    </div>
+    {#- Which stage, as tabs, then Met often (`lists.js` draws them). -#}
+    <div class="tabs stage-tabs" id="stage-chips" role="group" aria-label="{{ t("yours.page.filter-by-how-well-you-know-them", "Filter by how well you know them") }}"></div>
+    {#- Which language the meanings are in. Drawn only for somebody who has meanings in
+        more than one, the same way the language switcher is. -#}
+    <div class="tabs meaning-langs" id="meaning-langs" role="tablist"
+         aria-label="{{ t("yours.page.translations-in", "Translations in") }}" hidden></div>
     <div class="table-wrap">
-      <table class="rows" id="word-table">
+      <table class="words-table" id="word-table">
         <thead>
           <tr>
             <th scope="col">{{ t("yours.page.word", "Word") }}</th>
             <th scope="col">{{ t("yours.page.meaning", "Meaning") }}</th>
+            <th scope="col" class="met">{{ t("yours.page.met-in", "Met in") }}</th>
             <th scope="col">{{ t("lists.column.stage", "Stage") }}</th>
-            <th scope="col">{{ t("yours.page.kept", "Kept") }}</th>
+            <th scope="col"><span class="visually-hidden">{{ t("yours.page.change-stage", "Change its stage") }}</span></th>
           </tr>
         </thead>
         <tbody id="word-rows"></tbody>
       </table>
     </div>
     <p class="empty" id="words-empty" hidden></p>
-    <button type="button" class="more" id="more" hidden></button>
+    <div class="words-foot">
+      <span class="words-order" id="words-order"></span>
+      <button type="button" class="more" id="more" hidden></button>
+    </div>
   </section>
+
+  {#- Practise these (board WordsDesk): one word at a time, in a line the reader read.
+      Drawn by `lists.js` from what `/account/words` said; hidden until there is a line. -#}
+  <aside class="card practise" id="practise" aria-labelledby="practise-heading" hidden>
+    <div class="practise-top">
+      <h2 class="section-title" id="practise-heading">{{ t("yours.page.practise-these", "Practise these") }}</h2>
+      <span class="practise-at" id="practise-at"></span>
+    </div>
+    <p class="practise-note">{{ t("yours.page.practise-note", "One word at a time, in a line you've read.") }}</p>
+    <div class="practise-body" id="practise-body"></div>
+  </aside>
+  </div>
 
   {#- Words you may already know (targum-internal#245): the commonest words of modern
       Hebrew not on the ledger, a checkbox on each and one at the head, every check a real
@@ -245,11 +234,11 @@
   {#- Phrases are their own tab since Your Words has a head (§12, 2026-10-09); they stood
       under the words on this page too until then. -#}
   {%- if which == 'phrases' %}
-  <section class="panel">
-    <div class="list-controls">
-      <h2><span id="phrases-title">{{ t("yours.page.your-phrases", "Your Phrases") }}</span></h2>
-      <button type="button" id="export-phrases" hidden>{{ t("yours.page.csv", "CSV") }}</button>
+  <section class="card words-card">
+    <div class="words-card-head">
+      {{ list_tabs() }}
     </div>
+    <h2 class="visually-hidden"><span id="phrases-title">{{ t("yours.page.your-phrases", "Your Phrases") }}</span></h2>
     <p class="note">{{ t("yours.page.phrases-stay-with-their-text", "Phrases stay with their text.") }}</p>
     <div id="phrase-list"></div>
     <p class="empty" id="phrases-empty" hidden>{{ t("yours.page.nothing-yet-drag-across-words-while-you", "Nothing yet. Drag across words to save a phrase.") }}</p>

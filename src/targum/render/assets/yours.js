@@ -74,29 +74,43 @@
   }
 
   /* The lines that came back changed (targum-internal#290), fetched once and handed to
-     the lists. Twice on the words page and once on the phrases page: the queue, which is
-     the fold's Phrases tab and exists only where the fold does, and the record, which
-     stands under Your Phrases wherever that list is.
+     the lists, on the phrases page: the record, which stands under Your Phrases, and the
+     queue, the ones in it the reader has not said they know yet.
 
      Asked for after the lists are drawn rather than before, so a slow answer never holds
-     up the words — the fold appears with its words and gains its lines a moment later,
-     and a reader with neither still sees nothing at all. */
+     up the phrases — the record appears a moment later, and a reader with none still
+     sees nothing at all. */
   function drawRewrote() {
-    if (!lists || !lists.rewrote) return;
-    if (which === "words") {
-      ask("/slips")
-        .then(function (data) {
-          lists.rewrote((data && data.slips) || []);
-        })
-        .catch(function () {});
-    }
-    if (which === "words" || which === "phrases") {
-      ask("/slips?all=1")
-        .then(function (data) {
-          lists.record((data && data.slips) || []);
-        })
-        .catch(function () {});
-    }
+    if (!lists || !lists.rewrote || which !== "phrases") return;
+    ask("/slips")
+      .then(function (data) {
+        lists.rewrote((data && data.slips) || []);
+      })
+      .catch(function () {});
+    ask("/slips?all=1")
+      .then(function (data) {
+        lists.record((data && data.slips) || []);
+      })
+      .catch(function () {});
+  }
+
+  /* What the server knows about one language's word list (design.md §12, "Your Words is
+     one table and a practice card", 2026-10-09): in how many texts each word was met, a
+     line each word being learned was met in, and a row's note. Asked once a language,
+     after the rows are drawn, and never in their way; signed out it is refused, and the
+     table stands without them. Nothing about it spends. */
+  var factsFor = "";
+
+  function drawFacts(code, into) {
+    if (which !== "words" || !lists || !lists.facts) return;
+    var asked = code + ":" + (into || "");
+    if (asked === factsFor) return;
+    factsFor = asked;
+    ask("/account/words?language=" + encodeURIComponent(code) + (into ? "&into=" + encodeURIComponent(into) : ""))
+      .then(function (data) {
+        lists.facts(code, data);
+      })
+      .catch(function () {});
   }
 
   /* --- the shelf ------------------------------------------------------------- */
@@ -549,7 +563,9 @@
     // Picking another language for the meanings redraws the same rows with the other
     // answer in them. The words themselves do not move: they are the same words.
     lists.onMeaningLanguage(function () {
-      lists.draw(shown, charts.collect(charts.meaningLanguage(shown))[shown]);
+      var into = charts.meaningLanguage(shown);
+      lists.draw(shown, charts.collect(into)[shown]);
+      drawFacts(shown, into);
     });
 
     var shown = "";
@@ -560,7 +576,9 @@
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       // Re-collected rather than sliced out of `data`: which language the meanings are
       // in is a question about the language being shown, and the answer changes with it.
-      lists.draw(code, charts.collect(charts.meaningLanguage(code))[code]);
+      var into = charts.meaningLanguage(code);
+      lists.draw(code, charts.collect(into)[code]);
+      drawFacts(code, into);
     }
 
     show(lang.current(codes));
@@ -568,8 +586,8 @@
   }
 
   var drawing = which === "texts" ? drawTexts() : drawKept();
-  // After the lists, and never in their way: the fold appears with its words and gains
-  // its rewritten lines a moment later.
+  // After the lists, and never in their way: the phrases appear first and the record of
+  // corrected lines a moment later.
   drawing.then(drawRewrote).catch(function () {});
 
   drawing.catch(function () {

@@ -743,30 +743,31 @@ def test_the_queue_waits_and_never_chases() -> None:
     constraint came in the same minute as the request: "if smth gonna ping me or bother
     me like duolingo I'll fucking delete it" (Dmitry Z, 2026-09-16).
 
-    So it is pull and never push. `workOn` reads rows that already exist; nothing about
-    it is scheduled, owed or counted, and §6's rule that engagement counts real things
-    is what keeps it a view rather than a debt.
+    So it is pull and never push. The practice card that replaced the fold (design.md
+    §12, "Your Words is one table and a practice card", 2026-10-09) reads rows that
+    already exist; nothing about it is scheduled, owed or counted, and §6's rule that
+    engagement counts real things is what keeps it a view rather than a debt. "2 of 10"
+    is where the reader is in it, never what is waiting.
     """
     lists = (ASSETS / "lists.js").read_text(encoding="utf-8")
-    fold = lists[lists.index("function workOn(") : lists.index("/* --- the word table")]
+    card = lists[lists.index("/* --- the practice card") : lists.index("function keyed(")]
     # The code, not the prose about it: the comments in here name every one of these
-    # words in order to say the fold does not do them, and a check that read them would
+    # words in order to say the card does not do them, and a check that read them would
     # be a check that can only pass on undocumented code.
-    fold = re.sub(r"/\*.*?\*/", " ", fold, flags=re.S)
-    fold = re.sub(r"//.*", " ", fold)
+    card = re.sub(r"/\*.*?\*/", " ", card, flags=re.S)
+    card = re.sub(r"//.*", " ", card)
 
     # Nothing that implies a clock or an obligation.
     for owed in ("due", "overdue", "interval", "schedule", "remind", "notify", "streak", "goal"):
-        assert owed not in fold.lower(), f"the fold says {owed!r}"
+        assert owed not in card.lower(), f"the card says {owed!r}"
     # And nothing that puts a number on what is waiting: "12 words due" is the sentence
     # this card exists not to say, and a count is how it starts.
-    assert "length +" not in fold and "count" not in fold.lower()
+    assert "length +" not in card and "count" not in card.lower()
 
-    # The heading is a question answered rather than an instruction, and carries no
-    # number beside it the way the table's title does.
+    # The heading is an invitation with no number beside it.
     yours = (TEMPLATES / "yours.html.j2").read_text(encoding="utf-8")
-    assert "What to work on" in yours
-    assert "work-title" not in yours, "no counted heading: that is the table's, and earned"
+    assert "Practise these" in yours
+    assert "yours.page.what-to-work-on" not in yours, "the fold is gone: one list, not two"
 
 
 #: The card's two columns (design.md §12, "The dark reading", 2026-10-06). A card is the

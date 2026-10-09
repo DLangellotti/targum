@@ -1110,33 +1110,32 @@ def test_a_youtube_address_is_no_longer_turned_away_at_the_paste() -> None:
     assert "run targum on your own computer" not in add
 
 
-def test_your_words_carries_the_fold_and_promises_nothing_by_it() -> None:
-    """What to work on (targum-internal#103): the words flagged and never come back to,
-    above the table they are also in.
+def test_your_words_is_one_table_and_a_practice_card_that_promises_nothing() -> None:
+    """design.md §12, "Your Words is one table and a practice card", 2026-10-09: the fold
+    that listed the words being learned over the table they are also in is gone, and the
+    card beside the table goes over them one at a time.
 
-    It starts hidden, because a reader with nothing to work on sees no fold at all —
+    It starts hidden, because a reader with no line to practise sees no card at all —
     not an empty state and not an invitation — and `lists.js` is what decides.
     """
     words = PAGES["words"]
-    assert 'id="work-on"' in words and 'id="work-rows"' in words
-    assert 'id="work-on" hidden' in words, "hidden until there is something in it"
-    assert "What to work on" in words, "a question answered, not an instruction"
+    assert 'id="work-on"' not in words, "one list, not two"
+    assert 'id="practise" aria-labelledby="practise-heading" hidden' in words
+    assert "Practise these" in words
 
     # And nothing that schedules, counts or chases. "if smth gonna ping me or bother me
     # like duolingo I'll fucking delete it" — Dmitry Z, 2026-09-16, in the same minute he
     # asked for the list itself.
-    fold = words[words.index('id="work-on"') : words.index('id="word-table"')]
+    start = words.index('id="practise"')
+    card = words[start : words.index("</aside>", start)]
     for chasing in ("due", "streak", "goal", "reminder", "review", "overdue"):
-        assert chasing not in fold.lower(), f"the fold must not say {chasing!r}"
+        assert chasing not in card.lower(), f"the card must not say {chasing!r}"
 
 
-def test_the_fold_stands_on_the_words_page_alone() -> None:
-    """Both, and nowhere else (David, 2026-09-18) — until Learn, the other half of "both",
-    was taken apart on 2026-10-08. The fold is the words page's again; Your Progress's
-    "what next" is where it is to be met next (design.md §12)."""
-    assert 'id="work-on"' in PAGES["words"]
+def test_the_practice_card_stands_on_the_words_page_alone() -> None:
+    assert 'class="card practise"' in PAGES["words"]
     for name in ("progress", "phrases", "texts", "welcome"):
-        assert 'id="work-on"' not in PAGES[name], name
+        assert 'class="card practise"' not in PAGES[name], name
 
 
 def test_the_key_is_set_before_any_script_that_reads_it() -> None:
