@@ -364,8 +364,9 @@ David, 2026-10-09, on the board-against-build audit: the mockups win; **never pu
 catalogue kind name or a pipeline state in front of a reader**; ladder steps are plain
 words; and an interface string follows the boards' wording wherever it means the same
 thing. The copy pass (P3 of the polish plan) applies that, and "Plain words for kinds and
-ladder steps" in "The boards are the desk" below, to every surface that names a text — the Library's shelves and See all, home's rows and Continue, playlists,
-subscriptions, saved, search and the reader's Up next.
+ladder steps" in "The boards are the desk" below, to every surface that names a text —
+the Library's shelves and See all, home's rows and Continue, playlists, subscriptions,
+saved, search and the reader's Up next.
 
 - **One kind, in the boards' word, everywhere.** A row or a tile says Dialogue, Video,
   Tanakh, News, Article, Novel, Book, Story, Play or Poetry, as the boards do; a shelf or
