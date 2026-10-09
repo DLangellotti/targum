@@ -274,7 +274,7 @@
    Hebrew's bdi, so the number never rides the title's direction. */
 .row-scene {
   margin-inline-end: 0.5rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.6875rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -290,7 +290,7 @@
   border: 1px solid color-mix(in srgb, var(--ink) 55%, var(--paper));
   border-radius: 999px;
   background: var(--paper);
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.6875rem;
   line-height: 1.5;
   color: var(--ink);

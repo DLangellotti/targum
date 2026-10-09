@@ -104,7 +104,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.you .note { margin-block-start: 0.75rem; }
+:is(.you, .playlists, .subs-page, .saved) .note { margin-block-start: 0.75rem; }
 
 /* The rung, as a field: its label above it the way the name's is. */
 .level-field { margin-block-start: 1rem; }
@@ -122,19 +122,19 @@
 
 /* Reading and the way out --------------------------------------------------- */
 
-.you .tally { font-size: 1.0625rem; }
+:is(.you, .playlists, .subs-page, .saved) .tally { font-size: 1.0625rem; }
 
 /* A browser's own link colour is the one hue on the page nobody chose. Ink, with the
    underline doing the work of saying it is a link. */
-.you .elsewhere { color: var(--ink-soft); }
-.you .elsewhere a { color: var(--ink); text-underline-offset: 2px; }
+:is(.you, .playlists, .subs-page, .saved) .elsewhere { color: var(--ink-soft); }
+:is(.you, .playlists, .subs-page, .saved) .elsewhere a { color: var(--ink); text-underline-offset: 2px; }
 
 /* What the page says back. A refusal is ink with the clay mark before it (`fault.js`,
    design.md §12, 2026-10-09), and the wording carries it too, which §4 asks for because
    clay sits close to the accent under protanopia. */
-.you .said { margin: 0.6rem 0 0; color: var(--ink); font-size: 0.8125rem; }
-.you .said.bad { color: var(--ink); }
-.you .said[hidden] { display: none; }
+:is(.you, .playlists, .subs-page, .saved) .said { margin: 0.6rem 0 0; color: var(--ink); font-size: 0.8125rem; }
+:is(.you, .playlists, .subs-page, .saved) .said.bad { color: var(--ink); }
+:is(.you, .playlists, .subs-page, .saved) .said[hidden] { display: none; }
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
 .panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
@@ -241,5 +241,5 @@
 
 /* Credits, the account page's first panel since they left Your Progress (design.md §12,
    2026-10-09): the line account.js writes, in ink at reading size, and the rate under it. */
-.you .credits-left { margin: 0; font-size: 1.0625rem; color: var(--ink); font-variant-numeric: tabular-nums; }
-.you .credits .note { margin-block-start: 0.4rem; }
+:is(.you, .playlists, .subs-page, .saved) .credits-left { margin: 0; font-size: 1.0625rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+:is(.you, .playlists, .subs-page, .saved) .credits .note { margin-block-start: 0.4rem; }

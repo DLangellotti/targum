@@ -1,7 +1,7 @@
 /* The front door (targum-internal#69, 2026-09-16). The one page a stranger meets, and
    the only page that carries a headline at the landing display step (§12, 2026-08-31).
 
-   It stands on the desk (§13) and borrows the whole of it from `reader.css` — the
+   It stands on the desk (§13) and borrows the whole of it from `tokens.css` — the
    ground, the cards, the teal, the corners, the three shadow tiers and the one curve —
    so this file is layout and the page's own furniture, and defines four values of its
    own: the ink panel the media section is drawn on, and the pressed state of a tonal
@@ -10,19 +10,14 @@
    this file is the one that is right. */
 
 /* --- the desk's own values ----------------------------------------------------------
-   Copied from `reader.css` rather than loaded with it, and that is the whole reason
-   this page does not include that file: the reader's sheet styles `.lines`, `.thread`,
-   `.card` and `.stage` for the reader, and this page draws things by those names too.
-   Loading both put the conversation on top of the hero.
+   Copied from `tokens.css` (once the head of `reader.css`) rather than loaded with it:
+   the reader's sheet styles `.lines`, `.thread`, `.card` and `.stage` for the reader,
+   and this page draws things by those names too, and the tokens' base rules were never
+   this page's. Loading the reader's put the conversation on top of the hero.
 
    `tests/test_landing.py` pins the two copies to each other, so a token that changes
    there changes here.
    ------------------------------------------------------------------------------- */
-
-/* targum reader.
-   Logical properties throughout: nothing here says left or right, so one stylesheet
-   serves an RTL source beside an LTR translation and the columns land the right way
-   round on their own. */
 
 :root {
   color-scheme: light;
@@ -103,6 +98,12 @@
   --card-shadow: 0 1px 2px rgb(28 26 23 / 0.06);
   --page-shadow: 2px 3px 0 rgb(28 26 23 / 0.08), 0 12px 28px rgb(28 26 23 / 0.10);
   --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  /* The face a control is drawn in, wherever it is drawn. §5 gives the reader
+     system-ui, because a reader fetches nothing; §13 gives the desk its own face, and
+     `chrome.css` points this at it. A rule that draws chrome says `var(--ui)` and never
+     a face by name, so the same card is the reader's on the reader and the desk's on the
+     desk — and no stylesheet's place in the cascade decides it (2026-10-09). */
+  --ui: system-ui, sans-serif;
   /* The desk grown up (§13, 2026-09-11, "it's from 2016 not 2026"): corners on a scale
      of their own, depth in three tiers rather than a line around every box, a hairline
      only where two same-tone surfaces meet, tint for the ordinary press, glass for the

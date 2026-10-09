@@ -162,13 +162,13 @@
 .quote-title bdi { line-height: 1.95; }
 .quote-english {
   margin-inline-start: 0.6em;
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
 /* Where the text is from: a quiet link under the title, the site's name (2026-09-11). */
 .quote-source {
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--teal);
   text-decoration: none;

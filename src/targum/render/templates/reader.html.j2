@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>⁨{{ title }}⁩{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}</style>{% if said %}<style>{{ asset('said.css') }}</style>{% endif %}
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('reader.css') }}</style>{% if said %}<style>{{ asset('said.css') }}</style>{% endif %}
 {%- if preread %}
 <style>{{ asset('preread.css') }}</style>
 {% endif %}

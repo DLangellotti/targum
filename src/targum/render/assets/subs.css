@@ -193,6 +193,10 @@ button:disabled { opacity: 0.6; cursor: default; }
   font-family: var(--chrome);
 }
 .sub-foot { margin-block-start: 1.25rem; }
+/* A link on the desk is the primary (§13). With no rule of its own it was the browser's
+   blue, which §4 keeps out by name (2026-10-09). */
+.sub-foot a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.sub-foot a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 
 /* --- one subscription ----------------------------------------------------------------- */
 

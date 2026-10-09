@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("progress.page.your-progress-targum", "Your Progress — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('progress.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('progress.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
@@ -18,7 +18,7 @@
 {#- `words` as well as `progress`, for the same reason Learn carries it: the chart
     palette (--step-1..4) is defined on `.words`, and the tiles, the growth line and the
     stacked bar are all drawn with that kit. -#}
-<body class="words progress">
+<body class="progress">
 {% set here = 'progress' %}{% set title = t("you.page.your-progress", "Your Progress") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>

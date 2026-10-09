@@ -10,7 +10,7 @@ made here is the change. The PDF cannot be edited by the people and processes th
 code, which is how it came to be out of date in three places while still being called
 binding.
 
-Section numbers are the PDF's, kept because the stylesheets cite them: `reader.css` says
+Section numbers are the PDF's, kept because the stylesheets cite them: `tokens.css` says
 "Functional colour (§4)" and "Gloss (§9) is light on glass" and those references should keep
 resolving. §12 is new and records where the code knowingly departs.
 
@@ -344,7 +344,11 @@ Lockup SVGs carry live text in the reading-face stack — outline before print u
 without Iowan Old Style or Palatino.
 
 In *this* repository: tokens are the `:root` block of
-`src/targum/render/assets/reader.css`, which every page carries; the Hebrew reading faces are
+`src/targum/render/assets/tokens.css`, which every page carries (since 2026-10-09; it was
+the head of `reader.css` while every page carried that). What only the reader draws is
+`reader.css`, which a reader and the public pages carry and the desk never does, and what
+the reader and the desk both draw — the word's card, the thumb's reach, a refusal — is
+`shared.css`; the Hebrew reading faces are
 `src/targum/render/assets/fonts/`; the enforced rules are `tests/test_brand.py`.
 
 ## 12 · Where the code departs, and why

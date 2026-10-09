@@ -1,13 +1,15 @@
 /* Everything kept, and what it adds up to. Built on the reader's palette so the two
    pages read as one thing; the chart colours are one warm ramp off the same accent. */
 
-body.words {
-  font-family: system-ui, sans-serif;
+/* The desk's body size (§13). The face is the chrome's, from chrome.css: this rule used
+   to name system-ui here too, and loaded after chrome.css it won, so every page that
+   carried this file spoke in the platform's face instead (2026-10-09). */
+body {
   font-size: 0.9375rem;
   line-height: 1.5;
 }
 
-.words {
+:root {
   /* An ordered ramp, faint → full, for a scale that runs from "just met" to "known".
      One hue, monotone, four steps, the end nearest the surface clear of it — all as
      before. The hue is what changed: gold on warm paper made every chart on the page
