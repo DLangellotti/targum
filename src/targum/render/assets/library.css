@@ -1769,3 +1769,25 @@
 @media (hover: none) and (pointer: coarse) {
   .band-all, .see-back a { display: inline-block; min-block-size: 44px; line-height: 44px; }
 }
+
+/* The Tanakh's door, at the head of the Hebrew shelves (design.md §12, "The Tanakh map is
+   a door in the Library", 2026-10-09). A pill in the desk's working teal, its Hebrew name
+   in the reading face, and what is behind it in a quieter voice. */
+.band-doors { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.band-door {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  text-decoration: none;
+}
+.band-door:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.band-door:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.band-door-name { font-family: var(--reading-hebrew); font-size: 1.0625rem; color: var(--ink); }
+.band-door-english { font-size: 0.9375rem; font-weight: 600; }
+.band-door-says { font-size: 0.8125rem; color: var(--ink-soft); }
+@media (max-width: 40rem) { .band-door-says { display: none; } }
+@media (hover: none) and (pointer: coarse) { .band-door { min-block-size: 44px; align-items: center; } }

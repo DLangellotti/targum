@@ -1187,6 +1187,19 @@ def test_a_band_with_nothing_in_it_is_not_a_shelf(tmp_path: Path) -> None:
     assert len(drawn["shelves"][0]["cards"]) == len(SHELF)
 
 
+def test_the_tanakh_map_is_a_door_at_the_head_of_the_hebrew_shelves(tmp_path: Path) -> None:
+    """It left Your Progress for the Library on 2026-10-09 (design.md §12, board
+    LibraryTanakh): Hebrew's alone, so a Russian shelf has no door to it."""
+    drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED)
+    assert drawn["tanakhDoor"] == {
+        "href": "/tanakh-map?k=k",
+        "says": ["תנ״ך", "Tanakh", "Every chapter on one map"],
+    }
+    russian = [{**row, "language": "ru"} for row in SHELF]
+    elsewhere = browse(tmp_path, shelves=True, catalogue=russian, language="ru")
+    assert elsewhere["shelving"] is True and elsewhere["tanakhDoor"] is None
+
+
 def test_targums_own_playlists_are_a_shelf_of_their_own(tmp_path: Path) -> None:
     """targum's swipe sets stand after A stretch, each the first four of what is built on
     the shared shelf, and nothing about them is offered that is not built."""

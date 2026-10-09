@@ -1846,6 +1846,22 @@
         }
       }
     });
+    /* The Tanakh, a door of the Library (design.md §12, "The Tanakh map is a door in the
+       Library", 2026-10-09; board LibraryTanakh): every chapter on one map, shaded by how
+       much of it the reader would follow. Hebrew's alone, at the head of the shelves. */
+    if (code === lang.HOME) {
+      var door = el("a", "band-door");
+      door.href = keyed("/tanakh-map");
+      var hebrew = el("bdi", "band-door-name", "תנ״ך");
+      hebrew.setAttribute("lang", "he");
+      door.appendChild(hebrew);
+      door.appendChild(el("span", "band-door-english", t("library.door.tanakh", "Tanakh")));
+      door.appendChild(el("span", "band-door-says", t("library.door.tanakh-map", "Every chapter on one map")));
+      var doors = el("nav", "band-doors");
+      doors.setAttribute("aria-label", t("library.doors", "Browse by kind"));
+      doors.appendChild(door);
+      host.appendChild(doors);
+    }
     // Before anything is marked the bands are the texts' own hard words, and the page
     // says so once rather than under every shelf.
     if (drawn.length && !anyKnown) {

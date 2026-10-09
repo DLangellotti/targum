@@ -354,6 +354,30 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The Tanakh map is a door in the Library — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards LibraryTanakh and PartsTanakh): "Tanakh map
+lives in Library › Tanakh door, not on Progress." The map (2026-09-28) was reached from a
+line on Your Progress and lit Progress in the nav; a reader looking for Genesis looks in
+the Library, and Your Progress is becoming where you are, how you got here and what next.
+
+- **The Library's Hebrew shelves open with a door to it**: תנ״ך, Tanakh, "Every chapter on
+  one map", a pill in the desk's teal at the head of the shelves (the board's row of doors,
+  of which this is the first; the others come with search). The Beit Midrash's Tanakh
+  door still leads on to it too.
+- **On the map the nav lights Library**, and a trail above the heading says
+  "Library › The Tanakh", the Library's name the way back. Under it, Map and List of books:
+  the second is the Library's own list of the books, behind the Beit Midrash's Tanakh door
+  (`/library#bm/tanakh`).
+- **The year of portions is a card of its own above the map**, as the board draws it,
+  rather than a strip inside the map's card.
+- **Your Progress no longer links to it.**
+
+What it keeps: the address (`/tanakh-map`, and `/tanakh-map.json` for the shading), the
+ramp, the Aramaic treatment, this week's ring, the read-through check and everything else
+"The Tanakh map is the knowledge ramp" (2026-09-28) says. A book's contents page (board
+PartsTanakh, "Library › Tanakh › Torah") is the parts slice and is not built here.
+
 ### The Library is shelved by how much you'd follow — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards Library, LibraryPhone, SeeAllDesk and

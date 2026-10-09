@@ -109,6 +109,13 @@
       </div>
     </div>
   </div>
+  {#- Where a page stands inside a place, said above its heading: the Tanakh map is
+      Library › Tanakh (design.md §12, 2026-10-09). `crumbs` is a list of (name, address). -#}
+  {%- if crumbs %}
+  <nav class="site-crumbs" aria-label="{{ t("nav.where-you-are", "Where you are") }}">
+    {%- for name, address in crumbs %}<a href="{{ address }}">{{ name }}</a><span class="crumb-step" aria-hidden="true"> › </span>{% endfor %}<span aria-current="page">{{ title }}</span>
+  </nav>
+  {%- endif %}
   {% if title %}<h1>{{ title }}</h1>{% endif %}
   {%- if here in ('texts', 'library', 'progress') %}
   <p class="beta-note" id="beta-note" hidden></p>

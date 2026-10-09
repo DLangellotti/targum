@@ -36,6 +36,7 @@ body {
 .site-head .brand, .site-head .brand span { color: var(--bar-ink); }
 .site-head-row,
 .site-head h1,
+.site-head .site-crumbs,
 .site-head .beta-note {
   width: 100%;
   max-width: 62rem;
@@ -81,12 +82,29 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* The trail above a heading, where a page stands inside a place (Library › The Tanakh).
+   Quiet, and the way back is the place's own name in the working teal. */
+.site-head .site-crumbs {
+  display: block;
+  margin-block: 1.25rem 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.site-head .site-crumbs a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.site-head .site-crumbs a:hover { text-decoration: underline; }
+.site-head .site-crumbs a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+.site-head .site-crumbs + h1 { margin-block-start: 0.35rem; }
+@media (hover: none) and (pointer: coarse) {
+  .site-head .site-crumbs a { display: inline-block; min-block-size: 44px; line-height: 44px; }
+}
+
 @media (max-width: 40rem) {
   .site-head { padding-block-start: 1rem; }
   .site-head h1 { font-size: 1.5rem; }
   .site-head-row { gap: 0.5rem; }
   .site-head-row,
   .site-head h1,
+  .site-head .site-crumbs,
   .site-head .beta-note { padding-inline: 1rem; }
 }
 

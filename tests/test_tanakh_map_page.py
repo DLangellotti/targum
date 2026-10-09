@@ -112,10 +112,16 @@ def test_the_legend_counts_the_way_the_server_does() -> None:
     assert coverage.map_percent(1.2) == 100
 
 
-def test_it_stands_under_your_progress_and_fetches_nothing_but_its_own_answer() -> None:
+def test_it_stands_in_the_library_and_fetches_nothing_but_its_own_answer() -> None:
+    """A door of the Library since 2026-10-09 (design.md §12): the nav lights Library,
+    the trail says Library › The Tanakh, and the other way in is the list of books."""
     page = tanakh_map_page("k")
-    assert re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', page) == ["progress"]
+    assert re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', page) == ["library"]
     assert "<h1>The Tanakh</h1>" in page
+    trail = page[page.index('class="site-crumbs"') :]
+    trail = trail[: trail.index("</nav>")]
+    assert 'href="/library"' in trail and '<span aria-current="page">The Tanakh</span>' in trail
+    assert 'href="/library#bm/tanakh"' in page, "the list of books is one press away"
     assert not re.search(r'(src|href)="https?://', page.split("<footer", 1)[0])
 
 
@@ -125,10 +131,11 @@ def test_it_speaks_russian() -> None:
     assert '"tanakh.card.share"' in page, "the card's words ride to the script"
 
 
-def test_your_progress_opens_the_map() -> None:
+def test_your_progress_no_longer_opens_the_map() -> None:
+    """It left Your Progress for the Library on 2026-10-09 (design.md §12)."""
     from targum.render.builder import progress_page
 
-    assert 'href="/tanakh-map"' in progress_page("k")
+    assert "/tanakh-map" not in progress_page("k")
 
 
 # -- the server ----------------------------------------------------------------------

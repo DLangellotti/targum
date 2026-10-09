@@ -299,6 +299,12 @@ setTimeout(() => {
          in order, with its heading, its note and its cards. */
       pictures: asked,
       shelving: !byId["shelves"].hidden,
+      /* The Tanakh's door at the head of the shelves (design.md §12, 2026-10-09). */
+      tanakhDoor: (() => {
+        const row = (byId["shelves"].children || []).find((c) => String(c.className) === "band-doors");
+        const door = row && row.children[0];
+        return door ? { href: door.href || "", says: door.children.map((c) => c.textContent) } : null;
+      })(),
       backShown: !!byId["see-back"] && !byId["see-back"].hidden,
       shelves: (byId["shelves"].children || [])
         .filter((c) => c.getAttribute && c.getAttribute("data-band"))

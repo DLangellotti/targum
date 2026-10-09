@@ -1045,9 +1045,6 @@
     if (!data[code]) data[code] = { code: code, words: [], phrases: [], texts: 0, finished: 0 };
     window.TargumLang.set(code);
     window.TargumLang.switcher(document.getElementById("langs"), codes, names, code, show);
-    // The Tanakh map is Hebrew's, and hides under any other language (§13).
-    var tanakhDoor = document.getElementById("tanakh-door");
-    if (tanakhDoor) tanakhDoor.hidden = code !== "he";
     var betaNote = document.getElementById("beta-note");
     betaNote.hidden = !window.TargumLang.beta(code);
     if (!betaNote.hidden) betaNote.textContent = window.TargumLang.betaNote(code, names);
