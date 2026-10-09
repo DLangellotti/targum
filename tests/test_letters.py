@@ -358,3 +358,79 @@ def test_an_account_is_told_once_when_it_is_gone(tmp_path: Path) -> None:
     sent.clear()
     Library(tmp_path / "out", store=store, mailer=Recording(), address=SITE)
     assert sent == [], "once"
+
+
+def test_the_purge_runs_every_night_and_mails_once(tmp_path: Path) -> None:
+    """The server purges at `PURGE_AT_HOUR` UTC every night, not only on a restart, and a
+    second night with nobody new deletes and mails nothing. A recording mailer, and a wait
+    that returns at once: nothing is sent and nothing sleeps."""
+    from datetime import UTC, datetime
+
+    from targum.accounts import GRACE_DAYS, Store, now
+    from targum.serve import PURGE_AT_HOUR, Library, keep_purging
+
+    sent: list[str] = []
+
+    class Recording:
+        def send(self, to: str, link: str, language: str = "en") -> None:
+            raise AssertionError("no sign-in link here")
+
+        def notify(
+            self,
+            to: str,
+            subject: str,
+            body: str,
+            headers: Any = None,
+            html: str | None = None,
+        ) -> None:
+            sent.append(to)
+
+    store = Store(tmp_path / "targum.db")
+    store.start_sign_in("night@example.com")
+    person = store.person_by_email("night@example.com")
+    assert person is not None
+    store.forget(person, "en")
+    library = Library(tmp_path / "out", store=store, mailer=Recording(), address=SITE)
+    home = library.home(person)
+    home.mkdir(parents=True, exist_ok=True)
+    assert sent == [], "inside the seven days at start-up"
+
+    # The seven days run out while the server is up.
+    with store.write() as db:
+        stale = now() - (GRACE_DAYS + 1) * 24 * 60 * 60 * 1000
+        db.execute("UPDATE person SET leaving = ? WHERE id = ?", (stale, person.id))
+
+    waited: list[float] = []
+    evening = datetime(2026, 10, 9, 21, 30, tzinfo=UTC)
+    keep_purging(library, wait=waited.append, clock=lambda: evening, nights=2)
+
+    assert waited == [(24 + PURGE_AT_HOUR - 21.5) * 3600] * 2
+    assert sent == ["night@example.com"], "deleted and mailed once, over two nights"
+    assert store.person_by_email("night@example.com") is None
+    assert not home.exists()
+    assert library.purge_departed() == [], "and again by hand: nothing"
+    assert sent == ["night@example.com"]
+
+
+def test_the_next_purge_is_never_now() -> None:
+    from datetime import UTC, datetime, timedelta, timezone
+
+    from targum.serve import until_next
+
+    at = datetime(2026, 10, 9, 3, 0, tzinfo=UTC)
+    assert until_next(3, at) == 24 * 3600, "on the hour, it waits for tomorrow's"
+    assert until_next(3, at - timedelta(minutes=1)) == 60
+    israel = timezone(timedelta(hours=3))
+    assert until_next(3, datetime(2026, 10, 9, 5, 0, tzinfo=israel)) == 60 * 60
+
+
+def test_a_hosted_server_purges_nightly() -> None:
+    """`targum serve` turns the nightly purge on wherever it is hosted, as it does the
+    subscriptions loop; the suite's servers never start it."""
+    import inspect
+
+    from targum import cli
+    from targum.serve import start
+
+    assert "keep_purging_nightly=hosted" in inspect.getsource(cli.serve)
+    assert inspect.signature(start).parameters["keep_purging_nightly"].default is False
