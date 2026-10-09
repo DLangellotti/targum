@@ -323,17 +323,14 @@ def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases(
     """2026-09-11: "words/phrases should be moved into a dedicated page you access by
     clicking on your picture in the top right", and the checklist "after onboarding
     accessible only on the words/phrases page". The account panel on every page links to
-    Your Words; the page holds the words, the may-already-know checklist and the
-    phrases, in that order; Learn holds none of them."""
+    Your Words; the page holds the words and the may-already-know checklist, with the
+    phrases a tab away; Learn holds none of them."""
     words = PAGES["words"]
-    assert (
-        'id="word-table"' in words and 'id="claim-panel"' in words and 'id="phrase-list"' in words
-    )
-    assert (
-        words.index('id="word-table"')
-        < words.index('id="claim-panel"')
-        < words.index('id="phrase-list"')
-    )
+    assert 'id="word-table"' in words and 'id="claim-panel"' in words
+    assert words.index('id="word-table"') < words.index('id="claim-panel"')
+    # The phrases are the Phrases tab's page since the words have a head (§12, 2026-10-09).
+    assert 'id="phrase-list"' not in words and 'href="/phrases"' in words
+    assert 'id="phrase-list"' in PAGES["phrases"]
     assert "Words you may already know" in words and "TargumClaim" in words
     assert 'id="claim-body"' in words, "the script builds the table into the panel's body"
     for name, page in PAGES.items():

@@ -127,6 +127,21 @@
   </section>
   {%- endif %}
 
+  {%- if which in ('words', 'phrases') %}
+  {#- The head of Your Words (board WordsDesk, 2026-10-08; design.md §12, "Your Words is
+      reached from Your Progress, by stage", 2026-10-09): the way back to Your Progress,
+      what the list adds up to in this language, and Words and Phrases as tabs. Filled by
+      `lists.js` for the language the menu is on. -#}
+  <div class="words-head">
+    <a class="words-back" href="/progress" data-back>← {{ t("you.page.your-progress", "Your Progress") }}</a>
+    <p class="words-summary" id="words-summary"></p>
+    <nav class="tabs list-tabs" aria-label="{{ t("lists.work.words-or-phrases", "Words or phrases") }}">
+      <a class="tab" href="/words" data-back{% if which == 'words' %} aria-current="page"{% endif %}>{{ t("lists.work.words", "Words") }} <span class="tab-count" id="count-words"></span></a>
+      <a class="tab" href="/phrases" data-back{% if which == 'phrases' %} aria-current="page"{% endif %}>{{ t("lists.work.phrases", "Phrases") }} <span class="tab-count" id="count-phrases"></span></a>
+    </nav>
+  </div>
+  {%- endif %}
+
   {%- if which == 'words' %}
   {#- What to work on (targum-internal#103). The words the reader flagged and never came
       back to: still learning, oldest first, twenty at most.
@@ -182,15 +197,9 @@
       <div class="langs quiet" id="meaning-langs" role="tablist"
            aria-label="{{ t("yours.page.translations-in", "Translations in") }}" hidden></div>
       <input type="search" id="search" dir="auto" placeholder="{{ t("yours.page.search-a-word-or-a-meaning", "Search a word or a meaning") }}" spellcheck="false">
-      <select id="status-filter" aria-label="{{ t("yours.page.filter-by-how-well-you-know-them", "Filter by how well you know them") }}">
-        <option value="learning">{{ t("yours.page.still-learning", "Still learning") }}</option>
-        <option value="all">{{ t("yours.page.all", "All") }}</option>
-        <option value="1">{{ t("yours.page.1-just-met", "1 · just met") }}</option>
-        <option value="2">{{ t("yours.page.2-getting-there", "2 · getting there") }}</option>
-        <option value="3">{{ t("yours.page.3-nearly-there", "3 · nearly there") }}</option>
-        <option value="9">{{ t("yours.page.known", "Known") }}</option>
-        <option value="0">{{ t("yours.page.ignored", "Ignored") }}</option>
-      </select>
+      {#- Which stage, as chips (board WordsDesk): to work on — steps 1 to 3 — then each
+          step, known, and everything. They were a select. -#}
+      <div class="chips stage-chips" id="stage-chips" role="group" aria-label="{{ t("yours.page.filter-by-how-well-you-know-them", "Filter by how well you know them") }}"></div>
       {#- Hidden until sync says there is an account to export from. Named by what
           comes out rather than "Export": two buttons that both said Export would have
           left the reader to find out which was which by pressing one. -#}
@@ -202,10 +211,8 @@
         <thead>
           <tr>
             <th scope="col">{{ t("yours.page.word", "Word") }}</th>
-            <th scope="col">{{ t("yours.page.dictionary-form", "Dictionary form") }}</th>
             <th scope="col">{{ t("yours.page.meaning", "Meaning") }}</th>
-            <th scope="col">{{ t("yours.page.how-common", "How common") }}</th>
-            <th scope="col">{{ t("yours.page.how-well", "How well") }}</th>
+            <th scope="col">{{ t("lists.column.stage", "Stage") }}</th>
             <th scope="col">{{ t("yours.page.kept", "Kept") }}</th>
           </tr>
         </thead>
@@ -227,7 +234,9 @@
   </section>
   {%- endif %}
 
-  {%- if which in ('words', 'phrases') %}
+  {#- Phrases are their own tab since Your Words has a head (§12, 2026-10-09); they stood
+      under the words on this page too until then. -#}
+  {%- if which == 'phrases' %}
   <section class="panel">
     <div class="list-controls">
       <h2><span id="phrases-title">{{ t("yours.page.your-phrases", "Your Phrases") }}</span></h2>
@@ -247,7 +256,7 @@
 
   {#- Your targums is a place in the nav since 2026-09-24; a way back to Learn at its foot
       was left from when it hung off Learn. The lists behind the account keep theirs. -#}
-  {%- if which != 'texts' %}
+  {%- if which not in ('texts', 'words', 'phrases') %}
   <p><a class="back" href="/" data-back>{{ t("yours.page.your-targums", "Your targums") }}</a></p>
   {%- endif %}
 </main>

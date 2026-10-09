@@ -1054,19 +1054,6 @@
       .reverse();
   }
 
-  function statusCell(status) {
-    var pip = el("span", "pip");
-    var dot = el("i");
-    // Ignored is not a step on the ramp — a name is not a word you are a quarter of
-    // the way through — so it has no slot, and asking for one threw and blanked the
-    // whole table for anybody who had ever pressed `i`.
-    var step = STATUS[status];
-    dot.style.background = step ? "var(" + step.slot + ")" : "var(--rule)";
-    pip.appendChild(dot);
-    pip.appendChild(document.createTextNode(step ? step.name : status === 0 ? "ignored" : "—"));
-    return pip;
-  }
-
   function renderWords() {
     if (!rowsBody) return;
     var rows = visibleWords();
@@ -1076,22 +1063,21 @@
     drawing.forEach(function (word) {
       var tr = el("tr");
 
-      var term = el("td");
+      var term = el("td", "word-cell");
       var bdi = el("bdi", "term", word.term);
       bdi.setAttribute("lang", code);
       term.appendChild(bdi);
       // In the word's own cell rather than a column of its own: a copy is about the
-      // word, and the table already has six columns to hold on a phone.
+      // word, and the table has four columns to hold on a phone.
       term.appendChild(window.TargumVocab.copyButton(word.term, {}));
-      tr.appendChild(term);
-
-      var lemma = el("td");
+      // The dictionary form under the word it was met as, where the two differ: a column
+      // of its own was mostly empty (board WordsDesk).
       if (word.lemma !== word.term) {
-        var form = el("bdi", "term", word.lemma);
+        var form = el("bdi", "term form", word.lemma);
         form.setAttribute("lang", code);
-        lemma.appendChild(form);
+        term.appendChild(form);
       }
-      tr.appendChild(lemma);
+      tr.appendChild(term);
 
       var meaning = inTarget(
         el("td", "meaning" + (word.note ? " mine" : ""), word.note || word.meaning),
@@ -1099,11 +1085,20 @@
       );
       if (word.note && word.meaning) meaning.title = "targum: " + word.meaning;
       tr.appendChild(meaning);
-      tr.appendChild(el("td", "band", word.band || "—"));
 
-      var status = el("td");
-      status.appendChild(statusCell(word.status));
-      tr.appendChild(status);
+      // The five stages on the row itself (board WordsDesk; vocab.js `steps()`): a press
+      // here moves the word without opening its card. Never Known / Learning buttons.
+      var stage = el("td", "stage");
+      stage.appendChild(
+        window.TargumVocab.editor({
+          status: word.status,
+          onStatus: function (value) {
+            updateWord(word, { status: value === null ? word.status : value });
+            said();
+          },
+        })
+      );
+      tr.appendChild(stage);
 
       tr.appendChild(el("td", "when", word.at > EARLIEST ? shortDate(word.at) : "—"));
 
@@ -1373,6 +1368,89 @@
 
   /* --- what the page calls --------------------------------------------------- */
 
+  /* Which stage the word table shows, as chips (board WordsDesk, 2026-10-08; design.md
+     §12, "Your Words is reached from Your Progress, by stage", 2026-10-09). To work on is
+     steps 1 to 3 together and is where the page opens; each step, known, and everything
+     follow. The step names are the control's own (`vocab.js` `steps()`), so a chip and a
+     segment never call one stage two things. The choice is this browser's to remember. */
+  var STAGE_CHOSEN = "targum:words-stage";
+
+  function stages() {
+    return [
+      ["learning", t("lists.stage.work", "To work on")],
+      ["1", t("vocab.step.1", "Just met")],
+      ["2", t("vocab.step.2", "Getting there")],
+      ["3", t("vocab.step.3", "Nearly there")],
+      [String(KNOWN), t("vocab.step.known.title", "Known")],
+      ["all", t("lists.stage.all", "All")],
+    ];
+  }
+
+  function mountStages(host) {
+    var chosen = { value: "learning" };
+    if (!host) return chosen;
+    try {
+      var kept = localStorage.getItem(STAGE_CHOSEN);
+      stages().forEach(function (pair) {
+        if (pair[0] === kept) chosen.value = kept;
+      });
+    } catch (e) {}
+    function drawChips() {
+      host.textContent = "";
+      stages().forEach(function (pair) {
+        var chip = el("button", "chip", pair[1]);
+        chip.type = "button";
+        chip.setAttribute("data-stage", pair[0]);
+        chip.setAttribute("aria-pressed", chosen.value === pair[0] ? "true" : "false");
+        chip.addEventListener("click", function () {
+          chosen.value = pair[0];
+          try {
+            localStorage.setItem(STAGE_CHOSEN, pair[0]);
+          } catch (e) {}
+          shown = PAGE;
+          drawChips();
+          renderWords();
+        });
+        host.appendChild(chip);
+      });
+    }
+    drawChips();
+    return chosen;
+  }
+
+  /* What the list adds up to in this language, under the way back to Your Progress, and
+     the count on each tab. Aramaic says its list is its own: its words are kept apart from
+     Hebrew's even where the spelling is shared (2026-09-15). */
+  function drawHead() {
+    var summary = at("words-summary");
+    var sums = charts.totals(entry);
+    function grouped(n) {
+      return { n: String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",") };
+    }
+    if (summary) {
+      var parts = [
+        code === "arc"
+          ? tn(
+              "lists.head.on-list-arc",
+              sums.saved,
+              "{n} on your Aramaic list, kept apart from your Hebrew one",
+              "{n} on your Aramaic list, kept apart from your Hebrew one",
+              grouped(sums.saved)
+            )
+          : tn("lists.head.on-list", sums.saved, "{n} on your list", "{n} on your list", grouped(sums.saved)),
+        tn("lists.head.known", sums.known, "{n} known", "{n} known", grouped(sums.known)),
+      ];
+      if (sums.learned) {
+        parts.push(
+          tn("lists.head.learned", sums.learned, "{n} learned on targum", "{n} learned on targum", grouped(sums.learned))
+        );
+      }
+      summary.textContent = parts.join(" · ");
+    }
+    if (at("count-words")) at("count-words").textContent = String(sums.saved);
+    if (at("count-phrases")) at("count-phrases").textContent = String(sums.phrases);
+  }
+
   function mount(options) {
     languages = (options && options.languages) || {};
     onChanged = (options && options.onChanged) || null;
@@ -1380,7 +1458,7 @@
     // A page may carry one list rather than both — the whole point of the two pages this
     // also runs — so everything here is wired only if it is there.
     search = at("search");
-    filter = at("status-filter");
+    filter = mountStages(at("stage-chips"));
     rowsBody = at("word-rows");
     moreButton = at("more");
     wordsEmpty = at("words-empty");
@@ -1393,12 +1471,6 @@
     }
     if (search) {
       search.oninput = function () {
-        shown = PAGE;
-        renderWords();
-      };
-    }
-    if (filter) {
-      filter.onchange = function () {
         shown = PAGE;
         renderWords();
       };
@@ -1459,6 +1531,7 @@
       lang.into(into);
       if (redrawing) redrawing(into);
     });
+    drawHead();
     renderWorkOn();
     renderRecord();
     renderWords();

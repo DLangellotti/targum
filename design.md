@@ -354,6 +354,34 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### Your Words is reached from Your Progress, by stage — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards WordsDesk, WordsPhone and Words{Ru,RuUi,Fr,It,
+Yi,Arc}), and his note on the same day: a word is never just Known or Learning. Your Words
+and Your Phrases were "behind the account" (2026-09-11), with a select for the stage, six
+columns and a way back to Your targums at the foot. They now read as the next step from
+Your Progress's "Practise these words", one language at a time, the one the menu is on:
+
+- **A head**: "← Your Progress", what the list adds up to in this language ("4,796 on your
+  list · 3,162 known · 131 learned on targum"; Aramaic's says its list is kept apart from
+  the Hebrew one), and **Words and Phrases as tabs** with their counts, each its own page.
+  The phrases no longer stand under the words on /words (2026-09-11 put them there):
+  they are the Phrases tab. The way back to Your targums at the foot goes: the nav
+  already has it.
+- **The stage is chips, not a select**: To work on (steps 1 to 3, where it opens), Just
+  met, Getting there, Nearly there, Known, All — the step names the control itself uses
+  (`vocab.js` `steps()`), and the choice remembered in this browser.
+- **Every row carries the five stages**: the same control the card has, pressed in the
+  row without opening the card. The table is four columns — the word (its dictionary form
+  under it where they differ), the meaning, the stage, when it was kept. "How common" and
+  the dictionary-form column go: the board has neither, and the form was mostly empty.
+
+Not built here, and left for later: the board's "Met in" column and "Met often" chip
+(they need the met counts per word, which only Your Progress asks for today), its
+practice card ("One word at a time, in a line you've read"), French's pronunciation and
+false friends on rows, Russian's case notes, and Aramaic's Hebrew counterpart.
+
+
 ### See all says what each text is — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards SeeAllDesk and SeeAllPhone): "Library See all =

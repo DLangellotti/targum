@@ -71,3 +71,24 @@ body.yours .nothing a:hover { border-block-end-color: var(--ink-soft); }
   margin: 0;
   font-size: 0.9375rem;
 }
+
+/* --- Your Words' head and its rows (design.md §12, "Your Words is reached from Your
+   Progress, by stage", 2026-10-09) ------------------------------------------------------
+   The way back, what the list adds up to, and Words and Phrases as tabs: links, because
+   each is a page, drawn as the desk's pill tabs with the one you are on filled. */
+.words-head { display: flex; flex-direction: column; gap: 0.6rem; margin-block-end: 1.25rem; }
+.words-back { align-self: start; font-size: 0.875rem; color: var(--teal); text-decoration: none; }
+.words-back:hover { text-decoration: underline; }
+.words-summary { margin: 0; font-size: 0.9375rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.words-summary:empty { display: none; }
+.list-tabs a.tab { text-decoration: none; background: var(--teal-wash); color: var(--teal); }
+.list-tabs a.tab[aria-current="page"] { background: var(--teal); color: var(--teal-ink); }
+.list-tabs .tab-count { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.list-tabs .tab-count:empty { display: none; }
+
+.stage-chips { flex-basis: 100%; }
+
+/* A row's word, its dictionary form under it, and the stage control in its own cell. */
+table.rows .word-cell .form { margin-inline-start: 0.5rem; font-size: 0.8125rem; color: var(--ink-soft); }
+table.rows td.stage { white-space: nowrap; cursor: auto; }
+table.rows td.stage .vocab-editor { gap: 0; }
