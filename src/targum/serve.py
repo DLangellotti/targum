@@ -8566,7 +8566,13 @@ class Handler(BaseHTTPRequestHandler):
         if rows:
             # Said on Learn, in the page's language (targum-internal#287).
             rows[0]["because"] = chat_tools.because_in(rows[0], self._page_language())
-        return self._json({"suggestion": rows[0] if rows else None})
+        # Whether the library has anything in this language at all: home says so plainly
+        # where it has nothing, in place of a suggestion (board YiHome, P4 2026-10-09).
+        from . import catalogue as catalogue_module
+
+        code = (spoken or "").split("-")[0].lower()
+        library = any(code in entry.languages for entry in catalogue_module.everything())
+        return self._json({"suggestion": rows[0] if rows else None, "library": library})
 
     def _chat_suggest(self, payload: dict[str, Any]) -> None:
         """The commonest ask, answered without the model (targum-internal#240): the

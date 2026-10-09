@@ -1265,31 +1265,13 @@
 
 /* The strip is links (one of them is another page), drawn as the desk's `.tabs`. */
 
-/* Chips on the start, then the search and the order. */
-.sift-shelf {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 0.9rem;
-  margin: 0 0 1rem;
-}
-.sift-shelf[hidden] { display: none; }
-.sift-shelf .chips { flex: 1 1 auto; }
-.sift-shelf .chip { padding: 0.3rem 0.8rem; font-size: 0.8125rem; }
-.sift-shelf .find { flex: 1 1 12rem; max-inline-size: 18rem; min-block-size: 2.25rem; }
-@media (max-width: 40rem) { .sift-shelf .find { max-inline-size: none; } }
-.sift-shelf .pick select { min-block-size: 2.25rem; font-size: 0.8125rem; }
-
-/* §8 under a thumb (2026-09-27): the tabs, the chips, the search, the order and the way
-   back out of a series were 30-36px, and none was in the registry. The Library's Filters
+/* §8 under a thumb (2026-09-27): the tabs and the way back out of a series were
+   30-36px, and none was in the registry. The Library's Filters
    too. */
 @media (hover: none) and (pointer: coarse) {
   .yours-tabs .tab,
-  .sift-shelf .chip,
   .series-back,
   .filters > summary { min-block-size: 44px; display: inline-flex; align-items: center; }
-  .sift-shelf .find,
-  .sift-shelf .pick select { min-block-size: 44px; }
 }
 
 /* Inside a series: the way back, and its name. */
@@ -1339,97 +1321,6 @@
 }
 [dir="rtl"] .series-chevron { transform: scaleX(-1); }
 
-/* At a desk the shelf is cards; the row's cells are the card's, in the same order. Only
-   this list: Learn's rows and every phone keep the row. */
-@media (min-width: 64rem) {
-  /* The cards are the raised layer, so the panel under them steps down to the ground
-     (§9: one raised layer per view). */
-  #shelf-panel { padding: 0; border: 0; background: none; box-shadow: none; }
-  .books.shelf-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
-    gap: 1rem;
-    /* The end column's + and ⋯ sit at the card's foot, at the grid's end edge, and each
-       one scrolled under the Talk to targum pill until the window was wide enough for the
-       page's margin to hold it (targum-internal#379). The grid gives up only as much of
-       that edge as the pill reaches past the margin, plus a gap: `--talk-room` is measured
-       by `talk.js`, and `(100vw - 100%) / 2` is the margin, `100%` being the page's width
-       here. The band `room()` keeps at a reader's foot, on its side; a wide window gives
-       up nothing. */
-    padding-inline-end: max(0px, var(--talk-room, 0px) + 0.75rem - (100vw - 100%) / 2);
-  }
-  .books.shelf-cards li {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto 1fr auto;
-    align-items: start;
-    gap: 0.6rem;
-    padding: 0.6rem 0.6rem 0.7rem;
-    border-radius: var(--radius-card);
-    background: var(--card);
-    box-shadow: var(--shadow-rest);
-    transition: box-shadow var(--out) var(--ease);
-  }
-  .books.shelf-cards li + li { border-block-start: none; }
-  .books.shelf-cards li:hover { background: var(--card); box-shadow: var(--shadow-raised); }
-  .books.shelf-cards li.is-building:hover { box-shadow: var(--shadow-rest); }
-  .shelf-cards .thumb,
-  .shelf-cards .series-stack {
-    grid-column: 1 / -1;
-    inline-size: 100%;
-    block-size: auto;
-    aspect-ratio: 16 / 9;
-    border-radius: var(--radius-row);
-  }
-  .shelf-cards .series-stack .thumb { block-size: 100%; }
-  /* A letter says less than a picture and takes a strip, not a screen: on a shelf of
-     uploads most of the desk was beige boxes with one letter in each (David, 2026-09-27,
-     targum-internal#375). A picture keeps 16:9. */
-  .shelf-cards .thumb.is-letter,
-  .shelf-cards .series-stack:has(.is-letter) { aspect-ratio: 16 / 5; }
-  .shelf-cards .thumb.is-letter .glyph { font-size: 1.75rem; }
-  .shelf-cards .series-stack::before,
-  .shelf-cards .series-stack::after { border-radius: var(--radius-row); }
-  .shelf-cards .series-stack::before,
-  .shelf-cards .series-stack::after { transform-origin: 50% 0; }
-  .shelf-cards .series-stack::before { transform: translate(0, -6px) scale(0.94); }
-  .shelf-cards .series-stack::after { transform: translate(0, -12px) scale(0.88); }
-  .shelf-cards li.is-series { padding-block-start: 1.1rem; }
-  /* A text with no picture wears its letter large, on the colour of its kind (the one
-     tile, chrome.css); it was on a wash of the accent, the beige box the boards retired. */
-  .shelf-cards .thumb .glyph { font-size: 2.75rem; }
-  .shelf-cards .book-what { grid-column: 1 / -1; padding-inline: 0.25rem; }
-  .shelf-cards .book-title {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    white-space: normal;
-    line-height: 1.35;
-  }
-  /* The facts wrap on a card: it is narrow, and a cut line would lose the level. Spaced
-     rather than dotted, as on a phone. `white-space` alone did nothing: each fact is
-     unbreakable and the spans sit with no space between them, so "Added 9 days ago" was
-     cut to "Adde…" (2026-09-27). */
-  .shelf-cards .book-facts {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 0.75em;
-    row-gap: 0.1rem;
-    overflow: visible;
-    white-space: normal;
-  }
-  .shelf-cards .book-facts .fact + .fact::before { content: none; }
-  .shelf-cards .row-status { align-self: center; margin-inline-start: 0.25rem; }
-  .shelf-cards .row-controls { align-self: center; }
-  .shelf-cards .add-to-list { padding: 0; inline-size: 2.5rem; }
-  .shelf-cards .add-to-list .add-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .shelf-cards .add-to-list .add-glyph { display: block; }
-  .books.shelf-cards > .chapters,
-  .books.shelf-cards li.binned { grid-column: 1 / -1; }
-}
-@media (min-width: 64rem) and (prefers-reduced-motion: reduce) {
-  .books.shelf-cards li { transition: none; }
-}
 
 /* --- the Weekly portion (targum-internal#411) ----------------------------------------- */
 

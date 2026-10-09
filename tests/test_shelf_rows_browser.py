@@ -130,16 +130,25 @@ def shelf(browser, tmp_path: Path, width: int):
 
 
 def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> None:
+    """Board Main's row (P4, 2026-10-09): the title with a quiet line under it — where you
+    are with it, its length, its English, its playlists — then its kind as a tag, how
+    much of it you know as a meter, and when at the end."""
     context, page, thrown = shelf(browser, tmp_path, 1280)
-    facts = page.locator("#library-list li").first.locator(".book-facts").inner_text()
-    statuses = page.locator("#library-list .row-status").all_inner_texts()
+    first = page.locator("#library-list li").first
+    facts = first.locator(".book-facts").inner_text()
+    tag = first.locator(".row-tag").inner_text()
+    known = first.locator(".row-meter").get_attribute("aria-label")
+    end = first.locator(".row-end").inner_text()
+    said = first.locator(".row-end").get_attribute("aria-label")
+    statuses = page.locator("#library-list .fact-status").all_inner_texts()
     context.close()
     assert "10 min video" in facts
     # No rung and no CEFR code on a row (design.md §12, "A text is named in everyday
     # words", 2026-10-09).
     assert "Bet" not in facts and "A2" not in facts
-    assert "You know 72%" in facts
-    assert "Uploaded 7 hours ago" in facts
+    assert tag.strip() == "Video"
+    assert known == "You know 72%"
+    assert end.strip() == "7 hours ago" and said == "Uploaded 7 hours ago"
     assert "In Morning" in facts
     assert [one.strip() for one in statuses] == ["Finished", "3 of 6", "New"]
     assert not thrown
@@ -147,10 +156,12 @@ def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> Non
 
 def test_a_library_text_says_when_it_was_opened_not_added(browser, tmp_path: Path) -> None:
     context, page, _ = shelf(browser, tmp_path, 1280)
-    facts = page.locator("#library-list li").nth(2).locator(".book-facts").inner_text()
+    row = page.locator("#library-list li").nth(2)
+    facts = row.locator(".book-facts").inner_text()
+    said = row.locator(".row-end").get_attribute("aria-label") or ""
     context.close()
     assert "3 min read" in facts
-    assert "Uploaded" not in facts, "a library text came to everybody at once"
+    assert "Uploaded" not in said, "a library text came to everybody at once"
 
 
 def test_add_to_playlist_never_wraps(browser, tmp_path: Path) -> None:
@@ -189,10 +200,12 @@ def test_escape_closes_the_more_menu(browser, tmp_path: Path) -> None:
     assert gone == 0
 
 
-def test_on_a_phone_the_status_folds_into_the_facts(browser, tmp_path: Path) -> None:
+def test_on_a_phone_the_row_keeps_its_title_and_its_line(browser, tmp_path: Path) -> None:
+    """Board HomePhone: the picture, the title and its line; the tag and the meter fold
+    away, and the status stays in the line."""
     context, page, thrown = shelf(browser, tmp_path, 390)
     first = page.locator("#library-list li").first
-    pill = first.locator(".row-status").is_visible()
+    pill = first.locator(".row-tag").is_visible() or first.locator(".row-meter").is_visible()
     folded = first.locator(".fact-status").is_visible()
     wide = page.evaluate("() => document.documentElement.scrollWidth")
     context.close()

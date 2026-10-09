@@ -345,9 +345,8 @@ THUMBED = (
     ".scene",
     ".steps > li",
     ".yours-tabs .tab",
-    ".sift-shelf .chip",
-    ".sift-shelf .find",
-    ".sift-shelf .pick select",
+    # Your targums' find field (P4, 2026-10-09); its chips and order are gone.
+    ".yours-card > .find",
     ".series-back",
     ".filters > summary",
     ".claim-table label",

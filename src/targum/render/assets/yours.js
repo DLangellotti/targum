@@ -131,9 +131,10 @@
 
   /* --- sifting the shelf (design.md §12, "Your targums has tabs", 2026-09-26) ----------
    *
-   * Two tabs over one shelf — everything of yours, and only what you brought — then
-   * chips for where you are with a text, a search, an order, and series folded into one
-   * row. The third tab, Playlists, is a page of its own. */
+   * Two tabs over one shelf — everything of yours, and only what you brought — then a
+   * field to find one, and series folded into one row, last read first. The chips and the
+   * order went with the cards (P4, 2026-10-09): board Main draws a find field and no
+   * more. Playlists is a page of its own, and Subscriptions a table. */
   var view = {
     // Recent, Uploads or Subscriptions, from `?show=` (design.md §12, 2026-10-08); the
     // fourth tab, Playlists, is a page of its own.
@@ -141,13 +142,11 @@
       var show = new URLSearchParams(location.search).get("show");
       return show === "uploads" || show === "subscriptions" ? show : "recent";
     })(),
-    status: "all",
     query: "",
-    order: "read",
     series: "",
   };
 
-  // Chips, search and order are for a shelf long enough to need them.
+  // The find field is for a shelf long enough to need it.
   var SIFT_FROM = 6;
 
   /* An episode is read off its title, because nothing else says what a series is: a stem,
@@ -258,58 +257,22 @@
     return out;
   }
 
-  var CEFR = ["A1", "A1+", "A2", "A2+", "B1", "B1+", "B2", "B2+", "C1", "C2"];
-
-  function difficulty(reader) {
-    var at = reader.level && reader.level.cefr ? CEFR.indexOf(reader.level.cefr) : -1;
-    return at < 0 ? CEFR.length : at;
-  }
-
-  function known(reader) {
-    return typeof reader.known === "number" && reader.words ? reader.known : -1;
-  }
-
-  // One number per row for each order, a series answering for its best text.
-  function measure(thing, of, best) {
+  // Last read first, a series answering for its latest text; then what came last.
+  function latest(thing, of) {
     if (!thing.members) return of(thing);
     return thing.members.map(of).reduce(function (a, b) {
-      return best(a, b);
+      return Math.max(a, b);
     });
   }
 
-  var ORDERS = {
-    read: function (a, b) {
-      return (
-        measure(b, function (r) { return r.opened || 0; }, Math.max) -
-          measure(a, function (r) { return r.opened || 0; }, Math.max) ||
-        ORDERS.added(a, b)
-      );
-    },
-    added: function (a, b) {
-      return (
-        measure(b, function (r) { return r.built || 0; }, Math.max) -
-        measure(a, function (r) { return r.built || 0; }, Math.max)
-      );
-    },
-    easy: function (a, b) {
-      return measure(a, difficulty, Math.min) - measure(b, difficulty, Math.min) || ORDERS.read(a, b);
-    },
-    known: function (a, b) {
-      return measure(b, known, Math.max) - measure(a, known, Math.max) || ORDERS.read(a, b);
-    },
-  };
-
-  function chip(label, value, count) {
-    var press = document.createElement("button");
-    press.type = "button";
-    press.className = "chip";
-    press.setAttribute("aria-pressed", String(view.status === value));
-    press.appendChild(document.createTextNode(label + " "));
-    var n = document.createElement("span");
-    n.className = "chip-n";
-    n.textContent = String(count);
-    press.appendChild(n);
-    return press;
+  function byRead(a, b) {
+    function opened(r) {
+      return r.opened || 0;
+    }
+    function built(r) {
+      return r.built || 0;
+    }
+    return latest(b, opened) - latest(a, opened) || latest(b, built) - latest(a, built);
   }
 
   function drawTexts() {
@@ -344,35 +307,9 @@
       if (grid) grid.classList.toggle("is-empty", nothingYet);
       var shown = "";
 
-      var sift = document.getElementById("sift-shelf");
-      var chips = document.getElementById("status-chips");
       var find = document.getElementById("shelf-find");
-      var order = document.getElementById("shelf-order");
       var inSeries = document.getElementById("in-series");
       var tabs = document.querySelectorAll("#yours-tabs [data-tab]");
-
-      function drawChips(pool) {
-        var counts = { all: pool.length, new: 0, reading: 0, finished: 0 };
-        pool.forEach(function (reader) {
-          counts[shelf.status(reader).kind] += 1;
-        });
-        chips.textContent = "";
-        [
-          ["all", t("yours.sift.all", "All")],
-          ["new", t("yours.sift.new", "New")],
-          ["reading", t("yours.sift.reading", "Started")],
-          ["finished", t("yours.sift.finished", "Finished")],
-        ].forEach(function (pair) {
-          // The pressed chip stays, at nought, so what is filtering the list is on screen.
-          if (pair[0] !== "all" && !counts[pair[0]] && view.status !== pair[0]) return;
-          var press = chip(pair[1], pair[0], counts[pair[0]]);
-          press.onclick = function () {
-            view.status = view.status === pair[0] ? "all" : pair[0];
-            render();
-          };
-          chips.appendChild(press);
-        });
-      }
 
       /* Subscriptions (design.md §12, "A subscription is the account's", 2026-10-09):
          every subscription as a row, drawn by `subs.js` (`TargumSubs.drawTab`), which
@@ -384,32 +321,46 @@
         subs.drawTab(subsPanel);
       }
 
+      /* The one strip of tabs stands in the head of the card of rows on Recent and
+         Uploads (board Main), and under the page's title on Subscriptions, which is the
+         page's whole width with nothing of Continue's beside it (board SubsTab). */
+      var top = document.getElementById("yours-top");
+      var head = document.getElementById("yours-head");
+      function placeTabs(subscribing) {
+        if (!tabStrip || !top || !head) return;
+        var host = subscribing ? top : head;
+        if (tabStrip.parentNode !== host) host.appendChild(tabStrip);
+        top.hidden = !subscribing;
+        if (document.body && document.body.classList) document.body.classList.toggle("is-subscribing", subscribing);
+      }
+
       function render() {
         var subscribing = view.tab === "subscriptions";
         if (subsPanel) subsPanel.hidden = !subscribing;
         document.getElementById("shelf-panel").hidden = subscribing || nothingYet;
+        placeTabs(subscribing && !nothingYet);
         if (subscribing) {
           drawSubscriptions();
           return;
         }
+        var heading = document.getElementById("shelf-title");
+        if (heading) {
+          heading.textContent =
+            view.tab === "uploads"
+              ? t("yours.list.uploads", "Uploaded by you")
+              : t("yours.list.all", "All your targums");
+        }
         var mine = readers.filter(function (reader) {
           return shelf.base(reader.language) === shown && onTab(reader);
         });
-        sift.hidden = mine.length < SIFT_FROM;
+        find.hidden = mine.length < SIFT_FROM;
         // Nothing sifts what cannot be seen: a search typed on All targums went on
         // emptying Your uploads, which draws no box to clear it from (2026-09-27).
-        if (sift.hidden) {
+        if (find.hidden) {
           view.query = "";
-          view.status = "all";
-          view.order = "read";
           find.value = "";
-          order.value = "read";
         }
-        var searched = mine.filter(matches);
-        var sifted = searched.filter(function (reader) {
-          return view.status === "all" || shelf.status(reader).kind === view.status;
-        });
-        if (!sift.hidden) drawChips(searched);
+        var sifted = mine.filter(matches);
 
         var rows;
         var group = null;
@@ -435,7 +386,7 @@
             view.series = "";
           }
         }
-        if (!group) rows = fold(sifted, mine).sort(ORDERS[view.order]);
+        if (!group) rows = fold(sifted, mine).sort(byRead);
 
         inSeries.hidden = !group;
         if (group) {
@@ -445,10 +396,10 @@
         }
 
         // A build is shown on the whole shelf, before anything is sifted out of it.
-        var plain = !group && view.status === "all" && !view.query;
+        var plain = !group && !view.query;
         var empty = "";
         if (!rows.length && mine.length) {
-          empty = t("yours.sift.none", "Nothing here matches that. Try another search or filter.");
+          empty = t("yours.sift.none-found", "Nothing here matches that. Try another search.");
         } else if (!rows.length && view.tab === "uploads") {
           empty = t("yours.uploads.none", "Nothing you’ve uploaded yet. What you paste, upload or link is kept here.");
         } else if (!rows.length) {
@@ -457,11 +408,7 @@
           empty = t("shelf.empty.language", "Nothing in {language} yet.", { language: names[shown] || shown });
         }
         shelf.draw(shown, rows, {
-          // An order is only news where there are two things to put in one.
-          note:
-            sift.hidden && !group && view.order === "read" && rows.length > 1
-              ? t("yours.last-read-first", "Last read first.")
-              : "",
+          note: "",
           building: plain ? building : [],
           empty: empty,
           onSeries: function (folded) {
@@ -526,10 +473,6 @@
       });
       find.addEventListener("input", function () {
         view.query = find.value;
-        render();
-      });
-      order.addEventListener("change", function () {
-        view.order = order.value;
         render();
       });
       document.getElementById("series-back").addEventListener("click", function () {

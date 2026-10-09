@@ -82,22 +82,9 @@
     return reader && reader.heard ? "listen" : "read";
   }
 
+  // What a text is in one word: the shelf's own, so a card and a row say the same.
   function kindWord(reader) {
-    if (reader.video) return t("home.kind.video", "Video");
-    var kinds = {
-      article: t("home.kind.article", "Article"),
-      talk: t("home.kind.talk", "Video"),
-      dialogue: t("home.kind.dialogue", "Dialogue"),
-      story: t("home.kind.story", "Story"),
-      novel: t("home.kind.novel", "Book"),
-      essay: t("home.kind.essay", "Essay"),
-      prose: t("home.kind.prose", "Tanakh"),
-      poetry: t("home.kind.poetry", "Poetry"),
-      play: t("home.kind.play", "Play"),
-      liturgy: t("home.kind.liturgy", "Prayer"),
-      document: t("home.kind.document", "Document"),
-    };
-    return kinds[reader.kind] || t("home.kind.text", "Text");
+    return shelf.kind(reader);
   }
 
   function partsOf(reader) {
@@ -324,6 +311,9 @@
     var medium = mediumOf(reader);
     if (place && place.seconds > 0 && medium !== "read") {
       go = t("home.card.pick-up-at-time", "Pick up at {time}", { time: clock(place.seconds) });
+    } else if (place && total > 1 && at && reader.chapters && reader.chapters.length) {
+      // A book's or a Tanakh book's part is a chapter (board Main: "Pick up at chapter 2").
+      go = t("home.card.pick-up-at-chapter", "Pick up at chapter {n}", { n: at });
     } else if (place && total > 1 && at) {
       go = t("home.card.pick-up-at-part", "Pick up at part {n}", { n: at });
     } else if (place || (card.reader && stored("targum:opened")[reader.document])) {
@@ -449,6 +439,20 @@
     var list = document.getElementById("continue-cards");
     if (!host || !list) return;
     list.textContent = "";
+    // What leads is said over it (board SubHome): new things first, when there are any.
+    var note = document.getElementById("continue-note");
+    if (note) {
+      note.textContent =
+        (brought && brought.length) || (fresh && fresh.length)
+          ? t("home.continue.note-new", "New from your subscriptions first, then what you opened or uploaded")
+          : t("home.continue.note", "What you opened or uploaded, newest first");
+    }
+    // And counted on the Subscriptions tab, so the tab says there is something in it.
+    var count = document.getElementById("subs-new");
+    if (count) {
+      var n = (brought || []).length;
+      count.textContent = n ? tn("home.subs.new", n, "{n} new", "{n} new") : "";
+    }
     var docs = stored("targum:docs");
     (brought || []).slice(0, NEW_AT_MOST).forEach(function (item) {
       list.appendChild(newCard(item));
@@ -509,6 +513,78 @@
     host.hidden = false;
   }
 
+  /* --- what differs by language (the language boards, P4 2026-10-09) ------------------ */
+
+  /* The upload says the language it is for (board RuHome: "Upload something in
+     Russian"); Hebrew, the one the product began with, keeps "to read" (board Main). Each
+     language its own sentence, so Russian can say it in its own grammar. */
+  function dressUpload(code) {
+    var head = document.getElementById("upload-head");
+    var says = document.getElementById("upload-says");
+    if (!head || !says) return;
+    var heads = {
+      he: t("home.upload.head", "Upload something to read"),
+      ru: t("home.upload.head.ru", "Upload something in Russian"),
+      fr: t("home.upload.head.fr", "Upload something in French"),
+      it: t("home.upload.head.it", "Upload something in Italian"),
+      yi: t("home.upload.head.yi", "Upload something in Yiddish"),
+      arc: t("home.upload.head.arc", "Upload something in Aramaic"),
+    };
+    head.textContent = heads[code] || heads.he;
+    // Yiddish is mostly brought from paper (board YiHome).
+    says.textContent =
+      code === "yi"
+        ? t("home.upload.says.yi", "A link, a file, or a photo of a page. Letters, songs and old newspapers all work, in YIVO spelling or not.")
+        : t("home.upload.says", "Paste a link, drop a file, or bring a post");
+  }
+
+  /* A note card beside Continue, for the two languages whose boards draw one. A language
+     the library has nothing in says so plainly, where the suggestion would stand (board
+     YiHome); Aramaic says where its words are met (board ArcHome). */
+  function drawNote(code, libraryHasIt) {
+    var host = document.getElementById("home-note");
+    if (!host) return;
+    host.textContent = "";
+    host.hidden = true;
+    host.removeAttribute("data-kind");
+    var name = (window.TARGUM_LANGUAGES || {})[code] || code;
+    if (libraryHasIt === false) {
+      host.setAttribute("data-kind", "empty");
+      host.appendChild(el("h2", "section-title home-note-head", t("home.note.empty.head", "The library has no {language} texts yet", { language: name })));
+      host.appendChild(
+        el(
+          "p",
+          "home-note-says",
+          t(
+            "home.note.empty.says",
+            "Everything you read in {language} starts as something you bring. When the library has {language} texts, they appear in the Library by level, like every other language.",
+            { language: name }
+          )
+        )
+      );
+      host.hidden = false;
+      return;
+    }
+    if (code === "arc") {
+      host.setAttribute("data-kind", "arc");
+      host.appendChild(el("p", "home-label", t("home.note.arc.label", "Also")));
+      host.appendChild(
+        el(
+          "p",
+          "home-note-says",
+          t(
+            "home.note.arc.says",
+            "Onkelos sits beside every verse in the Hebrew Torah readers. What you mark there goes onto this Aramaic list, never your Hebrew one."
+          )
+        )
+      );
+      var open = el("a", "try-open", t("home.note.arc.open", "Open this week’s portion with Onkelos"));
+      open.href = keyed("/parasha");
+      host.appendChild(open);
+      host.hidden = false;
+    }
+  }
+
   function suggest(code, readers, first) {
     var skip = finished(readers);
     ask(
@@ -518,9 +594,11 @@
     )
       .then(function (got) {
         drawTry(got && got.suggestion, first);
+        drawNote(code, got ? got.library : undefined);
       })
       .catch(function () {
         drawTry(null, first);
+        drawNote(code, undefined);
       });
   }
 
@@ -598,6 +676,7 @@
         return false;
       }
       first = false;
+      dressUpload(code);
       var fresh = follow && code === "he" ? follow.fresh(all[2]) : [];
       var mine = ((all[3] && all[3].items) || []).filter(function (item) {
         return shelf.base(item.language) === code;

@@ -170,7 +170,7 @@
 
   function buildingRow(job) {
     var item = document.createElement("li");
-    item.className = "is-building";
+    item.className = "row is-building";
     // Said aloud when it changes, because a reader watching this is waiting on it.
     item.setAttribute("role", "status");
     var box = document.createElement("span");
@@ -178,25 +178,17 @@
     box.appendChild(
       window.TargumCovers.picture(
         { title: job.title, language: job.language, kind: job.kind },
-        { keyed: keyed, className: "thumb" }
+        { keyed: keyed, className: "thumb row-thumb" }
       )
     );
 
     var what = document.createElement("span");
-    what.className = "book-what";
+    what.className = "book-what row-main";
     var title = document.createElement("bdi");
     title.setAttribute("lang", job.language || "und");
     title.className = "book-title";
     title.textContent = job.title;
     what.appendChild(title);
-    if (job.english) {
-      var english = document.createElement("span");
-      english.className = "book-english";
-      english.setAttribute("lang", "en");
-      english.setAttribute("dir", "ltr");
-      english.textContent = job.english;
-      what.appendChild(english);
-    }
     var line = document.createElement("span");
     line.className = "book-facts";
     var said = [];
@@ -216,7 +208,8 @@
       bit.textContent = fact;
       line.appendChild(bit);
     });
-    // The status again, for a phone, where the pill beside the row folds away.
+    if (job.english) line.appendChild(englishFact(job.english));
+    // The status again, for a phone, where the tag beside the row folds away.
     var folded = document.createElement("span");
     folded.className = "fact fact-status is-building";
     folded.textContent = t("shelf.status.building", "Building");
@@ -224,16 +217,103 @@
     what.appendChild(line);
     box.appendChild(what);
 
+    // In the kind's place, what it is now: being built, in the primary.
     var pill = document.createElement("span");
-    pill.className = "row-status is-building";
+    pill.className = "tag is-building row-status";
     pill.textContent = t("shelf.status.building", "Building");
     box.appendChild(pill);
+    box.appendChild(meter(job.total > 0 ? job.done / job.total : 0.1, "is-building"));
     item.appendChild(box);
-    // The controls' column, empty: nothing on a build can be pressed.
+    // The end and the controls' columns, empty: nothing on a build can be pressed.
+    var end = document.createElement("span");
+    end.className = "row-end";
+    item.appendChild(end);
     var controls = document.createElement("span");
     controls.className = "row-controls";
     item.appendChild(controls);
     return item;
+  }
+
+  /* What a text is, in one everyday word (design.md §12, "A text is named in everyday
+     words", 2026-10-09): the tag on a row and on a Continue card, so the two say the
+     same thing. */
+  function kindWord(reader) {
+    if (reader.video) return t("home.kind.video", "Video");
+    var kinds = {
+      article: t("home.kind.article", "Article"),
+      talk: t("home.kind.talk", "Video"),
+      dialogue: t("home.kind.dialogue", "Dialogue"),
+      story: t("home.kind.story", "Story"),
+      novel: t("home.kind.novel", "Book"),
+      essay: t("home.kind.essay", "Essay"),
+      prose: t("home.kind.prose", "Tanakh"),
+      poetry: t("home.kind.poetry", "Poetry"),
+      play: t("home.kind.play", "Play"),
+      liturgy: t("home.kind.liturgy", "Prayer"),
+      document: t("home.kind.document", "Document"),
+    };
+    return kinds[reader.kind] || t("home.kind.text", "Text");
+  }
+
+  function tagOf(text) {
+    var tag = document.createElement("span");
+    tag.className = "tag row-tag";
+    tag.textContent = text;
+    return tag;
+  }
+
+  // How much of it the reader knows, in leaf (the desk's `.meter`); an empty cell where
+  // there is no figure, so the columns stay in line.
+  function meter(share, kind) {
+    var line = document.createElement("span");
+    line.setAttribute("aria-hidden", "true");
+    if (typeof share !== "number" || share < 0) {
+      line.className = "row-meter";
+      return line;
+    }
+    line.className = "meter row-meter" + (kind ? " " + kind : "");
+    if (!kind) {
+      line.removeAttribute("aria-hidden");
+      line.setAttribute("role", "img");
+      var said = t("shelf.known", "You know {share}%", { share: Math.round(share * 100) });
+      line.setAttribute("aria-label", said);
+      line.title = said;
+    }
+    var fill = document.createElement("span");
+    fill.style.setProperty("--done", String(Math.max(0, Math.min(1, share))));
+    line.appendChild(fill);
+    return line;
+  }
+
+  // When it came, for a text the reader brought; when they last had it open, for one
+  // from the library, which came to everybody at once. The row's quiet end, the time
+  // alone (board Main, "2 days ago"); what the time is of is said to a screen reader.
+  function whenOf(reader) {
+    if (reader.opened) return { at: ago(reader.opened), said: t("shelf.opened", "Opened {when}", { when: ago(reader.opened) }) };
+    if (!reader.entry && reader.built) {
+      return { at: ago(reader.built * 1000), said: t("shelf.uploaded", "Uploaded {when}", { when: ago(reader.built * 1000) }) };
+    }
+    return null;
+  }
+
+  function endOf(when) {
+    var end = document.createElement("span");
+    end.className = "row-end";
+    if (when) {
+      end.textContent = when.at;
+      end.title = when.said;
+      end.setAttribute("aria-label", when.said);
+    }
+    return end;
+  }
+
+  function englishFact(english) {
+    var bit = document.createElement("span");
+    bit.className = "fact book-english";
+    bit.setAttribute("lang", "en");
+    bit.setAttribute("dir", "ltr");
+    bit.textContent = english;
+    return bit;
   }
 
   function stored(name) {
@@ -252,6 +332,7 @@
    * wraps the facts under them, folds the status into the facts and keeps two keys. */
   function row(reader, docs) {
     var item = document.createElement("li");
+    item.className = "row";
     /* The link is the title, and its `::after` stretches over the row, so the whole row
        is still the press. It wrapped the picture, the words and the status with
        `display: contents`, which let the row's grid lay them out and left the link with
@@ -261,11 +342,11 @@
     link.className = "book-open";
     link.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
     item.appendChild(
-      window.TargumCovers.picture(reader, { keyed: keyed, className: "thumb" })
+      window.TargumCovers.picture(reader, { keyed: keyed, className: "thumb row-thumb" })
     );
 
     var what = document.createElement("span");
-    what.className = "book-what";
+    what.className = "book-what row-main";
     var title = document.createElement("bdi");
     title.setAttribute("lang", reader.language || "und");
     title.className = "book-title";
@@ -273,23 +354,15 @@
     title.textContent = reader.shownTitle || reader.title;
     link.appendChild(title);
     what.appendChild(link);
-    if (reader.english) {
-      var english = document.createElement("span");
-      english.className = "book-english";
-      english.setAttribute("lang", "en");
-      english.setAttribute("dir", "ltr");
-      english.textContent = reader.english;
-      what.appendChild(english);
-    }
     var state = status(reader, docs);
     what.appendChild(facts(reader, state));
     item.appendChild(what);
 
-    var pill = document.createElement("span");
-    pill.className = "row-status is-" + state.kind;
-    if (state.kind === "finished") pill.appendChild(checkMark());
-    pill.appendChild(document.createTextNode(state.said));
-    item.appendChild(pill);
+    // The board's row (Main): its kind as a tag, how much of it is known as a meter, and
+    // when at the end. The status is said in the line under the title.
+    item.appendChild(tagOf(kindWord(reader)));
+    item.appendChild(meter(typeof reader.known === "number" && reader.words ? reader.known : -1));
+    item.appendChild(endOf(whenOf(reader)));
 
     var controls = document.createElement("span");
     controls.className = "row-controls";
@@ -307,7 +380,7 @@
    * because only the page knows what else it is showing. */
   function seriesRow(group, docs, onOpen) {
     var item = document.createElement("li");
-    item.className = "is-series";
+    item.className = "row is-series";
     // The title is the press and stretches over the row, as a text's link does (`row`).
     var press = document.createElement("button");
     press.type = "button";
@@ -325,13 +398,13 @@
           language: group.language,
           kind: newest.kind,
         },
-        { keyed: keyed, className: "thumb" }
+        { keyed: keyed, className: "thumb row-thumb" }
       )
     );
     item.appendChild(stack);
 
     var what = document.createElement("span");
-    what.className = "book-what";
+    what.className = "book-what row-main";
     var title = document.createElement("bdi");
     title.setAttribute("lang", group.language || "und");
     title.className = "book-title";
@@ -358,29 +431,24 @@
 
     var line = document.createElement("span");
     line.className = "book-facts";
-    var said = [tn("shelf.series.count", total, "{n} episode", "{n} episodes")];
+    var count = document.createElement("span");
+    count.className = "fact";
+    count.textContent = tn("shelf.series.count", total, "{n} episode", "{n} episodes");
+    line.appendChild(count);
     var opened = group.members.reduce(function (most, one) {
       return Math.max(most, one.opened || 0);
     }, 0);
-    if (opened) said.push(t("shelf.opened", "Opened {when}", { when: ago(opened) }));
-    said.forEach(function (fact) {
-      var bit = document.createElement("span");
-      bit.className = "fact";
-      bit.textContent = fact;
-      line.appendChild(bit);
-    });
     var folded = document.createElement("span");
     folded.className = "fact fact-status is-" + state.kind;
-    folded.textContent = state.said;
+    if (state.kind === "finished") folded.appendChild(checkMark());
+    folded.appendChild(document.createTextNode(state.said));
     line.appendChild(folded);
     what.appendChild(line);
     item.appendChild(what);
 
-    var pill = document.createElement("span");
-    pill.className = "row-status is-" + state.kind;
-    if (state.kind === "finished") pill.appendChild(checkMark());
-    pill.appendChild(document.createTextNode(state.said));
-    item.appendChild(pill);
+    item.appendChild(tagOf(kindWord(newest)));
+    item.appendChild(meter(-1));
+    item.appendChild(endOf(opened ? { at: ago(opened), said: t("shelf.opened", "Opened {when}", { when: ago(opened) }) } : null));
     press.onclick = function () {
       if (onOpen) onOpen(group);
     };
@@ -409,18 +477,21 @@
     return svg;
   }
 
+  /* The quiet line under a row's title: where the reader is with it first (New, a part
+     count, Finished with the leaf check), then how long it is, what is still to come,
+     its English name and the playlists it is in. How much of it is known is the meter's
+     to say, and when is the row's end (board Main). */
   function facts(reader, state) {
     var line = document.createElement("span");
     line.className = "book-facts";
+    var folded = document.createElement("span");
+    folded.className = "fact fact-status is-" + state.kind;
+    if (state.kind === "finished") folded.appendChild(checkMark());
+    folded.appendChild(document.createTextNode(state.said));
+    line.appendChild(folded);
     var said = [];
     var length = lengthOf(reader);
     if (length) said.push(length);
-    // No level code ("Vav · C2"): the boards draw a row's kind, length and known share and
-    // nothing else about level (design.md §12, "A text is named in everyday words",
-    // 2026-10-09). The rung still sorts Easiest first; it is no longer said.
-    if (typeof reader.known === "number" && reader.words) {
-      said.push(t("shelf.known", "You know {share}%", { share: Math.round(reader.known * 100) }));
-    }
     if (reader.chapters && reader.chapters.length && reader.readyChapters < reader.chapters.length) {
       said.push(
         t("shelf.chapters-translated", "{done} of {total} chapters ready", {
@@ -429,28 +500,21 @@
         })
       );
     }
-    // When it came, for a text the reader brought; when they last had it open, for one
-    // from the library, which came to everybody at once.
-    if (!reader.entry && reader.built) {
-      said.push(t("shelf.uploaded", "Uploaded {when}", { when: ago(reader.built * 1000) }));
-    } else if (reader.opened) {
-      said.push(t("shelf.opened", "Opened {when}", { when: ago(reader.opened) }));
-    }
-    if (reader.playlists && reader.playlists.length) {
-      said.push(t("shelf.in-playlists", "In {names}", { names: reader.playlists.join(", ") }));
-    }
     said.forEach(function (fact) {
       var bit = document.createElement("span");
       bit.className = "fact";
       bit.textContent = fact;
       line.appendChild(bit);
-
     });
-    // The status again, for a phone, where the pill beside the row folds away.
-    var folded = document.createElement("span");
-    folded.className = "fact fact-status is-" + state.kind;
-    folded.textContent = state.said;
-    line.appendChild(folded);
+    if (reader.english) line.appendChild(englishFact(reader.english));
+    // The playlists it is in: a name can be a sentence, so this one fact is the one cut
+    // short, and never pushes the row wider than the card (P4, 2026-10-09).
+    if (reader.playlists && reader.playlists.length) {
+      var lists = document.createElement("span");
+      lists.className = "fact fact-lists";
+      lists.textContent = t("shelf.in-playlists", "In {names}", { names: reader.playlists.join(", ") });
+      line.appendChild(lists);
+    }
     return line;
   }
 
@@ -841,5 +905,6 @@
     trash: drawTrash,
     ago: ago,
     base: base,
+    kind: kindWord,
   };
 })();

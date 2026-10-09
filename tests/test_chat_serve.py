@@ -705,16 +705,18 @@ def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch
 
     monkeypatch.setattr(tools, "suggest_next", suggest_next)
     status, got, _ = call(port, "GET", f"/suggest?k={key}")
-    assert status == 200 and got == {"suggestion": picked[0]}
+    # Whether the library has the language at all rides along (P4, 2026-10-09): home
+    # says so plainly where it has nothing (board YiHome).
+    assert status == 200 and got == {"suggestion": picked[0], "library": True}
     assert store.chats(None) == [], "no conversation was opened for it"
     status, got, _ = call(port, "GET", f"/suggest?skip=esther,%20x&k={key}")
-    assert got == {"suggestion": picked[1]}, "a finished suggestion makes way for the next"
+    assert got["suggestion"] == picked[1], "a finished suggestion makes way for the next"
     assert asked[-1]["skip"] == ["esther", "x"], (
         "the finished ids reach the pick itself, before its cut — live, the top ten "
         "were all finished scenes and skipping after the cut left nothing (2026-09-11)"
     )
     monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
-    assert call(port, "GET", f"/suggest?k={key}")[1] == {"suggestion": None}
+    assert call(port, "GET", f"/suggest?k={key}")[1]["suggestion"] is None
     assert catalogue
 
 

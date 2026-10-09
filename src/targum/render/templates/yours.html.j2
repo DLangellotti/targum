@@ -40,10 +40,15 @@
       Learn is gone and this is the first page after signing in: Continue at the top, the
       shelf under it in its tabs, and beside the shelf one text to try next and the way
       to upload. `home.js` draws the head, `yours.js` the shelf. -#}
+  {#- Subscriptions is a page-wide table under the title (board SubsTab), so the tabs stand
+      here while it is shown; on Recent and Uploads they stand in the head of the card of
+      rows, as board Main draws them. `yours.js` moves the one strip between the two. -#}
+  <div class="yours-top" id="yours-top" hidden></div>
+
   <section class="continue" id="continue" aria-labelledby="continue-head" hidden>
     <div class="continue-top">
       <h2 id="continue-head">{{ t("home.continue.head", "Continue") }}</h2>
-      <p class="continue-note">{{ t("home.continue.note", "What you opened or uploaded, newest first") }}</p>
+      <p class="continue-note" id="continue-note">{{ t("home.continue.note", "What you opened or uploaded, newest first") }}</p>
     </div>
     <ul class="continue-cards" id="continue-cards"></ul>
   </section>
@@ -54,31 +59,24 @@
 
   <div class="home-grid">
   <div class="home-shelf">
-  {#- The tabs, then the shelf (design.md §12, "Your targums has tabs", 2026-09-26). -#}
-  {% set tab = 'recent' %}{% include '_yours_tabs.html.j2' %}
-
-  <section class="panel" id="shelf-panel">
-    {#- Sifting (2026-09-26): drawn by `yours.js` only on a shelf of six or more. -#}
-    <div class="sift-shelf" id="sift-shelf" hidden>
-      <div class="chips" id="status-chips" role="group" aria-label="{{ t("yours.sift.status", "Show") }}"></div>
-      <input type="search" class="well find" id="shelf-find" dir="auto" autocomplete="off" spellcheck="false"
-        placeholder="{{ t("yours.sift.search", "Search your targums") }}" aria-label="{{ t("yours.sift.search", "Search your targums") }}">
-      <label class="pick"><span>{{ t("yours.sift.order", "Order") }}</span>
-        <select class="well" id="shelf-order">
-          <option value="read">{{ t("yours.sift.by-read", "Last read") }}</option>
-          <option value="added">{{ t("yours.sift.by-added", "Recently added") }}</option>
-          <option value="easy">{{ t("yours.sift.by-easy", "Easiest") }}</option>
-          <option value="known">{{ t("yours.sift.by-known", "Words you know") }}</option>
-        </select>
-      </label>
+  {#- All your targums (board Main): one card, its title and the tabs at its head, a field
+      to find one, and the rows. The chips and the order are gone (P4, 2026-10-09): the
+      board draws neither, and Recent is already the order. -#}
+  <section class="card yours-card" id="shelf-panel" aria-labelledby="shelf-title">
+    <div class="yours-head" id="yours-head">
+      <h2 class="section-title" id="shelf-title">{{ t("yours.list.all", "All your targums") }}</h2>
+      {% set tab = 'recent' %}{% include '_yours_tabs.html.j2' %}
     </div>
+    {#- Drawn by `yours.js` only on a shelf of six or more. -#}
+    <input type="search" class="well find" id="shelf-find" dir="auto" autocomplete="off" spellcheck="false" hidden
+      placeholder="{{ t("yours.sift.find", "Find in your targums") }}" aria-label="{{ t("yours.sift.find", "Find in your targums") }}">
     {#- Inside a series (2026-09-26): its name and the way back to the whole shelf. -#}
     <p class="in-series" id="in-series" hidden>
       <button type="button" class="series-back" id="series-back">{{ t("yours.series.back", "← All") }}</button>
       <bdi class="series-name" id="series-name"></bdi>
     </p>
     <p class="note" id="shelf-note"></p>
-    <ul class="books shelf-rows shelf-cards" id="library-list"></ul>
+    <ul class="rows books shelf-rows" id="library-list"></ul>
     <p class="empty" id="shelf-empty" hidden></p>
   </section>
 
@@ -113,9 +111,13 @@
       a phone the upload stands under Continue and the suggestion under the shelf. -#}
   <aside class="home-side" aria-label="{{ t("home.side", "Something new") }}">
     <section class="card try-next" id="try-next" hidden></section>
+    {#- Per language (the language boards): a language whose library is empty says so in
+        place of a suggestion, and Aramaic says where its words are met. -#}
+    <section class="card home-note" id="home-note" hidden></section>
     <a class="upload-card" href="/add" data-home-link>
-      <span class="upload-card-head"><svg class="upload-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg>{{ t("home.upload.head", "Upload something to read") }}</span>
-      <span class="upload-card-says">{{ t("home.upload.says", "Paste a link, drop a file, or bring a post") }}</span>
+      <span class="upload-card-head"><svg class="upload-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg><span id="upload-head">{{ t("home.upload.head", "Upload something to read") }}</span></span>
+      <span class="upload-card-says" id="upload-says">{{ t("home.upload.says", "Paste a link, drop a file, or bring a post") }}</span>
+      <span class="upload-card-short" aria-hidden="true">{{ t("home.upload.short", "link · file · post") }}</span>
     </a>
   </aside>
   </div>
