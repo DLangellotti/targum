@@ -212,7 +212,7 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
     said = {
         key: text
         for key, text in catalogue(code).items()
-        if key.startswith(("reader.", "vocab.", "playlist-menu.", "fault."))
+        if key.startswith(("reader.", "vocab.", "playlist-menu.", "fault.", "offline."))
     }
     return {"strings": said, "stringsLanguage": code} if said else {}
 
@@ -651,6 +651,8 @@ SHARED_SCRIPT_KEYS = (
     "nav.",
     # How a refusal is drawn, on every page (`fault.js`, design.md §12, 2026-10-09).
     "fault.",
+    # Saving for offline, which every page with the bar carries (design.md §12, 2026-10-09).
+    "offline.",
 )
 
 

@@ -358,6 +358,10 @@
       </button>
       {%- endfor %}
     </div>
+    {#- Save for offline (design.md §12, 2026-10-09): what it takes, then the progress and
+        Stop, then Saved and Remove. Drawn by `offline.js`, and only where the page was
+        served: off a disk the page is already where it is going to be. -#}
+    <div class="group offline-row" id="offline-row" data-title="{{ title }}" aria-live="polite" hidden></div>
     {#- The word list beside the text, which also has its tab at the foot. -#}
     {% if words %}
     <div class="group" data-what="{{ t("reader.page.word-list", "Word list") }}">

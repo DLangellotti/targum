@@ -5456,7 +5456,7 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   .bar-more.open .group.more-player { display: none; }
 }
 .bar-more.open .group .label { flex: 1 1 auto; color: var(--ink); }
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button,
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button,
 .bar-more .group select,
 .bar-more .group .home {
   display: grid;
@@ -5470,11 +5470,11 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   color: var(--ink-soft);
 }
 .bar-more .group select { display: block; border: 1px solid var(--rule); font-size: 0.8125rem; }
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button:not(.more-switch):hover,
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button:not(.more-switch):hover,
 .bar-more .group .home:hover { color: var(--ink); background: var(--paper-raised); }
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button.on:not(.more-switch),
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button[aria-expanded="true"] { color: var(--ink); background: var(--paper-raised); }
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button svg,
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button.on:not(.more-switch),
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button[aria-expanded="true"] { color: var(--ink); background: var(--paper-raised); }
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button svg,
 .bar-more .group .home svg {
   inline-size: 16px;
   block-size: 16px;
@@ -5519,6 +5519,93 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 .bar-more.open .group.voice-offer::before { content: none; }
 .bar-more .voice-go { display: block; block-size: auto; color: var(--paper); background: var(--ink); }
 .bar-more .voice-go:hover { color: var(--paper); background: var(--ink-soft); }
+
+/* Save for offline (design.md §12, 2026-10-09): one row that says where a text or a
+   playlist stands — what it will take, the progress and Stop, Saved and Remove, or what
+   went wrong and Try again — in the reader's ⋯ and on a playlist's page. Drawn by
+   `offline.js`. The progress is leaf, as every progress is (§4). */
+.offline-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.75rem; }
+.offline-row[hidden] { display: none; }
+.bar-more.open .group.offline-row { flex-wrap: wrap; padding-block: 0.35rem; }
+.bar-more.open .group.offline-row::before { content: none; }
+.offline-row .offline-go,
+.offline-row .offline-what {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--ink);
+}
+.offline-row .offline-go {
+  min-block-size: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.offline-row .offline-go:hover .offline-label,
+.offline-row .offline-go:focus-visible .offline-label { color: var(--accent); }
+.offline-row .offline-size {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.offline-row .offline-stop,
+.offline-row .offline-again {
+  min-block-size: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.offline-row .offline-stop:hover,
+.offline-row .offline-again:hover { background: var(--paper-raised); }
+.offline-row .offline-remove {
+  min-block-size: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.offline-row .offline-remove:hover { color: var(--ink); }
+.offline-row .offline-bar {
+  display: block;
+  flex: 1 0 100%;
+  block-size: 3px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.offline-row .offline-fill { display: block; block-size: 100%; background: var(--leaf); }
+.offline-row .offline-note,
+.offline-row .offline-said {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  white-space: normal;
+}
+.offline-row .offline-said { flex: 1 1 14rem; color: var(--ink); }
+@media (hover: none) and (pointer: coarse) {
+  /* §8: what a thumb presses answers a tap over 44px. */
+  .offline-go,
+  .offline-stop,
+  .offline-again,
+  .offline-remove { min-block-size: 44px; }
+}
 
 /* --- B: the columns switch themselves --- */
 .cmp-x {
@@ -5614,7 +5701,7 @@ body.practice-section .beside-add { display: none; }
   .bar .aa-step,
   .bar-pop .recordings .recording-key,
   .bar-pop .to-sheet .more-sheet,
-  .bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button,
+  .bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button,
   .bar-more .group .home,
   .cmp-add { min-block-size: 44px; }
   .bar .bar-tool,
