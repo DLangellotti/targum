@@ -1932,6 +1932,59 @@ def build_card(language: str = "en") -> str:
     )
 
 
+def _plural_forms(key: str, language: str, one: str, other: str) -> dict[str, str]:
+    """Every plural form a counted string has in `language`, for a card's script to choose
+    from with `Intl.PluralRules`: a card carries no catalogue of its own."""
+    from ..strings import SOURCE, catalogue
+
+    code = (language or SOURCE).split("-")[0].lower()
+    said = catalogue(code)
+    forms = {"one": one, "other": other}
+    for form in ("zero", "one", "two", "few", "many", "other"):
+        found = said.get(f"{key}.{form}")
+        if found:
+            forms[form] = found
+    return forms
+
+
+def build_offer_card(language: str = "en") -> str:
+    """The offer card a host draws beside `quote_set` and `quote_subscription` (design.md
+    §12, "A third card, the offer", 2026-10-09).
+
+    Built as the other two are, on the same bridge. What it offers arrives in the tool
+    result; this hands it only its labels, and each counted one in every plural form the
+    reader's language has, so the script picks the right one for any number.
+    """
+    return (
+        _environment()
+        .get_template("card-offer.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            forms={
+                "credits": _plural_forms(
+                    "card.offer.credits", language, "{n} credit", "{n} credits"
+                ),
+                "total": _plural_forms(
+                    "card.offer.total",
+                    language,
+                    "Uses {n} credit in all",
+                    "Uses {n} credits in all",
+                ),
+                "each": _plural_forms(
+                    "card.offer.each",
+                    language,
+                    "About {n} credit a new one",
+                    "About {n} credits a new one",
+                ),
+                "week": _plural_forms(
+                    "card.offer.week", language, "About {n} a week", "About {n} a week"
+                ),
+            },
+        )
+    )
+
+
 def build_text_card(language: str = "en") -> str:
     """The text card a host draws beside `find_text` and `open_library_text` (design.md
     §12, "A card in someone else's chat", 2026-10-06).

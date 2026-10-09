@@ -1,0 +1,12 @@
+{#- Subscribe, on a series' own page (design.md §12, "A subscription is the account's",
+    2026-10-09; boards SeriesWeekly, SeriesPortion, SeriesCycle). Signed in only: a
+    stranger has the waitlist's form instead. Hidden until the account answers, so a page
+    whose session has gone shows no switch that cannot work. Set `series_id` and `says`
+    before including. -#}
+<div class="series-subscribe" id="series-subscribe" data-series="{{ series_id }}"
+  data-subscribe="{{ t("subs.subscribe", "Subscribe") }}"
+  data-subscribed="{{ t("follow.subscribed", "Subscribed") }}" hidden>
+  <button type="button" class="btn tonal" aria-pressed="false">{{ t("subs.subscribe", "Subscribe") }}</button>
+  <span class="series-subscribe-says">{{ says }}</span>
+</div>
+<script>{{ asset('subscribe.js') }}</script>

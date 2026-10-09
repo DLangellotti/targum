@@ -43,6 +43,9 @@
       <p class="actions">
         <a class="btn {{ 'cta' if signed_in else 'tonal' }}" href="#embed">{% if is_newest %}{{ t("weekly.page.read-this-week-s-issue", "Read this week's issue") }}{% else %}{{ t("weekly.page.read-this-issue", "Read this issue") }}{% endif %}</a>
       </p>
+      {%- if signed_in %}
+      {%- with series_id = 'weekly', says = t("subs.series.weekly-says", "New issues show on Your targums and come by mail each Monday.") %}{% include '_series_subscribe.html.j2' %}{% endwith %}
+      {%- endif %}
       {#- The press line: the outlets this issue cites, as their own wordmarks in their
           own colours — §12 records the departure. Only outlets the foot's sources list
           names; the marks and their licences are `assets/press/`. -#}

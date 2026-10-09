@@ -294,3 +294,17 @@ body.front .join-points svg { inline-size: 1.05rem; block-size: 1.05rem; color: 
 /* The public pages ring in teal: the gold is 2.31:1 on the ground they stand on
    (design.md §4, §12, 2026-10-02). */
 body.front :focus-visible, body.front .site-footer a:focus-visible { outline-color: var(--teal); }
+
+/* Subscribe on a series' own page (design.md §12, 2026-10-09): the switch and what it
+   means, under the hero's Read. Pressed, it rests as quiet raised paper, like a live
+   choice anywhere on the desk. */
+body.front .series-subscribe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.75rem 0 0;
+}
+body.front .series-subscribe[hidden] { display: none; }
+body.front .series-subscribe .btn[aria-pressed="true"] { background: var(--paper-raised); color: var(--ink); }
+body.front .series-subscribe-says { font-size: 0.875rem; color: var(--ink-soft); }

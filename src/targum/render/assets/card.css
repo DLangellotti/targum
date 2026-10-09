@@ -273,3 +273,33 @@ body {
     transform: scale(0.98);
   }
 }
+
+/* The offer card's list (design.md §12, "A third card, the offer", 2026-10-09): a set's
+   texts, one a line, each title in its own face and what it uses beside it. */
+.card-items {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding-block: 4px;
+  border-block-start: 1px solid var(--edge);
+}
+
+.card-item-title {
+  font-family: var(--reading);
+  overflow-wrap: anywhere;
+}
+
+.card-item-title[lang|="he"] { font-family: var(--reading-hebrew); }
+
+.card-item-facts {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}

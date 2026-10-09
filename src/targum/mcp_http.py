@@ -82,8 +82,8 @@ CAPABILITIES: dict[str, Any] = {
 CARD_TYPE = "text/html;profile=mcp-app"
 
 #: The cards, by address: what a host lists, and the page `builder` draws for each.
-#: design.md §12 allows two and both are built (2026-10-06); a third needs an entry
-#: there first.
+#: design.md §12 allowed two (2026-10-06) and a third, the offer, on 2026-10-09 ("A third
+#: card, the offer"); a fourth needs an entry there first.
 CARDS: dict[str, dict[str, str]] = {
     tools_module.BUILD_CARD: {
         "name": "build-card",
@@ -91,6 +91,15 @@ CARDS: dict[str, dict[str, str]] = {
         "description": (
             "How far a text the reader is getting ready has got, kept current by asking "
             "check_job again, and the link to it once it is ready."
+        ),
+    },
+    tools_module.OFFER_CARD: {
+        "name": "offer-card",
+        "title": "Something to confirm on targum",
+        "description": (
+            "A set of texts or a subscription a conversation offered: what it is, the "
+            "credits it uses, and the one link that opens targum's page where the reader "
+            "confirms it. It never confirms anything itself."
         ),
     },
     tools_module.TEXT_CARD: {
@@ -329,9 +338,14 @@ def card_read(
     """
     if uri not in {shape["uri"] for shape in card_shapes(tools)}:
         raise RpcError(RESOURCE_NOT_FOUND, f"There is no resource called {uri} here.")
-    from .render.builder import build_card, build_text_card
+    from .render.builder import build_card, build_offer_card, build_text_card
 
-    page = build_text_card(language) if uri == tools_module.TEXT_CARD else build_card(language)
+    if uri == tools_module.TEXT_CARD:
+        page = build_text_card(language)
+    elif uri == tools_module.OFFER_CARD:
+        page = build_offer_card(language)
+    else:
+        page = build_card(language)
     frame = _card_frame(uri, address)
     return {"contents": [{"uri": uri, "mimeType": CARD_TYPE, "text": page, "_meta": {"ui": frame}}]}
 

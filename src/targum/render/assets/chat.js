@@ -358,8 +358,9 @@
   var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'״׳־׀׃–0-9-]*[֐-׿]|[֐-׿]/g;
   // A path the server returned, standing on its own. Nothing else becomes a link.
   // A set a model quoted (#365) is a door too, to the page where it is pressed.
-  var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+|\/set\/\d+)/g;
-  var ONLY_PATH = /^(?:\/(?:reader|library)\/\S+|\/set\/\d+)$/;
+  // And a subscription offered (design.md §12, 2026-10-09): the page where it is confirmed.
+  var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+|\/set\/\d+|\/subscribe\?[^\s)]+)/g;
+  var ONLY_PATH = /^(?:\/(?:reader|library)\/\S+|\/set\/\d+|\/subscribe\?\S+)$/;
 
   // A path is drawn as a door: the model can say where a text is, and only the reader
   // opens it (design.md §9: the door-opening action is the ink call to action). The
@@ -370,6 +371,10 @@
     a.href = keyed(path);
     if (/^\/set\/\d+$/.test(path)) {
       a.appendChild(document.createTextNode(t("chat.open-set", "See the set")));
+      return a;
+    }
+    if (/^\/subscribe\?/.test(path)) {
+      a.appendChild(document.createTextNode(t("chat.open-subscribe", "Subscribe on targum")));
       return a;
     }
     var name = path;
@@ -1447,6 +1452,7 @@
     open_library_text: t("chat.doing.open", "We're opening the text…"),
     quote_build: QUOTING,
     quote_conversation: QUOTING,
+    quote_subscription: t("chat.doing.subscription", "We're looking at what it puts out…"),
   };
   // A clock a test can stand in for; the browser's own everywhere else.
   var clock = window.TargumClock || {
