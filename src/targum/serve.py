@@ -1632,6 +1632,14 @@ class Library:
             # "lately finished" for an hour and the bell filled with it (2026-09-14).
             made=int(row["made"] or 0) or now(),
             finished=int(row["finished"] or 0),
+            # What it was priced at. Left out, a recording quoted before a restart and
+            # pressed after it was claimed at no length — no credits charged, and built
+            # anyway (targum-internal#436).
+            audio=bool(row["audio"]),
+            seconds=float(row["seconds"] or 0.0),
+            parts=int(row["parts"] or 0),
+            transcription=float(row["transcription"] or 0.0),
+            reading=float(row["reading"] or 0.0),
         )
 
     #: Stages a job does not come back from. Reaching one stamps `finished`.
@@ -1677,6 +1685,11 @@ class Library:
                 "made": job.made,
                 "kind": job.kind,
                 "finished": job.finished,
+                "audio": int(job.audio),
+                "seconds": job.seconds,
+                "parts": job.parts,
+                "transcription": job.transcription,
+                "reading": job.reading,
             }
         )
         # A playlist waiting on this build learns how it ended (#365). Here for the reason
