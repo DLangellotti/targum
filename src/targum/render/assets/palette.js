@@ -57,7 +57,7 @@
       { kind: "place", title: t("palette.progress", "Your Progress"), href: "/progress" },
       { kind: "place", title: t("nav.your-words-and-phrases", "Your words and phrases"), href: "/words" },
       { kind: "place", title: t("nav.subscriptions", "Your subscriptions"), href: "/?show=subscriptions" },
-      { kind: "place", title: t("nav.your-profile", "Your profile"), href: "/you" },
+      { kind: "place", title: t("nav.your-account", "Your account"), href: "/you" },
       { kind: "place", title: t("palette.upload", "Upload a text"), href: "/add" },
       { kind: "talk", title: t("nav.talk-to-targum", "Talk to targum") },
     ];

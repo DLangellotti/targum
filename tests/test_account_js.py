@@ -44,7 +44,10 @@ def test_your_progress_shows_the_credits_left_and_what_they_are_worth() -> None:
     seen = drawn(who={**READER, "hours": hours})
     said = "450 credits left this month — about 7 hours 30 minutes of audio"
     assert seen["ledger"] == {"hidden": False, "text": f"{said} · resets October 1"}
-    assert seen["panel"] == {"hidden": False, "text": said}
+    # The menu says it shorter, with the rate under it: a balance carries its rate
+    # wherever it is (design.md §12, 2026-10-09).
+    assert seen["panel"] == {"hidden": False, "text": "450 credits left · back on October 1"}
+    assert seen["rate"] == {"hidden": False, "text": "About 7 hours 30 minutes of audio"}
 
 
 def test_your_progress_says_nothing_about_hours_without_an_allowance() -> None:
@@ -54,6 +57,7 @@ def test_your_progress_says_nothing_about_hours_without_an_allowance() -> None:
         seen = drawn(who=who)
         assert seen["ledger"] == {"hidden": True, "text": ""}, who
         assert seen["panel"]["hidden"] is True, who
+        assert seen["rate"]["hidden"] is True, who
 
 
 def test_the_corner_says_who_you_are_from_the_first_paint() -> None:

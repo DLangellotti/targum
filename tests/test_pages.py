@@ -328,9 +328,9 @@ def test_the_first_visit_s_question_stands_on_both_pages_with_the_languages_it_m
 def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases() -> None:
     """2026-09-11: "words/phrases should be moved into a dedicated page you access by
     clicking on your picture in the top right", and the checklist "after onboarding
-    accessible only on the words/phrases page". The account panel on every page links to
-    Your Words; the page holds the words and the may-already-know checklist, with the
-    phrases a tab away; Learn holds none of them."""
+    accessible only on the words/phrases page". Your Words is reached from Your Progress
+    since 2026-10-09, not the account menu; the page holds the words and the
+    may-already-know checklist, with the phrases a tab away; Learn holds none of them."""
     words = PAGES["words"]
     assert 'id="word-table"' in words and 'id="claim-panel"' in words
     assert words.index('id="word-table"') < words.index('id="claim-panel"')
@@ -339,19 +339,46 @@ def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases(
     assert 'id="phrase-list"' in PAGES["phrases"]
     assert "Words you may already know" in words and "TargumClaim" in words
     assert 'id="claim-body"' in words, "the script builds the table into the panel's body"
+    # Reached from Your Progress since 2026-10-09 (design.md §12), and no longer from the
+    # account menu, which held a second copy of the navigation.
+    assert 'href="/words"' in PAGES["progress"]
     for name, page in PAGES.items():
         if 'class="site-head"' not in page:
             continue
-        assert 'class="to-you" href="/words"' in page, f"{name}: Your Words is in the account panel"
+        panel = page[page.index('id="account-panel"') : page.index('id="account-said"')]
+        assert 'href="/words"' not in panel, f"{name}: the account menu does not repeat the nav"
     # Your Words keeps the grid itself. Learn offered it once on the way in until Learn was
     # taken apart (2026-10-08); home carries none of it.
     assert 'id="claim-panel"' not in PAGES["texts"] and 'id="claim-here"' not in PAGES["texts"]
 
 
+def test_the_account_menu_is_who_what_is_left_and_three_rows() -> None:
+    """David, 2026-10-09: "this menu can now be cleaned up as many things are accessible
+    elsewhere" (design.md §12). Signed in, it says who you are and what is left of the
+    month, then three rows with the reader menus' anatomy: Your account, Saved on this
+    device and Sign out, a plain row rather than a pill. Words, subscriptions and
+    playlists are the navigation's, not the menu's."""
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        panel = page[page.index('id="account-panel"') : page.index('id="account-said"')]
+        signed_in = panel[panel.index('class="signed-in"') :]
+        rows = re.findall(r'class="menu-row"[^>]*>([^<]+)<', signed_in)
+        assert rows == ["Your account", "Saved on this device", "Sign out"], (name, rows)
+        assert 'class="menu-row" href="/you"' in signed_in, name
+        assert 'class="menu-row" href="/you/saved"' in signed_in, name
+        assert 'class="menu-row" id="account-out"' in signed_in, name
+        assert signed_in.index('id="account-whom"') < signed_in.index('id="account-hours"')
+        assert signed_in.index('id="account-hours"') < signed_in.index('id="account-rate"')
+        for gone in ('href="/playlists"', "show=subscriptions", 'href="/words"', "Your profile"):
+            assert gone not in panel, f"{name}: {gone} left the menu"
+
+
 def test_your_subscriptions_are_a_tab_of_home_and_every_page_hears_them() -> None:
     """2026-09-11: "subscriptions should be under the profile dropdown (perhaps on /you)
     — let's keep the main pages as simple as possible". Since 2026-10-08 they are a tab
-    of Your targums (design.md §12), the account panel links there, the profile keeps one
+    of Your targums (design.md §12), the account menu no longer links there (2026-10-09),
+    the account page keeps one
     line to it rather than a second copy of the rows, the Library carries nothing of it,
     and the script that asks is in the bar on every page so the bell hears a landed
     instalment."""
@@ -362,8 +389,10 @@ def test_your_subscriptions_are_a_tab_of_home_and_every_page_hears_them() -> Non
     assert 'id="subs-panel"' in PAGES["texts"] and 'id="home-series"' in PAGES["texts"]
     for name, page in PAGES.items():
         if 'class="site-head"' in page:
-            # Home's Subscriptions tab since 2026-10-08 (design.md §12).
-            assert 'class="to-you" href="/?show=subscriptions"' in page, name
+            # Home's Subscriptions tab since 2026-10-08 (design.md §12), and no longer a
+            # link in the account menu (2026-10-09).
+            panel = page[page.index('id="account-panel"') : page.index('id="account-said"')]
+            assert "show=subscriptions" not in panel, name
             assert "TargumFollow" in page, f"{name}: the bell hears a landed instalment"
             assert page.index("TargumFollow") < page.index('getElementById("notices-open")'), name
 

@@ -357,6 +357,29 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The account menu is who, what is left, and three rows — 2026-10-09
+
+David, 2026-10-09: "this menu can now be cleaned up as many things are accessible
+elsewhere". No board draws the menu; the boards that ruled the day (AccountDesk,
+AccountPhone, OffSavedDesk) name the page it leads to **Your account**, and the mockups
+win over this file where they disagree, so the 2026-09-28 line "/you is 'Your profile'
+everywhere" is retired: /you is **Your account**, in the menu, the palette, the page's
+title and the refusal that sends a reader there.
+
+- **Who you are**, one line: the name in ink and the address muted after it.
+- **What is left**, one line: "354 credits left · back on November 1". The rate goes
+  under it, muted ("About 5 hours 54 minutes of audio"), because "A cost is credits"
+  (2026-09-23) puts the rate wherever a balance is, and the menu shows a balance.
+- **Three rows**, with the reader menus' anatomy (board ReaderMenus): the panel runs edge
+  to edge, a hairline between the head and the rows, each row a full-width line of ink at
+  the body size. **Your account** (/you), **Saved on this device** (/you/saved, which
+  belongs to the browser and so is a row signed out too) and **Sign out**, a plain row in
+  ink where it was a tonal pill.
+- **Gone from the menu**: Your words and phrases (reached from Your Progress since the
+  same day, and from ⌘K), Your subscriptions (a tab of Your targums since 2026-10-08, and
+  ⌘K) and Your playlists (the Playlists tab of Your targums). Each was a second copy of
+  the navigation in a corner.
+
 ### A refusal is drawn on one of five surfaces — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards ErrorSystem, ErrorCatalogDesk,
@@ -1853,7 +1876,7 @@ old wording.
   free" now say "The library still opens", and the From targum playlists (#415) now say
   "Opening them uses no credits".
 - **Followed series are "Following", not "Your subscriptions"**, so the word stays free
-  for a paid plan. /you is "Your profile" everywhere.
+  for a paid plan. /you is "Your profile" everywhere. *(Superseded 2026-10-09: /you is "Your account".)*
 
 What does **not** change: the approval page still says "Chatting is included" and names
 no allowance (2026-09-24). Only the public /connect FAQ says what chatting is included

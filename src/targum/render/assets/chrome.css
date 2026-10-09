@@ -231,7 +231,11 @@ body {
 }
 .account-panel[hidden] { display: none; }
 .account-panel p { margin: 0 0 0.7rem; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.5; }
-.account-panel .whom { color: var(--ink); font-size: 0.9375rem; margin-block-end: 0.2rem; }
+/* Who you are, one line: the name in ink, the address muted (2026-10-09). */
+.account-panel .whom { color: var(--ink); font-size: 0.9375rem; margin-block-end: 0.15rem; overflow-wrap: anywhere; }
+.account-panel .whom-email { color: var(--ink-soft); }
+.account-panel .hours { color: var(--ink); font-size: 0.875rem; margin: 0.35rem 0 0; }
+.account-panel .rate { margin: 0; }
 .account-panel form { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .account-panel input {
   flex: 1 1 9rem;
@@ -244,24 +248,35 @@ body {
   font: inherit;
   font-size: 0.8125rem;
 }
-.account-panel form button,
-.account-panel .signed-in button {
+.account-panel form button {
   padding: 0.35rem 0.7rem;
   border-radius: var(--radius-control);
   font-size: 0.8125rem;
 }
 .account-panel form button { background: var(--accent); border-color: var(--accent); color: var(--paper); }
-/* The one link in the panel, which had no rule at all and so came out as a browser
-   default: underlined, and blue — a hue the palette does not have and §4 does not allow.
-   Quiet ink beside the button, the same way the footer's links read. */
-.account-panel .to-you {
-  color: var(--ink-soft);
+/* The menu's rows have the reader menus' anatomy (board ReaderMenus, 2026-10-09): the
+   panel runs edge to edge, a row is a full-width line of ink at the body size, and a
+   hairline from edge to edge stands between the head and the rows. Sign out is one of
+   them, in ink, not a pill: it was the one tonal button in a panel of lines. */
+.account-panel .menu-rows { display: flex; flex-direction: column; margin-block-start: 0.5rem; padding-block-start: 0.375rem; border-block-start: 1px solid var(--hairline); }
+.account-panel .menu-row {
+  display: flex;
+  align-items: center;
+  min-block-size: 1.5rem;
+  padding: 0.625rem 1.125rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  text-align: start;
   text-decoration: none;
-  border-block-end: 1px solid var(--hairline);
+  cursor: pointer;
 }
-.account-panel .to-you:hover { color: var(--ink); border-block-end-color: var(--ink-soft); }
-.account-panel .yours-link { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0 0 0.8rem; padding-block-end: 0.7rem; border-block-end: 1px solid var(--hairline); }
-.account-panel .yours-link .to-you { color: var(--ink); font-weight: 600; }
+.account-panel .menu-row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
+.account-panel .menu-row:focus-visible { outline-offset: -2px; }
 /* account.js writes both outcomes here, so accent painted a failure in the hue §4
    reserves for the primary action. Ink for both: a refusal about the address goes under
    its field with the clay mark (`fault.js`, design.md §12, 2026-10-09). */
@@ -734,7 +749,15 @@ button:active:not(:disabled) { transform: scale(0.98); }
   background: var(--card);
   box-shadow: var(--shadow-floating);
 }
-.account-panel { padding: 1.1rem 1.2rem 1.2rem; }
+/* Edge to edge, as the reader menus are: the head and the form keep the inset, the rows
+   carry their own. */
+.account-panel { padding: 0.5rem 0; }
+.account-panel .account-head,
+.account-panel .signed-out > p,
+.account-panel .signed-out > form,
+.account-panel .said { padding-inline: 1.125rem; }
+.account-panel .account-head { padding-block: 0.6rem 0.2rem; }
+.account-panel .signed-out > p:first-child { padding-block-start: 0.6rem; }
 .account-panel input {
   border: 1px solid transparent;
   border-radius: var(--radius-row);
@@ -743,10 +766,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 .account-panel input:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
 .account-panel form button { background: var(--teal); border: 0; border-radius: 999px; color: var(--teal-ink); padding: 0.5rem 0.9rem; }
-.account-panel .signed-in button { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); padding: 0.5rem 0.9rem; }
-.account-panel .signed-in button:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
-.account-panel .yours-link { border-block-end: 1px solid var(--hairline); }
-.account-panel .to-you { border-block-end: 0; }
 .account-panel .account-phone { display: none; }
 .account-panel .account-find {
   padding: 0.45rem 0.9rem;
@@ -863,8 +882,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
     justify-content: space-between;
     gap: 0.75rem;
     margin: 0;
-    padding-block: 0.5rem;
-    margin-block-end: 0.7rem;
+    padding: 0.5rem 1.125rem;
+    margin-block-end: 0.2rem;
     border-block-end: 1px solid var(--hairline);
   }
   /* The conversation page itself: its box sits above the bar, and its list sheet's rows

@@ -1,7 +1,7 @@
 /* The account control in the corner, on every page that has a header.
  *
- * Everything it does is one of three things: say who is signed in, ask for an email
- * address, or sign out. The syncing itself is not here — that is `sync.js`, which runs
+ * Everything it does is one of three things: say who is signed in and what is left of
+ * the month, ask for an email address, or sign out. The syncing itself is not here — that is `sync.js`, which runs
  * whether or not this panel is ever opened.
  *
  * The copy is deliberately about what the reader gets rather than what the software
@@ -119,7 +119,19 @@
       image.src = who.picture;
     }
     avatar(who.initials);
-    whom.textContent = who.name ? who.name + " · " + who.email : who.email;
+    // Name and address on one line, the address muted (2026-10-09).
+    whom.textContent = "";
+    if (who.name) {
+      var named = document.createElement("span");
+      named.className = "whom-name";
+      named.textContent = who.name;
+      whom.appendChild(named);
+      whom.appendChild(document.createTextNode(" "));
+    }
+    var address = document.createElement("span");
+    address.className = "whom-email";
+    address.textContent = who.email;
+    whom.appendChild(address);
     drawHours(who.hours);
   }
 
@@ -129,6 +141,7 @@
   // Progress since it became a story (design.md §12, 2026-10-09). Nothing where there is
   // no cap.
   var hoursLine = document.getElementById("account-hours");
+  var rateLine = document.getElementById("account-rate");
   var ledgerLine = document.getElementById("hours-line");
   var creditsPanel = document.getElementById("credits");
   // "50 minutes", "1 hour 5 minutes", "3 hours": the hours as a person says them. "0.83
@@ -164,9 +177,23 @@
         " — " +
         t("account.credits.rate", "about {clock} of audio", { clock: spoken(spare) })
       : "";
+    /* The menu says it shorter (design.md §12, "The account menu is who, what is left,
+       and three rows", 2026-10-09): what is left and when it comes back on one line, and
+       the rate under it, muted — still beside the balance, because the rate goes
+       wherever a balance is. */
     if (hoursLine) {
-      hoursLine.textContent = said;
+      var back = has && got.ends ? t("account.credits.back", "back on {date}", { date: got.ends }) : "";
+      hoursLine.textContent = has
+        ? tn("account.credits.left-short", credits(spare), "{n} credit left", "{n} credits left") +
+          (back ? " · " + back : "")
+        : "";
       hoursLine.hidden = !has;
+    }
+    if (rateLine) {
+      rateLine.textContent = has
+        ? t("account.credits.rate-line", "About {clock} of audio", { clock: spoken(spare) })
+        : "";
+      rateLine.hidden = !has;
     }
     if (ledgerLine) {
       ledgerLine.textContent = said
