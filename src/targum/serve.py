@@ -5000,7 +5000,13 @@ class Handler(BaseHTTPRequestHandler):
     def _not_found(self) -> None:
         """A page that is not there, said as a page (2026-09-14): a bare `not found` in
         plain text, or the holding page with a 200, were both a dead end."""
-        self._send(404, not_found_page().encode("utf-8"), HTML)
+        # The key rides into the page's top bar only for a request that already carried
+        # it: a 404 is answered to anybody, and the key is not a thing to hand a stranger.
+        query = parse_qs(urlparse(self.path).query)
+        given = query.get("k", [""])[0] or (self.headers.get("X-Targum-Key") or "")
+        known = bool(self.token) and secrets.compare_digest(given, self.token)
+        page = not_found_page(self.token if known else "", language=self._page_language())
+        self._send(404, page.encode("utf-8"), HTML)
 
     def _needs_account(self, route: str) -> bool:
         """Whether this request has to be turned away at the door.
@@ -7111,7 +7117,7 @@ class Handler(BaseHTTPRequestHandler):
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
             person = self.store.peek_sign_in(token) if token else None
             if person is None and token and self.store.leaving_link(token):
-                page = signin_page(language=self._page_language(), said=self._closing())
+                page = signin_page(language=self._page_language(), closing=True)
                 return self._send(200, page.encode("utf-8"), HTML)
             if person is None:
                 return self._send(
@@ -10021,8 +10027,8 @@ class Handler(BaseHTTPRequestHandler):
         if not google_module.configured() or not self._host_is_ours() or not self.address:
             return self._send(404, b"not found", "text/plain")
 
-        def refuse(said: str) -> None:
-            page = signin_page(language=self._page_language(), said=said)
+        def refuse(said: str, again: str = "") -> None:
+            page = signin_page(language=self._page_language(), said=said, again=again)
             return self._send(200, page.encode("utf-8"), HTML)
 
         state = (query.get("state") or [""])[0]
@@ -10031,10 +10037,8 @@ class Handler(BaseHTTPRequestHandler):
             # Also what an abandoned tab looks like an hour later, so it is said the way
             # a spent link is: not an error, just start again.
             return refuse(
-                self._say(
-                    "serve.that-sign-in-took-too-long",
-                    "That sign-in took too long. Try again.",
-                )
+                self._say("serve.that-sign-in-took-too-long", "That sign-in took too long."),
+                "/account/google",
             )
         if (query.get("error") or [""])[0]:
             # They pressed Cancel on Google's own screen. Nothing went wrong.
@@ -10044,9 +10048,8 @@ class Handler(BaseHTTPRequestHandler):
         code = (query.get("code") or [""])[0]
         if not code:
             return refuse(
-                self._say(
-                    "serve.that-sign-in-didn-t-finish", "That sign-in didn't finish. Try again."
-                )
+                self._say("serve.that-sign-in-didn-t-finish", "That sign-in didn't finish."),
+                "/account/google",
             )
         try:
             answer = google_module.exchange(code, begun.verifier, self._google_redirect())
@@ -10057,7 +10060,8 @@ class Handler(BaseHTTPRequestHandler):
         # The same gate the mailed link goes through. Without it, standing OAuth up on a
         # funded box lets anybody with a Google account open one and start spending.
         if self.store.is_leaving(email):
-            return refuse(self._closing())
+            page = signin_page(language=self._page_language(), closing=True)
+            return self._send(200, page.encode("utf-8"), HTML)
         if self.require_account and not self.store.may_join(email):
             return refuse(self._not_open())
         got = self.store.sign_in_verified(email)
@@ -10072,7 +10076,7 @@ class Handler(BaseHTTPRequestHandler):
     def _enter(self, token: str) -> None:
         got = self.store.finish_sign_in(token) if token else None
         if got is None and token and self.store.leaving_link(token):
-            page = signin_page(language=self._page_language(), said=self._closing())
+            page = signin_page(language=self._page_language(), closing=True)
             return self._send(200, page.encode("utf-8"), HTML)
         if got is None:
             # Not an error: a spent or stale link is what a second press looks like,
@@ -11575,7 +11579,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.we-couldn-t-look-that-word",
-                        "We couldn't look this word up. Try again in a moment.",
+                        "We couldn't look this word up.",
                     )
                 },
                 502,
@@ -11646,7 +11650,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.we-couldn-t-look-that-phrase",
-                        "We couldn't look this phrase up. Try again in a moment.",
+                        "We couldn't look this phrase up.",
                     )
                 },
                 502,

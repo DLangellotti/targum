@@ -224,7 +224,7 @@ body.chat > .chat-main {
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
-.chat-turn.bad .chat-line { color: var(--clay); }
+/* A failed turn is a fault line (`fault.js`), ink with its clay mark; the line it replaces is hidden. */
 .chat-turn.working .chat-line:empty::before { content: "…"; color: var(--ink-soft); }
 
 /* --- hearing an answer ----------------------------------------------------- */

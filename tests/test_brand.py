@@ -379,6 +379,10 @@ THUMBED = (
     ".home-card-open",
     ".try-open",
     ".upload-card",
+    # A refusal's way on (design.md §12, 2026-10-09): Try again in a line or the
+    # banner, and the one button of a panel or a whole page.
+    ".fault-act",
+    ".fault-go",
 )
 
 

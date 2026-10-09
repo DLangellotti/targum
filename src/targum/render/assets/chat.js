@@ -106,7 +106,31 @@
   // The language a word's meaning is looked up in: the one the conversation's meanings
   // arrive in, which the list names (targum-internal#287).
   var meaningsIn = "en";
-  var UNREACHED = { error: t("chat.unreached", "We can't reach targum. Check your connection and try again.") };
+  // targum out of reach is said once, by the connection's banner under the top of the
+  // page (design.md §12, 2026-10-09); the answer still carries a sentence, for the places
+  // that draw one where the thing did not come.
+  var UNREACHED = { error: t("chat.unreached", "We can't reach targum."), unreached: true };
+  function unreached() {
+    if (window.TargumFault) window.TargumFault.unreachable();
+    return UNREACHED;
+  }
+
+  /* A turn that failed: the sentence as a line in the turn, with Try again where there
+     is something to try again (design.md §12, 2026-10-09). It was the sentence in clay
+     with "Try again" inside it. */
+  function failed(li, message, again) {
+    li.className = li.className.replace(/\s*\b(working|bad)\b/g, "") + " bad";
+    var line = li.querySelector(".chat-line");
+    if (!window.TargumFault) {
+      if (line) line.textContent = message;
+      return;
+    }
+    if (line) line.hidden = true;
+    var old = li.querySelector(".fault-line");
+    if (old) old.parentNode.removeChild(old);
+    li.appendChild(window.TargumFault.line(message, again || null));
+  }
+
   function ask(path, body) {
     return fetch(keyed(path), {
       method: body ? "POST" : "GET",
@@ -116,9 +140,7 @@
       .then(function (response) {
         return response.json();
       })
-      .catch(function () {
-        return UNREACHED;
-      });
+      .catch(unreached);
   }
 
   /* Which language this conversation is in (2026-09-13): the switcher's, or — in the
@@ -305,7 +327,20 @@
               line.removeChild(look);
               line.appendChild(document.createTextNode(" · " + got.meaning));
             } else {
-              look.textContent = (got && got.error) || t("chat.not-found", "we couldn't find a meaning for this word");
+              // A line where the meaning would be, and Try again asks once more.
+              look.textContent = t("chat.look-up", "look it up");
+              if (!window.TargumFault || (got && got.unreached)) return;
+              look.hidden = true;
+              var miss = window.TargumFault.line(
+                (got && got.error) || t("chat.not-found", "We couldn't find a meaning for this word."),
+                function () {
+                  line.removeChild(miss);
+                  look.hidden = false;
+                  look.click();
+                },
+                true
+              );
+              line.appendChild(miss);
             }
           }
         );
@@ -786,13 +821,10 @@
       .then(function (response) {
         return response.json();
       })
-      .catch(function () {
-        return UNREACHED;
-      })
+      .catch(unreached)
       .then(function (got) {
         if (got.error) {
-          pending.className = "chat-turn me bad";
-          render(pending.querySelector(".chat-line"), got.error);
+          failed(pending, got.error);
           busy = false;
           send.disabled = false;
           return;
@@ -1242,7 +1274,7 @@
           lastAsked = one.n;
           lastWords = one.words || null;
           pending = one.stage === "working" ? one.n : null;
-          if (one.stage === "failed" && one.error) turn("assistant", one.error, "bad");
+          if (one.stage === "failed" && one.error) failed(turn("assistant", "", ""), one.error);
         } else if (one.said) {
           var li = turn("assistant", one.said, "", lastWords);
           playButton(li, id, lastAsked);
@@ -1409,7 +1441,7 @@
     if (!usable) return tell(CANNOT_ANSWER);
     busy = true;
     send.disabled = true;
-    turn("user", text);
+    var asked = turn("user", text);
     var answer = turn("assistant", "", "working");
     var line = { chat: current, text: text, language: spoken() };
     // The text sent with the line, by its job, so the model knows what it was given.
@@ -1419,17 +1451,28 @@
     if (reading && (reading.sentence || reading.document)) {
       line.about = { document: reading.document, section: reading.section, sentence: reading.sentence, title: reading.title };
     }
+    // Try again sends the same line again, in place of the one that failed.
+    function again() {
+      if (asked.parentNode) asked.parentNode.removeChild(asked);
+      if (answer.parentNode) answer.parentNode.removeChild(answer);
+      say(text, brought);
+    }
     ask("/chat/say", line).then(function (got) {
-      if (got.error) {
-        answer.className = "chat-turn them bad";
-        render(answer.querySelector(".chat-line"), got.error);
-        busy = false;
-        send.disabled = false;
+      busy = false;
+      send.disabled = false;
+      if (got.unreached) {
+        // Said by the banner, whose Try again sends it again; nothing stands in the
+        // thread for an answer that never started.
+        if (answer.parentNode) answer.parentNode.removeChild(answer);
+        if (window.TargumFault) window.TargumFault.unreachable(again);
         return;
       }
+      if (got.error) return failed(answer, got.error, again);
+      busy = true;
+      send.disabled = true;
       var wasNew = !current;
       current = got.chat;
-      follow(got.chat, got.turn, answer);
+      follow(got.chat, got.turn, answer, again);
       if (wasNew) load();
     });
   }
@@ -1440,7 +1483,7 @@
   // what we are doing, and after a long quiet that we are still at it.
   var GIVE_UP_MS = 270 * 1000;
   var QUIET_MS = 20 * 1000;
-  var TOO_LONG = t("chat.too-long", "We took too long to answer that. Try again.");
+  var TOO_LONG = t("chat.too-long", "We took too long to answer that.");
   var LIBRARY = t("chat.doing.library", "We're looking through the library…");
   var QUOTING = t("chat.doing.quote", "We're working out how long it'll take…");
   var DOING = {
@@ -1467,7 +1510,7 @@
     },
   };
 
-  function follow(chat, n, li) {
+  function follow(chat, n, li, again) {
     var line = li.querySelector(".chat-line");
     var text = "";
     var words = null;
@@ -1520,8 +1563,9 @@
         doing = null;
       }
       var was = atBottom();
-      li.className = "chat-turn them" + (kind === "error" ? " bad" : "");
-      render(line, kind === "error" ? payload.message : payload.text || text, words);
+      li.className = "chat-turn them";
+      if (kind === "error") failed(li, payload.message, again);
+      else render(line, payload.text || text, words);
       keepBottom(was);
       if (kind !== "error") playButton(li, chat, n);
       if (kind !== "error") drawFoot(payload.seconds);

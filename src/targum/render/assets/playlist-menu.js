@@ -109,22 +109,31 @@
           // sentence, and is said as the plain failure.
           var why = got.answer && got.answer.error;
           if (got.status === 404 || got.status === 401 || /^(not found|bad request)$/i.test(String(why || ""))) why = "";
-          status(menu, why || say("playlist-menu.failed", "We couldn't add it to the playlist. Try again."), true);
+          status(menu, why || say("playlist-menu.failed", "We couldn't add it to the playlist."), true, again);
           return;
         }
         status(menu, say("playlist-menu.added", "Added to {name}.", { name: got.answer.name || target.name }));
         setTimeout(close, 900);
       })
       .catch(function () {
-        status(menu, say("playlist-menu.failed", "We couldn't add it to the playlist. Try again."), true);
+        status(menu, say("playlist-menu.failed", "We couldn't add it to the playlist."), true, again);
       });
+    function again() {
+      status(menu, "");
+      add(menu, text, key, target);
+    }
   }
 
-  function status(menu, words, bad) {
+  // A refusal is a line with the clay mark and Try again (design.md §12, 2026-10-09).
+  function status(menu, words, bad, again) {
     var line = menu.querySelector(".pm-status");
     line.textContent = words;
     line.hidden = !words;
     line.classList.toggle("bad", !!bad);
+    if (bad && words && window.TargumFault) {
+      line.textContent = "";
+      line.appendChild(window.TargumFault.line(words, "", again || null, true));
+    }
   }
 
   function draw(menu, text, key, playlists) {
@@ -291,8 +300,7 @@
           var why = got.answer && got.answer.error;
           if (got.status >= 400) {
             if (got.status === 404 || got.status === 401 || /^(not found|bad request)$/i.test(String(why || ""))) why = "";
-            press.textContent = why || say("playlist-menu.failed", "We couldn't add it to the playlist. Try again.");
-            press.disabled = false;
+            failed(why || say("playlist-menu.failed", "We couldn't add it to the playlist."));
             return;
           }
           press.textContent = say("playlist-menu.plays-next", "It plays next in {name}.", { name: playlist.name });
@@ -300,10 +308,25 @@
           if (done) setTimeout(done, 900);
         })
         .catch(function () {
-          press.textContent = say("playlist-menu.failed", "We couldn't add it to the playlist. Try again.");
-          press.disabled = false;
+          failed(say("playlist-menu.failed", "We couldn't add it to the playlist."));
         });
     };
+    // The press keeps its words, and a line under it says what went wrong, with Try
+    // again (design.md §12, 2026-10-09). The refusal was the press's own label.
+    function failed(words) {
+      press.disabled = false;
+      var old = press.nextElementSibling;
+      if (old && old.classList.contains("fault-line")) old.parentNode.removeChild(old);
+      if (!window.TargumFault || !press.parentNode) {
+        press.textContent = words;
+        return;
+      }
+      var line = window.TargumFault.line(words, function () {
+        if (line.parentNode) line.parentNode.removeChild(line);
+        press.click();
+      });
+      press.parentNode.insertBefore(line, press.nextSibling);
+    }
     return press;
   }
 

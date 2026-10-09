@@ -1327,7 +1327,7 @@ body.marking .w.here,
 .gloss-card .ask-en,
 .gloss-card .ask-why { color: var(--ink-soft); font-size: 0.875rem; margin-block-end: 0.3rem; }
 .gloss-card .ask-recast { padding-inline-end: 0.5rem; border-inline-end: 2px solid var(--rule); }
-.gloss-card .ask-a.bad { color: var(--clay); }
+.gloss-card .ask-a.bad { color: var(--ink); }
 .gloss-card .ask-a.working:empty::after { content: "…"; color: var(--ink-soft); }
 .gloss-card .ask-form { display: flex; gap: 0.4rem; align-items: center; }
 .gloss-card .ask-field {
@@ -3170,6 +3170,7 @@ body.voicing .pair:hover:not(.now):not(.here):not(.practising):not(:focus-visibl
    the label was using, and keeps showing it — the reader pressed a thing and is owed an
    answer more than the page is owed its tidiness. */
 .player.refused .player-said { display: block; color: var(--ink); }
+.player:not(.refused) .player-again { display: none; }
 .player.refused .player-track,
 .player.refused .player-clock { display: none; }
 
@@ -5016,7 +5017,6 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 .playlist-menu .pm-confirm:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .playlist-menu .pm-name:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--teal); }
 .playlist-menu .pm-status { margin: 0.5rem 0.25rem 0; color: var(--ink-soft); }
-.playlist-menu .pm-status.bad { color: var(--clay); }
 @media (pointer: coarse) {
   .playlist-menu .pm-choice,
   .playlist-menu .pm-name,
@@ -5941,3 +5941,205 @@ body.film-ended .film-sub { display: none; }
   border: 0;
 }
 body.film-theatre .film-end + .film-next { justify-content: flex-start; }
+
+/* --- Refusals: the five surfaces (design.md §12, "A refusal is drawn on one of five
+   surfaces", 2026-10-09). Here because every page carries this sheet, the reader
+   included, and drawn by `fault.js` so no page keeps a refusal of its own. Clay is only
+   ever the mark or the outline; the sentence is ink, and the way on is teal. */
+.fault-icon {
+  flex: none;
+  inline-size: 1.125em;
+  block-size: 1.125em;
+  margin-block-start: 0.2em;
+  fill: none;
+  stroke: var(--clay);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The same mark, for a refusal a page already draws as a paragraph of its own: the
+   class puts the clay circle before the first line, and the line stays ink. A mask, so
+   the colour is the palette's and nothing is fetched (a reader fetches nothing). */
+.fault-marked::before {
+  content: "";
+  display: inline-block;
+  inline-size: 1.125em;
+  block-size: 1.125em;
+  margin-inline-end: 0.5em;
+  vertical-align: -0.22em;
+  background: var(--clay);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5V13M12 16.5v.1'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5V13M12 16.5v.1'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* 1 · Under a field: the field outlined, focus left in it, one line under it. */
+.fault-field,
+.fault-field:focus,
+.fault-field:focus-visible {
+  border-color: var(--clay);
+  box-shadow: 0 0 0 1px var(--clay);
+}
+.fault-under {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0.5rem 0 0;
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  text-align: start;
+}
+
+/* 2 · A line in a card: what didn't come, and a text button to try again. */
+.fault-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: flex-start;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: start;
+}
+.fault-line .fault-said { flex: 0 1 auto; min-inline-size: 0; }
+.fault-act {
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-weight: 600;
+  line-height: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.fault-act:hover { background: var(--teal-wash); }
+
+/* 3 · A panel in place: one button, and a quiet line of what still works. */
+.fault-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  color: var(--ink);
+  font-family: var(--chrome);
+  text-align: start;
+}
+.fault-panel-said {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+.fault-panel-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+.fault-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.5rem;
+  padding: 0 1.25rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.fault-go:hover { color: var(--teal-ink); box-shadow: var(--lift); }
+/* Top up, until there is somewhere to pay (§12): drawn, greyed, and not a press. */
+.fault-go:disabled,
+.fault-go[aria-disabled="true"] {
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.fault-fact {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+/* 4 · The connection: one band under the top bar, in the flow, with no ×. */
+.fault-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.625rem;
+  align-items: center;
+  padding: 0.5rem 1.25rem;
+  border-block-end: 1px solid var(--rule);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  direction: inherit;
+}
+.fault-banner[hidden] { display: none; }
+.fault-banner .fault-cloud {
+  flex: none;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.fault-banner .fault-said { flex: 1 1 12rem; }
+/* In the reader the bar is sticky, so the band stands just under it (`fault.js` sets
+   the offset to the bar's height) rather than scrolling away with the first line. */
+.fault-banner.is-under-bar {
+  position: sticky;
+  z-index: 15;
+}
+
+/* 5 · A whole page: the top bar stays, a heading, one sentence, one button. */
+.fault-page {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 1rem;
+  min-block-size: 50vh;
+  padding: 4rem 1.25rem 4.5rem;
+  color: var(--ink);
+  font-family: var(--chrome);
+  text-align: center;
+}
+.fault-page h1 {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.fault-page p {
+  max-inline-size: 34rem;
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+.fault-page .fault-go { margin-block-start: 0.5rem; }
+
+@media (hover: none) and (pointer: coarse) {
+  .fault-act,
+  .fault-go {
+    min-block-size: 44px;
+  }
+}

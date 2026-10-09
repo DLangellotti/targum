@@ -629,8 +629,11 @@ def test_a_closing_account_is_told_so_at_every_door(
 
     status, page = ask(port, f"/account/enter?t={link}", "targum.page")
     said = page.decode()
-    assert status == 200 and closing in said
-    assert "no longer works" not in said
+    # A whole page since 2026-10-09 (design.md §12): the heading says it, and the one
+    # button is the mail that keeps the account.
+    assert status == 200 and "This account is being closed" in said
+    assert 'href="mailto:hello@targum.page"' in said
+    assert "has expired" not in said
 
     # A link nobody is leaving through is still just a spent link.
     assert not store.leaving_link("not-a-token")

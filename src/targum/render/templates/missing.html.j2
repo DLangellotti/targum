@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("holding.page.not-found", "Not found") }} — targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+<body class="missing">
+{#- A whole page (design.md §12, "A refusal is drawn on one of five surfaces",
+    2026-10-09): the top bar stays, so whoever followed an old link is still somewhere,
+    and under it a heading, one sentence and one button. It stood in the holding page's
+    frame until then, the mark alone on the ground. -#}
+{% set here = 'missing' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+
+<main class="fault-page">
+  <h1>{{ t("holding.page.we-can-t-find-that-page", "We can't find that page") }}</h1>
+  <p>{{ t("holding.page.it-may-have-moved-or-the-link", "There's nothing at this address.") }}</p>
+  <a class="fault-go" href="/library">{{ t("holding.page.go-to-the-library", "Go to the library") }}</a>
+</main>
+{% include '_foot.html.j2' %}
+
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+</body>
+</html>

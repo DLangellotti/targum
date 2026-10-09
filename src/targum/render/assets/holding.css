@@ -78,8 +78,3 @@ body.holding {
   .corner .enter { transition: none; }
 }
 
-
-/* An address that is not a page (2026-09-14): one line of what to do, under the state. */
-.holding .missing { margin: 0; max-inline-size: 24rem; text-align: center; color: var(--ink-soft); font-size: 0.9375rem; }
-.holding .missing a { color: var(--teal); text-decoration: none; }
-.holding .missing a:hover { text-decoration: underline; }
