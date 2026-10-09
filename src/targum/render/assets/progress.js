@@ -243,7 +243,7 @@
             )
           : !said.library
             ? t("progress.where.no-library", "The library has nothing in this language yet, so there's no ladder of texts to place you on.")
-            : t("progress.where.unmeasured", "We haven't measured this language's texts yet, so there's no ladder to place you on.");
+            : t("progress.where.unmeasured", "We'll show which kinds of text you'd follow once we've measured the library's texts.");
       note.hidden = false;
       return;
     }

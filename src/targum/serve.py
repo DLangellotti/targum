@@ -12074,7 +12074,8 @@ class Handler(BaseHTTPRequestHandler):
             # Whether the library has anything in this language at all: Yiddish has not,
             # and its page leads with Upload rather than with an empty shelf.
             "library": bool(entries),
-            "known": sum(1 for status in marked.values() if status == coverage_module.KNOWN),
+            # The ledger's count, names and numbers left out, so the page says one figure.
+            "known": self.store.known_count(person, language),
         }
         answer.update(
             touchstones.standing(rungs, index, marked)

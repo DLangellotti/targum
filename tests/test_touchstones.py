@@ -206,6 +206,10 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     words = [
         {"language": "he", "lemma": "ים", "status": KNOWN, "at": 1, "seen": 1},
         {"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1},
+        # A name and a number marked known: not vocabulary, so not counted, as the
+        # ledger above does not count them (audit Q8, 2026-10-09: 1,743 against 1,688).
+        {"language": "he", "lemma": "דוד", "status": KNOWN, "at": 1, "seen": 1, "band": "name"},
+        {"language": "he", "lemma": "שלוש", "status": KNOWN, "at": 1, "seen": 1, "band": "number"},
     ]
     sections = [
         {"hash": name, "section": "1", "at": ms(2026, 9), "seen": ms(2026, 9)}
