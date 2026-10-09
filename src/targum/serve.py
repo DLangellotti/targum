@@ -8688,7 +8688,7 @@ class Handler(BaseHTTPRequestHandler):
         return {
             "used": round(used / 3600, 2),
             "allowed": None if allowed is None else round(allowed / 3600, 2),
-            "ends": self.library._month_ends(),
+            "ends": self.library._month_ends(self._ui_language()),
         }
 
     def _me(self) -> None:
@@ -11258,7 +11258,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.not-in-profile",
-                        "{language} isn't in Your languages yet. Add it in Your profile, then "
+                        "{language} isn't in Your languages yet. Add it in Your account, then "
                         "try again.",
                         language=self._named(wanted),
                     )
@@ -11292,7 +11292,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.not-in-profile",
-                        "{language} isn't in Your languages yet. Add it in Your profile, then "
+                        "{language} isn't in Your languages yet. Add it in Your account, then "
                         "try again.",
                         language=self._named(reading),
                     )

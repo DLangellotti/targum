@@ -78,14 +78,14 @@
         {{ t("nav.sign-in", "Sign in") }}
       </button>
       <div class="account-panel" id="account-panel" role="dialog" aria-label="{{ t("nav.your-account", "Your account") }}" hidden>
-        {#- Your Words: the words and phrases you are learning, behind the account since
-            2026-09-11 ("a dedicated page you access by clicking on your picture in the
-            top right"). Above both halves of the panel: it is yours signed in or not. -#}
-        <p class="yours-link"><a class="to-you" href="/words">{{ t("nav.your-words-and-phrases", "Your words and phrases") }}</a>
-          <a class="to-you" href="/?show=subscriptions">{{ t("nav.subscriptions", "Your subscriptions") }}</a>
-          <a class="to-you" href="/playlists">{{ t("nav.your-playlists", "Your playlists") }}</a></p>
+        {#- What the menu holds (design.md §12, "The account menu is who, what is left, and
+            three rows", 2026-10-09): who you are, the month's credits, and three rows with
+            the reader menus' anatomy. Your words and phrases, Your subscriptions and Your
+            playlists stood here as bold links until that day; they are reached from Your
+            Progress and from the tabs of Your targums, and three copies of the navigation
+            in a corner is clutter. -#}
         {#- On a phone the top bar keeps the mark, the language, the bell and the account
-            (design.md §13), so find and the light switch are here (2026-09-14). -#}
+            (design.md §13), so find is here (2026-09-14). -#}
         <p class="account-phone">
           <button type="button" class="account-find" data-palette-open>{{ t("nav.find-anything", "Find anything") }}</button>
         </p>
@@ -96,14 +96,27 @@
                    autocomplete="email" spellcheck="false" required>
             <button type="submit">{{ t("nav.send-a-link", "Send a link") }}</button>
           </form>
+          {#- Saved on this device belongs to the browser, not the account, so it is a row
+              whether or not anybody is signed in. -#}
+          <div class="menu-rows">
+            <a class="menu-row" href="/you/saved">{{ t("nav.saved-on-this-device", "Saved on this device") }}</a>
+          </div>
         </div>
         <div class="signed-in" hidden>
-          <p class="whom" id="account-whom"></p>
-          {#- The month's hours, in the unit the pricing page gives them: where a reader
-              who wonders looks, and nowhere they did not (targum-internal#237). -#}
-          <p class="hours" id="account-hours" hidden></p>
-          <a class="to-you" href="/you">{{ t("nav.your-profile", "Your profile") }}</a>
-          <button type="button" id="account-out">{{ t("nav.sign-out", "Sign out") }}</button>
+          <div class="account-head">
+            <p class="whom" id="account-whom"></p>
+            {#- The month's credits, where a reader who wonders looks, and nowhere they did
+                not (targum-internal#237): what is left and when it comes back, with the
+                rate under it, because a balance always carries its rate (§12, "A cost is
+                credits", 2026-09-23). -#}
+            <p class="hours" id="account-hours" hidden></p>
+            <p class="rate" id="account-rate" hidden></p>
+          </div>
+          <div class="menu-rows">
+            <a class="menu-row" href="/you">{{ t("nav.your-account", "Your account") }}</a>
+            <a class="menu-row" href="/you/saved">{{ t("nav.saved-on-this-device", "Saved on this device") }}</a>
+            <button type="button" class="menu-row" id="account-out">{{ t("nav.sign-out", "Sign out") }}</button>
+          </div>
         </div>
         <p class="said" id="account-said" hidden></p>
       </div>

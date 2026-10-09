@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{{ t("you.page.you-targum", "Your profile — targum") }}</title>
+<title>{{ t("you.page.you-targum", "Your account — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}</style>
 {{ hebrew_face() }}
@@ -16,7 +16,7 @@
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="you">
-{% set here = 'you' %}{% set title = t("you.page.title", "Your profile") %}
+{% set here = 'you' %}{% set title = t("you.page.title", "Your account") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
