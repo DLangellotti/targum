@@ -20,153 +20,104 @@
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
-<main>
+<main class="account">
   {#- Signed out there is nothing here to show, and saying so beats an empty form. -#}
-  <section class="panel" id="stranger" hidden>
+  <section class="card" id="stranger" hidden>
     <p class="note">{{ t("you.page.sign-in-from-the-corner-and-we", "Sign in from the corner and we'll fill this page in.") }}</p>
   </section>
 
-  {#- Credits, first, as the board draws the account page (AccountDesk, 2026-10-08): they
-      moved here off Your Progress, which became a story of a reader's reading (design.md
-      §12, "Your Progress is a story in three parts", 2026-10-09). Filled by `account.js`
-      from who is signed in; absent where there is no cap. -#}
-  <section class="panel credits" id="credits" hidden>
-    <h2>{{ t("you.page.credits", "Credits") }}</h2>
-    <p class="credits-left" id="hours-line"></p>
-    <p class="note">{{ t("you.page.credits-rate", "One credit is a minute of audio or video.") }}</p>
+  {#- Your account as the boards draw it (AccountDesk, AccountPhone, PlanAccount, ConnYou;
+      design.md §12, "Your account is the board's sections", 2026-10-09): Credits, Plan,
+      Your languages, What's connected and Account, a card each in one column. -#}
+
+  {#- Credits, first (AccountDesk): the balance in the serif, the rate and the day it
+      comes back under it, and a meter of what is left. Filled by `account.js` from who is
+      signed in; absent where there is no cap. -#}
+  <section class="card credits" id="credits" aria-labelledby="credits-title" hidden>
+    <h2 class="section-title" id="credits-title">{{ t("you.page.credits", "Credits") }}</h2>
+    <p class="credits-big"><span class="credits-n" id="hours-line"></span> <span class="credits-unit">{{ t("you.page.left-this-month", "left this month") }}</span></p>
+    <p class="credits-rate" id="credits-rate"></p>
+    <span class="meter is-spent credits-meter" id="credits-meter" aria-hidden="true"><span></span></span>
+    <p class="note">{{ t("you.page.credits-rate-reading", "One credit is a minute of audio or video. Reading uses none.") }}</p>
   </section>
 
-  <section class="panel" id="who" hidden>
-    <div class="who-head">
-      <span class="avatar-large" id="you-avatar"></span>
-      <div class="who-what">
-        <label class="field">
-          <span>{{ t("you.page.name", "Name") }}</span>
-          <input type="text" id="you-name" dir="auto" maxlength="60" autocomplete="name"
-                 placeholder="{{ t("you.page.what-should-we-call-you", "What should we call you?") }}" spellcheck="false">
+  {#- Plan (PlanAccount): there is one plan while targum is in early access, and the pay
+      buttons are drawn and greyed with "Payments open soon" beside them until there is
+      somewhere to pay (design.md §12, "A refusal is drawn on one of five surfaces"). -#}
+  <section class="card plan" id="plan" aria-labelledby="plan-title" hidden>
+    <h2 class="section-title" id="plan-title">{{ t("you.page.plan", "Plan") }}</h2>
+    <ul class="rows acct-rows">
+      <li class="row">
+        <span class="row-main">
+          <b class="acct-name">{{ t("you.page.early-access", "Early access") }}</b>
+          <span class="acct-says" id="plan-line">{{ t("you.page.early-access-says", "Every account has the same month of credits while targum is in early access") }}</span>
+        </span>
+      </li>
+      <li class="row">
+        <span class="row-main">
+          <span class="acct-name">{{ t("you.page.top-up", "Top up") }}</span>
+          <span class="acct-says">{{ t("you.page.top-up-says", "Credits you buy stay until you use them") }}</span>
+        </span>
+        <span class="acct-end">
+          <button type="button" class="btn ghost outline" disabled>{{ t("you.page.top-up-60", "60 credits") }}</button>
+          <button type="button" class="btn ghost outline" disabled>{{ t("you.page.top-up-180", "180 credits") }}</button>
+        </span>
+      </li>
+    </ul>
+    <p class="acct-soon"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</p>
+  </section>
+
+  {#- Your languages, as rows (AccountDesk): each one being learned with Remove, Start
+      another from the rest, and the language meanings, translations and menus are in.
+      Drawn by `you.js` from the lists below; the rung named on arrival is its last row. -#}
+  <section class="card" id="languages" aria-labelledby="languages-title" hidden>
+    <h2 class="section-title" id="languages-title">{{ t("you.page.your-languages", "Your languages") }}</h2>
+    <ul class="rows acct-rows" id="you-learning"></ul>
+    <ul class="rows acct-rows acct-more">
+      <li class="row">
+        <label class="row-main acct-name" for="you-start"><span class="acct-wide">{{ t("you.page.start-another", "Start another language") }}</span><span class="acct-narrow">{{ t("you.page.start-another-short", "Start another") }}</span></label>
+        <select class="acct-pick" id="you-start"></select>
+      </li>
+      <li class="row">
+        <label class="row-main" for="you-reads">
+          <span class="acct-name">{{ t("you.page.translate-into", "Read and translate into") }}</span>
+          <span class="acct-says">{{ t("you.page.translate-into-says", "Meanings, translations, menus and buttons") }}</span>
         </label>
-        <p class="you-email" id="you-email"></p>
-      </div>
-    </div>
-    {#- How the conversation says "you" in Hebrew (2026-09-14). Every second person and
-        every present-tense "I" in Hebrew has a gender, and nikkud makes it visible; a
-        conversation that guessed once rewrote a man's sentence into the feminine and
-        called it a correction. -#}
-    <fieldset class="address" id="you-address">
-      <legend>{{ t("you.page.in-hebrew-targum-calls-you", "In Hebrew, targum calls you") }}</legend>
-      <label><input type="radio" name="address" id="address-m" value="m"> <bdi lang="he" dir="rtl">אַתָּה</bdi></label>
-      <label><input type="radio" name="address" id="address-f" value="f"> <bdi lang="he" dir="rtl">אַתְּ</bdi></label>
-      <label><input type="radio" name="address" id="address-either" value=""> {{ t("you.page.either", "Either") }}</label>
-    </fieldset>
-    <p class="said" id="you-said" hidden></p>
-  </section>
-
-  {#- Which languages you are learning, and which you read well enough to be handed a
-      translation in. Every one targum has is here with its stage beside it: this is the
-      page where somebody says what they read, so a language missing from it would be a
-      question they had no way to answer. Drawn by `you.js` from the lists below. -#}
-  <section class="panel" id="languages" hidden>
-    <h2>{{ t("you.page.your-languages", "Your languages") }}</h2>
-    <div class="ticks">
-      <span class="ticks-label" id="learning-label">{{ t("you.page.learning", "Learning") }}</span>
-      <span class="tick-list" id="you-learning" role="group" aria-labelledby="learning-label"></span>
-    </div>
-    <div class="ticks">
-      <span class="ticks-label" id="reads-label">{{ t("you.page.translations-in", "Translations in") }}</span>
-      <span class="tick-list" id="you-reads" role="group" aria-labelledby="reads-label"></span>
-    </div>
-    {#- The rung named on arrival, and changed here (design.md §12, 2026-10-07). It
-        decides which of the commonest words a Hebrew page draws as known. -#}
-    <label class="field level-field">
-      <span>{{ t("you.page.your-hebrew", "Your Hebrew") }}</span>
-      <select id="you-level"></select>
-    </label>
-    <p class="note">{{ t("you.page.level-note", "The commonest words at your level show as known until you mark them.") }}</p>
-    <p class="note">{{ t("you.page.hebrew-is-always-on-everything-else-is", "Hebrew always stays on. Apart from Hebrew and English, every language here is experimental. You lose nothing when you untick one.") }}</p>
+        <select class="acct-pick" id="you-reads"></select>
+      </li>
+      {#- The rung named on arrival (design.md §12, 2026-10-07). It decides which of the
+          commonest words a Hebrew page draws as known. -#}
+      <li class="row">
+        <label class="row-main" for="you-level">
+          <span class="acct-name">{{ t("you.page.your-hebrew", "Your Hebrew") }}</span>
+          <span class="acct-says">{{ t("you.page.level-note", "The commonest words at your level show as known until you mark them.") }}</span>
+        </label>
+        <select class="acct-pick" id="you-level"></select>
+      </li>
+    </ul>
     <p class="said" id="you-languages-said" hidden></p>
   </section>
 
-  <section class="panel" id="reading" hidden>
-    <h2>{{ t("you.page.your-reading", "Your reading") }}</h2>
-    <p class="tally" id="you-kept"></p>
-    <p class="elsewhere"><a href="/progress">{{ t("you.page.your-progress", "Your Progress") }}</a> {{ t("you.page.has-the-whole-of-it", "has the details.") }}</p>
-    {#- Subscriptions are a tab of Your targums (design.md §12, 2026-10-08), where each
-        series has its switch; the profile keeps one line to them rather than a second copy
-        of the same rows. -#}
-    {#- What opens without a connection (design.md §12, 2026-10-09): this browser's, so a
-        page of its own under the account's rather than a panel that would have to say
-        "on this device" about every line. -#}
-    <p class="elsewhere"><a href="/you/saved">{{ t("you.page.saved-on-this-device", "Texts saved on this device") }}</a> {{ t("you.page.open-without-a-connection", "open without a connection.") }}</p>
-    <p class="elsewhere"><a href="/?show=subscriptions">{{ t("you.page.subscriptions", "Subscriptions") }}</a> {{ t("you.page.are-a-tab-of-your-targums", "are a tab of Your targums.") }}</p>
-  </section>
-
-  {#- What is recorded of a sitting (targum-internal#127): on from the first session, by
-      decision, and the reader's own to stop and to erase — so it is said here, plainly, with
-      both controls beside it. Drawn only where this box keeps such a record at all
-      (`TARGUM_EVENTS`); where it does not, there is nothing to say and nothing to switch. -#}
-  <section class="panel" id="record" hidden>
-    <h2>{{ t("you.page.what-we-record", "What we record as you go") }}</h2>
-    <p>{{ t("you.page.record-says", "When you look a word up, play a recording, turn a page or finish a section, we keep a note of it on your account — for a look-up, which word it was. It is how Your Progress can say how long you've listened and how much you've read, how a printed sheet of your week can list the words you looked up, and it shows us which lines are hard. We keep it for as long as you keep your account.") }}</p>
-    <p class="ending-row">
-      <button type="button" class="btn ghost outline small" id="record-switch" aria-pressed="true"></button>
-      <button type="button" class="btn ghost outline small danger" id="record-erase">{{ t("you.page.record-erase", "Erase what's recorded") }}</button>
-    </p>
-    <p class="said" id="record-said" hidden></p>
-  </section>
-
-  {#- Correcting a meaning (targum-internal#164, door 3). Behind the account rather than
-      in the reader, because it is a thing you agree to once and not a thing you meet in
-      the middle of a sentence. Until it is accepted the reader offers no such control at
-      all — not a greyed one, which would be an invitation to a shut door. -#}
-  <section class="panel" id="correcting">
-    <h2>{{ t("you.page.correcting", "Correcting a meaning") }}</h2>
-    <p>{{ t("you.page.correcting-says", "If a word's meaning is wrong, you can say so from the word's card and tell us what it should be. Nothing changes until a person looks at it. We keep what you send under the terms in the contribution grant, and you keep every right in it as well. Your name is never stored with it.") }}</p>
-    <p class="ending-row">
-      <button type="button" class="btn ghost outline small" id="grant-go"></button>
-      <a class="btn ghost outline small" href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md#correcting-a-meaning-and-what-that-grants">{{ t("you.page.correcting-read", "Read the grant") }}</a>
-    </p>
-    <p class="said" id="grant-said" hidden></p>
-  </section>
-
-  {#- Last, and quiet. Everything here is either slow to undo or impossible. -#}
-  {#- What is connected, and the way to end it (targum-internal#80). Here because this
-      is where a reader comes to take something back, and because design.md §12 ("A
-      scope is a press that lasts") rests on the grant being visible somewhere they can:
-      a standing consent that could not be found is not one. Hidden until there is one —
-      a panel saying "nothing is connected" is a panel advertising connecting, and
-      /connect is where that is done. -#}
-  <section class="panel" id="connections" hidden>
-    <h2>{{ t("you.page.what-s-connected", "What's connected") }}</h2>
+  {#- What is connected, and the way to end it (targum-internal#80; board ConnYou): one
+      row an app, what it may do, and Disconnect. Here because design.md §12 ("A scope is
+      a press that lasts") rests on the grant being visible somewhere a reader can take it
+      back. Hidden until there is one. -#}
+  <section class="card" id="connections" aria-labelledby="connections-title" hidden>
+    <div class="acct-head">
+      <h2 class="section-title" id="connections-title">{{ t("you.page.what-s-connected", "What's connected") }}</h2>
+      <a class="acct-link" href="/connect">{{ t("you.page.connect-another", "Connect another app") }}</a>
+    </div>
     <p class="note">{{ t("you.page.connections-says", "Apps you've connected targum to, and what each one may do. Disconnecting takes effect at once.") }}</p>
-    <ul class="series" id="connection-rows"></ul>
+    <ul class="acct-conns" id="connection-rows"></ul>
     <p class="said" id="connections-said" hidden></p>
   </section>
 
-  {#- Telegram (targum-internal#328): a chat bound to this account, so what is sent to the
-      bot lands on the shelf. Hidden unless the deployment has a bot — `/account/me`
-      carries `telegram` only then — so a dark box draws nothing here. One press for a
-      fresh one-time link, and one row a chat with the press that ends it. -#}
-  <section class="panel" id="telegram" hidden>
-    <h2>{{ t("you.telegram.heading", "Telegram") }}</h2>
-    <p class="note">{{ t("you.telegram.says", "Send our bot a voice note, a video, a picture, a PDF or some text, and we'll add it to Your targums. If you forward a message, we don't keep who it came from.") }}</p>
-    <ul class="series" id="telegram-rows"></ul>
-    <p class="ending-row">
-      <button type="button" class="btn tonal" id="telegram-go">{{ t("you.telegram.link", "Link Telegram") }}</button>
-    </p>
-    <p class="said" id="telegram-said" hidden></p>
-  </section>
-
-  {#- What a reader wrote for their connector to offer (targum-internal#80, note 17:
-      "enable users to use targum their way"). Two fields and no jargon: what to call it,
-      and what it should do. What they write appears in Claude or ChatGPT beside ours the
-      moment it saves.
-
-      Shown only once something is connected — a box for writing prompts, to somebody who
-      has no connector to show them in, is a control without a job (§6). -#}
-  <section class="panel" id="prompts" hidden>
-    <h2>{{ t("you.page.your-prompts", "Your prompts") }}</h2>
+  {#- What a reader wrote for their connector to offer (targum-internal#80, note 17;
+      board ConnYou's "Your prompts"). Shown only once something is connected. -#}
+  <section class="card" id="prompts" aria-labelledby="prompts-title" hidden>
+    <h2 class="section-title" id="prompts-title">{{ t("you.page.your-prompts", "Your prompts") }}</h2>
     <p class="note">{{ t("you.page.prompts-says", "Things you ask for often. Write one here and it appears in Claude or ChatGPT by name, next to ours.") }}</p>
-    <ul class="series" id="prompt-rows"></ul>
+    <ul class="rows acct-rows" id="prompt-rows"></ul>
     <label class="field">
       <span>{{ t("you.page.prompt-name", "What to call it") }}</span>
       <input type="text" id="prompt-name" maxlength="40" spellcheck="false" autocapitalize="off">
@@ -176,30 +127,91 @@
       <input type="text" id="prompt-says" maxlength="2000">
     </label>
     <p class="ending-row">
-      <button type="button" class="btn tonal" id="prompt-save">{{ t("you.page.prompt-save", "Save") }}</button>
+      <button type="button" class="btn filled" id="prompt-save">{{ t("you.page.prompt-save", "Save") }}</button>
     </p>
     <p class="said" id="prompts-said" hidden></p>
   </section>
 
-  <section class="panel" id="ending" hidden>
-    <h2>{{ t("you.page.your-account", "Your account") }}</h2>
-    <div class="row">
-      <a class="btn ghost outline small" id="you-export" href="/account/export">{{ t("you.page.download-your-words", "Download your words") }}</a>
-      <button type="button" class="btn ghost outline small" id="you-out">{{ t("you.page.sign-out", "Sign out") }}</button>
-    </div>
-    {#- On a row of its own, in clay (2026-09-14): it stood beside Download and Sign out in
-        the same quiet pill, three presses that looked alike and were nothing alike. -#}
-    <div class="row ending-row">
-      <button type="button" class="btn ghost outline small danger" id="you-forget">{{ t("you.page.delete-account", "Delete account") }}</button>
-      <button type="button" class="btn ghost outline small" id="you-keep" hidden>{{ t("you.page.keep-my-account", "Keep my account") }}</button>
-    </div>
-    {#- Next to the button it describes, which is the only place anybody looks for it.
-        The sentence stands without the link while the documents are shut: seven days is
-        the fact somebody about to press this needs, and it is true either way. -#}
-    <p class="note">{{ t("you.page.we-wait-seven-days-before-deleting", "We wait seven days before deleting. To change your mind, email hello@targum.page.") }}
-      {%- if legal_is_public() %}
-      <a href="/deletion">{{ t("you.page.what-that-means", "What that means") }}</a>.
-      {%- endif %}</p>
+  {#- Telegram (targum-internal#328): hidden unless the deployment has a bot. -#}
+  <section class="card" id="telegram" aria-labelledby="telegram-title" hidden>
+    <h2 class="section-title" id="telegram-title">{{ t("you.telegram.heading", "Telegram") }}</h2>
+    <p class="note">{{ t("you.telegram.says", "Send our bot a voice note, a video, a picture, a PDF or some text, and we'll add it to Your targums. If you forward a message, we don't keep who it came from.") }}</p>
+    <ul class="rows acct-rows" id="telegram-rows"></ul>
+    <p class="ending-row">
+      <button type="button" class="btn tonal" id="telegram-go">{{ t("you.telegram.link", "Link Telegram") }}</button>
+    </p>
+    <p class="said" id="telegram-said" hidden></p>
+  </section>
+
+  {#- Account (AccountDesk): the address, what is saved on this device, the export, the
+      two switches that change what targum does with what you do, Sign out, and Delete,
+      apart and in clay. -#}
+  <section class="card" id="ending" aria-labelledby="ending-title" hidden>
+    <h2 class="section-title" id="ending-title">{{ t("you.page.account", "Account") }}</h2>
+    <ul class="rows acct-rows">
+      <li class="row">
+        <span class="row-main">
+          <span class="acct-name">{{ t("you.page.email", "Email") }}</span>
+          <span class="acct-says" id="you-email"></span>
+        </span>
+      </li>
+      {#- What opens without a connection (design.md §12, 2026-10-09): this browser's,
+          so a page of its own. -#}
+      <li class="row">
+        <span class="row-main">
+          <span class="acct-name">{{ t("you.page.saved-on-device", "Saved on this device") }}</span>
+          <span class="acct-says">{{ t("you.page.saved-on-device-says", "Texts that open without a connection") }}</span>
+        </span>
+        <a class="btn ghost outline acct-end" href="/you/saved">{{ t("you.page.open", "Open") }}</a>
+      </li>
+      <li class="row">
+        <span class="row-main">
+          <span class="acct-name">{{ t("you.page.export", "Export your data") }}</span>
+          <span class="acct-says"><span class="acct-wide">{{ t("you.page.export-says", "Your word list, your uploads and your reading record, in one file") }}</span><span class="acct-narrow">{{ t("you.page.export-says-short", "Word list, uploads and reading record") }}</span></span>
+        </span>
+        <a class="btn ghost outline acct-end" id="you-export" href="/account/export" download>{{ t("you.page.download", "Download") }}</a>
+      </li>
+      {#- What is recorded of a sitting (targum-internal#127): drawn only where this box
+          keeps such a record (`TARGUM_EVENTS`), with both controls beside it. -#}
+      <li class="row acct-wrap" id="record" hidden>
+        <span class="row-main">
+          <span class="acct-name">{{ t("you.page.what-we-record", "What we record as you go") }}</span>
+          <span class="acct-says">{{ t("you.page.record-short", "We note the words you look up and the sections you finish, so Your Progress can say how far you've come. We keep it as long as you keep your account.") }}</span>
+        </span>
+        <span class="acct-end">
+          <button type="button" class="btn ghost outline" id="record-switch" aria-pressed="true"></button>
+          <button type="button" class="btn ghost outline danger" id="record-erase">{{ t("you.page.record-erase", "Erase what's recorded") }}</button>
+        </span>
+        <p class="said" id="record-said" hidden></p>
+      </li>
+      {#- Correcting a meaning (targum-internal#164, door 3): a thing agreed to once, so
+          it is here and not in the reader. -#}
+      <li class="row acct-wrap" id="correcting">
+        <span class="row-main">
+          <span class="acct-name">{{ t("you.page.correcting", "Correcting a meaning") }}</span>
+          <span class="acct-says">{{ t("you.page.correcting-short", "Tell us from a word's card when its meaning is wrong. A person looks before anything changes, under the contribution grant.") }} <a class="acct-inline" href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md#correcting-a-meaning-and-what-that-grants">{{ t("you.page.correcting-read", "Read the grant") }}</a></span>
+        </span>
+        <span class="acct-end">
+          <button type="button" class="btn ghost outline" id="grant-go"></button>
+        </span>
+        <p class="said" id="grant-said" hidden></p>
+      </li>
+      <li class="row">
+        <button type="button" class="btn ghost outline" id="you-out">{{ t("you.page.sign-out", "Sign out") }}</button>
+      </li>
+      <li class="row acct-wrap acct-delete">
+        <span class="row-main">
+          <span class="acct-name acct-clay">{{ t("you.page.delete-your-account", "Delete your account") }}</span>
+          <span class="acct-says">{{ t("you.page.delete-says", "Removes your uploads, word list and record. This can't be undone.") }}
+            {{ t("you.page.we-wait-seven-days-before-deleting", "We wait seven days before deleting. To change your mind, email hello@targum.page.") }}
+            {%- if legal_is_public() %} <a class="acct-inline" href="/deletion">{{ t("you.page.what-that-means", "What that means") }}</a>.{%- endif %}</span>
+        </span>
+        <span class="acct-end">
+          <button type="button" class="btn ghost outline" id="you-keep" hidden>{{ t("you.page.keep-my-account", "Keep my account") }}</button>
+          <button type="button" class="btn ghost outline danger" id="you-forget">{{ t("you.page.delete-account", "Delete account") }}</button>
+        </span>
+      </li>
+    </ul>
     <p class="said" id="you-ending-said" hidden></p>
   </section>
 </main>

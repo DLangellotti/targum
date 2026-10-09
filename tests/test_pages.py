@@ -300,7 +300,11 @@ def test_the_hours_are_where_a_reader_looks_for_them_and_not_in_their_face() -> 
         assert page.count('id="account-hours"') == 1, f"{name}: the panel, once"
     assert PAGES["progress"].count('id="hours-line"') == 0
     assert PAGES["you"].count('id="hours-line"') == 1
-    assert PAGES["you"].index('id="credits"') < PAGES["you"].index('id="who"'), "credits first"
+    you = PAGES["you"]
+    assert you.index('id="credits"') < you.index('id="plan"') < you.index('id="languages"'), (
+        "credits first, then the plan, as board AccountDesk"
+    )
+    assert 'id="credits-rate"' in you, "the rate under the balance"
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert page.count('id="chat-hours"') == 1, f"{name}: one line, above the box"
         assert page.index('id="chat-hours"') < page.index('id="composer"'), name
@@ -381,12 +385,10 @@ def test_your_subscriptions_are_a_tab_of_home_and_every_page_hears_them() -> Non
     """2026-09-11: "subscriptions should be under the profile dropdown (perhaps on /you)
     — let's keep the main pages as simple as possible". Since 2026-10-08 they are a tab
     of Your targums (design.md §12), the account menu no longer links there (2026-10-09),
-    the account page keeps one
-    line to it rather than a second copy of the rows, the Library carries nothing of it,
-    and the script that asks is in the bar on every page so the bell hears a landed
-    instalment."""
+    the account page no longer carries a line to it (board AccountDesk, 2026-10-09), the
+    Library carries nothing of it, and the script that asks is in the bar on every page so
+    the bell hears a landed instalment."""
     you = PAGES["you"]
-    assert 'href="/?show=subscriptions"' in you and "Subscriptions" in you
     assert 'id="series"' not in you, "one list of subscriptions, on home"
     assert 'id="subscriptions"' not in PAGES["library"] and 'id="series"' not in PAGES["texts"]
     assert 'id="subs-panel"' in PAGES["texts"] and 'id="home-series"' in PAGES["texts"]
@@ -813,12 +815,14 @@ def test_the_shelf_grid_outranks_the_list_it_shares_a_class_with() -> None:
 
 
 def test_the_profile_page_holds_what_an_account_is() -> None:
-    """An account used to be an address, a session and a shelf. This is the page that
-    says who you are, how you read, and how to end it."""
+    """Board AccountDesk (2026-10-09): Credits, Plan, Your languages and Account — the
+    address, Saved on this device, the export, and the way out. The name and the Hebrew
+    form of address are no longer asked here."""
     you = PAGES["you"]
-    assert 'id="you-name"' in you, "what to call you"
-    assert 'id="you-email"' in you and 'id="you-avatar"' in you
-    assert 'id="you-export"' in you and 'id="you-forget"' in you, "and the way out"
+    assert 'id="you-name"' not in you and 'id="you-address"' not in you
+    assert 'id="you-email"' in you and 'href="/you/saved"' in you
+    assert 'id="you-export"' in you and 'href="/account/export" download' in you
+    assert 'id="you-forget"' in you, "and the way out"
 
 
 def test_the_profile_page_says_something_to_a_stranger() -> None:
