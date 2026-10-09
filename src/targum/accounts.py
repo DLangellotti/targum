@@ -3986,6 +3986,18 @@ class Store:
         )
         return {row["lemma"]: row["status"] for row in rows if row["status"] is not None}
 
+    def due_a_look(self, person_id: int, language: str, since: int = 0) -> int:
+        """Words still being learned (steps 1 to 3) in one language that have not been
+        marked since `since`, in milliseconds — the count home's welcome back says
+        (design.md §12, "Home says welcome back after a week away", 2026-10-09). Nought
+        for `since` nought means every word still being learned."""
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND status IN (1, 2, 3) AND (? = 0 OR seen < ?)",
+            (person_id, language.split("-")[0].lower(), since, since),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
     def meanings(self, person: Person, language: str) -> list[tuple[str, str, int | None]]:
         """Every word this person keeps in one language, with the meaning they wrote for
         it and how well they know it: what search meets English against, since an

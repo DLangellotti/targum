@@ -69,6 +69,9 @@
 
   //: How many cards Continue holds. A phone shows the first two (`home.css`).
   var CONTINUE_AT_MOST = 4;
+  //: How long since the reader last moved a place before home says welcome back
+  //: (design.md §12, "Home says welcome back after a week away", 2026-10-09).
+  var AWAY_MS = 7 * 24 * 60 * 60 * 1000;
   var PLACES = "targum:places";
   //: Set by the arrival for this visit once it is over, so home does not send the reader
   //: straight back to it (`arrival.js`).
@@ -188,7 +191,7 @@
   /* What Continue holds, newest first: the reader's places, then the texts this browser
      opened before there were places, then what they uploaded and have not opened, and
      builds still running. One card a text. */
-  function gatherContinue(readers, places, building, opened, code) {
+  function gatherContinue(readers, places, building, opened, code, most) {
     var byDocument = {};
     readers.forEach(function (reader) {
       if (reader.document) byDocument[reader.document] = reader;
@@ -227,7 +230,7 @@
       if (!!a.job !== !!b.job) return a.job ? -1 : 1;
       return b.at - a.at;
     });
-    return cards.slice(0, CONTINUE_AT_MOST);
+    return cards.slice(0, most || CONTINUE_AT_MOST);
   }
 
   // The folder a reader's address names: `/reader/<name>/…`, for a place whose text is
@@ -466,6 +469,172 @@
     host.hidden = !list.children.length;
   }
 
+  /* --- welcome back ----------------------------------------------------------------------- */
+
+  /* Boards WelcomeBackDesk and WelcomeBackPhone (design.md §12, "Home says welcome back
+     after a week away", 2026-10-09). Home takes this form when the newest place the reader
+     has in any text, in any language, is seven days old or more: the gap is read off places
+     that already exist and is never shown. Reading anything moves a place and ends it.
+     The text they stopped in, in the menu's language, is the large card; Continue goes on
+     without it. Returns that card, or null for an ordinary day. */
+  function welcomeBack(places, cards, now) {
+    if (!places.length) return null;
+    var newest = 0;
+    places.forEach(function (place) {
+      if (place.at > newest) newest = place.at;
+    });
+    if (!newest || (now || Date.now()) - newest < AWAY_MS) return null;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i].place && !cards[i].job) return cards[i];
+    }
+    return null;
+  }
+
+  function dayOf(ms) {
+    var code = words.language || "en";
+    try {
+      // "24 September", as the board and /about write a day (§12, 2026-09-28).
+      return new Date(Number(ms)).toLocaleDateString(code === "en" ? "en-GB" : code, {
+        day: "numeric",
+        month: "long",
+      });
+    } catch (e) {
+      return new Date(Number(ms)).toDateString();
+    }
+  }
+
+  // A sentence with a title in it: the title in its own isolate and its own face, the
+  // rest in the catalogue's words for the desk's language.
+  function sentenceWith(host, said, title, language) {
+    host.textContent = "";
+    var parts = said.split("{title}");
+    host.appendChild(document.createTextNode(parts[0]));
+    if (parts.length > 1) {
+      var name = el("bdi", "", title);
+      name.setAttribute("lang", language || "und");
+      host.appendChild(name);
+      host.appendChild(document.createTextNode(parts.slice(1).join("{title}")));
+    }
+  }
+
+  function playGlyph() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 14 14");
+    svg.setAttribute("aria-hidden", "true");
+    var path = document.createElementNS(ns, "path");
+    path.setAttribute("d", "M3 1.5v11l9.5-5.5z");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function drawWelcome(card, due) {
+    var host = document.getElementById("welcome-back");
+    if (!host) return;
+    if (!card) {
+      host.hidden = true;
+      return;
+    }
+    var place = card.place;
+    var reader = card.reader || { title: place.title, language: place.language, document: place.hash };
+    var total = partsOf(reader);
+    var at = partNumber(reader, place);
+    // A book's part is a chapter; a recording's or a video's is a part, as the board says.
+    var medium = mediumOf(reader);
+    var chaptered = !!(reader.chapters && reader.chapters.length) && medium === "read";
+    var when = dayOf(place.at);
+    var line;
+    if (total > 1 && at && chaptered) {
+      line = t("home.back.line-chapter", "Welcome back. You stopped at chapter {n} of {title} on {date}.", { n: at, date: when });
+    } else if (total > 1 && at) {
+      line = t("home.back.line-part", "Welcome back. You stopped at part {n} of {title} on {date}.", { n: at, date: when });
+    } else {
+      line = t("home.back.line", "Welcome back. You stopped in {title} on {date}.", { date: when });
+    }
+    sentenceWith(document.getElementById("welcome-back-line"), line, reader.title, reader.language);
+
+    var pick = document.getElementById("welcome-pick");
+    pick.textContent = "";
+    var href = place.path || "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html";
+    var media = el("div", "welcome-media");
+    media.appendChild(coverFor(card.reader, reader.title, reader.language, place.path));
+    var length = Number(reader.seconds || 0);
+    var through = medium !== "read" && place.seconds > 0 && length > 0 ? place.seconds / length : total > 1 && at ? (at - 1) / total : 0;
+    if (through > 0) {
+      var where = el("span", "welcome-where");
+      where.setAttribute("aria-hidden", "true");
+      var done = el("span");
+      done.style.setProperty("--done", String(Math.min(1, through)));
+      where.appendChild(done);
+      media.appendChild(where);
+    }
+    pick.appendChild(media);
+
+    var what = el("div", "welcome-what");
+    var kind = kindWord(reader);
+    if (total > 1 && at) {
+      kind = chaptered
+        ? t("home.back.chapter-of", "{kind} · chapter {n} of {total}", { kind: kind, n: at, total: total })
+        : t("home.card.part-of", "{kind} · part {n} of {total}", { kind: kind, n: at, total: total });
+    }
+    what.appendChild(tag(kind));
+    var title = el("h2", "welcome-title");
+    title.setAttribute("lang", reader.language || "und");
+    title.setAttribute("dir", "auto");
+    title.textContent = reader.title;
+    what.appendChild(title);
+    var facts = el("span", "welcome-facts");
+    if (place.seconds > 0 && medium !== "read") {
+      facts.appendChild(document.createTextNode(t("home.back.stopped-at", "Stopped at {time}", { time: clock(place.seconds) })));
+    }
+    if (typeof reader.known === "number" && reader.words && reader.known > 0) {
+      if (facts.childNodes.length) facts.appendChild(document.createTextNode(" · "));
+      facts.appendChild(el("strong", "", t("home.card.known", "You know {share}%", { share: Math.round(reader.known * 100) })));
+    }
+    if (facts.childNodes.length) what.appendChild(facts);
+    if (typeof reader.known === "number" && reader.words && reader.known > 0) what.appendChild(bar(reader.known));
+    var go = el("a", "welcome-go");
+    go.href = keyed(href);
+    if (medium !== "read") go.appendChild(playGlyph());
+    go.appendChild(document.createTextNode(t("home.back.pick-up", "Pick up where you stopped")));
+    what.appendChild(go);
+    pick.appendChild(what);
+
+    var dueLine = document.getElementById("welcome-due");
+    var dueSays = document.getElementById("welcome-due-says");
+    if (dueLine && dueSays) {
+      dueLine.hidden = !(due > 0);
+      if (due > 0) {
+        var said = tn("home.back.due", due, "{n} of your words is due a look", "{n} of your words are due a look", { n: "{count}" });
+        var bits = said.split("{count}");
+        dueSays.textContent = "";
+        dueSays.appendChild(document.createTextNode(bits[0]));
+        dueSays.appendChild(el("strong", "", String(due)));
+        dueSays.appendChild(document.createTextNode(bits.slice(1).join("")));
+      }
+    }
+    host.hidden = false;
+  }
+
+  /* The words still being learned that have not been marked since the reader left
+     (`/account/due`): not a schedule, a count of rows that already exist. Nought, or
+     signed out, and the line is left out. */
+  var dueAsked = {};
+  var dueKnown = {};
+  function dueSince(code, since) {
+    var asked = code + ":" + since;
+    if (!dueAsked[asked]) {
+      dueAsked[asked] = ask("/account/due?language=" + encodeURIComponent(code) + "&since=" + encodeURIComponent(since))
+        .then(function (answer) {
+          return (answer && Number(answer.due)) || 0;
+        })
+        .catch(function () {
+          return 0;
+        });
+    }
+    return dueAsked[asked];
+  }
+
   /* --- one to try next ------------------------------------------------------------------ */
 
   // What this reader has finished, by catalogue id, so it is not suggested again.
@@ -681,9 +850,29 @@
       var mine = ((all[3] && all[3].items) || []).filter(function (item) {
         return shelf.base(item.language) === code;
       });
-      var cards = gatherContinue(readers, places, building, opened, code);
+      var cards = gatherContinue(readers, places, building, opened, code, CONTINUE_AT_MOST + 1);
+      var back = welcomeBack(places, cards);
+      if (back) {
+        cards = cards.filter(function (card) {
+          return card !== back;
+        });
+        var newest = places.reduce(function (most, place) {
+          return Math.max(most, place.at);
+        }, 0);
+        var dueKey = code + ":" + newest;
+        drawWelcome(back, dueKnown[dueKey] || 0);
+        if (!(dueKey in dueKnown)) {
+          dueSince(code, newest).then(function (due) {
+            dueKnown[dueKey] = due;
+            if (due > 0) drawWelcome(back, due);
+          });
+        }
+      } else {
+        drawWelcome(null);
+      }
+      cards = cards.slice(0, CONTINUE_AT_MOST);
       drawContinue(cards, fresh, mine);
-      var nothing = !cards.length && !fresh.length && !mine.length;
+      var nothing = !back && !cards.length && !fresh.length && !mine.length;
       var empty = document.getElementById("first-home");
       if (empty) empty.hidden = !nothing;
       if (suggestedIn[code] !== nothing) {
@@ -741,6 +930,7 @@
     draw: draw,
     // For the tests: what Continue would hold, without the page.
     gather: gatherContinue,
+    welcomeBack: welcomeBack,
     language: function () {
       return lang && lang.current ? lang.current(lang.learning ? lang.learning() : ["he"]) : "he";
     },

@@ -8068,6 +8068,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._words_page(parse_qs(urlparse(self.path).query))
         if route == "/account/places":
             return self._places(parse_qs(urlparse(self.path).query))
+        if route == "/account/due":
+            return self._due(parse_qs(urlparse(self.path).query))
         if route == "/word/met":
             if not shows_occurrences():
                 return self._send(404, b"not found", "text/plain")
@@ -11500,6 +11502,23 @@ class Handler(BaseHTTPRequestHandler):
         # The page's language, so the last mail is written in it.
         self.store.forget(person, self._ui_language())
         self._sign_out()
+
+    def _due(self, query: dict[str, list[str]]) -> None:
+        """How many words are due a look on home's welcome back (design.md §12, "Home says
+        welcome back after a week away", 2026-10-09): in one language, still being learned
+        and not marked since `since`, the moment the reader was last in a text. Not a
+        schedule — targum keeps none — and nothing is written."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str((query.get("language") or ["he"])[0]).split("-")[0].strip().lower()
+        try:
+            since = int(float((query.get("since") or ["0"])[0]))
+        except ValueError:
+            since = 0
+        self._json(
+            {"signedIn": True, "due": self.store.due_a_look(person.id, language or "he", since)}
+        )
 
     def _places(self, query: dict[str, list[str]]) -> None:
         """Where the reader left off, newest first (targum-internal#430): `limit` texts,
