@@ -287,14 +287,16 @@
     var at = partNumber(reader, place);
     var what = kindWord(reader);
     if (total > 1 && at) what = t("home.card.part-of", "{kind} · part {n} of {total}", { kind: what, n: at, total: total });
+    // The tag is what it is and which part (board Main: "Video · part 4 of 4"), an
+    // upload too; that it was yours is said in the line under the title (audit Q7).
     var upload = card.reader && !card.reader.entry && !card.reader.shared;
-    item.appendChild(tag(upload ? t("home.card.uploaded", "Uploaded by you") : what));
+    item.appendChild(tag(what));
 
     link.appendChild(titled(reader.title, reader.language));
     item.appendChild(link);
 
     var facts = [];
-    if (upload) facts.push(what);
+    if (upload) facts.push(t("home.card.uploaded", "Uploaded by you"));
     if (typeof reader.known === "number" && reader.words && reader.known > 0) {
       facts.push(t("home.card.known", "You know {share}%", { share: Math.round(reader.known * 100) }));
     }

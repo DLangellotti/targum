@@ -4008,6 +4008,21 @@ class Store:
         )
         return {row["lemma"]: row["status"] for row in rows if row["status"] is not None}
 
+    def known_count(self, person: Person, language: str) -> int:
+        """How many words this person knows in one language, as Your Progress's ledger
+        counts them: names and numbers are not vocabulary (`level.NOT_VOCABULARY`), so
+        the story's "You know N words" and the ledger's "N words known" are one figure.
+        They were two, 1,743 against 1,688, on 2026-10-09 (audit Q8)."""
+        from .level import NOT_VOCABULARY
+
+        bands = sorted(NOT_VOCABULARY)
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND language = ? AND gone = 0"
+            f" AND status = 9 AND COALESCE(band, '') NOT IN ({', '.join('?' for _ in bands)})",
+            (person.id, language.split("-")[0].lower(), *bands),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
     def due_a_look(self, person_id: int, language: str, since: int = 0) -> int:
         """Words still being learned (steps 1 to 3) in one language that have not been
         marked since `since`, in milliseconds — the count home's welcome back says

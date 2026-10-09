@@ -373,14 +373,35 @@ are the desk" the column runs to that corner too. It covered the Library's secon
 "See all →", the Words table and the Upload card on home. Only a phone kept room for it
 (#684).
 
-- **At a desk the pill says "Talk"**, as the boards draw it ("Чат" in Russian). Its
-  accessible name is still "Talk to targum". At 1440 it now fits in the margin outside
+- **At a desk the pill says "Talk"**, as the boards draw it and as the phone's pill
+  already does ("Поговорить" in Russian). Its accessible name is still "Talk to targum". At 1440 it now fits in the margin outside
   the 1248px column, and nothing on the page moves.
 - **Narrower than that, the page gives up the pill's reach at its end edge only.**
   `talk.js` measures the reach as `--talk-room`, and the body's end padding is that
   reach less the column's own padding. The bar keeps the whole width. A control clear of
   the pill across the window is clear of it at every scroll position.
   `test_at_a_desk_the_talk_pill_covers_nothing` holds this at 1024, 1280 and 1440.
+
+### A drawer left open comes back undimmed — 2026-10-09
+
+Audit 2, gap 4. "Talk is a sheet over a dimmed page" (below, the same day) put the scrim
+under the drawer, and the drawer stays open across pages (§13), so after one conversation
+every later page opened dimmed under a 460px sheet until it was closed: a modal that
+followed the reader around.
+
+- **Only a press dims.** The scrim stands under the drawer when the reader presses Talk
+  on this page, or a door that opens it (Ask targum on Add, a conversation from the
+  palette). Escape, ×, the grab and a tap on the scrim close it, as before.
+- **A drawer brought back is a panel beside the page.** When a page opens the drawer
+  because it was left open on the one before, it comes back without the scrim and
+  without moving in. At a desk it stands under the page's bar, so the bar stays usable.
+  On a phone it is still the sheet, because there is no room beside the page.
+- **It still stays open across pages.** Somebody mid-conversation who follows a link has
+  not finished talking.
+
+**A default, David to overrule.** The other answer is to close the drawer on navigation
+and keep only the conversation. The pill would then be the one way back to it, and
+`targum:talk` would stop being read on load. That is a one-line change in `talk.js`.
 
 ### Home says welcome back after a week away — 2026-10-09
 
@@ -6292,7 +6313,8 @@ phone (under 40rem) the four places — Your targums, Library, Your Progress, Up
 the foot of the window on glass, a glyph over each word, and at a desk only Upload keeps its
 glyph, a `+` before the word; the top bar keeps the mark, the language (its name and badge; no flag since 2026-10-09), the
 bell and the account, with find as a row in the account's sheet; the pill
-that opens the conversation is a round button above the bar, and every panel comes up
+that opens the conversation stands above the bar and says Talk (board HomePhone; it was a
+round glyph until 2026-10-09), and every panel comes up
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
 alike — no taller than the screen less a strip of the page, over the page dimmed. Learn (until 2026-10-08, when home became Your targums — §12) on
 a phone was quiet (2026-09-14, "the whole page is just way too busy"): the greeting and the

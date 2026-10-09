@@ -1689,6 +1689,7 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
         remembered: localStorage.getItem('targum:talk'),
         dimmed: getComputedStyle(document.getElementById('talk-scrim')).display !== 'none',
         title: getComputedStyle(drawer.querySelector('.talk-drawer-title')).fontFamily,
+        head: document.querySelector('.site-head').getBoundingClientRect().bottom,
       };
     }"""
     before = page.evaluate(measure)
@@ -1722,6 +1723,12 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
     assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
     assert again["open"] and again["remembered"] == "open", "open again on the next page"
+    # Audit 2, 2026-10-09: open on the next page because it was left open, not because
+    # it was pressed there — so beside the page, undimmed, and under its bar at a desk.
+    assert not again["dimmed"], "a drawer brought back does not dim the page"
+    if width >= 1024:
+        assert abs(again["drawer"]["right"] - width) <= 1, again
+        assert again["drawer"]["top"] >= again["head"] - 1 > 0, again
     # design.md §12, "Talk is a sheet over a dimmed page" (2026-10-09; boards ChatDesk
     # and ChatPhone): the page dims under it at every width, the title is in the serif,
     # and at a desk it stands 460px from the end edge, top to foot.

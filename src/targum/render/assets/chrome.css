@@ -713,6 +713,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
    button above the bar; the account's and the bell's panels come up as sheets. Phones
    only — under 40rem; a tablet keeps the row. */
 .nav-glyph { display: none; }
+.talk-cta .talk-short { display: none; }
 .talk-glyph { display: none; inline-size: 1.25rem; block-size: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .nav-glyph { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 /* Add (2026-09-13) is the one place that keeps its glyph at a desk: a `+` before the
@@ -758,17 +759,15 @@ button:active:not(:disabled) { transform: scale(0.98); }
   }
   .site-nav a .nav-glyph { display: block; inline-size: 1.4rem; block-size: 1.4rem; }
   .site-nav a.on { background: var(--teal-wash); color: var(--teal); }
+  /* A pill that says Talk (board HomePhone, audit Q7): the round glyph said nothing a
+     stranger could read. The whole name stays for a screen reader. */
   .talk-cta {
     inset-inline: auto 1rem;
     inset-block-end: calc(4.5rem + env(safe-area-inset-bottom));
-    inline-size: 3.25rem;
-    block-size: 3.25rem;
-    padding: 0;
-    display: grid;
-    place-items: center;
+    padding: 0.65rem 1.25rem;
   }
-  .talk-cta .talk-glyph { display: block; }
-  .talk-cta span { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .talk-cta .talk-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .talk-cta .talk-short { display: inline; }
   .talk-drawer { z-index: 31; }
   .account-panel, .notices-panel, .lang-panel {
     position: fixed;
@@ -1374,6 +1373,8 @@ body .site-footer { max-inline-size: var(--column); }
 }
 @media (min-width: 48.0625rem) {
   .talk-cta { inset-inline-end: 0.75rem; padding-inline: 1rem; }
+  .talk-cta .talk-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .talk-cta .talk-short { display: inline; }
 }
 
 /* --- the phone: "Your targums" says its whole name at the foot, as board HomePhone, and
@@ -1772,4 +1773,12 @@ textarea.well { min-block-size: 5rem; resize: vertical; }
 }
 @media (hover: none) and (pointer: coarse) {
   .talk-close { min-block-size: 44px; min-inline-size: 44px; }
+}
+
+/* A drawer left open on the page before comes back beside this one, undimmed and under
+   its bar, without moving in (audit 2, 2026-10-09; design.md §12, "A drawer left open
+   comes back undimmed"). Only a press on this page dims the page under it. */
+.talk-drawer.talk-aside { animation: none; }
+@media (min-width: 48.01rem) {
+  .talk-drawer.talk-aside { inset-block-start: var(--talk-top, 0px); }
 }

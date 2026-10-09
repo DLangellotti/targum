@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -106,3 +107,54 @@ def test_a_folder_it_cannot_write_still_gets_its_row(tmp_path: Path) -> None:
 
     assert rows[0]["title"] == "A Book"
     assert not (folder / SHELF).exists()
+
+
+def _aged(folder: Path, days: int) -> None:
+    """Every file in a built text as if it were written `days` ago."""
+    when = time.time() - days * 24 * 60 * 60
+    for path in folder.rglob("*"):
+        os.utime(path, (when, when))
+
+
+def test_a_rebuild_leaves_when_a_text_arrived_and_the_order_alone(tmp_path: Path) -> None:
+    """A deploy rewrites every reader's page, and the shelf took "built" from the page's
+    own time — so after each one every old upload was the newest thing on it, Continue
+    filled with them, and Welcome back never found a place (audit 2, 2026-10-09)."""
+    from targum.cli import rebuild_one
+    from targum.models import Document
+
+    library = Library(tmp_path)
+    home = library.home(None)
+    for name, days in (("older-he", 10), ("newer-he", 1)):
+        book(home / name, chapters=2, translated=2)
+        Document(source="m", title=name, language="he", blocks=[], content_hash="book").write(
+            home / name / "document.json"
+        )
+        _aged(home / name, days)
+    before = [(row["name"], row["built"]) for row in library.readers(home)]
+    assert [name for name, _ in before] == ["newer-he", "older-he"]
+
+    title, pages = rebuild_one(home / "older-he", reads=None, covers=tmp_path / "thumbs")
+    assert title == "older-he" and pages
+    page = home / "older-he" / "reader" / "index.html"
+    assert page.stat().st_mtime > time.time() - 60  # the page itself was written now
+
+    assert [(row["name"], row["built"]) for row in library.readers(home)] == before
+    # A new process, and a shelf that had never been asked before the deploy: the
+    # same answer, from what the rebuild did not write.
+    for name in ("older-he", "newer-he"):
+        (home / name / SHELF).unlink()
+    assert [(row["name"], row["built"]) for row in Library(tmp_path).readers(home)] == before
+
+
+def test_when_a_text_arrived_is_kept_once_it_is_known(tmp_path: Path) -> None:
+    """Even a text read in again — a repaired document, a second translation — keeps the
+    arrival the shelf first gave it."""
+    library = Library(tmp_path)
+    home = library.home(None)
+    book(home / "book-he", chapters=2, translated=2)
+    _aged(home / "book-he", 5)
+    first = library.readers(home)[0]["built"]
+
+    (home / "book-he" / "document.json").touch()
+    assert Library(tmp_path).readers(home)[0]["built"] == first

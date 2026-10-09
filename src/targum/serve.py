@@ -2772,6 +2772,7 @@ class Library:
         # Every read below goes through `remembered`: the answers are small and the
         # files they come from are not (2026-09-14, Learn waiting 31 s on a cold box).
         remember = self.remembered.get
+        remember_once = self.remembered.once
         document = folder / "document.json"
         facts = remember(folder, "document", [document], partial(self._document_facts, document))
         title = facts["title"] or folder.name
@@ -2834,7 +2835,11 @@ class Library:
             "trashed": when,
             # How long is left, so the page can say it rather than imply it.
             "goesIn": max(0, TRASH_DAYS - (now() - when) // (24 * 60 * 60 * 1000)) if when else 0,
-            "built": int(index.stat().st_mtime),
+            # When it arrived, which is not when its page was last written: every deploy
+            # rewrites every page, and a shelf sorted by that put every old upload first
+            # and "Welcome back" nowhere (audit 2, 2026-10-09). Worked out once from what
+            # a rebuild never writes, and kept.
+            "built": remember_once(folder, "arrived", partial(self._arrived, folder, index)),
         }
         # A video import's own frame, where it has one, is its picture.
         # And an upload's own picture, kept when it was added (#429).
@@ -2936,6 +2941,24 @@ class Library:
     @staticmethod
     def _sections(folder: Path) -> int:
         return len(list((folder / "reader").glob("sec-*.html")))
+
+    @staticmethod
+    def _arrived(folder: Path, index: Path) -> int:
+        """When a built text arrived, in seconds: its text or its newest translation.
+
+        The text is written when it is read in and a translation when it is paid for,
+        and a rebuild writes neither — it writes the pages, the words and the meanings.
+        So the later of the two is when the reader first had it to read, and stays that
+        through any number of deploys. The page's own time only where neither is there.
+        """
+        times: list[float] = []
+        for path in [folder / "document.json", *(folder / "translations").glob("*.json")]:
+            with contextlib.suppress(OSError):
+                times.append(path.stat().st_mtime)
+        if not times:
+            with contextlib.suppress(OSError):
+                times.append(index.stat().st_mtime)
+        return int(max(times, default=0))
 
     @staticmethod
     def _document_facts(document: Path) -> dict[str, Any]:
@@ -12074,7 +12097,8 @@ class Handler(BaseHTTPRequestHandler):
             # Whether the library has anything in this language at all: Yiddish has not,
             # and its page leads with Upload rather than with an empty shelf.
             "library": bool(entries),
-            "known": sum(1 for status in marked.values() if status == coverage_module.KNOWN),
+            # The ledger's count, names and numbers left out, so the page says one figure.
+            "known": self.store.known_count(person, language),
         }
         answer.update(
             touchstones.standing(rungs, index, marked)

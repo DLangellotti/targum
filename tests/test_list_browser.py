@@ -414,7 +414,7 @@ def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> No
         page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
         page.click("#video .video-list-next")
-        page.wait_for_selector("#list-end .list-end-home")
+        page.wait_for_selector("#list-end.is-filled")
         got = page.evaluate(
             """() => {
               const door = getComputedStyle(document.querySelector('#list-end .list-end-home'));
@@ -777,5 +777,68 @@ def test_the_wheel_moves_on_from_the_end_of_a_text_only(browser, tmp_path) -> No
         page.wait_for_timeout(400)
         page.mouse.wheel(0, 200)
         page.wait_for_url("**/film/**go=1")
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("panel", [True, False], ids=["transcript", "theatre"])
+def test_at_a_desk_the_end_is_its_own_screen_at_once(browser, tmp_path, panel) -> None:  # noqa: F811
+    """Audit 2, Q1: finishing the last item at a desk, in Theatre, left a blank page under
+    the bar until end.json answered — seconds on a real shelf — with the old ink
+    "Finished" box at the foot of the column under it. The end's head and its line are
+    there the moment it is reached, the words come into it, and nothing of the page
+    under it is drawn."""
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two), viewport={"width": 1440, "height": 900})
+    answers: list = []
+
+    def held(route) -> None:  # type: ignore[no-untyped-def]
+        answers.append(route)
+
+    context.route("**/playlists/7/end.json", held)
+    page = context.new_page()
+    try:
+        page.goto(at(two, 1))
+        page.wait_for_selector("#list-nav", state="attached")
+        assert page.evaluate("() => document.body.classList.contains('film-theatre')")
+        if not panel:
+            page.evaluate("() => window.TargumVideo && window.TargumVideo.transcript(false)")
+        # Beside the transcript, the press at its foot; with it put away, Finish under
+        # the picture.
+        page.click("#foot .foot-go" if panel else "#video .video-list-next")
+        page.wait_for_function("() => document.body.classList.contains('list-ended')")
+        # end.json has not answered, and the end already says where the reader is.
+        assert answers and not page.locator("#list-end.is-filled").count()
+        seen = page.evaluate(
+            """() => {
+              const end = document.getElementById('list-end');
+              const box = end.getBoundingClientRect();
+              const shown = (sel) => [...document.querySelectorAll(sel)].some((e) => {
+                const r = e.getBoundingClientRect();
+                return getComputedStyle(e).visibility !== 'hidden' && r.width > 0 && r.height > 0;
+              });
+              const top = document.elementFromPoint(box.left + box.width / 2, 300);
+              return {
+                text: end.innerText,
+                box: [box.left, box.top, box.width, box.height],
+                top: top ? !!top.closest('#list-end') : false,
+                foot: shown('#foot'),
+                video: shown('#video'),
+                split: shown('#film-split'),
+              };
+            }"""
+        )
+        assert "The end" in seen["text"] and "That's the end of Reels." in seen["text"], seen
+        assert seen["box"][2] > 1000 and seen["box"][3] == 900, seen
+        assert seen["top"], "the end stands over the page"
+        assert not seen["foot"], "no Finished box under the end"
+        assert not seen["video"] and not seen["split"], "nor the picture's column"
+        words = [{"word": "שלום", "language": "he", "new": True, "gloss": "peace"}]
+        body = json.dumps({"words": {"met": 1, "new": 1, "list": words}})
+        answers[0].fulfill(status=200, content_type="application/json", body=body)
+        page.wait_for_selector("#list-end.is-filled")
+        text = page.inner_text("#list-end")
+        assert text.index("That's the end of Reels.") < text.index("You met 1 word")
+        assert text.index("You met 1 word") < text.index("Your playlists")
     finally:
         context.close()
