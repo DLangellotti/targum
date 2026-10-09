@@ -222,66 +222,30 @@
   /* The nav's host, which draws a menu rather than tabs. */
   var NAV = "langs";
 
-  /* A small flag beside each language in the menu (2026-09-14, design.md §12 — which
-   * reverses "no flags" for this one place). The flag of the country whose language it
-   * is, in that flag's own colours, drawn rather than typed: an emoji flag is an emoji,
-   * and §6 has none. Hebrew is Israel's. Yiddish and Aramaic have no country, and wear
-   * the language flags David chose for them: Yiddish the white flag with two black
-   * stripes and a menorah (the proposal most often flown for it, the menorah traced from
-   * its SVG), Aramaic the Jewish Babylonian Aramaic proposal, two blue stripes round the
-   * gate of the Vilna Talmud's title page, drawn here as the gate's outline because an
-   * engraving at eighteen pixels is a grey smudge. A code with no flag keeps the width
-   * so the names still line up. */
-  var FLAGS = {
-    he:
-      '<rect width="18" height="12" fill="#fff"/>' +
-      '<rect y="1.3" width="18" height="1.5" fill="#0038b8"/>' +
-      '<rect y="9.2" width="18" height="1.5" fill="#0038b8"/>' +
-      '<path d="M9 3.4 11.6 7.9H6.4ZM9 8.6 6.4 4.1H11.6Z" fill="none" stroke="#0038b8" stroke-width="0.7"/>',
-    fr:
-      '<rect width="6" height="12" fill="#0055a4"/>' +
-      '<rect x="6" width="6" height="12" fill="#fff"/>' +
-      '<rect x="12" width="6" height="12" fill="#ef4135"/>',
-    it:
-      '<rect width="6" height="12" fill="#009246"/>' +
-      '<rect x="6" width="6" height="12" fill="#fff"/>' +
-      '<rect x="12" width="6" height="12" fill="#ce2b37"/>',
-    ru:
-      '<rect width="18" height="4" fill="#fff"/>' +
-      '<rect y="4" width="18" height="4" fill="#0039a6"/>' +
-      '<rect y="8" width="18" height="4" fill="#d52b1e"/>',
-    yi:
-      '<rect width="18" height="12" fill="#fff"/>' +
-      '<rect y="1.125" width="18" height="1.875" fill="#000"/>' +
-      '<rect y="9" width="18" height="1.875" fill="#000"/>' +
-      '<g fill="#000" transform="translate(0.75 0) scale(0.025)">' +
-      '<path d="M230.694,172.92A99.306,99.306 0 1,0 429.306,172.92H419.851A89.851,89.851 0 1,1 240.149,172.92z"/>' +
-      '<path d="M259.256,173.35A70.744,70.744 0 1,0 400.744,173.35H391.223A61.223,61.223 0 1,1 268.777,173.35z"/>' +
-      '<path d="M288.157,172.92A41.843,41.843 0 1,0 371.843,172.92H362.388A32.388,32.388 0 1,1 297.612,172.92z"/>' +
-      '<path d="M278.562,317.879V324.35H381.438V317.879L334.727,307.466V165.639H325.273V307.466z"/>' +
-        '<path transform="translate(0 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
-        '<path transform="translate(28.731 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
-        '<path transform="translate(57.461 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
-        '<path transform="translate(94.577 -7.261)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
-        '<path transform="translate(131.693 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
-        '<path transform="translate(160.424 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
-        '<path transform="translate(189.154 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
-      "</g>",
-    arc:
-      '<rect width="18" height="12" fill="#fff"/>' +
-      '<rect y="1.25" width="18" height="1.45" fill="#0000f5"/>' +
-      '<rect y="9.45" width="18" height="1.45" fill="#0000f5"/>' +
-      '<g fill="#3a3a3a">' +
-      '<path d="M6.9 4.25 8.8 3.4V3.9L7.5 4.25ZM11.1 4.25 9.2 3.4V3.9L10.5 4.25Z"/>' +
-      '<rect x="6.8" y="4.25" width="4.4" height="0.5"/>' +
-      '<rect x="7.05" y="4.75" width="0.5" height="3.6"/>' +
-      '<rect x="7.8" y="4.75" width="0.4" height="3.6"/>' +
-      '<rect x="9.8" y="4.75" width="0.4" height="3.6"/>' +
-      '<rect x="10.45" y="4.75" width="0.5" height="3.6"/>' +
-      '<rect x="6.8" y="8.35" width="4.4" height="0.65"/>' +
-      "</g>" +
-      '<path d="M8.2 7.75H9.8M8.2 5.1Q9 5.9 9.8 5.1" fill="none" stroke="#3a3a3a" stroke-width="0.3"/>',
+  /* The greeting each language is met with in the menu, at the far side in the reading
+   * serif and its own script, as board LangMenuDesk draws it (design.md §12, "The boards
+   * are the desk", 2026-10-09). It replaced the flags drawn here since 2026-09-14: no
+   * board draws a flag, and §1's "no flags" holds everywhere again. */
+  var GREETINGS = {
+    he: ["שָׁלוֹם", "rtl"],
+    arc: ["בְּקַדְמִין", "rtl"],
+    yi: ["אַ גוטן טאָג", "rtl"],
+    fr: ["Bonjour", "ltr"],
+    it: ["Ciao", "ltr"],
+    ru: ["Здравствуйте", "ltr"],
   };
+
+  function greeting(code) {
+    var key = String(code || "").split("-")[0].toLowerCase();
+    var own = GREETINGS[key];
+    if (!own) return null;
+    var span = document.createElement("bdi");
+    span.className = "lang-greeting";
+    span.setAttribute("lang", key);
+    span.setAttribute("dir", own[1]);
+    span.textContent = own[0];
+    return span;
+  }
 
   /* Each language in its own name as well as English's (2026-09-14): a Russian reader
    * choosing what their translations are in was offered "Russian". The English name
@@ -306,19 +270,6 @@
     span.setAttribute("dir", own[1]);
     span.textContent = own[0];
     return span;
-  }
-
-  function flag(code) {
-    var box = document.createElement("span");
-    box.className = "lang-flag";
-    box.setAttribute("aria-hidden", "true");
-    var drawn = FLAGS[String(code || "").split("-")[0].toLowerCase()];
-    if (drawn) {
-      box.innerHTML = '<svg viewBox="0 0 18 12" focusable="false">' + drawn + "</svg>";
-    } else {
-      box.className += " none";
-    }
-    return box;
   }
 
   /* One switcher, built the same way on the library page and the words page.
@@ -378,8 +329,14 @@
    * Every language the account learns is listed, whatever the page had to show in it: a
    * switcher that left out a language with nothing on the shelf yet could never be used
    * to go and add the first thing. The page's own languages come too, for a text in a
-   * language the account has since stopped learning. The last item goes to where the
-   * list itself is chosen.
+   * language the account has since stopped learning.
+   *
+   * Since 2026-10-09 (design.md §12, "The boards are the desk"; board LangMenuDesk) the
+   * menu is drawn for a reader of one language too, with the language's badge on the
+   * button and no flag anywhere. The panel is two groups: **Your languages**, the ones
+   * learned, a tick on the one the page is in; and under a rule **Start another
+   * language**, the rest targum teaches, each of which a press turns on and opens. Each
+   * row carries its badge and, at the far side, the greeting it is met with.
    */
   function menu(host, codes, names, chosen, onPick, options) {
     var all = order(
@@ -389,8 +346,11 @@
       names
     );
     if (all.indexOf(chosen) < 0 && chosen) all.unshift(chosen);
+    var others = LEARNABLE.filter(function (code) {
+      return all.indexOf(code) < 0;
+    });
     host.textContent = "";
-    host.hidden = all.length < 2;
+    host.hidden = !all.length;
     host.classList.add("lang-menu");
 
     var open = document.createElement("button");
@@ -402,7 +362,6 @@
     var label = document.createElement("span");
     label.className = "lang-name";
     label.textContent = names[chosen] || String(chosen || "").toUpperCase();
-    open.appendChild(flag(chosen));
     open.appendChild(label);
     var worn = badge(chosen);
     if (worn) open.appendChild(worn);
@@ -413,29 +372,39 @@
     panel.setAttribute("role", "menu");
     panel.setAttribute("aria-label", t("lang.menu.panel", "The language you're learning"));
     panel.hidden = true;
-    // What the menu changes, said at its head (2026-09-14): not the language the pages
-    // are written in, and not the one the translations are in.
-    var head = document.createElement("p");
-    head.className = "lang-head";
-    head.textContent = t("lang.menu.head", "You're learning");
-    panel.appendChild(head);
-    all.forEach(function (code) {
+
+    function row(code, role) {
       var item = document.createElement("button");
       item.type = "button";
-      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("role", role);
       item.setAttribute("data-code", code);
-      item.setAttribute("aria-checked", code === chosen ? "true" : "false");
+      if (role === "menuitemradio") item.setAttribute("aria-checked", code === chosen ? "true" : "false");
+      else item.className = "lang-start";
       var named = document.createElement("span");
       named.className = "lang-item";
-      named.appendChild(flag(code));
+      var tick = document.createElement("span");
+      tick.className = "lang-tick";
+      tick.setAttribute("aria-hidden", "true");
+      tick.textContent = code === chosen ? "\u2713" : "";
+      named.appendChild(tick);
       named.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
-      // Each language's own badge, beside its name, in place of "experimental" on all but
-      // Hebrew.
       var mark = badge(code);
       if (mark) named.appendChild(mark);
       item.appendChild(named);
-      var own = native(code);
-      if (own && own.textContent !== (names[code] || "")) item.appendChild(own);
+      var said = greeting(code);
+      if (said) item.appendChild(said);
+      return item;
+    }
+    function heading(text) {
+      var head = document.createElement("p");
+      head.className = "lang-head";
+      head.textContent = text;
+      panel.appendChild(head);
+    }
+
+    heading(t("lang.menu.yours", "Your languages"));
+    all.forEach(function (code) {
+      var item = row(code, "menuitemradio");
       item.addEventListener("click", function () {
         close();
         if (code === chosen) return;
@@ -443,12 +412,32 @@
       });
       panel.appendChild(item);
     });
-    var more = document.createElement("a");
-    more.className = "lang-more";
-    more.href = "/you#languages";
-    more.setAttribute("role", "menuitem");
-    more.textContent = t("lang.menu.more", "Your languages");
-    panel.appendChild(more);
+    if (others.length) {
+      var rule = document.createElement("hr");
+      rule.className = "lang-rule";
+      panel.appendChild(rule);
+      heading(t("lang.menu.start", "Start another language"));
+      others.forEach(function (code) {
+        var item = row(code, "menuitem");
+        // Turned on in this browser and on the account, then opened as any press is.
+        item.addEventListener("click", function () {
+          close();
+          var listed = learning();
+          if (listed.indexOf(code) < 0) {
+            try {
+              localStorage.setItem(LEARNING, JSON.stringify(listed.concat([code])));
+            } catch (e) {}
+          }
+          set(code);
+          var saved =
+            window.TargumSync && typeof window.TargumSync.language === "function"
+              ? window.TargumSync.language(code, true)
+              : null;
+          onPick(code, saved);
+        });
+        panel.appendChild(item);
+      });
+    }
     host.appendChild(panel);
 
     function close() {
@@ -492,8 +481,6 @@
         var name = host.querySelector && host.querySelector(".lang-name");
         if (name && code) name.textContent = names[code] || String(code).toUpperCase();
         var button = host.querySelector && host.querySelector(".lang-open");
-        var shown = button && button.querySelector && button.querySelector(".lang-flag");
-        if (button && shown && code) button.replaceChild(flag(code), shown);
         var was = button && button.querySelector && button.querySelector(".lang-status");
         var now = code ? badge(code) : null;
         if (button && was) button.removeChild(was);

@@ -2058,6 +2058,7 @@ def not_found_page(token: str = "", language: str = "en") -> str:
             page_language=_page_language(language),
             strings=script_strings(language),
             token=token,
+            languages=_language_names(language),
         )
     )
 
@@ -3413,6 +3414,7 @@ def subscribe_page(
     allowed: bool = True,
     via: str = "",
     cap: int = 0,
+    token: str = "",
 ) -> str:
     """Where a subscription is confirmed (design.md §12, "A monthly cap is the second press
     that lasts", 2026-10-09; boards SubConfirm and ConnConfirm). What it is, what a new one
@@ -3442,6 +3444,10 @@ def subscribe_page(
             per_week=round(weekly) if weekly >= 1 else 0,
             per_month=max(1, round(weekly * 30 / 7)) if 0 < weekly < 1 else 0,
             languages=dict(_language_names(language)),
+            # The app's bar since 2026-10-09 (design.md §12, "The boards are the desk").
+            names=_language_names(language),
+            strings=script_strings(language),
+            token=token,
         )
     )
 

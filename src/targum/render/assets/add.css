@@ -17,7 +17,7 @@ body.add {
 body.add > .site-head { justify-self: stretch; }
 body.add > .add-main {
   justify-self: start;
-  margin-inline-start: max(0px, calc((100% - 62rem) / 2));
+  margin-inline-start: max(0px, calc((100% - var(--column)) / 2));
 }
 
 .add-main {

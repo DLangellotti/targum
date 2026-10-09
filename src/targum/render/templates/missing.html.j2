@@ -20,14 +20,19 @@
 <script>{{ asset('building.js') }}</script>
 
 <main class="fault-page">
+  {#- The board's line icon (NotFound): a page with its corner turned, in the well's
+      grey, drawn as §7 draws a glyph. -#}
+  <svg class="fault-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 1.75h5.25L12.5 5v9.25H4zM9.25 1.75V5h3.25M6 8.25h4.5M6 10.5h3"/></svg>
   <h1>{{ t("holding.page.we-can-t-find-that-page", "We can't find that page") }}</h1>
   <p>{{ t("holding.page.it-may-have-moved-or-the-link", "There's nothing at this address.") }}</p>
   <a class="fault-go" href="/library">{{ t("holding.page.go-to-the-library", "Go to the library") }}</a>
 </main>
 {% include '_foot.html.j2' %}
 
+<script>window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 </body>

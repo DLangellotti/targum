@@ -37,12 +37,15 @@ body {
 }
 .site-head-row { padding-block: 0.65rem; }
 .site-head .brand, .site-head .brand span { color: var(--bar-ink); }
+/* One column for every desk page (design.md §12, "The boards are the desk", 2026-10-09):
+   the boards' 1248px at a 1440 window, with its 1.25rem gutters, at the desk's clamped
+   rem. The bar's row, the page's title, the page and the foot all stand in it. In rem,
+   so the column grows with the desk on a wall and keeps the board's proportion. */
+:root { --column: 73.75rem; }
 .site-head-row,
-.site-head h1,
-.site-head .site-crumbs,
-.site-head .beta-note {
+.page-head {
   width: 100%;
-  max-width: 62rem;
+  max-width: var(--column);
   margin-inline: auto;
   padding-inline: 1.25rem;
 }
@@ -77,38 +80,40 @@ body {
    it go accent would leave both columns the same colour — the one thing the two-colour
    mark is not allowed to be. */
 .brand:hover span { color: var(--accent); }
-.site-head h1 {
-  margin-block: 1.5rem 0;
+/* The page's title, on the desk under the bar: the reading serif at 34px, weight 500
+   (design.md §12, "The boards are the desk"); 28px on a phone, as board HomePhone. */
+.page-title {
+  margin: 2rem 0 0;
   font-family: var(--reading);
-  font-size: 1.75rem;
-  font-weight: 600;
+  font-size: 1.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
   letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
 /* The trail above a heading, where a page stands inside a place (Library › The Tanakh).
    Quiet, and the way back is the place's own name in the working teal. */
-.site-head .site-crumbs {
+.page-head .site-crumbs {
   display: block;
-  margin-block: 1.25rem 0;
+  margin-block: 1.5rem 0;
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
-.site-head .site-crumbs a { color: var(--teal); font-weight: 600; text-decoration: none; }
-.site-head .site-crumbs a:hover { text-decoration: underline; }
-.site-head .site-crumbs a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
-.site-head .site-crumbs + h1 { margin-block-start: 0.35rem; }
+.page-head .site-crumbs a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.page-head .site-crumbs a:hover { text-decoration: underline; }
+.page-head .site-crumbs a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+.page-head .site-crumbs + .page-title { margin-block-start: 0.35rem; }
 @media (hover: none) and (pointer: coarse) {
-  .site-head .site-crumbs a { display: inline-block; min-block-size: 44px; line-height: 44px; }
+  .page-head .site-crumbs a { display: inline-block; min-block-size: 44px; line-height: 44px; }
 }
 
 @media (max-width: 40rem) {
-  .site-head { padding-block-start: 1rem; }
-  .site-head h1 { font-size: 1.5rem; }
+  .page-title { margin-block-start: 1.25rem; font-size: 1.75rem; }
+  .page-head .site-crumbs { margin-block-start: 1rem; }
   .site-head-row { gap: 0.5rem; }
   .site-head-row,
-  .site-head h1,
-  .site-head .site-crumbs,
-  .site-head .beta-note { padding-inline: 1rem; }
+  .page-head { padding-inline: 1rem; }
 }
 
 .site-nav {
@@ -143,8 +148,7 @@ body {
    overrides, on purpose. */
 /* Between a phone and a laptop the places are one row that does not wrap: left to
    themselves they fitted three and dropped "+ Add" onto a line of its own (641 to about
-   850px, 2026-09-14). Two things give way first — the word "Your", and the language's
-   name beside its flag, as on a phone. */
+   850px, 2026-09-14). The word "Your" gives way first. */
 /* The shelf's place is "Your targums", and "targums" where "Your" does not fit, the way
    Progress drops it. It said "Texts" there from 2026-09-24, because "targums" alone read
    as a typo; a place with two names read worse, and design.md §12 ("Yours and
@@ -156,7 +160,6 @@ body {
      wordmark's own word beside it (targum-internal#373, David, 2026-09-27). The
      capital is Russian's; English keeps its lowercase targums, which the brand needs. */
   html:lang(ru) .site-nav .nav-many { text-transform: capitalize; }
-  .lang-menu .lang-open:has(.lang-flag:not(.none)) .lang-name { display: none; }
 }
 
 @media (max-width: 46rem) {
@@ -439,21 +442,6 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-/* A flag beside each name (§12, 2026-09-14): small, square-cornered at the scale's
-   smallest step, a hairline round the white stripes. A language with no country keeps the
-   width, so the names line up. */
-.lang-flag {
-  display: inline-block;
-  flex: none;
-  inline-size: 1.125rem;
-  block-size: 0.75rem;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px var(--hairline);
-  line-height: 0;
-}
-.lang-flag svg { display: block; inline-size: 100%; block-size: 100%; }
-.lang-flag.none { box-shadow: none; }
 .lang-panel .lang-more {
   margin-block-start: 0.3rem;
   padding: 0.5rem 0.6rem 0.2rem;
@@ -700,9 +688,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
-/* Sticky where the bar is one row; a page with a title under the row lets it scroll,
-   since a title that follows you down the page is a bar too tall. */
-.site-head:not(:has(h1)) { position: sticky; inset-block-start: 0; z-index: 25; }
+/* Sticky, always: the bar is one row now on every page, its title on the desk below. */
+.site-head { position: sticky; inset-block-start: 0; z-index: 25; }
 .site-head .brand, .site-head .brand span { color: var(--ink); }
 .site-nav a { color: var(--ink-soft); border-radius: 999px; padding: 0.4rem 0.85rem; }
 .site-nav a:hover { color: var(--ink); background: var(--teal-wash); }
@@ -892,15 +879,14 @@ button:active:not(:disabled) { transform: scale(0.98); }
   /* The top bar fits a 320px phone signed in (2026-09-14): the name, the language, find,
      the bell, the account and the light switch. Its things no longer shrink — shrinking
      squashed the account into an oval and pushed the language's chevron out of its pill —
-     so they are made to fit instead: the language says itself with its flag (the name
-     stays for a language with no flag, and in the button's label), and the name and the
+     so they are made to fit instead: the language says its name and badge in a tighter
+     pill (no flag since 2026-10-09), and the name and the
      gaps are a size smaller. Before this a signed-in row was 385px wide at any width
      under it, and the whole page scrolled sideways. */
   .site-head-row { gap: 0.375rem; }
   .site-head-row > * { flex: none; }
   .site-head .brand { font-size: 1.25rem; }
   .lang-menu .lang-open { padding-inline: 0.6rem; gap: 0.35rem; min-block-size: 1.9rem; }
-  .lang-menu .lang-open:has(.lang-flag:not(.none)) .lang-name { display: none; }
 }
 /* And the smallest phones keep the side gutter by closing the gaps a little more. */
 @media (max-width: 22.5rem) {
@@ -1059,11 +1045,106 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 
 /* The foot is its own (`foot.css`, 2026-09-28); on the desk it stands in the desk's own
-   62rem column, so its links start where the page does. */
-body .site-footer { max-inline-size: 62rem; }
+   column, so its links start where the page does. */
+body .site-footer { max-inline-size: var(--column); }
 /* An address the account panel couldn't use (design.md §12, 2026-10-09): the field in
    clay over the teal it wears focused, and the line under the row rather than between
    the field and its button. */
 .account-panel input.fault-field,
 .account-panel input.fault-field:focus { border-color: var(--clay); box-shadow: 0 0 0 1px var(--clay); }
 .account-panel .fault-under { flex-basis: 100%; order: 3; margin: 0; font-size: 0.875rem; }
+
+/* =====================================================================================
+   One shell for every desk page (design.md §12, "The boards are the desk", 2026-10-09).
+   Written last so that it wins over the phases above: the bar as the boards draw it, the
+   title on the desk under it, the Talk pill in ink, and the language always shown. */
+
+/* --- the bar: the page's paper, ruled off from the desk, one row 76px tall at 1440 ---- */
+.site-head { border-block-end: 1px solid var(--rule); }
+.site-head::before { background: color-mix(in srgb, var(--paper) 92%, transparent); }
+.site-head-row { min-block-size: 4.375rem; padding-block: 0.5rem; }
+/* The places in the middle of the bar, between the name and the corner, as the boards
+   draw them. */
+@media (min-width: 60.0625rem) {
+  .site-head-row > .site-nav:not(.door-nav) { margin-inline: auto; }
+}
+@media (max-width: 40rem) {
+  .site-head-row { min-block-size: 3.75rem; }
+}
+/* A door in front of the account keeps the bar and the one place a stranger may go, in
+   the bar on a phone too rather than at the foot. */
+.site-nav.door-nav { margin-inline-start: auto; }
+@media (max-width: 40rem) {
+  .site-head-row .site-nav.door-nav {
+    position: static;
+    display: flex;
+    margin-inline-start: auto;
+    padding: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 0;
+  }
+  .site-nav.door-nav a { display: inline-flex; min-block-size: 0; font-size: 0.9375rem; font-weight: 400; }
+  body.signin[data-shell="desk"] { padding-block-end: 0; }
+}
+
+/* --- the Talk pill is ink: the call to action's paper on ink (§9), not the primary --- */
+.talk-cta { background: var(--ink); color: var(--page-max); }
+.talk-cta:hover { filter: none; background: color-mix(in srgb, var(--ink) 88%, var(--page-max)); }
+
+/* --- the phone: "Your targums" says its whole name at the foot, as board HomePhone, and
+   the page keeps clear of the round pill above the bar ---------------------------------- */
+@media (max-width: 40rem) {
+  .site-nav .nav-many .nav-your { display: inline; }
+  html:lang(ru) .site-nav .nav-many { text-transform: none; }
+  body { padding-block-end: calc(8rem + env(safe-area-inset-bottom)); }
+  body.chat { padding-block-end: 0; }
+}
+
+/* --- the language, always shown, with its badge and without a flag ------------------- */
+.lang-menu .lang-open {
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.lang-menu .lang-open .lang-name { color: var(--ink); }
+.lang-menu .lang-open:hover,
+.lang-menu .lang-open.on { background: var(--teal-wash); color: var(--ink); }
+.lang-panel { min-inline-size: 22rem; padding: 0.5rem; }
+.lang-panel .lang-head {
+  margin: 0.5rem 0.75rem 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.lang-panel .lang-rule { margin: 0.4rem 0.75rem; border: 0; border-block-start: 1px solid var(--rule); }
+.lang-panel button { min-block-size: 3rem; padding-inline: 0.75rem; }
+.lang-panel .lang-item { gap: 0.6rem; }
+/* The tick stands where a flag stood, on the language the page is in; the rest keep its
+   room, so the names line up. */
+.lang-panel .lang-tick {
+  inline-size: 1rem;
+  flex: none;
+  color: var(--teal);
+  font-weight: 600;
+}
+.lang-panel button[aria-checked="true"] { color: var(--ink); background: var(--teal-wash); }
+/* The greeting at the far side, in the reading serif, in its own script. */
+.lang-panel .lang-greeting {
+  color: var(--ink-soft);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  font-weight: 400;
+}
+.lang-panel .lang-greeting:lang(he),
+.lang-panel .lang-greeting:lang(yi),
+.lang-panel .lang-greeting:lang(arc) { font-family: var(--reading-hebrew); }
+@media (max-width: 40rem) {
+  .lang-panel { min-inline-size: 0; }
+  .lang-menu .lang-open { padding-inline: 0.5rem; }
+}
+@media (max-width: 22.5rem) {
+  .lang-menu .lang-open .lang-status { display: none; }
+}

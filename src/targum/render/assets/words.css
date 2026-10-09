@@ -120,7 +120,7 @@ a.back:hover { color: var(--ink); }
 main[hidden] { display: none; }
 
 main {
-  max-width: 62rem;
+  max-width: var(--column);
   margin: 0 auto;
   padding: 1.5rem 1.25rem 5rem;
   display: flex;

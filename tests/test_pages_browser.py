@@ -582,7 +582,7 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
           return {
             inner: window.innerWidth, scrollWidth: document.documentElement.scrollWidth,
             chevronDrawn: chevron.content === '""' && chevron.position !== 'absolute',
-            flag: open.querySelector('.lang-flag').getBoundingClientRect().left >= pill.left,
+            flag: !open.querySelector('[class*="flag"]'),
             round: Math.abs(account.width - account.height) <= 1,
             worn: (open.querySelector('.lang-status') || {}).textContent || '',
             listed: [...document.querySelectorAll('.lang-panel [role="menuitemradio"]')].map(
@@ -593,7 +593,8 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     )
     context.close()
     assert got["inner"] == width and got["scrollWidth"] <= width, f"sideways at {width}px: {got}"
-    assert got["chevronDrawn"] and got["flag"], f"the chevron in its pill: {got}"
+    # No flag since 2026-10-09 (design.md §12, "The boards are the desk"): the name says it.
+    assert got["chevronDrawn"] and got["flag"], f"the chevron in its pill, and no flag: {got}"
     assert got["round"], f"the account is a circle: {got}"
     # How far along each language is, a badge and nothing more (design.md §12, 2026-10-09).
     assert got["worn"] == "Beta", got

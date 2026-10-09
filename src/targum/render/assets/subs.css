@@ -367,3 +367,17 @@ a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
   color: var(--ink-soft);
 }
 .sub-facts dd { margin: 0; }
+
+/* The confirm page in the app's shell (design.md §12, "The boards are the desk",
+   2026-10-09; board SubConfirmDesk): the bar over it, and the door a 640px card in the
+   column on the desk, wider than the sign-in door because it holds a table of facts. */
+body.subscribe main.sub-gate {
+  max-width: calc(36.5rem + 2.5rem);
+  margin-inline: auto;
+  padding: 2.5rem 1.25rem 4rem;
+}
+body.subscribe .sub-gate .door { padding: 1.75rem 1.75rem 1.5rem; }
+@media (max-width: 40rem) {
+  body.subscribe main.sub-gate { padding: 1.25rem 1rem 3rem; }
+  body.subscribe .sub-gate .door { padding: 1.5rem 1.25rem 1.25rem; }
+}

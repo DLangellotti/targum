@@ -38,7 +38,8 @@ def test_the_menu_lists_every_language_the_reader_learns() -> None:
     assert drawn["before"]["hidden"] is False
     assert drawn["before"]["items"] == ["he", "yi"], "Hebrew first, then the rest"
     assert drawn["before"]["label"] == "Hebrew" and drawn["before"]["checked"] == ["he"]
-    assert drawn["before"]["more"] == "/you#languages"
+    assert drawn["before"]["heads"] == ["Your languages", "Start another language"]
+    assert drawn["before"]["starts"] == ["arc", "fr", "ru", "it"], "the rest targum teaches"
     assert drawn["before"]["panelHidden"] and drawn["openedPanel"], "opened by its button"
 
 
@@ -94,21 +95,40 @@ def test_a_language_no_longer_learned_falls_back_to_hebrew() -> None:
     assert drawn["current"] == "he"
 
 
-def test_one_language_draws_no_menu() -> None:
-    """A menu with one thing in it asks a question with no other answer."""
-    assert menu(stored={"targum:learning": json.dumps(["he"])})["before"]["hidden"] is True
+def test_one_language_still_draws_the_menu_with_its_badge() -> None:
+    """design.md §12, "The boards are the desk" (2026-10-09): always shown, with its badge,
+    for a reader of one language too — it is also where another is started."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he"])})
+    assert drawn["before"]["hidden"] is False and drawn["before"]["badge"] == "Beta"
+    assert drawn["before"]["items"] == ["he"]
+    assert drawn["before"]["starts"] == ["arc", "yi", "fr", "ru", "it"]
+
+
+def test_another_language_is_started_from_the_menu() -> None:
+    """A press under Start another language turns it on, in this browser and on the
+    account, and opens it as any press does."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he"])}, press="ru")
+    assert drawn["picked"] == ["ru"] and drawn["told"] == ["ru"] and drawn["stored"] == "ru"
+    assert json.loads(drawn["learning"]) == ["he", "ru"]
 
 
 def test_anywhere_but_the_nav_the_same_call_still_draws_tabs() -> None:
     assert set(menu()["tabs"]) == {"tab"}
 
 
-def test_each_language_wears_a_small_flag_and_a_language_with_no_country_keeps_the_room() -> None:
-    """2026-09-14 (design.md §12): a drawn flag beside each name in the menu. Yiddish and
-    Aramaic have no country and wear the language flags David chose; a code with no
-    flag at all keeps an empty box the flag's width."""
-    drawn = menu(stored={"targum:learning": json.dumps(["he", "fr", "yi", "arc", "de"])})
-    assert drawn["flags"] == {"he": "flag", "fr": "flag", "yi": "flag", "arc": "flag", "de": "none"}
+def test_no_language_wears_a_flag_and_each_is_met_with_its_greeting() -> None:
+    """2026-10-09 (design.md §12, "The boards are the desk"): no board draws a flag, so the
+    menu carries none, and each row ends in the greeting it is met with (LangMenuDesk)."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he", "ru"])})
+    assert drawn["before"]["flags"] == 0
+    assert drawn["before"]["greetings"] == {
+        "he": "שָׁלוֹם",
+        "ru": "Здравствуйте",
+        "arc": "בְּקַדְמִין",
+        "yi": "אַ גוטן טאָג",
+        "fr": "Bonjour",
+        "it": "Ciao",
+    }
 
 
 # -- a text's language, carried out of its reader (design.md §12, 2026-10-07) ----------

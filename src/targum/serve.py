@@ -5082,13 +5082,17 @@ class Handler(BaseHTTPRequestHandler):
     def _not_found(self) -> None:
         """A page that is not there, said as a page (2026-09-14): a bare `not found` in
         plain text, or the holding page with a 200, were both a dead end."""
-        # The key rides into the page's top bar only for a request that already carried
-        # it: a 404 is answered to anybody, and the key is not a thing to hand a stranger.
+        page = not_found_page(self._key_if_given(), language=self._page_language())
+        self._send(404, page.encode("utf-8"), HTML)
+
+    def _key_if_given(self) -> str:
+        """The key for a page's top bar, only for a request that already carried it: the
+        404 and the subscribe page are answered to anybody, and the key is not a thing to
+        hand a stranger."""
         query = parse_qs(urlparse(self.path).query)
         given = query.get("k", [""])[0] or (self.headers.get("X-Targum-Key") or "")
         known = bool(self.token) and secrets.compare_digest(given, self.token)
-        page = not_found_page(self.token if known else "", language=self._page_language())
-        self._send(404, page.encode("utf-8"), HTML)
+        return self.token if known else ""
 
     def _needs_account(self, route: str) -> bool:
         """Whether this request has to be turned away at the door.
@@ -8949,6 +8953,7 @@ class Handler(BaseHTTPRequestHandler):
             allowed=plans.builds_by_itself(person),
             via=via if via in self.SUBSCRIBE_VIA else "",
             cap=int(query.get("cap") or 0) if str(query.get("cap") or "").isdigit() else 0,
+            token=self._key_if_given(),
         )
         self._send(200, page.encode("utf-8"), HTML)
 

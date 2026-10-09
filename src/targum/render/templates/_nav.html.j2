@@ -34,6 +34,14 @@
       </svg>
       <span>targum</span>
     </a>
+    {%- if here == 'door' %}
+    {#- A door in front of the account (an expired link, design.md §12, "The boards are
+        the desk"): the bar, and the one place a stranger may go, as board ErrorsDesk
+        draws it. No places that would only send them back here, no bell, no account. -#}
+    <nav class="site-nav door-nav" aria-label="{{ t("nav.pages", "Pages") }}">
+      <a href="/library" data-nav="library">{{ t("nav.library", "Library") }}</a>
+    </nav>
+    {%- else %}
     <nav class="site-nav" aria-label="{{ t("nav.pages", "Pages") }}">
       {#- On a phone the four places are a bar at the foot of the window, a glyph over
           each word (phase 4, 2026-09-11); at a desk only Upload draws its glyph. §7: sixteen
@@ -44,9 +52,10 @@
       <a href="/add" data-nav="add" class="nav-add{% if here == 'add' %} on{% endif %}"{% if here == 'add' %} aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg><span>{{ t("nav.upload", "Upload") }}</span></a>
     </nav>
     {#- Which language (design.md §13, 2026-09-13): one menu at the end of the places on
-        every desk page that reads in a language, filled by `lang.js`. Hidden until the
-        reader learns more than one: a menu with one thing in it asks nothing. -#}
-    {%- if here in ('texts', 'chat', 'library', 'progress', 'add', 'yours', 'you') %}
+        every desk page, filled by `lang.js`. Always drawn, with the language's badge,
+        for a reader of one language too, since it is also where another is started
+        (design.md §12, "The boards are the desk", 2026-10-09). -#}
+    {%- if here in ('texts', 'chat', 'library', 'progress', 'add', 'yours', 'you', 'missing', 'subscribe') %}
     <div class="langs" id="langs" hidden></div>
     {%- endif %}
     {#- Notifications, in the corner of every page (2026-09-11): what is building and
@@ -121,26 +130,39 @@
         <p class="said" id="account-said" hidden></p>
       </div>
     </div>
+    {%- endif %}
   </div>
-  {#- Where a page stands inside a place, said above its heading: the Tanakh map is
-      Library › Tanakh (design.md §12, 2026-10-09). `crumbs` is a list of (name, address). -#}
+</header>
+{#- The page's title stands on the desk under the bar, in the reading serif at 34px, and
+    never inside the bar (design.md §12, "The boards are the desk", 2026-10-09): every
+    desk page the same, in the one column the bar's row and the foot stand in. Where a
+    page stands inside a place is said above it: the Tanakh map is Library › Tanakh.
+    `crumbs` is a list of (name, address). -#}
+{%- if title or crumbs or here in ('texts', 'library', 'progress') %}
+<div class="page-head">
   {%- if crumbs %}
   <nav class="site-crumbs" aria-label="{{ t("nav.where-you-are", "Where you are") }}">
     {%- for name, address in crumbs %}<a href="{{ address }}">{{ name }}</a><span class="crumb-step" aria-hidden="true"> › </span>{% endfor %}<span aria-current="page">{{ title }}</span>
   </nav>
   {%- endif %}
-  {% if title %}<h1>{{ title }}</h1>{% endif %}
+  {%- if title %}
+  <h1 class="page-title">{{ title }}</h1>
+  {%- endif %}
   {%- if here in ('texts', 'library', 'progress') %}
   <p class="beta-note" id="beta-note" hidden></p>
   {%- endif %}
-</header>
+</div>
+{%- endif %}
+{%- if here != 'door' %}
 {#- What a reader follows, on every page (2026-09-11): the bell says when a followed
     series' instalment lands, and home puts it first under Continue. Before `building.js`, which
     every page includes after this header and which asks it. -#}
 <script>{{ asset('follow.js') }}</script>
+{%- endif %}
 {#- How a refusal is drawn (design.md §12, 2026-10-09): under a field, a line, a panel,
     and the connection's banner, which `fault.js` puts at the foot of this header. -#}
 <script>{{ asset('fault.js') }}</script>
+{%- if here != 'door' %}
 {#- Talk to targum, from anywhere (2026-09-11): one pill fixed at the foot of every page
     opens the conversation as a drawer — the conversation page framed without its bar.
     Nothing is loaded until it is opened. Drawn by `talk.js`. -#}
@@ -165,3 +187,4 @@
 {#- Saving for offline, and the worker that answers what was saved when the network is
     not there (design.md §12, 2026-10-09). -#}
 <script>{{ asset('offline.js') }}</script>
+{%- endif %}

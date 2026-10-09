@@ -10,7 +10,7 @@
 /* The lists are pages to read down, not a reader to fill the desk with: they keep the
    column every other list page stands in, header and all. */
 body.yours main {
-  max-width: 62rem;
+  max-width: var(--column);
   margin: 0 auto;
   padding: 1.5rem 1.25rem 5rem;
   display: flex;
@@ -21,19 +21,17 @@ body.yours main {
 body.yours main[hidden] {
   display: none;
 }
-body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
 @media (max-width: 40rem) {
   /* The phone's gutter is 1rem, the mark's and the cards': the back link, the counts,
      the chips and the cards all touched the glass's edge at 0 (2026-10-09). */
   body.yours main { padding: 1rem 1rem 5rem; }
-  body.yours .site-head-row { padding-inline: 1rem; }
 }
 
 /* While the shelf is asked for (2026-09-14): one quiet line where the shelf will stand,
    so the page under the bar is not blank for the seconds a large shelf takes. */
 .learn-waiting {
   margin: 3rem auto;
-  max-width: 62rem;
+  max-width: var(--column);
   padding-inline: 1.5rem;
   color: var(--ink-soft);
   font-size: 0.9375rem;
