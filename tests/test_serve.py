@@ -845,6 +845,12 @@ def test_a_sitting_is_appended_and_the_figures_are_read_off_it(
     assert by_medium["watch"]["watched"] == 80
     assert by_medium["read"]["words"] == 360
 
+    # A box that stops keeping new events still shows a reader what it kept (§12,
+    # "The mockups win on Your Progress", 2026-10-09).
+    monkeypatch.delenv("TARGUM_EVENTS")
+    status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    assert got["kept"] is False and len(got["totals"]) == len(by_medium)
+
 
 def test_a_reader_can_stop_the_record_and_erase_it(
     served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch

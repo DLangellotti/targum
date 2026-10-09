@@ -88,7 +88,7 @@ def test_the_ledger_counts_what_the_reader_actually_did() -> None:
         }
     )
 
-    assert drawn["counts"]["words marked known"] == 12
+    assert drawn["counts"]["words known"] == 12
     assert drawn["counts"]["words on your list"] == 17, "known and still learning together"
     assert "texts opened" not in drawn["counts"], "a fact about browsing"
     # Days do not follow the language switcher, because a day is not in a language and
@@ -108,7 +108,7 @@ def test_one_of_a_thing_is_not_said_in_the_plural() -> None:
         }
     )
 
-    assert drawn["counts"]["word marked known"] == 1
+    assert drawn["counts"]["word known"] == 1
     assert drawn["counts"]["day on targum"] == 1
 
 
@@ -154,7 +154,7 @@ def test_a_word_you_ignored_is_not_a_word_you_counted() -> None:
     """Ignore means "this is not vocabulary". It was being counted as a word saved, which
     is the plainest way of getting it wrong; nothing in the block counts it now."""
     drawn = page(marked(known=4, learning=3, ignored=5))
-    assert tile(drawn, "words marked known") == 4
+    assert tile(drawn, "words known") == 4
     figures = {int(box["value"].replace(",", "")) for box in drawn["tiles"]}
     # 12 would be everything added up and 9 would be known plus ignored. Neither is a
     # number this reader's four figures can honestly hold.
@@ -174,9 +174,9 @@ def test_a_name_marked_known_is_not_a_word_marked_known() -> None:
     words["n0"]["learned"] = 1
     drawn = page(words)
     plain = page(marked(known=4, learning=2))
-    assert tile(drawn, "words marked known") == 4
+    assert tile(drawn, "words known") == 4
     assert tile(drawn, "words on your list") == 6
-    assert tile(drawn, "words learned on targum") == 0
+    assert tile(drawn, "learned on targum") == 0
     assert drawn["weeks"] == plain["weeks"], "nor among the words taken up"
 
 
@@ -191,8 +191,8 @@ def test_words_learned_counts_only_what_was_carried_up_to_known() -> None:
     for key in list(words)[:2]:
         words[key]["learned"] = 1
     drawn = page(words)
-    assert tile(drawn, "words marked known") == 4
-    assert tile(drawn, "words learned on targum") == 2
+    assert tile(drawn, "words known") == 4
+    assert tile(drawn, "learned on targum") == 2
 
 
 def test_a_word_still_being_learned_is_not_yet_learned() -> None:
@@ -201,14 +201,14 @@ def test_a_word_still_being_learned_is_not_yet_learned() -> None:
     words = marked(learning=3)
     for key in words:
         words[key]["learned"] = 1
-    assert tile(page(words), "words learned on targum") == 0
+    assert tile(page(words), "learned on targum") == 0
 
 
 def test_nothing_was_learned_before_the_flag_existed() -> None:
     """Nothing in a finished record says which of the two a word was, so words marked
     before this was written count as neither and the figure starts from nought. Said
     plainly rather than guessed at from dates."""
-    assert tile(page(marked(known=6)), "words learned on targum") == 0
+    assert tile(page(marked(known=6)), "learned on targum") == 0
 
 
 def test_one_word_saved_or_learned_is_not_said_in_the_plural() -> None:
@@ -217,8 +217,8 @@ def test_one_word_saved_or_learned_is_not_said_in_the_plural() -> None:
     words = marked(known=1)
     words[next(iter(words))]["learned"] = 1
     drawn = page(words)
-    assert tile(drawn, "word marked known") == 1
-    assert tile(drawn, "word learned on targum") == 1
+    assert tile(drawn, "word known") == 1
+    assert tile(drawn, "learned on targum") == 1
 
 
 def test_every_figure_is_said_once_on_the_page() -> None:
@@ -229,8 +229,8 @@ def test_every_figure_is_said_once_on_the_page() -> None:
     assert len(labels) == len(set(labels)), f"a figure is said twice: {labels}"
     assert labels == [
         "words on your list",
-        "words marked known",
-        "words learned on targum",
+        "words known",
+        "learned on targum",
         "phrases saved",
         "targums finished",
         "day on targum",
@@ -386,7 +386,13 @@ def test_three_months_of_reading_draw_a_line_said_as_a_count_in_ten() -> None:
         "July 2026: about 6 in 10 · 1 section",
         "August 2026: about 7 in 10 · 4 sections",
     ]
-    assert drawn["ticks"] == ["0 in 10", "5 in 10", "10 in 10"]
+    # The board's line: no grid and no scale, each month named under its dot.
+    assert drawn["ticks"] == []
+    assert drawn["months"] == ["June", "July", "August"] or drawn["months"] == [
+        "June 2026",
+        "July 2026",
+        "August 2026",
+    ]
     assert "%" not in json.dumps(drawn)
 
 
@@ -426,13 +432,23 @@ def test_a_line_that_falls_says_why_and_nothing_else() -> None:
     assert len(level["said"]) == 1
 
 
-def test_under_three_months_the_part_is_not_there() -> None:
-    """Under three points there is no line, and no paragraph promising one: the board
+def test_two_months_draw_the_line() -> None:
+    """The board draws its line from two points (§12, "The mockups win on Your Progress",
+    2026-10-09)."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading={"he": {"line": [month("2026-08", 80), month("2026-09", 90)], "months": 2}},
+    )["reading"]
+    assert drawn["shown"] and drawn["drawn"] and len(drawn["points"]) == 2
+
+
+def test_under_two_months_the_part_is_not_there() -> None:
+    """Under two points there is no line, and no paragraph promising one: the board
     has no waiting state (David, 2026-10-09, "a wall of text"), so the part is hidden
     until there is something to draw."""
     drawn = draw(
         {"targum:vocab:he": vocab(known=3)},
-        reading={"he": {"line": [], "months": 2, "sections": 5}},
+        reading={"he": {"line": [], "months": 1, "sections": 5}},
     )["reading"]
     assert not drawn["shown"] and not drawn["drawn"]
     assert drawn["said"] == []
@@ -603,13 +619,14 @@ def test_what_next_names_the_words_with_their_own_meanings_and_the_texts() -> No
     assert drawn["met"][0]["text"].endswith("met in 4 texts")
     # A word the server met that this browser has not seen yet is still named.
     assert drawn["met"][1]["text"] == "elsewhere | met in 2 texts"
-    assert drawn["level"] == [{"text": "יונהJonah | 91% known", "href": "/library?k=k#jonah"}]
+    # The title alone and its share known, as the board has it.
+    assert drawn["level"] == [{"text": "יונה | 91% known", "href": "/library?k=k#jonah"}]
     assert drawn["more"] == "More in the Library →"
 
 
-def test_nothing_met_twice_says_what_would_gather_there() -> None:
+def test_nothing_met_twice_is_one_quiet_line() -> None:
     drawn = story(words=[], texts=[])["next"]
-    assert drawn["met"] == [] and drawn["metEmpty"].startswith("Finish a few sections")
+    assert drawn["met"] == [] and drawn["metEmpty"] == "None yet."
     assert drawn["levelEmpty"].startswith("Nothing is quite at your level yet")
 
 
@@ -618,9 +635,10 @@ def test_the_story_is_asked_for_the_language_on_the_page() -> None:
     assert any(url.startswith("/account/story?language=ru") for url in drawn["asked"])
 
 
-def test_the_words_taken_up_are_a_column_a_week_for_twelve_weeks() -> None:
-    """By the week a word was saved and coloured by where it is now: nothing records the
-    day a word became known (§12, 2026-10-09)."""
+def test_the_words_taken_up_are_a_column_a_week_shaded_by_height() -> None:
+    """By the week a word was saved: nothing records the day a word became known (§12,
+    2026-10-09). From the first week with anything in it, each column one shade of the
+    stage ramp by its height, leaf for the tallest, and no legend (the board's)."""
     today = date.today()
     words: dict[str, Any] = {}
     words |= _on(today, 3, "now")
@@ -628,11 +646,11 @@ def test_the_words_taken_up_are_a_column_a_week_for_twelve_weeks() -> None:
     words["last-0"]["status"] = 2
     words |= _on(today - timedelta(days=200), 40, "long-ago")
     drawn = draw({"targum:vocab:he": words})["weeks"]
-    assert drawn["columns"] == 12
+    assert drawn["columns"] == 2, "from the first week with a word in it"
     assert drawn["label"] == "5 words taken up in the last twelve weeks"
-    # This week: three known, one part; last week: one known and one at step 2.
-    assert drawn["parts"][-1] == 1 and drawn["parts"][-2] == 2
+    assert drawn["shades"] == ["var(--step-2)", "var(--step-4)"]
     assert drawn["titles"][-1].endswith(": 3 words")
+    assert not drawn["legend"]
 
 
 def test_no_words_lately_is_said_rather_than_drawn_flat() -> None:

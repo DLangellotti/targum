@@ -110,6 +110,9 @@ RADIUS_TOKENS = {
 SIZES = {
     "2.75rem",
     "2.25rem",
+    # §12, 2026-10-09 ("The mockups win on Your Progress"): the boards' page title and big
+    # figures, 34px at a 1440 window.
+    "1.9375rem",
     "1.75rem",
     "1.5rem",
     "1.5em",

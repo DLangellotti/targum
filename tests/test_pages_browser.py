@@ -874,8 +874,8 @@ def test_progress_says_time_listened_watched_and_words_read_and_narrows_them(bro
     """targum-internal#339: "track hours/minutes listened/watched + words read… displayed
     and filterable on Progress." Read off the account's own record, in the page's language
     (the Russian row is not counted here), in hours and minutes and words — no invented
-    unit — and a figure that is nought is not drawn. Filtered by period only, the last 30
-    days first (§12, 2026-10-09)."""
+    unit. The board's three figures, always, a nought said as one. Filtered by period
+    only, the last 30 days first (§12, 2026-10-09)."""
     context, page = _progress_with(browser, {})
     month = page.evaluate(SPENT)
     page.locator("#spent-period .chip", has_text="All time").click()
@@ -886,7 +886,7 @@ def test_progress_says_time_listened_watched_and_words_read_and_narrows_them(bro
     context.close()
 
     assert month["shown"] and not month["sideways"]
-    assert month["figures"] == ["1 h 35 min listened", "25 min watched"], (
+    assert month["figures"] == ["0 words read", "1 h 35 min listened", "25 min watched"], (
         "the book was two months ago"
     )
     assert ever["figures"] == ["12,400 words read", "1 h 35 min listened", "25 min watched"]
@@ -944,7 +944,7 @@ def test_progress_tells_its_story_in_three_parts(browser, width: int) -> None:
     assert got["head"] == "You'd follow nearly all of a news article"
     assert [rung["text"] for rung in got["rungs"]][2:4] == ["A news article93%", "A short story86%"]
     assert not got["credits"], "credits are the account page's"
-    assert got["level"] == ["יונהJonah91% known"]
+    assert got["level"] == ["יונה91% known"], "the title alone, as the board has it"
     assert not got["sideways"], got
     if width == 390:
         assert all(rung["height"] >= 44 for rung in got["rungs"]), "§8's thumb"
@@ -987,9 +987,9 @@ READING = """() => {
 def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     browser, width: int
 ) -> None:
-    """targum-internal#291. Three months draw one line that fits the panel at a phone's
-    width and stays a reading width on the desk; a fall is said in one sentence; nothing
-    in the block is a percentage."""
+    """targum-internal#291. Three months draw one line across the panel, as the board
+    draws it (§12, 2026-10-09), at a phone's width and on the desk; a fall is said in one
+    sentence; nothing in the block is a percentage."""
     import os
 
     line = [
@@ -1012,13 +1012,12 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     assert "%" not in got["text"]
     assert not got["sideways"], got
     assert 0 < got["width"] <= got["panelWidth"], got
-    # 30rem, and the rem is §13's clamped one rather than 16px.
-    assert got["width"] <= 30 * got["rem"] + 1, "held to a reading width on the desk"
+    assert got["width"] >= got["panelWidth"] - 2, "the panel's full width, as the board"
 
 
-def test_progress_hides_the_line_under_three_months(browser) -> None:
+def test_progress_hides_the_line_under_two_months(browser) -> None:
     """No line and no paragraph about one (David, 2026-10-09): the part is absent until
-    three months can be drawn."""
+    two months can be drawn."""
     context, page = _progress_with(
         browser, {}, reading={"he": {"line": [], "months": 1, "sections": 2}}
     )

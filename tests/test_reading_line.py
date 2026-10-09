@@ -162,13 +162,13 @@ def test_the_line_is_a_point_a_month_weighted_by_words(tmp_path: Path) -> None:
     ]
 
 
-def test_under_three_months_there_is_no_line() -> None:
-    rows = [
-        {"at": ms(2026, 7), "tokens": 50, "known": 40},
-        {"at": ms(2026, 8), "tokens": 200, "known": 100},
-    ]
-    assert coverage.monthly(rows) == []
-    assert len(coverage.by_month(rows)) == 2, "and the page can still say how many there are"
+def test_under_two_months_there_is_no_line() -> None:
+    """Two months draw (the board's line starts at its second point, §12 2026-10-09)."""
+    one = [{"at": ms(2026, 8), "tokens": 200, "known": 100}]
+    assert coverage.monthly(one) == []
+    assert len(coverage.by_month(one)) == 1, "and the page can still say how many there are"
+    two = one + [{"at": ms(2026, 9), "tokens": 50, "known": 40}]
+    assert [point["month"] for point in coverage.monthly(two)] == ["2026-08", "2026-09"]
 
 
 def test_the_block_says_no_percentage_no_level_and_no_score() -> None:

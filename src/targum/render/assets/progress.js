@@ -168,29 +168,31 @@
        §9 makes the inverted surface the only place the bright set is legal, and §4 says
        which is which — leaf for what has been reached, iris for phrases, sun for what
        targum taught. Everything without one stays paper-white. */
-    function count(value, label, hue, title) {
+    function count(value, label, hue, title, name) {
       // A zero is not a peak moment: §6 keeps what has not happened quiet.
-      var box = el("div", hue && value ? "lit " + hue : null);
+      var box = el("div", "count-" + name + (hue && value ? " lit " + hue : ""));
       box.appendChild(el("b", null, grouped(value)));
       box.appendChild(el("span", null, label));
       if (title) box.title = title;
       host.appendChild(box);
     }
 
-    count(sums.saved, tn("progress.count.saved", sums.saved, "word on your list", "words on your list"));
-    count(sums.known, tn("progress.count.known", sums.known, "word marked known", "words marked known"), "leaf");
+    count(sums.saved, tn("progress.count.saved", sums.saved, "word on your list", "words on your list"), null, null, "saved");
+    // The board's labels (§12, "The mockups win on Your Progress", 2026-10-09).
+    count(sums.known, tn("progress.count.known", sums.known, "word known", "words known"), "leaf", null, "known");
     // What targum carried up to known, rather than what a reader arrived already having.
     count(
       sums.learned,
-      tn("progress.count.learned", sums.learned, "word learned on targum", "words learned on targum"),
+      tn("progress.count.learned", sums.learned, "learned on targum", "learned on targum"),
       "sun",
-      t("progress.count.learned.title", "Saved as new and since marked known.")
+      t("progress.count.learned.title", "Saved as new and since marked known."),
+      "learned"
     );
-    count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris");
-    count(sums.finished, tn("progress.count.finished", sums.finished, "targum finished", "targums finished"), "leaf");
-    count(days.length, tn("progress.count.days", days.length, "day on targum", "days on targum"));
+    count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris", null, "phrases");
+    count(sums.finished, tn("progress.count.finished", sums.finished, "targum finished", "targums finished"), "leaf", null, "finished");
+    count(days.length, tn("progress.count.days", days.length, "day on targum", "days on targum"), null, null, "days");
     var read = wordsRead(code);
-    if (read !== null) count(read, tn("progress.count.read", read, "word read", "words read"));
+    if (read !== null) count(read, tn("progress.count.read", read, "word read", "words read"), null, null, "read");
   }
 
   /* --- 1 · where you are ------------------------------------------------------ */
@@ -321,6 +323,7 @@
 
   function clock(seconds) {
     var minutes = Math.round(seconds / 60);
+    if (!seconds) return t("progress.spent.minutes", "{m} min", { m: 0 });
     if (minutes < 1) return t("progress.spent.under-a-minute", "under a minute");
     var hours = Math.floor(minutes / 60);
     var rest = minutes % 60;
@@ -339,9 +342,19 @@
     return then.getFullYear() + "-" + two(then.getMonth() + 1) + "-" + two(then.getDate());
   }
 
+  //: Whether the account's record holds anything at all in this language.
+  function recorded(code) {
+    return Boolean(
+      spentRows &&
+        spentRows.some(function (row) {
+          return !row.language || row.language === code;
+        })
+    );
+  }
+
   //: Every word read in this language, ever, or null where the account keeps no record.
   function wordsRead(code) {
-    if (!spentRows) return null;
+    if (!recorded(code)) return null;
     var sum = 0;
     spentRows.forEach(function (row) {
       if (!row.language || row.language === code) sum += row.words || 0;
@@ -363,8 +376,11 @@
     var panel = document.getElementById("spent");
     var figures = document.getElementById("spent-figures");
     var chips = document.getElementById("spent-period");
-    if (!panel || !figures || !spentRows) return;
-    panel.hidden = false;
+    if (!panel || !figures) return;
+    // Drawn whenever the record holds anything in this language, and absent where it
+    // holds nothing: the board has no waiting state (§12, 2026-10-09).
+    panel.hidden = !recorded(code);
+    if (panel.hidden) return;
     chips.textContent = "";
     PERIODS.forEach(function (pair) {
       var chip = el("button", "chip", pair[1]);
@@ -392,12 +408,10 @@
       one.appendChild(el("span", "spent-label", label));
       figures.appendChild(one);
     }
-    if (sums.words) figure(grouped(sums.words), tn("progress.spent.words", sums.words, "word read", "words read"));
-    if (sums.listened && !SILENT[code]) figure(clock(sums.listened), t("progress.spent.listened", "listened"));
-    if (sums.watched) figure(clock(sums.watched), t("progress.spent.watched", "watched"));
-    if (!figures.children.length) {
-      figures.appendChild(el("p", "note", t("progress.spent.nothing", "Nothing recorded for this choice yet.")));
-    }
+    // The board's three, always: a nought is a figure of the period, not a gap in it.
+    figure(grouped(sums.words), tn("progress.spent.words", sums.words, "word read", "words read"));
+    if (!SILENT[code]) figure(clock(sums.listened), t("progress.spent.listened", "listened"));
+    figure(clock(sums.watched), t("progress.spent.watched", "watched"));
   }
 
   function askSpent() {
@@ -407,13 +421,15 @@
         return answer.json();
       })
       .then(function (said) {
-        if (!said || !said.signedIn || !said.kept) return;
+        if (!said || !said.signedIn) return;
         if (!said.on) {
           var off = document.getElementById("spent-off");
           if (off) off.hidden = false;
           return;
         }
-        spentRows = said.totals || [];
+        // Read wherever there is a record, kept or not kept any more (§12, 2026-10-09).
+        spentRows = said.totals && said.totals.length ? said.totals : null;
+        if (!spentRows) return;
         drawSpent(currentCode);
         drawLedger(document.getElementById("counts"), data[currentCode], readingDays, currentCode);
       })
@@ -422,10 +438,11 @@
       });
   }
 
-  /* The words taken up, a column a week for twelve weeks, each coloured by where its
-     words are now. "Came to know" is what the board says; nothing records the day a word
-     reached known, only the day it was saved, so the chart draws what was kept (§12,
-     2026-10-09). The ramp from just met to known, §4's leaf at the top. */
+  /* The words taken up, a column a week over the last twelve weeks, from the first week
+     with anything in it. "Came to know" is what the board says; nothing records the day a
+     word reached known, only the day it was saved, so the chart draws what was kept (§12,
+     2026-10-09). Each column is one shade of the stage ramp chosen by its height — lighter
+     for fewer, leaf for the most — and there is no legend, as the board draws it. */
   var WEEKS = 12;
   var DAY = 24 * 60 * 60 * 1000;
 
@@ -455,8 +472,11 @@
     }
     var bars = el("ol", "weeks");
     var total = 0;
+    var first = 0;
+    while (first < columns.length && !columns[first].all) first += 1;
     columns.forEach(function (column, index) {
       total += column.all;
+      if (index < first) return;
       var bar = el("li", "week");
       var from = new Date(start + index * 7 * DAY);
       var label = tn("progress.weeks.week", column.all, "Week of {date}: {n} word", "Week of {date}: {n} words", {
@@ -464,19 +484,16 @@
       });
       bar.title = label;
       bar.setAttribute("aria-label", label);
-      var stack = el("span", "week-stack");
-      stack.style.height = Math.round((column.all / most) * 100) + "%";
-      // Known at the foot, the steps above it: the column grows from what is settled.
-      STEPS.slice()
-        .reverse()
-        .forEach(function (step) {
-          if (!column[step.status]) return;
-          var part = el("span", "week-part");
-          part.style.flexGrow = String(column[step.status]);
-          part.style.background = "var(" + step.slot + ")";
-          stack.appendChild(part);
-        });
-      bar.appendChild(stack);
+      var share = column.all / most;
+      // A week with nothing in it keeps its place and draws nothing.
+      if (!column.all) {
+        bars.appendChild(bar);
+        return;
+      }
+      var shade = el("span", "week-bar");
+      shade.style.height = Math.round(share * 100) + "%";
+      shade.style.background = "var(" + rampFor(share) + ")";
+      bar.appendChild(shade);
       bars.appendChild(bar);
     });
     bars.setAttribute("role", "img");
@@ -485,16 +502,14 @@
       tn("progress.weeks.label", total, "{n} word taken up in the last twelve weeks", "{n} words taken up in the last twelve weeks")
     );
     host.appendChild(bars);
-    var legend = el("div", "legend");
-    STEPS.forEach(function (step) {
-      var item = el("span");
-      var swatch = el("i");
-      swatch.style.background = "var(" + step.slot + ")";
-      item.appendChild(swatch);
-      item.appendChild(document.createTextNode(step.name));
-      legend.appendChild(item);
-    });
-    host.appendChild(legend);
+  }
+
+  //: The step of the ramp a column of this share of the tallest is drawn in.
+  function rampFor(share) {
+    if (share >= 0.9) return STEPS[3].slot;
+    if (share >= 0.75) return STEPS[2].slot;
+    if (share >= 0.6) return STEPS[1].slot;
+    return STEPS[0].slot;
   }
 
   /* --- 3 · what next ------------------------------------------------------------ */
@@ -556,11 +571,12 @@
         tn("progress.next.met", one.texts, "met in {n} text", "met in {n} texts")
       );
     });
+    // With none, one quiet line rather than a paragraph (§12, 2026-10-09).
     if (!found.length) {
       metEmpty.textContent =
         signedIn === false
           ? t("progress.next.words-signed-out", "Sign in and we'll find the words you keep meeting.")
-          : t("progress.next.words-none", "Finish a few sections and the words you keep meeting will gather here.");
+          : t("progress.next.words-none", "None yet.");
       metEmpty.hidden = false;
     }
 
@@ -591,12 +607,13 @@
     }
 
     var texts = (said && said.texts) || [];
+    // The title alone and how much of it is known, as the board has it.
     texts.forEach(function (one) {
       row(
         level,
         one.title,
         code,
-        one.english || one.author || "",
+        "",
         t("progress.next.known", "{n}% known", { n: one.known }),
         keyed("/library#" + encodeURIComponent(one.id)),
         true
@@ -623,8 +640,10 @@
    * graded dialogue to Agnon is a drop, and that is the truthful picture. When the latest
    * month is lower, one sentence says why — harder text, not lost ground — and nothing
    * else: no apology, no encouragement. Said as a count in ten, never as a percentage, a
-   * level or a score (§6). Under three months there is no line and no part: nothing is
-   * said about a chart that is not there. Absent signed out.
+   * level or a score (§6). Under two months there is no line and no part: nothing is
+   * said about a chart that is not there. Absent signed out. Drawn as the board draws it
+   * (§12, 2026-10-09): the panel's full width, a baseline, the line, a dot a month and
+   * each month's name under its dot.
    */
   var readingSeries = null;
 
@@ -673,10 +692,10 @@
     said.textContent = "";
     var mine = readingSeries[code] || { line: [], months: 0, sections: 0 };
     var points = mine.line || [];
-    // Under three months there is nothing to draw, and the part is not there at all
+    // Under two months there is nothing to draw, and the part is not there at all
     // rather than a paragraph promising it (David, 2026-10-09: the board has no waiting
     // state, and §6 keeps what has not happened quiet).
-    panel.hidden = points.length < 3;
+    panel.hidden = points.length < 2;
     if (panel.hidden) return;
 
     var thisYear = new Date().getUTCFullYear();
@@ -701,9 +720,11 @@
       );
     }
 
-    var W = 320;
-    var H = 150;
-    var pad = { top: 10, right: 10, bottom: 22, left: 44 };
+    // The panel's own width in pixels, so the dots stay round and the months stay their
+    // size; redrawn on a resize (below).
+    var W = Math.max(240, Math.round(host.clientWidth || (host.getBoundingClientRect ? host.getBoundingClientRect().width : 0) || 640));
+    var H = 120;
+    var pad = { top: 12, right: 20, bottom: 22, left: 20 };
     var plotW = W - pad.left - pad.right;
     var plotH = H - pad.top - pad.bottom;
     function share(point) {
@@ -719,20 +740,15 @@
     var wrap = el("div", "chart");
     var picture = svg("svg", {
       viewBox: "0 0 " + W + " " + H,
+      width: W,
+      height: H,
       role: "img",
       "aria-label": t("progress.reading.label", "What you knew of what you read, {first} to {last}", {
         first: monthName(points[0].month, true),
         last: monthName(last.month, true),
       }),
     });
-    var grid = svg("g", { class: "grid" });
-    [0, 5, 10].forEach(function (n) {
-      grid.appendChild(svg("line", { x1: pad.left, y1: py(n / 10), x2: W - pad.right, y2: py(n / 10) }));
-      var tick = svg("text", { x: pad.left - 6, y: py(n / 10) + 3, "text-anchor": "end" });
-      tick.textContent = t("progress.reading.tick", "{n} in 10", { n: n });
-      grid.appendChild(tick);
-    });
-    picture.appendChild(grid);
+    picture.appendChild(svg("line", { class: "reading-base", x1: 0, y1: H - pad.bottom + 2, x2: W, y2: H - pad.bottom + 2 }));
 
     var line = points
       .map(function (point, index) {
@@ -741,7 +757,7 @@
       .join(" ");
     // Leaf, one hue, whichever way it goes: §4 gives progress to leaf, and a fall drawn in
     // clay would be the verdict the sentence under it refuses to give.
-    picture.appendChild(svg("path", { class: "reading-path", d: line, fill: "none", stroke: "var(--leaf)", "stroke-width": 2 }));
+    picture.appendChild(svg("path", { class: "reading-path", d: line, fill: "none", stroke: "var(--leaf)", "stroke-width": 3 }));
 
     // Every point carries its month, its count in ten and how many sections are behind
     // it — on the point itself, as a title a screen reader and a long press both reach.
@@ -756,10 +772,8 @@
         class: "reading-point",
         cx: px(index),
         cy: py(share(point)),
-        r: 4,
+        r: index === points.length - 1 ? 5 : 4,
         fill: "var(--leaf)",
-        stroke: "var(--paper)",
-        "stroke-width": 2,
         tabindex: "0",
         "aria-label": about + " · " + behind,
       });
@@ -770,14 +784,16 @@
       picture.appendChild(dot);
     });
 
-    var ends = svg("g", { class: "axis" });
-    var first = svg("text", { x: pad.left, y: H - 6 });
-    first.textContent = monthName(points[0].month, true);
-    var end = svg("text", { x: W - pad.right, y: H - 6, "text-anchor": "end" });
-    end.textContent = monthName(last.month, true);
-    ends.appendChild(first);
-    ends.appendChild(end);
-    picture.appendChild(ends);
+    // Each month's name under its dot, the year only where it is not this one.
+    var months = svg("g", { class: "axis" });
+    points.forEach(function (point, index) {
+      var year = Number(String(point.month).slice(0, 4));
+      var anchor = index === 0 ? "start" : index === points.length - 1 ? "end" : "middle";
+      var name = svg("text", { class: "reading-month", x: px(index), y: H - 4, "text-anchor": anchor });
+      name.textContent = monthName(point.month, year !== thisYear);
+      months.appendChild(name);
+    });
+    picture.appendChild(months);
 
     wrap.appendChild(picture);
     host.appendChild(wrap);
