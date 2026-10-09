@@ -325,11 +325,12 @@ def test_the_offer_card_draws_a_set_with_what_each_text_uses(browser) -> None:
 
 
 def test_a_series_page_carries_subscribe_for_somebody_signed_in() -> None:
-    template = (ASSETS.parent / "templates" / "_series_subscribe.html.j2").read_text("utf-8")
-    assert "subscribe.js" in template
-    for page in ("weekly.html.j2", "parasha.html.j2", "daily.html.j2"):
-        text = (ASSETS.parent / "templates" / page).read_text(encoding="utf-8")
-        assert "{%- if signed_in %}" in text and "_series_subscribe.html.j2" in text, page
+    """One page for every series (design.md §12, "A series is one page of the desk, for
+    everyone", 2026-10-09): the switch for somebody signed in, drawn in the state the
+    account is in, and the sign-in prompt for a stranger."""
+    text = (ASSETS.parent / "templates" / "series.html.j2").read_text(encoding="utf-8")
+    assert "{%- if signed_in %}" in text and 'id="series-subscribe"' in text
+    assert "subscribe.js" in text and "series-sign-in" in text
 
 
 SITE = "http://targum.test"

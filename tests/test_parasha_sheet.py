@@ -179,25 +179,15 @@ def test_a_sheet_that_cannot_be_set_is_one_sentence(
     assert body.decode() == "We can't make the PDF right now. Try again in a minute."
 
 
-def test_the_portions_page_offers_the_download_with_its_choices(serving: tuple[int, str]) -> None:
+def test_the_portions_page_offers_the_download(serving: tuple[int, str]) -> None:
+    """One press beside Subscribe, with the reader's own defaults (design.md §12, "A
+    series is one page of the desk", 2026-10-09); the language rides on it."""
     port, _ = serving
     page = fetch(port, "/parasha")[2].decode()
-    form = page.partition('<form class="sheet-choices"')[2].partition("</form>")[0]
-    assert f'action="/parasha/{SLUG}.pdf"' in form and "Download PDF" in form
-    # The reader's defaults, ticked: their language, Onkelos and Rashi, the vowels, the
-    # te'amim, the meanings and the haftarah; Rashi in English offered and not ticked
-    # (targum-internal#414).
-    assert '<input type="checkbox" name="with" value="en" checked>' in form
-    assert '<input type="checkbox" name="with" value="targum" checked>' in form
-    assert '<input type="checkbox" name="with" value="rashi" checked>' in form
-    assert '<input type="checkbox" name="with" value="rashi-en">' in form
-    for name in ("vowels", "taamim", "gloss", "haftarah"):
-        assert f'<input type="hidden" name="{name}" value="0">' in form
-        assert f'<input type="checkbox" name="{name}" value="1" checked>' in form
+    assert f'class="btn ghost outline series-pdf" href="/parasha/{SLUG}.pdf"' in page
+    assert 'aria-label="Download PDF"' in page
     russian = fetch(port, "/parasha?lang=ru")[2].decode()
-    form = russian.partition('<form class="sheet-choices"')[2].partition("</form>")[0]
-    assert '<input type="hidden" name="lang" value="ru">' in form
-    assert '<input type="checkbox" name="with" value="ru" checked>' in form
+    assert f'href="/parasha/{SLUG}.pdf?lang=ru"' in russian
 
 
 def test_the_reader_offers_it_in_its_menu_on_a_portion_only(built: Index) -> None:  # noqa: F811

@@ -214,11 +214,14 @@ def test_the_unaccented_form_keeps_the_vowels_and_drops_the_accents() -> None:
 
 
 def test_this_weeks_portion_is_served(serving: int) -> None:
+    """A page of the desk (design.md §12, "A series is one page of the desk, for
+    everyone", 2026-10-09): the app's bar, the series' head and this Shabbat's card."""
     status, body = get(serving, "/parasha")
     assert status == 200
-    assert "This week's parasha" in body
-    assert "/parasha/read/" in body, "the reader is framed rather than linked to"
-    assert "sec-0001.html" in body, "it opens on the first aliyah, not the contents page"
+    assert 'class="site-head"' in body, "the app's bar, not the front door's"
+    assert "The weekly portion" in body and "This Shabbat" in body
+    assert "/parasha/read/" in body, "each aliyah opens its reader"
+    assert "sec-0001.html" in body, "the press opens on the first aliyah, not the contents"
 
 
 def test_any_portion_has_an_address_of_its_own(serving: int) -> None:
@@ -260,13 +263,13 @@ def test_a_name_cannot_climb_out_of_the_corpus(serving: int, path: str) -> None:
     assert raw(serving, path) == 404
 
 
-def test_the_chips_work_without_javascript(serving: int) -> None:
-    """They are links first. `parasha.js` upgrades them to a switch; with it turned off
-    the page still offers both readings."""
+def test_a_page_of_the_desk_has_no_frame_and_no_teamim_switch(serving: int) -> None:
+    """The landing framed the whole reader beside a te'amim switch; the reader has its own
+    switch, and a row opens it (design.md §12, 2026-10-09)."""
     status, body = get(serving, "/parasha?taamim=off")
     assert status == 200
-    assert 'data-taamim="off"' in body
-    assert 'href="?taamim=on"' in body
+    assert "<iframe" not in body.split('<footer class="site-footer">')[0].split("talk-frame")[0]
+    assert "data-taamim" not in body
 
 
 def test_the_page_says_which_schedule_and_only_names_both_when_they_differ(
@@ -274,12 +277,10 @@ def test_the_page_says_which_schedule_and_only_names_both_when_they_differ(
 ) -> None:
     status, body = get(serving, "/parasha?schedule=israel")
     assert status == 200
-    # Not `"Israel" in body`: the honesty section says the word regardless of the query,
-    # so that assertion passed whatever the schedule did. Assert the page actually served
-    # a reading instead — this corpus has only the diaspora built, so asking for Israel
-    # must fall back rather than 404.
+    # This corpus has only the diaspora built, so asking for Israel must fall back
+    # rather than 404: the page still serves a reading.
     assert "/parasha/read/" in body
-    assert "This week's parasha" in body
+    assert "This Shabbat" in body
 
 
 def test_a_schedule_this_box_never_built_falls_back_rather_than_404ing(serving: int) -> None:
@@ -288,15 +289,6 @@ def test_a_schedule_this_box_never_built_falls_back_rather_than_404ing(serving: 
     status, body = get(serving, "/parasha?schedule=israel")
     assert status == 200
     assert "/parasha/read/" in body, "the reader it does have is still on the page"
-
-
-def test_a_taamim_value_nobody_recognises_leaves_the_marks_on(serving: int) -> None:
-    """Only the literal `off` takes them off, so a mangled link opens the text as the
-    edition wrote it rather than in the departure from it."""
-    status, body = get(serving, "/parasha?taamim=banana")
-    assert status == 200
-    assert 'data-taamim="on" class="here"' in body
-    assert 'data-taamim="off" class="here"' not in body
 
 
 def test_a_portions_catalogue_id_leads_to_its_own_page(serving: int) -> None:
@@ -490,13 +482,13 @@ def test_a_named_portion_does_not_argue_about_schedules(serving: int) -> None:
 
 def test_a_corpus_with_one_schedule_offers_no_choice_between_two(serving: int) -> None:
     """This corpus was built for the diaspora only. Drawing a switch whose other
-    position is not there would be offering a page that does not exist — so the block
+    position is not there would be offering a page that does not exist — so the choice
     stays off, and `test_both_portions_are_named_only_where_the_schedules_really_differ`
     covers the page that has both.
     """
     body = get(serving, "/parasha")[1]
-    assert 'class="schedules"' not in body
-    assert "This week's parasha" in body, "the page itself is fine without it"
+    assert 'class="seg series-schedule"' not in body
+    assert "This Shabbat" in body, "the page itself is fine without it"
 
 
 def test_both_portions_are_named_only_where_the_schedules_really_differ() -> None:
@@ -534,51 +526,32 @@ def test_both_portions_are_named_only_where_the_schedules_really_differ() -> Non
     assert "reading different portions" not in together
 
 
-def test_the_hero_carries_the_scroll_beside_the_words(serving: int) -> None:
-    """The front door's hero (design.md §12, 2026-09-27): the headline and the waitlist
-    on one side, the photograph on the other as a card."""
+def test_the_series_tile_is_the_scroll_carried_in_the_page(serving: int) -> None:
+    """The photograph stays as the series' tile, carried in the page once, never
+    fetched, and never under type (§12, 2026-09-01 and 2026-10-09)."""
     body = get(serving, "/parasha")[1]
-    assert 'class="front-hero"' in body
-    assert 'class="art" aria-hidden="true"' in body, "the picture says nothing the words do not"
-    assert "data:image/jpeg;base64," in body, "the photograph is inlined, not fetched"
+    assert body.count("data:image/jpeg;base64,") == 1, "inlined once, for every tile"
+    assert 'class="series-tile has-pic is-large" aria-hidden="true"></span>' in body
 
 
-def test_no_type_is_set_over_the_picture(serving: int) -> None:
-    """The reason the picture stands beside the words: a headline over a photograph of
-    writing is a fight. If the words ever end up inside `.art`, it has come back."""
-    import re
-
+def test_a_stranger_is_asked_to_sign_in_not_to_join(serving: int) -> None:
+    """David, 2026-10-09: no marketing landing. A stranger gets the same page with a
+    sign-in prompt where Subscribe stands, and reading needs no account."""
     body = get(serving, "/parasha")[1]
-    art = re.search(r'<figure class="art"[^>]*>(.*?)</figure>', body, re.S)
-    assert art is not None
-    assert "<h1" not in art.group(1)
-    assert "eyebrow" not in art.group(1)
+    assert 'action="/waitlist"' not in body
+    assert 'class="btn filled series-sign-in" href="/account/signin"' in body
+    assert 'id="series-subscribe"' not in body
 
 
-def test_the_call_to_action_is_the_waitlist(serving: int) -> None:
-    """David, 2026-09-27: the door on these pages is the waitlist, asked in the hero and
-    at the foot; reading is the second thing, and sign-in is the bar's and the foot's."""
-    body = get(serving, "/parasha")[1]
-    assert body.count('action="/waitlist"') == 2
-    assert 'class="btn tonal" href="#embed"' in body
-    assert body.count('href="/account/signin"') == 2
-
-
-def test_a_named_portion_gets_its_own_headline(serving: int) -> None:
-    """Fifty-two pages sharing one headline is fifty-two pages a search engine cannot
-    tell apart — and on a portion you browsed to, "this week's" is simply false."""
+def test_a_named_portion_gets_its_own_card(serving: int) -> None:
+    """Fifty-four pages are told apart by what they show: the portion's own name heads
+    its card, and only this week's page calls itself this Shabbat's."""
     week = get(serving, "/parasha")[1]
     named = get(serving, "/parasha/nitzavim-vayeilech")[1]
-    assert "This week's parasha, every word explained." in week
-    assert "Nitzavim-Vayeilech, every word explained." in named
-    # Unescaped and casefolded, and both are needed. This assertion passed for weeks
-    # while every named portion's <title> still said "this week's parasha" — the title is
-    # lower case where the headline is capitalised, and Jinja writes its apostrophe as
-    # &#39;, so a raw case-sensitive search for the phrase could not find it either way.
-    # Above the foot: the foot's "This week's parasha" is a link to /parasha, which is
-    # this week's, and says nothing about the page it stands on (2026-09-28).
+    assert 'id="series-now-title"' in named and "Nitzavim-Vayeilech" in named
+    assert "This Shabbat ·" in week
     page = named.split('<footer class="site-footer">')[0]
-    assert "this week's parasha" not in unescape(page).casefold()
+    assert "this shabbat ·" not in unescape(page).casefold()
 
 
 def test_a_named_portion_does_not_title_itself_this_weeks(serving: int) -> None:
@@ -602,11 +575,12 @@ def test_a_named_portion_does_not_title_itself_this_weeks(serving: int) -> None:
     assert "Nitzavim-Vayeilech" in title(named), "and it still says which portion it is"
 
 
-def test_the_eyebrow_does_not_repeat_the_label_under_it(serving: int) -> None:
-    """Both said "This Shabbat" for a while, one above the other."""
+def test_the_kicker_of_a_named_portion_says_where_it_is(serving: int) -> None:
+    """A named portion is not about a week: its card says which book it is in."""
     named = get(serving, "/parasha/nitzavim-vayeilech")[1]
-    assert "This Shabbat" not in named, "a named portion is not about a week"
-    assert "The reading" in named
+    kicker = named.split('<p class="series-kicker">')[1].split("</p>")[0]
+    assert "This Shabbat" not in kicker
+    assert "Deuteronomy" in kicker
 
 
 def test_the_opening_words_describe_the_page(serving: int) -> None:
@@ -639,7 +613,7 @@ def _cycle() -> list[object]:
 def _nav(page: str) -> str:
     """The portions nav alone. Its closing tag is found from its own opening one — the
     ladder above it is also a nav, and its close comes first in the document."""
-    at = page.index('<nav class="portions"')
+    at = page.index('<nav class="portions')
     return page[at : page.index("</nav>", at)]
 
 
@@ -684,27 +658,23 @@ def test_a_signed_in_reader_is_sent_to_the_portion_on_their_own_shelf() -> None:
     assert 'class="all" href="/library#parasha-bereshit"' in page
 
 
-def test_a_signed_in_reader_is_not_asked_to_join() -> None:
-    """§6: somebody who has already chosen targum is not sold to again (copy audit,
-    2026-09-28, Q21). The bar's call, the hero's form and the closing section go, and
-    the Read button leads the hero — here and on the daily pages, drawn from the same
-    parts."""
-    from pathlib import Path
-
+def test_a_signed_in_reader_gets_the_switch_not_the_prompt() -> None:
+    """One page for everyone (design.md §12, 2026-10-09): signed in, Subscribe in the
+    state the account is in; signed out, the sign-in prompt in its place."""
     from targum.render.builder import parasha_page
 
     listed = _cycle()
     stranger = parasha_page(listed[1], schedule=cal.Schedule.diaspora, listed=listed)
-    assert stranger.count('action="/waitlist"') == 2 and 'href="#join"' in stranger
+    assert 'class="btn filled series-sign-in"' in stranger
+    assert 'id="series-subscribe"' not in stranger
     reader = parasha_page(listed[1], schedule=cal.Schedule.diaspora, listed=listed, signed_in=True)
-    assert 'action="/waitlist"' not in reader
-    assert 'href="#join"' not in reader and 'id="join"' not in reader
-    assert 'class="btn cta" href="#embed"' in reader
-    daily = (Path(__file__).parents[1] / "src/targum/render/templates/daily.html.j2").read_text(
-        encoding="utf-8"
+    assert 'id="series-subscribe"' in reader and 'class="btn filled series-sign-in"' not in reader
+    assert 'aria-pressed="false"' in reader and "btn filled series-switch" in reader
+    on = parasha_page(
+        listed[1], schedule=cal.Schedule.diaspora, listed=listed, signed_in=True, subscribed=True
     )
-    assert daily.count("{%- if not signed_in %}") == 2, "the hero's form and the closing one"
-    assert "btn {{ 'cta' if signed_in else 'tonal' }}" in daily
+    assert 'aria-pressed="true"' in on and "btn tonal is-on series-switch" in on
+    assert 'action="/waitlist"' not in reader + stranger
 
 
 def test_the_served_page_carries_the_way_round_the_year(serving: int, built: Index) -> None:
@@ -873,17 +843,16 @@ def _parts(page: str) -> list[dict[str, str]]:
     import re
 
     found = []
-    for link in re.findall(r'<a class="week-part"([^>]*)>(.*?)</a>', page):
-        attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', link[0]))
-        attrs["name"] = unescape(re.sub(r"<[^>]+>", "", link[1].split('<span class="read"')[0]))
-        found.append(attrs)
+    rows = page.split('<ol class="rows series-parts">')[1].split("</ol>")[0]
+    for href, inner in re.findall(r'<a class="series-row-title" href="([^"]*)">(.*?)</a>', rows):
+        name = unescape(re.sub(r"<[^>]+>", "", inner.split('<span class="series-en">')[0]))
+        found.append({"href": href, "name": name.strip()})
     return found
 
 
 def test_this_weeks_page_lists_each_part_of_the_reading(serving: int, tmp_path: Path) -> None:
-    """Seven aliyot and the haftarah, each a way into its frame, each carrying the document
-    its finish is kept under and the moment this week began — so the page can say what is
-    left without a count, and without a clock of its own."""
+    """Seven aliyot and the haftarah, each a row that opens its reader, with no share of
+    it said where nobody is signed in."""
     from targum.parasha.cut import ALIYOT, HAFTARAH
 
     status, body = get(serving, "/parasha")
@@ -892,39 +861,26 @@ def test_this_weeks_page_lists_each_part_of_the_reading(serving: int, tmp_path: 
     reader = tmp_path / "parasha" / "read" / "nitzavim-vayeilech" / "reader"
     sections = len(list(reader.glob("sec-*.html")))
     assert [p["name"] for p in parts] == [*ALIYOT[:sections], HAFTARAH]
-
-    document = json.loads('"' + body.split('data-document="')[1].split('"')[0] + '"')
-    kept = (reader / "sec-0002.html").read_text(encoding="utf-8")
-    assert f'"document": "{document}"' in kept, "the id the reader writes its finish under"
     for n, part in enumerate(parts[:sections], start=1):
         assert part["href"] == f"/parasha/read/nitzavim-vayeilech/reader/sec-{n:04d}.html"
-        assert part["target"] == "reading" and part["data-section"] == str(n)
-    haftarah = parts[-1]
-    assert haftarah["target"] == "haftarah" and haftarah["data-section"] == "0"
-    assert haftarah["href"] == "/parasha/read/haftarah-isaiah-61-10-63-9/reader/index.html"
-    assert haftarah["data-document"] and haftarah["data-document"] != document
-    assert 'name="reading"' in body and 'name="haftarah"' in body, "the targets exist"
-
-    began = datetime(2026, 8, 30, 2, tzinfo=ZoneInfo(cal.FLIP_ZONE))
-    assert {p["data-began"] for p in parts} == {str(int(began.timestamp() * 1000))}
-    assert "%" not in body.split('<ol class="week"')[1].split("</ol>")[0], "no share of it"
+    assert parts[-1]["href"] == "/parasha/read/haftarah-isaiah-61-10-63-9/reader/index.html"
+    rows = body.split('<ol class="rows series-parts">')[1].split("</ol>")[0]
+    assert "% known" not in rows and "series-mark" not in rows, "nothing marked for a stranger"
 
 
 def test_a_portion_asked_for_by_name_is_not_a_week(serving: int) -> None:
     status, body = get(serving, "/parasha/nitzavim-vayeilech")
     assert status == 200
-    assert 'class="week-part"' not in body, "a portion by name has no week to be read in"
+    assert "This Shabbat ·" not in body, "a portion by name has no week to be read in"
 
 
 def test_the_week_holds_until_the_turn(serving: int, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A reader mid-practice on Saturday night keeps the week they are in until the turn:
-    one minute before it the page still counts from the Sunday that began it."""
+    """A reader mid-practice on Saturday night keeps the week they are in until the turn."""
     saturday_night = datetime(2026, 9, 6, 1, 59, tzinfo=ZoneInfo(cal.FLIP_ZONE))
     monkeypatch.setattr(cal, "now_in_flip_zone", lambda moment=None: saturday_night)
     status, body = get(serving, "/parasha")
     assert status == 200
-    began = datetime(2026, 8, 30, 2, tzinfo=ZoneInfo(cal.FLIP_ZONE))
-    assert f'data-began="{int(began.timestamp() * 1000)}"' in body
+    assert "This Shabbat · 5 September" in body
     assert "nitzavim-vayeilech/reader/sec-0001.html" in body
 
 
@@ -944,28 +900,22 @@ def test_a_festival_week_lists_what_is_actually_read(
     folder = built.portions["shavuot-ii-on-shabbat"].folder
     assert all(f"/parasha/read/{folder}/" in p["href"] for p in parts[:-1])
     # The fixture's festival reading is too short to split, so it is one part, read whole.
-    assert len(parts) == 2 and parts[0]["data-sections"] == "1"
+    assert len(parts) == 2 and parts[0]["href"].endswith("/reader/index.html")
     assert parts[-1]["href"] == "/parasha/read/haftarah-habakkuk-3-1-19/reader/index.html"
 
 
-def test_the_dateline_is_one_sentence_in_the_readers_language() -> None:
-    """targum-internal#348 names the parasha dateline as the last thing outside the
-    catalogue. It was four fragments of English prose — "is read on", a comma, "verses
-    in" — which can only ever come out in English's word order.
-
-    One key and one sentence now, with the counts through `tn` because Russian has three
-    plural forms, and the date through `said_on` because «читают суббота» is not foreign,
-    it is wrong.
-    """
+def test_the_facts_line_counts_in_the_readers_language() -> None:
+    """targum-internal#348: the counts go through `tn`, because Russian has three plural
+    forms, and the books are the language's own."""
     import re
     from datetime import date
 
     from targum.parasha.models import Portion as P
     from targum.render.builder import parasha_page
 
-    def dateline(html: str) -> str:
-        found = re.search(r'<p class="dateline">(.*?)</p>', html, re.S)
-        assert found, "no dateline on the page"
+    def facts(html: str) -> str:
+        found = re.search(r'<p class="series-facts">(.*?)</p>', html, re.S)
+        assert found, "no facts on the card"
         return " ".join(re.sub(r"<[^>]+>", " ", found.group(1)).split())
 
     portion = P(
@@ -978,32 +928,21 @@ def test_the_dateline_is_one_sentence_in_the_readers_language() -> None:
         aliyot=7,
     )
     when = date(2026, 5, 30)
-
-    english = dateline(parasha_page(portion, schedule=cal.Schedule.diaspora, shabbat=when))
-    assert "is read on Saturday, May 30, 2026" in english
-    assert "176 verses in 7 aliyot" in english, "English is exactly what it was"
-
-    russian = dateline(
+    english = facts(parasha_page(portion, schedule=cal.Schedule.diaspora, shabbat=when))
+    assert english == "Numbers 4:21-7:89 · 176 verses in 7 aliyot"
+    russian = facts(
         parasha_page(portion, schedule=cal.Schedule.diaspora, shabbat=when, language="ru")
     )
-    assert "читают в субботу, 30 мая 2026" in russian, "the accusative, with its preposition"
-    assert "176 стихов" in russian, "many, not the English plural"
-    assert "verses" not in russian and "is read on" not in russian
-
-    # 21 is `one` and 11 is `many`: the pair a page that guessed would get wrong.
-    for count, form in ((21, "21 стих "), (11, "11 стихов"), (22, "22 стиха")):
+    assert "176 стихов" in russian and "verses" not in russian
+    for count, form in ((21, "21 стих,"), (11, "11 стихов"), (22, "22 стиха")):
         one = P(slug="y", name="N", hebrew="נ", numbers=[35], summary="s", verses=count, aliyot=1)
-        said = dateline(
-            parasha_page(one, schedule=cal.Schedule.diaspora, shabbat=when, language="ru")
-        )
-        assert form.strip() in said, (count, said)
+        said = facts(parasha_page(one, schedule=cal.Schedule.diaspora, shabbat=when, language="ru"))
+        assert form in said, (count, said)
 
 
 def test_the_credits_are_whole_sentences_with_their_links_inside_them() -> None:
-    """targum-internal#348. These were four keys, each a fragment around a link and two of
-    them beginning with a comma — a shape that can only ever be put back in English's
-    order. One key each now, with the links riding in blanks as `Markup`, which
-    `Markup.format` passes through while escaping everything else a blank carries."""
+    """targum-internal#348: one key each, with the links riding in blanks as `Markup`,
+    folded at the foot as "Every portion, and credits" since 2026-10-09."""
     import re
     from datetime import date
 
@@ -1017,11 +956,8 @@ def test_the_credits_are_whole_sentences_with_their_links_inside_them() -> None:
         html = parasha_page(
             portion, schedule=cal.Schedule.diaspora, shabbat=when, language=language
         )
-        found = re.search(r'<p class="made credits">(.*?)</p>', html, re.S)
-        assert found, language
-        credits = found.group(1)
-        assert expected in credits
-        # The links are links, not text that looks like one.
+        credits = " ".join(re.findall(r'<p class="series-credit">(.*?)</p>', html, re.S))
+        assert expected in credits, language
         assert "&lt;a" not in html, "a link was escaped into the sentence"
         assert 'href="https://archive.org/details/PockettorahAudioFiles"' in credits
         assert "</a>, " in credits, "and the sentence closes onto them without a gap"

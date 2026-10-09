@@ -85,9 +85,14 @@
       ones that build, and the series not yet taken under them. Drawn by `subs.js` when the
       tab is pressed; signed out, `follow.js` draws the browser's own list as before. -#}
   <section class="panel subs" id="subs-panel" hidden>
+    {#- The filter row (board SubsTab): All, Series, News, Channels and Podcasts with how
+        many each holds, the month's credits on subscriptions, and All languages. -#}
     <div class="sub-top">
-      <div class="chips" id="subs-chips" role="group" aria-label="{{ t("subs.chips", "Show") }}" hidden></div>
-      <p class="sub-credits" id="subs-credits" hidden></p>
+      <div class="tabs chips" id="subs-chips" role="group" aria-label="{{ t("subs.chips", "Show") }}" hidden></div>
+      <div class="sub-top-end">
+        <p class="sub-credits" id="subs-credits" hidden></p>
+        <select class="btn ghost outline small sub-languages" id="subs-languages" aria-label="{{ t("subs.languages.label", "Which language") }}" hidden></select>
+      </div>
     </div>
     <div class="sub-table" role="table" aria-label="{{ t("yours.tabs.subscriptions", "Subscriptions") }}">
       <div class="sub-head-row" id="subs-head" role="row" hidden>
@@ -95,6 +100,7 @@
         <span role="columnheader">{{ t("subs.col.latest", "Latest") }}</span>
         <span role="columnheader">{{ t("subs.col.every", "Comes out") }}</span>
         <span role="columnheader">{{ t("subs.col.month", "This month") }}</span>
+        <span role="columnheader"></span>
       </div>
       <ul class="sub-rows" id="subs-rows"></ul>
     </div>
@@ -102,7 +108,7 @@
     <p class="empty" id="subs-empty" hidden>{{ t("subs.none", "You haven't subscribed to anything yet.") }}</p>
     <p class="said" id="subs-said" role="status" hidden></p>
     <div id="subs-offer"></div>
-    <p class="note sub-foot">{{ t("subs.foot", "New ones go under Continue and come in one mail a day.") }} <a href="/library" data-home-link>{{ t("subs.foot.library", "Find more to subscribe to in the Library") }}</a></p>
+    <p class="note sub-foot">{{ t("subs.foot", "New ones go under Continue and come in one mail a day.") }} <a href="/library" data-home-link><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0"/></svg>{{ t("subs.foot.library", "Find more to subscribe to in the Library") }}</a></p>
   </section>
   </div>
 

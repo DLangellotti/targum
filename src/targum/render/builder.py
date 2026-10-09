@@ -2980,6 +2980,59 @@ def _press(issue: WeeklyIssue) -> list[tuple[str, str]]:
     return [(outlet, PRESS_MARKS[outlet]) for outlet, _ in counts.most_common()]
 
 
+def _english() -> Mapping[str, str]:
+    from ..strings import SOURCE, catalogue
+
+    return catalogue(SOURCE)
+
+
+def _series_page(language: str, **context: Any) -> str:
+    """A series' own page, on the desk, for everyone (design.md §12, "A series is one page
+    of the desk, for everyone", 2026-10-09): `series.html.j2` with what every series
+    shares."""
+    context.setdefault("signed_in", False)
+    context.setdefault("subscribed", False)
+    context.setdefault("token", "")
+    context.setdefault("asked", "")
+    context.setdefault("scripture", False)
+    context.setdefault("picture_uri", "")
+    context.setdefault("head_tile", {"src": "", "letter": "", "tone": "book"})
+    context.setdefault("schedules_apart", False)
+    context.setdefault("open_sources", False)
+    context.setdefault("around", None)
+    context.setdefault("name_of", str)
+    for name in ("past", "credits", "stories", "listed", "others", "absent", "cells", "parts"):
+        context.setdefault(name, [])
+    for name in ("next", "pdf_href", "see_all_href", "schedules", "levels", "month_title"):
+        context.setdefault(name, None)
+    return (
+        _environment()
+        .get_template("series.html.j2")
+        .render(
+            t=page_words(language),
+            tn=page_counts(language),
+            page_language=_page_language(language),
+            strings=script_strings(language, "series.", "subs.", "parasha.sheet."),
+            languages=_language_names(language),
+            **context,
+        )
+    )
+
+
+def _series_words(slug: str, language: str) -> dict[str, str]:
+    """A series' name and sentence in `language`, as its follow button says them."""
+    from ..strings import text
+
+    return {
+        "name": text(f"series.{slug}.name", language),
+        "what": text(f"series.{slug}.what", language),
+    }
+
+
+def _mark_of(view_mark: Mapping[str, Any] | None) -> dict[str, Any]:
+    return dict(view_mark or {"state": ""})
+
+
 def weekly_page(
     issue: WeeklyIssue,
     level: WeeklyLevel,
@@ -2990,85 +3043,195 @@ def weekly_page(
     edition: str = "en",
     signed_in: bool = False,
     asked: str = "",
+    view: Mapping[str, Any] | None = None,
+    subscribed: bool = False,
+    token: str = "",
 ) -> str:
-    """A landing page for the weekly, with the issue's own reader inside it.
+    """The weekly's page (design.md §12, "A series is one page of the desk, for
+    everyone", 2026-10-09; board SeriesWeekly): this issue at its three levels, the one
+    at `level` chosen, how much of each the reader knows, the next issue and the ones
+    before it. One address a level, each canonical to itself, because the three are
+    genuinely different Hebrew.
 
-    `signed_in` takes the waitlist off the page — the bar's call, the hero's form and the
-    closing section — for a reader who already has an account (§6; copy audit,
-    2026-09-28).
-
-    `edition` is which language's reader the frame opens — the page's own where the
-    issue was built into it, English otherwise. The caller asks the index, because only
-    the index and the disk together know whether a Russian edition finished
-    (targum-internal#288).
-
-    Everything it needs comes off the index. It used to read the composed markdown and
-    parse it on every request, back when the page rendered the prose itself; the reader
-    is framed now, so that was a file read and a markdown parse per visit for a value
-    the template had stopped using — and it meant a box serving the weekly needed the
-    source files as well as the built readers. It needs the readers and the index.
+    `edition` is which language's reader "Read at" opens — the page's own where the
+    issue was built into it, English otherwise (targum-internal#288). `view` is the
+    account's half (`series_view.weekly_view`); without it the page is a stranger's.
     """
     from datetime import date as _date
+    from datetime import timedelta
 
-    from ..strings import said_on, text
-    from ..weekly.models import LEVELS, label_in
+    from ..strings import said_day, text
+    from ..weekly.models import LEVELS, Level, label_in
     from ..weekly.models import folder as weekly_folder
 
-    spec = LEVELS[level]
-    said = page_words(language)
-    # The issue's standfirst is one sentence in Hebrew, the same on every language's page,
-    # so a search result for the Russian page read nothing Russian. What the series is
-    # follows it, in the page's language, as the daily's description says its cycle's
-    # (targum-internal#188).
+    t = page_words(language)
+    tn = page_counts(language)
+    view = view or {}
+    known = view.get("known") or {}
     blurb = " ".join(filter(None, (issue.blurb, text("series.weekly.what", language))))
-    press = _press(issue)
-    # An issue in the archive is not this week's, and its hero said so anyway (copy
-    # audit, 2026-09-28): the newest published issue is "this week's", every older one
-    # is worded around its own date.
     published = [one for one in (archive or []) if one.id != issue.id]
     is_newest = not any(one.dated > issue.dated for one in published)
     try:
-        dated_on = said_on(_date.fromisoformat(issue.dated), language)
+        dated = _date.fromisoformat(issue.dated)
     except ValueError:
-        dated_on, is_newest = "", True
+        dated, is_newest = None, True
     _weekly_at = f"{address}/weekly/{issue.id}/{level.value}" if address else ""
-    return (
-        _environment()
-        .get_template("weekly.html.j2")
-        .render(
-            t=page_words(language),
-            page_language=_page_language(language),
-            strings=script_strings(language, "weekly."),
-            # The digest's public name beside the issue's own Hebrew masthead (2026-09-27).
-            title=(
-                f"\u2068{issue.title}\u2069 — {label_in(level, language)} — "
-                f"{text('series.weekly.name', language)} — targum"
-            ),
-            description=blurb,
-            canonical=_addressed_in(_weekly_at, language)[0],
-            alternates=_addressed_in(_weekly_at, language)[1],
-            issue=issue,
-            level=level,
-            spec=spec,
-            folder=weekly_folder(issue.id, level, edition),
-            levels=LEVELS,
-            level_names={
-                one: said(f"weekly.level.{one.value}", named.name) for one, named in LEVELS.items()
-            },
-            explained={
-                one: said(f"weekly.level.{one}.explained", text)
-                for one, text in WEEKLY_LEVELS.items()
-            },
-            shelf_name=text("nav.library", language),
-            press=press,
-            archive=published,
-            is_newest=is_newest,
-            dated_on=dated_on,
-            signed_in=signed_in,
-            joined_from="/weekly",
-            asked=asked,
-        )
+    kept = f"?lang={asked}" if asked else ""
+    names = {one: str(t(f"weekly.level.{one.value}", named.name)) for one, named in LEVELS.items()}
+    shown = names.get(level, LEVELS[level].name)
+    levels = [
+        {
+            "value": edition_.level.value,
+            "name": names[edition_.level],
+            "figure": LEVELS[edition_.level].figure_in(language),
+            "known": known.get(edition_.level.value),
+            "chosen": edition_.level == level,
+            "href": f"/weekly/{issue.id}/{edition_.level.value}{kept}",
+        }
+        for edition_ in issue.editions
+    ]
+    chosen = issue.edition(level)
+    day_said = said_day(dated, language) if dated else ""
+    kicker = (
+        t("series.weekly.this-week", "This week · {date}", date=day_said)
+        if is_newest
+        else t("series.weekly.issue-of", "The issue of {date}", date=day_said)
     )
+    facts = []
+    if issue.sources:
+        facts.append(
+            str(tn("series.weekly.stories", len(issue.sources), "{n} story", "{n} stories"))
+        )
+    if chosen is not None and chosen.words:
+        facts.append(
+            str(
+                t(
+                    "series.weekly.words-at",
+                    "{n} words at {level}",
+                    n=f"{chosen.words:,}",
+                    level=shown,
+                )
+            )
+        )
+    reading = weekly_folder(issue.id, level, edition)
+    now = {
+        "kicker": kicker,
+        "date_said": day_said,
+        "hebrew": issue.title,
+        "name": "",
+        "blurb": issue.blurb,
+        "facts": " · ".join(facts),
+        "known": known.get(level.value),
+        "band": "",
+        "go_href": f"/weekly/read/{reading}/reader/index.html",
+        "go_label": t("series.weekly.read-at", "Read at {level}", level=shown),
+    }
+    past = []
+    rows: list[dict[str, Any]] = (
+        view.get("past")
+        or [
+            {"issue": one, "mark": {"state": ""}, "known": None}
+            for one in published
+            if one.dated < issue.dated
+        ][:5]
+    )
+    for row in rows:
+        one = row["issue"]
+        at = row["mark"].get("level") or ""
+        try:
+            when = said_day(_date.fromisoformat(one.dated), language)
+        except ValueError:
+            when = ""
+        line = t("series.weekly.monday", "Monday {date}", date=when)
+        if at:
+            line = Markup("{} · {}").format(line, names.get(Level(at), at))
+        past.append(
+            {
+                "hebrew": one.title,
+                "name": "",
+                "blurb": one.blurb,
+                "line": line,
+                "mark": _mark_of(row["mark"]),
+                "known": row.get("known"),
+                "href": f"/weekly/{one.id}/{at or level.value}{kept}",
+                "tile": {"src": "", "letter": "מ", "tone": "news"},
+            }
+        )
+    upcoming = None
+    if is_newest and dated is not None:
+        # The Monday after this one, or — where the next has not been published yet —
+        # the coming Monday, never one already gone.
+        nxt = dated + timedelta(days=7)
+        while nxt < _date.today():
+            nxt += timedelta(days=7)
+        note = ""
+        if view.get("next_known") is not None and view.get("next_counted"):
+            note = tn(
+                "series.weekly.going-by",
+                int(view["next_counted"]),
+                "Going by your last issue.",
+                "Going by your last {n} issues.",
+            )
+        upcoming = {
+            "kicker": t("series.weekly.next-issue", "Next issue"),
+            "hebrew": "",
+            "name": t("series.weekly.monday", "Monday {date}", date=said_day(nxt, language)),
+            "line": "",
+            "known": view.get("next_known"),
+            "note": note,
+            "href": "",
+        }
+    return _series_page(
+        language,
+        kind="weekly",
+        title=(
+            f"\u2068{issue.title}\u2069 — {label_in(level, language)} — "
+            f"{text('series.weekly.name', language)} — targum"
+        ),
+        description=blurb,
+        canonical=_addressed_in(_weekly_at, language)[0],
+        alternates=_addressed_in(_weekly_at, language)[1],
+        series={
+            "id": "weekly",
+            "hebrew": "מבט השבוע",
+            **_series_words("weekly", language),
+            "cadence": t("series.weekly.cadence", "Every Monday · three levels · free"),
+            "says": t(
+                "subs.series.weekly-says",
+                "New issues show on Your targums and come by mail each Monday.",
+            ),
+        },
+        now=now,
+        levels=levels,
+        past=past,
+        past_title=t("series.weekly.past", "Past issues"),
+        next=upcoming,
+        stories=issue.sources,
+        sources_title=t("series.weekly.sources", "Sources"),
+        credits=[],
+        signed_in=signed_in,
+        subscribed=subscribed,
+        token=token,
+        asked=asked,
+    )
+
+
+def _first_up(said: str) -> str:
+    """A phrase written to follow a dash, made to begin a line: "a few psalms a day"."""
+    return said[:1].upper() + said[1:]
+
+
+def _cycle_tile(cycle: Any) -> dict[str, str]:
+    """A cycle's letter on the colour of its kind: Mishnah iris, the rest the books'."""
+    letter = (cycle.hebrew or cycle.name or "?")[:1]
+    return {"src": "", "letter": letter, "tone": "set" if "mishn" in cycle.slug else "book"}
+
+
+def _short_reference(title: str) -> str:
+    """What a cell of a cycle's month says: the numbers of its reading, without the
+    book's name, which the card above it already says ("Psalms 120-134" → "120–134")."""
+    found = re.search(r"(\d[\d:\-–, ]*)$", title.strip())
+    return found.group(1).strip().replace("-", "–") if found else title
 
 
 def daily_page(
@@ -3084,67 +3247,193 @@ def daily_page(
     language: str = "en",
     signed_in: bool = False,
     asked: str = "",
+    view: Mapping[str, Any] | None = None,
+    subscribed: bool = False,
+    token: str = "",
 ) -> str:
-    """One day of a learning cycle, with its own reader inside it.
-
-    `signed_in`, as on the weekly: no waitlist for a reader with an account.
-
-    Drawn as the front door is (design.md §12, 2026-09-27): the landing's bar and hero,
-    the cycle's manuscript beside the headline, and the waitlist at the foot.
-    Everything it needs was decided at build time; what is left at serve time is a lookup.
+    """One day of a learning cycle (design.md §12, "A series is one page of the desk,
+    for everyone", 2026-10-09; board SeriesCycle): the day's reading and its press, the
+    month as the contents of the book, tomorrow and the other cycles beside it, and the
+    days before it. `view` is `series_view.cycle_view`'s answer; without it the page has
+    the days either side (`nearby`) and no month.
     """
-    from ..strings import said_hebrew_date, said_reference, text
+    from ..ingest.fetch.sefaria import hebrew_numeral
+    from ..strings import said_day, said_hebrew_date, said_reference, text
 
-    # The cycle's name and sentence as the follow button already says them (#188).
+    t = page_words(language)
+    view = view or {}
     named = text(f"series.{cycle.slug}.name", language)
     titled = said_reference(day.title, language)
-    # Only today's address is indexed — a dated day falls out of the window in a
-    # fortnight — so it is the one that says where its other languages are, and each
-    # language canonicals to itself, as the shelf and the text pages do (#188).
     here, alternates = _addressed_in(
         f"{address}/{cycle.slug}" if address and is_today else "", language
     )
-    return (
-        _environment()
-        .get_template("daily.html.j2")
-        .render(
-            t=page_words(language),
-            tn=page_counts(language),
-            page_language=_page_language(language),
-            strings=script_strings(language, "parasha."),
-            title=f"{titled} — {named} — targum",
-            # The reference goes in the description because it is how somebody who keeps
-            # the cycle recognises the day: "Kelim 28:2-3" says which one faster than any
-            # sentence about it.
-            description=text(
-                "daily.head.description",
-                language,
-                name=named,
-                date=said_hebrew_date(day.hdate, language),
-                title=titled,
-                blurb=text(f"series.{cycle.slug}.what", language),
-            ),
-            canonical=here,
-            alternates=alternates,
-            og_type="article",
-            cycle=cycle,
-            # The cycle's own words in the page's language: its name, its sentence, how
-            # much a day is, and whose picture it is. The calendar's names — the day's
-            # reading and its Hebrew date — through the catalogue's book and month names.
-            series=lambda slug, what: text(f"series.{slug}.{what}", language),
-            ref=lambda said: said_reference(said, language),
-            hdate=lambda said: said_hebrew_date(said, language),
-            day=day,
-            nearby=nearby or [],
-            others=others or [],
-            absent=[_absent_in(name, why, language) for name, why in absent or []],
-            opens=opens,
-            is_today=is_today,
-            signed_in=signed_in,
-            joined_from=f"/{cycle.slug}",
-            asked=asked,
-            translation_said=_translation_said(day, language),
+    kept = f"?lang={asked}" if asked else ""
+
+    def hdate_short(hdate: str) -> str:
+        said = said_hebrew_date(hdate, language)
+        return re.sub(r"\s+\d{4}$", "", said)
+
+    def href(one: Any) -> str:
+        return f"/{cycle.slug}/{one.slug}{kept}"
+
+    day_said = said_day(day.day, language)
+    kicker = (
+        t(
+            "series.cycle.today-kicker",
+            "Today · {date} · {hdate}",
+            date=day_said,
+            hdate=hdate_short(day.hdate),
         )
+        if is_today
+        else Markup("{} · {}").format(day_said, hdate_short(day.hdate))
+    )
+    mark = view.get("mark") or {"state": "", "here": ""}
+    now = {
+        "kicker": kicker,
+        "hebrew": day.hebrew or "",
+        "name": "",
+        "english": titled,
+        "facts": "",
+        "known": None,
+        "band": "",
+        "tile": {"src": "@pic", "letter": "", "tone": "book"},
+        "go_href": f"/{cycle.slug}/read/{day.slug}/reader/{opens}",
+        "go_label": (
+            t("series.cycle.pick-up", "Pick up where you stopped")
+            if mark.get("state") == "started"
+            else t("series.cycle.read-today", "Read today's reading")
+            if is_today
+            else t("series.cycle.read-this-day", "Read this day")
+        ),
+    }
+    cells = []
+    for cell in view.get("cells") or []:
+        one = cell["day"]
+        try:
+            letter = hebrew_numeral(int(cell["number"]))
+        except (TypeError, ValueError):
+            letter = str(cell["number"])
+        cells.append(
+            {
+                "letter": letter,
+                "short": _short_reference(one.title),
+                "title": f"{said_reference(one.title, language)} · {said_day(one.day, language)}",
+                "href": href(one) if cell["built"] else "",
+                "read": (cell.get("mark") or {}).get("state") == "read",
+                "here": cell["here"],
+            }
+        )
+    month_title = ""
+    if view.get("month"):
+        month = said_hebrew_date(f"1 {view['month']} 5000", language).split(" ", 1)[1]
+        month = re.sub(r"\s+\d{4}$", "", month)
+        month_title = t("series.cycle.month", "{month}, day by day", month=month)
+    if view.get("past") is not None:
+        rows = view["past"]
+    else:
+        rows = [
+            {"day": one, "mark": {"state": ""}}
+            for one in reversed(nearby or [])
+            if one.day < day.day
+        ][:5]
+    past = [
+        {
+            "hebrew": row["day"].hebrew or "",
+            "name": "",
+            "line": Markup("{} · {}").format(
+                said_reference(row["day"].title, language),
+                Markup("{} · {}").format(
+                    said_day(row["day"].day, language), hdate_short(row["day"].hdate)
+                ),
+            ),
+            "mark": _mark_of(row["mark"]),
+            "known": None,
+            "href": href(row["day"]),
+            "tile": {"src": "@pic", "letter": "", "tone": "book"},
+        }
+        for row in rows
+    ]
+    upcoming = None
+    tomorrow = view.get("tomorrow")
+    if tomorrow is not None:
+        upcoming = {
+            "kicker": (
+                t(
+                    "series.cycle.tomorrow",
+                    "Tomorrow · {date}",
+                    date=said_day(tomorrow.day, language),
+                )
+                if is_today
+                else Markup("{}").format(said_day(tomorrow.day, language))
+            ),
+            "hebrew": tomorrow.hebrew or "",
+            "name": "",
+            "line": said_reference(tomorrow.title, language),
+            "known": None,
+            "note": "",
+            "href": href(tomorrow) if view.get("tomorrow_built") else "",
+            "open": t("series.cycle.open", "Open"),
+        }
+    return _series_page(
+        language,
+        kind="cycle",
+        scripture=True,
+        title=f"{titled} — {named} — targum",
+        description=text(
+            "daily.head.description",
+            language,
+            name=named,
+            date=said_hebrew_date(day.hdate, language),
+            title=titled,
+            blurb=text(f"series.{cycle.slug}.what", language),
+        ),
+        canonical=here,
+        alternates=alternates,
+        og_type="article",
+        series={
+            "id": cycle.slug,
+            "hebrew": cycle.hebrew,
+            **_series_words(cycle.slug, language),
+            "cadence": Markup("{} · {}").format(
+                _first_up(text(f"series.{cycle.slug}.rhythm", language)), t("series.free", "free")
+            ),
+            "says": t(
+                "subs.series.cycle-says",
+                "Each day's reading shows on Your targums and comes in your daily mail.",
+            ),
+        },
+        head_tile={"src": "@pic", "letter": "", "tone": "book"},
+        picture_uri=_data_uri("manuscripts/" + cycle.picture),
+        now=now,
+        cells=cells,
+        month_title=month_title,
+        past=past,
+        past_title=t("series.cycle.past", "Past days"),
+        next=upcoming,
+        others=[
+            {
+                "name": text(f"series.{one.slug}.name", language),
+                "hebrew": one.hebrew,
+                "today": said,
+                "href": f"/{one.slug}{kept}",
+                **{key: value for key, value in _cycle_tile(one).items() if key != "src"},
+            }
+            for one, said in others or []
+        ],
+        absent=[_absent_in(name, why, language) for name, why in absent or []],
+        sources_title=t("series.cycle.credits", "Credits"),
+        credits=[
+            t(
+                "daily.page.made-honestly-says",
+                _english()["daily.page.made-honestly-says"],
+                translation=_translation_said(day, language),
+                picture=text(f"series.{cycle.slug}.credit", language),
+            )
+        ],
+        signed_in=signed_in,
+        subscribed=subscribed,
+        token=token,
+        asked=asked,
     )
 
 
@@ -3206,54 +3495,202 @@ def parasha_page(
     week: dict[str, Any] | None = None,
     language: str = "en",
     asked: str = "",
+    view: Mapping[str, Any] | None = None,
+    subscribed: bool = False,
+    token: str = "",
+    pictures: bool = False,
 ) -> str:
-    """This week's portion, with its own reader inside it.
+    """The weekly portion's page (design.md §12, "A series is one page of the desk, for
+    everyone", 2026-10-09; board SeriesPortion): this Shabbat's reading — or, at
+    `/parasha/<name>`, one portion any week of the year — its aliyot and haftarah as rows
+    with the reader's marks, its press, Diaspora and Israel, next Shabbat and the weeks
+    before. `view` is `series_view.portion_view`'s answer; `pictures` says whether the
+    asker may be handed `/thumb/` (a stranger may not, and has the scroll instead).
 
-    Everything it needs comes off the corpus index, the same way `weekly_page` reads the
-    weekly's: the calendar ran at build time and what is left at serve time is a lookup.
-
-    `signed_in` decides where "all portions" leads. A reader with a shelf has the
-    fifty-four on it as one collection, and is sent to their own row in it; a visitor
-    has the list at the foot of this page.
-
-    `haftarah` is the index's record of the second reading — the week's on the page
-    that means this Shabbat, the portion's own on a portion asked for by name — and
-    `haftarah_reason` is why it is not the portion's own, or "". The reference is
-    always said; the frame is drawn only where `haftarah_readable` says a reader was
-    built behind it.
+    Everything about the reading comes off the corpus index and the calendar's cache, as
+    it always did; nothing here fetches. `taamim` and `week` are kept for the callers
+    that still pass them: the reader has its own switch now, and the marks are the
+    account's.
     """
     from ..parasha.build import COLLECTION_ID, served_as
+    from ..parasha.cut import ALIYOT
     from ..parasha.models import neighbours
-    from ..strings import said_hebrew_date, said_on, said_portion, said_reference, text
+    from ..strings import said_day, said_hebrew_date, said_portion, said_reference, text
 
-    # "Shabbat" with no date is a portion asked for by name, read on a different one
-    # every year — «читают в субботу» in Russian, not «читают Shabbat» (QA, 2026-10-05).
-    said = (
-        said_on(shabbat, language)
-        if shabbat is not None
-        else text("parasha.page.on-shabbat", language)
-    )
-    # The portion's name and its books as the page's language writes them: «Берешит»,
-    # «Бытие». English is the calendar's own, untouched.
-    named = said_portion(portion.slug, portion.name, language)
-    books = " · ".join(said_reference(book, language) for book in portion.books)
-    # The reader the frame opens: the one built in the page's language where there is
-    # one (`parasha.build.ALSO_IN`), so a Russian page frames a Russian reader — its
-    # words, and the Russian column beside the verse — rather than the English one.
+    del taamim, week
+    t = page_words(language)
+    tn = page_counts(language)
+    view = view or {}
     code = language.split("-")[0].lower()
-    reading = served_as(portion.folder, code)
-    russian_beside = reading != portion.folder and code == "ru"
-    # The range as the page's language names the book — «Числа 4:21-7:89» — and the
-    # Hebrew date as it names the month (#188). English is left exactly as Hebcal wrote it.
+    named = said_portion(portion.slug, portion.name, language)
     ranged = said_reference(portion.summary, language)
-    # The portion's own address is the one indexed, in each language (#188). "This
-    # Shabbat" at `/parasha` canonicals to the portion it means, as it always has.
     here, alternates = _addressed_in(
         f"{address}/parasha/{portion.slug}" if address else "", language
     )
-    previous, following = neighbours(portion, listed or [])
-    # The row to point at on the shelf: this portion's own, or — for a doubled week,
-    # which is not on the shelf beside its halves — the first of its halves that is.
+    kept = f"?lang={asked}" if asked else ""
+    reading = served_as(portion.folder, code)
+
+    def hdate_short(said: str) -> str:
+        return re.sub(r"\s+\d{4}$", "", said_hebrew_date(said, language)) if said else ""
+
+    def picture(one: Any) -> dict[str, str]:
+        if pictures:
+            return {"src": f"/thumb/parasha-{one.slug}?drawn=1", "letter": "", "tone": "book"}
+        return {"src": "@pic", "letter": "", "tone": "book"}
+
+    def letter(one: Any) -> dict[str, str]:
+        first = re.sub(r"[\u0591-\u05c7]", "", one.hebrew or one.name or "?")[:1]
+        return {"src": "", "letter": first, "tone": "book"}
+
+    def verses(n: int) -> Markup:
+        return tn("parasha.page.verses", n, "{n} verse", "{n} verses")
+
+    # The sheet as a PDF (targum-internal#415), with the reader's own defaults.
+    asking = [("schedule", "israel")] if shabbat is not None and schedule.value == "israel" else []
+    if asked:
+        asking.append(("lang", asked))
+    pdf_href = f"/parasha/{portion.slug}.pdf" + (f"?{urlencode(asking)}" if asking else "")
+
+    mark = view.get("mark") or {"state": "", "finished": set(), "here": ""}
+    finished = {str(one) for one in mark.get("finished") or ()}
+    stopped_at = str(mark.get("here") or "")
+    # How many section files the reader has: none is a reading written whole.
+    sections = int(view["sections"]) if "sections" in view else int(portion.aliyot or 0)
+    ranges = {int(one["number"]): one for one in view.get("aliyot") or []}
+    parts: list[dict[str, Any]] = []
+    for n in range(1, max(sections, 1) + 1):
+        span = ranges.get(n)
+        line: Any = ""
+        if span is not None:
+            book = said_reference(span["book"], language)
+            line = Markup("{} {}–{} · {}").format(
+                book, span["begin"], span["end"], verses(int(span["verses"]))
+            )
+        state = "read" if str(n) in finished else ""
+        parts.append(
+            {
+                "number": n,
+                "name": ALIYOT[n - 1] if n <= len(ALIYOT) else str(n),
+                "english": "",
+                "line": line,
+                "href": f"/parasha/read/{reading}/reader/"
+                + (f"sec-{n:04d}.html" if sections > 1 else "index.html"),
+                "mark": {"state": state},
+                "stopped": stopped_at == str(n) and state != "read",
+            }
+        )
+    if haftarah is not None:
+        reason = (
+            t(
+                "series.portion.haftarah-instead",
+                "{reason}, read in place of the portion's own",
+                reason=haftarah_reason,
+            )
+            if haftarah_reason
+            else ""
+        )
+        parts.append(
+            {
+                "number": 0,
+                "name": "הפטרה",
+                "english": t("parasha.page.the-haftarah", "The haftarah"),
+                "line": Markup(" · ").join(
+                    [
+                        one
+                        for one in (
+                            said_reference(haftarah.summary, language),
+                            verses(haftarah.verses),
+                            reason,
+                        )
+                        if one
+                    ]
+                ),
+                "href": (
+                    f"/parasha/read/{served_as(haftarah.folder, code)}/reader/{haftarah.opens}"
+                    if haftarah_readable
+                    else ""
+                ),
+                "mark": view.get("haftarah_mark") or {"state": ""},
+                "stopped": False,
+            }
+        )
+    if stopped_at and stopped_at not in finished and stopped_at.isdigit():
+        go_label = t("series.portion.pick-up", "Pick up at aliyah {n}", n=stopped_at)
+        go_href = f"/parasha/read/{reading}/reader/sec-{int(stopped_at):04d}.html"
+    elif finished and sections > 1 and len(finished) < sections:
+        first = next(n for n in range(1, sections + 1) if str(n) not in finished)
+        go_label = t("series.portion.pick-up", "Pick up at aliyah {n}", n=first)
+        go_href = f"/parasha/read/{reading}/reader/sec-{first:04d}.html"
+    else:
+        go_label = t("series.portion.read", "Read {name}", name=named)
+        go_href = f"/parasha/read/{reading}/reader/" + (
+            "sec-0001.html" if sections > 1 else "index.html"
+        )
+    if shabbat is not None:
+        when = said_day(shabbat, language)
+        kicker = t(
+            "series.portion.this-shabbat",
+            "This Shabbat · {date} · {hdate}",
+            date=when,
+            hdate=hdate_short(hdate),
+        )
+    else:
+        kicker = Markup(" · ").join(said_reference(book, language) for book in portion.books)
+    known = view.get("known")
+    from ..search import band as band_of
+
+    band_name = {
+        "now": t("library.band.now", "Read it now"),
+        "stretch": t("library.band.stretch", "A stretch"),
+        "hard": t("library.band.hard", "Hard for now"),
+    }.get(band_of(None if known is None else known / 100), "")
+    festival = ""
+    if portion.kind.value == "festival":
+        festival = t("parasha.page.festival-instead", _english()["parasha.page.festival-instead"])
+    elif portion.doubled:
+        festival = t("parasha.page.two-portions", "Two portions are read together this week.")
+    now = {
+        "kicker": kicker,
+        "hebrew": portion.hebrew,
+        "name": named,
+        "facts": Markup("{} · {}").format(
+            ranged,
+            t(
+                "series.portion.verses-in",
+                "{verses} in {aliyot}",
+                verses=verses(portion.verses),
+                aliyot=tn("parasha.page.aliyot", portion.aliyot, "{n} aliyah", "{n} aliyot"),
+            ),
+        ),
+        "known": known,
+        "band": band_name,
+        "tile": picture(portion),
+        "go_href": go_href,
+        "go_label": go_label,
+        "festival": festival,
+    }
+    schedules = None
+    apart = False
+    if shabbat is not None and diaspora is not None and israel is not None:
+        apart = diaspora.slug != israel.slug
+        schedules = [
+            {
+                "label": t("parasha.page.diaspora", "Diaspora"),
+                "hebrew": diaspora.hebrew if apart else "",
+                "href": "/parasha?schedule=diaspora" + (f"&lang={asked}" if asked else ""),
+                "on": schedule.value == "diaspora",
+            },
+            {
+                "label": t("parasha.page.israel", "Israel"),
+                "hebrew": israel.hebrew if apart else "",
+                "href": "/parasha?schedule=israel" + (f"&lang={asked}" if asked else ""),
+                "on": schedule.value == "israel",
+            },
+        ]
+    # The way round the year: the portion before and the one after, in the order they are
+    # read — it wraps, after וזאת הברכה comes בראשית — and every portion. A festival
+    # belongs to a date, not to the cycle, and has only the list.
+    previous, after = neighbours(portion, listed or [])
     mine = next(
         (
             one
@@ -3266,87 +3703,129 @@ def parasha_page(
         all_href = f"/library#parasha-{mine.slug}" if mine else f"/library#group:{COLLECTION_ID}"
     else:
         all_href = f"/parasha?lang={asked}#sources" if asked else "/parasha#sources"
-    # The week's sheet as a PDF (targum-internal#415): this week's haftarah on the
-    # schedule the page is showing, and the language a visitor pressed for.
-    asking = [("schedule", "israel")] if shabbat is not None and schedule.value == "israel" else []
-    if asked:
-        asking.append(("lang", asked))
-    sheet_href = f"/parasha/{portion.slug}.pdf" + (f"?{urlencode(asking)}" if asking else "")
-    sheet_action = f"/parasha/{portion.slug}.pdf"
-    return (
-        _environment()
-        .get_template("parasha.html.j2")
-        .render(
-            signed_in=signed_in,
-            sheet_href=sheet_href,
-            sheet_action=sheet_action,
-            sheet_keep=asking,
-            sheet_translation="ru" if language.split("-")[0] == "ru" else "en",
-            joined_from="/parasha",
-            asked=asked,
-            t=page_words(language),
-            tn=page_counts(language),
-            page_language=_page_language(language),
-            strings=script_strings(language, "parasha."),
-            week=week,
-            # The same correction the headline already carries, in the tag that matters
-            # more for it: on a portion asked for by name this is not this week's, and
-            # fifty-four titles claiming to be is fifty-four pages a search engine cannot
-            # tell apart — on a page whose entire argument is that every parasha name is
-            # a query. The chapter range is what a reader searching the name wants to see
-            # confirmed, and it is different for all fifty-four.
-            title=(
-                text("parasha.head.this-week", language, name=named)
-                if shabbat is not None
-                else f"{named} — {ranged} — targum"
-                if portion.summary
-                else text("parasha.head.a-portion", language, name=named)
+    around = {
+        "previous": previous,
+        "following": after,
+        "all_href": all_href,
+        "href": lambda one: f"/parasha/{one.slug}{kept}",
+    }
+    following = view.get("next")
+    upcoming = None
+    if following is not None:
+        next_day = view.get("next_day")
+        upcoming = {
+            "kicker": (
+                t(
+                    "series.portion.next-shabbat",
+                    "Next Shabbat · {date}",
+                    date=said_day(next_day, language),
+                )
+                if next_day is not None
+                else t("series.portion.next", "Read after it")
             ),
-            # The opening words go in the description because they are how somebody
-            # who knows the portion recognises it — a search result that leads with
-            # אתם נצבים says which reading this is faster than the chapter numbers do.
-            description=(
-                f"{named} — {portion.opening} — {ranged}. "
-                + text("parasha.head.description", language)
-            ).replace(" —  — ", " — "),
-            canonical=here,
-            alternates=alternates,
-            portion=portion,
-            portion_named=named,
-            books=books,
-            # Any portion's name, for the list at the foot.
-            name_of=lambda one: said_portion(one.slug, one.name, language),
-            reading=reading,
-            haftarah_reading=served_as(haftarah.folder, code) if haftarah is not None else "",
-            ref=lambda said: said_reference(said, language),
-            schedule=schedule,
-            other=other,
-            diaspora=diaspora,
-            israel=israel,
-            # Whether this is the page that means "this Shabbat". A named portion has no
-            # week to compare schedules over.
-            this_week=shabbat is not None,
-            # The Hebrew date belongs to the Shabbat, not the portion — a portion falls
-            # on a different one every year — so it arrives from the week's own record.
-            hdate=said_hebrew_date(hdate, language),
-            haftarah=haftarah,
-            haftarah_reason=haftarah_reason,
-            haftarah_readable=haftarah_readable,
-            listed=listed or [],
-            previous=previous,
-            following=following,
-            all_href=all_href,
-            taamim=taamim,
-            shabbat_said=said,
-            # Whose words stand beside the verse in the frame: the Russian Torah where
-            # the frame is the reader built in Russian, the Metsudah everywhere else.
-            translation_said=text(
-                "parasha.page.russian-translation"
-                if russian_beside
-                else "parasha.page.metsudah-linear",
-                language,
+            "hebrew": following.hebrew,
+            "name": said_portion(following.slug, following.name, language),
+            "line": Markup("{} · {}").format(
+                said_reference(following.summary, language), verses(following.verses)
             ),
-        )
+            "known": view.get("next_known"),
+            "note": "",
+            "href": f"/parasha/{following.slug}{kept}",
+            "open": t("series.portion.open-next", "See the portion"),
+        }
+    past = [
+        {
+            "hebrew": row["portion"].hebrew,
+            "name": said_portion(row["portion"].slug, row["portion"].name, language),
+            "line": Markup("{} · {}").format(
+                t(
+                    "series.portion.shabbat-on",
+                    "Shabbat {date}",
+                    date=said_day(row["day"], language),
+                ),
+                said_reference(row["portion"].summary, language),
+            ),
+            "mark": _mark_of(row["mark"]),
+            "known": row.get("known"),
+            "href": f"/parasha/{row['portion'].slug}{kept}",
+            "tile": letter(row["portion"]),
+        }
+        for row in view.get("past") or []
+    ]
+    del other
+    link = Markup('<a href="{}" rel="noopener noreferrer">{}</a>')
+    recording = link.format("https://archive.org/details/PockettorahAudioFiles", "PocketTorah")
+    licence = link.format("https://creativecommons.org/licenses/by-sa/3.0/", "CC BY-SA 3.0")
+    photograph = link.format(
+        "https://commons.wikimedia.org/wiki/File:Closeup_of_Torah_Scroll.jpg",
+        t("parasha.page.photographed-by-jacob-gucker", "photographed by Jacob Gucker"),
+    )
+    russian_beside = reading != portion.folder and code == "ru"
+    translation = text(
+        "parasha.page.russian-translation" if russian_beside else "parasha.page.metsudah-linear",
+        language,
+    )
+    return _series_page(
+        language,
+        kind="parasha",
+        scripture=True,
+        title=(
+            text("parasha.head.this-week", language, name=named)
+            if shabbat is not None
+            else f"{named} — {ranged} — targum"
+            if portion.summary
+            else text("parasha.head.a-portion", language, name=named)
+        ),
+        description=(
+            f"{named} — {portion.opening} — {ranged}. " + text("parasha.head.description", language)
+        ).replace(" —  — ", " — "),
+        canonical=here,
+        alternates=alternates,
+        series={
+            "id": "parasha",
+            "hebrew": "פרשת השבוע",
+            **_series_words("parasha", language),
+            "cadence": t(
+                "series.portion.cadence", "Every Shabbat · seven aliyot and the haftarah · free"
+            ),
+            "says": t(
+                "subs.series.portion-says",
+                "Each week's portion shows on Your targums and comes in your daily mail.",
+            ),
+        },
+        head_tile={"src": "@pic", "letter": "", "tone": "book"},
+        picture_uri=_data_uri("scroll/columns.jpg"),
+        pdf_href=pdf_href,
+        now=now,
+        parts=parts,
+        schedules=schedules,
+        schedules_apart=apart,
+        around=around,
+        next=upcoming,
+        past=past,
+        past_title=t("series.portion.past", "Past weeks"),
+        see_all_href="#sources",
+        listed=listed or [],
+        name_of=lambda one: said_portion(one.slug, one.name, language),
+        sources_title=t("series.portion.sources", "Every portion, and credits"),
+        credits=[
+            t(
+                "parasha.page.made-honestly-says",
+                _english()["parasha.page.made-honestly-says"],
+                translation=translation,
+            ),
+            t(
+                "parasha.page.credits-say",
+                _english()["parasha.page.credits-say"],
+                photograph=photograph,
+                recording=recording,
+                licence=licence,
+            ),
+        ],
+        signed_in=signed_in,
+        subscribed=subscribed,
+        token=token,
+        asked=asked,
     )
 
 

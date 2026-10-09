@@ -1,0 +1,372 @@
+/* A series' own page (design.md §12, "A series is one page of the desk, for everyone",
+   2026-10-09; boards SeriesWeekly, SeriesPortion and SeriesCycle). The desk's
+   components (chrome.css): `.card`, `.rows`, `.tag`, `.seg`, `.btn`, `.section-title`.
+   What is here is the page's own layout: the head, the two columns, the level cards, the
+   aliyot, the month, the marks. */
+
+.series-main {
+  max-inline-size: var(--column);
+  margin-inline: auto;
+  padding: 1.25rem 1.25rem 4rem;
+  font-family: var(--chrome);
+  color: var(--ink);
+}
+
+.series-back { margin-block-end: 1.25rem; font-size: 0.875rem; }
+.series-back a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.series-back a:hover { text-decoration: underline; }
+.series-back a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+
+/* --- the head: tile, names, Subscribe ----------------------------------------------- */
+
+.series-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1.25rem;
+  align-items: start;
+  margin-block-end: 1.5rem;
+}
+.series-names { min-inline-size: 0; }
+.series-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.series-hebrew {
+  margin: 0.15rem 0 0;
+  font-family: var(--reading-hebrew);
+  font-size: 1.25rem;
+  color: var(--ink);
+}
+.series-what { margin: 0.4rem 0 0; font-size: 0.9375rem; color: var(--ink); }
+.series-cadence { margin: 0.25rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+
+.series-acts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  max-inline-size: 18rem;
+}
+.series-acts-row { display: flex; align-items: center; gap: 0.5rem; }
+.series-says { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); text-align: end; }
+.series-pdf { inline-size: 2.5rem; padding: 0; justify-content: center; }
+.series-pdf svg,
+.series-switch svg,
+.series-go .btn svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.series-go .btn svg { fill: currentColor; stroke: none; }
+.series-subscribe[hidden] { display: none; }
+/* Two states that look different: Subscribe filled with a bell and a plus; Subscribed
+   tonal with the bell ticked. */
+.series-switch .bell-on,
+.series-switch.is-on .bell-off { display: none; }
+.series-switch.is-on .bell-on { display: inline; }
+
+/* --- tiles --------------------------------------------------------------------------- */
+
+.series-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background-color: var(--ink-soft);
+  background-size: cover;
+  background-position: center;
+}
+.series-tile img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.series-tile.is-large { inline-size: 4.5rem; block-size: 4.5rem; }
+.series-tile.is-cover { inline-size: 7.5rem; block-size: 7.5rem; border-radius: var(--radius-row); }
+.series-tile .glyph { font-family: var(--reading-hebrew); font-size: 1.25rem; color: var(--card); }
+.series-tile.is-cover .glyph,
+.series-tile.is-large .glyph { font-size: 1.9375rem; }
+/* The weekly's masthead: its Hebrew name on the news teal, as the board draws it. */
+.series-masthead {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  padding: 0.5rem;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font-family: var(--reading-hebrew);
+  font-size: 0.875rem;
+  line-height: 1.15;
+  text-align: end;
+}
+.series-masthead.is-cover { font-size: 1.0625rem; padding: 0.75rem; }
+.series-masthead small { font-family: var(--chrome); font-size: 0.6875rem; line-height: 1.2; text-align: start; opacity: 0.9; }
+.series-masthead.is-large { font-size: 0.8125rem; padding: 0.4375rem; }
+
+/* --- two columns --------------------------------------------------------------------- */
+
+.series-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 25rem);
+  gap: 1.25rem;
+  align-items: start;
+}
+.series-col,
+.series-side { display: flex; flex-direction: column; gap: 1.25rem; min-inline-size: 0; }
+
+.series-now-head { display: flex; gap: 1.25rem; align-items: flex-start; }
+.series-now-about { min-inline-size: 0; flex: 1 1 auto; }
+.series-kicker { margin: 0 0 0.35rem; font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft); }
+.series-now-title { margin: 0; font-family: var(--reading); font-size: 1.5rem; font-weight: 500; line-height: 1.25; }
+.series-he { font-family: var(--reading-hebrew); }
+.series-en { font-family: var(--reading); }
+.series-he-small { font-family: var(--reading-hebrew); color: var(--ink-soft); font-size: 0.9375rem; }
+.series-now-sub,
+.series-now-blurb { margin: 0.3rem 0 0; font-size: 0.9375rem; }
+.series-now-blurb { font-family: var(--reading-hebrew); color: var(--ink); }
+.series-facts { margin: 0.35rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.series-band-line { display: flex; align-items: center; gap: 0.6rem; margin: 0.5rem 0 0; }
+.series-band { align-self: center; }
+.series-known { font-size: 0.8125rem; font-weight: 600; color: var(--leaf); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.series-go { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 1.25rem 0 0; }
+.series-go-row { justify-content: space-between; }
+.series-go-note,
+.series-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.series-note { margin-block-start: 0.75rem; }
+
+/* --- the weekly's three levels ------------------------------------------------------- */
+
+.series-levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-block-start: 1.25rem;
+}
+.series-level {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-row);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+}
+.series-level:hover { background: var(--teal-wash); }
+.series-level:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.series-level.is-chosen { box-shadow: inset 0 0 0 2px var(--teal); }
+.series-level-name { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9375rem; }
+.series-level-for { font-size: 0.8125rem; color: var(--ink-soft); }
+.series-yours {
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--teal);
+  color: var(--teal);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+/* --- rows: the aliyot and the past --------------------------------------------------- */
+
+.series-parts { margin-block-start: 0.75rem; }
+.series-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.series-number.is-list { box-shadow: none; }
+.series-number svg { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.series-row-title { color: var(--ink); text-decoration: none; font-size: 1.0625rem; overflow-wrap: anywhere; }
+.series-row-title bdi { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+a.series-row-title:hover { color: var(--teal); }
+a.series-row-title:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.series-row-blurb {
+  font-family: var(--reading-hebrew);
+  font-size: 0.875rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.series-row-line { font-size: 0.8125rem; color: var(--ink-soft); }
+.series-row-end { display: flex; align-items: center; gap: 1rem; flex: none; }
+
+.series-mark { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+.series-mark svg { inline-size: 0.875rem; block-size: 0.875rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.series-mark.is-read { color: var(--leaf); }
+.series-mark.is-started { color: var(--ink-soft); }
+.series-mark.is-here { color: var(--teal); }
+.series-mark.is-here svg { fill: currentColor; stroke: none; }
+
+.series-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-block-end: 0.25rem; }
+.series-card-label { margin: 0 0 0.5rem; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+
+/* --- the side ------------------------------------------------------------------------ */
+
+.series-next-title { margin: 0; font-size: 1.25rem; font-family: var(--reading); }
+.series-next-title .series-en { font-weight: 500; }
+.series-next-known { margin: 0.5rem 0 0; font-size: 0.9375rem; }
+.series-next p { margin-block-end: 0; }
+.series-others .rows > .row { padding-block: 0.625rem; }
+
+/* --- a cycle's month: the contents of the book, never a streak ------------------------ */
+
+.series-month-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-block-start: 1.5rem; }
+.series-month-title { margin: 0; font-size: 0.875rem; font-weight: 600; }
+.series-month-head .series-note { margin: 0; }
+.series-month {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.375rem;
+  margin: 0.625rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.series-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-block-size: 3rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+}
+a.series-day:hover { background: var(--teal-wash); }
+a.series-day:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.series-day.is-read { background: color-mix(in srgb, var(--leaf) 12%, transparent); }
+.series-day.is-here { box-shadow: inset 0 0 0 2px var(--teal); }
+.series-day.is-later { color: var(--ink-soft); opacity: 0.7; }
+.series-day-n { font-family: var(--reading-hebrew); font-size: 0.9375rem; }
+.series-day-ref { font-size: 0.6875rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: start; }
+.series-day-tick {
+  position: absolute;
+  inset-block-start: 0.375rem;
+  inset-inline-start: 0.375rem;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  fill: none;
+  stroke: var(--leaf);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- sources and credits, folded at the foot ----------------------------------------- */
+
+.series-sources { margin-block-start: 1.25rem; }
+.series-sources summary { cursor: pointer; margin: 0; }
+.series-sources[open] summary { margin-block-end: 0.75rem; }
+.series-credit { margin: 0 0 0.75rem; font-size: 0.8125rem; color: var(--ink-soft); line-height: 1.55; }
+.series-credit a,
+.series-stories a,
+.series-portions a { color: var(--teal); }
+.series-stories,
+.series-portions { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; }
+.series-stories li { display: flex; flex-direction: column; gap: 0.1rem; }
+.series-stories a[lang="he"] { font-family: var(--reading-hebrew); }
+.series-portions { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.25rem 1rem; }
+.series-portions a { text-decoration: none; font-size: 0.875rem; }
+.series-portions bdi { font-family: var(--reading-hebrew); }
+.series-count { color: var(--ink-soft); font-weight: 400; }
+
+/* --- a phone: one column, Subscribe across the page ----------------------------------- */
+
+@media (max-width: 52rem) {
+  .series-grid { grid-template-columns: minmax(0, 1fr); }
+  .series-head { grid-template-columns: auto minmax(0, 1fr); }
+  .series-acts { grid-column: 1 / -1; align-items: stretch; max-inline-size: none; }
+  .series-acts-row { justify-content: stretch; }
+  .series-acts-row .series-subscribe,
+  .series-acts-row .series-sign-in { flex: 1 1 auto; }
+  .series-switch,
+  .series-sign-in { inline-size: 100%; justify-content: center; }
+  .series-says { text-align: start; }
+}
+@media (max-width: 40rem) {
+  .series-main { padding-inline: 1rem; }
+  .series-title { font-size: 1.75rem; }
+  .series-tile.is-cover { inline-size: 5.5rem; block-size: 5.5rem; }
+  .series-now-title { font-size: 1.25rem; }
+  .series-levels { grid-template-columns: minmax(0, 1fr); }
+  .series-go .btn { flex: 1 1 100%; justify-content: center; }
+  .series-go-row .series-schedule { margin-inline-start: auto; }
+  .series-month { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .series-past .rows > .row { flex-wrap: wrap; }
+  .series-past .row-main { flex-basis: calc(100% - 3.75rem); }
+  .series-past .series-row-end { margin-inline-start: 3.75rem; }
+  .series-parts .rows > .row,
+  .series-parts > .row { flex-wrap: wrap; }
+  .series-parts .row-main { flex-basis: calc(100% - 2.75rem); }
+  .series-parts .series-row-end { margin-inline-start: 2.75rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .series-back a,
+  .series-level,
+  .series-day { min-block-size: 44px; }
+  .series-back a { display: inline-block; line-height: 44px; }
+}
+
+/* On one column, what comes next follows the current one and the past comes after it,
+   as the phone boards stack them. */
+@media (max-width: 52rem) {
+  .series-grid { display: flex; flex-direction: column; }
+  .series-col,
+  .series-side { display: contents; }
+  .series-now { order: 1; }
+  .series-next { order: 2; }
+  .series-others { order: 3; }
+  .series-past { order: 4; }
+}
+
+/* The way round the year, under the aliyot. */
+.series-around {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-block-start: 1rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--rule);
+  font-size: 0.875rem;
+}
+.series-around a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.series-around a:hover { text-decoration: underline; }
+.series-around .which { color: var(--ink-soft); font-weight: 400; }
+.series-around bdi[lang="he"] { font-family: var(--reading-hebrew); }
+.series-pdf-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); text-align: end; }
+.series-pdf[aria-busy="true"] { opacity: 0.6; }
+
+/* A card never grows past its column for a line that does not wrap (a past issue's
+   one-line summary): the cards shrink, and the line is cut with an ellipsis. */
+.series-now,
+.series-next,
+.series-others,
+.series-past,
+.series-sources { min-inline-size: 0; max-inline-size: 100%; }
+.series-row-blurb { max-inline-size: 100%; }
+@media (max-width: 52rem) {
+  .series-grid { align-items: stretch; }
+}
+@media (max-width: 40rem) {
+  .series-masthead.is-cover { font-size: 0.875rem; padding: 0.5rem; }
+}

@@ -630,22 +630,21 @@ def test_a_russian_daily_page_says_its_headings_in_russian() -> None:
         language="ru",
     )
     seen = _body(html)
-    assert "<h1>Мишна йомит — каждое слово с разбором.</h1>" in html
+    assert '<h1 class="series-title">Мишна йомит</h1>' in html
     assert "Две мишны в день, через все шестьдесят три трактата" in seen
-    assert "19 элуля 5786" in seen and "Elul" not in seen
+    assert "19 элуля" in seen and "Elul" not in seen
     for one in CYCLES[1:]:
         assert one.name not in seen, f"{one.name} is said in English"
-        assert one.rhythm not in seen
-    assert "Нах йоми" in seen and "глава в день — сегодня," in seen
+    assert "Нах йоми" in seen and "Сегодня: תהלים צ" in seen
     assert cycle.credit not in seen and "рукописи Кауфмана A50" in seen
     for name, why in ABSENT.items():
         assert why not in seen, f"why {name} is absent is said in English"
     assert "Даф йоми" in seen
 
     english = daily_page(cycle, _a_day(), others=others, absent=list(ABSENT.items()))
-    assert f"<h1>{cycle.name}, every word explained.</h1>" in english
+    assert f'<h1 class="series-title">{cycle.name}</h1>' in english
     assert cycle.blurb in _body(english) and cycle.credit in _body(english)
-    assert "19 Elul 5786" in _body(english)
+    assert "19 Elul" in _body(english)
 
 
 def test_today_s_daily_page_declares_its_languages_and_canonicals_to_its_own() -> None:
@@ -689,8 +688,8 @@ def test_a_russian_parasha_page_names_its_books_and_its_month_in_russian() -> No
     )
     seen = _body(html)
     assert "Числа 4:21-7:89" in seen and "Numbers" not in html
-    assert "14 сивана 5786" in seen and "Sivan" not in seen
-    assert 'Судьи 13:2-25 — из <bdi lang="he" dir="rtl">שופטים</bdi>, 24 стиха.' in html
+    assert "14 сивана" in seen and "Sivan" not in seen
+    assert "Судьи 13:2-25 · 24 стиха" in seen
     assert "Metsudah linear" not in seen and "подстрочный перевод Мецуда" in seen
 
     base = f"{ADDRESS}/parasha/{portion.slug}"
@@ -707,8 +706,8 @@ def test_a_russian_parasha_page_names_its_books_and_its_month_in_russian() -> No
         address=ADDRESS,
     )
     assert f'rel="canonical" href="{base}"' in english
-    assert "Numbers 4:21-7:89" in _body(english) and "14 Sivan 5786" in _body(english)
-    assert 'Judges 13:2-25 — from <bdi lang="he" dir="rtl">שופטים</bdi>, 24 verses.' in english
+    assert "Numbers 4:21-7:89" in _body(english) and "14 Sivan" in _body(english)
+    assert "Judges 13:2-25 · 24 verses" in _body(english)
     assert "the Metsudah linear translation" in _body(english)
 
 

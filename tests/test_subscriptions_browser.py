@@ -230,17 +230,17 @@ def test_the_tab_draws_every_subscription_in_its_chips(browser, tmp_path: Path) 
     assert got["months"][3].startswith("Paused"), got
     assert got["every"] == ["Every week", "About 2 a week", "About 14 a week", "As it comes out"]
     assert got["news"] == 2 and got["shelf"], got
-    assert len(got["offered"]) == 1 and "Weekly News Digest" in got["offered"][0], got
+    # The series not taken are offered only while the tab is empty (design.md §12, "A
+    # subscription's page is two columns, and the tab is a table with its filters").
+    assert got["offered"] == [], got
 
     page.click("#subs-chips .chip:has-text('Channels')")
     assert page.eval_on_selector_all("#subs-rows .sub-row", "rows => rows.length") == 1
     page.click("#subs-chips .chip:has-text('All')")
     page.click("#subs-rows .sub-resume")
-    page.click("#subs-offer .sub-subscribe")
     page.wait_for_timeout(200)
     context.close()
     assert ("/subscriptions/4", {"action": "resume"}) in posted
-    assert ("/account/follows", {"series": "weekly", "on": True}) in posted
     assert not thrown, thrown
 
 
@@ -331,7 +331,7 @@ def test_one_subscription_lists_what_it_brought_and_pauses(browser) -> None:
         "/reader/v1/reader/index.html",
         "/add?source=https%3A%2F%2Fyoutu.be%2Fv0",
     ], got
-    assert got["cap"] == "38 of 60 credits used this month"
+    assert got["cap"].startswith("38 of 60 credits used in "), got
     page.click(".sub-pause")
     page.wait_for_selector(".sub-resume")
     note = page.text_content(".sub-paused-note")

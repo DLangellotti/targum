@@ -247,20 +247,13 @@ def test_the_weekly_is_in_robots_and_the_sitemap_when_indexed(
 def test_the_page_claims_nothing_about_how_it_was_made(
     open_shelves: tuple[int, Path],
 ) -> None:
-    """There was a line of type above the article saying the issue had been compiled by a
-    model and curated by the targum team before it went out. It was true while a person
-    read every issue and pressed publish, and on 2026-09-17 that stopped being how an
-    issue goes out (design.md §12).
-
-    The sources stayed and the sentence went. Saying nothing about how it was made is
-    honest; saying something that used to be true is not.
-    """
+    """The line that said the issue had been compiled by a model and curated by the
+    targum team went on 2026-09-17 (design.md §12). The sources stayed: since 2026-10-09
+    they are folded at the foot of the page of the desk."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
     assert "curated by the targum team" not in page
     assert "Compiled by a model" not in page
-    # What replaced it is nothing: the section it stood in is where the sources are, and
-    # they are the honest answer to the question it was pretending to answer.
-    assert "Made honestly" in page
+    assert '<details class="card series-sources" id="sources">' in page
 
 
 def test_the_page_names_its_sources(open_shelves: tuple[int, Path]) -> None:
@@ -270,65 +263,24 @@ def test_the_page_names_its_sources(open_shelves: tuple[int, Path]) -> None:
     assert "State of Israel, free use" in page
 
 
-def test_the_page_embeds_the_reader_rather_than_linking_to_it(
+def test_the_page_offers_the_three_levels_and_reads_at_the_one_chosen(
     open_shelves: tuple[int, Path],
 ) -> None:
-    """A link away is a decision somebody has to make before they have been shown
-    anything, and a stranger makes that decision by leaving. The first thing under the
-    headline is the product running.
-
-    The page carries a level switcher of its own, above the frame. For a while it did
-    not — two controls doing one thing, with only one of them able to know which level
-    is showing, is a way to be wrong on screen — but on a phone the reader's own switch
-    went behind ⋯, and the page can know: the frame is the same origin and `weekly.js`
-    reads where it has gone on every load (see the browser test below).
-    """
+    """Board SeriesWeekly (design.md §12, "A series is one page of the desk, for
+    everyone", 2026-10-09): this issue at three levels as cards, the one at this address
+    chosen, and "Read at Simplified" opening that level's reader."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    assert "<iframe" in page
-    assert f"/weekly/read/weekly-{WEEK}-bet-he/reader/index.html" in page
-    assert "Read this week's news in Hebrew. Every word explained." in page
-    # The hero says what targum is; the dateline under This week says why an issue is
-    # sitting on the page.
-    assert "targum is a reader for Hebrew" in page
-    assert "publishes a free issue of the week's news" in page
-    assert 'class="btn tonal" href="#embed">Read this week\'s issue</a>' in page
+    assert "<iframe" not in page.split("talk-frame")[0], "no frame of the whole reader"
+    assert (
+        f'href="/weekly/read/weekly-{WEEK}-bet-he/reader/index.html">Read at Simplified</a>' in page
+    )
     for level in ("aleph", "bet", "gimel"):
-        assert f'href="/weekly/{WEEK}/{level}" data-level="{level}"' in page, level
-    assert 'data-level="bet"\n       data-what=' in page or 'data-level="bet"' in page
-    assert re.search(r'data-level="bet"[^>]*class="here" aria-current="page"', page)
-    assert not re.search(r'data-level="aleph"[^>]*aria-current', page)
-
-
-def test_the_page_keeps_step_with_the_level_the_frame_is_showing(
-    open_shelves: tuple[int, Path],
-) -> None:
-    """Switch level inside the framed reader and the page's own switcher, the sentence
-    under it and the address all follow — the answer to the objection that two controls
-    for one thing will disagree."""
-    playwright_api = pytest.importorskip("playwright.sync_api")
-    port = open_shelves[0]
-    with playwright_api.sync_playwright() as driver:
-        try:
-            browser = driver.chromium.launch()
-        except Exception as why:  # pragma: no cover - the browser itself is not installed
-            pytest.skip(f"no Chromium ({why})")
-        page = browser.new_page(viewport={"width": 1280, "height": 900})
-        page.goto(f"http://127.0.0.1:{port}/weekly/{WEEK}/bet")
-        page.wait_for_selector(".ladder a.here")
-        # The fixture's readers are stubs with no bar, so the frame is sent where the
-        # bar's own level link would send it: the same navigation, the same `load`.
-        page.evaluate(
-            "(to) => { document.querySelector('.embed iframe').src = to; }",
-            f"/weekly/read/weekly-{WEEK}-aleph-he/reader/index.html",
-        )
-        page.wait_for_function(
-            "() => document.querySelector('.ladder a.here').getAttribute('data-level') === 'aleph'"
-        )
-        assert page.url.endswith(f"/weekly/{WEEK}/aleph")
-        said = page.inner_text("#ladder-what")
-        wanted = page.get_attribute('.ladder a[data-level="aleph"]', "data-what")
-        assert said == wanted
-        browser.close()
+        assert f'href="/weekly/{WEEK}/{level}"' in page, level
+    assert re.search(
+        rf'class="series-level is-chosen" href="/weekly/{WEEK}/bet" aria-current', page
+    )
+    assert not re.search(rf'href="/weekly/{WEEK}/aleph" aria-current', page)
+    assert "This week ·" in page and "Weekly News Digest" in page
 
 
 def test_the_page_is_canonical_to_itself(open_shelves: tuple[int, Path]) -> None:
@@ -338,15 +290,21 @@ def test_the_page_is_canonical_to_itself(open_shelves: tuple[int, Path]) -> None
 
 
 def test_the_page_leaks_no_route_that_needs_an_account(open_shelves: tuple[int, Path]) -> None:
-    """The same rule `test_public` holds every other public page to."""
+    """The same rule `test_public` holds every other public page to — except the app's
+    bar, whose places a stranger meets the door at, since a series is a page of the desk
+    for everyone (design.md §12, 2026-10-09)."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
+    main = page.partition("<main")[2].partition("</main>")[0]
     for private in ("/progress", "/readers", "/job/", "/glossary/"):
-        assert private not in page, private
+        assert private not in main, private
+    for private in ("/readers", "/job/", "/glossary/"):
+        assert f'href="{private}' not in page, private
     # As an href, not as a substring: the public reader lives at
     # `/weekly/read/<edition>/reader/<file>`, which contains "/reader/" and needs no
     # account. What must never appear is a link to the private route itself.
-    assert '"/reader/' not in page, "the private reader route"
+    assert 'href="/reader/' not in page, "the private reader route"
     assert "/account/signin" in page, "the door is the one way in it may offer"
+    assert "test-key" not in page, "a stranger is never handed the page's key"
 
 
 def test_the_page_carries_what_a_search_engine_needs(open_shelves: tuple[int, Path]) -> None:
@@ -487,18 +445,15 @@ def test_signed_out_cannot_use_the_signed_in_door(open_shelves: tuple[int, Path]
 
 
 def test_the_page_asks_for_nothing_but_the_one_door(open_shelves: tuple[int, Path]) -> None:
-    """There used to be a Monday-reminder form here and a card at the foot of the issue
-    asking again. Both went: the one thing this page asks is to come in — and since
-    2026-09-27 the way in is the waitlist, asked in the hero and at the foot, as the
-    front door asks it (design.md §12)."""
+    """No Monday-reminder form, no waitlist and no pitch: a stranger is asked to sign in
+    where Subscribe stands (design.md §12, "A series is one page of the desk, for
+    everyone", 2026-10-09)."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
+    main = page.partition("<main")[2].partition("</main>")[0]
     assert "/weekly/subscribe" not in page
     assert "<dialog" not in page
-    assert re.findall(r'<form[^>]*action="([^"]+)"', page) == ["/waitlist", "/waitlist"]
-    assert page.count('name="email"') == 2, "the hero's form and the foot's"
-    assert page.count('href="/account/signin"') == 2, "the bar's and the foot's"
-    assert 'class="btn cta small" href="#join"' in page, "the bar points at the foot's form"
-    assert 'id="join"' in page
+    assert "<form" not in main and 'action="/waitlist"' not in page
+    assert 'class="btn filled series-sign-in" href="/account/signin"' in main
 
 
 def _as_reader(port: int, path: str) -> str:
@@ -512,37 +467,27 @@ def _as_reader(port: int, path: str) -> str:
     return body
 
 
-def test_a_signed_in_reader_is_not_asked_to_join(open_shelves: tuple[int, Path]) -> None:
-    """§6: somebody who has already chosen targum is not sold to again (copy audit,
-    2026-09-28, Q21). The bar's call, the hero's form and the closing section go, and
-    the Read button leads the hero."""
+def test_a_signed_in_reader_is_offered_subscribe(open_shelves: tuple[int, Path]) -> None:
+    """Signed in, Subscribe stands where the stranger's sign-in prompt does: one press,
+    because a series is free, in the state the account is in."""
     page = _as_reader(open_shelves[0], f"/weekly/{WEEK}/bet")
-    assert 'action="/waitlist"' not in page
-    assert 'href="#join"' not in page and 'id="join"' not in page
-    assert 'class="btn cta" href="#embed"' in page, "Read leads"
+    assert 'id="series-subscribe" data-series="weekly"' in page
+    assert 'class="btn filled series-sign-in"' not in page
     stranger = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    assert 'class="btn tonal" href="#embed"' in stranger
+    assert 'id="series-subscribe"' not in stranger
 
 
 def test_an_older_issue_is_not_called_this_week_s(open_shelves: tuple[int, Path]) -> None:
-    """Copy audit, 2026-09-28 (Q22): the archive's hero said "this week's news" of an
-    issue weeks old. The newest says it; an older one is worded around its date."""
+    """Copy audit, 2026-09-28 (Q22): the newest says this week; an older one is worded
+    around its date, and has no next issue beside it."""
     import html
 
     newest = html.unescape(ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode())
-    assert "Read this week's news in Hebrew." in newest
+    assert "This week ·" in newest and "Next issue" in newest
     older = html.unescape(ask(open_shelves[0], "/weekly/2026-w35/bet")[1].decode())
-    assert "this week's" not in older.lower()
-    assert "Read the news in Hebrew, as it was on Monday, August 24, 2026." in older
-    assert "Read this issue" in older
-
-
-def test_the_page_still_offers_only_the_one_door(open_shelves: tuple[int, Path]) -> None:
-    """Adding a dialog must not have added a route that needs an account."""
-    page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    for private in ("/progress", "/readers", "/job/", "/glossary/"):
-        assert private not in page, private
-    assert '"/reader/' not in page, "the private reader route"
+    assert "this week" not in older.partition("<main")[2].lower()
+    assert "The issue of 24 August" in older
+    assert "Next issue" not in older
 
 
 # -- the reader itself, for a stranger -------------------------------------------------
@@ -815,10 +760,8 @@ def test_the_page_offers_the_weeks_before_it(open_shelves: tuple[int, Path]) -> 
     """And never itself: an archive listing the issue you are reading is a link that
     goes nowhere you are not."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    archive = page.split('class="archive"', 1)[1]
+    archive = page.split('class="card series-past"', 1)[1].split("</section>", 1)[0]
     assert "/weekly/2026-w35/" in archive
-    # The level switcher above the frame does link this issue — at every level, this
-    # one included — so the rule is asked of the archive alone.
     assert f'href="/weekly/{WEEK}/' not in archive
 
 
@@ -893,87 +836,17 @@ LOCKED = """
 """
 
 
-@pytest.mark.parametrize("phone", [True, False], ids=["a phone", "a desktop"])
-def test_the_framed_reader_is_never_forced_on_anyone(
-    open_shelves: tuple[int, Path], phone: bool
-) -> None:
-    """Nothing about the frame is automatic: scrolling to it and pressing inside it
-    leave the page as it is. The row above it is the one way to the whole screen — the
-    browser's own where there is one, pinned by hand where there is not — and the same
-    row, or Escape, is the way back, with the page where it was."""
-    playwright_api = pytest.importorskip("playwright.sync_api")
-    port = open_shelves[0]
-    size = {"width": 390, "height": 844} if phone else {"width": 1280, "height": 800}
-    with playwright_api.sync_playwright() as driver:
-        try:
-            browser = driver.chromium.launch()
-        except Exception as why:  # pragma: no cover - the browser itself is not installed
-            pytest.skip(f"no Chromium ({why})")
-        page = browser.new_page(
-            viewport=size, has_touch=phone, is_mobile=phone, reduced_motion="reduce"
-        )
-        page.goto(f"http://127.0.0.1:{port}/weekly/{WEEK}/bet")
-        page.wait_for_selector("#embed-handle")
-        page.evaluate("() => window.scrollTo(0, document.getElementById('embed').offsetTop)")
-        page.wait_for_function(STILL)
-        page.frame_locator(".embed iframe").locator("body").dispatch_event("pointerdown")
-        # A press inside the frame is asserted to do nothing, and nothing takes a moment
-        # to not happen: the page is given a frame to seize itself in before being asked
-        # whether it did.
-        page.wait_for_function(STILL)
-        state = page.evaluate(LOCKED)
-        assert not state["locked"], "neither scrolling to it nor pressing inside it seizes the page"
-        assert not page.evaluate("() => !!document.fullscreenElement")
-        assert state["handle"] == "Full screen"
-
-        page.click("#embed-handle")
-        page.wait_for_function(
-            "() => document.fullscreenElement || document.body.classList.contains('locked')"
-        )
-        # `fullscreenElement` is set before the page's own `fullscreenchange` handler has
-        # written the row, so the label is read with a retry rather than once.
-        playwright_api.expect(page.locator("#embed-handle")).to_have_text("Exit full screen")
-        page.click("#embed-handle")
-        page.wait_for_function(
-            "() => !document.fullscreenElement && !document.body.classList.contains('locked')"
-        )
-        playwright_api.expect(page.locator("#embed-handle")).to_have_text("Full screen")
-        # And not before the page has stopped moving. On the desktop path nothing in the
-        # page puts the scroll back — `unpin` is never reached, so leaving full screen is
-        # the browser restoring it, which it does after the event that flips the label.
-        # `scrollY` read in between is the failure that aborted a deploy.
-        page.wait_for_function(STILL)
-        state = page.evaluate(LOCKED)
-        assert state["handle"] == "Full screen"
-        slot = page.evaluate("() => document.getElementById('embed').offsetTop")
-        assert abs(state["scrollY"] - slot) < 8, "the page is back where it was"
-        browser.close()
-
-
-def test_the_page_has_a_spine_and_says_how_it_works(open_shelves: tuple[int, Path]) -> None:
-    """One label over each block, and three steps — tap, mark, switch — each shown with
-    the reader's own piece, still, and none of it a control."""
+def test_the_page_is_the_boards(open_shelves: tuple[int, Path]) -> None:
+    """Board SeriesWeekly: the series' head, this issue's card, the next issue beside
+    it, the past under it, and the sources folded at the foot."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    labels = re.findall(r'<h2 class="label">([^<]+)', page)
-    assert [label.strip() for label in labels][:4] == [
-        "This issue",
-        "Why targum",
-        "Made honestly",
+    order = [
+        '<header class="series-head">',
+        '<section class="card series-now"',
+        '<section class="card series-past"',
+        '<section class="card series-next">',
+        '<details class="card series-sources" id="sources">',
     ]
-    how = page.split('<section class="how">', 1)[1].split("</section>", 1)[0]
-    assert how.count("<li>") == 4 and "</ol>" in how
-    for claim in (
-        "Every word, one tap.",
-        "The page learns what you know.",
-        "Three versions of the same week.",
-        "A reader, properly.",
-    ):
-        assert f"<b>{claim}</b>" in how, claim
-    assert 'class="how-card" aria-hidden="true"' in how
-    assert "<button" not in how, "an illustration has no controls"
-    assert '<span class="level here">Simplified</span>' in how, "the chips show this level"
-    assert '<details class="sources" id="sources" open>' in page
-    assert re.search(r"Sources <span class=\"count\">\(\d+\)</span>", page)
-    # The door is last, after the honesty: the waitlist, as the front door ends.
-    assert page.index('<section class="honest">') < page.index('<section class="front-join"')
-    assert page.index('<section class="front-join"') > page.index('<details class="sources"')
+    at = [page.index(one) for one in order]
+    assert at == sorted(at), at
+    assert "Why targum" not in page and "front-join" not in page
