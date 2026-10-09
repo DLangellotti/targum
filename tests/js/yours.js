@@ -198,7 +198,8 @@ function shelf() {
       title: part("book-title"),
       english: part("book-english"),
       facts: part("book-facts"),
-      status: (named("row-status") || {}).textContent || "",
+      // The tag on a build; the quiet line's own status on a text (board Main, P4).
+      status: (named("row-status") || deep(what, "fact-status") || {}).textContent || "",
       controls: controls ? controls.children.map((c) => c.textContent) : [],
     };
   });

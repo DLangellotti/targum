@@ -556,6 +556,49 @@ Library's shelves and See all on `.rows` (P5), Your Words' table (P6), the reade
 card (P7), the playlist page's columns (P9), a subscription's page (P10), Upload's
 composer (P11), the account and the saved page (P12).
 
+### Home is Continue and one card of rows — 2026-10-09
+
+P4 of the polish plan, on David's calls for home (2026-10-09): **home is Continue and
+Your targums and nothing else**; Continue is the last few texts opened or uploaded, each
+picking up exactly where the reader stopped, what a subscription brought marked New; the
+tabs are Recent · Playlists · Subscriptions · Uploads; Talk is a pill; the press says
+Upload. Boards Main, HomePhone, SubHome, SubsTab and the language boards. Where this
+goes past those calls:
+
+- **On a phone Continue is a row to swipe**, a card and a bit of the next one across the
+  glass, snapping card by card, as board HomePhone draws it. "Home is Your targums"
+  (2026-10-08) showed two stacked cards and hid the rest; all of them are there now.
+- **A book's place is its chapter**: "Pick up at chapter 2" where the text has chapters,
+  "part 3" where it has parts, the time where it plays.
+- **All your targums is one card of rows** (`.rows`): its title, the tabs at its head,
+  "Find in your targums" once there are six or more, then a row a text — the 44px
+  picture, the title with one quiet line under it, the kind as a `.tag`, the known share
+  as a `.meter`, when at the end, and + and ⋯. The quiet line says where the reader is
+  with it (New, Started, 3 of 6, Finished), its length, its English and its playlists,
+  each cut short on its own, so a playlist's long name never pushes a row past the card
+  (the cards it replaced did). A phone keeps the picture, the title and its line.
+- **The chips and the order are gone** (All · New · Started · Finished, and the native
+  Order select). The board draws neither; Recent is the order, and Uploads and
+  Subscriptions are the cuts a reader asked for. Easiest-first lives in the Library.
+- **The tabs stand where the board puts them**: in the card's head on Recent and
+  Uploads, and under the page's title on Subscriptions and Playlists, which are the
+  page's whole width with nothing of Continue's or the side's beside them (board
+  SubsTab). One strip, moved between the two places.
+- **New is said twice more**: Continue's note becomes "New from your subscriptions first,
+  then what you opened or uploaded" while something new leads it, and the Subscriptions
+  tab counts it ("2 new"), as board SubHome draws them. Not a badge to clear: it goes
+  when the thing is opened.
+- **Per language, from the language boards, inside "nothing else"**: the upload names the
+  language ("Upload something in Russian"; Hebrew keeps "to read", and Yiddish says it
+  takes a photo of a page); a language the library has nothing in says so in a card where
+  the suggestion would stand (board YiHome; `/suggest` answers `library`); and Aramaic
+  says Onkelos is met beside every verse of the Hebrew Torah, with the way to this week's
+  portion (board ArcHome). Their library shelves stay off home, as "The boards are the
+  desk" ruled.
+
+What it does not overturn: nothing on home spends, no streaks and no counts to beat, and
+a brand-new reader still sees the one line, the one to start with and the upload.
+
 ### The reader's menus are the board's — 2026-10-09
 
 David, 2026-10-09, on the live ⋯ menu: "these menus do not look nicely organized as they
@@ -1465,9 +1508,10 @@ This reverses "Learn is most visits" in the nav's order, the sheet and the row o
 beside the sheet (2026-09-18): there is no sheet, no rail and no row of doors any more.
 
 - **Continue leads home.** The last few texts the reader opened or uploaded, newest first,
-  four at a desk and two on a phone, each a card with its picture, what it is, its title
-  in its own face, how far through in leaf, and one press that picks up exactly where
-  they stopped: the part, the sentence and the second (`Store.places`, targum-internal#430;
+  four at a desk and two on a phone (a row to swipe through all of them since
+  2026-10-09, "Home is Continue and one card of rows"), each a card with its picture,
+  what it is, its title in its own face, how far through in leaf, and one press that
+  picks up exactly where they stopped: the part, the sentence and the second (`Store.places`, targum-internal#430;
   this browser's `targum:places` for somebody signed out). A text still being built is a
   card too, and opens when it is ready. A followed series' newest instalment leads it
   once, marked New, and rings the bell, as it took the sheet before.

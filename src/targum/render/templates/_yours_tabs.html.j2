@@ -8,6 +8,6 @@
 <nav class="tabs yours-tabs" id="yours-tabs" aria-label="{{ t("yours.tabs.label", "Your targums") }}">
   <a class="tab" data-tab="recent" href="/{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'recent' %} aria-current="page"{% endif %}>{{ t("yours.tabs.recent", "Recent") }}</a>
   <a class="tab" data-tab="playlists" href="/playlists{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'playlists' %} aria-current="page"{% endif %}>{{ t("yours.tabs.playlists", "Playlists") }}</a>
-  <a class="tab" data-tab="subscriptions" href="/?show=subscriptions{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'subscriptions' %} aria-current="page"{% endif %}>{{ t("yours.tabs.subscriptions", "Subscriptions") }}</a>
+  <a class="tab" data-tab="subscriptions" href="/?show=subscriptions{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'subscriptions' %} aria-current="page"{% endif %}>{{ t("yours.tabs.subscriptions", "Subscriptions") }} <span class="tab-count" id="subs-new"></span></a>
   <a class="tab" data-tab="uploads" href="/?show=uploads{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'uploads' %} aria-current="page"{% endif %}>{{ t("yours.tabs.uploads", "Uploads") }}</a>
 </nav>

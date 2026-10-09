@@ -2389,9 +2389,10 @@ def _shelf_row(name: str, title: str, built: int, **extra: object) -> dict:
 @pytest.mark.parametrize("width", [320, 390, 1280])
 def test_home_leads_with_continue_and_picks_up_where_you_stopped(browser, width: int) -> None:
     """design.md §12, "Home is Your targums, and Continue leads it" (2026-10-08): the last
-    texts opened or uploaded, newest first, four at a desk and two on a phone, each one
-    press back to the part it was left in; the upload under Continue on a phone and
-    beside the shelf at a desk; and nothing scrolls sideways."""
+    texts opened or uploaded, newest first, four at a desk and on a phone a row to swipe
+    (board HomePhone, P4 2026-10-09), each one press back to the part it was left in —
+    a book's chapter by name; the upload under Continue on a phone and beside the shelf
+    at a desk; and nothing but that row scrolls sideways."""
     chapters = [
         {"number": n, "title": str(n), "file": f"sec-000{n}.html", "ready": True} for n in (1, 2, 3)
     ]
@@ -2414,6 +2415,11 @@ def test_home_leads_with_continue_and_picks_up_where_you_stopped(browser, width:
           return {
             cards: cards.length,
             shown: cards.filter(seen).length,
+            swipes: (() => {
+              const row = document.getElementById('continue-cards');
+              return getComputedStyle(row).overflowX === 'auto'
+                && row.scrollWidth > row.clientWidth;
+            })(),
             first: cards[0].querySelector('.home-card-title').textContent,
             go: cards[0].querySelector('.home-card-go').textContent,
             href: cards[0].querySelector('.home-card-open').getAttribute('href'),
@@ -2427,8 +2433,9 @@ def test_home_leads_with_continue_and_picks_up_where_you_stopped(browser, width:
     page.wait_for_timeout(300)
     context.close()
     assert got["cards"] == 4, got
-    assert got["shown"] == (2 if width < 640 else 4), got
-    assert got["first"] == "ספר" and got["go"] == "Pick up at part 2", got
+    assert got["shown"] == 4, got
+    assert got["swipes"] == (width < 640), got
+    assert got["first"] == "ספר" and got["go"] == "Pick up at chapter 2", got
     assert got["href"].startswith("/reader/book/reader/sec-0002.html"), got
     assert got["uploadFirst"] == (width < 640), got
     assert not got["sideways"], got
