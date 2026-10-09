@@ -5840,7 +5840,9 @@ def portion_groups(
                     "hebrew": placed.hebrew or placed.name,
                     # An en dash for the range: Hebcal writes a hyphen, and on a page
                     # this is a span of chapters, not a compound.
-                    "summary": placed.summary.replace("-", "–"),
+                    # The book's own range only: a week's line can carry a festival's
+                    # extra reading after a semicolon ("…40:23; Numbers 7:1-17").
+                    "summary": placed.summary.split(";")[0].strip().replace("-", "–"),
                     "href": holding.filename + where if holding is not None else where,
                 }
             groups.append({"key": key, "portion": portion, "sections": []})

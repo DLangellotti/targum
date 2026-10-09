@@ -548,14 +548,27 @@ def test_a_book_answers_to_any_of_its_three_names() -> None:
 
 
 def test_a_book_with_no_portions_has_none(corpus: Path) -> None:
-    """Ruth, and every one of the five on a machine with no corpus built."""
+    """Ruth has none, and neither has an empty index handed in."""
     from targum.parasha import build as corpus_build
 
     assert corpus_build.portions_for("Ruth", genesis_index()) == []
     assert corpus_build.portions_for("sefaria:Ruth", genesis_index()) == []
     assert corpus_build.portions_for("Genesis", Index()) == []
-    # Off the disk, where the fixture corpus has no index written at all.
-    assert corpus_build.portions_for("Genesis") == []
+    assert corpus_build.portions_for("Ruth") == []
+
+
+def test_off_a_disk_with_no_corpus_the_five_take_the_shipped_starts(corpus: Path) -> None:
+    """Where the fixture corpus has no index written at all, the 54 starts shipped with
+    targum answer (audit Q9, 2026-10-09): they are the same every year."""
+    from targum.parasha import build as corpus_build
+
+    genesis = corpus_build.portions_for("Genesis")
+    assert [(s.slug, s.chapter, s.verse) for s in genesis[:2]] == [
+        ("bereshit", 1, 1),
+        ("noach", 6, 9),
+    ]
+    assert len(genesis) == 12
+    assert sum(len(corpus_build.portions_for(book)) for book in corpus_build.BOOKS) == 54
 
 
 def test_a_portion_written_before_opening_ref_starts_where_its_range_line_says() -> None:

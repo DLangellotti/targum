@@ -2906,20 +2906,18 @@ def test_a_torah_books_contents_page_groups_its_chapters_by_portion(
     assert '<a class="portion-name" href="#1:1">' in before
 
 
-def test_a_torah_book_with_no_corpus_lists_its_chapters_as_it_always_has(
+def test_a_torah_book_with_no_corpus_is_grouped_by_the_portions_targum_ships(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The layer is data: with nothing built there is nothing to draw, and a fresh
-    machine gets the page it got before the corpus existed."""
+    """Where the 54 begin is fixed, so a machine with no corpus built still groups a Torah
+    book by portion, off the table shipped with targum: a reader's own copy of Genesis
+    reads as the library's does (board PartsTanakh, audit Q9, 2026-10-09). It listed the
+    chapters flat until then."""
     html = torah(tmp_path, monkeypatch, None)
-    # The body, not the page: the stylesheet is inlined into every reader and carries the
-    # rules for a layer this page does not draw.
     body = html[html.index("<body") : html.index("</main>")]
-    assert 'class="portion"' not in body
-    assert "portion-" not in body
+    assert 'data-portion="bereshit"' in body and 'data-portion="noach"' in body
     # The rows carry the verse range each file holds, the way every other contents
-    # page does since a verse link learned to land on the file that has it — the
-    # portion layer is what a machine with no corpus goes without, not the range.
+    # page does since a verse link learned to land on the file that has it.
     assert '<li data-chapter="1" data-chapters="5" data-from="5:1" data-to="5:10">' in html
     assert '<li data-chapter="3" data-chapters="7" data-from="7:1" data-to="7:10">' in html
 
