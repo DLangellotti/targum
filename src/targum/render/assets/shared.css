@@ -1117,3 +1117,29 @@ table.rows tr:hover .copy,
     min-block-size: 44px;
   }
 }
+/* The 404's line icon (board NotFound, 2026-10-09): 40px, in the well's grey, a §7
+   stroke. */
+.fault-page .fault-icon {
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  fill: none;
+  stroke: var(--well);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The 404 on the desk stands in a paper panel in the column, its title the page title's
+   serif (board NotFound; design.md §12, "The boards are the desk"). */
+body.missing main.fault-page {
+  inline-size: calc(100% - 2.5rem);
+  max-inline-size: calc(var(--column, 73.75rem) - 2.5rem);
+  margin: 2rem auto 0;
+  border-radius: var(--radius-card);
+  background: var(--paper);
+  box-shadow: var(--shadow-rest);
+}
+body.missing main.fault-page h1 { font-size: 1.9375rem; font-weight: 500; }
+@media (max-width: 40rem) {
+  body.missing main.fault-page { inline-size: calc(100% - 2rem); margin-block-start: 1rem; }
+  body.missing main.fault-page h1 { font-size: 1.75rem; }
+}

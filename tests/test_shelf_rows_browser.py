@@ -214,14 +214,15 @@ def test_the_nav_has_the_shelf_first_and_marks_it_here(browser, tmp_path: Path) 
 def test_a_phone_calls_the_shelf_targums(browser, tmp_path: Path) -> None:
     """One name (design.md §12, "Yours and everyone's", 2026-09-25). A phone said Texts
     from 2026-09-24, because "targums" alone read as a typo; a place with two names read
-    worse. "Your" drops on a phone, as it does for Progress."""
+    worse. A phone's foot says "Your targums" whole since 2026-10-09, as board HomePhone
+    draws it (design.md §12, "The boards are the desk")."""
     context, page, _ = shelf(browser, tmp_path, 390)
     phone = page.locator(".site-nav a[data-nav='texts']").inner_text()
     context.close()
     context, page, _ = shelf(browser, tmp_path, 1280)
     desk = page.locator(".site-nav a[data-nav='texts']").inner_text()
     context.close()
-    assert phone.strip() == "targums"
+    assert phone.strip() == "Your targums"
     assert desk.strip() == "Your targums"
 
 

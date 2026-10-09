@@ -947,3 +947,54 @@ def test_the_boards_rulings_are_recorded_and_the_rules_they_retire_say_so() -> N
         "more than one language. *(Superseded 2026-10-09",
     ):
         assert retired in desk, retired
+
+
+# -- one shell for every desk page (design.md §12, "The boards are the desk", 2026-10-09) --
+
+
+def test_every_desk_page_stands_in_the_one_column() -> None:
+    """The boards' 1248px at a 1440 window, one token for the bar's row, the title, the
+    page and the foot. #680 drew it on Your Progress alone; a page-local copy, or the old
+    62rem, is a page that has drifted out of the shell."""
+    chrome = (ASSETS / "chrome.css").read_text(encoding="utf-8")
+    chrome = re.sub(r"/\*.*?\*/", " ", chrome, flags=re.S)
+    assert "--column: 73.75rem" in chrome
+    for sheet in DESK_SHEETS:
+        css = re.sub(r"/\*.*?\*/", " ", (ASSETS / sheet).read_text(encoding="utf-8"), flags=re.S)
+        assert "62rem" not in css, f"{sheet} keeps the old column"
+        assert "--progress-column" not in css, f"{sheet} keeps a page's own column"
+
+
+def test_the_talk_pill_is_ink() -> None:
+    """The boards draw Talk to targum as the call to action: paper on ink (§9), not the
+    primary."""
+    chrome = (ASSETS / "chrome.css").read_text(encoding="utf-8")
+    said = [
+        (prop, value)
+        for selector, prop, value in _declarations(chrome)
+        if selector == ".talk-cta" and prop in ("background", "color")
+    ]
+    assert dict(said)["background"] == "var(--ink)"
+    assert dict(said)["color"] == "var(--page-max)"
+
+
+def test_a_page_title_stands_on_the_desk_under_the_bar() -> None:
+    """The title leaves the bar for the ground below it, in the reading serif at 34px and
+    weight 500, on every desk page that has one."""
+    nav = (TEMPLATES / "_nav.html.j2").read_text(encoding="utf-8")
+    assert nav.index("</header>") < nav.index('class="page-title"')
+    chrome = (ASSETS / "chrome.css").read_text(encoding="utf-8")
+    title: dict[str, str] = {}
+    for selector, prop, value in _declarations(chrome):
+        if selector == ".page-title":
+            title.setdefault(prop, value)  # the desk's own; a phone's comes later
+    assert title["font-family"] == "var(--reading)"
+    assert title["font-size"] == "1.9375rem" and title["font-weight"] == "500"
+
+
+def test_the_language_menu_draws_no_flag() -> None:
+    """No board draws a flag, and §1's "no flags" holds everywhere again."""
+    for name in ("lang.js", "chrome.css"):
+        text = (ASSETS / name).read_text(encoding="utf-8")
+        code = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+        assert "lang-flag" not in code and "FLAGS" not in code, name

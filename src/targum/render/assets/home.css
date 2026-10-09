@@ -18,11 +18,31 @@ body.yours main { gap: 2.25rem; }
   gap: 0.25rem 1rem;
   margin-block-end: 1rem;
 }
+/* Home has no page title on the board (Main, HomePhone): Continue is its head, at the
+   title's size and in its face (design.md §12, "The boards are the desk", 2026-10-09).
+   "Your targums" stays in the page for a screen reader, and shows again whenever there
+   is nothing to continue. */
+body.yours:has(#continue:not([hidden])) .page-head .page-title {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+body.yours:has(#continue:not([hidden])) main { padding-block-start: 2.25rem; }
 .continue-top h2 {
   margin: 0;
-  font-family: var(--chrome);
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-family: var(--reading);
+  font-size: 1.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+@media (max-width: 40rem) {
+  .continue-top h2 { font-size: 1.75rem; }
+  body.yours:has(#continue:not([hidden])) main { padding-block-start: 1.25rem; }
 }
 .continue-note {
   margin: 0;

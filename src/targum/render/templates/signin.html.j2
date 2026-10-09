@@ -1,17 +1,28 @@
+{#- A link that has expired stands in the app's shell (design.md §12, "The boards are the
+    desk", 2026-10-09; board ErrorsDesk): the bar with the one place a stranger may go,
+    and the page on the desk under it. The other doors keep the lockup alone. -#}
+{%- set desk = expired and not closing and not landing %}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1{% if desk %}, viewport-fit=cover{% endif %}">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('signin.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{% if desk %}{{ asset('chrome.css') }}{% endif %}{{ asset('signin.css') }}</style>
 {{ hebrew_face() }}
+{%- if not desk %}
 {{ chrome_face() }}
+{%- endif %}
 <script>{{ asset('keep.js') }}</script>
 </head>
-<body class="signin">
+<body class="signin"{% if desk %} data-shell="desk"{% endif %}>
+{%- if desk %}
+{% set here = 'door' %}
+{% include '_nav.html.j2' %}
+{%- endif %}
 <main class="gate">
+  {%- if not desk %}
   {#- The lockup alone. There is no navigation to offer someone who is not in yet, and
       a header with three dead links is worse than no header. -#}
   <a class="brand" href="/" aria-label="targum">
@@ -21,6 +32,7 @@
     </svg>
     <span>targum</span>
   </a>
+  {%- endif %}
 
   {#- The door itself is a card on the desk (§13, 2026-09-14): the lockup and the foot
       stand on the ground around it, the way the places and the footer do on every page
@@ -66,7 +78,9 @@
 
   {% elif expired %}
   {#- A whole page too: a heading, one sentence, and the form whose one button sends a
-      new link. Send a link stays ink, as the door's call to action (§9). -#}
+      new link. Send a link stays ink, as the door's call to action (§9). The board's
+      line icon over it, an envelope. -#}
+  <svg class="fault-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 3.75h12.5v8.5H1.75zM1.75 4.25 8 9l6.25-4.75"/></svg>
   <h1>{{ t("signin.page.that-link-has-been-used", "This link has expired") }}</h1>
   <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Enter your email and we'll send a new one.") }}</p>
   <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
@@ -111,7 +125,7 @@
 {#- Outside the door's column, as on every other page with it (2026-09-28). Inside, the
     foot laid out its columns by the window's width in a 26rem column, and ran them into
     one another. -#}
-{% include '_public_foot.html.j2' %}
+{% if desk %}{% include '_foot.html.j2' %}{% else %}{% include '_public_foot.html.j2' %}{% endif %}
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
 <script>{{ asset('fault.js') }}</script>

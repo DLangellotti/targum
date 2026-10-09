@@ -19,15 +19,13 @@
     palette (--step-1..4) is defined on `.words`, and the tiles, the growth line and the
     stacked bar are all drawn with that kit. -#}
 <body class="progress">
-{#- No `title` for the bar: the board stands the page's title on the desk, under the bar,
-    in the column below (design.md §12, "The mockups win on Your Progress", 2026-10-09). -#}
-{% set here = 'progress' %}
+{#- The title stands on the desk under the bar, as on every desk page (design.md §12, "The
+    boards are the desk", 2026-10-09). The nav draws it outside `main`, which stays hidden
+    for a reader with nothing yet: the title is there either way. -#}
+{% set here = 'progress' %}{% set title = t("you.page.your-progress", "Your Progress") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
-{#- Outside `main`, which stays hidden for a reader with nothing yet: the title is there
-    either way. -#}
-<h1 class="page-title">{{ t("you.page.your-progress", "Your Progress") }}</h1>
 <main id="page" hidden>
   {#- A story in three parts under the totals (design.md §12, "Your Progress is a story in
       three parts", 2026-10-09): where you are, how you got here, what next. -#}

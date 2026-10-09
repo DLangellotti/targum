@@ -99,6 +99,10 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 <script>{{ asset('strings.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
+{#- The account's corner asks `sync.js` who is signed in and `account.js` draws them, as
+    on every desk page. Without it the corner said "Sign in" to a reader who was (board
+    OffSavedDesk, 2026-10-09; the Tanakh map's bug, #677). -#}
+<script>{{ asset('account.js') }}</script>
 <script>{{ asset('saved.js') }}</script>
 </body>
 </html>

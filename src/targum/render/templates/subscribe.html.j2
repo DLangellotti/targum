@@ -7,29 +7,28 @@
     choose otherwise — and it is the consent for every new item that gets ready by itself
     inside it.
 
-    `press.html.j2`'s furniture — the lockup, one card, no navigation — for its reason:
-    somebody is in the middle of something that started elsewhere. No script: the cap is
-    a radio and the press a form post. -#}
+    In the app's shell since 2026-10-09 (design.md §12, "The boards are the desk"; board
+    SubConfirmDesk): the bar, and the card in the column on the desk. It wore
+    `press.html.j2`'s furniture — the lockup, one card, no navigation — until then. The
+    press itself needs no script: the cap is a radio and the press a form post; the bar's
+    scripts only draw the bar. -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('signin.css') }}{{ asset('subs.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('signin.css') }}{{ asset('subs.css') }}</style>
 {{ hebrew_face() }}
-{{ chrome_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
-<body class="signin">
-<main class="gate">
-  <a class="brand" href="/" aria-label="targum">
-    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-    </svg>
-    <span>targum</span>
-  </a>
+<body class="subscribe">
+{% set here = 'subscribe' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+<main class="gate sub-gate">
   <div class="door subscribe-door">
   {%- if offer is none %}
     <h1>{{ t("subscribe.page.cant", "We can't subscribe you to this") }}</h1>
@@ -111,5 +110,12 @@
   {%- endif %}
   </div>
 </main>
+{% include '_foot.html.j2' %}
+<script>window.TARGUM_LANGUAGES = { {% for code, name in names %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
 </body>
 </html>

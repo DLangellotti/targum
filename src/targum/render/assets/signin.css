@@ -331,3 +331,39 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
 }
 .gate .door.whole form { text-align: start; }
 .gate .trouble.fault-panel { margin-block-end: 1.25rem; }
+
+/* --- an expired link, in the app's shell (design.md §12, "The boards are the desk",
+   2026-10-09; board ErrorsDesk) -----------------------------------------------------
+   The bar over it with the one place a stranger may go, and the door in the middle of
+   the desk under it. The label is a word in sentence case, as the board draws it, and
+   not the desk's small capitals. */
+body.signin[data-shell="desk"] {
+  display: block;
+  place-items: normal;
+  min-height: 0;
+  padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+body.signin[data-shell="desk"] main.gate { margin: 0 auto; padding-block: 4rem 6rem; }
+body.signin[data-shell="desk"] .gate .door.whole { padding: 2.25rem 1.75rem 1.75rem; }
+body.signin[data-shell="desk"] .gate .fault-icon {
+  display: block;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  margin: 0 auto 1rem;
+  fill: none;
+  stroke: var(--well);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+body.signin[data-shell="desk"] .gate .door.whole h1 { font-size: 1.9375rem; font-weight: 500; }
+body.signin[data-shell="desk"] .gate label {
+  color: var(--ink);
+  font-size: 0.875rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+@media (max-width: 40rem) {
+  body.signin[data-shell="desk"] main.gate { padding-block: 2rem 4rem; }
+  body.signin[data-shell="desk"] .gate .door.whole h1 { font-size: 1.75rem; }
+}

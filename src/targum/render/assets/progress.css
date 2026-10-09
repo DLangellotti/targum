@@ -5,32 +5,10 @@
  * What is here is only the part that is new — and most of it is one block.
  */
 
-/* --- the board's column (design.md §12, "The mockups win on Your Progress") --------
-   1248px at a 1440 window, against the desk's 62rem: 71.25rem of content inside the
-   1.25rem gutters, at the desk's clamped rem. The bar's row, the title and the foot stand
-   in the same column, so the page's left edge is one line from the name down. This page
-   only, until the shared shell takes the board's width. */
-body.progress { --progress-column: 73.75rem; }
-body.progress main,
-body.progress .site-head-row,
-body.progress .site-head .beta-note,
-body.progress .page-title { max-width: var(--progress-column); }
-body.progress .site-footer { max-inline-size: var(--progress-column); }
+/* The column, the bar and the title are the shared shell's since 2026-10-09 (chrome.css,
+   design.md §12, "The boards are the desk"); #680 drew them here first. What stays is
+   this page's own rhythm under the title. */
 body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
-/* The bar is the nav row alone, ruled off from the desk; the title stands on the desk. */
-body.progress .site-head { border-block-end: 1px solid var(--rule); }
-body.progress .page-title {
-  box-sizing: border-box;
-  width: 100%;
-  margin: 2rem auto 0;
-  padding-inline: 1.25rem;
-  font-family: var(--reading);
-  font-size: 1.9375rem;
-  font-weight: 500;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-}
 
 /* --- the ledger ------------------------------------------------------------
  *

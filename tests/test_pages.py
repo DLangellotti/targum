@@ -1180,3 +1180,18 @@ def test_the_key_is_set_before_any_script_that_reads_it() -> None:
         reads = [m.start() for m in re.finditer(r"window\.TARGUM_KEY \|\|", built)]
         assert reads, f"{name} sets a key nothing reads"
         assert key_at < min(reads), f"{name}: a script reads the key before the page sets it"
+
+
+def test_every_desk_page_says_who_is_signed_in() -> None:
+    """The bar's corner is drawn by `account.js` from what `sync.js` hears: a page that
+    carries the bar without both says "Sign in" to a reader who is signed in, as the
+    Tanakh map did until #677 and Saved on this device until 2026-10-09."""
+    templates = Path(__file__).resolve().parents[1] / "src/targum/render/templates"
+    for page in sorted(templates.glob("*.j2")):
+        text = page.read_text(encoding="utf-8")
+        if page.name.startswith("_") or "_nav.html.j2" not in text:
+            continue
+        if page.name == "signin.html.j2":
+            continue  # the expired link's bar is the door's: no account, no places
+        assert "asset('sync.js')" in text, f"{page.name} cannot hear who is signed in"
+        assert "asset('account.js')" in text, f"{page.name} cannot draw who is signed in"

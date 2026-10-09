@@ -20,12 +20,12 @@ body.chat {
 body.chat > .site-head { justify-self: stretch; }
 body.chat > .chat-main {
   justify-self: start;
-  margin-inline-start: max(0px, calc((100% - 62rem) / 2));
+  margin-inline-start: max(0px, calc((100% - var(--column)) / 2));
   min-height: 0;
 }
 
 .chat-main {
-  width: min(62rem, 100%);
+  width: min(var(--column), 100%);
   padding: 1rem 1.25rem 1rem;
   font-family: var(--chrome);
   display: grid;
