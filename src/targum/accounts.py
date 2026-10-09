@@ -3749,7 +3749,7 @@ class Store:
             dict(row)
             for row in self.db.execute(
                 "SELECT source, title, language, stage, spent, made FROM job"
-                " WHERE owner = ? AND kind = 'build' ORDER BY made DESC",
+                " WHERE owner = ? AND kind IN ('build', 'subscription') ORDER BY made DESC",
                 (person.id,),
             )
         ]
@@ -5588,7 +5588,7 @@ class Store:
             "finished > 0",
             "made > 0",
             "finished >= made",
-            "kind = 'build'",
+            "kind IN ('build', 'subscription')",
             "stage = 'done'",
         ]
         params: list[Any] = []

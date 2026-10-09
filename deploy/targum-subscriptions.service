@@ -1,0 +1,32 @@
+# /etc/systemd/system/targum-subscriptions.service — installed by deploy.sh, started every
+# half hour by targum-subscriptions.timer (design.md §12, "A subscription is the
+# account's", 2026-10-09).
+#
+# Looks at every live subscription's source — the series this box has built, the news
+# feeds, YouTube's Data API for a channel, a podcast's feed — and writes what is new as
+# items. It never builds and never spends: a channel's or a podcast's new item is marked
+# due, and the server (`subscriptions.get_ready`, inside targum.service) gets it ready
+# inside its cap, through `Library.press` like any build. Safe to run twice; a run that
+# dies resumes with the subscriptions it had not reached.
+#
+#   journalctl -u targum-subscriptions -n 20
+
+[Unit]
+Description=targum subscriptions poll
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum subscriptions poll --store /var/lib/targum/targum.db
+Nice=10
+TimeoutStartSec=10min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum

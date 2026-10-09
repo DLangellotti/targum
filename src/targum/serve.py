@@ -656,6 +656,12 @@ SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
 #: and cheap — a look is one read of what is built and one query per series.
 ANNOUNCE_EVERY = 3600
 
+#: How often the server gets a subscription's new items ready (design.md §12,
+#: 2026-10-09). The poll that finds them runs on a timer every half hour; five minutes
+#: here means a found item waits at most that long, and a round with nothing due is one
+#: query.
+SUBSCRIPTIONS_EVERY = 300
+
 #: A file inside a published edition's built reader.
 #:
 #: The path mirrors the folder on disk — `<edition>/reader/<file>` — so the level
@@ -1346,7 +1352,9 @@ class Jobs(dict[str, Job]):
 
     def __setitem__(self, key: str, job: Job) -> None:
         super().__setitem__(key, job)
-        if job.kind == "build":
+        # A subscription's build is a build like any other (design.md §12, 2026-10-09):
+        # in the bell, on home while it is made, and swept the same way.
+        if job.kind in BUILD_KINDS:
             self.builds[key] = job
         self._added += 1
         if self.load is not None and self._added % self.SWEEP_EVERY == 0:
@@ -1424,6 +1432,12 @@ class Jobs(dict[str, Job]):
                 continue
             keep.append(job)
         return keep
+
+
+#: The kinds of job the queue builds: one somebody pressed for, and one a subscription
+#: got ready by itself inside its cap (design.md §12, "A channel or a podcast is
+#: subscribed to, never built from its address", 2026-10-09).
+BUILD_KINDS = ("build", "subscription")
 
 
 class Library:
@@ -1707,6 +1721,10 @@ class Library:
         if self.mailer is None or self.store is None or job.owner is None:
             return
         if not self.address or not job.reader:
+            return
+        # A subscription's is in the one mail a day with everything else new (design.md
+        # §12, 2026-10-09), never a mail of its own.
+        if job.kind == "subscription":
             return
         if not job.options.get("mail") and now() - job.made < self.LONG_BUILD_MS:
             return
@@ -7121,6 +7139,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/subscriptions.json":
             return self._subscriptions_get(None)
+        if route == "/subscriptions/new.json":
+            return self._subscriptions_new()
         if route.startswith("/subscriptions/") and route.endswith(".json"):
             return self._subscriptions_get(route[len("/subscriptions/") : -len(".json")])
         if route == "/playlists" or PLAYLIST_PAGE.fullmatch(route):
@@ -8783,6 +8803,46 @@ class Handler(BaseHTTPRequestHandler):
             # The weekly's mail is `subscriber`'s, as `/account/follows` keeps it.
             self.store.follow(person.email, True, self._page_language())
         return self._go(f"/subscriptions/{int(row['id'])}")
+
+    def _subscriptions_new(self) -> None:
+        """What the reader's subscriptions brought that they have not opened from home:
+        Continue's New cards (design.md §12, 2026-10-09). A series is named as the reader
+        reads targum; everything else by the name it was subscribed under."""
+        from . import series as series_module
+        from . import subscriptions as subs
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False, "items": []}, 401)
+        names = {
+            str(row["id"]): str(row["name"])
+            for row in series_module.current(
+                public=shelves_are_public(), language=self._ui_language()
+            )
+        }
+        items = []
+        for item in self.store.new_sub_items(person.id):
+            if int(item["found"]) < now() - subs.NEW_FOR_MS:
+                continue
+            kind = str(item["kind"])
+            items.append(
+                {
+                    "subscription": int(item["subscription"]),
+                    "key": item["key"],
+                    "title": item["title"],
+                    "kind": kind,
+                    "name": names.get(str(item["sub_key"]), "")
+                    if kind == "series"
+                    else str(item["sub_name"] or ""),
+                    "topic": str(item["sub_key"]) if kind == "topic" else "",
+                    "language": item["language"] or "he",
+                    "door": subs.door(item),
+                    "seconds": float(item["seconds"] or 0),
+                    "published": int(item["published"] or 0),
+                    "found": int(item["found"]),
+                }
+            )
+        return self._json({"signedIn": True, "items": items})
 
     def _subscription_seen(self, payload: dict[str, Any]) -> None:
         """An item opened from home is no longer New."""
@@ -12441,6 +12501,7 @@ def start(
     require_account: bool = False,
     public_address: str = "",
     keep_feeds: bool = False,
+    keep_subscriptions: bool = False,
 ) -> str:
     """Run until interrupted. Returns the address it is listening on.
 
@@ -12448,6 +12509,11 @@ def start(
     (`chat.tools.Feeds.keep_warm`, 2026-10-06). Its own switch rather than read off
     `require_account`, because the suite starts hosted servers by the dozen and none of
     them may knock on a publisher; `targum serve` turns it on where it is hosted.
+
+    `keep_subscriptions` gets what a channel or a podcast subscribed to brought ready,
+    inside its cap, every few minutes (`subscriptions.get_ready`, design.md §12,
+    2026-10-09). Its own switch for the same reason: it prepares through yt-dlp and the
+    proxy, which no test server may do.
     """
     from .chat.session import Chats
     from .mail import from_environment
@@ -12594,6 +12660,20 @@ def start(
                     log.warning("series: announcing failed: %s", error)
 
         threading.Thread(target=keep_telling, name="series-announce", daemon=True).start()
+    if keep_subscriptions:
+        from . import subscriptions as subscriptions_module
+
+        def keep_getting_ready() -> None:
+            while True:
+                time.sleep(SUBSCRIPTIONS_EVERY)
+                try:
+                    readied = subscriptions_module.get_ready(library, keeping)
+                    if readied.started or readied.failed or readied.settled:
+                        log.info("subscriptions: %s", readied)
+                except Exception as error:  # noqa: BLE001 - never takes the server down
+                    log.warning("subscriptions: getting ready failed: %s", error)
+
+        threading.Thread(target=keep_getting_ready, name="subscriptions", daemon=True).start()
     if keep_feeds:
         from .chat import sources as sources_module
         from .chat import tools as tools_module
