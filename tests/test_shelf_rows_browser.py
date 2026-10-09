@@ -312,7 +312,8 @@ def test_a_longer_pill_takes_more_room(browser, tmp_path: Path) -> None:
     too and not only the English the width was first seen in."""
     context, page, _ = shelf(browser, tmp_path, 1024)
     page.evaluate(
-        "() => { document.querySelector('#talk-open .talk-short').textContent = 'Поговорить с targum'; }"
+        "() => { document.querySelector('#talk-open .talk-short').textContent ="
+        " 'Поговорить с targum'; }"
     )
     page.wait_for_timeout(100)
     got = page.evaluate(UNDER_THE_PILL)
