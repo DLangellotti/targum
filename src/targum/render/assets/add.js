@@ -692,7 +692,7 @@
     row.className = "row";
     var open = document.createElement("button");
     open.type = "button";
-    open.className = "filled";
+    open.className = "btn filled";
     open.textContent = t("add.already.open", "Open {title}", { title: entry.title });
     open.onclick = function () {
       window.location.href = keyed("/library/" + entry.id);
@@ -702,7 +702,7 @@
     // readers want their own copy, and Continue would have done it anyway.
     var mine = document.createElement("button");
     mine.type = "button";
-    mine.className = "ghost";
+    mine.className = "btn ghost";
     mine.textContent = t("add.already.mine", "Bring my own copy");
     mine.onclick = function () {
       alreadyBox.hidden = true;
@@ -816,7 +816,7 @@
 
     var choose = document.createElement("button");
     choose.type = "button";
-    choose.className = "ghost";
+    choose.className = "btn ghost";
     choose.textContent = t("add.found.choose", "Choose");
     choose.onclick = function () {
       // The box, then Continue: the same path a pasted link takes, because it is that
@@ -1645,7 +1645,7 @@
     row.className = "row";
     var go = document.createElement("button");
     go.type = "button";
-    go.className = "filled";
+    go.className = "btn filled";
     go.textContent = t("add.open-it", "Open");
     go.onclick = function () {
       // The text it just named, not the index it happens to sit on. Every catalogue text
@@ -1655,7 +1655,7 @@
     row.appendChild(go);
     var anyway = document.createElement("button");
     anyway.type = "button";
-    anyway.className = "ghost";
+    anyway.className = "btn ghost";
     anyway.textContent = t("add.translate-anyway", "Translate it anyway");
     anyway.onclick = function () {
       // Deliberate, so it is asked for a second time rather than assumed.
@@ -1797,7 +1797,7 @@
     row.className = "row";
     var confirm = document.createElement("button");
     confirm.type = "button";
-    confirm.className = "filled";
+    confirm.className = "btn filled";
     confirm.textContent = t("add.start-reading", "Open");
     confirm.onclick = function () {
       // Held down until the server answers: the press is what spends, and a second
@@ -1837,7 +1837,7 @@
   function readPictures(count, also, pages) {
     var more = document.createElement("button");
     more.type = "button";
-    more.className = "ghost";
+    more.className = "btn ghost";
     more.textContent = pages
       ? tn("add.read-pages", count, "Read the page", "Read the {n} pages")
       : also

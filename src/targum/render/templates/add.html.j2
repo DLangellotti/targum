@@ -49,22 +49,22 @@
     <input type="file" id="file" multiple
            accept=".txt,.md,.markdown,.epub,.pdf,.srt,.vtt,.png,.jpg,.jpeg,.webp,.heic,.heif,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv" hidden>
     <div class="bring-row">
-      <button type="button" id="choose" class="bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>{{ t("add.page.choose-files", "Choose files") }}</span></button>
+      <button type="button" id="choose" class="btn tonal bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>{{ t("add.page.choose-files", "Choose files") }}</span></button>
       {#- Only for a description, and only where the talk drawer is there to say it in:
           looking for a text by describing it is a turn of conversation, metered like one,
           and the reader's own press sends it. -#}
       {#- Something the reader recorded themselves (targum-internal#254). Hidden until
           the script says this browser can record, so the page never offers what it
           cannot do — the same rule the composer's Speak follows. -#}
-      <button type="button" id="record" class="bring-choose" hidden
+      <button type="button" id="record" class="btn tonal bring-choose" hidden
               aria-pressed="false" aria-label="{{ t("add.page.record", "Record") }}" title="{{ t("add.page.record", "Record") }}"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg><span id="record-word">{{ t("add.page.record", "Record") }}</span></button>
       {#- A post from a platform targum does not fetch from, or will not today: the reader
           brings it by hand (targum-internal#158). -#}
-      <button type="button" id="post-open" class="bring-choose" aria-expanded="false" aria-controls="post-form">{{ t("add.page.bring-a-post", "Bring a post") }}</button>
-      <button type="button" id="ask-targum" class="bring-ask" hidden>{{ t("add.page.ask-targum", "Ask targum") }}</button>
+      <button type="button" id="post-open" class="btn tonal bring-choose" aria-expanded="false" aria-controls="post-form">{{ t("add.page.bring-a-post", "Bring a post") }}</button>
+      <button type="button" id="ask-targum" class="btn tonal bring-ask" hidden>{{ t("add.page.ask-targum", "Ask targum") }}</button>
       {#- Paused where nothing new can be made (2026-09-14): the notice above said so and
           the button went on offering, and a press only repeated the notice. -#}
-      <button type="button" id="go" class="go"{% if no_key %} disabled{% endif %}>{{ t("add.page.continue", "Continue") }}</button>
+      <button type="button" id="go" class="btn filled go"{% if no_key %} disabled{% endif %}>{{ t("add.page.continue", "Continue") }}</button>
     </div>
   </section>
 
@@ -80,7 +80,7 @@
     <p class="hint">{{ t("add.page.post-what", "Type in a post we can't fetch, and upload its pictures or video. Only you will see it.") }}</p>
     <div class="post-where">
       <span class="post-label" id="post-where-label">{{ t("add.page.post-posted-on", "Posted on") }}</span>
-      <div class="segmented" id="post-where" role="group" aria-labelledby="post-where-label">
+      <div class="seg" id="post-where" role="group" aria-labelledby="post-where-label">
         <button type="button" class="segment" data-platform="instagram" aria-pressed="true">Instagram</button>
         <button type="button" class="segment" data-platform="tiktok" aria-pressed="false">TikTok</button>
         <button type="button" class="segment" data-platform="x" aria-pressed="false">X</button>
@@ -105,7 +105,7 @@
       <ul class="given-files" id="post-files" hidden></ul>
       <input type="file" id="post-file" multiple accept=".png,.jpg,.jpeg,.webp,.heic,.heif,.mp4,.m4v,.mov,.webm,.mkv" hidden>
       <div class="bring-row">
-        <button type="button" id="post-choose" class="bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>{{ t("add.page.choose-files", "Choose files") }}</span></button>
+        <button type="button" id="post-choose" class="btn tonal bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>{{ t("add.page.choose-files", "Choose files") }}</span></button>
         <p class="hint">{{ t("add.page.post-media-note", "In the post's order. We don't read the words in them unless you ask.") }}</p>
       </div>
     </div>
@@ -114,15 +114,15 @@
       <input type="url" id="post-link" dir="ltr" autocomplete="off" spellcheck="false" inputmode="url">
     </label>
     <div class="bring-row">
-      <button type="button" id="post-back" class="ghost">{{ t("add.page.post-back", "Back") }}</button>
-      <button type="button" id="post-go" class="go"{% if no_key %} disabled{% endif %}>{{ t("add.page.continue", "Continue") }}</button>
+      <button type="button" id="post-back" class="btn ghost">{{ t("add.page.post-back", "Back") }}</button>
+      <button type="button" id="post-go" class="btn filled go"{% if no_key %} disabled{% endif %}>{{ t("add.page.continue", "Continue") }}</button>
     </div>
   </section>
 
   {#- What the box understood, and every choice on one line. -#}
   <div class="summary" id="summary" hidden>
     <p class="summary-line" id="summary-line"></p>
-    <button type="button" id="change" class="change" aria-expanded="false" aria-controls="options">{{ t("add.page.change", "Change") }}</button>
+    <button type="button" id="change" class="btn text change" aria-expanded="false" aria-controls="options">{{ t("add.page.change", "Change") }}</button>
   </div>
 
   {#- The manual page: the controls the form had, with the ids they had, so a reader who
@@ -163,7 +163,7 @@
     <div class="option-row" id="translation-row">
       <h2>{{ t("add.page.translation", "Translation") }}</h2>
       <div class="option-body">
-        <div class="segmented" id="how" role="group" aria-label="{{ t("add.page.where-the-translation-comes-from", "Where the translation comes from") }}">
+        <div class="seg" id="how" role="group" aria-label="{{ t("add.page.where-the-translation-comes-from", "Where the translation comes from") }}">
           <button type="button" class="segment" data-how="make" aria-pressed="true">{{ t("add.page.we-ll-make-one", "We'll make one") }}</button>
           <button type="button" class="segment" data-how="mine" aria-pressed="false">{{ t("add.page.i-have-one", "I have one") }}</button>
         </div>
@@ -177,7 +177,7 @@
             <button type="button" id="unchoose-translation" class="unchoose" hidden>{{ t("add.page.something-else", "Remove file") }}</button>
           </div>
           <label class="field">
-            <textarea id="pasted-translation" rows="3" dir="auto" spellcheck="false"
+            <textarea id="pasted-translation" class="well" rows="3" dir="auto" spellcheck="false"
                       placeholder="{{ t("add.page.or-paste-the-translation", "Or paste the translation") }}"></textarea>
           </label>
         </div>
@@ -190,7 +190,7 @@
     <div class="option-row" id="audio-extra" hidden>
       <h2>{{ t("add.page.transcript", "Transcript") }}</h2>
       <div class="option-body">
-        <div class="segmented" id="spoken-how" role="group" aria-label="{{ t("add.page.where-the-transcript-comes-from", "Where the transcript comes from") }}">
+        <div class="seg" id="spoken-how" role="group" aria-label="{{ t("add.page.where-the-transcript-comes-from", "Where the transcript comes from") }}">
           <button type="button" class="segment" data-spoken="make" aria-pressed="true">{{ t("add.page.we-ll-write-one", "We'll write one") }}</button>
           <button type="button" class="segment" data-spoken="mine" aria-pressed="false">{{ t("add.page.i-have-one", "I have one") }}</button>
         </div>

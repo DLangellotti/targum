@@ -36,7 +36,7 @@
   align-items: center;
 }
 .sub-head-row {
-  padding: 0 1rem 0.5rem;
+  padding: 0 0 0.5rem;
   font-family: var(--chrome);
   font-size: 0.6875rem;
   font-weight: 600;
@@ -53,13 +53,15 @@
   padding: 0;
   list-style: none;
 }
+/* A row of the table, not a card: the tab's card holds them, and a card is never in a
+   card (chrome.css, `.card`). A hairline between rows, as the boards' table draws it. */
+.sub-rows { gap: 0; }
 .sub-row {
-  padding: 0.75rem 1rem;
-  background: var(--card);
-  border-radius: var(--radius-row);
-  box-shadow: var(--shadow-rest);
+  padding: 0.875rem 0;
+  border-block-end: 1px solid var(--rule);
   font-family: var(--chrome);
 }
+.sub-row:last-child { border-block-end: 0; }
 .sub-row.is-paused { opacity: 0.8; }
 
 .sub-who {
@@ -77,16 +79,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--card);
-  background: var(--ink-soft);
 }
-/* The colour of its kind, as a drawn picture is (design.md §12, "Every text has a
-   picture"): iris for a series, teal for news, clay for what is said. */
-.sub-tile.is-series { background: var(--iris); }
-.sub-tile.is-news { background: var(--teal); }
-.sub-tile.is-channel,
-.sub-tile.is-podcast { background: var(--clay); }
-.sub-tile .glyph { font-size: 1.25rem; line-height: 1; color: var(--card); }
+/* Its picture, or its letter on the colour of its kind: the one tile (chrome.css). */
+.sub-tile img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.sub-tile .glyph { font-size: 1.25rem; line-height: 1; }
 .sub-names {
   display: flex;
   flex-direction: column;
@@ -146,34 +142,9 @@ a.sub-latest-title:hover { color: var(--teal); text-decoration: underline; }
   gap: 0.25rem 0.75rem;
 }
 
-.sub-resume,
-.sub-subscribe,
-.sub-pause,
-.sub-stop,
-.sub-act {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-block-size: 2.75rem;
-  padding: 0 1rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--teal);
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-.sub-resume:hover,
-.sub-subscribe:hover,
-.sub-pause:hover,
-.sub-act:hover { background: var(--teal-wash); }
-.sub-stop { color: var(--ink-soft); }
-.sub-stop:hover { color: var(--clay); }
-.sub-act.is-quiet { border-color: transparent; background: transparent; }
+/* Pause, Resume, Unsubscribe, Subscribe and a row's own press are the desk's `.btn`
+   (chrome.css): Pause and Resume outlined, Unsubscribe a ghost in clay, Subscribe
+   tonal, a row's press its words in the primary. */
 button:disabled { opacity: 0.6; cursor: default; }
 
 .sub-offer-head {
@@ -186,10 +157,8 @@ button:disabled { opacity: 0.6; cursor: default; }
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem 1rem;
-  background: var(--card);
-  border-radius: var(--radius-row);
-  box-shadow: var(--shadow-rest);
+  padding: 0.75rem 0;
+  border-block-start: 1px solid var(--rule);
   font-family: var(--chrome);
 }
 .sub-foot { margin-block-start: 1.25rem; }
@@ -215,9 +184,6 @@ body.subs-page main { gap: 1.5rem; }
   align-items: center;
   gap: 1rem 1.25rem;
   padding: 1.25rem;
-  background: var(--card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
   font-family: var(--chrome);
 }
 .sub-head .sub-tile {
@@ -289,9 +255,6 @@ a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
 }
 .sub-cap {
   padding: 1.25rem;
-  background: var(--card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
   font-family: var(--chrome);
 }
 .sub-cap-used { margin: 0.5rem 0 0; color: var(--ink-soft); }

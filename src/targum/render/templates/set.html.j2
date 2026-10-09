@@ -70,7 +70,7 @@
       {%- if total %}
       <p class="said set-total">{{ tn("set.page.uses-credits-in-all", total, "Uses {n} credit in all", "Uses {n} credits in all") }}</p>
       {%- endif %}
-      <button class="go" type="submit">{{ t("set.page.read-these", "Confirm") }}</button>
+      <button class="btn filled go" type="submit">{{ t("set.page.read-these", "Confirm") }}</button>
     </form>
     <p class="aside">{{ t("set.page.you-asked-for-these-somewhere-else", "Untick what you don't want, then press Confirm. Unticked texts come out of the playlist.") }}</p>
 
@@ -97,11 +97,11 @@
     <form method="get" action="/reader/{{ first.reader }}/reader/index.html">
       <input type="hidden" name="list" value="{{ playlist.id }}">
       <input type="hidden" name="at" value="{{ first.position }}">
-      <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start") }}</button>
+      <button class="btn filled go" type="submit">{{ t("set.page.start-with-the-first", "Start") }}</button>
     </form>
     {%- elif making %}
     <form method="get" action="/set/{{ playlist.id }}">
-      <button class="go" type="submit">{{ t("set.page.see-how-it-s-going", "Check progress") }}</button>
+      <button class="btn filled go" type="submit">{{ t("set.page.see-how-it-s-going", "Check progress") }}</button>
     </form>
     {%- endif %}
     {%- if first or making %}

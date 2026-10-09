@@ -81,38 +81,10 @@ a.back:hover { color: var(--ink); }
 }
 .langs[hidden] { display: none; }
 
-/* The definition language, beside the words it changes.
-   Quieter than the switcher above it, and deliberately: that one chooses which
-   vocabulary you are looking at, and this one only chooses which of two answers is
-   printed in one column of it. Underlined rather than pilled — the same call `.tab` makes
-   on the library, and for the same reason: the row it sits in already carries a search
-   field and a select, and a third filled thing in it is a row of furniture rather than a
-   row of controls. §4: selection in UI is quiet ink, never the accent. */
-.langs.quiet {
-  margin-block-start: 0;
-  align-items: baseline;
-  gap: 0.75rem;
-}
-.langs.quiet .langs-label {
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-}
-.langs.quiet button {
-  padding: 0.1rem 0;
-  border: 0;
-  border-block-end: 1px solid transparent;
-  border-radius: 0;
-  background: none;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.langs.quiet button:hover { color: var(--ink); }
-.langs.quiet button.on {
-  color: var(--ink);
-  background: none;
-  font-weight: 600;
-  border-block-end-color: var(--ink);
-}
+/* The definition language, beside the words it changes, is a row of the desk's `.tabs`
+   (chrome.css) since 2026-10-09: it was underlined, the Library's old call, which the
+   boards retired. Its label is a quiet word before the pills. */
+.meaning-langs .langs-label { color: var(--ink-soft); font-size: 0.8125rem; }
 
 /* Before the element rule below, which otherwise wins: a display on a type selector
    beats the user agent's [hidden] { display: none }, and the page rendered its empty
@@ -177,17 +149,11 @@ main {
    share this class, and on four of them it was half the page: measured at 50% of Learn,
    against §9's budget of roughly 15% structural neutral. The page is near-white, not
    beige, and a card inside a card is a hairline. */
-.panel {
-  padding: 1.1rem 1.25rem 1.25rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-card);
-  min-width: 0;
-  /* A card on the desk (§13): it lifts off the ground, and its name is in the
-     chrome's face — the serif here is for a word, never a heading. */
-  background: var(--card);
-  box-shadow: var(--shadow-raised);
-}
-.panel h2 {
+/* The panel is the desk's card (chrome.css, `.card, .panel`): one surface for every page
+   since 2026-10-09. Its name stays in the chrome's face — the serif here is for a word,
+   never a card's heading. */
+/* A card's own name; a section's title in a card keeps the serif (`.section-title`). */
+.panel h2:not(.section-title) {
   margin: 0;
   font-family: var(--chrome);
   font-size: 1.0625rem;
@@ -258,15 +224,13 @@ main {
   margin-block-end: 0.9rem;
 }
 .list-controls h2 { margin-inline-end: auto; }
+/* The search is the desk's `.well` (chrome.css), at a filter row's size. */
 .list-controls input[type="search"] {
   flex: 1 1 12rem;
+  inline-size: auto;
   min-width: 0;
-  padding: 0.28rem 0.55rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-row);
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
+  min-block-size: 2.25rem;
+  padding-block: 0.25rem;
   font-size: 0.8125rem;
 }
 .list-controls select, .list-controls button { font-size: 0.8125rem; }
@@ -370,7 +334,6 @@ table.rows tr.editor-row td {
 
 @media (max-width: 40rem) {
   main { padding-inline: 1rem; gap: 1rem; }
-  .panel { padding: 0.9rem 1rem 1rem; }
 }
 
 /* Words you may already know (targum-internal#245): the same rows as Your Words with a
@@ -419,13 +382,6 @@ table.rows tr.editor-row td {
 }
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
-.panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
-.list-controls input, .list-controls select {
-  border: 1px solid transparent;
-  border-radius: var(--radius-row);
-  background: var(--field);
-}
-.list-controls input:focus, .list-controls select:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
 .claim-yes { border-radius: 999px; background: var(--teal); color: var(--teal-ink); }
 .claim-yes:hover { background: var(--teal); filter: brightness(1.08); }
 .claim-no { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); }

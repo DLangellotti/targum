@@ -5378,7 +5378,7 @@ def _markup(html: str) -> str:
 
 
 def _switch(html: str) -> str:
-    found = re.search(r'<div class="m-end m-seg renderings" id="translation".*?</div>', html, re.S)
+    found = re.search(r'<div class="m-end seg renderings" id="translation".*?</div>', html, re.S)
     return found.group(0) if found else ""
 
 

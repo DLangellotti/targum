@@ -299,6 +299,8 @@
     codes.forEach(function (code) {
       var button = document.createElement("button");
       button.type = "button";
+      // The desk's tab (chrome.css): a tinted pill, the chosen one filled.
+      button.className = "tab";
       button.setAttribute("role", "tab");
       button.setAttribute("data-code", code);
       button.appendChild(document.createTextNode(names[code] || code.toUpperCase()));

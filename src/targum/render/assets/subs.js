@@ -175,12 +175,22 @@
     return "";
   }
 
+  /* The one tile path (covers.js `picture`): the newest one's own picture where it has
+     one, or its letter on the colour of the subscription's kind — the Hebrew name's
+     letter first, so a series is not a Latin "T" (P2, 2026-10-09). */
   function tile(one) {
-    var box = covers
-      ? covers.tile(null, { title: one.hebrew || nameOf(one), language: one.hebrew ? "he" : one.language, className: "thumb sub-tile" })
-      : el("span", "thumb sub-tile");
-    box.classList.add("is-" + chipOf(one.kind));
-    return box;
+    var newest = one.latest || {};
+    return covers
+      ? covers.picture(
+          {
+            entry: newest.entry || newest.name || "",
+            title: one.hebrew || nameOf(one),
+            language: one.hebrew ? "he" : one.language,
+            kind: chipOf(one.kind),
+          },
+          { keyed: keyed, className: "thumb sub-tile" }
+        )
+      : el("span", "thumb sub-tile is-letter");
   }
 
   /* --- the tab ------------------------------------------------------------------------ */
@@ -230,7 +240,7 @@
     var right = el("div", "sub-month");
     if (one.state === "paused") {
       right.appendChild(el("span", "sub-state", t("subs.state.paused", "Paused")));
-      var resume = el("button", "sub-resume", t("subs.resume", "Resume"));
+      var resume = el("button", "btn ghost outline small sub-resume", t("subs.resume", "Resume"));
       resume.type = "button";
       resume.onclick = function () {
         resume.disabled = true;
@@ -287,7 +297,7 @@
       }
       if (one.what) names.appendChild(el("span", "sub-meta", one.what));
       item.appendChild(names);
-      var press = el("button", "sub-subscribe", t("subs.subscribe", "Subscribe"));
+      var press = el("button", "btn tonal sub-subscribe", t("subs.subscribe", "Subscribe"));
       press.type = "button";
       press.onclick = function () {
         press.disabled = true;
@@ -425,10 +435,10 @@
 
     var act;
     if (item.state === "waiting" && item.why === "cap") {
-      act = el("a", "sub-act", t("subs.act.raise-cap", "Raise the cap"));
+      act = el("a", "btn text small danger sub-act", t("subs.act.raise-cap", "Raise the cap"));
       act.href = "#sub-cap";
     } else if (item.reader) {
-      act = el("a", "sub-act", verb(one));
+      act = el("a", "btn text small sub-act", verb(one));
       act.href = keyed(door);
     } else if (item.link && item.state !== "building" && item.state !== "due") {
       // Not ready, and not going to get ready by itself: one press on the Upload page.
@@ -437,7 +447,7 @@
           ? tn("subs.act.get-ready-about", credits(item.seconds), "Get it ready · about {n} credit", "Get it ready · about {n} credits")
           : t("subs.act.get-ready", "Get it ready")
         : t("subs.act.read-on-targum", "Read on targum");
-      act = el("a", "sub-act is-quiet", label);
+      act = el("a", "btn ghost small sub-act is-quiet", label);
       act.href = keyed(door);
     }
     if (act) li.appendChild(act);
@@ -477,7 +487,7 @@
     body.textContent = "";
     document.title = nameOf(one) + " — targum";
 
-    var head = el("header", "sub-head");
+    var head = el("header", "card sub-head");
     head.appendChild(tile(one));
     var names = el("div", "sub-names");
     var h1 = el("h1", "sub-title");
@@ -519,13 +529,13 @@
       return press;
     }
     if (one.state === "on") {
-      acts.appendChild(act(t("subs.pause", "Pause"), "pause", "sub-pause"));
-      acts.appendChild(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "sub-stop"));
+      acts.appendChild(act(t("subs.pause", "Pause"), "pause", "btn ghost outline sub-pause"));
+      acts.appendChild(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "btn ghost danger sub-stop"));
     } else if (one.state === "paused") {
-      acts.appendChild(act(t("subs.resume", "Resume"), "resume", "sub-resume"));
-      acts.appendChild(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "sub-stop"));
+      acts.appendChild(act(t("subs.resume", "Resume"), "resume", "btn ghost outline sub-resume"));
+      acts.appendChild(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "btn ghost danger sub-stop"));
     } else {
-      acts.appendChild(act(t("subs.subscribe-again", "Subscribe again"), "resume", "sub-resume"));
+      acts.appendChild(act(t("subs.subscribe-again", "Subscribe again"), "resume", "btn tonal sub-resume"));
     }
     head.appendChild(acts);
     body.appendChild(head);
@@ -555,7 +565,7 @@
     if (one.builds) body.appendChild(capSection(answer, body, saidLine));
     // The mail (design.md §12, "Everything new comes in one mail a day"): one a day, with
     // everything new; the way out of it is the way out of the subscription.
-    var mail = el("section", "sub-cap sub-mail");
+    var mail = el("section", "card sub-cap sub-mail");
     mail.appendChild(el("h2", "", t("subs.mail.head", "Mail")));
     mail.appendChild(
       el(
@@ -580,7 +590,7 @@
      chosen marked, and Save. */
   function capSection(answer, body, saidLine) {
     var one = answer.subscription;
-    var cap = el("section", "sub-cap");
+    var cap = el("section", "card sub-cap");
     cap.id = "sub-cap";
     cap.appendChild(el("h2", "", t("subs.cap.head", "Monthly cap")));
     cap.appendChild(el("p", "sub-cap-used", t("subs.cap.used", "{used} of {cap} credits used this month", { used: one.used, cap: one.cap })));
@@ -604,7 +614,7 @@
     if (answer.credits && answer.credits.left !== null && answer.credits.left !== undefined) {
       form.appendChild(el("p", "note", tn("subs.cap.left", answer.credits.left, "{n} credit left in your plan this month.", "{n} credits left in your plan this month.")));
     }
-    var save = el("button", "sub-pause", t("subs.cap.save", "Save"));
+    var save = el("button", "btn tonal sub-pause", t("subs.cap.save", "Save"));
     save.type = "submit";
     form.appendChild(save);
     form.onsubmit = function (event) {

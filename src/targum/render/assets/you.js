@@ -300,7 +300,7 @@
         says.textContent = scopesSaid(one.scopes);
         var press = document.createElement("button");
         press.type = "button";
-        press.className = "ghost";
+        press.className = "btn ghost";
         press.textContent = t("you.connections.disconnect", "Disconnect");
         press.onclick = function () {
           press.disabled = true;
@@ -395,7 +395,7 @@
         what.textContent = one.says;
         var press = document.createElement("button");
         press.type = "button";
-        press.className = "ghost";
+        press.className = "btn ghost";
         press.textContent = t("you.prompts.remove", "Remove");
         press.onclick = function () {
           press.disabled = true;
@@ -681,7 +681,7 @@
         when.textContent = t("you.telegram.linked-on", "Linked {made}", { made: day(one.linked) });
         var press = document.createElement("button");
         press.type = "button";
-        press.className = "ghost";
+        press.className = "btn ghost";
         press.textContent = t("you.telegram.unlink", "Unlink");
         press.onclick = function () {
           press.disabled = true;

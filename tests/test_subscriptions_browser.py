@@ -211,8 +211,16 @@ def test_the_tab_draws_every_subscription_in_its_chips(browser, tmp_path: Path) 
           offered: [...document.querySelectorAll('#subs-offer .sub-offer-row')]
             .map((li) => li.textContent),
           shelf: document.getElementById('shelf-panel').hidden,
+          // A row of the table, never a card in the tab's card (design.md §9), and its
+          // tile the one tile: the letter on its kind's colour, never a Latin "T" on beige.
+          cards: [...document.querySelectorAll('#subs-rows .sub-row, #subs-offer .sub-offer-row')]
+            .filter((li) => getComputedStyle(li).boxShadow !== 'none').length,
+          tiles: [...document.querySelectorAll('#subs-rows .sub-tile')].map((t) =>
+            [...t.classList].find((c) => c.startsWith('tone-'))),
         })"""
     )
+    assert got["cards"] == 0, got
+    assert got["tiles"] == ["tone-set", "tone-spoken", "tone-news", "tone-spoken"], got
     assert got["rows"] == ["series", "channel", "topic", "podcast"], got
     assert got["chips"] == ["All 4", "Series 1", "News 1", "Channels 1", "Podcasts 1"], got
     assert got["credits"] == (

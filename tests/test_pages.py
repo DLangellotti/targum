@@ -768,7 +768,7 @@ def test_the_cover_tile_is_defined_once() -> None:
     assert "function tile(" in covers
     for page, helper in (
         ("library.js", "TargumCovers.picture("),
-        ("shelf.js", "TargumCovers.tile("),
+        ("shelf.js", "TargumCovers.picture("),
     ):
         source = (ASSETS / page).read_text(encoding="utf-8")
         assert "function thumb(" not in source, f"{page} should use the shared tile"
@@ -953,7 +953,7 @@ def test_which_hebrew_is_a_switch_rather_than_two_more_filter_pills() -> None:
     learning is the first question this page asks. As pills it sat beside the kind filter
     with a second chip also saying "All", and the two rows read as one row of ten."""
     library = PAGES["library"]
-    assert 'class="segmented" id="register-chips"' in library
+    assert 'class="seg" id="register-chips"' in library
     assert '<span class="switch-label">Which Hebrew</span>' in library, "and it says what it is"
     assert 'class="chips" id="register-chips"' not in library
 

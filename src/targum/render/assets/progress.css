@@ -72,7 +72,6 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .progress .ledger .lit.sun b { color: var(--sun); }
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
-.panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
 /* The board's room inside each part of the story: 28 by 32 at the desk's rem, 18 on a
    phone (below). */
 .progress .panel.story { padding: 1.6rem 1.85rem; }

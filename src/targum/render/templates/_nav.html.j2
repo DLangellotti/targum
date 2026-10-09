@@ -76,7 +76,7 @@
         {#- Clear all (2026-09-14): every line put away at once, as each × would. Shown
             only while there is something to clear. -#}
         <div class="notices-head" id="notices-head" hidden>
-          <button type="button" class="notices-clear" id="notices-clear">{{ t("nav.clear-all", "Clear all") }}</button>
+          <button type="button" class="btn text small notices-clear" id="notices-clear">{{ t("nav.clear-all", "Clear all") }}</button>
         </div>
         <p class="notices-empty" id="notices-empty">{{ t("nav.we-re-not-building-anything-right-now", "Nothing new.") }}</p>
         <ul class="notices-list" id="notices-list"></ul>
@@ -96,14 +96,14 @@
         {#- On a phone the top bar keeps the mark, the language, the bell and the account
             (design.md §13), so find is here (2026-09-14). -#}
         <p class="account-phone">
-          <button type="button" class="account-find" data-palette-open>{{ t("nav.find-anything", "Find anything") }}</button>
+          <button type="button" class="btn tonal small account-find" data-palette-open>{{ t("nav.find-anything", "Find anything") }}</button>
         </p>
         <div class="signed-out">
           <p>{{ t("nav.your-words-follow-you-no-password-we", "Your words follow you. No password. We'll email you a link.") }}</p>
           <form id="account-form">
-            <input type="email" id="account-email" placeholder="{{ t("nav.you-example-com", "you@example.com") }}"
+            <input type="email" class="well" id="account-email" placeholder="{{ t("nav.you-example-com", "you@example.com") }}"
                    autocomplete="email" spellcheck="false" required>
-            <button type="submit">{{ t("nav.send-a-link", "Send a link") }}</button>
+            <button type="submit" class="btn filled small">{{ t("nav.send-a-link", "Send a link") }}</button>
           </form>
           {#- Saved on this device belongs to the browser, not the account, so it is a row
               whether or not anybody is signed in. -#}
@@ -167,7 +167,7 @@
     opens the conversation as a drawer — the conversation page framed without its bar.
     Nothing is loaded until it is opened. Drawn by `talk.js`. -#}
 <button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="{{ t("nav.talk-to-targum", "Talk to targum") }}"><svg class="talk-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg><span>{{ t("nav.talk-to-targum", "Talk to targum") }}</span></button>
-<div class="talk-scrim" id="talk-scrim" hidden></div>
+<div class="scrim talk-scrim" id="talk-scrim" hidden></div>
 <aside class="talk-drawer" id="talk-drawer" aria-label="{{ t("nav.talk-to-targum", "Talk to targum") }}" hidden>
   <div class="talk-drawer-head">
     <span class="talk-drawer-title">{{ t("nav.talk-to-targum", "Talk to targum") }}</span>
@@ -178,9 +178,9 @@
 <script>{{ asset('talk.js') }}</script>
 {#- The command palette (2026-09-11): one field that finds a place, a text, a series or
     a conversation, and one press that goes there. Drawn by `palette.js`. -#}
-<div class="palette-scrim" id="palette-scrim" hidden></div>
+<div class="scrim palette-scrim" id="palette-scrim" hidden></div>
 <div class="palette" id="palette" role="dialog" aria-label="{{ t("nav.find-anything", "Find anything") }}" hidden>
-  <input type="search" id="palette-find" class="palette-find" dir="auto" placeholder="{{ t("nav.find-a-text-a-page-a-conversation", "Find a text, a page, a chat") }}" autocomplete="off" spellcheck="false">
+  <input type="search" id="palette-find" class="well palette-find" dir="auto" placeholder="{{ t("nav.find-a-text-a-page-a-conversation", "Find a text, a page, a chat") }}" autocomplete="off" spellcheck="false">
   <ul class="palette-list" id="palette-list" role="listbox"></ul>
 </div>
 <script>{{ asset('palette.js') }}</script>

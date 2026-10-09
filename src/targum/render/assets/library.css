@@ -28,18 +28,14 @@
 }
 .note.lead { margin: 0 0 0.9rem; }
 
+/* The search and the picks are the desk's `.well` (chrome.css); here a filter row's
+   denser size. */
 .find {
   flex: 1 1 11rem;
   min-inline-size: 7rem;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-control);
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.8125rem;
 }
-.find:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.find,
+.pick select { min-block-size: 2.25rem; padding-block: 0.25rem; font-size: 0.8125rem; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 0.2rem; }
 .chip {
@@ -67,14 +63,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.pick select {
-  padding: 0.2rem 0.4rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-control);
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 0.6875rem;
-}
+.pick select { inline-size: auto; }
 .clear {
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--hairline);
@@ -726,36 +715,9 @@
 }
 
 /* --- the tabs ---------------------------------------------------------------
-   All texts and the Beit Midrash, Hebrew's. There were two lists here until 2026-09-25,
-   the catalogue and Your uploads; yours are on Your targums now. Underlined rather than pilled, because the page
-   already wears pills for the language above and chips for the filters below. */
-
-.tabs {
-  display: flex;
-  gap: 1.25rem;
-  margin-block-end: 0.9rem;
-  border-block-end: 1px solid var(--hairline);
-}
-/* Drawn only beside the Beit Midrash (2026-09-25); `display: flex` would beat `hidden`. */
-.tabs[hidden] { display: none; }
-.tab {
-  padding: 0.35rem 0;
-  border: 0;
-  border-block-end: 2px solid transparent;
-  margin-block-end: -1px;
-  background: none;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 0.9375rem;
-  cursor: pointer;
-}
-.tab:hover { color: var(--ink); }
-/* §4: selection in UI is quiet ink, never the accent. */
-.tab[aria-selected="true"] {
-  border-block-end-color: var(--ink);
-  color: var(--ink);
-  font-weight: 600;
-}
+   All texts and the Beit Midrash, Hebrew's: the desk's `.tabs` (chrome.css), tinted
+   pills since 2026-10-09 (design.md §12, "The boards are the desk"). They were
+   underlined here, and that underline was copied to Your targums' strip. */
 
 /* How much of a text is already yours, under its title. Leaf: §4 gives "known" to it. */
 .row-fit { display: block; font-size: 0.6875rem; color: var(--leaf); }
@@ -814,14 +776,8 @@
 }
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
-.find, .pick select {
-  border: 1px solid transparent;
-  border-radius: var(--radius-row);
-  background: var(--field);
-}
-.find:focus, .pick select:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
-.chips button, .tabs button, .clear { border-color: transparent; background: var(--teal-wash); color: var(--teal); }
-.chips button[aria-pressed="true"], .tabs button[aria-selected="true"] { background: var(--teal); color: var(--teal-ink); }
+.chips button, .clear { border-color: transparent; background: var(--teal-wash); color: var(--teal); }
+.chips button[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
 .series-follow { border: 0; background: var(--teal-wash); color: var(--teal); border-radius: 999px; }
 .series-follow:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 .series-follow[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
@@ -849,8 +805,6 @@
 .rows > li { border-radius: var(--radius-row); }
 .rows > li:hover { background: var(--teal-wash); }
 .rows > li + li { border-block-start-color: transparent; }
-.tabs { border-block-end: 0; gap: 0.4rem; }
-.tab { border-radius: 999px; padding: 0.35rem 0.9rem; }
 
 /* --- the switch on a subscription (2026-09-11) ---------------------------------------- */
 .series-follow {
@@ -897,7 +851,7 @@
   letter-spacing: 0;
   font-size: 0.8125rem;
 }
-.pick select { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
+.pick select { text-transform: none; letter-spacing: 0; }
 
 /* --- the filters, folded (2026-09-11): the search stays; the rest is behind one word --- */
 .filters { display: contents; }
@@ -919,7 +873,7 @@
 .filters > summary:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 .filters:not([open]) > :not(summary) { display: none; }
 /* One register in front of the reader is no choice: the switch and its label go. */
-.switch-set:has(.segmented:empty) { display: none; }
+.switch-set:has(.seg:empty) { display: none; }
 
 /* --- the audit of 2026-09-14 -------------------------------------------------------- */
 
@@ -1119,16 +1073,14 @@
    at columns that were not on the page. */
 .cards[hidden], .rows[hidden], .rows-head[hidden] { display: none; }
 .cards > li { display: flex; min-width: 0; }
-.card {
+/* A text in the list: the desk's `.card` (chrome.css) is its surface; this is its layout
+   and the press it is. Scoped to the list, because `.card` is the desk's card
+   everywhere else. */
+.cards .card {
   display: flex;
   gap: 0.75rem;
   flex: 1 1 auto;
-  min-width: 0;
   padding: 0.75rem;
-  border: 0;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
   color: inherit;
   font: inherit;
   text-align: start;
@@ -1136,9 +1088,9 @@
   cursor: pointer;
   transition: box-shadow 0.18s ease;
 }
-@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
-.card:hover { box-shadow: var(--shadow-raised); }
-.card:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .cards .card { transition: none; } }
+.cards .card:hover { box-shadow: var(--shadow-raised); }
+.cards .card:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
 /* `align-self` so the cover hugs its own picture. The card is a flex row, so without it
    the cover box stretched to the full height of the card and the media mark — pinned to
@@ -1212,8 +1164,8 @@
 .card-known-say { font-size: 0.6875rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 /* A build narrates itself here, as it does in a row's own cell. Empty the rest of the
    time, and taking no room when it is. */
-.card .row-state:empty { display: none; }
-.card .row-state { font-size: 0.6875rem; color: var(--teal); padding-block-start: 0.3rem; }
+.cards .card .row-state:empty { display: none; }
+.cards .card .row-state { font-size: 0.6875rem; color: var(--teal); padding-block-start: 0.3rem; }
 
 @media (hover: none) and (pointer: coarse) {
   .chips.subjects .chip { min-height: 44px; }
@@ -1311,16 +1263,7 @@
   body.playlists main { padding-block-start: 0; }
 }
 
-/* The strip is links (one of them is another page), dressed as the Library's tabs. */
-/* A `nav`, and the chrome's nav rules would close the gaps up. */
-.yours-tabs { gap: 1.5rem; }
-.yours-tabs .tab { padding: 0.35rem 0; border-radius: 0; text-decoration: none; }
-.yours-tabs .tab[aria-current="page"] {
-  border-block-end-color: var(--ink);
-  color: var(--ink);
-  font-weight: 600;
-}
-.yours-tabs .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The strip is links (one of them is another page), drawn as the desk's `.tabs`. */
 
 /* Chips on the start, then the search and the order. */
 .sift-shelf {
@@ -1451,9 +1394,9 @@
   .shelf-cards .series-stack::before { transform: translate(0, -6px) scale(0.94); }
   .shelf-cards .series-stack::after { transform: translate(0, -12px) scale(0.88); }
   .shelf-cards li.is-series { padding-block-start: 1.1rem; }
-  /* A text with no picture wears its letter large, on a wash of the accent. */
-  .shelf-cards .thumb { background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
-  .shelf-cards .thumb .glyph { font-size: 2.75rem; color: color-mix(in srgb, var(--accent) 70%, var(--ink-soft)); }
+  /* A text with no picture wears its letter large, on the colour of its kind (the one
+     tile, chrome.css); it was on a wash of the accent, the beige box the boards retired. */
+  .shelf-cards .thumb .glyph { font-size: 2.75rem; }
   .shelf-cards .book-what { grid-column: 1 / -1; padding-inline: 0.25rem; }
   .shelf-cards .book-title {
     display: -webkit-box;
@@ -1518,25 +1461,7 @@
   font-weight: 400;
   color: var(--ink-soft);
 }
-#portion-schedule { display: inline-flex; gap: 0.15rem; padding: 0.15rem; border-radius: 999px; }
-#portion-schedule .segment {
-  border: 0;
-  border-radius: 999px;
-  padding: 0.3rem 0.8rem;
-  background: none;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-/* Pressed as the page's other two-way switch, Cards / List, is pressed: where you are,
-   in the desk's working teal. */
-#portion-schedule .segment[aria-pressed="true"] {
-  background: var(--teal-wash);
-  color: var(--teal);
-  font-weight: 600;
-  box-shadow: none;
-}
+/* Diaspora / Israel is the shared `.seg` (shared.css) since 2026-10-09. */
 .portion-cards {
   list-style: none;
   margin: 0;
@@ -1626,14 +1551,7 @@
   justify-content: space-between;
   gap: 1rem;
 }
-.band-name {
-  margin: 0;
-  font-family: var(--reading);
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--ink);
-}
+/* A shelf's name is the desk's `.section-title` (chrome.css): the serif at 24px, 500. */
 .band-all {
   font-size: 0.8125rem;
   font-weight: 600;
@@ -1697,7 +1615,6 @@
   transition: box-shadow 0.18s ease;
 }
 .band-cover .band-thumb img { position: absolute; inset: 0; object-fit: cover; }
-.band-cover .band-thumb.is-letter { background: var(--paper-raised); }
 .band-cover .band-thumb .glyph { font-size: 2.75rem; }
 .band-card:hover .band-thumb,
 .band-card:hover .band-mosaic { box-shadow: var(--shadow-raised); }
@@ -1725,7 +1642,6 @@
   border-radius: 0;
 }
 .band-mosaic .thumb img { position: absolute; inset: 0; object-fit: cover; }
-.band-mosaic .thumb.is-letter { background: var(--paper-raised); }
 .band-kind { font-size: 0.8125rem; color: var(--ink-soft); }
 .band-title {
   display: block;
@@ -1753,7 +1669,6 @@
 .see-back a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
 @media (max-width: 40rem) {
   .band-cover .band-thumb, .band-mosaic { block-size: 7.5rem; }
-  .band-name { font-size: 1.0625rem; }
 }
 @media (hover: none) and (pointer: coarse) {
   .band-all, .see-back a { display: inline-block; min-block-size: 44px; line-height: 44px; }

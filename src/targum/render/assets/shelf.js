@@ -176,7 +176,10 @@
     var box = document.createElement("span");
     box.className = "building";
     box.appendChild(
-      window.TargumCovers.tile("", { title: job.title, language: job.language, drawn: false })
+      window.TargumCovers.picture(
+        { title: job.title, language: job.language, kind: job.kind },
+        { keyed: keyed, className: "thumb" }
+      )
     );
 
     var what = document.createElement("span");
@@ -258,11 +261,7 @@
     link.className = "book-open";
     link.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
     item.appendChild(
-      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
-        title: reader.title,
-        language: reader.language,
-        drawn: reader.drawn,
-      })
+      window.TargumCovers.picture(reader, { keyed: keyed, className: "thumb" })
     );
 
     var what = document.createElement("span");
@@ -319,11 +318,15 @@
     var stack = document.createElement("span");
     stack.className = "series-stack";
     stack.appendChild(
-      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(newest.entry || newest.name)), {
-        title: group.title,
-        language: group.language,
-        drawn: newest.drawn,
-      })
+      window.TargumCovers.picture(
+        {
+          entry: newest.entry || newest.name,
+          title: group.title,
+          language: group.language,
+          kind: newest.kind,
+        },
+        { keyed: keyed, className: "thumb" }
+      )
     );
     item.appendChild(stack);
 
@@ -631,11 +634,15 @@
       // to the book's on the server, so every row carries the same one either way.
       var cover = window.TargumCovers.chapterName(reader.entry || reader.name, chapter.number);
       name.appendChild(
-        window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(cover)), {
-          title: chapter.title || reader.title,
-          language: reader.language,
-          className: "thumb tiny",
-        })
+        window.TargumCovers.picture(
+          {
+            entry: cover,
+            title: chapter.title || reader.title,
+            language: reader.language,
+            kind: reader.kind,
+          },
+          { keyed: keyed, className: "thumb tiny" }
+        )
       );
       name.appendChild(document.createTextNode(chapter.number + ". "));
       var title = document.createElement("bdi");

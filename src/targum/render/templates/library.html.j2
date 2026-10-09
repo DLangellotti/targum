@@ -55,7 +55,7 @@
         as you type. -#}
     <div class="sift">
       <input
-        id="find" class="find" type="search" dir="auto" autocomplete="off" spellcheck="false"
+        id="find" class="well find" type="search" dir="auto" autocomplete="off" spellcheck="false"
         placeholder="{{ t("library.page.search-a-title-hebrew-or-english", "Search titles in Hebrew or English") }}" aria-label="{{ t("library.page.search-the-library", "Search the library") }}">
       {#- The Hebrew of the Mishnah, of Maimonides, of Mendele and of this morning's paper
           are not four genres, they are close to four languages, and which one somebody is
@@ -71,16 +71,16 @@
                  data-fewer="{{ t("library.page.fewer-filters", "Fewer filters") }}"></summary>
       <div class="switch-set">
         <span class="switch-label">{{ t("library.page.which-hebrew", "Which Hebrew") }}</span>
-        <div class="segmented" id="register-chips" role="group" aria-label="{{ t("library.page.which-hebrew", "Which Hebrew") }}"></div>
+        <div class="seg" id="register-chips" role="group" aria-label="{{ t("library.page.which-hebrew", "Which Hebrew") }}"></div>
       </div>
       <div class="chips" id="kind-chips" role="group" aria-label="{{ t("library.page.what-it-is", "What it is") }}"></div>
       {#- "Media", since the answers are audio and video: a select called "Audio"
           offering "With video" was a label contradicting its own list. -#}
-      <label class="pick"><span>{{ t("library.page.media", "Media") }}</span><select id="audio"></select></label>
-      <label class="pick"><span>{{ t("library.page.length", "Length") }}</span><select id="length"></select></label>
+      <label class="pick"><span>{{ t("library.page.media", "Media") }}</span><select class="well" id="audio"></select></label>
+      <label class="pick"><span>{{ t("library.page.length", "Length") }}</span><select class="well" id="length"></select></label>
       {#- One name for one measure: the column below is "Level", and a select called
           "Difficulty" over it was two names for the same number. -#}
-      <label class="pick"><span>{{ t("library.page.hard-words", "Level") }}</span><select id="difficulty"></select></label>
+      <label class="pick"><span>{{ t("library.page.hard-words", "Level") }}</span><select class="well" id="difficulty"></select></label>
       <button type="button" class="clear" id="clear" hidden>{{ t("library.page.clear", "Clear") }}</button>
       </details>
       {#- How the list is ordered, for the shape that has no columns to press: a grid of
@@ -107,7 +107,7 @@
     <section class="portions" id="portions" aria-labelledby="portions-head" hidden>
       <div class="portions-top">
         <h2 class="portions-head" id="portions-head">{{ t("library.page.weekly-portion", "Weekly portion") }} <bdi class="portions-hebrew" lang="he" dir="rtl">פרשת השבוע</bdi></h2>
-        <div class="segmented" id="portion-schedule" role="group" aria-label="{{ t("library.page.which-calendar", "Which calendar") }}" hidden></div>
+        <div class="seg" id="portion-schedule" role="group" aria-label="{{ t("library.page.which-calendar", "Which calendar") }}" hidden></div>
       </div>
       <ol class="portion-cards" id="portion-cards"></ol>
     </section>

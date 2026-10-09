@@ -2517,3 +2517,55 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     assert got["steps"] and all(steps == five for steps in got["steps"])
     assert not got["sideways"], got
     assert stored == 3
+
+
+#: What a card is, as the browser draws it: the card's paper, a shadow, and a card's
+#: corners (a pill on the card's paper is an outlined press, not a card). Measured rather
+#: than read from the class, so a page that draws its own card under another name is
+#: caught too.
+CARD_SURFACES = """() => {
+  const card = (node) => {
+    const cs = getComputedStyle(node);
+    return cs.backgroundColor === 'rgb(255, 253, 249)'
+      && cs.boxShadow && cs.boxShadow !== 'none'
+      && parseFloat(cs.borderTopLeftRadius) >= 12
+      && parseFloat(cs.borderTopLeftRadius) < 100;  // a pill on the card is a press
+  };
+  const nested = [];
+  for (const node of document.querySelectorAll('main *')) {
+    if (!card(node)) continue;
+    for (let up = node.parentElement; up && up.tagName !== 'MAIN'; up = up.parentElement) {
+      if (card(up)) { nested.push(`${up.className} > ${node.className}`); break; }
+    }
+  }
+  const tabs = [...document.querySelectorAll('.tab')].map((tab) => {
+    const cs = getComputedStyle(tab);
+    return {
+      radius: cs.borderTopLeftRadius, under: cs.borderBottomWidth, line: cs.textDecorationLine,
+    };
+  });
+  return { nested, tabs };
+}"""
+
+
+@pytest.mark.parametrize("name", sorted(pages()))
+def test_no_card_sits_in_a_card_and_no_tab_is_underlined(
+    browser, tmp_path: Path, name: str
+) -> None:
+    """design.md §9 and §12 ("The boards are the desk"): a card is never inside a card — what
+    groups inside one is a hairline — and a tab is a tinted pill, never a word over a line.
+    Every desk page as the server draws it, hidden parts included: a computed style is
+    computed whether or not the part is showing."""
+    page_file = tmp_path / f"{name.replace(':', '-')}.html"
+    page_file.write_text(pages()[name], encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    open_page = context.new_page()
+    open_page.goto(page_file.as_uri())
+    open_page.wait_for_timeout(200)
+    got = open_page.evaluate(CARD_SURFACES)
+    context.close()
+
+    assert not got["nested"], f"{name}: a card inside a card: {got['nested']}"
+    for tab in got["tabs"]:
+        assert tab["radius"] == "999px", f"{name}: a tab that is not a pill: {tab}"
+        assert tab["under"] == "0px" and tab["line"] != "underline", f"{name}: {tab}"
