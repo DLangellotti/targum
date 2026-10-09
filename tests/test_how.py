@@ -110,6 +110,9 @@ def test_the_licences_that_ask_for_a_name_get_one(page: str) -> None:
         assert name in credits.group(0), name
 
 
-def test_it_is_reached_from_the_foot_and_from_about(page: str) -> None:
+def test_it_is_reached_from_about_and_not_the_foot(page: str) -> None:
+    # Off the foot since 2026-10-09 (David: "I don't need this in the footer"); About
+    # still links to it, and the page itself stays.
     assert 'href="/how"' in about_page()
-    assert 'href="/how"' in page
+    foot = re.search(r"<footer.*?</footer>", page, re.S)
+    assert foot and 'href="/how"' not in foot.group(0)
