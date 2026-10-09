@@ -1209,3 +1209,18 @@ def test_the_readers_presses_are_teal() -> None:
         assert bodies, selector
         assert any("var(--teal)" in b for b in bodies), f"{selector} is not teal"
         assert not any("var(--accent)" in b for b in bodies), f"{selector} is still brown"
+
+
+def test_the_word_card_and_the_end_of_a_part_are_cards() -> None:
+    """§12, "The word card, the end of a part and Theatre are the boards'": the reader's
+    card at the card's white with no border, a sheet on a dimmed page on a phone, and the
+    end of a part a card with its name at the head."""
+    css = _bare(ASSETS / "reader.css")
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", css)
+    card = [b for s, b in rules if s.strip() == "#gloss-card"]
+    assert any("background: var(--card)" in b for b in card), card
+    assert any("var(--scrim)" in b for b in card), "the phone's sheet dims the page"
+    foot = [b for s, b in rules if s.strip() == ".foot,\n.film-end"]
+    assert any("background: var(--card)" in b and "var(--radius-card)" in b for b in foot), foot
+    reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
+    assert 'class="foot-title"' in reader

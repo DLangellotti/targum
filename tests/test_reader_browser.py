@@ -2165,14 +2165,17 @@ def test_off_the_foot_of_the_last_page_forward_is_the_next_chapter(
     forward = forward_key(page)
 
     # Foot, turn, foot, turn — to the last page.
+    # The last page, not the first page the last line is on: where the foot does not fit
+    # beside the last line it stands on a page of its own, and the walk turns to it.
     for _ in range(40):
         seen = page.evaluate(PAGE)
-        if seen["last"] == seen["total"] - 1:
+        if seen["last"] == seen["total"] - 1 and page.evaluate(
+            "() => document.body.classList.contains('last-page')"
+        ):
             break
         page.keyboard.press(forward)
     else:
         raise AssertionError("forty presses and the last page never came")
-    assert page.evaluate("() => document.body.classList.contains('last-page')")
 
     # The last page's foot, then the door.
     foot = foot_of(page.evaluate(CHAPTER), seen["first"], seen["last"])
@@ -2550,7 +2553,7 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
 def test_the_foot_shows_the_words_its_press_would_mark(browser, tmp_path, viewport) -> None:
     """ "Done, and mark 66 words known" marked words nobody had been shown (design review,
     2026-10-09). The foot asks about them above the press, as the end of a part does
-    under a large picture: how many, then the ones met most as chips behind "Show them",
+    under a large picture: how many, then the ones met most as chips,
     and the rest one press away. The count is the press's own."""
     first = chapter(tmp_path / "reader", parts=2).parent / "sec-0001.html"
     context = opened(browser, viewport)
@@ -2564,11 +2567,12 @@ def test_the_foot_shows_the_words_its_press_would_mark(browser, tmp_path, viewpo
     ask = page.inner_text("#foot-words .foot-ask")
     assert ask.startswith(f"{count} word"), (ask, press)
     chips = page.locator("#foot-words .film-end-word")
-    # One line until asked for, so the foot keeps the height a page was cut for.
-    assert chips.count() == 0
-    page.click("#foot-words .foot-show")
-    assert 0 < chips.count() <= min(count, 8)
-    if count > 8:
+    # Shown, not behind "Show them": the end of a part is a card that shows its words
+    # (design.md §12, "The reader's chrome is the desk's", 2026-10-09).
+    assert 0 < chips.count() <= min(count, 4)
+    assert chips.first.is_visible()
+    assert page.inner_text(".foot-title").startswith("End of chapter 1 of 2")
+    if count > 4:
         page.click("#foot-words .foot-more")
         assert chips.count() == count, "the rest, one press away"
     # Marked, there is nothing left to ask about.
@@ -4453,6 +4457,8 @@ def test_a_meaning_typed_on_a_phone_keeps_its_card(phone_chapter) -> None:
     page = phone_chapter
     assert page.evaluate(TAP_CLEAR)
     page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    # Folded behind "Add your meaning" since 2026-10-09; the press opens and focuses it.
+    page.click("#gloss-card .note-open")
     page.focus("#gloss-card .note-field")
     page.keyboard.type("milk")
     # Past the field's own commit, and past the frame the band takes to change hands.
@@ -4493,6 +4499,8 @@ def test_the_keyboard_does_not_lay_the_pages_out_again(phone_chapter) -> None:
     page = phone_chapter
     assert page.evaluate(TAP_CLEAR)
     page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    # Folded behind "Add your meaning" since 2026-10-09; the press opens and focuses it.
+    page.click("#gloss-card .note-open")
     page.focus("#gloss-card .note-field")
 
     # The same page and the same lines on it, not the same pixels: under 40rem the
@@ -4583,6 +4591,7 @@ def test_the_keys_wait_for_a_keyboard_on_a_phone(phone_scene_scrolling) -> None:
     assert page.evaluate(BAND)["keysButton"] is None, "no keys button before a keyboard"
     page.click(".pair:not([hidden]) .src:not([hidden]) .w >> nth=1")
     page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    page.click("#gloss-card .note-open")
     page.fill(".gloss-card input, .gloss-card textarea", "milk")
     assert page.evaluate("() => document.body.classList.contains('has-keyboard')") is False
     page.keyboard.press("Escape")

@@ -354,6 +354,22 @@
       note.addEventListener("change", commitNote);
       note.addEventListener("blur", commitNote);
       box.appendChild(note);
+      // Folded, where the caller asks and nothing is written yet: a quiet "Add your
+      // meaning" in its place, which opens the field and puts the cursor in it.
+      if (options.fold && !options.note) {
+        note.hidden = true;
+        var opener = document.createElement("button");
+        opener.type = "button";
+        opener.className = "note-open";
+        opener.textContent = t("vocab.add-meaning", "Add your meaning");
+        opener.addEventListener("click", function (event) {
+          event.stopPropagation();
+          opener.hidden = true;
+          note.hidden = false;
+          note.focus();
+        });
+        box.insertBefore(opener, note);
+      }
 
       // What you typed is kept as you type it, and always was — but a field that saves
       // silently is a field nobody can tell they have finished with. This says where the

@@ -1128,7 +1128,6 @@ var targumReader = function () {
   // the ones met most as chips with what each means, and the rest one press away.
   var footWords = document.getElementById("foot-words");
   var footAllWords = false;
-  var footWordsOpen = false;
   /* Inside a playlist the press moves on. `list.js` says so through `TargumReader.foot`
      once it has the list: which word the press says ("next", or "finish" on the last
      item) and what moving on is. Null on a text read on its own, where the press is Done. */
@@ -1612,7 +1611,7 @@ var targumReader = function () {
      means, and the rest behind "+60 more". The same question and chips the end of a part
      asks under a large picture (design.md §12, 2026-10-08), and the same words the press
      marks: `unmarkedWords` and `leftToMark` count one set. */
-  var FOOT_CHIPS = 8;
+  var FOOT_CHIPS = 4;
   function paintFootWords(left) {
     if (!footWords) return;
     var list = footWords.querySelector(".foot-chips");
@@ -1628,23 +1627,11 @@ var targumReader = function () {
         "{n} word here you haven't marked. Do you know it?",
         "{n} words here you haven't marked. Do you know them?"
       );
-      // Folded until asked for: one line at the foot, so the last page of a part keeps
-      // its height and nothing under it slides beneath the arrows.
-      if (!footWordsOpen) {
-        var show = document.createElement("button");
-        show.type = "button";
-        show.className = "foot-plain foot-show";
-        show.textContent = t("reader.foot.show-words", "Show them");
-        show.addEventListener("click", function () {
-          footWordsOpen = true;
-          paintFootWords(left);
-        });
-        ask.appendChild(document.createTextNode(" "));
-        ask.appendChild(show);
-      }
     }
-    list.hidden = !footWordsOpen;
-    if (!footWordsOpen) return;
+    // Shown, not behind "Show them" (design.md §12, "The reader's chrome is the desk's",
+    // 2026-10-09): the end of a part is a card that shows its words, as board
+    // ReaderTheatreEnd draws it. Drawn as the page is first laid out, so the page the
+    // foot stands on is cut for it.
     rest.glossed.forEach(function (one) {
       var chip = document.createElement("li");
       chip.className = "film-end-word";
@@ -4879,6 +4866,9 @@ var targumReader = function () {
       // The field says what it is for, in the reader's words: the same line is its
       // accessible name, and "Enter text" was the one label on the card that was not.
       placeholder: t("reader.card.own-meaning", "Your own meaning"),
+      // Folded behind "Add your meaning" until asked for, where none is written yet: the
+      // board's card has no field (2026-10-09).
+      fold: true,
       onStatus: function (value) {
         // Held before the redraw, which replaces the span the card stands beside.
         var held = holdWord(lookedUp);
@@ -5660,6 +5650,19 @@ var targumReader = function () {
     word.classList.add("looked-up");
     card.textContent = "";
     card.appendChild(grabHandle(hideCard));
+    // The sheet's ×, at its start, as board WordCardPhone draws it (design.md §12, "The
+    // reader's chrome is the desk's", 2026-10-09). A wide window's card has Escape and a
+    // press elsewhere, and draws none.
+    var shut = document.createElement("button");
+    shut.type = "button";
+    shut.className = "card-x";
+    shut.setAttribute("aria-label", t("reader.page.close", "Close"));
+    shut.textContent = "\u00d7";
+    shut.addEventListener("click", function (event) {
+      event.stopPropagation();
+      hideCard();
+    });
+    card.appendChild(shut);
 
     // Two different things. The card shows the word as it sits on the page, points and
     // all, because that is what was tapped; the list stores the bare form, so the same
@@ -5984,7 +5987,20 @@ var targumReader = function () {
       var use = document.createElement("span");
       use.className = "use";
       mixedLine(use, usage);
-      card.appendChild(use);
+      // What the word is here, said as the board's wash line does ("Here: prepositional,
+      // singular"), under the meaning rather than after the verb's lines (2026-10-09).
+      var hereRow = use;
+      if (!kindWord) {
+        hereRow = document.createElement("span");
+        hereRow.className = "use-here";
+        var hereLead = document.createElement("span");
+        hereLead.className = "use-lead";
+        hereLead.textContent = t("reader.card.here", "Here:") + " ";
+        hereRow.appendChild(hereLead);
+        hereRow.appendChild(use);
+      }
+      if (meaning.parentNode === card) card.insertBefore(hereRow, meaning.nextSibling);
+      else card.appendChild(hereRow);
     }
 
     // What a pronoun stands for, and a way to go to it (targum-internal#264).
@@ -6069,6 +6085,17 @@ var targumReader = function () {
     // for either is `i`. Everything else keeps the editor exactly as it was.
     var level = levelOf(word);
     if (!(row && isName(row))) card.appendChild(statusRow(index, surface, level));
+    // The word said, at the end of the stage control (board WordCardDesk): the press a
+    // reader makes after reading the meaning, beside the one they make after hearing it.
+    var steps = card.querySelector(".vocab-editor .levels");
+    if (hear && steps) {
+      var hearFrom = hear.parentNode;
+      hear.classList.add("card-hear");
+      steps.appendChild(hear);
+      if (hearFrom && hearFrom !== card && !hearFrom.textContent.trim() && !hearFrom.querySelector("button")) {
+        hearFrom.parentNode.removeChild(hearFrom);
+      }
+    }
     // A stage pressed with no connection is kept here and goes when there is one.
     if (away() && !(row && isName(row))) {
       var held = document.createElement("span");
@@ -10164,6 +10191,7 @@ var targumReader = function () {
   // rather than doing nothing.
   function walk(forward) {
     if (!card) return false;
+    var pageWas = current;
     var entry = place ? onward(place, forward) : enterFrom(forward);
     var had = !!place;
     // Nothing that way. A card already open stays open: closing it out from under
@@ -10182,7 +10210,14 @@ var targumReader = function () {
     if (!entry) {
       if (forward && place && finishedMark && !finishedAt() && finishedMark.focus) {
         finishedMark.focus();
+      } else if (forward && place && paged() && current !== pageWas) {
+        // The way to the end turned the page — to the last line's last piece and the foot
+        // under it, where the foot did not fit beside the line (the end of a part is a
+        // card since 2026-10-09). That page is shown before the next chapter is.
+        return true;
       } else if (forward && place && paged() && current === pages.length - 1 && nextChapter()) {
+        return true;
+      } else if (forward && place && paged() && current < pages.length - 1 && turnBy(1)) {
         return true;
       }
       offPage();
@@ -12693,6 +12728,14 @@ var targumReader = function () {
     var PANEL = 420;
     var view = "beside";
     var panel = false;
+    //: Theatre opens with the transcript in a column at the right (board PlaylistSwipeDesk;
+    //: design.md §12, "The reader's chrome is the desk's", 2026-10-09), unless the reader
+    //: put it away, which is kept on this device like the view.
+    var PANEL_STORE = "targum:film-panel";
+    var panelWanted = true;
+    try {
+      panelWanted = localStorage.getItem(PANEL_STORE) !== "0";
+    } catch (e) {}
     //: Theatre's picture as a share of the size the layout gives it (2026-10-07), kept
     //: per reader like the view; 1 is the default and is never written.
     var SIZE_STORE = "targum:film-size";
@@ -12936,9 +12979,17 @@ var targumReader = function () {
       var last = order.length ? order[order.length - 1].id : null;
       var end = filmUp() && (videoEl.ended || (!!last && subId === last));
       body.classList.toggle("film-at-end", !!end);
-      showEnd(
-        filmUp() && playedOut && videoEl.ended && view === "theatre" && !panel && wideFilm.matches && !inList && !lastOfMany()
-      );
+      var ending =
+        filmUp() && playedOut && videoEl.ended && view === "theatre" && wideFilm.matches && !inList && !lastOfMany();
+      // The end of a part is the card under the picture (board ReaderTheatreEnd), with no
+      // column beside it: the column steps aside for it, without the reader's choice
+      // being written down, and is back with the next part.
+      if (ending && panel) {
+        panel = false;
+        place();
+        return;
+      }
+      showEnd(ending);
     };
     // Played to its end, not only stood at it: a seek to the last frame with nothing
     // playing is a reader looking for something, and the line under the picture stays.
@@ -13202,7 +13253,7 @@ var targumReader = function () {
     var setView = function (name, chosen) {
       if (VIEWS.indexOf(name) < 0) return;
       view = name;
-      if (view !== "theatre") panel = false;
+      panel = view === "theatre" && panelWanted;
       if (chosen) {
         try {
           targumKeep(VIEW_STORE, view);
@@ -13214,6 +13265,11 @@ var targumReader = function () {
     var setPanel = function (open) {
       if (view !== "theatre") return;
       panel = !!open;
+      panelWanted = panel;
+      try {
+        if (panel) localStorage.removeItem(PANEL_STORE);
+        else localStorage.setItem(PANEL_STORE, "0");
+      } catch (e) {}
       place();
       say(panel ? S.t("reader.film.transcript-said", "Transcript.") : S.t("reader.film.transcript-shut", "Transcript closed."));
     };
@@ -13725,6 +13781,7 @@ var targumReader = function () {
       swipedHere = inList && listed.get("go") === "1";
     } catch (e) {}
     if (inList) view = "theatre";
+    panel = view === "theatre" && panelWanted;
     showVideo(inList || !putAway, false);
     drawSub(heldAt(audio.currentTime || 0));
     subId = subFor ? subFor.getAttribute("data-id") : null;

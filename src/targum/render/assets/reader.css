@@ -1717,6 +1717,10 @@ body.has-player .next-up { margin-block-end: 9rem; }
    door stands under it, opened a gap between the press and the door (2026-09-25). */
 body.has-player .foot:has(+ .next-up:not([hidden])),
 body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
+/* Nor under the door when the credits stand under it with their own room (2026-10-09):
+   the end of a part is a card now, and the two rooms together put the credits under the
+   arrows on a phone's last page. */
+body.has-player .next-up:has(~ .credits) { margin-block-end: 2rem; }
 
 /* Finished. The strip inverts to ink — §9's wake-up move, one block per screen, spent
    on the one block that earned it — and says what the section came to in three figures
@@ -5440,3 +5444,181 @@ body.list-ended .list-end .list-end-over {
 .bar .bar-tools > .modes button.on,
 .bar .film-view[aria-pressed="true"] { color: var(--teal); background: var(--teal-wash); }
 .bar .bar-tool.marks[aria-pressed="true"] { color: var(--teal); background: var(--teal-wash); }
+
+/* --- the word's card, as the board draws it (WordCardDesk, WordCardPhone; design.md §12,
+   "The reader's chrome is the desk's", 2026-10-09) ------------------------------------
+   The card on its shadow at the card's white, the word large with the meaning under it,
+   what the word is here in a wash line, then the rest in the quiet, a hairline over
+   where it was met, and the stage control with the word said at its end. The reader's
+   card only (`#gloss-card`); the desk's lists draw their own. */
+#gloss-card {
+  gap: 0.55rem;
+  min-inline-size: min(17rem, calc(100vw - 2rem));
+  max-inline-size: min(22rem, calc(100vw - 2rem));
+  padding: 1.125rem;
+  background: var(--card);
+  box-shadow: var(--shadow-floating);
+}
+#gloss-card .copy-line:has(.lemma) { align-self: stretch; }
+#gloss-card .lemma { font-size: 2em; font-weight: 500; line-height: 1.25; }
+#gloss-card .lemma[lang|="he"],
+#gloss-card .lemma[lang="yi"],
+#gloss-card .lemma[lang="arc"] { line-height: 1.5; }
+#gloss-card .meaning { margin: 0; color: var(--ink); font-size: 1.0625rem; }
+/* The copy keys wait for the pointer, as they do in a row: the board's card has none
+   drawn, and a word is still copied from where it is. */
+#gloss-card .copy { opacity: 0; }
+#gloss-card .copy-line:hover .copy,
+#gloss-card .copy:focus-visible,
+#gloss-card .copy.copied { opacity: 1; }
+#gloss-card .use-here .use { display: inline; color: inherit; font-size: 1em; }
+#gloss-card > .use,
+#gloss-card .use-here {
+  align-self: stretch;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-control);
+  background: var(--paper-raised);
+  color: color-mix(in srgb, var(--ink) 70%, var(--ink-soft));
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+#gloss-card .use-lead { color: var(--ink); }
+#gloss-card .card-round {
+  align-self: stretch;
+  margin-block-start: 0.2rem;
+  padding-block-start: 0.5rem;
+  border-block-start: 1px solid var(--rule);
+}
+/* The stage control a step larger, as on the board, and the word said at its end. */
+#gloss-card .vocab-editor .levels { flex-wrap: nowrap; }
+#gloss-card .vocab-editor .level { min-block-size: 2.25rem; min-inline-size: 2.25rem; font-size: 0.875rem; }
+#gloss-card .card-hear {
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  margin-inline-start: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  color: var(--teal);
+}
+#gloss-card .card-hear:hover { color: var(--teal); background: var(--teal-wash); }
+#gloss-card .level-legend { color: var(--ink); font-size: 0.8125rem; }
+#gloss-card .note-open {
+  align-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+#gloss-card .note-open[hidden] { display: none; }
+/* The ×: the sheet's, not the card's. */
+#gloss-card .card-x { display: none; }
+
+@media (max-width: 60rem) {
+  /* The sheet from the foot on a dimmed page (board WordCardPhone): the card's white, the
+     sheet's corners, the handle, and the × at its start. The dim is the sheet's own
+     shadow, so a press on the page still reaches the page and puts the card away. */
+  #gloss-card {
+    min-inline-size: 0;
+    max-inline-size: none;
+    padding: 0.75rem 1.25rem 1.25rem;
+    background: var(--card);
+    box-shadow: 0 0 0 100vmax var(--scrim), var(--shadow-floating);
+  }
+  #gloss-card .grab { margin: -0.75rem -1.25rem 0; background: var(--card); }
+  #gloss-card .card-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: start;
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    margin: -0.25rem 0 -0.5rem -0.75rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink-soft);
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+  #gloss-card .vocab-editor .level { min-block-size: 2.75rem; min-inline-size: 2.75rem; }
+  #gloss-card .card-hear { inline-size: 2.75rem; block-size: 2.75rem; }
+}
+
+/* --- the end of a part is a card (board ReaderTheatreEnd; design.md §12, "The reader's
+   chrome is the desk's", 2026-10-09) ----------------------------------------------------
+   Its name at the head ("End of chapter 2 of 19"), the words the press would mark shown
+   as chips with what each means, then the press in teal with the plain finish beside it
+   as a line press, and what comes next under them. The same card under a large picture,
+   where the end of a part names itself. */
+.foot,
+.film-end {
+  box-sizing: border-box;
+  max-width: min(55rem, 100%);
+  margin: 1.25rem auto;
+  padding: 1.125rem 1.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--ui);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.foot { align-items: stretch; gap: 0.65rem; }
+.foot-title,
+.film-end-head { margin: 0; color: var(--ink); font-family: var(--ui); font-size: 1.25rem; font-weight: 600; line-height: 1.3; }
+.foot-ask,
+.film-end-ask { color: var(--ink); font-size: 0.9375rem; }
+/* Finished, the card says so in its ink block and needs no name over it. */
+.foot:has(#finished:not([hidden])) .foot-title { display: none; }
+.film-end .foot { margin: 1rem 0 0; padding: 0; border: 0; background: none; box-shadow: none; }
+.film-end .foot-title { display: none; }
+.foot-press {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+/* The plain finish beside the press, a line press (`.btn.ghost.outline`'s look). */
+.foot .foot-plain:not(.foot-more) {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding: 0 1.2rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.foot .foot-plain:not(.foot-more):hover { border-color: var(--ink-soft); }
+.foot-more { color: var(--teal); text-decoration: none; }
+body.film-theatre .film-end { margin-inline: auto; }
+/* On a phone the card is as short as it can be, because the last page holds it whole
+   with the credits under it: the plain finish is the quiet line it was, under the press. */
+@media (max-width: 40rem) {
+  .foot,
+  .film-end { margin: 0.75rem 0; padding: 0.875rem 1rem; }
+  .foot { gap: 0.5rem; }
+  .foot-title,
+  .film-end-head { font-size: 1.0625rem; }
+  .foot-press { flex-direction: column; align-items: stretch; gap: 0; }
+  .foot .foot-plain:not(.foot-more) {
+    justify-content: center;
+    min-block-size: 2.75rem;
+    border: 0;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: var(--ink-soft);
+  }
+}
+/* The chips read from the card's start, the word then what it means, whatever way the
+   text runs: the card is English chrome (board ReaderTheatreEnd). */
+.foot .film-end-words,
+.film-end .film-end-words { direction: ltr; justify-content: flex-start; }
+.foot .film-end-he,
+.film-end .film-end-he { unicode-bidi: isolate; }
