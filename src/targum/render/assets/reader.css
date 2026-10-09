@@ -5114,3 +5114,277 @@ body.film-ended .film-sub { display: none; }
   border: 0;
 }
 body.film-theatre .film-end + .film-next { justify-content: flex-start; }
+
+/* --- a playlist's ways on, as the boards draw them (P9, 2026-10-09) ----------------- */
+
+.list-glyph {
+  inline-size: 1em;
+  block-size: 1em;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.list-thumb-letter { font-family: var(--reading-hebrew); color: var(--ink-soft); }
+
+/* What comes next, at the foot (boards PlaylistSwipePhone, ReaderPhone): a card with its
+   picture, "Next · 3 of 6", its title and its facts, and the press is the whole card. */
+.list-up-next {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  inline-size: 100%;
+  margin: 0.25rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--chrome);
+  text-align: start;
+  cursor: pointer;
+}
+.list-up-next:hover { background: var(--teal-wash); }
+.list-up-next:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.list-up-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: 4rem;
+  block-size: 3rem;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--paper-raised);
+}
+.list-up-thumb img,
+.video-list-thumb img,
+.list-end-thumb img,
+.list-end-cell img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.list-up-what { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-inline-size: 0; }
+.list-up-lead { font-size: 0.8125rem; color: var(--ink-soft); }
+.list-up-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+}
+.list-up-facts { font-size: 0.8125rem; color: var(--ink-soft); }
+.list-up-go { color: var(--teal); font-size: 1.25rem; }
+
+/* Under the picture (board PlaylistSwipeDesk): "Next [picture] באוטובוס ↓", a pill with
+   a hairline, the picture small and the title in its own face. */
+.list-key.video-list-next.has-next {
+  gap: 0.6rem;
+  padding: 0 0.5rem 0 1rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+}
+.list-key.video-list-next.has-next:hover { background: var(--teal-wash); color: var(--ink); filter: none; }
+.video-list-word { color: var(--ink-soft); font-weight: 400; }
+.video-list-thumb {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.25rem;
+  block-size: 1.75rem;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--paper-raised);
+}
+.video-list-title {
+  max-inline-size: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--reading-hebrew);
+}
+.video-list-go {
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding: 0.35rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+}
+
+/* On a phone the row under the picture is narrow: the pill says Next, and the card at
+   the foot says where. */
+@media (max-width: 40rem) {
+  .list-key.video-list-next.has-next .video-list-thumb,
+  .list-key.video-list-next.has-next .video-list-title,
+  .list-key.video-list-next.has-next .video-list-go { display: none; }
+  .list-key.video-list-next.has-next { padding: 0 1rem; }
+}
+
+/* The rail's tile for the one playing wears the playing mark at its corner. */
+.list-rail-playing {
+  position: absolute;
+  inset-block-end: 0.25rem;
+  inset-inline-start: 0.25rem;
+  z-index: 1;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+}
+
+/* The end is its own screen (board PlaylistEnd): over the reader, beside the rail at a
+   desk, its own head "‹ Mornings · The end" in place of the reader's bar, and nothing of
+   the text under it. Nothing moves in: it is there. */
+body.list-ended .list-end:not([hidden]) {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  max-width: none;
+  margin: 0;
+  padding: 0 1rem 3rem;
+  overflow-y: auto;
+  background: var(--paper);
+}
+/* The page under it does not scroll while the end stands over it. */
+html:has(body.list-ended),
+body.list-ended { overflow: hidden; }
+@media (min-width: 64rem) {
+  body.has-list-rail.list-ended:not(.list-open) .list-end:not([hidden]) { right: 7rem; }
+}
+.list-end > :not(.list-end-top) { max-inline-size: 54rem; margin-inline: auto; }
+.list-end-way { margin-block: 0; }
+/* A title is set in its own direction and stands at the start of its cell, whichever
+   way it reads. */
+.list-end[dir="ltr"] .list-end-item,
+.list-up-next:dir(ltr) .list-up-title { text-align: left; }
+.list-end[dir="rtl"] .list-end-item,
+.list-up-next:dir(rtl) .list-up-title { text-align: right; }
+.list-key .list-glyph { fill: none; stroke: currentColor; }
+/* The rail's End, once the end is reached, is where the reader is. */
+.list-rail-end.is-here { border: 2px solid var(--teal); color: var(--teal); }
+.list-end-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-inline-size: none;
+  min-block-size: 3.5rem;
+  margin: 0 -1rem 2rem;
+  padding: 0 1.25rem;
+  border-block-end: 1px solid var(--rule);
+}
+.list-end-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: 2.75rem;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.list-end-back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.list-end-back-glyph { font-size: 1.25rem; }
+.list-end-back-glyph:dir(rtl) { transform: scaleX(-1); }
+.list-end-top .list-end-the-end { margin: 0; color: var(--ink-soft); font-size: 0.875rem; }
+body.list-ended .list-end .list-end-over {
+  margin: 0 auto 0.75rem;
+  font-size: 1.9375rem;
+  font-weight: 500;
+}
+.list-end .list-end-words { font-size: 1.0625rem; }
+.list-end-all {
+  align-self: center;
+  padding: 0 0.25rem;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.list-end-all:hover { text-decoration: underline; }
+.list-end-all:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.list-end .list-end-set { padding: 1.5rem; border-radius: var(--radius-card); }
+.list-end-set-top { display: flex; align-items: center; gap: 1.25rem; margin-block: 0.5rem 1rem; }
+.list-end-mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  flex: none;
+  inline-size: 8.25rem;
+  block-size: 8.25rem;
+  border-radius: var(--radius-row);
+  overflow: hidden;
+  background: var(--rule);
+}
+.list-end-mosaic.n-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.list-end-mosaic.n-2 { grid-template-rows: 1fr; }
+.list-end-mosaic.n-3 > :first-child { grid-row: 1 / span 2; }
+.list-end-cell,
+.list-end-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 0;
+  overflow: hidden;
+  background: var(--paper-raised);
+}
+.list-end-set-what { min-inline-size: 0; }
+.list-end .list-end-name { margin: 0 0 0.35rem; font-size: 1.75rem; line-height: 1.2; }
+.list-end .list-end-facts { margin: 0; }
+.list-end .list-end-items li {
+  grid-template-columns: 2.75rem minmax(0, 1fr) 9rem 4.5rem 9rem 5.5rem;
+  align-items: center;
+  column-gap: 1rem;
+}
+.list-end .list-end-item { grid-column: auto; font-size: 1.0625rem; }
+.list-end-thumb { inline-size: 2.75rem; block-size: 2.75rem; border-radius: var(--radius-control); }
+.list-end-item-kind,
+.list-end-item-length { margin: 0; color: var(--ink-soft); font-size: 0.875rem; white-space: nowrap; }
+.list-end .list-end-item-facts { display: flex; align-items: center; gap: 0.6rem; }
+.list-end-item-credits { text-align: end; }
+.list-end-item-folded { display: none; margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.list-end-meter {
+  display: block;
+  flex: 1;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.list-end-meter > span { display: block; block-size: 100%; border-radius: 999px; background: var(--leaf); }
+.list-end .list-end-confirm { border-radius: var(--radius-row); }
+@media (max-width: 40rem) {
+  .list-end-top { margin-block-end: 1.25rem; }
+  body.list-ended .list-end .list-end-over { font-size: 1.75rem; }
+  .list-end .list-end-set { padding: 1rem; }
+  .list-end-mosaic { inline-size: 6rem; block-size: 6rem; }
+  .list-end .list-end-name { font-size: 1.5rem; }
+  /* A row folds: the picture, the title over its kind, length and share, the credits. */
+  .list-end .list-end-items li {
+    grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+    grid-template-areas: "thumb title credits" "thumb facts credits";
+    row-gap: 0.1rem;
+  }
+  .list-end-thumb { grid-area: thumb; }
+  .list-end .list-end-item { grid-area: title; }
+  .list-end-item-kind,
+  .list-end-item-length { display: none; }
+  .list-end .list-end-item-facts { display: none; }
+  .list-end .list-end-item-folded { display: block; grid-area: facts; }
+  .list-end-item-credits { grid-area: credits; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .list-end-all,
+  .list-end-back,
+  .list-up-next { min-block-size: 44px; }
+}

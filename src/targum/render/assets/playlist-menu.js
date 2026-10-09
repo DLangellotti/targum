@@ -53,9 +53,17 @@
     });
   }
 
+  // A phone's sheet rises from the foot over a dimmed page (board PlaylistMake); a desk's
+  // menu hangs under its press, and its "New playlist" is a small window on the dim.
+  function narrow() {
+    return !!(window.matchMedia && window.matchMedia("(max-width: 40rem)").matches);
+  }
+
   function close() {
     if (!open) return;
     open.menu.remove();
+    if (open.scrim) open.scrim.remove();
+    document.body.classList.remove("pm-sheet-open");
     open.press.setAttribute("aria-expanded", "false");
     document.removeEventListener("click", outside, true);
     document.removeEventListener("keydown", escape, true);
@@ -136,7 +144,51 @@
     }
   }
 
-  function draw(menu, text, key, playlists) {
+  /* A playlist's cover at the size of a row: its first four texts' pictures, from this
+     box's `/thumb/`, each resting on its letter until it has loaded. The playlist page's
+     mosaic, small; drawn here because a reader carries no `covers.js`. */
+  function cover(one, key) {
+    var box = document.createElement("span");
+    var some = (one.covers || []).slice(0, 4);
+    box.className = "pm-cover n-" + some.length;
+    box.setAttribute("aria-hidden", "true");
+    some.forEach(function (member) {
+      var cell = document.createElement("span");
+      cell.className = "pm-cell";
+      var letter = document.createElement("span");
+      letter.className = "pm-letter";
+      letter.textContent = String(member.title || "").replace(/^[^\wא-תЀ-ӿ]+/, "").charAt(0);
+      cell.appendChild(letter);
+      if (member.name) {
+        var picture = new Image();
+        picture.alt = "";
+        picture.onload = function () {
+          letter.remove();
+          cell.appendChild(picture);
+        };
+        picture.src = address("/thumb/" + encodeURIComponent(member.name) + "?drawn=1", key);
+      }
+      box.appendChild(cell);
+    });
+    return box;
+  }
+
+  function sayIn(node, said, title) {
+    var cut = said.indexOf("{title}");
+    if (cut < 0) {
+      node.textContent = said;
+      return node;
+    }
+    node.appendChild(document.createTextNode(said.slice(0, cut)));
+    var name = document.createElement("bdi");
+    name.setAttribute("dir", "auto");
+    name.textContent = title;
+    node.appendChild(name);
+    node.appendChild(document.createTextNode(said.slice(cut + 7)));
+    return node;
+  }
+
+  function draw(menu, text, key, playlists, current) {
     var list = menu.querySelector(".pm-list");
     list.textContent = "";
     playlists.forEach(function (one) {
@@ -145,14 +197,33 @@
       choose.type = "button";
       choose.className = "pm-choice";
       choose.setAttribute("role", "menuitem");
+      choose.appendChild(cover(one, key));
+      var what = document.createElement("span");
+      what.className = "pm-what";
       var name = document.createElement("bdi");
       name.setAttribute("dir", "auto");
+      name.className = "pm-label";
       name.textContent = one.name;
-      choose.appendChild(name);
+      what.appendChild(name);
       var count = document.createElement("span");
       count.className = "pm-count";
-      count.textContent = sayCount(one.count);
-      choose.appendChild(count);
+      var facts = [sayCount(one.count)];
+      if (current && String(current.id) === String(one.id)) {
+        facts.push(say("playlist-menu.in-this-one", "you're in it"));
+      }
+      count.textContent = facts.join(" · ");
+      what.appendChild(count);
+      choose.appendChild(what);
+      // Already in it: said at the row's end, and the row stays a press that adds it
+      // again only if the reader wants a second copy — the server keeps both.
+      if ((one.holds || []).indexOf(text.name) >= 0) {
+        var held = document.createElement("span");
+        held.className = "pm-in";
+        held.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 8.5 6.5 12 13 4.5"></path></svg>';
+        held.appendChild(document.createTextNode(say("playlist-menu.in-it", "In it")));
+        choose.appendChild(held);
+        choose.classList.add("is-in");
+      }
       choose.onclick = function () {
         add(menu, text, key, one);
       };
@@ -160,16 +231,31 @@
       list.appendChild(item);
     });
     list.hidden = !playlists.length;
-    if (open && open.menu === menu) place(menu, open.press);
+    if (open && open.menu === menu && !open.scrim) place(menu, open.press);
     var first = menu.querySelector(playlists.length ? ".pm-choice" : ".pm-name");
     if (first) first.focus();
   }
 
-  function build(text, key) {
+  function build(text, key, sheet) {
     var menu = document.createElement("div");
-    menu.className = "playlist-menu";
+    menu.className = "playlist-menu" + (sheet ? " is-sheet" : "");
+    // The interface's direction, not the page's: on a Hebrew reader the root reads right
+    // to left, and the menu's English rows came out back to front ("texts 2 Kitchen").
+    var strings = window.TargumStrings;
+    var spoken = String((strings && strings.language) || document.documentElement.lang || "en").split("-")[0];
+    menu.setAttribute("dir", /^(he|yi|ar|fa|ur|arc)$/.test(spoken) ? "rtl" : "ltr");
     menu.setAttribute("role", "dialog");
     menu.setAttribute("aria-label", say("playlist-menu.label", "Add to playlist"));
+    if (sheet) {
+      var grab = document.createElement("button");
+      grab.type = "button";
+      grab.className = "sheet-grab";
+      grab.setAttribute("aria-label", say("playlist-menu.close", "Close"));
+      grab.addEventListener("click", close);
+      menu.appendChild(grab);
+    }
+    // "Add רות to" (board PlaylistMake), the title in its own direction.
+    menu.appendChild(sayIn(document.createElement("p"), say("playlist-menu.add-to", "Add {title} to"), text.title)).className = "pm-head";
 
     var list = document.createElement("ul");
     list.className = "pm-list";
@@ -177,22 +263,79 @@
     list.hidden = true;
     menu.appendChild(list);
 
+    // At a desk, New playlist is a row that opens its own small window; on a phone the
+    // name field stands in the sheet itself (board PlaylistMake).
+    var opener = document.createElement("button");
+    opener.type = "button";
+    opener.className = "pm-new-open";
+    opener.textContent = say("playlist-menu.new", "New playlist");
+    menu.appendChild(opener);
+
     var form = document.createElement("form");
     form.className = "pm-new";
+    var top = document.createElement("div");
+    top.className = "pm-new-top";
+    var heading = document.createElement("h2");
+    heading.className = "pm-new-title";
+    heading.textContent = say("playlist-menu.new", "New playlist");
+    top.appendChild(heading);
+    var shut = document.createElement("button");
+    shut.type = "button";
+    shut.className = "pm-shut";
+    shut.textContent = "×";
+    shut.setAttribute("aria-label", say("playlist-menu.close", "Close"));
+    shut.addEventListener("click", close);
+    top.appendChild(shut);
+    form.appendChild(top);
+    var label = document.createElement("label");
+    label.className = "pm-field-label";
+    label.textContent = sheet ? say("playlist-menu.new", "New playlist") : say("playlist-menu.name", "Name");
+    form.appendChild(label);
     var field = document.createElement("input");
     field.type = "text";
     field.className = "pm-name";
     field.maxLength = 80;
     field.dir = "auto";
     field.autocomplete = "off";
-    field.placeholder = say("playlist-menu.new", "New playlist");
+    field.placeholder = say("playlist-menu.name", "Name");
     field.setAttribute("aria-label", say("playlist-menu.new", "New playlist"));
+    field.id = "pm-name-" + Math.random().toString(36).slice(2, 8);
+    label.htmlFor = field.id;
     form.appendChild(field);
+    // What it starts with: this text, its picture and its title.
+    var starts = document.createElement("p");
+    starts.className = "pm-starts";
+    if (text.name) {
+      var thumb = document.createElement("span");
+      thumb.className = "pm-cover n-1";
+      thumb.setAttribute("aria-hidden", "true");
+      var shown = new Image();
+      shown.alt = "";
+      shown.onload = function () {
+        var cell = document.createElement("span");
+        cell.className = "pm-cell";
+        cell.appendChild(shown);
+        thumb.appendChild(cell);
+      };
+      shown.src = address("/thumb/" + encodeURIComponent(text.name) + "?drawn=1", key);
+      starts.appendChild(thumb);
+    }
+    starts.appendChild(sayIn(document.createElement("span"), say("playlist-menu.starts-with", "Starts with {title}"), text.title));
+    form.appendChild(starts);
+    var presses = document.createElement("div");
+    presses.className = "pm-presses";
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "pm-cancel";
+    cancel.textContent = say("playlist-menu.cancel", "Cancel");
+    cancel.addEventListener("click", close);
+    presses.appendChild(cancel);
     var confirm = document.createElement("button");
     confirm.type = "submit";
     confirm.className = "pm-confirm";
     confirm.textContent = say("playlist-menu.confirm", "Confirm");
-    form.appendChild(confirm);
+    presses.appendChild(confirm);
+    form.appendChild(presses);
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       var name = field.value.trim();
@@ -202,14 +345,38 @@
       }
       add(menu, text, key, { name: name });
     });
-    menu.appendChild(form);
-
+    // A refusal of the name is said under its field, before the presses.
     var line = document.createElement("p");
     line.className = "pm-status";
     line.setAttribute("role", "status");
     line.hidden = true;
-    menu.appendChild(line);
+    form.insertBefore(line, presses);
+    menu.appendChild(form);
+    opener.addEventListener("click", function () {
+      newWindow(menu);
+      field.focus();
+    });
     return menu;
+  }
+
+  // The desk's New playlist: the menu becomes a small window in the middle of the dim.
+  function newWindow(menu) {
+    if (!open || open.menu !== menu) return;
+    menu.classList.add("is-new");
+    document.body.classList.add("pm-sheet-open");
+    menu.style.left = "";
+    menu.style.top = "";
+    if (!open.scrim) {
+      open.scrim = scrim();
+      menu.parentNode.insertBefore(open.scrim, menu);
+    }
+  }
+
+  function scrim() {
+    var dim = document.createElement("div");
+    dim.className = "scrim pm-scrim";
+    dim.setAttribute("aria-hidden", "true");
+    return dim;
   }
 
   /* Opens the menu under `press` for one text: `{name, title}`, the shelf name and the
@@ -220,13 +387,19 @@
       return;
     }
     close();
-    var menu = build(text, key);
+    var sheet = narrow();
+    var menu = build(text, key, sheet);
     // On the body, so a row that clips its overflow cannot clip the menu, and placed under
-    // the press by its end edge, kept inside the window.
+    // the press by its end edge, kept inside the window. A phone's sheet is placed by its
+    // stylesheet, at the foot, over the dim.
+    var dim = sheet ? scrim() : null;
+    if (dim) document.body.appendChild(dim);
     document.body.appendChild(menu);
-    place(menu, press);
+    if (!sheet) place(menu, press);
     press.setAttribute("aria-expanded", "true");
-    open = { press: press, menu: menu };
+    open = { press: press, menu: menu, scrim: dim };
+    // The sheet takes the reader's ⋯ sheet's place while it stands (board PlaylistMake).
+    if (sheet) document.body.classList.add("pm-sheet-open");
     window.addEventListener("scroll", scrolled, true);
     window.addEventListener("resize", close);
     status(menu, say("playlist-menu.loading", "Loading…"));
@@ -244,7 +417,7 @@
           return;
         }
         status(menu, "");
-        draw(menu, text, key, (got.answer && got.answer.playlists) || []);
+        draw(menu, text, key, (got.answer && got.answer.playlists) || [], got.answer && got.answer.current);
       })
       .catch(function () {
         status(menu, say("playlist-menu.load-failed", "We couldn't load your playlists. Try again."), true);

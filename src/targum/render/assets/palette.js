@@ -423,13 +423,38 @@
     return link.parentNode;
   }
 
+  /* A playlist's cover, as the tab draws it (board PlaylistsTab): its first four texts'
+     pictures in the row's square, fewer sharing it. */
+  function mosaic(row) {
+    var some = (row.covers || []).slice(0, 4);
+    if (!some.length || !window.TargumCovers) return picture({ name: row.name, title: row.title, kind: "playlist" });
+    var box = el("span", "thumb row-thumb palette-mosaic n-" + some.length);
+    box.setAttribute("aria-hidden", "true");
+    some.forEach(function (one) {
+      box.appendChild(
+        window.TargumCovers.picture(
+          { name: one.name, title: one.title, kind: one.kind },
+          { className: "palette-cell", keyed: keyed }
+        )
+      );
+    });
+    return box;
+  }
+
+  // Whose hand made it, in the three words the playlists say it in.
+  function byline(by) {
+    if (by === "connector") return t("palette.by-assistant", "From an assistant");
+    if (by === "targum" || by === "chat") return t("palette.by-targum", "From targum");
+    return t("palette.by-you", "By you");
+  }
+
   function playlistRow(row) {
     var link = hit(row, row.href);
-    link.appendChild(picture({ name: row.name, title: row.title, kind: "playlist" }));
+    link.appendChild(mosaic(row));
     var main = el("span", "row-main");
     titled(main, row);
     var facts = [t("palette.kind.playlist", "Playlist"), tn("palette.texts", row.count, "{n} text", "{n} texts")];
-    if (row.by && row.by !== "targum") facts.push(t("palette.made-by-you", "made by you"));
+    facts.push(byline(row.by));
     main.appendChild(factsLine(facts));
     link.appendChild(main);
     return link.parentNode;

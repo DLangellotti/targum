@@ -1098,6 +1098,20 @@ button:active:not(:disabled) { transform: scale(0.98); }
   background: var(--field);
 }
 .palette .row-thumb .glyph { font-family: var(--reading); font-size: 1.25rem; line-height: 1; }
+/* A playlist's row wears its cover: four pictures in the square, fewer sharing it. */
+.palette .palette-mosaic {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  place-items: stretch;
+  gap: 1px;
+  overflow: hidden;
+}
+.palette .palette-mosaic.n-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.palette .palette-mosaic.n-2 { grid-template-rows: 1fr; }
+.palette .palette-mosaic.n-3 > :first-child { grid-row: 1 / span 2; }
+.palette .palette-cell { position: relative; display: grid; place-items: center; min-inline-size: 0; overflow: hidden; }
+.palette .palette-cell img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.palette .palette-cell .glyph { font-size: 0.6875rem; }
 .palette-title {
   overflow: hidden;
   color: var(--ink);

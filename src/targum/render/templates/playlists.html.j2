@@ -36,17 +36,24 @@
   {#- Reached from a shelf row or a reader's ⋯ menu with `?add=<name>&title=<title>`: the
       one sheet both doors open. Every playlist is a button, and a new one is a name. The
       name field is also what New playlist opens. -#}
-  <section class="panel" id="adding" hidden aria-labelledby="adding-head">
-    <h2 id="adding-head"></h2>
+  {#- On the dim, as a small window at a desk and a sheet on a phone (board
+      PlaylistMake), with a way to put it away that does not add anything. -#}
+  <div class="scrim pl-scrim" id="adding-scrim" hidden></div>
+  <section class="panel pl-sheet" id="adding" hidden role="dialog" aria-modal="true" aria-labelledby="adding-head">
+    <div class="pl-sheet-top">
+      <h2 id="adding-head"></h2>
+      <button type="button" class="pl-sheet-shut" id="adding-shut" aria-label="{{ t("playlists.page.close", "Close") }}">×</button>
+    </div>
     <ul class="choose" id="choose"></ul>
     <form class="new-list" id="new-list">
       <label class="field">
-        <span>{{ t("playlists.page.new-playlist", "New playlist") }}</span>
+        <span id="new-label">{{ t("playlists.page.new-playlist", "New playlist") }}</span>
         <input type="text" id="new-name" maxlength="80" dir="auto" autocomplete="off"
                placeholder="{{ t("playlists.page.name-it", "Name") }}">
       </label>
       <button type="submit" class="btn filled">{{ t("playlists.page.make-it", "Confirm") }}</button>
     </form>
+    {#- A refusal of the name stands under its field (review §3.11). -#}
     <p class="said" id="adding-said" role="status" hidden></p>
   </section>
 

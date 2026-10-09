@@ -257,3 +257,44 @@ def test_a_playlist_is_a_page_of_its_own(box: tuple[int, str, Path]) -> None:
     # Signed out, a person looking at it meets a page, not a 401 in JSON.
     status, page = send(port, "GET", f"/playlists/{made['id']}")
     assert status == 200 and not page.startswith(b"{")
+
+
+def test_the_row_you_are_on_says_where_you_stopped(box: tuple[int, str, Path]) -> None:
+    """Board PlaylistDetail (P9): "You're here · Part 2 of 3 · stopped at 0:31", from the
+    account's own place in that text, and the tab says which playlists hold a text so
+    Add to playlist can say "In it"."""
+    port, mine, tmp = box
+    folder = tmp / "out" / "shared" / "talk"
+    (folder / "reader").mkdir(parents=True)
+    for part in ("index", "sec-1", "sec-2", "sec-3"):
+        (folder / "reader" / f"{part}.html").write_text("<html></html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps(
+            {
+                "title": "Talk",
+                "language": "he",
+                "source": "file:talk.txt",
+                "content_hash": "talkhash",
+                "blocks": [{"text": "שלום " * 100}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _, made = send(port, "POST", "/playlists", {"name": "Stopped"}, mine)
+    pid = made["id"]
+    for name in ("story", "talk"):
+        send(port, "POST", f"/playlists/{pid}", {"do": "add", "reader": name, "title": name}, mine)
+    send(port, "POST", f"/playlists/{pid}", {"do": "here", "position": 1}, mine)
+    store = Store(tmp / "targum.db")
+    person = store.db.execute("SELECT id FROM person WHERE email = 'one@example.com'").fetchone()
+    with store.write() as db:
+        db.execute(
+            "INSERT INTO place (person, hash, section, seconds, at) VALUES (?, ?, '2', 31.4, 1)",
+            (person[0], "talkhash"),
+        )
+    _, one = send(port, "GET", f"/playlists/{pid}.json", session=mine)
+    assert one["items"][1]["place"] == {"part": 2, "parts": 3, "seconds": 31}
+    assert "place" not in one["items"][0], "only the row the reader is on"
+    _, listed = send(port, "GET", "/playlists.json", session=mine)
+    card = next(p for p in listed["playlists"] if p["id"] == pid)
+    assert card["holds"] == ["story", "talk"]
