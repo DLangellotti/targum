@@ -419,7 +419,7 @@
     }
     if (reader.chapters && reader.chapters.length && reader.readyChapters < reader.chapters.length) {
       said.push(
-        t("shelf.chapters-translated", "{done} of {total} translated", {
+        t("shelf.chapters-translated", "{done} of {total} chapters ready", {
           done: reader.readyChapters,
           total: reader.chapters.length,
         })

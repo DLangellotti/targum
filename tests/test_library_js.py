@@ -458,14 +458,15 @@ def test_only_the_kinds_that_are_actually_there_are_offered(tmp_path: Path) -> N
 
 def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
     """ "Prose" is the catalogue's word for the narrative books of the Tanakh. Beside
-    "Novels" and "Stories", which are also prose, it says nothing to anybody."""
+    "Novels" and "Stories", which are also prose, it says nothing to anybody. And a row
+    names one text, so its kind is singular: the plural is a shelf's name, and on a row
+    "Talks · 1 min" read as the catalogue's id (design review, 2026-10-09)."""
     rows = draw(tmp_path, unfolded=True)["rows"]
     genesis = next(row for row in rows if row["title"] == "בראשית")
-    assert genesis["cells"][0] == "Bible narrative", "not bare Narrative beside Novels and Stories"
-    assert "News" in {row["cells"][0] for row in rows}
-    assert "Scenes" in {row["cells"][0] for row in rows}, "not Dialogues"
-    assert "Prose" not in {row["cells"][0] for row in rows}
-    assert "Articles" not in {row["cells"][0] for row in rows}
+    assert genesis["cells"][0] == "Bible story", "not bare Narrative beside Novels and Stories"
+    kinds = {row["cells"][0] for row in rows}
+    assert "News" in kinds and "Dialogue" in kinds
+    assert not kinds & {"Prose", "Articles", "Scenes", "Talks", "Documents", "Bible narrative"}
 
 
 def test_choosing_a_kind_does_not_hide_the_other_kinds(tmp_path: Path) -> None:
@@ -710,8 +711,15 @@ def test_a_shared_text_opens_and_offers_nothing_else(tmp_path: Path) -> None:
     rows = {row["title"]: row for row in drawn["rows"]}
     assert rows["נעים מאוד"]["opens"] == "a"
     assert rows["נעים מאוד"]["draws"] == "", "no cover drawn for what is not theirs"
-    assert rows["נעים מאוד"]["scene"] == "Scene 1"
-    assert [row["scene"] for row in drawn["rows"]] == ["Scene 1", "Scene 2", "Scene 3", "Scene 18"]
+    # In the course's order, and without the catalogue's number before each title: the
+    # row's kind says it is a dialogue (design review, 2026-10-09).
+    assert [row["title"] for row in drawn["rows"]] == [
+        "נעים מאוד",
+        "בבית קפה",
+        "איפה הרחוב",
+        "שני קפה",
+    ]
+    assert {row["scene"] for row in drawn["rows"]} == {""}
 
 
 def test_the_next_scene_is_chipped_start_here_then_next(tmp_path: Path) -> None:
@@ -1271,7 +1279,7 @@ def test_a_card_carries_the_facts_a_reader_chooses_by(tmp_path: Path) -> None:
     known = {"story-one": {"known": 0.72}}
     rows = browse(tmp_path, catalogueKnown=known)["rows"]
     one = next(row for row in rows if row["title"] == "סיפור")
-    assert one["meta"] == "Essays · 7 min · 18% hard words"
+    assert one["meta"] == "Essay · 7 min · 18% hard words"
     assert "72%" in one["known"]
     two = next(row for row in rows if row["title"] == "סיפור שני")
     assert two["known"] == "New to you", "never 0%, which is a claim about the reader"
@@ -1297,7 +1305,7 @@ def test_a_row_of_see_all_says_what_the_text_is(tmp_path: Path) -> None:
         for row in browse(tmp_path, catalogue=shelf_, catalogueKnown=known)["rows"]
     }
     assert rows["סיפור"]["blurb"] == "A woman, and a whole life implied around her."
-    assert rows["סיפור"]["meta"] == "Stories · 7 min · 18% hard words"
+    assert rows["סיפור"]["meta"] == "Story · 7 min · 18% hard words"
     assert rows["סיפור"]["known"] == "93% known" and rows["סיפור"]["near"] is True
     assert rows["סיפור שני"]["known"] == "80% known" and rows["סיפור שני"]["near"] is False
     assert rows["סיפור שלישי"]["blurb"] == "", "nothing is invented where the file says nothing"

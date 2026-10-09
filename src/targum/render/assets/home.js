@@ -86,7 +86,7 @@
     if (reader.video) return t("home.kind.video", "Video");
     var kinds = {
       article: t("home.kind.article", "Article"),
-      talk: t("home.kind.talk", "Talk"),
+      talk: t("home.kind.talk", "Video"),
       dialogue: t("home.kind.dialogue", "Scene"),
       story: t("home.kind.story", "Story"),
       novel: t("home.kind.novel", "Book"),
@@ -312,8 +312,13 @@
       facts.push(t("home.card.not-opened", "Not opened yet"));
     }
     if (facts.length) item.appendChild(el("span", "home-card-facts", facts.join(" · ")));
-    var share = progress(reader, docs);
-    item.appendChild(bar(share));
+    // The bar is the figure beside it: how much of the text you know (board Main, "274
+    // of 379 known" over a bar 72% full). It drew the parts finished, so an opened text
+    // showed an empty track under "You know 20%"; where you are in it is the tag's
+    // "part 3 of 150" (2026-10-09). No figure, no bar.
+    if (typeof reader.known === "number" && reader.words && reader.known > 0) {
+      item.appendChild(bar(reader.known));
+    }
 
     var go;
     var medium = mediumOf(reader);

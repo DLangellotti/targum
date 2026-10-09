@@ -634,3 +634,53 @@ def test_every_word_a_page_draws_is_said_in_russian() -> None:
         said = catalogue(code)
         missing = [key for key in keys if key not in said]
         assert not missing, f"{code} has no word for {len(missing)}: {missing[:8]}"
+
+
+# -- words from the data layer, kept off the screen (design review, 2026-10-09) --------
+
+#: What the catalogue, the pipeline and the billing call things, which a reader never
+#: should: a series' "instalments", a book "149 of 150 translated", "your hours" for
+#: what are credits since 2026-09-23, and the kind ids themselves. Each pattern is said
+#: per language, because the Russian leaked the same way.
+BANNED = {
+    "en": [
+        r"(?i)\binstalments?\b",
+        r"of \{total\} translated",
+        r"(?i)\byour hours\b",
+        r"(?i)\bpicture-book\b",
+        r"(?i)\bvideo talk\b",
+    ],
+    "ru": [
+        r"из \{total\} переведено",
+        r"(?i)ваших час",
+    ],
+}
+
+
+def _interface_english() -> list[tuple[str, str]]:
+    """Every English line a template or a script says through `t()`, with where."""
+    root = Path(__file__).parents[1] / "src" / "targum" / "render"
+    said = []
+    for path in sorted(root.glob("templates/*.j2")) + sorted(root.glob("assets/*.js")):
+        text = path.read_text(encoding="utf-8")
+        for key, english in re.findall(r'\btn?\(\s*"([^"]+)",\s*(?:[^,"]+,\s*)?"([^"]*)"', text):
+            said.append((f"{path.name}: {key}", english))
+    return said
+
+
+def test_no_word_from_the_data_layer_reaches_the_screen() -> None:
+    """A banned term in a catalogue or in the English a page falls back to is the
+    pipeline talking to the reader. The review found "Scene 218", "Instalments",
+    "149 of 150 translated" and "hours" on screen, and nothing guarded against any of
+    them (cause 7)."""
+    from targum.strings import catalogue
+
+    for code, patterns in BANNED.items():
+        said = list(catalogue(code).items())
+        if code == "en":
+            english = _interface_english()
+            assert len(english) > 1000, "the scan is broken, not the pages"
+            said += english
+        for where, text in said:
+            for pattern in patterns:
+                assert not re.search(pattern, text), f"{code} {where}: {text!r}"

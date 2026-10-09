@@ -52,7 +52,7 @@
     if (item.film) return t("home.kind.video", "Video");
     var kinds = {
       article: t("home.kind.article", "Article"),
-      talk: t("home.kind.talk", "Talk"),
+      talk: t("home.kind.talk", "Video"),
       dialogue: t("home.kind.dialogue", "Scene"),
       story: t("home.kind.story", "Story"),
       novel: t("home.kind.novel", "Book"),

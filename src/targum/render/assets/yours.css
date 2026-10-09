@@ -23,8 +23,9 @@ body.yours main[hidden] {
 }
 body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
 @media (max-width: 40rem) {
-  body.yours main { padding: 0 0 5rem; }
-  /* The phone's gutter is 1rem, the mark's and the cards'. */
+  /* The phone's gutter is 1rem, the mark's and the cards': the back link, the counts,
+     the chips and the cards all touched the glass's edge at 0 (2026-10-09). */
+  body.yours main { padding: 1rem 1rem 5rem; }
   body.yours .site-head-row { padding-inline: 1rem; }
 }
 

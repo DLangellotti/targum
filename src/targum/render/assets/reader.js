@@ -1124,6 +1124,11 @@ var targumReader = function () {
   // and the quiet way to press it without marking, and the block they stand in.
   var footPress = document.getElementById("foot-press");
   var footPlain = document.getElementById("done-plain");
+  // The words the press would mark, before it is pressed (design review, 2026-10-09):
+  // the ones met most as chips with what each means, and the rest one press away.
+  var footWords = document.getElementById("foot-words");
+  var footAllWords = false;
+  var footWordsOpen = false;
   /* Inside a playlist the press moves on. `list.js` says so through `TargumReader.foot`
      once it has the list: which word the press says ("next", or "finish" on the last
      item) and what moving on is. Null on a text read on its own, where the press is Done. */
@@ -1532,6 +1537,49 @@ var targumReader = function () {
     renderFoot();
   }
 
+  // The words here never marked, the ones met most first, and how many there are: for
+  // the end of a part under a large picture (design.md §12, 2026-10-08) and for the foot,
+  // each of which asks about them before the press that marks them.
+  function unmarkedWords(limit) {
+    var seen = {};
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (isName(token)) return;
+        var lemma = lemmas[token[4]];
+        if (!lemma || !asksAbout(lemma)) return;
+        if (!seen[lemma]) {
+          // As the text writes it, the first time it does: the form a reader met.
+          var surface = segmentText(segmentId).slice(token[0], token[1]) || lemma;
+          seen[lemma] = { lemma: lemma, surface: surface, n: 0 };
+        }
+        seen[lemma].n++;
+      });
+    });
+    var all = Object.keys(seen).map(function (lemma) {
+      return seen[lemma];
+    });
+    all.sort(function (a, b) {
+      return b.n - a.n;
+    });
+    var shown = all.slice(0, limit || 4);
+    return {
+      count: all.length,
+      words: shown.map(function (entry) {
+        return entry.surface;
+      }),
+      // And what each means, from the glosses the page already carries (design.md §12,
+      // 2026-10-09): the reader's own meaning first, then the text's.
+      glossed: shown.map(function (entry) {
+        var index = lemmas.indexOf(entry.lemma);
+        return {
+          word: entry.surface,
+          gloss: meaningOf(entry.lemma) || (index >= 0 ? glosses[index] || "" : ""),
+          language: targetLanguage,
+        };
+      }),
+    };
+  }
+
   /* How many words the press would mark: vocabulary only, never names and numbers, which
      the press still clears without calling them words (the same count the header gives,
      because two counts disagreeing on one screen read as a bug). */
@@ -1555,6 +1603,80 @@ var targumReader = function () {
     if (footPlain) {
       footPlain.hidden = !left;
       footPlain.textContent = left ? plainSays(verb) : "";
+    }
+    paintFootWords(left);
+  }
+
+  /* What "and mark 66 words known" would mark, said before the press rather than after:
+     a count of the words never marked here, the ones met most as chips with what each
+     means, and the rest behind "+60 more". The same question and chips the end of a part
+     asks under a large picture (design.md §12, 2026-10-08), and the same words the press
+     marks: `unmarkedWords` and `leftToMark` count one set. */
+  var FOOT_CHIPS = 8;
+  function paintFootWords(left) {
+    if (!footWords) return;
+    var list = footWords.querySelector(".foot-chips");
+    var ask = footWords.querySelector(".foot-ask");
+    footWords.hidden = !left;
+    if (list) list.textContent = "";
+    if (!left || !list) return;
+    var rest = unmarkedWords(footAllWords ? left : FOOT_CHIPS);
+    if (ask) {
+      ask.textContent = tn(
+        "reader.film.end-ask",
+        rest.count,
+        "{n} word here you haven't marked. Do you know it?",
+        "{n} words here you haven't marked. Do you know them?"
+      );
+      // Folded until asked for: one line at the foot, so the last page of a part keeps
+      // its height and nothing under it slides beneath the arrows.
+      if (!footWordsOpen) {
+        var show = document.createElement("button");
+        show.type = "button";
+        show.className = "foot-plain foot-show";
+        show.textContent = t("reader.foot.show-words", "Show them");
+        show.addEventListener("click", function () {
+          footWordsOpen = true;
+          paintFootWords(left);
+        });
+        ask.appendChild(document.createTextNode(" "));
+        ask.appendChild(show);
+      }
+    }
+    list.hidden = !footWordsOpen;
+    if (!footWordsOpen) return;
+    rest.glossed.forEach(function (one) {
+      var chip = document.createElement("li");
+      chip.className = "film-end-word";
+      var word = document.createElement("span");
+      word.className = "film-end-he";
+      word.textContent = one.word;
+      chip.appendChild(word);
+      if (one.gloss) {
+        var gloss = document.createElement("span");
+        gloss.className = "film-end-gloss";
+        gloss.setAttribute("lang", one.language || "en");
+        gloss.setAttribute("dir", "ltr");
+        gloss.textContent = String(one.gloss).split(/[;,]/)[0].trim();
+        chip.appendChild(gloss);
+      }
+      list.appendChild(chip);
+    });
+    if (rest.count > rest.words.length) {
+      var more = document.createElement("li");
+      more.className = "film-end-more";
+      more.setAttribute("dir", "ltr");
+      more.setAttribute("lang", document.documentElement.lang || "en");
+      var open = document.createElement("button");
+      open.type = "button";
+      open.className = "foot-plain foot-more";
+      open.textContent = t("reader.film.end-more", "+{n} more", { n: rest.count - rest.words.length });
+      open.addEventListener("click", function () {
+        footAllWords = true;
+        paintFootWords(left);
+      });
+      more.appendChild(open);
+      list.appendChild(more);
     }
   }
   function pressSays(verb, left) {
@@ -3975,7 +4097,11 @@ var targumReader = function () {
   // The word is let go of straight away. What fades is chrome nobody is reading any
   // more, and a card that still claimed a word could be handed back to `showCard` after
   // the redraw had replaced the span it named.
-  var LINGER = 700;
+  //
+  // 1200ms, from 700: at 700 the card was gone before the stage's name under the control
+  // ("Getting there") could be read, so a press looked like it simply closed the card
+  // (design review, 2026-10-09).
+  var LINGER = 1200;
   // Matches `.gloss-card.going` in reader.css, which is where the fade itself lives.
   var FADE = 220;
   var fading = null;
@@ -10643,45 +10769,7 @@ var targumReader = function () {
     // The words here never marked, the ones met most first, and how many there are: for
     // the end of a part under a large picture (design.md §12, 2026-10-08), which asks
     // about them before the press that marks them.
-    unmarked: function (limit) {
-      var seen = {};
-      Object.keys(wordData).forEach(function (segmentId) {
-        (wordData[segmentId] || []).forEach(function (token) {
-          if (isName(token)) return;
-          var lemma = lemmas[token[4]];
-          if (!lemma || !asksAbout(lemma)) return;
-          if (!seen[lemma]) {
-            // As the text writes it, the first time it does: the form a reader met.
-            var surface = segmentText(segmentId).slice(token[0], token[1]) || lemma;
-            seen[lemma] = { lemma: lemma, surface: surface, n: 0 };
-          }
-          seen[lemma].n++;
-        });
-      });
-      var all = Object.keys(seen).map(function (lemma) {
-        return seen[lemma];
-      });
-      all.sort(function (a, b) {
-        return b.n - a.n;
-      });
-      var shown = all.slice(0, limit || 4);
-      return {
-        count: all.length,
-        words: shown.map(function (entry) {
-          return entry.surface;
-        }),
-        // And what each means, from the glosses the page already carries (design.md §12,
-        // 2026-10-09): the reader's own meaning first, then the text's.
-        glossed: shown.map(function (entry) {
-          var index = lemmas.indexOf(entry.lemma);
-          return {
-            word: entry.surface,
-            gloss: meaningOf(entry.lemma) || (index >= 0 ? glosses[index] || "" : ""),
-            language: targetLanguage,
-          };
-        }),
-      };
-    },
+    unmarked: unmarkedWords,
     // The press at the foot, as a playlist asks for it (design.md §12, "The foot is one
     // block"): what the press says and what moving on is, and the press itself made
     // before the playlist moves on. `press` and `unpress` are the same press and its

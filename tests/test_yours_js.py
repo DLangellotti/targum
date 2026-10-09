@@ -236,7 +236,7 @@ def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:
         ],
     )
     (row,) = drawn["shelf"]
-    assert "2 of 4 translated" in row["facts"]
+    assert "2 of 4 chapters ready" in row["facts"]
 
 
 def building(**extra: Any) -> dict[str, Any]:

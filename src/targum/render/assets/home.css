@@ -135,7 +135,8 @@ body.yours main { gap: 2.25rem; }
 .home-tag.is-building { color: var(--teal); border-color: var(--teal); }
 .home-tag.is-new { color: var(--iris); border-color: var(--iris); }
 
-/* How far through, in leaf (§4: green is progress); a build's in the primary. */
+/* How much of it you know, in leaf (§4: green is progress); a build's, how far it has
+   got, in the primary. */
 .home-bar {
   display: block;
   block-size: 6px;

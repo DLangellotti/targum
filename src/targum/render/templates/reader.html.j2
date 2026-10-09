@@ -936,6 +936,10 @@
     <span id="done-said" hidden></span>
     <button type="button" class="undo" id="done-undo">{{ t("reader.finish.undo", "Undo") }}</button>
   </div>
+  {% if words %}<div class="foot-words" id="foot-words" hidden>
+    <p class="foot-ask"></p>
+    <ul class="film-end-words foot-chips" lang="{{ source_language }}" dir="{{ source_direction }}"></ul>
+  </div>{% endif %}
   <div class="foot-press" id="foot-press">
     <button type="button" class="foot-go" id="done-mark">{{ t("reader.page.done", "Done") }}</button>
     {% if words %}<button type="button" class="foot-plain" id="done-plain" hidden></button>{% endif %}

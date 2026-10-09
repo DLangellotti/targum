@@ -270,17 +270,6 @@
   white-space: nowrap;
 }
 .row-by-after { color: var(--ink-soft); }
-/* Which scene, before the title, in the label style but ink: it orients. Outside the
-   Hebrew's bdi, so the number never rides the title's direction. */
-.row-scene {
-  margin-inline-end: 0.5rem;
-  font-family: var(--chrome);
-  font-size: 0.6875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink);
-  vertical-align: 0.15em;
-}
 /* The row to open next. A hairline pill, never filled — filled ink is selection (§8) —
    and its border mixed from the closed palette. */
 .row-next {

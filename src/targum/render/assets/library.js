@@ -73,6 +73,23 @@
     ["liturgy", t("library.kind.liturgy", "Prayer")],
   ];
 
+  /* One text's kind, on its own row or tile: "Dialogue · 3 min", "Video · 9 min". The
+     names above are shelves and chips, plural, and on a row they read as the catalogue's
+     ids — "Talks · 1 min", "Documents · 5 min" (design review, 2026-10-09). */
+  var KIND_ONE = [
+    ["dialogue", t("library.kind-one.dialogue", "Dialogue")],
+    ["story", t("library.kind-one.story", "Story")],
+    ["article", t("library.kind-one.article", "News")],
+    ["novel", t("library.kind-one.novel", "Novel")],
+    ["essay", t("library.kind-one.essay", "Essay")],
+    ["talk", t("library.kind-one.talk", "Video")],
+    ["prose", t("library.kind-one.prose", "Bible story")],
+    ["poetry", t("library.kind-one.poetry", "Poetry")],
+    ["document", t("library.kind-one.document", "Document")],
+    ["play", t("library.kind-one.play", "Play")],
+    ["liturgy", t("library.kind-one.liturgy", "Prayer")],
+  ];
+
   /* What a text is *about*, called what a person calls it when they say what they feel
      like reading. The catalogue's `Tag` vocabulary runs well past what is filed — the
      arrival draws its doors before the texts are tagged into them, on purpose — so this
@@ -910,7 +927,7 @@
       head.appendChild(english);
     }
 
-    var meta = [named(KINDS, row.kind), said(row.minutes)];
+    var meta = [named(KIND_ONE, row.kind), said(row.minutes)];
     if (measured(row)) {
       meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
     }
@@ -1062,13 +1079,8 @@
     var what = el("span", "what");
     var title = el("span", "row-title");
     title.setAttribute("lang", row.language);
-    // A scene says which it is, outside the Hebrew's own direction, before the title.
-    var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
-    if (number) {
-      var scene = el("span", "row-scene", t("library.scene", "Scene {n}", { n: number }));
-      scene.setAttribute("lang", saidIn);
-      title.appendChild(scene);
-    }
+    // No scene number before the title: "Scene 218" is the catalogue's id, and the row's
+    // kind already says it is a dialogue (design review, 2026-10-09).
     // Its own direction, and its own clip: an ellipsis on the LTR cell around it cut
     // the *start* of a long Hebrew title, which is the edge Hebrew begins at (2026-09-14).
     // A weekly edition's title carries its level in English at its end ("מבט השבוע · …
@@ -1151,7 +1163,7 @@
     // On a phone the kind, which Hebrew and the hard words leave their columns, and a
     // row that only said a title and a length gave a learner nothing to choose by
     // (2026-09-14). They come back as one line under the title.
-    var meta = [named(KINDS, row.kind), named(REGISTERS, row.register)];
+    var meta = [named(KIND_ONE, row.kind), named(REGISTERS, row.register)];
     if (measured(row)) {
       meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
     }
@@ -1161,7 +1173,7 @@
     if (metaLine) what.appendChild(el("span", "row-meta", metaLine));
     open.appendChild(what);
 
-    open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
+    open.appendChild(el("span", "col label drop", named(KIND_ONE, row.kind)));
     open.appendChild(el("span", "col label drop", named(REGISTERS, row.register)));
     open.appendChild(el("span", "col count", said(row.minutes)));
     var hard = gauge(row);
@@ -1254,7 +1266,7 @@
     // On a phone the kind, which Hebrew and the hard words leave their columns, and a
     // row that only said a title and a length gave a learner nothing to choose by
     // (2026-09-14). They come back as one line under the title.
-    var meta = [named(KINDS, row.kind), named(REGISTERS, row.register)];
+    var meta = [named(KIND_ONE, row.kind), named(REGISTERS, row.register)];
     if (measured(row)) {
       meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
     }
@@ -1264,7 +1276,7 @@
     if (metaLine) what.appendChild(el("span", "row-meta", metaLine));
     open.appendChild(what);
 
-    open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
+    open.appendChild(el("span", "col label drop", named(KIND_ONE, row.kind)));
     open.appendChild(el("span", "col label drop", named(REGISTERS, row.register)));
     open.appendChild(el("span", "col count", said(row.minutes)));
     var hard = gauge(row);
@@ -1288,7 +1300,7 @@
       return row.english || row.title || "";
     },
     kind: function (row) {
-      return named(KINDS, row.kind);
+      return named(KIND_ONE, row.kind);
     },
     // By age, not by label. See REGISTER_ORDER.
     register: function (row) {
@@ -1694,7 +1706,7 @@
     var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
     var kind = number
       ? t("library.scene", "Scene {n}", { n: number })
-      : [named(KINDS, row.kind), row.minutes ? said(row.minutes) : ""].filter(Boolean).join(" · ");
+      : [named(KIND_ONE, row.kind), row.minutes ? said(row.minutes) : ""].filter(Boolean).join(" · ");
     var what = el("span", "band-kind", kind);
     what.setAttribute("lang", saidIn);
     open.appendChild(what);
