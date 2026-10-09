@@ -449,16 +449,16 @@ def test_knowing_a_word_takes_it_off_the_fold_through_the_ordinary_path() -> Non
     assert drawn["ledger"]["ספר"]["learned"] == 1
 
 
-def test_still_learning_steps_a_word_back_down_its_ladder() -> None:
-    """The honest opposite of the button beside it. Both say what the reader knows about
-    the word, and both say it in the one ledger — a press that changed nothing would
-    have been a control with no job."""
+def test_a_step_pressed_on_the_fold_is_written_and_passes_the_word_over() -> None:
+    """The five stages on the row (§12, 2026-10-09): a step below known is written as
+    pressed, in the one ledger, and the word leaves the sitting as "Still learning" made
+    it — the reader says which step, rather than the page taking one off."""
     drawn = draw(
         vocabulary(
             word("ספר", "book", status=3, at=100),
             word("דרך", "road", status=1, at=200),
         ),
-        do=[{"type": "work", "word": "ספר", "key": 1}],
+        do=[{"type": "work", "word": "ספר", "value": 2}],
     )
     assert [row["term"] for row in drawn["workOn"]["rows"]] == ["דרך"]
     assert drawn["ledger"]["ספר"]["status"] == 2, "nearly there, back to getting there"
@@ -474,16 +474,16 @@ def test_stepping_a_word_down_does_not_restamp_when_it_was_kept() -> None:
             word("ספר", "book", status=2, at=100),
             word("דרך", "road", status=1, at=200),
         ),
-        do=[{"type": "work", "word": "ספר", "key": 1}],
+        do=[{"type": "work", "word": "ספר", "value": 1}],
     )
     assert drawn["ledger"]["ספר"]["status"] == 1
     assert drawn["ledger"]["ספר"]["at"] == 100, "and kept when it was kept"
 
 
-def test_a_word_just_met_has_nowhere_lower_to_go() -> None:
-    """Saying "still learning" about a word marked met once is agreement, and agreement
-    is not news. It leaves the sitting and the ledger is untouched — in particular it
-    does not fall into the ignored level, which is a different thing the reader chose."""
+def test_the_step_a_word_is_already_on_passes_it_over_and_writes_nothing() -> None:
+    """Pressing the step a word is on is agreement, and agreement is not news. It leaves
+    the sitting and the ledger is untouched — in particular it does not fall into the
+    ignored level, which is a different thing the reader chose."""
     drawn = draw(
         vocabulary(
             word("ספר", "book", status=1, at=100),
@@ -501,7 +501,7 @@ def test_a_word_stepped_down_is_gone_for_the_sitting_and_back_tomorrow() -> None
     here again, one level lower, which is true — it is still a word being learned."""
     drawn = draw(
         vocabulary(word("ספר", "book", status=3, at=100)),
-        do=[{"type": "work", "word": "ספר", "key": 1}],
+        do=[{"type": "work", "word": "ספר", "value": 2}],
     )
     assert drawn["workOn"]["rows"] == []
     again = draw(vocabulary(word("ספר", "book", status=2, at=100)))
@@ -520,13 +520,14 @@ def test_the_fold_offers_a_sitting_rather_than_a_backlog() -> None:
 
 
 def test_a_row_says_the_word_its_meaning_and_two_answers() -> None:
-    """Three things about a word and the two questions, and nothing else: no level
-    ladder, no note field, no delete."""
+    """Three things about a word and its stage, and nothing else: the five stages
+    (§12, 2026-10-09) rather than "I know this" and "Still learning", no note field, no
+    delete."""
     drawn = draw(vocabulary(word("ספר", "book", status=2, at=100)))
     row = drawn["workOn"]["rows"][0]
     assert row["term"] == "ספר"
     assert row["meaning"] == "book"
-    assert row["keys"] == ["I know this", "Still learning"]
+    assert row["keys"] == ["1", "2", "3", "known", "ignore"]
 
 
 def test_a_word_passed_over_stays_passed_over_for_the_rest_of_the_sitting() -> None:
@@ -603,7 +604,10 @@ def test_the_phrases_tab_holds_kept_phrases_and_corrected_lines_oldest_first() -
         ("slip", SLIP["recast"]),
         ("phrase", "לב טוב"),
     ]
-    assert all(row["keys"] == ["I know this", "Still learning"] for row in fold["phrases"])
+    # A corrected line keeps its two answers — a sentence has no stage — and a phrase has
+    # the five stages, as a word does (§12, 2026-10-09).
+    assert fold["phrases"][0]["keys"] == ["I know this", "Still learning"]
+    assert fold["phrases"][1]["keys"] == ["1", "2", "3", "known", "ignore"]
     assert fold["phrases"][1]["meaning"] == "a good heart"
     assert fold["button"] == "Practise these phrases"
 
@@ -644,9 +648,9 @@ def test_still_learning_steps_a_phrase_down_and_out_of_the_sitting() -> None:
     drawn = draw(
         stored,
         filter="all",
-        do=[{"type": "tab", "which": "phrases"}, {"type": "phrase", "term": "לב טוב", "key": 1}],
+        do=[{"type": "tab", "which": "phrases"}, {"type": "phrase", "term": "לב טוב", "value": 2}],
     )
-    assert drawn["picked"]["s1"][0]["status"] == 2, "one step down"
+    assert drawn["picked"]["s1"][0]["status"] == 2, "the step pressed"
     assert drawn["workOn"]["phrases"] == []
     assert drawn["phrases"] == {"אהבת ציון": ["לב טוב"]}, "still kept"
 

@@ -3343,6 +3343,8 @@ var targumReader = function () {
     return TargumVocab.editor({
       status: entry.status,
       note: entry.note,
+      // The stage's name under the control, on every card (§12, 2026-10-09).
+      legend: true,
       placeholder: t("reader.card.own-meaning", "Your own meaning"),
       onStatus: function (value) {
         setPhrase(entry, { status: value });
@@ -6448,6 +6450,8 @@ var targumReader = function () {
       element: TargumVocab.editor({
         status: pick ? pick.status : undefined,
         note: pick ? noteOn(phraseTerm(pick)) : "",
+        // The stage's name under the control, on every card (§12, 2026-10-09).
+        legend: true,
         placeholder: t("reader.card.own-meaning", "Your own meaning"),
         onStatus: apply,
         onNote: note,

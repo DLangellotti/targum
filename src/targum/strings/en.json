@@ -841,6 +841,7 @@
   "vocab.not-copied": "Not copied",
   "vocab.copied.said": "Copied.",
   "vocab.copy-failed": "We couldn't copy that. Select the text and copy it from there.",
+  "vocab.legend.ignored": "Ignored: a name or a number",
   "lists.no-match": "Nothing here matches that. Try another word or filter.",
   "lists.no-stage": "Nothing at that stage yet.",
   "lists.no-words": "Nothing yet. Tap a word as you go and tell us how well you know it.",

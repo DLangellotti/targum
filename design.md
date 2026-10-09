@@ -354,6 +354,29 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The five stages are one control, on every card — 2026-10-09
+
+David, 2026-10-08: "why don't the word cards show the stages of learning?" A word is never
+just Known or Learning. targum has always had five answers (`vocab.js` `steps()`: 1 Just met,
+2 Getting there, 3 Nearly there, known, and ignore — "A name or a number"), but they were
+drawn as five loose buttons with the pressed one in the accent, the name under them said
+"2 · getting there", two of the reader's phrase cards had no name at all, and What to work
+on asked "I know this" or "Still learning" instead.
+
+- **One segmented control on the knowledge ramp**, wherever a stage is asked: four
+  segments joined — 1, 2, 3, known — the current one filled with its step of the ramp
+  (§12, "The knowledge ramp climbs to leaf"), known in leaf with paper text, the rest
+  outlined; ignore after a gap as a quiet word. On a phone each segment is a thumb tall.
+  This retires the accent fill for a pressed level (2026-08-28): the ramp says which step
+  a word is on, and the accent said only that something was pressed.
+- **On cards the stage's own name is written under it**: "Getting there", "Known",
+  "Ignored: a name or a number" — every card, the reader's phrase cards included. Dense
+  rows (the list beside the text, the Words table) carry the control without the name.
+- **What to work on asks for the stage**, not "I know this" / "Still learning": known
+  takes the word or phrase off the fold, as before; any other step is written as pressed
+  and passes it over for the sitting; pressing the step it is already on passes it over
+  and writes nothing. "Still learning" stepped a word down one; the reader now says which
+  step. A line the conversation corrected keeps its two answers: a sentence has no stage.
 ### Your Words is reached from Your Progress, by stage — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards WordsDesk, WordsPhone and Words{Ru,RuUi,Fr,It,

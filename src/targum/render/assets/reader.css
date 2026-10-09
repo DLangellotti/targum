@@ -1063,28 +1063,58 @@ body.marking .w.here,
    control appears in the card, in the list beside the text and on the words page, so
    the rules for it live in one place. */
 .vocab-editor { display: flex; flex-direction: column; gap: 0.35rem; }
-.vocab-editor .levels { display: flex; gap: 0.25rem; align-items: center; flex-wrap: wrap; }
+.vocab-editor .levels { display: flex; align-items: center; flex-wrap: wrap; }
+/* One segmented control on the knowledge ramp (design.md §12, "The five stages are one
+   control, on every card", 2026-10-09; David, 2026-10-08: "why don't the word cards show
+   the stages of learning?"). Four segments joined — 1, 2, 3, known — the one a word is on
+   filled with its step of the ramp, the rest outlined; ignore after a gap, a quiet word
+   rather than a segment, because a name is not a step anybody climbs. */
+.vocab-editor {
+  --ramp-1: color-mix(in srgb, var(--leaf) 32%, var(--paper));
+  --ramp-2: color-mix(in srgb, var(--leaf) 55%, var(--paper));
+  --ramp-3: color-mix(in srgb, var(--leaf) 78%, var(--paper));
+}
 .vocab-editor .level {
-  padding: 0.15rem 0.45rem;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
+  min-inline-size: 2rem;
+  margin-inline-start: -1px;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--well);
+  border-radius: 0;
+  background: var(--card);
+  color: var(--ink);
   /* rem, not em: em compounded with each card's base size, and 0.75em of the card's
      15px was 11.3px — under §9's 13px floor for anything muted on raised paper. */
   font-size: 0.8125rem;
   line-height: 1.4;
 }
-.vocab-editor .level.on {
-  color: var(--paper);
-  background: var(--accent);
-  border-color: var(--accent);
+.vocab-editor .level-1 {
+  margin-inline-start: 0;
+  border-start-start-radius: var(--radius-control);
+  border-end-start-radius: var(--radius-control);
 }
-/* Finishing a word is an achievement, and §4 gives achievement to leaf. The working
-   levels stay accent — they are what the reader is doing, not what they have done.
-   The word on the page turns leaf when one of them is pressed: a button is an action
-   and the page is a state, and the two are allowed to differ. Decided 2026-08-28. */
+.vocab-editor .level-9 {
+  border-start-end-radius: var(--radius-control);
+  border-end-end-radius: var(--radius-control);
+}
+.vocab-editor .level-1.on { background: var(--ramp-1); border-color: var(--ramp-1); }
+.vocab-editor .level-2.on { background: var(--ramp-2); border-color: var(--ramp-2); }
+.vocab-editor .level-3.on { background: var(--ramp-3); border-color: var(--ramp-3); }
+/* Finishing a word is an achievement, and §4 gives achievement to leaf. */
 .vocab-editor .level-9.on {
   background: var(--leaf);
   border-color: var(--leaf);
+  color: var(--paper);
+}
+.vocab-editor .level-0 {
+  margin-inline-start: 0.75rem;
+  border-color: transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink-soft);
+}
+.vocab-editor .level-0.on { color: var(--ink); text-decoration: underline; }
+@media (max-width: 40rem) {
+  .vocab-editor .level { min-block-size: 2.75rem; }
 }
 .vocab-editor .note-field {
   width: 100%;
