@@ -1666,3 +1666,85 @@ textarea.well { min-block-size: 5rem; resize: vertical; }
   .field select,
   .well { min-block-size: 44px; }
 }
+
+/* --- Talk is a sheet over a dimmed page (design.md §12, 2026-10-09; boards ChatDesk and
+   ChatPhone) ---------------------------------------------------------------------------
+   The shared `.scrim` under it at every width; at a desk 460px from the end edge, top to
+   foot; on a phone a sheet up from the foot with the shared `.sheet-grab`. Last in the
+   sheet so it is the drawer's shape wherever the rules above drew another. */
+.talk-scrim { display: block; z-index: 30; }
+.talk-scrim[hidden] { display: none; }
+.talk-drawer {
+  inset-block: 0;
+  inset-inline: auto 0;
+  inline-size: min(460px, 100vw);
+  block-size: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: var(--shadow-floating);
+  z-index: 31;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.talk-grab { display: none; }
+.talk-drawer-head {
+  align-items: flex-start;
+  padding: 1.25rem 1rem 0.875rem 1.5rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.talk-drawer-names { display: grid; gap: 0.5rem; justify-items: start; min-inline-size: 0; }
+.talk-drawer-title {
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.talk-about {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-inline-size: 100%;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.talk-about svg,
+.talk-close svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.talk-close {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  margin-block-start: -0.125rem;
+}
+@media (max-width: 48rem) {
+  .talk-drawer {
+    inset-inline: 0;
+    inset-block: auto 0;
+    inline-size: auto;
+    block-size: calc(100svh - 1.25rem);
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  .talk-grab { display: block; }
+  .talk-drawer-head { padding: 0 0.75rem 0.75rem 1.125rem; }
+  .talk-drawer-title { font-size: 1.5rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .talk-close { min-block-size: 44px; min-inline-size: 44px; }
+}

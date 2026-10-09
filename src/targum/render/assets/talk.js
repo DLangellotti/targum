@@ -163,6 +163,12 @@
       show(false);
     });
   }
+  // The sheet's handle on a phone closes it, as a tap on the dimmed page does.
+  Array.prototype.forEach.call(drawer.querySelectorAll("[data-talk-close]"), function (grab) {
+    grab.addEventListener("click", function () {
+      show(false);
+    });
+  });
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && !drawer.hidden) show(false);
   });

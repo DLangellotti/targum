@@ -1404,6 +1404,16 @@
     var title = reading && reading.title ? String(reading.title) : "";
     var shown = sentence || title;
     readingLine.hidden = !shown;
+    // In a reader the box asks about the text (design.md §12, "Talk is a sheet over a
+    // dimmed page", 2026-10-09, board ChatDesk), in the conversation's language.
+    if (shown && field) {
+      var named = (window.TARGUM_LANGUAGES || {})[listedIn || spoken()];
+      if (named) {
+        field.placeholder = t("chat.ask-about-the-text", "Ask about the text, or write in {language}", {
+          language: named,
+        });
+      }
+    }
     if (readingText) readingText.textContent = shown.length > 90 ? shown.slice(0, 88) + "…" : shown;
     if (readingAsk) {
       readingAsk.textContent = sentence

@@ -1687,6 +1687,8 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
         drawer: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
         loaded: !!document.getElementById('talk-frame').getAttribute('src'),
         remembered: localStorage.getItem('targum:talk'),
+        dimmed: getComputedStyle(document.getElementById('talk-scrim')).display !== 'none',
+        title: getComputedStyle(drawer.querySelector('.talk-drawer-title')).fontFamily,
       };
     }"""
     before = page.evaluate(measure)
@@ -1720,6 +1722,15 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
     assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
     assert again["open"] and again["remembered"] == "open", "open again on the next page"
+    # design.md §12, "Talk is a sheet over a dimmed page" (2026-10-09; boards ChatDesk
+    # and ChatPhone): the page dims under it at every width, the title is in the serif,
+    # and at a desk it stands 460px from the end edge, top to foot.
+    assert opened["dimmed"] and not before["dimmed"] and not closed["dimmed"], opened
+    assert "Iowan" in opened["title"], opened["title"]
+    if width >= 1024:
+        box = opened["drawer"]
+        assert abs(box["right"] - width) <= 1 and box["top"] <= 1, box
+        assert abs((box["right"] - box["left"]) - 460) <= 1, box
 
 
 @pytest.mark.parametrize("width", [320, 390, 1440])
