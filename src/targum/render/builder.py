@@ -3603,6 +3603,13 @@ def cover_bytes(covers: Path | None, name: str) -> bytes | None:
     return None
 
 
+def has_cover(covers: Path | None, name: str) -> bool:
+    """Whether a drawn cover is kept for `name`, without reading it."""
+    if covers is None or not name:
+        return False
+    return any((covers / f"{name}{suffix}").is_file() for suffix, _ in COVER_SUFFIXES)
+
+
 def cover_uri(covers: Path | None, name: str) -> str:
     """A cover as a `data:` URI, because a reader fetches nothing.
 
@@ -5039,6 +5046,7 @@ def render(
             for section in sections
         }
         spans = {n: (a[0], a[-1]) if a else ("", "") for n, a in held.items()}
+        groups = portion_groups(sections, chapters, verses, document.source)
         index = env.get_template("index.html.j2").render(
             **shared,
             t=page_words(chrome),
@@ -5053,11 +5061,162 @@ def render(
                 for number, n in section_word_counts(sections, by_id).items()
             },
             chapters=chapters,
-            groups=portion_groups(sections, chapters, verses, document.source),
+            groups=groups,
             spans=spans,
         )
         written.insert(0, _write(out_dir / "index.html", index))
+        # What the server's contents page is drawn from (design.md §12, "A contents page
+        # is a page of its own", 2026-10-09): data about the text, never about a reader,
+        # so a page built once on the shared shelf is the same for everybody.
+        _write(
+            out_dir / CONTENTS,
+            json.dumps(
+                contents_manifest(
+                    document,
+                    sections,
+                    by_id,
+                    chapters=chapters,
+                    spans=spans,
+                    groups=groups,
+                    section_parts=section_parts,
+                    medium=medium,
+                    biblical=biblical,
+                    folder=folder,
+                    cover=drawn if has_cover(covers, drawn) else "",
+                    english=english_title(document, chrome),
+                    language=segmented.language,
+                ),
+                ensure_ascii=False,
+            ),
+        )
     return written
+
+
+#: The file a multi-part reader's contents page is drawn from, beside its pages.
+CONTENTS = "contents.json"
+
+#: Its shape, so the server can refuse one written by an older targum rather than misread
+#: it. Bumped when a key changes meaning; a key added is not a bump.
+CONTENTS_VERSION = 1
+
+#: A heading that only says where a section falls — "Section 4", "Part 3", "VI", "פרק א",
+#: "Глава 2", "חלק 2 · 10:01–24:38" — and not what it is about. On a contents page it stands
+#: above the row as a kicker, and the first line is the row's title (David, 2026-10-08).
+_LABEL = re.compile(
+    r"^\s*(?:"
+    r"(?:part|section|chapter|глава|часть|раздел|פרק|חלק|capitolo|chapitre)\s+\S{1,8}"
+    r"|[IVXLCDM]{1,7}|\d{1,4}"
+    r")\s*[.:]?\s*(?:[·•–—-].*)?$",
+    re.IGNORECASE,
+)
+
+#: How much of a first line a row carries: a line, not a paragraph.
+FIRST_LINE = 90
+
+
+def is_label(title: str) -> bool:
+    """Whether a section's heading is only a label (`_LABEL`), or none at all."""
+    return not title.strip() or bool(_LABEL.match(title))
+
+
+def first_line(text: str, most: int = FIRST_LINE) -> str:
+    """The opening of a section, cut at a word and marked as cut where it is."""
+    line = " ".join(text.split())
+    if len(line) <= most:
+        return line
+    cut = line[:most].rsplit(" ", 1)[0].rstrip(" ,;:—–-")
+    return (cut or line[:most]) + "…"
+
+
+def contents_manifest(
+    document: Document,
+    sections: list[Section],
+    by_id: Mapping[str, Segment],
+    *,
+    chapters: Mapping[int, str],
+    spans: Mapping[int, tuple[str, str]],
+    groups: list[dict[str, Any]],
+    section_parts: Mapping[int, list[int]],
+    medium: str,
+    biblical: bool,
+    folder: Path | None,
+    cover: str,
+    english: str,
+    language: str,
+) -> dict[str, Any]:
+    """A multi-part text as its contents page draws it: each part's title, first line,
+    length and place, and for a film each part's time and frame. Worked out at build time,
+    from what the build already has, so serving the page reads one small file."""
+    parts_kept: dict[int, Any] = {}
+    frames: dict[int, str] = {}
+    duration = 0.0
+    if folder is not None and medium in ("watch", "listen"):
+        from ..audio import manifest as manifest_module
+
+        kept = manifest_module.load(folder)
+        if kept is not None:
+            parts_kept = {part.number: part for part in kept.parts}
+            duration = kept.duration
+            if medium == "watch":
+                from ..video import poster
+
+                frames = poster.part_frames(folder)
+    words = section_word_counts(sections, by_id)
+    minutes = section_minutes(sections, by_id)
+    rows = []
+    for section in sections:
+        opening = next(
+            (
+                by_id[sid].text
+                for sid in section.segment_ids
+                if sid in by_id
+                and by_id[sid].kind not in (BlockKind.heading, BlockKind.byline)
+                # A part not made yet holds one placeholder line, its own time.
+                and not by_id[sid].ref.endswith(":waiting")
+            ),
+            "",
+        )
+        numbers = list(section_parts.get(section.number, []))
+        held = [parts_kept[n] for n in numbers if n in parts_kept]
+        row: dict[str, Any] = {
+            "number": section.number,
+            "file": section.filename,
+            "title": section.title,
+            "label": is_label(section.title) or medium in ("watch", "listen"),
+            "first": first_line(opening),
+            "words": words.get(section.number, 0),
+            "minutes": minutes.get(section.number, 1),
+            "chapters": chapters.get(section.number, ""),
+            "from": spans.get(section.number, ("", ""))[0],
+            "to": spans.get(section.number, ("", ""))[1],
+            "parts": numbers,
+        }
+        if held:
+            row["start"] = min(part.start for part in held)
+            row["end"] = max(part.end for part in held)
+            row["frame"] = next((frames[n] for n in numbers if n in frames), "")
+        rows.append(row)
+    return {
+        "version": CONTENTS_VERSION,
+        "document": document.content_hash,
+        "title": document.title or "",
+        "english": english if english != document.title else "",
+        "author": document.author or "",
+        "source": document.source,
+        "language": language,
+        "medium": medium,
+        "layout": "film" if medium == "watch" else "tanakh" if biblical else "book",
+        "cover": cover,
+        "seconds": round(duration),
+        "sections": rows,
+        "groups": [
+            {
+                "portion": group["portion"],
+                "sections": [section.number for section in group["sections"]],
+            }
+            for group in groups
+        ],
+    }
 
 
 def portion_groups(
@@ -5129,6 +5288,205 @@ def portion_groups(
             groups.append({"key": key, "portion": portion, "sections": []})
         groups[-1]["sections"].append(section)
     return groups
+
+
+def clock(seconds: float) -> str:
+    """A place in a film as a player writes it: 4:12, or 1:02:09 past the hour."""
+    whole = max(0, int(seconds))
+    hours, rest = divmod(whole, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
+
+
+def _grouped(n: int, language: str) -> str:
+    """A count as the page's language groups a thousand: 24,387, or 24 387 in Russian."""
+    return f"{n:,}".replace(",", "\u00a0" if language.split("-")[0] == "ru" else ",")
+
+
+#: "Part 3", the heading a section is given where it has none (`split_sections`), said
+#: again in the page's language rather than shown in the build's English.
+_UNTITLED = re.compile(r"^Part (\d+)$")
+
+
+def contents_page(
+    manifest: Mapping[str, Any],
+    state: Mapping[str, Any],
+    *,
+    token: str = "",
+    language: str = "en",
+    mine: bool = True,
+    picture: str = "",
+) -> str:
+    """A multi-part text's contents page, on the desk (design.md §12, "A contents page is
+    a page of its own", 2026-10-09): drawn per request by the server from the build's
+    `contents.json` and what it knows of the reader — `state` holds `place` (the account's,
+    or None), `finished` (section numbers as strings) and `known` (by section number,
+    running words and known ones, and the forms not yet met)."""
+    from ..coverage import MAP_STEPS
+
+    t = page_words(language)
+    tn = page_counts(language)
+    layout = str(manifest.get("layout") or "book")
+    medium = str(manifest.get("medium") or "read")
+    source_language = str(manifest.get("language") or "")
+    source_direction = direction_for(source_language) if source_language else "ltr"
+    place = state.get("place") or None
+    finished = {str(n) for n in state.get("finished") or ()}
+    known = state.get("known") or {}
+    here = str(place.get("section") or "") if place else ""
+    seconds_at = float(place.get("seconds") or 0) if place else 0.0
+
+    def share(tokens: int, hits: int) -> int | None:
+        return int(hits * 100 / tokens) if tokens else None
+
+    rows: list[dict[str, Any]] = []
+    for section in manifest.get("sections") or []:
+        number = int(section["number"])
+        title = str(section.get("title") or "")
+        first = str(section.get("first") or "")
+        untitled = _UNTITLED.match(title)
+        part_name = str(t("parts.page.part", "Part {n}", n=number))
+        kicker: str
+        heading: str
+        line: str
+        if layout == "film":
+            kicker, heading, line = "", part_name, first
+        elif layout == "tanakh":
+            # "בראשית י״ב": the book's name and the chapter's letters; the letters stand in
+            # the margin and the first verse is the row.
+            kicker, heading, line = (title.split()[-1] if title else ""), first or title, ""
+        elif section.get("label"):
+            kicker = part_name if untitled or not title else title
+            heading, line = (first or kicker), ""
+            if heading == kicker:
+                kicker = ""
+        else:
+            kicker, heading, line = "", title, first
+        counted = known.get(number) or known.get(str(number))
+        tokens, hits, fresh = counted if counted else (0, 0, 0)
+        start = section.get("start")
+        end = section.get("end")
+        rows.append(
+            {
+                "number": number,
+                "file": section["file"],
+                "kicker": kicker,
+                "heading": heading,
+                "line": line,
+                # A label and a part's name are the page's words; a title and a first
+                # line are the text's own.
+                "heading_is_text": layout != "film" and heading != part_name,
+                "words": int(section.get("words") or 0),
+                "words_said": _grouped(int(section.get("words") or 0), language),
+                "minutes": int(section.get("minutes") or 1),
+                "chapters": section.get("chapters") or "",
+                "from": section.get("from") or "",
+                "to": section.get("to") or "",
+                "parts": section.get("parts") or [],
+                "known": share(tokens, hits),
+                "fresh": fresh,
+                "read": str(number) in finished,
+                "here": str(number) == here,
+                "frame": section.get("frame") or "",
+                "time": f"{clock(start)}–{clock(end)}" if start is not None and end else "",
+                "start": start,
+            }
+        )
+    count = len(rows)
+    all_words = sum(row["words"] for row in rows)
+    all_minutes = sum(row["minutes"] for row in rows)
+    tokens_all = sum((known.get(row["number"]) or (0, 0, 0))[0] for row in rows)
+    hits_all = sum((known.get(row["number"]) or (0, 0, 0))[1] for row in rows)
+    read_count = sum(1 for row in rows if row["read"])
+
+    # Continue, where the account knows the place; the medium's first verb where not
+    # (§6). Signed out, the page's script reads this browser's own place instead.
+    at_row = next((row for row in rows if row["here"]), None)
+    if at_row is not None:
+        if layout == "film" and seconds_at:
+            go = t(
+                "parts.page.continue-part-at",
+                "Continue: part {n}, {time}",
+                n=at_row["number"],
+                time=clock(seconds_at),
+            )
+        elif layout == "film" or medium == "listen":
+            go = t("parts.page.continue-part", "Continue: part {n}", n=at_row["number"])
+        else:
+            go = t("parts.page.continue-chapter", "Continue: chapter {n}", n=at_row["number"])
+        go_href = at_row["file"]
+    else:
+        go = (
+            t("contents.page.start-watching", "Start watching")
+            if medium == "watch"
+            else t("contents.page.start-listening", "Start listening")
+            if medium == "listen"
+            else t("contents.page.start-reading", "Start reading")
+        )
+        go_href = rows[0]["file"] if rows else ""
+
+    if layout == "film":
+        kind = t("parts.page.kind-video", "Video")
+    elif medium == "listen":
+        kind = t("parts.page.kind-recording", "Recording")
+    elif layout == "tanakh":
+        kind = t("parts.page.kind-tanakh", "Tanakh")
+    else:
+        kind = t("parts.page.kind-book", "Book")
+
+    by_number = {row["number"]: row for row in rows}
+    groups = []
+    for group in manifest.get("groups") or [{"portion": None, "sections": list(by_number)}]:
+        members = [by_number[n] for n in group.get("sections") or [] if n in by_number]
+        if members:
+            groups.append({"portion": group.get("portion"), "rows": members})
+
+    seconds = int(manifest.get("seconds") or 0)
+    hero_frame = ""
+    if layout == "film":
+        lead = at_row or next((row for row in rows if row["frame"]), None)
+        hero_frame = (lead or {}).get("frame", "") if lead else ""
+
+    return (
+        _environment()
+        .get_template("contents.html.j2")
+        .render(
+            t=t,
+            tn=tn,
+            page_language=_page_language(language),
+            strings=script_strings(language, "contents.", "parts."),
+            languages=_language_names(language),
+            token=token,
+            manifest=manifest,
+            layout=layout,
+            medium=medium,
+            source_language=source_language,
+            source_direction=source_direction,
+            rows=rows,
+            groups=groups,
+            count=count,
+            all_words=_grouped(all_words, language),
+            all_minutes=all_minutes,
+            hours=all_minutes // 60,
+            minutes_left=all_minutes % 60,
+            film_minutes=max(1, round(seconds / 60)) if seconds else all_minutes,
+            known_all=share(tokens_all, hits_all),
+            read_count=read_count,
+            placed=at_row is not None,
+            stopped=clock(seconds_at) if layout == "film" and at_row and seconds_at else "",
+            go=go,
+            go_href=go_href,
+            kind=kind,
+            mine=mine,
+            picture=picture,
+            hero_frame=hero_frame,
+            duration=clock(seconds) if seconds else "",
+            has_audio=medium in ("watch", "listen"),
+            signed_in=bool(state.get("signed_in")),
+            # The Tanakh map's own steps, which a chapter's square is shaded by here too.
+            steps=MAP_STEPS,
+        )
+    )
 
 
 def _write(path: Path, html: str) -> Path:

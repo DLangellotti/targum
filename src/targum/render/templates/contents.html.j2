@@ -1,0 +1,207 @@
+<!doctype html>
+{#- A multi-part text's contents page, on the desk (design.md §12, "A contents page is a
+    page of its own, not a small reader", 2026-10-09; boards PartsBookA, PartsBookPhone,
+    PartsVideoA, PartsVideoPhone and PartsTanakh). Drawn per request by the server from
+    the build's `contents.json` and what the account knows: where the reader stopped,
+    what they finished, and how much of each part they would follow. It stands at the
+    reader's own `index.html`, so the chapter links beside it are relative as they were,
+    and `contents.js` carries a link to a verse on to the file that holds it. -#}
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("parts.page.title-targum", "{title} — targum", title=manifest.title) }}</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('parts.css') }}</style>
+{{ hebrew_face(layout == 'tanakh') }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+<body class="parts">
+{% set here = 'texts' if mine else 'library' %}{% set title = '' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+
+<main class="parts-main parts-{{ layout }}">
+  {#- Where the text stands: an upload in Your targums, a library text in the Library. -#}
+  <nav class="parts-crumbs" aria-label="{{ t("nav.where-you-are", "Where you are") }}">
+    {%- if mine %}<a href="/">{{ t("parts.page.your-targums", "Your targums") }}</a>{% else %}<a href="/library">{{ t("parts.page.library", "Library") }}</a>{% endif %}<span class="crumb-step" aria-hidden="true"> › </span><span aria-current="page">{{ kind }}</span>
+  </nav>
+
+  <section class="parts-hero" aria-labelledby="parts-title">
+    {%- if layout == 'film' %}
+    {#- The film's own frame, wide, at the part the reader is at; a film not cut yet has
+        the text's picture. Never a 2:3 crop of a 16:9 frame. -#}
+    <figure class="parts-frame">
+      {%- if hero_frame %}<img src="{{ hero_frame }}{% if token %}?k={{ token }}{% endif %}" alt="">{% elif picture %}<img src="/thumb/{{ picture|urlencode }}?drawn=1{% if token %}&amp;k={{ token }}{% endif %}" alt="">{% endif %}
+      {%- if duration %}<span class="parts-duration">{{ duration }}</span>{% endif %}
+    </figure>
+    {%- else %}
+    <figure class="parts-cover">
+      {%- if picture %}<img src="/thumb/{{ picture|urlencode }}?drawn=1{% if token %}&amp;k={{ token }}{% endif %}" alt="">{% endif %}
+    </figure>
+    {%- endif %}
+    <div class="parts-about">
+      <p class="parts-tags">
+        <span class="parts-tag">{{ kind }}</span>
+        {%- if mine %}<span class="parts-tag">{{ t("parts.page.uploaded-by-you", "Uploaded by you") }}</span>{% endif %}
+      </p>
+      <h1 class="parts-title" id="parts-title" lang="{{ source_language }}" dir="{{ source_direction }}">{{ manifest.title|isolate(source_direction) }}</h1>
+      {%- if manifest.english or manifest.author %}
+      <p class="parts-byline">
+        {%- if manifest.english %}<span class="parts-english">{{ manifest.english }}</span>{% endif %}
+        {%- if manifest.author %}<span class="parts-author" dir="auto">{{ manifest.author }}</span>{% endif %}
+      </p>
+      {%- endif %}
+      <p class="parts-facts">
+        {%- if layout == 'film' %}
+        <span>{{ t("parts.page.in-all", "{n} min in all", n=film_minutes) }}</span>
+        <span>{{ tn("parts.page.parts", count, "{n} part", "{n} parts") }}</span>
+        <span>{{ tn("parts.page.words-said", manifest.sections|sum(attribute='words'), "{count} word said", "{count} words said", count=all_words) }}</span>
+        {%- else %}
+        <span>{{ tn("parts.page.chapters", count, "{n} chapter", "{n} chapters") }}</span>
+        {%- if layout == 'tanakh' and groups|length > 1 %}<span>{{ tn("parts.page.portions", groups|length, "{n} portion", "{n} portions") }}</span>{% endif %}
+        <span>{{ tn("contents.page.words", manifest.sections|sum(attribute='words'), "{count} word", "{count} words", count=all_words) }}</span>
+        <span>{% if hours %}{{ t("parts.page.read-time-hours", "about {h} h {m} min to read", h=hours, m=minutes_left) }}{% else %}{{ t("parts.page.read-time", "about {m} min to read", m=all_minutes) }}{% endif %}</span>
+        {%- endif %}
+      </p>
+      {%- if known_all is not none %}
+      {#- What the reader would follow of it, from their own words, and how far they got.
+          Leaf, because a green thing is always progress (§13). -#}
+      <div class="parts-known">
+        <p><span>{{ t("parts.page.you-know", "You know {n}% of its words", n=known_all) }}</span>
+        <span>{% if layout == 'film' %}{{ t("parts.page.watched-of", "{done} of {count} watched", done=read_count, count=count) }}{% else %}{{ t("parts.page.read-of", "{done} of {count} read", done=read_count, count=count) }}{% endif %}</span></p>
+        <progress class="parts-meter" max="100" value="{{ known_all }}" aria-hidden="true"></progress>
+      </div>
+      {%- endif %}
+      <div class="parts-go">
+        {#- The one filled press: where the reader stopped, said the board's way. Signed
+            out, `contents.js` points it at this browser's own place. -#}
+        <a id="start" class="parts-start" href="{{ go_href }}" data-first="{{ rows[0].file if rows else '' }}"{% if placed %} data-placed="1"{% endif %}
+           data-continue="{% if layout == 'film' or medium == 'listen' %}{{ t("parts.page.continue-part", "Continue: part {n}") }}{% else %}{{ t("parts.page.continue-chapter", "Continue: chapter {n}") }}{% endif %}"
+           {%- if layout == 'film' %} data-continue-at="{{ t("parts.page.continue-part-at", "Continue: part {n}, {time}") }}"{% endif %}>
+          {%- if layout == 'film' or medium == 'listen' %}<svg class="parts-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 3.5v9l7-4.5z"/></svg>{% else %}<svg class="parts-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h4a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8a1.5 1.5 0 0 1 1.5-1.5h4z"/></svg>{% endif %}
+          <span class="parts-start-label">{{ go }}</span></a>
+        {%- if placed and rows %}
+        <a class="parts-again" href="{{ rows[0].file }}">{{ t("parts.page.from-the-beginning", "Start from the beginning") }}</a>
+        {%- endif %}
+        {#- Save for offline, the same row the reader's ⋯ holds (`offline.js`). -#}
+        <div class="parts-offline offline-row" id="offline-row" data-title="{{ manifest.title }}" data-glyphs aria-live="polite" hidden></div>
+      </div>
+      {#- For somebody about to lose their connection: a book's waiting chapters, all at
+          once. Never a recording's (2026-10-07). -#}
+      {%- if not has_audio %}<p class="whole" hidden><button type="button" id="prepare">{{ t("contents.page.prepare-all", "Prepare all") }}</button> <span class="get-cost" id="prepare-cost" hidden></span></p>{% endif %}
+    </div>
+  </section>
+
+  {%- if layout == 'tanakh' %}
+  {#- Every chapter in one strip, shaded by how much of it the reader knows on the map's
+      own steps, and faded where it has not been read. -#}
+  <section class="parts-ramp" aria-label="{{ t("parts.page.ramp-label", "Every chapter, by how much of it you know") }}">
+    <div class="parts-ramp-head">
+      <p>{{ t("parts.page.ramp-note", "Every chapter, shaded by how much of it you know. Faded ones you haven't read.") }}</p>
+      <p class="parts-ramp-key"><span class="cell step-1" aria-hidden="true"></span>{{ t("parts.page.under", "under {n}%", n=steps[1]) }} <span class="cell step-2" aria-hidden="true"></span>{{ t("parts.page.between", "{a}–{b}%", a=steps[1], b=steps[2]) }} <span class="cell step-3" aria-hidden="true"></span>{{ t("parts.page.and-up", "{n}% and up", n=steps[2]) }}</p>
+    </div>
+    <ol class="parts-cells" dir="{{ source_direction }}">
+      {%- for group in groups %}
+      <li class="parts-cell-group">
+        <span class="parts-cell-run">
+        {%- for row in group.rows %}
+        {%- set step = 0 if row.known is none else (1 if row.known < steps[1] else (2 if row.known < steps[2] else 3)) %}
+        <a class="cell step-{{ step }}{% if not row.read %} unread{% endif %}{% if row.here %} here{% endif %}" href="{{ row.file }}" title="{{ row.number }}{% if row.known is not none %} · {{ t("parts.page.row-known", "{n}% known", n=row.known) }}{% endif %}"><span class="visually-hidden">{{ row.number }}</span></a>
+        {%- endfor %}
+        </span>
+        {%- if group.portion %}<span class="parts-cell-name" lang="{{ source_language }}">{{ group.portion.hebrew }}</span>{% endif %}
+      </li>
+      {%- endfor %}
+    </ol>
+  </section>
+  {%- endif %}
+
+  <section class="parts-contents" aria-labelledby="parts-contents-head">
+    <div class="parts-contents-head">
+      {%- if layout == 'film' %}
+      <h2 id="parts-contents-head">{{ tn("parts.page.parts", count, "{n} part", "{n} parts") }}</h2>
+      <p class="parts-note">{{ t("parts.page.each-opens", "Each part opens as you reach it") }}</p>
+      {%- elif layout == 'tanakh' and groups|length > 1 %}
+      <h2 id="parts-contents-head">{{ tn("parts.page.chapters-by-portion", count, "{n} chapter, by portion", "{n} chapters, by portion") }}</h2>
+      {%- else %}
+      <h2 id="parts-contents-head">{{ t("parts.page.contents", "Contents") }}</h2>
+      {%- endif %}
+    </div>
+
+    {%- if layout == 'film' %}
+    {#- The filmstrip: a wide frame a part, its time under it, a check once watched and
+        the teal ring on the part the reader is at. -#}
+    <ol class="parts-strip">
+      {%- for row in rows %}
+      <li class="parts-strip-cell{% if row.here %} here{% endif %}{% if row.read %} read{% endif %}{% if not row.frame %} waiting{% endif %}" data-frame="{{ row.number }}">
+        <a href="{{ row.file }}" aria-label="{{ t("parts.page.part", "Part {n}", n=row.number) }}">
+          {%- if row.frame %}<img src="{{ row.frame }}{% if token %}?k={{ token }}{% endif %}" alt="" loading="lazy">{% else %}<span class="parts-strip-wait">{{ t("parts.page.getting-ready", "Getting ready") }}</span>{% endif %}
+          {%- if row.read %}<span class="parts-check" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M3.5 8.5l3 3 6-7"/></svg></span>{% endif %}
+        </a>
+        {%- if row.time %}<span class="parts-strip-time">{{ row.number }} · {{ row.time }}</span>{% endif %}
+      </li>
+      {%- endfor %}
+    </ol>
+    {%- endif %}
+
+    {#- The rows. On a Torah book they come in portions, as the old page's did: a
+        chapter listed once, under the portion it starts in. -#}
+    {% macro row_of(row) %}
+    <li class="parts-row{% if row.here %} here{% endif %}{% if row.read %} read{% endif %}" data-chapter="{{ row.number }}"{% if row.chapters %} data-chapters="{{ row.chapters }}"{% endif %}{% if row.from %} data-from="{{ row.from }}" data-to="{{ row.to }}"{% endif %}{% if has_audio %} data-audio="1"{% if row.parts %} data-parts="{{ row.parts|join(' ') }}"{% endif %}{% endif %}>
+      <span class="parts-num">{% if layout == 'tanakh' and row.chapters %}{{ row.chapters.split()[0] }}{% else %}{{ row.number }}{% endif %}</span>
+      <span class="parts-what">
+        {%- if row.kicker %}<span class="parts-kicker" lang="{{ source_language }}" dir="{{ source_direction }}">{{ row.kicker }}</span>{% endif %}
+        <a class="parts-name" href="{{ row.file }}"{% if row.heading_is_text %} lang="{{ source_language }}" dir="{{ source_direction }}"{% else %} dir="auto"{% endif %}>{{ row.heading|isolate(source_direction) if row.heading_is_text else row.heading }}</a>
+        {%- if row.time %}<span class="parts-time" dir="ltr">{{ row.time }}</span>{% endif %}
+        {%- if row.line %}<span class="parts-first" lang="{{ source_language }}" dir="{{ source_direction }}">{{ row.line|isolate(source_direction) }}</span>{% endif %}
+      </span>
+      <span class="parts-stats" dir="auto">
+        {%- if layout != 'tanakh' %}
+        <span class="parts-count">{{ tn("contents.page.words", row.words, "{count} word", "{count} words", count=row.words_said) }} · {{ t("contents.page.minutes", "{n} min", n=row.minutes) }}</span>
+        {%- endif %}
+        {%- if row.known is not none %}
+        <span class="parts-row-known">{{ t("parts.page.row-known", "{n}% known", n=row.known) }}{% if row.fresh and layout != 'tanakh' %} · {{ tn("parts.page.new-words", row.fresh, "{n} new word", "{n} new words") }}{% endif %}</span>
+        <progress class="parts-meter" max="100" value="{{ row.known }}" aria-hidden="true"></progress>
+        {%- endif %}
+        {%- if row.here %}
+        <span class="parts-state here">{% if stopped %}{{ t("parts.page.stopped-at", "You stopped at {time}", time=stopped) }}{% else %}{{ t("parts.page.you-are-here", "You're here") }}{% endif %}</span>
+        {%- elif row.read %}
+        <span class="parts-state read"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 8.5l3 3 6-7"/></svg>{% if layout == 'film' %}{{ t("parts.page.watched", "Watched") }}{% else %}{{ t("parts.page.read", "Read") }}{% endif %}</span>
+        {%- endif %}
+      </span>
+    </li>
+    {% endmacro %}
+    {#- A film's columns run the way its strip does, the page's way: part 1 under the
+        first frame. Each line inside keeps its own direction. -#}
+    <ol class="toc parts-rows{% if layout == 'film' %} parts-columns{% endif %}" dir="{{ 'ltr' if layout == 'film' else source_direction }}" data-document="{{ manifest.document }}">
+      {%- for group in groups %}
+      {%- if group.portion %}
+      <li class="portion" data-portion="{{ group.portion.slug }}">
+        <p class="portion-head"><a class="portion-name" href="{{ group.portion.href }}" lang="{{ source_language }}">{{ group.portion.hebrew|isolate(source_direction) }}</a> <span class="portion-span" dir="ltr">{{ group.portion.name }} · {{ group.portion.summary }}</span></p>
+        <ol>
+          {%- for row in group.rows %}{{ row_of(row) }}{% endfor %}
+        </ol>
+      </li>
+      {%- else %}
+      {%- for row in group.rows %}{{ row_of(row) }}{% endfor %}
+      {%- endif %}
+      {%- endfor %}
+    </ol>
+  </section>
+</main>
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('contents.js') }}</script>
+</body>
+</html>

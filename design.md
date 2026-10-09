@@ -358,6 +358,56 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A contents page is a page of its own, not a small reader — 2026-10-09
+
+David, 2026-10-08 (boards PartsBookA, PartsBookPhone, PartsVideoA, PartsVideoPhone and
+PartsTanakh; the B variants were not chosen), and the audit's question on 2026-10-09:
+the contents page "reads as a small targum". It was a reader page — `reader.css`, the
+reader's bar, a 2:3 cover that cropped a video's frame, one "Start reading" and a bare
+numbered list — and every multi-part text opened on it.
+
+- **It stands on the desk.** The app's bar, a trail ("Your targums › Book", "Library ›
+  Tanakh"), a hero card and a contents card, in the column every desk page stands in
+  (`--column`). It carries `chrome.css` and never `reader.css`.
+- **A book's chapters are printed contents.** Each row has its number, its title in the
+  serif, its first line in the language being learned, its length in words and minutes,
+  how much of it the reader would follow, and Read or "You're here". **A row's title is a
+  real title, never a label**: where a section's heading is only "Section 4", "Part 3",
+  "VI" or "פרק א", the label stands above it as a kicker and the first line is the title.
+- **A long video's parts are a filmstrip.** Each part a wide frame of its own film, its
+  time, a check when it was watched and a teal ring on the part the reader is at; a part
+  not made yet is a plain cell that says it is getting ready. Under the strip, a column a
+  part: its first words, how much of it they'd follow, and Watched or "You stopped at
+  4:12".
+- **A Tanakh book is its chapters by portion**: a strip of every chapter shaded by how
+  much of it the reader knows, on the map's own steps, then the chapters in columns under
+  each portion's name, each with its first verse and a check once read.
+- **Continue goes where the reader stopped**: "Continue: chapter 5", "Continue: part 3,
+  4:12", from the account's place (`Store.places`, targum-internal#430) and, signed out,
+  this browser's. Unopened, it is the medium's first verb (§6). **Save for offline**
+  stands beside it, the same row as in the reader's ⋯.
+- **What a row says about the reader is the server's**, worked out when the page is asked
+  for: the place, which parts were finished, and each part's known share from its own
+  annotation against the reader's words. Nothing about a reader is baked into a file.
+
+**The old index is retired, at the same address.** A reader's `index.html` is answered by
+the server with this page wherever a text is served, so every link that ever pointed at a
+contents page — `/reader/<name>/reader/index.html`, `/r/<key>`, `/open/genesis#12:1`, a
+bell's line, a playlist's row — opens it with nothing to redirect, and `#12:1` still goes
+on to the file that holds the verse. What a build writes for it is data: `contents.json`
+beside the pages, and each part's frame, cut from the film already on the disk
+(`frames/`). The file `index.html` is still written, for the one place no server answers:
+a reader opened off a disk, which keeps the reader's own small list. A text built before
+this change has no `contents.json` and keeps the old page until it is built again; the
+rebuild every deploy runs writes it for the whole shelf, for nothing. The weekly's levels
+and the parasha's corpus keep their own pages.
+
+What it does not overturn: **a reader still fetches nothing** — this is a page of the
+desk, which asks the server as every desk page does, and the reader's own pages are
+untouched. Nothing on it spends: a book's waiting chapter keeps its Translate and Prepare
+all, and a recording's part is still made by opening it ("One press gets the whole video,
+a part at a time", 2026-10-07).
+
 ### A text is named in everyday words, and the pipeline keeps its own — 2026-10-09
 
 David, 2026-10-09, on the board-against-build audit: the mockups win; **never put a
