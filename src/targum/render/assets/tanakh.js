@@ -197,6 +197,25 @@
     });
   });
   var lit = null;
+  // This week's tick, once `/tanakh-map.json` names it: the line at the strip's far end
+  // says it whenever no other tick is pointed at (board LibraryTanakh).
+  var thisWeek = null;
+
+  /* "This week: Noach · Genesis 6–11", or a pointed tick's own "Lech Lecha · Genesis
+     12–17". The name in its own element, so it can be ink in a quieter line. */
+  function sayTick(tick) {
+    if (!yearSaid) return;
+    yearSaid.textContent = "";
+    if (!tick) return;
+    if (tick === thisWeek) {
+      yearSaid.appendChild(document.createTextNode((yearSaid.getAttribute("data-this-week") || "") + " "));
+    }
+    var name = document.createElement("strong");
+    name.textContent = tick.getAttribute("data-name") || "";
+    yearSaid.appendChild(name);
+    var span = tick.getAttribute("data-span") || "";
+    if (span) yearSaid.appendChild(document.createTextNode(" · " + span));
+  }
 
   function light(tick) {
     if (lit === tick) return;
@@ -207,7 +226,7 @@
       });
     }
     lit = tick;
-    if (yearSaid) yearSaid.textContent = tick ? tick.getAttribute("aria-label") : "";
+    sayTick(tick || thisWeek);
     if (!tick) return;
     tick.classList.add("lit");
     (tick.getAttribute("data-chapters") || "").split("|").forEach(function (ref) {
@@ -263,9 +282,13 @@
       (said.week || []).forEach(function (ref) {
         week[ref] = true;
       });
+      thisWeek = null;
       ticks.forEach(function (tick) {
-        tick.classList.toggle("week", !!said.portion && tick.getAttribute("data-slug") === said.portion);
+        var now = !!said.portion && tick.getAttribute("data-slug") === said.portion;
+        tick.classList.toggle("week", now);
+        if (now) thisWeek = tick;
       });
+      if (!lit) sayTick(thisWeek);
       shade();
     })
     .catch(function () {

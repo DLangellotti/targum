@@ -7852,6 +7852,9 @@ class Handler(BaseHTTPRequestHandler):
                     # not (targum-internal#293). Keyed by entry id; a built copy's own
                     # measurement above wins, because that is the text they actually have.
                     "catalogue": self._measure_catalogue(),
+                    # Whether somebody is signed in: a Library row's Subscribe is the
+                    # account's, so it is offered only to an account.
+                    "signedIn": person is not None,
                 }
             )
         if route == "/account/me":

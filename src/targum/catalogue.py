@@ -380,6 +380,12 @@ class Collection:
     #: built once on the shared shelf, which a reader opens as a playlist of their own
     #: and swipes through for nothing. `"swipe": true` in the file.
     swipe: bool = False
+    #: The YouTube channel its texts come from, where the file names one
+    #: (`"channel": "https://www.youtube.com/@…"`): a Library row of it then offers
+    #: Subscribe, which is a subscription to that channel confirmed on targum's own page
+    #: (design.md §12, "A channel or a podcast is subscribed to", 2026-10-09). Empty for
+    #: everything else, which is most collections.
+    channel: str = ""
 
     def name_in(self, code: str) -> str:
         """The collection's name for somebody reading the interface in `code`, and the
@@ -402,6 +408,7 @@ class Collection:
             "ordered": self.ordered,
             "door": self.door,
             "swipe": self.swipe,
+            "channel": self.channel,
         }
 
 
@@ -826,6 +833,7 @@ def _collection(raw: dict[str, Any]) -> Collection:
         named=_said_in(raw.get("named")),
         blurbs=_said_in(raw.get("blurbs")),
         swipe=bool(raw.get("swipe", False)),
+        channel=str(raw.get("channel") or ""),
     )
 
 

@@ -12,14 +12,14 @@
  */
 
 .tanakh .tanakh-lede {
-  margin: 0;
+  margin: -0.75rem 0 1.5rem;
   max-inline-size: 34rem;
   color: var(--ink);
 }
 .tanakh .tanakh-sum {
-  margin: 0;
-  font-family: var(--reading);
-  font-size: 1.0625rem;
+  margin: 0 0 1rem;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
@@ -27,7 +27,7 @@
 
 /* Map or the list of books (board LibraryTanakh): where you are is the desk's teal on
    its wash, as the Library's Cards and List are; the other is a link. */
-.tanakh .tanakh-views { display: flex; gap: 0.25rem; margin: 0 0 0.75rem; font-family: var(--chrome); font-size: 0.8125rem; }
+.tanakh .tanakh-views { display: flex; gap: 0.25rem; margin: 0; font-family: var(--chrome); font-size: 0.875rem; }
 .tanakh .tanakh-view {
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
@@ -102,7 +102,7 @@
   display: grid;
   gap: 1.5rem;
 }
-.tanakh .tanakh-part h2 { margin-block-end: 0.75rem; }
+.tanakh .tanakh-part h2 { margin-block-end: 0.75rem; font-family: var(--reading); font-size: 1.25rem; font-weight: 500; }  /* the serif, as board LibraryTanakh heads Torah */
 .tanakh .tanakh-books {
   display: flex;
   flex-wrap: wrap;
@@ -201,6 +201,9 @@
 
 /* A phone: seven-pixel squares, as the issue asks, and three books to a row. */
 @media (max-width: 40rem) {
+  /* The year's line on a line of its own, one line tall whatever it says, so a tick
+     pointed at never moves the strip under the pointer. */
+  .tanakh .year-said { flex-basis: 100%; text-align: start; }
   .tanakh .cell { --cell: 7px; border-radius: 0; }
   .tanakh .tanakh-cells { grid-template-columns: repeat(10, 7px); gap: 1px; }
   .tanakh .tanakh-books { gap: 0.9rem 1rem; }
@@ -222,8 +225,16 @@
    lights — wear a ring in the soft ink, so the shade under a chapter still reads. */
 /* Its own card above the map's since 2026-10-09 (board LibraryTanakh). */
 .tanakh .tanakh-year { margin: 0 0 1rem; }
-.tanakh .year-head {
+.tanakh .year-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
   margin: 0 0 0.6rem;
+}
+.tanakh .year-head {
+  margin: 0;
   font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--ink-soft);
@@ -247,9 +258,16 @@
 .tanakh .year-tick.week.lit { box-shadow: inset 0 0 0 2px var(--card); }
 .tanakh .year-tick:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .tanakh .cell.lit { box-shadow: inset 0 0 0 2px var(--ink-soft); }
+.tanakh .year-said strong { color: var(--ink); font-weight: 600; }
 .tanakh .year-said {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
   min-block-size: 1.4em;
-  margin: 0.4rem 0 0;
+  overflow: hidden;
+  text-align: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
   font-family: var(--chrome);
   font-size: 0.875rem;
   color: var(--ink-soft);

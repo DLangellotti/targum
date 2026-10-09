@@ -10,13 +10,6 @@
    row can: same information, one line each, and the controls above act on all of them
    as you type. */
 
-.sift {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  margin-block-end: 0.9rem;
-}
 /* The line that says what the list is. Ink, not the soft ink the words page gives a
    note: for a reader who cannot yet read the titles it is the primary sentence on the
    page, and §9 keeps muted for secondary content. As `.lead` it sits under the heading,
@@ -299,30 +292,6 @@
   font-variant-numeric: tabular-nums;
   font-size: 0.6875rem;
 }
-
-/* How much of a text a reader would have to look up, drawn rather than named: the
-   number is a share, and a share is a length. Ink, not a hue — this is neither
-   progress nor achievement, and §9 rations the hue to where the reader acts. */
-.gauge {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-.gauge .track {
-  flex: none;
-  inline-size: 2rem;
-  block-size: 3px;
-  border-radius: 999px;
-  background: var(--rule);
-  overflow: hidden;
-}
-.gauge .fill {
-  display: block;
-  block-size: 100%;
-  border-radius: 999px;
-  background: var(--ink-soft);
-}
-.rows .row-open:hover .gauge .fill { background: var(--ink); }
 
 /* Empty most of the time — an `auto` track with nothing in it is no width at all. */
 .row-state { color: var(--ink-soft); font-size: 0.6875rem; }
@@ -853,28 +822,6 @@
 }
 .pick select { text-transform: none; letter-spacing: 0; }
 
-/* --- the filters, folded (2026-09-11): the search stays; the rest is behind one word --- */
-.filters { display: contents; }
-.filters > summary {
-  list-style: none;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 600;
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
-  align-self: center;
-}
-.filters > summary::-webkit-details-marker { display: none; }
-/* Its words are the page's, in the page's language, carried on the element. */
-.filters > summary::before { content: attr(data-more); }
-.filters[open] > summary::before { content: attr(data-fewer); }
-.filters > summary:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
-.filters:not([open]) > :not(summary) { display: none; }
-/* One register in front of the reader is no choice: the switch and its label go. */
-.switch-set:has(.seg:empty) { display: none; }
-
 /* --- the audit of 2026-09-14 -------------------------------------------------------- */
 
 /* A title clips itself. The ellipsis used to sit on `.row-title`, an LTR cell, and the
@@ -925,14 +872,6 @@
 .elsewhere a { color: var(--teal); text-underline-offset: 2px; }
 /* The collection's disclosure at a size a pointer can find. */
 .row-fold { font-size: 0.9375rem; }
-
-/* The filters open into rows of their own under the search, and stay put as the search
-   is typed in. They were flex items beside the search, and the moment Clear appeared the
-   whole block reflowed into a column beside it and pushed the field down mid-word. */
-.sift > .find { flex: 1 1 60%; }
-.filters[open] > .switch-set,
-.filters[open] > .chips { flex: 1 1 100%; }
-.clear[hidden] { display: inline-block; visibility: hidden; }
 
 @media (max-width: 46rem) {
   /* A long title wraps to two lines on a phone rather than clipping mid-word. */
@@ -985,76 +924,6 @@
    shape for somebody who already knows what they want. These are the parts that answer
    the other posture: the sentence that says how far the list is narrowed, the row of
    subjects, and the cards themselves. */
-
-/* The sentence above the list. The count is ink because it is a fact the reader is being
-   given; the rest is the quieter voice the page uses for what it is doing. */
-.said {
-  margin: 0 0 0.75rem;
-  color: var(--ink-soft);
-  font-size: 0.9375rem;
-}
-.said .count { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.fit { display: inline-flex; align-items: center; gap: 0.3rem; }
-/* A select drawn as a word you can press, not as a field: it sits inside a sentence, and
-   a boxed control mid-sentence reads as a form. The primary, because it is a control. */
-.fit-pick {
-  border: 0;
-  border-radius: 999px;
-  padding: 0.15rem 0.4rem;
-  background: var(--teal-wash);
-  color: var(--teal);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.fit-pick:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
-
-/* The row of subjects. Bigger than the filter chips below it, because it is navigation
-   rather than a refinement, and it carries a count on each. */
-/* Not `.label`: the table's kind and register cells are `.col.label`, and a bare class
-   of that name leaked a margin, a colour and a size onto every one of them. */
-.chips-label {
-  margin: 0 0 0.4rem;
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.chips.subjects { gap: 0.35rem; margin-block-end: 1rem; }
-.chips.subjects .chip {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.875rem;
-  display: inline-flex;
-  gap: 0.35rem;
-  align-items: baseline;
-}
-.chip-n { font-size: 0.8125rem; opacity: 0.66; font-variant-numeric: tabular-nums; }
-
-/* How the list is ordered and which shape it is in, as quiet words at the end of the
-   controls. They sit together and wrap together: two groups that broke onto separate
-   lines read as two unrelated rows, and they are one question asked twice — what order,
-   and in what shape. `margin-inline-start: auto` on the first puts both at the far end
-   on a wide row and does nothing once the row wraps. */
-.shape { display: flex; gap: 0.2rem; align-items: center; }
-#sorts { margin-inline-start: auto; }
-/* A hairline between the two groups, so "Words you know" and "Cards" are not read as one
-   list of five. Drawn on the second group so it never shows when the first is hidden —
-   which it is under the table, where the headings say the order already. */
-#sorts:not([hidden]) + #shape {
-  padding-inline-start: 0.5rem;
-  border-inline-start: 1px solid var(--hairline);
-}
-.shape button {
-  border: 0;
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
-  background: none;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-.shape button[aria-pressed="true"] { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
 
 /* The grid. `auto-fill` rather than a fixed count, so one rule serves a phone, a laptop
    and the television §13 sizes the rem for. */
@@ -1202,7 +1071,7 @@
    beats the `hidden` attribute, so hiding them in the script alone hid nothing: the doors
    stood under a row of subject chips, three sorts and a Cards/List switch with no list to
    act on (found by opening it, 2026-09-19). */
-.chips.subjects[hidden], #sorts[hidden], #shape[hidden], .crumbs[hidden] { display: none; }
+.crumbs[hidden] { display: none; }
 
 /* A door is a card among the cards (§13: raised by its shadow, not by a line), and a
    press rather than a link: it opens where it stands. The Hebrew name leads in the
@@ -1237,6 +1106,7 @@
 .crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; margin: 0 0 0.75rem; font-family: var(--chrome); font-size: 0.9375rem; }
 .crumbs[hidden] { display: none; }
 .crumbs .crumb { color: var(--ink); }
+.crumbs .row-sub { inline-size: auto; margin-inline-start: auto; }
 .crumbs .crumb-map { margin-inline-start: auto; text-decoration: underline; text-underline-offset: 0.15em; }
 .crumbs button.crumb {
   padding: 0.2rem 0;
@@ -1266,12 +1136,10 @@
 /* The strip is links (one of them is another page), drawn as the desk's `.tabs`. */
 
 /* §8 under a thumb (2026-09-27): the tabs and the way back out of a series were
-   30-36px, and none was in the registry. The Library's Filters
-   too. */
+   30-36px, and none was in the registry. */
 @media (hover: none) and (pointer: coarse) {
   .yours-tabs .tab,
-  .series-back,
-  .filters > summary { min-block-size: 44px; display: inline-flex; align-items: center; }
+  .series-back { min-block-size: 44px; display: inline-flex; align-items: center; }
 }
 
 /* Inside a series: the way back, and its name. */
@@ -1565,81 +1433,386 @@
   .band-all, .see-back a { display: inline-block; min-block-size: 44px; line-height: 44px; }
 }
 
-/* The Tanakh's door, at the head of the Hebrew shelves (design.md §12, "The Tanakh map is
-   a door in the Library", 2026-10-09). A pill in the desk's working teal, its Hebrew name
-   in the reading face, and what is behind it in a quieter voice. */
-.band-doors { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.band-door {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  padding: 0.45rem 0.95rem;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
-  text-decoration: none;
-}
-.band-door:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
-.band-door:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.band-door-name { font-family: var(--reading-hebrew); font-size: 1.0625rem; color: var(--ink); }
-.band-door-english { font-size: 0.9375rem; font-weight: 600; }
-.band-door-says { font-size: 0.8125rem; color: var(--ink-soft); }
-@media (max-width: 40rem) { .band-door-says { display: none; } }
-@media (hover: none) and (pointer: coarse) { .band-door { min-block-size: 44px; align-items: center; } }
 
-/* --- See all, in short rows (design.md §12, "See all says what each text is",
-   2026-10-09; boards SeeAllDesk and SeeAllPhone). One text a line, scanned down rather
-   than across: the picture, the title with its English, what it is and how long, the
-   catalogue's own sentence about it in two lines at most, and at the end how much of it
-   the reader would follow. The rows sit in the panel as rows do, hairlines between them,
-   and a hovered one takes the row wash (§8). The doors keep their grid. */
-.cards:not(:has(> .door-item)) { grid-template-columns: minmax(0, 1fr); gap: 0; }
-.cards:not(:has(> .door-item)) > li + li { border-block-start: 1px solid var(--hairline); }
-.cards .card {
-  display: grid;
-  grid-template-columns: 3.4rem minmax(0, 1fr) 7.5rem;
-  column-gap: 1rem;
-  row-gap: 0.1rem;
-  align-items: start;
-  padding: 0.7rem 0.5rem;
-  border-radius: var(--radius-row);
-  background: none;
-  box-shadow: none;
+/* --- The Library as the boards draw it (design.md §12, "The Library stands on the
+   ground", 2026-10-09; boards Library, LibraryPhone, SeeAllDesk, SeeAllPhone and
+   SubFromLibrary). The search is a field on the ground, the kind doors are pills under
+   it, each shelf is a row of cards on the ground with its serif head, and See all is one
+   card holding a table, fifty rows at a time. */
+
+/* The search: its own field on the ground, the board's 17px in a 12px-cornered well on
+   the card's paper with the rule round it. */
+.lib-find {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 0 0 1rem;
 }
-.cards .card:hover { box-shadow: none; background: color-mix(in srgb, var(--accent) 7%, transparent); }
-.cards .card-cover { grid-column: 1; grid-row: 1 / span 4; }
-.cards .card-what { display: contents; }
-.cards .card-what > * { grid-column: 2; min-inline-size: 0; }
-.card-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.6rem; min-inline-size: 0; }
-.card-head .card-title { max-inline-size: 100%; }
-.card-head .card-english { flex: 1 1 8rem; min-inline-size: 0; font-size: 0.9375rem; }
-.card-blurb {
+.lib-find > .find {
+  flex: 1 1 18rem;
+  min-inline-size: 0;
+  min-block-size: 3.25rem;
+  padding: 0.75rem 1.125rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-row);
+  background: var(--card);
+  font-size: 1.0625rem;
+}
+.see-menus { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.see-menus[hidden], .lib-doors[hidden], .see-title[hidden], .see-more[hidden] { display: none; }
+
+/* The kind doors: "Browse by kind:", then a pill a door. */
+.lib-doors {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 2rem;
+  min-inline-size: 0;
+}
+.lib-doors-label { flex: none; font-size: 0.8125rem; color: var(--ink-soft); }
+.lib-doors-row { display: flex; flex-wrap: wrap; gap: 0.5rem; min-inline-size: 0; }
+.lib-door {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.lib-door:hover { border-color: var(--ink-soft); }
+.lib-door:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lib-door-hebrew { font-family: var(--reading-hebrew); font-size: 0.9375rem; }
+
+/* A shelf: its serif head and See all, the note under it, and five cards on the ground. */
+.shelves { gap: 2.5rem; margin-block: 0 1rem; }
+.band-head .band-all { font-size: 0.875rem; }
+.band-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  overflow: visible;
+}
+.band-item { inline-size: auto; min-inline-size: 0; }
+.band-card {
+  flex: 1 1 auto;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  transition: box-shadow 0.18s ease;
+}
+.band-card:hover { box-shadow: var(--shadow-raised); }
+@media (prefers-reduced-motion: reduce) { .band-card { transition: none; } }
+.band-cover .band-thumb,
+.band-mosaic { block-size: 11.25rem; box-shadow: none; border-radius: var(--radius-control); }
+.band-card:hover .band-thumb,
+.band-card:hover .band-mosaic { box-shadow: none; }
+.band-cover { margin-block-end: 0.4rem; }
+.band-title { font-size: 1.0625rem; margin-block: 0.15rem 0.35rem; }
+.band-known { margin-block-start: auto; font-weight: 600; }
+.band-known.unmeasured { font-weight: 400; }
+.portions { margin: 0 0 1rem; }
+.portions-head { font-family: var(--reading); font-size: 1.5rem; font-weight: 500; }
+
+/* See all's head: the way back, then the list's name in the serif and its count. */
+body.is-seeing .page-head { display: none; }
+.see-back { margin: 0 0 0.5rem; font-size: 0.875rem; }
+.see-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  font-family: var(--reading);
+  font-size: 1.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.see-title-count {
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A menu: the pill that says what it is set to, and the short list under it. */
+.see-menu { position: relative; }
+.see-menu-press {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-block-size: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.see-menu-press::after { content: "\25be"; margin-inline-start: 0.35rem; font-size: 0.6875rem; color: var(--ink-soft); }
+.see-menu-press:hover { border-color: var(--ink-soft); }
+.see-menu-press[aria-expanded="true"] { border-color: var(--teal); }
+.see-menu-press:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.see-menu-label { color: var(--ink-soft); }
+.see-menu-value { font-weight: 600; }
+.see-menu-list {
+  position: absolute;
+  inset-block-start: calc(100% + 0.375rem);
+  inset-inline-end: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 12rem;
+  padding: 0.375rem;
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+.see-menu-list[hidden] { display: none; }
+.see-menu-item {
+  display: block;
+  inline-size: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.see-menu-item:hover,
+.see-menu-item:focus-visible { background: var(--teal-wash); outline: none; }
+.see-menu-item[aria-checked="true"] { color: var(--teal); font-weight: 600; }
+
+/* The table: one card, its heads, a row a text, and the foot. */
+.see-list { padding: 0; overflow: hidden; }
+.see-list[hidden] { display: none; }
+.see-list > .rows-head,
+.see-rows > li > .row-open {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 7.5rem 7.5rem;
+  column-gap: 1rem;
+}
+.see-list > .rows-head {
+  align-items: center;
+  padding: 0.875rem 1.25rem;
+  border-block-end: 1px solid var(--rule);
+}
+.see-list.has-subs > .rows-head { grid-template-columns: 4rem minmax(0, 1fr) 7.5rem 7.5rem 7rem; }
+.see-list > .rows-head button,
+.see-head-sub {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: start;
+  cursor: pointer;
+}
+.see-list > .rows-head button:hover { background: none; color: var(--ink); }
+.see-list > .rows-head button[aria-sort] { background: none; color: var(--teal); font-weight: 600; }
+.see-list > .rows-head .see-head-known,
+.see-head-sub { justify-self: end; text-align: end; }
+.see-head-sub { cursor: default; }
+.see-rows > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 0;
+  border-block-start: 1px solid var(--rule);
+}
+.see-rows > li:first-child { border-block-start: 0; }
+.see-rows > li:hover { background: color-mix(in srgb, var(--teal) 5%, transparent); }
+.see-rows > li > .row-open {
+  flex: 1 1 0;
+  align-items: start;
+  row-gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+.see-rows > li > .row-open:hover { background: none; }
+.see-rows > li > .row-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.see-pic { position: relative; grid-row: 1 / span 2; display: block; }
+.see-pic .thumb {
+  position: relative;
+  inline-size: 4rem;
+  block-size: 4rem;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+}
+.see-pic .thumb img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.see-pic .card-media { inset-block-end: 0.2rem; inset-inline-end: 0.2rem; }
+.see-pic.row-fold {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 4rem;
+  block-size: 4rem;
+  border-radius: var(--radius-control);
+  background: var(--field);
+  color: var(--ink-soft);
+  font-size: 1.25rem;
+}
+.see-rows .what {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.6rem;
+  row-gap: 0.2rem;
+  min-inline-size: 0;
+}
+.see-rows .row-title { display: inline-flex; align-items: baseline; gap: 0.5rem; max-inline-size: 100%; }
+.see-rows .row-title .row-name { font-family: var(--reading-hebrew); font-size: 1.25rem; line-height: 1.3; color: var(--ink); }
+.see-rows .row-title:not(:lang(he)):not(:lang(yi)):not(:lang(arc)) .row-name { font-family: var(--reading); }
+.see-rows .row-english {
+  display: inline;
+  min-inline-size: 0;
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.see-rows .row-meta,
+.see-rows .row-blurb { flex: 1 1 100%; min-inline-size: 0; }
+.see-rows .row-meta { display: block; color: var(--ink-soft); font-family: var(--chrome); font-size: 0.8125rem; }
+.see-rows .row-blurb {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+  color: var(--ink);
+  font-family: var(--chrome);
   font-size: 0.9375rem;
   line-height: 1.45;
-  color: var(--ink);
 }
-/* How much of it the reader would follow, at the row's end: the figure over its bar. */
-.cards .card-what > .card-known {
-  grid-column: 3;
-  grid-row: 1 / span 3;
-  margin: 0;
-  padding: 0.2rem 0 0;
-  align-items: end;
+.see-rows .row-new { align-self: center; }
+.see-length {
+  padding-block-start: 0.3rem;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.see-length-kind { display: none; }
+.see-known {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  padding-block-start: 0.3rem;
   text-align: end;
 }
-.cards .card-known-say { font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft); }
-.cards .card-known.near .card-known-say { color: var(--leaf); }
-.cards .card-known-track { inline-size: 5.5rem; }
-.cards .card-known:not(.near) .card-known-track > span { background: var(--ink-soft); }
-/* A collection is a row too, its caret in the picture's column. */
-.cards .card-group { grid-template-columns: 3.4rem minmax(0, 1fr); }
-.cards .card-group .card-fold { grid-column: 1; justify-self: center; }
+.see-known-say {
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.see-known.near .see-known-say { color: var(--leaf); }
+.see-known.unmeasured .see-known-say { font-weight: 400; }
+.see-known .meter { inline-size: 5.5rem; }
+.see-known:not(.near) .meter > span { background: var(--ink-soft); }
+.see-rows .row-state { grid-column: 2 / -1; }
+.see-rows .row-state:empty { display: none; }
+.row-sub { flex: none; inline-size: 7rem; display: flex; justify-content: flex-end; }
+/* A row with nothing to subscribe to keeps the column, so its figures stand under their
+   heads with the rows that have one. */
+.see-list.has-subs .see-rows > li:not(:has(> .row-sub)) > .row-open { margin-inline-end: 8rem; }
+.see-rows > li > .draw,
+.see-rows > li > .row-go,
+.see-rows > li > .row-not { flex: none; }
+.see-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  border-block-start: 1px solid var(--rule);
+}
+.see-foot .tally { margin: 0; font-size: 0.8125rem; }
+.see-list > .empty { margin: 0; padding: 1.25rem; }
+
+@media (max-width: 64rem) {
+  .band-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .band-cards > li:nth-child(n + 4) { display: none; }
+}
 @media (max-width: 40rem) {
-  .cards .card { grid-template-columns: 3rem minmax(0, 1fr); column-gap: 0.75rem; padding-inline: 0.25rem; }
-  .cards .card-cover .thumb { inline-size: 3rem; block-size: 4rem; }
-  .cards .card-what > .card-known { grid-column: 2; grid-row: auto; align-items: start; text-align: start; }
+  .lib-find > .find { flex-basis: 100%; min-block-size: 3rem; }
+  .see-menus { flex-wrap: nowrap; gap: 0.375rem; }
+  .see-menu-press { padding: 0 0.75rem; font-size: 0.8125rem; }
+  .see-menu:first-child .see-menu-list { inset-inline-end: auto; inset-inline-start: 0; }
+  .lib-doors { margin-block-end: 1.5rem; }
+  .lib-doors-label { display: none; }
+  .lib-doors-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-block: 2px;
+  }
+  .lib-doors-row::-webkit-scrollbar { display: none; }
+  .band-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+  .band-cards > li:nth-child(n + 3) { display: none; }
+  .band-cover .band-thumb, .band-mosaic { block-size: 9.375rem; }
+  .see-title { font-size: 1.5rem; }
+  .see-list > .rows-head { grid-template-columns: minmax(0, 1fr) auto; padding: 0.75rem 1rem; }
+  .see-list.has-subs > .rows-head { grid-template-columns: minmax(0, 1fr) auto; }
+  .see-list > .rows-head .see-head-pic,
+  .see-list > .rows-head .see-head-minutes,
+  .see-head-sub { display: none; }
+  .see-rows > li { gap: 0.5rem 0.75rem; padding: 0.875rem 1rem; }
+  .see-rows > li > .row-open { grid-template-columns: 4rem minmax(0, 1fr) auto; column-gap: 0.75rem; }
+  .see-pic { grid-row: 1 / span 2; }
+  .see-rows .what { grid-column: 2 / -1; }
+  .see-length { grid-column: 2; padding: 0; font-size: 0.8125rem; }
+  .see-known { grid-column: 3; padding: 0; }
+  .see-known .meter { display: none; }
+  .see-rows .row-english { flex: 1 1 100%; }
+  .see-rows .row-meta { display: none; }
+  .see-length-kind { display: inline; }
+  .row-sub { inline-size: auto; margin-inline-start: 4.75rem; }
+  .see-list.has-subs .see-rows > li:not(:has(> .row-sub)) > .row-open { margin-inline-end: 0; }
+  .see-foot { padding: 0.75rem 1rem; justify-content: center; flex-direction: column; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .lib-door,
+  .see-menu-press,
+  .see-menu-item { min-block-size: 44px; }
 }

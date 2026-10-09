@@ -23,109 +23,72 @@
 <main>
   {#- One list, not two. What the reader has built and what is waiting to be built are
       the same question — what shall I read — and splitting them into a shelf and a
-      catalogue meant answering it twice, in two different shapes. -#}
-  {#- The catalogue, which is everybody's. The reader's own texts were a second tab here,
-      Your uploads, until 2026-09-25, and are on Your targums now (design.md §12, "Yours
-      and everyone's"). The tab strip stays for the Beit Midrash, and is hidden where it
-      would hold one tab. -#}
-  <div class="tabs" id="where" role="tablist" aria-label="{{ t("library.page.which-texts", "Which texts") }}"></div>
+      catalogue meant answering it twice, in two different shapes. The reader's own texts
+      are on Your targums (design.md §12, "Yours and everyone's", 2026-09-25). -#}
 
-  <section class="panel" id="picked">
-    {#- The way back from a See all list to the shelves. -#}
-    <p class="see-back" id="see-back" hidden><a href="/library" id="see-back-link"><span aria-hidden="true">←</span> {{ t("nav.library", "Library") }}</a></p>
+  {#- See all's own head (board SeeAllDesk): the way back to the shelves, then the list's
+      name in the serif with how many texts it holds — "All Hebrew texts 720", or the
+      band it was opened from. The shell's "Library" stands down while it is up. -#}
+  <p class="see-back" id="see-back" hidden><a href="/library" id="see-back-link"><span aria-hidden="true">←</span> {{ t("nav.library", "Library") }}</a></p>
+  <h2 class="see-title" id="see-title" hidden></h2>
 
-    <p class="note" id="picked-note">{{ t("library.page.tap-a-text-to-read-it", "Tap a text to open it.") }}</p>
+  {#- The search on the ground, the field the board draws (Library, SeeAllDesk), and on
+      See all the three menus beside it: kind, level, language. Nothing else to choose
+      before you start (design.md §12, "The Library stands on the ground"). The box is
+      the one search, opened already held to the Library (design.md §12, "One search,
+      everywhere", 2026-10-09): pressing it opens the search over the page. -#}
+  <div class="lib-find" id="lib-find">
+    <input
+      id="find" class="well find" type="search" dir="auto" autocomplete="off" spellcheck="false"
+      placeholder="{{ t("library.page.search-box", "Search the Library") }}" aria-label="{{ t("library.page.search-box", "Search the Library") }}" aria-haspopup="dialog" aria-controls="palette">
+    <div class="see-menus" id="see-menus" hidden></div>
+  </div>
 
-    {#- How many texts there are, and how much of them is being shown — with the second
-        half of that sentence as the control (design.md §12, 2026-09-17). "I want to be
-        able to immediately choose a reading AT MY LEVEL" is answered by the list opening
-        already narrowed and saying so, rather than by a filter that could be found. -#}
-    <p class="said" id="said"></p>
-    {#- Where you are in the Beit Midrash, once inside a door (targum-internal#340). -#}
-    <nav class="crumbs" id="crumbs" aria-label="{{ t("library.page.where-you-are", "Where you are") }}" hidden></nav>
+  {#- The kind doors (board Library: "Browse by kind"): the Tanakh's map, then News,
+      Video, Books, the Weekly portion, the Mishnah and the rest of the Jewish texts — each
+      a door to a place that already exists. Drawn by `library.js`. -#}
+  <nav class="lib-doors" id="lib-doors" aria-label="{{ t("library.doors", "Browse by kind") }}" hidden></nav>
 
-    {#- What the texts are about. The row a reader browses by, above everything that
-        narrows: drawn from the subjects that have rows behind them, never from the
-        catalogue's whole vocabulary, and each one carrying its count. -#}
-    <p class="chips-label" id="subject-label">{{ t("library.page.what-its-about", "What it's about") }}</p>
-    <div class="chips subjects" id="subject-chips" role="group" aria-label="{{ t("library.page.what-its-about", "What it's about") }}"></div>
+  {#- Where you are in the Jewish texts, once inside a door (targum-internal#340). -#}
+  <nav class="crumbs" id="crumbs" aria-label="{{ t("library.page.where-you-are", "Where you are") }}" hidden></nav>
+  <p class="note" id="picked-note" hidden></p>
 
-    {#- The search box is the one search, opened already held to the Library (design.md
-        §12, "One search, everywhere", 2026-10-09): pressing it opens the search over the
-        page, where it narrowed this list in place until that day. -#}
-    <div class="sift">
-      <input
-        id="find" class="well find" type="search" dir="auto" autocomplete="off" spellcheck="false"
-        placeholder="{{ t("library.page.search-box", "Search the Library") }}" aria-label="{{ t("library.page.search-box", "Search the Library") }}" aria-haspopup="dialog" aria-controls="palette">
-      {#- The Hebrew of the Mishnah, of Maimonides, of Mendele and of this morning's paper
-          are not four genres, they are close to four languages, and which one somebody is
-          learning is the first question this page asks. A switch with its own label rather
-          than a third row of pills: as pills it sat beside the kind filter with a second
-          chip also saying "All", and the two read as one row of ten. -#}
-      {#- The filters, folded behind one word (2026-09-11): the search is the page; the
-          rest opens when asked. A `details`, so it needs no script and keeps its state
-          on the page. -#}
-      <details class="filters" id="filters">
-        <summary aria-label="{{ t("library.page.filters", "Filters") }}"
-                 data-more="{{ t("library.page.filters", "Filters") }}"
-                 data-fewer="{{ t("library.page.fewer-filters", "Fewer filters") }}"></summary>
-      <div class="switch-set">
-        <span class="switch-label">{{ t("library.page.which-hebrew", "Which Hebrew") }}</span>
-        <div class="seg" id="register-chips" role="group" aria-label="{{ t("library.page.which-hebrew", "Which Hebrew") }}"></div>
-      </div>
-      <div class="chips" id="kind-chips" role="group" aria-label="{{ t("library.page.what-it-is", "What it is") }}"></div>
-      {#- "Media", since the answers are audio and video: a select called "Audio"
-          offering "With video" was a label contradicting its own list. -#}
-      <label class="pick"><span>{{ t("library.page.media", "Media") }}</span><select class="well" id="audio"></select></label>
-      <label class="pick"><span>{{ t("library.page.length", "Length") }}</span><select class="well" id="length"></select></label>
-      {#- One name for one measure: the column below is "Level", and a select called
-          "Difficulty" over it was two names for the same number. -#}
-      <label class="pick"><span>{{ t("library.page.hard-words", "Level") }}</span><select class="well" id="difficulty"></select></label>
-      <button type="button" class="clear" id="clear" hidden>{{ t("library.page.clear", "Clear") }}</button>
-      </details>
-      {#- How the list is ordered, for the shape that has no columns to press: a grid of
-          cards with no way to reorder itself is a grid you can only scroll. It writes the
-          same sort the table's headings do, and it is hidden under the table, where those
-          headings say it already. -#}
-      <div class="shape" id="sorts" role="group" aria-label="{{ t("library.page.order-them-by", "Order them by") }}"></div>
-      {#- Cards or the table. The grid is how the page is browsed; the table is what it
-          was, kept one press away because the complaint that retired the last card grid
-          — that a card cannot be sorted — was a fair one. The choice is remembered. -#}
-      <div class="shape" id="shape" role="group" aria-label="{{ t("library.page.how-to-show-them", "How to show them") }}"></div>
+  {#- The shelves, where the Library lands (design.md §12, "The Library is shelved by
+      how much you'd follow", 2026-10-09): one row of texts for each band — Read it now,
+      A stretch, Hard for now — and targum's own playlists, each a row of cards on the
+      ground with a See all that is the list under that band. Drawn by `library.js`. -#}
+  <div class="shelves" id="shelves" hidden></div>
+  {#- The Weekly portion (targum-internal#411): this Shabbat's first, then the year onward
+      from it. Among the Library's shelves, because "which portion is it this week" is
+      asked every week and the list cannot answer it. Every card opens the portion's reader, which is
+      built for everybody, so nothing here builds or spends (#410). Drawn by
+      `library.js` from `/portions`, and only on the Hebrew shelf. -#}
+  <section class="portions" id="portions" aria-labelledby="portions-head" hidden>
+    <div class="portions-top">
+      <h2 class="section-title portions-head" id="portions-head">{{ t("library.page.weekly-portion", "Weekly portion") }} <bdi class="portions-hebrew" lang="he" dir="rtl">פרשת השבוע</bdi></h2>
+      <div class="seg" id="portion-schedule" role="group" aria-label="{{ t("library.page.which-calendar", "Which calendar") }}" hidden></div>
     </div>
-
-    {#- The shelves, where the Library lands (design.md §12, "The Library is shelved by
-        how much you'd follow", 2026-10-09): one row of texts for each band — Read it now,
-        A stretch, Hard for now — and targum's own playlists, each band with a See all
-        that is the list below under that band. Drawn by `library.js`. -#}
-    <div class="shelves" id="shelves" hidden></div>
-    {#- The Weekly portion (targum-internal#411): this Shabbat's first, then the year onward
-        from it. Among the Library's shelves, because "which portion is it this week" is
-        asked every week and the list cannot answer it. Every card opens the portion's reader, which is
-        built for everybody, so nothing here builds or spends (#410). Drawn by
-        `library.js` from `/portions`, and only on the Hebrew shelf. -#}
-    <section class="portions" id="portions" aria-labelledby="portions-head" hidden>
-      <div class="portions-top">
-        <h2 class="portions-head" id="portions-head">{{ t("library.page.weekly-portion", "Weekly portion") }} <bdi class="portions-hebrew" lang="he" dir="rtl">פרשת השבוע</bdi></h2>
-        <div class="seg" id="portion-schedule" role="group" aria-label="{{ t("library.page.which-calendar", "Which calendar") }}" hidden></div>
-      </div>
-      <ol class="portion-cards" id="portion-cards"></ol>
-    </section>
-
-    {#- Two shapes over one list: whichever is on is filled and the other is emptied, so
-        nothing is ever drawn twice. The heading belongs to the table and is hidden with
-        it — over a grid it is a row of sort buttons pointing at columns nobody can see. -#}
-    <ul class="cards" id="cards"></ul>
-    <div class="rows-head" id="rows-head" role="row"></div>
-    <ul class="rows" id="catalogue"></ul>
-    <p class="empty" id="picked-empty" hidden></p>
-    <p class="tally" id="tally"></p>
+    <ol class="portion-cards" id="portion-cards"></ol>
   </section>
 
+  {#- The doors of the Jewish texts, as cards on the ground. -#}
+  <ul class="cards" id="cards" hidden></ul>
+
+  {#- See all, and a door's list: one card holding a table of rows (board SeeAllDesk) —
+      the column heads, a row a text, and at its foot how many are showing, in what
+      order, and Show more. Fifty at a time. -#}
+  <section class="card see-list" id="picked" hidden>
+    <div class="rows-head" id="rows-head" role="row"></div>
+    <ul class="rows see-rows" id="catalogue"></ul>
+    <p class="empty" id="picked-empty" hidden></p>
+    <div class="see-foot" id="see-foot">
+      <p class="tally" id="tally"></p>
+      <button type="button" class="btn text see-more" id="see-more" hidden>{{ t("library.see.more", "Show more") }}</button>
+    </div>
+  </section>
 
   {#- Somebody who has just failed to find what they wanted is exactly who needs the
-      add page. A link, not a form: this page's job is browsing, and a pricing-and-
-      progress flow living inside it would have made both jobs worse. -#}
+      add page. A link, not a form: this page's job is browsing. -#}
   <p class="elsewhere">{{ t("library.page.not-here", "Not here?") }} <a href="/add">{{ t("library.page.upload-your-own", "Upload your own") }}</a>.</p>
 </main>
 {% include '_foot.html.j2' %}
@@ -144,6 +107,7 @@ window.TARGUM_SETS = {{ sets|tojson }};
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
+<script>{{ asset('subscribe.js') }}</script>
 <script>{{ asset('library.js') }}</script>
 </body>
 </html>

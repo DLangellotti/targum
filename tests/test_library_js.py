@@ -106,9 +106,9 @@ def test_every_hebrew_text_is_counted_whether_or_not_it_has_a_row(tmp_path: Path
     drawn = draw(tmp_path)
 
     hebrew = [entry for entry in CATALOGUE if entry.language.startswith("he")]
-    assert drawn["tally"] == f"{len(hebrew)} texts"
+    assert drawn["tally"] == f"{len(hebrew)} texts · easiest first"
     assert len(drawn["rows"]) < len(hebrew), "the shelf is folded"
-    assert drawn["columns"][:2] == ["Text", "Kind"]
+    assert drawn["columns"] == ["Text", "Length", "% known ↓"]
 
 
 def test_the_page_says_its_words_in_the_readers_language(tmp_path: Path) -> None:
@@ -131,7 +131,7 @@ def test_the_page_says_its_words_in_the_readers_language(tmp_path: Path) -> None
             },
         },
     )
-    assert drawn["columns"][:2] == ["Текст", "Kind"]
+    assert drawn["columns"][:2] == ["Текст", "Length"]
     form = {"one": "текст", "few": "текста", "many": "текстов", "other": "текста"}
     last, tens = hebrew % 10, hebrew % 100
     rule = (
@@ -141,7 +141,7 @@ def test_the_page_says_its_words_in_the_readers_language(tmp_path: Path) -> None
         if 2 <= last <= 4 and not 12 <= tens <= 14
         else "many"
     )
-    assert drawn["tally"] == f"{hebrew} {form[rule]}"
+    assert drawn["tally"] == f"{hebrew} {form[rule]} · easiest first"
 
 
 # -- collections --------------------------------------------------------------
@@ -153,7 +153,7 @@ def test_a_collection_is_one_row_until_it_is_opened(tmp_path: Path) -> None:
     shut = draw(tmp_path)
     folded = next(row for row in shut["rows"] if row["group"] == "tanakh")
     assert folded["title"] == "תנ״ך"
-    assert folded["after"] == " · 6 texts"
+    assert folded["meta"] == "6 texts"
     assert folded["expanded"] == "false"
     assert not any(row["title"] == "רות" for row in shut["rows"])
 
@@ -259,17 +259,16 @@ def test_being_sent_to_a_text_opens_the_collection_holding_it(tmp_path: Path) ->
 def test_a_collection_carries_what_its_texts_agree_on(tmp_path: Path) -> None:
     drawn = draw(tmp_path)
     tanakh = next(row for row in drawn["rows"] if row["group"] == "tanakh")
-    assert tanakh["cells"][0] == "", "narrative and poetry agree about nothing"
-    assert tanakh["cells"][1] == "Biblical"
-    herzl = next(row for row in drawn["rows"] if row["group"] == "by-herzl")
-    assert herzl["cells"][1] == "Revival"
+    assert tanakh["meta"] == "6 texts", "narrative and poetry agree about no kind"
+    scenes = next(row for row in drawn["rows"] if row["group"] and row["title"] == "סצנות")
+    assert scenes["meta"].startswith("Dialogue · "), "dialogues agree, and say so"
 
 
 def test_a_collection_is_as_long_as_its_texts_together(tmp_path: Path) -> None:
     """A row that says how much there is, so a reader can tell a shelf from a text."""
     drawn = draw(tmp_path)
     herzl = next(row for row in drawn["rows"] if row["group"] == "by-herzl")
-    assert herzl["cells"][2].endswith("hr"), "eighty-five thousand words is not minutes"
+    assert herzl["length"] == "85,000 words", "its texts' words, added up"
 
 
 def test_a_row_carries_what_the_filters_sort_on(tmp_path: Path) -> None:
@@ -277,17 +276,16 @@ def test_a_row_carries_what_the_filters_sort_on(tmp_path: Path) -> None:
     or the filters and the rows are describing different things."""
     row = next(r for r in draw(tmp_path, unfolded=True)["rows"] if r["title"] == "תהילים")
 
-    assert row["cells"][0] == "Poetry"
-    assert row["cells"][1] == "Biblical"
-    assert row["cells"][2].endswith("hr"), "a hundred and fifty psalms is not minutes"
-    assert row["cells"][3].endswith("%"), "how much of it you would look up"
+    assert row["meta"].startswith("Poetry")
+    assert row["kind"] == "Poetry", "said again beside the length on a phone"
+    assert row["length"].endswith("words"), "a text's length is its words (board SeeAllDesk)"
+    assert row["known"] == "Not measured yet", "nothing measured is not 0%"
 
 
 @pytest.mark.parametrize(
     ("view", "expected"),
     [
         ({"kind": "novel"}, {"ספר הקבצנים", "תל־אביב"}),
-        ({"register": "biblical", "level": "easy"}, {"אסתר", "קהלת"}),
         ({"kind": "document"}, {"מגילת העצמאות", "הכרזת העצמאות של ארצות הברית"}),
     ],
 )
@@ -345,7 +343,7 @@ def test_a_view_stored_on_your_uploads_keeps_its_band_on_all_texts(tmp_path: Pat
     """Your uploads never had a band. The tab is gone, and the view it left behind is
     All texts, which does (2026-09-25)."""
     drawn = draw(tmp_path, view={"where": "mine", "fit": "now"})
-    assert drawn["fitOn"] == "you can read now"
+    assert drawn["fitOn"] == "Read it now"
 
 
 def test_a_text_you_have_opens_and_one_you_do_not_is_a_button(tmp_path: Path) -> None:
@@ -397,18 +395,15 @@ def test_the_list_opens_on_what_a_learner_can_read_now(tmp_path: Path) -> None:
     first and the easiest one is at the top."""
     from targum.catalogue import CATALOGUE
 
-    rows = draw(tmp_path, unfolded=True)["rows"]
+    drawn = draw(tmp_path, unfolded=True)
     # The rows the sort actually acts on. A collection's members follow their own order
-    # inside it, so the list as drawn interleaves two orders — see `within()`.
-    shares = [int(row["cells"][3].rstrip("%")) for row in rows if not row["member"]]
-    assert shares == sorted(shares), "easiest first"
-
-    # Zero is a measurement on a catalogue text — a twenty-word scene with no uncommon
-    # word in it — so the easiest texts in the library read "0%" rather than reading "—"
-    # and being anybody's guess. They no longer lead the list: they are scenes, the scenes
-    # are one row, and a collection's share is the middle of its own texts.
-    assert min(entry.difficulty for entry in CATALOGUE if entry.language.startswith("he")) == 0
-    assert all(row["cells"][3] == "0%" for row in rows if row["title"] in {"בבית קפה", "שני קפה"})
+    # inside it, so the list as drawn interleaves two orders — see `within()`. With no
+    # words marked, "% known, high to low" is the texts' own words standing in.
+    hard = {entry.title: entry.difficulty for entry in CATALOGUE}
+    loose = [row["title"] for row in drawn["rows"] if not row["member"] and not row["group"]]
+    measured = [hard[title] for title in loose if hard[title] > 0]
+    assert measured == sorted(measured), "easiest first"
+    assert drawn["tally"].endswith("easiest first")
 
 
 def test_the_hardest_column_says_what_it_counts(tmp_path: Path) -> None:
@@ -416,8 +411,8 @@ def test_the_hardest_column_says_what_it_counts(tmp_path: Path) -> None:
     called until the boards named it Level (design.md §12, "A text is named in everyday
     words", 2026-10-09): words rare in the language, not words new to this reader."""
     columns = draw(tmp_path)["columns"]
-    # The sorted column carries its arrow, so this is a prefix rather than an equality.
-    assert any(name.startswith("Level") for name in columns), columns
+    # The board's three (SeeAllDesk); the sorted one carries its arrow.
+    assert columns == ["Text", "Length", "% known ↓"], columns
     assert not any(name.startswith("Hard words") for name in columns), columns
     assert not any(name.startswith("Looked up") for name in columns), columns
 
@@ -426,15 +421,14 @@ def test_only_the_kinds_that_are_actually_there_are_offered(tmp_path: Path) -> N
     """Seven chips where three of them find nothing is seven things to try and four dead
     ends — and one of the dead ends was "Documents", which nobody browses by. What is
     offered is what the rest of the filters leave standing."""
-    assert draw(tmp_path, view={"register": "biblical"})["kinds"] == [
-        "All",
-        "Tanakh",
-        "Poetry",
-    ]
-    modern = draw(tmp_path, view={"register": "modern"})["kinds"]
-    assert "Tanakh" not in modern and "Poetry" not in modern
+    from targum.catalogue import CATALOGUE
+
+    kinds = draw(tmp_path)["kinds"]
+    there = {entry.kind.value for entry in CATALOGUE if entry.language.startswith("he")}
+    assert len(kinds) == len(there) + 1, "All, and one a kind on the shelf"
     # Dialogues first — where a reader with no words starts — then the biggest ones.
-    assert modern[:4] == ["All", "Dialogues", "Stories", "News"]
+    assert kinds[:4] == ["All", "Dialogues", "Stories", "News"]
+    assert "Plays" not in kinds or "play" in there
 
 
 def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
@@ -445,8 +439,8 @@ def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
     rows = draw(tmp_path, unfolded=True)["rows"]
     genesis = next(row for row in rows if row["title"] == "בראשית")
     # The boards' word, not the catalogue's (design.md §12, 2026-10-09).
-    assert genesis["cells"][0] == "Tanakh", "not bare Narrative beside Novels and Stories"
-    kinds = {row["cells"][0] for row in rows}
+    assert genesis["kind"] == "Tanakh", "not bare Narrative beside Novels and Stories"
+    kinds = {row["kind"] for row in rows}
     assert "News" in kinds and "Dialogue" in kinds
     assert not kinds & {
         "Prose",
@@ -472,7 +466,7 @@ def test_a_row_keeps_the_cell_a_build_narrates_itself_in(tmp_path: Path) -> None
     and into the two tabs, that cell went with it and pressing any unbuilt row threw on a
     null."""
     row = draw(tmp_path)["rows"][0]
-    assert row["cells"][-1] == "", "empty until there is something to say"
+    assert row["state"] == "", "empty until there is something to say"
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     assert 'el("span", "row-state")' in source
@@ -508,7 +502,7 @@ def test_a_filter_still_holds_when_nobody_was_sent(tmp_path: Path) -> None:
     themselves and came back to it should find it where they left it."""
     drawn = draw(tmp_path, view={"kind": "poetry"})
     assert drawn["rows"], "poetry should match something"
-    assert all(row["cells"][0] == "Poetry" for row in drawn["rows"])
+    assert all(row["kind"] == "Poetry" for row in drawn["rows"])
     assert drawn["pointed"] == []
 
 
@@ -518,56 +512,18 @@ def test_a_text_on_the_shelf_says_how_much_of_it_is_yours(tmp_path: Path) -> Non
     measurement is not something a beginner can act on."""
     drawn = draw(tmp_path, readers=[shelf("esther", "אסתר", known=0.82)], unfolded=True)
     by_title = {row["title"]: row for row in drawn["rows"]}
-    assert by_title["אסתר"]["fit"] == "you know 82% of its words"
-    others = [row["fit"] for title, row in by_title.items() if title != "אסתר"]
-    assert set(others) == {""}, "and nothing is claimed for a text never measured"
-
-    # "You know 0% of its words" is true and unkind; the line starts once there is
-    # something to say, exactly as Learn's does.
-    nothing = draw(tmp_path, readers=[shelf("esther", "אסתר", known=0.0)], unfolded=True)
-    assert {row["title"]: row for row in nothing["rows"]}["אסתר"]["fit"] == ""
+    assert by_title["אסתר"]["known"] == "82% known"
+    assert by_title["אסתר"]["meter"], "over a bar (board SeeAllDesk)"
+    others = {
+        row["known"] for title, row in by_title.items() if title != "אסתר" and not row["group"]
+    }
+    assert others == {"Not measured yet"}, "and nothing is claimed for a text never measured"
 
 
 def vocabulary(*lemmas: str) -> dict[str, str]:
     """A store with those words marked known, the shape the reader writes."""
     kept = {lemma: {"surface": lemma, "status": 9, "band": "moderate", "at": 0} for lemma in lemmas}
     return {"targum:vocab:he": json.dumps(kept, ensure_ascii=False)}
-
-
-def test_the_line_under_the_controls_says_what_the_active_one_means(tmp_path: Path) -> None:
-    """The one sentence on the page written for a reader who cannot yet read a title.
-    It used to live in tooltips, which is nowhere on a phone."""
-    assert (
-        draw(tmp_path)["note"]
-        == "Level — the share of a text's words that are rare in everyday use."
-    )
-    assert draw(tmp_path, view={"kind": "dialogue"})["note"].startswith(
-        "Dialogues — short conversations with audio. Start with the first."
-    )
-    assert draw(tmp_path, view={"kind": "prose"})["note"].startswith("Tanakh —")
-    assert draw(tmp_path, view={"register": "biblical"})["note"].startswith(
-        "Biblical — the Hebrew of the Bible."
-    )
-    assert draw(tmp_path, view={"spoken": "yes", "register": "modern"})["note"] == (
-        "Modern — Hebrew as it is written today. · With audio — a recording, line by line."
-    )
-    # Never more than two clauses, kind before register before audio before the sort;
-    # a kind with nothing to explain (Stories) takes no slot.
-    three = draw(tmp_path, view={"kind": "story", "register": "modern", "spoken": "yes"})["note"]
-    assert (
-        three == "Modern — Hebrew as it is written today. · With audio — a recording, line by line."
-    )
-    four = draw(tmp_path, view={"kind": "prose", "register": "biblical", "spoken": "yes"})["note"]
-    assert four == "Tanakh — the Bible's story books. · Biblical — the Hebrew of the Bible."
-
-
-def test_a_dash_is_explained_only_while_one_is_on_screen(tmp_path: Path) -> None:
-    """Zero on a short catalogue text is a measurement and reads 0%. A text nobody
-    measured reads "—", and the line says so — but only then."""
-    scenes = draw(tmp_path, view={"kind": "dialogue", "shape": "list"})
-    assert "—" not in {row["cells"][3] for row in scenes["rows"]}
-    assert "measured" not in scenes["note"]
-    assert "0%" in {row["cells"][3] for row in scenes["rows"]}, "a scene's 0 is real"
 
 
 def test_a_long_text_nobody_measured_is_not_the_easiest(tmp_path: Path) -> None:
@@ -581,25 +537,17 @@ def test_a_long_text_nobody_measured_is_not_the_easiest(tmp_path: Path) -> None:
     rashi.update(id="rashi-genesis", title='רש"י על בראשית', english="Rashi on Genesis")
     rashi.update(words=41636, difficulty=0, register="medieval", kind="prose", tags=["tanakh"])
     catalogue.append(rashi)
-    easiest = draw(tmp_path, view={"sort": "difficulty", "dir": 1}, catalogue=catalogue)
-    hardest = draw(tmp_path, view={"sort": "difficulty", "dir": -1}, catalogue=catalogue)
+    collections = [{"id": "x", "title": "x", "english": "x", "members": []}]
+    easiest = draw(
+        tmp_path, view={"sort": "known", "dir": -1}, catalogue=catalogue, collections=collections
+    )
+    hardest = draw(
+        tmp_path, view={"sort": "known", "dir": 1}, catalogue=catalogue, collections=collections
+    )
     for drawn in (easiest, hardest):
         titles = [row["title"] for row in drawn["rows"]]
-        rashi = titles.index('רש"י על בראשית')
-        dashed = [row["title"] for row in drawn["rows"] if row["cells"][3] == "—"]
-        assert 'רש"י על בראשית' in dashed
-        assert rashi >= len(titles) - len(dashed), "unmeasured rows are at the end"
-        assert "measured" in drawn["note"]
-
-
-def test_the_gauge_stops_promising_what_is_new_to_you(tmp_path: Path) -> None:
-    """The share is a fact about the text — how much of its vocabulary is hard, in the
-    word the reader page puts on a tapped word. A reader who knows no words looks up all
-    twenty-two of a text that says 0%, so "will be new to you" was a promise the number
-    could not keep."""
-    labels = draw(tmp_path)["gauges"]
-    assert any("is hard" in label for label in labels)
-    assert not any("new to you" in label for label in labels)
+        assert titles[-1] == 'רש"י על בראשית', "unmeasured rows are at the end"
+        assert drawn["rows"][-1]["known"] == "Not measured yet"
 
 
 def test_a_first_visit_lands_on_the_shelves_with_the_first_scene_first(tmp_path: Path) -> None:
@@ -626,7 +574,7 @@ def test_a_remembered_view_does_not_keep_the_reader_off_the_shelves(tmp_path: Pa
     drawn = draw(tmp_path, shelves=True, view={"find": "ruth", "where": "midrash"})
     assert drawn["shelving"] is True
     assert drawn["find"] == ""
-    assert drawn["tabs"][0] == "All texts"
+    assert [door["id"] for door in drawn["kindDoors"]][-1] == "midrash"
 
 
 def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> None:
@@ -648,7 +596,7 @@ def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> Non
     ]
     # The column says the list is in order, never "Scene number" (design.md §12,
     # "A text is named in everyday words", 2026-10-09).
-    assert drawn["shareHead"]["text"] == "In order"
+    assert drawn["columns"][-1] == "In order"
 
 
 def test_every_catalogue_row_carries_its_title_in_english(tmp_path: Path) -> None:
@@ -705,7 +653,7 @@ def test_a_shared_text_opens_and_offers_nothing_else(tmp_path: Path) -> None:
         "איפה הרחוב",
         "שני קפה",
     ]
-    assert {row["scene"] for row in drawn["rows"]} == {""}
+    assert all(not row["title"].startswith("Scene") for row in drawn["rows"])
 
 
 def test_the_next_scene_is_chipped_start_here_then_next(tmp_path: Path) -> None:
@@ -730,7 +678,7 @@ def test_your_own_copy_wins_over_the_shared_one(tmp_path: Path) -> None:
     own = shelf("scene-01-nice-to-meet-you", "mine-he", known=0.5)
     drawn = draw(tmp_path, readers=[own], shared=SCENES, view={"kind": "dialogue"}, covers=True)
     first = drawn["rows"][0]
-    assert first["fit"] == "you know 50% of its words"
+    assert first["known"] == "50% known"
     assert first["draws"] == "Draw cover", "theirs, so a cover can be drawn"
 
 
@@ -757,17 +705,6 @@ def test_a_video_is_told_apart_from_an_audio_one(tmp_path: Path) -> None:
         for row in draw(tmp_path, catalogue=media_shelf(), collections=[], view={"fit": ""})["rows"]
     }
     assert rows == {"lecture-he": "Video", "podcast-he": "Audio", "essay-he": ""}
-
-
-def test_with_video_finds_the_video_and_with_audio_still_finds_both(tmp_path: Path) -> None:
-    """One direction each, like the audio filter: "With video" is worth offering,
-    "without video" is not — and a video is still something to listen to."""
-    shelf_of = media_shelf()
-    videos = draw(tmp_path, catalogue=shelf_of, collections=[], view={"fit": "", "spoken": "video"})
-    assert {row["title"] for row in videos["rows"]} == {"lecture-he"}
-    assert videos["note"].startswith("With video — ")
-    heard = draw(tmp_path, catalogue=shelf_of, collections=[], view={"fit": "", "spoken": "yes"})
-    assert {row["title"] for row in heard["rows"]} == {"lecture-he", "podcast-he"}
 
 
 # -- a view per language ---------------------------------------------------------------
@@ -1004,52 +941,31 @@ def browse(tmp_path: Path, **payload: Any) -> dict[str, Any]:
     return draw(tmp_path, view=view, **payload)
 
 
-def test_the_library_opens_as_cards_and_the_table_is_one_press_away(tmp_path: Path) -> None:
-    """A card cannot be sorted, which is what retired the last card grid and was fair.
-    The sortable thing is kept rather than argued with."""
+def test_see_all_is_one_table_with_three_menus(tmp_path: Path) -> None:
+    """Board SeeAllDesk (design.md §12, "The Library stands on the ground"): one
+    table whose heads sort it, and Kind, Level and Language as menus beside the search.
+    The Rows/Table switch, the subjects and the folded filters are gone, and a view that
+    kept one of them lets it go rather than narrowing the list unseen."""
     fresh = draw(tmp_path, firstVisit=True)
-    assert fresh["shape"] == "cards", "a reader who has chosen nothing browses"
-    assert fresh["shapeOn"] == "Rows"
+    assert fresh["menus"] == ["kind", "level", "language"]
+    assert fresh["menusShown"] and fresh["seeing"]
+    assert fresh["columns"] == ["Text", "Length", "% known ↓"]
+    assert fresh["seeTitle"].startswith("All Hebrew texts")
 
-    listed = draw(tmp_path, view={"shape": "list"})
-    assert listed["shape"] == "list"
-    assert listed["shapeOn"] == "Table"
-    assert listed["columns"][:2] == ["Text", "Kind"], "the table keeps its columns"
-
-
-def test_only_the_subjects_with_texts_behind_them_are_offered(tmp_path: Path) -> None:
-    """`Tag` runs well past what is filed, on purpose: the arrival draws a door before
-    anything is tagged into it. On this page that same door is a dead end."""
-    from targum.catalogue import Tag
-
-    offered = browse(tmp_path)["subjects"]
-    assert offered == ["All", "News", "Sport", "Science"], offered
-    assert len(offered) - 1 < len(list(Tag)), "not the whole vocabulary"
-
-
-def test_a_shelf_with_one_subject_offers_none(tmp_path: Path) -> None:
-    """ "All" and one word is not a choice — the rule the kinds already follow."""
-    only = [row for row in SHELF if row["tags"] in ([], ["journalism"])]
-    assert browse(tmp_path, catalogue=only)["subjects"] == []
-
-
-def test_a_subject_chip_carries_its_count(tmp_path: Path) -> None:
-    """Tanakh and Judaica are the two biggest Hebrew subjects. A bare row of names tells a
-    modern-Hebrew learner this is a religious library; the numbers tell them what is
-    really there."""
-    drawn = browse(tmp_path)
-    assert drawn["subjectCounts"] == [10, 3, 2, 2], drawn["subjectCounts"]
-    assert drawn["subjectCounts"][0] == len(SHELF), "All is every text on the shelf"
-
-
-def test_a_subject_narrows_and_the_other_subjects_stay(tmp_path: Path) -> None:
-    """The row is computed with its own filter lifted, the way the kinds already are.
-    Without it, choosing News would leave All and News and no way back."""
-    everything = browse(tmp_path)
-    news = browse(tmp_path, view={"subject": "journalism"})
-    assert news["subjectOn"] == "News"
-    assert news["subjects"] == everything["subjects"], "no subject disappears"
-    assert {row["title"] for row in news["rows"]} == {"ידיעה", "ידיעה שנייה", "משחק"}
+    kept = draw(
+        tmp_path,
+        view={
+            "shape": "cards",
+            "subject": "science",
+            "register": "rabbinic",
+            "spoken": "video",
+            "length": "long",
+            "level": "hard",
+        },
+    )
+    assert len(kept["rows"]) == len(fresh["rows"]), "nothing left narrowing it"
+    for field in ("subject", "register", "spoken", "length", "level"):
+        assert kept["views"]["he"][field] == ""
 
 
 def test_a_text_under_two_subjects_is_found_under_both(tmp_path: Path) -> None:
@@ -1071,8 +987,8 @@ def test_a_stranger_is_shown_everything_rather_than_a_guess(tmp_path: Path) -> N
     text and not about the reader. A page greeting somebody it knows nothing about with
     "showing the 358 you can read now" would be making a claim it cannot support."""
     drawn = browse(tmp_path, readers=[])
-    assert drawn["fitOn"] == "everything"
-    assert drawn["said"].startswith(f"{len(SHELF)} texts")
+    assert drawn["fitOn"] == "Any"
+    assert drawn["seeTitle"] == f"All Hebrew texts{len(SHELF)}"
     assert len(drawn["rows"]) == len(SHELF)
 
 
@@ -1130,7 +1046,7 @@ def test_see_all_is_the_list_under_that_band_and_back_is_the_shelves(tmp_path: P
     assert drawn["shelving"] is False
     assert drawn["backShown"] is True
     assert drawn["hash"] == "#see/stretch"
-    assert drawn["fitOn"] == "a step up from where you are"
+    assert drawn["fitOn"] == "A stretch"
     # Exactly the band: what can be read now is its own shelf, not part of this one.
     assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[3:6]}
 
@@ -1144,7 +1060,7 @@ def test_see_all_is_the_list_under_that_band_and_back_is_the_shelves(tmp_path: P
 def test_an_address_opens_a_see_all_list(tmp_path: Path) -> None:
     drawn = browse(tmp_path, hash="#see/hard", catalogueKnown=BANDED)
     assert drawn["shelving"] is False
-    assert drawn["fitOn"] == "hard for now"
+    assert drawn["fitOn"] == "Hard for now"
     assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[6:]}
 
 
@@ -1153,7 +1069,7 @@ def test_a_touchstone_address_opens_that_kind_in_every_band(tmp_path: Path) -> N
     See all list, narrowed to that kind of text and to no band."""
     drawn = browse(tmp_path, hash="#see/kind/article", catalogueKnown=BANDED)
     assert drawn["shelving"] is False
-    assert drawn["fitOn"] == "everything"
+    assert drawn["fitOn"] == "Any"
     assert drawn["kindOn"] == "News"
     assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[:4]}
 
@@ -1195,20 +1111,36 @@ def test_a_band_with_nothing_in_it_is_not_a_shelf(tmp_path: Path) -> None:
     barely = {row["id"]: {"known": 0.02} for row in SHELF}
     drawn = browse(tmp_path, shelves=True, catalogueKnown=barely)
     assert [one["band"] for one in drawn["shelves"]] == ["hard"]
-    assert len(drawn["shelves"][0]["cards"]) == len(SHELF)
+    # One row of five, as the board stands a shelf; See all is the rest.
+    assert len(drawn["shelves"][0]["cards"]) == 5
 
 
 def test_the_tanakh_map_is_a_door_at_the_head_of_the_hebrew_shelves(tmp_path: Path) -> None:
     """It left Your Progress for the Library on 2026-10-09 (design.md §12, board
-    LibraryTanakh): Hebrew's alone, so a Russian shelf has no door to it."""
+    LibraryTanakh): Hebrew's alone, so a Russian shelf has no door to it. The kinds
+    beside it are doors to what the page already answers (board Library)."""
     drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED)
-    assert drawn["tanakhDoor"] == {
+    assert drawn["kindDoors"][0] == {
+        "id": "tanakh",
         "href": "/tanakh-map?k=k",
-        "says": ["תנ״ך", "Tanakh", "Every chapter on one map"],
+        "says": ["תנ״ך", "Tanakh"],
     }
+    assert [door["id"] for door in drawn["kindDoors"]] == ["tanakh", "article", "talk"]
+    assert drawn["kindDoors"][1]["href"] == "#see/kind/article"
     russian = [{**row, "language": "ru"} for row in SHELF]
     elsewhere = browse(tmp_path, shelves=True, catalogue=russian, language="ru")
-    assert elsewhere["shelving"] is True and elsewhere["tanakhDoor"] is None
+    assert elsewhere["shelving"] is True
+    assert "tanakh" not in [door["id"] for door in elsewhere["kindDoors"]]
+
+
+def test_a_kind_door_opens_see_all_under_that_kind(tmp_path: Path) -> None:
+    """News is `#see/kind/article`: the whole list, every band, held to the news."""
+    drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED, do=[{"kindDoor": "article"}])
+    assert drawn["shelving"] is False and drawn["seeing"] is True
+    assert drawn["hash"] == "#see/kind/article"
+    assert drawn["kindOn"] == "News"
+    assert {row["id"] for row in drawn["rows"]} == {"news-one", "news-two", "match", "league"}
+    assert drawn["seeTitle"].startswith("News in Hebrew")
 
 
 def test_targums_own_playlists_are_a_shelf_of_their_own(tmp_path: Path) -> None:
@@ -1250,7 +1182,7 @@ def test_a_reader_who_asks_for_a_band_gets_it_however_little_it_leaves(tmp_path:
     and an empty one is an answer too."""
     barely = {row["id"]: {"known": 0.02} for row in SHELF}
     drawn = browse(tmp_path, catalogueKnown=barely, view={"fit": "now"})
-    assert drawn["fitOn"] == "you can read now"
+    assert drawn["fitOn"] == "Read it now"
     assert drawn["rows"] == []
 
 
@@ -1271,10 +1203,11 @@ def test_a_card_carries_the_facts_a_reader_chooses_by(tmp_path: Path) -> None:
     one = next(row for row in rows if row["title"] == "סיפור")
     # Its kind and length; how much of it the reader knows is the line under it, and
     # "18% hard words" is gone (design.md §12, 2026-10-09).
-    assert one["meta"] == "Essay · 7 min"
+    assert one["meta"] == "Essay"
+    assert one["length"] == "900 words", "a text's length is its words (board SeeAllDesk)"
     assert "72%" in one["known"]
     two = next(row for row in rows if row["title"] == "סיפור שני")
-    assert two["known"] == "New to you", "never 0%, which is a claim about the reader"
+    assert two["known"] == "Not measured yet", "never 0%, which is a claim about the reader"
 
 
 def test_a_row_of_see_all_says_what_the_text_is(tmp_path: Path) -> None:
@@ -1297,7 +1230,8 @@ def test_a_row_of_see_all_says_what_the_text_is(tmp_path: Path) -> None:
         for row in browse(tmp_path, catalogue=shelf_, catalogueKnown=known)["rows"]
     }
     assert rows["סיפור"]["blurb"] == "A woman, and a whole life implied around her."
-    assert rows["סיפור"]["meta"] == "Story · 7 min"
+    assert rows["סיפור"]["meta"] == "Story"
+    assert rows["סיפור"]["length"] == "900 words"
     assert rows["סיפור"]["known"] == "93% known" and rows["סיפור"]["near"] is True
     assert rows["סיפור שני"]["known"] == "80% known" and rows["סיפור שני"]["near"] is False
     assert rows["סיפור שלישי"]["blurb"] == "", "nothing is invented where the file says nothing"
@@ -1347,38 +1281,7 @@ def test_being_sent_to_a_text_lifts_the_subject_and_the_band(tmp_path: Path) -> 
         hash="#story-four",
     )
     assert drawn["pointed"] == ["סיפור רביעי"], drawn["pointed"]
-    assert drawn["subjectOn"] == "All"
-    assert drawn["fitOn"] == "everything"
-
-
-def test_the_subjects_survive_the_kind_the_page_opens_on(tmp_path: Path) -> None:
-    """The page opens a new reader on the Scenes, and no scene is filed under a subject.
-    Computed with the kind still standing, the one row this page is browsed by vanished
-    on the first visit of every reader who had it — found on the running page, not here.
-    """
-    scenes = SHELF + [
-        text(f"scene-{n:02d}", f"סצנה {n}", kind="dialogue", spoken=True) for n in range(1, 5)
-    ]
-    drawn = browse(tmp_path, catalogue=scenes, view={"kind": "dialogue"})
-    assert drawn["subjects"] == ["All", "News", "Sport", "Science"], drawn["subjects"]
-    assert {row["title"] for row in drawn["rows"]} == {f"סצנה {n}" for n in range(1, 5)}
-
-
-def test_a_chips_count_is_what_pressing_it_leaves(tmp_path: Path) -> None:
-    """Picking a subject is going somewhere, not narrowing where you are: the kind is a
-    refinement inside the place you were, and it is dropped. So the number on the chip is
-    the number of texts that actually arrive."""
-    scenes = SHELF + [
-        text(f"scene-{n:02d}", f"סצנה {n}", kind="dialogue", spoken=True) for n in range(1, 5)
-    ]
-    shown = browse(tmp_path, catalogue=scenes, view={"kind": "dialogue"})
-    promised = dict(zip(shown["subjects"], shown["subjectCounts"], strict=True))
-    # What the press leaves: the subject set and the kind dropped, which is what the
-    # chip's own handler does. A stored pair of both is a reader who chose both, and an
-    # empty list is the honest answer to that.
-    pressed = browse(tmp_path, catalogue=scenes, view={"kind": "", "subject": "science"})
-    assert len(pressed["rows"]) == promised["Science"]
-    assert pressed["subjectOn"] == "Science"
+    assert drawn["fitOn"] == "Any"
 
 
 def test_a_collection_is_a_card_of_its_own_shape(tmp_path: Path) -> None:
@@ -1394,7 +1297,7 @@ def test_a_collection_is_a_card_of_its_own_shape(tmp_path: Path) -> None:
     assert folded["expanded"] == "false"
     assert folded["title"] == "תנ״ך"
     assert "6 texts" in folded["meta"], folded["meta"]
-    assert folded["cells"] == [], "it is a card, so it has no columns"
+    assert folded["length"].endswith("words"), "its texts' words, added up"
 
     opened = draw(tmp_path, view={"shape": "cards"}, opened={"tanakh": True})
     shelf_row = next(row for row in opened["rows"] if row["group"] == "tanakh")
@@ -1428,32 +1331,6 @@ def test_the_build_prefix_never_starts_a_build(tmp_path: Path) -> None:
     assert row["state"] == "", row["state"]
 
 
-def test_the_newest_sort_puts_the_lately_added_first(tmp_path: Path) -> None:
-    """ "I want to see what was recently added right away." The catalogue carried no date
-    at all before targum-internal#315."""
-    shelf = [
-        text("old-one", "ישן", added="2026-01-05"),
-        text("newest", "חדש", added="2026-09-16"),
-        text("middle", "אמצעי", added="2026-05-01"),
-    ]
-    drawn = browse(tmp_path, catalogue=shelf, view={"sort": "added"})
-    order = [row["title"] for row in drawn["rows"]]
-    assert order == ["חדש", "אמצעי", "ישן"], order
-
-
-def test_a_text_nobody_dated_sorts_last_and_not_first(tmp_path: Path) -> None:
-    """Nine hundred rows predate the field. "We do not know when this arrived" must never
-    read as "this just arrived", which is what an empty date sorting first would say."""
-    shelf = [
-        text("undated", "ללא תאריך"),
-        text("old-one", "ישן", added="2026-01-05"),
-        text("newest", "חדש", added="2026-09-16"),
-    ]
-    drawn = browse(tmp_path, catalogue=shelf, view={"sort": "added"})
-    order = [row["title"] for row in drawn["rows"]]
-    assert order[-1] == "ללא תאריך", order
-
-
 def test_a_text_that_arrived_lately_says_so_on_its_card(tmp_path: Path) -> None:
     """Answered by the card rather than by a sort, so it is true of the page whatever
     order the reader has it in."""
@@ -1480,27 +1357,6 @@ def test_a_date_in_the_future_is_not_new_for_ever(tmp_path: Path) -> None:
     shelf = [text("ahead", "מחר", added=ahead), text("fine", "היום", added="2020-01-01")]
     marks = {row["title"]: row["fresh"] for row in browse(tmp_path, catalogue=shelf)["rows"]}
     assert marks["מחר"] == "", marks
-
-
-def test_undated_rows_keep_the_order_the_catalogue_put_them_in(tmp_path: Path) -> None:
-    """Nine hundred rows predate the field and nothing can date them. Without this,
-    "Newest" would be alphabetical among them, which is no order at all — so they fall
-    back to where they sit in the file, which is where they were appended.
-
-    Evidence of order, never of date: it can never lift an undated row above a dated one,
-    and it never marks one New.
-    """
-    shelf = [
-        text("first-in", "ראשון"),
-        text("second-in", "שני"),
-        text("third-in", "שלישי"),
-        text("dated", "מתוארך", added="2020-01-01"),
-    ]
-    drawn = browse(tmp_path, catalogue=shelf, view={"sort": "added"})
-    order = [row["title"] for row in drawn["rows"]]
-    assert order[0] == "מתוארך", f"a dated row outranks every undated one: {order}"
-    assert order[1:] == ["שלישי", "שני", "ראשון"], order
-    assert all(row["fresh"] == "" for row in drawn["rows"]), "and none of them is New"
 
 
 # --- a build is on the shelf while it is building (design.md §12, 2026-09-17) ---------
@@ -1570,24 +1426,24 @@ def test_a_text_inside_a_shut_shelf_that_a_filter_also_hides_is_still_reached(
 TREE = {"he": {"where": "midrash", "shape": "cards"}}
 
 
-def test_the_beit_midrash_is_a_second_tab_and_hebrew_s_alone(tmp_path: Path) -> None:
-    drawn = draw(tmp_path)
-    assert drawn["tabs"] == ["All texts", "Jewish texts"]
+def test_the_jewish_texts_are_a_door_and_hebrew_s_alone(tmp_path: Path) -> None:
+    drawn = draw(tmp_path, shelves=True)
+    assert "midrash" in [door["id"] for door in drawn["kindDoors"]]
 
-    # No catalogue says which door anything stands behind: no tab over an empty tree,
-    # and one tab alone is not drawn (2026-09-25).
+    # No catalogue says which door anything stands behind: no door onto an empty tree.
     from targum.catalogue import CATALOGUE, collections
 
     bare = [{**group.state(), "door": ""} for group in collections()]
     plain = [{**entry.state(), "door": ""} for entry in CATALOGUE]
-    assert draw(tmp_path, collections=bare, catalogue=plain)["tabs"] == []
+    doors = draw(tmp_path, shelves=True, collections=bare, catalogue=plain)["kindDoors"]
+    assert "midrash" not in [door["id"] for door in doors]
 
 
 def test_the_tab_opens_on_its_doors_with_what_stands_behind_each(tmp_path: Path) -> None:
     """Sefaria's shape: the top of the tree first, each door saying what it holds — a
     count, the way every chip on this page carries one (design.md §12). Only doors with
     something behind them: the fixture has no Mishnah, so there is no Mishnah door."""
-    drawn = draw(tmp_path, views=TREE)
+    drawn = draw(tmp_path, views=TREE, hash="#bm")
     assert [door["id"] for door in drawn["doors"]] == ["tanakh", "targum"]
     assert drawn["doors"][0]["says"] == ["תנ״ך", "Tanakh", "6 texts"]
     assert drawn["doors"][1]["says"][1:] == ["Aramaic translations", "2 texts"]
@@ -1599,14 +1455,12 @@ def test_the_tab_opens_on_its_doors_with_what_stands_behind_each(tmp_path: Path)
 def test_a_biblical_student_is_two_presses_from_ruth(tmp_path: Path) -> None:
     """The tab, then Tanakh — and the books are there, open under their shelf, because a
     student looking for Ruth should not have to guess which shut row it is in."""
-    drawn = draw(
-        tmp_path, do=[{"tab": "Jewish texts"}, {"door": "tanakh"}], view={"shape": "cards"}
-    )
+    drawn = draw(tmp_path, shelves=True, do=[{"tab": "Jewish texts"}, {"door": "tanakh"}])
     titles = [row["title"] for row in drawn["rows"]]
     assert "רות" in titles, titles
     assert drawn["crumbs"].startswith("Jewish texts") and "Tanakh" in drawn["crumbs"]
     assert drawn["hash"] == "#bm/tanakh"
-    assert drawn["tally"] == "6 texts", "counted against the door, not against the library"
+    assert drawn["tally"] == "6 texts · in order", "counted against the door, not the library"
 
 
 def test_the_level_band_does_not_cut_branches_off_the_tree(tmp_path: Path) -> None:
@@ -1615,7 +1469,7 @@ def test_the_level_band_does_not_cut_branches_off_the_tree(tmp_path: Path) -> No
     stand, and each row still says how much of it they know."""
     narrowed = {"he": {"where": "midrash", "door": "tanakh", "shape": "cards", "fit": "now"}}
     known = {"ruth": {"known": 0.95}, "job": {"known": 0.05}}
-    drawn = draw(tmp_path, views=narrowed, catalogueKnown=known)
+    drawn = draw(tmp_path, views=narrowed, catalogueKnown=known, hash="#bm/tanakh")
     titles = [row["title"] for row in drawn["rows"]]
     assert len(titles) == 6, titles
 
@@ -1624,7 +1478,11 @@ def test_the_targums_have_a_door_and_stay_aramaic(tmp_path: Path) -> None:
     """The one place the Hebrew shelf shows another language's rows (David, 2026-09-19):
     Sefaria files Targum under Tanakh, and a Torah student looks for Onkelos there. They
     are Aramaic rows still — under All texts they are on the Aramaic shelf and not here."""
-    behind = draw(tmp_path, views={"he": {"where": "midrash", "door": "targum", "shape": "cards"}})
+    behind = draw(
+        tmp_path,
+        views={"he": {"where": "midrash", "door": "targum", "shape": "cards"}},
+        hash="#bm/targum",
+    )
     assert [row["title"] for row in behind["rows"]] == [
         "תרגום אונקלוס · בראשית",
         "תרגום אונקלוס · שמות",
@@ -1638,40 +1496,23 @@ def test_it_is_the_one_list_and_not_a_second_room(tmp_path: Path) -> None:
     under All texts, with the same id — one catalogue, one address per text."""
     everywhere = draw(tmp_path, unfolded=True, view={"fit": ""})
     all_ids = {row["id"] for row in everywhere["rows"]}
-    behind = draw(tmp_path, views={"he": {"where": "midrash", "door": "tanakh", "shape": "list"}})
+    behind = draw(
+        tmp_path,
+        views={"he": {"where": "midrash", "door": "tanakh", "shape": "list"}},
+        hash="#bm/tanakh",
+    )
     ids = {row["id"] for row in behind["rows"] if row["id"]}
     assert ids and ids <= all_ids, ids - all_ids
 
 
 def test_the_way_back_is_the_trail_and_an_address_lands_inside(tmp_path: Path) -> None:
-    back = draw(tmp_path, views=TREE, do=[{"door": "tanakh"}, {"crumb": True}])
+    back = draw(tmp_path, views=TREE, hash="#bm", do=[{"door": "tanakh"}, {"crumb": True}])
     assert [door["id"] for door in back["doors"]] == ["tanakh", "targum"] and back["hash"] == "#bm"
 
     landed = draw(tmp_path, hash="#bm/tanakh", view={"shape": "cards"})
     assert "רות" in [row["title"] for row in landed["rows"]]
     # A row's own address is still a row's: `#ruth` is not read as a door.
     assert draw(tmp_path, hash="#ruth")["doors"] == []
-
-
-def test_stories_are_a_subject_by_their_kind(tmp_path: Path) -> None:
-    """targum-internal#311, decided 2026-09-27: a Stories door. Most of the untagged shelf
-    is revival-era fiction, and the arrival already answered "Stories and novels" from the
-    kinds; this page had no chip for it. Read from the kind, so nothing is tagged twice."""
-    shelf = [
-        *SHELF[:6],
-        text("tale", "מעשה", kind="story"),
-        text("book", "רומן", kind="novel"),
-        text("drama", "מחזה", kind="play"),
-        text("verse", "שיר", kind="poetry"),
-    ]
-    drawn = browse(tmp_path, catalogue=shelf)
-    assert drawn["subjects"] == ["All", "Stories", "News", "Sport", "Science"], drawn["subjects"]
-    assert drawn["subjectCounts"][1] == 3
-    titles = {
-        row["title"]
-        for row in browse(tmp_path, catalogue=shelf, view={"subject": "stories"})["rows"]
-    }
-    assert titles == {"מעשה", "רומן", "מחזה"}, titles
 
 
 # -- the weekly portion (targum-internal#410, #411) --------------------------------------
@@ -1892,3 +1733,154 @@ def test_the_weekly_shelf_is_hebrews_and_speaks_the_readers_language(tmp_path: P
     first = said["portions"]["cards"][0]
     assert first["english"] == "Noach-ru"
     assert first["when"].startswith("В эту субботу")
+
+
+# --- See all, a page at a time (design.md §12, "The Library stands on the ground",
+# 2026-10-09; boards SeeAllDesk and SeeAllPhone) ---------------------------------------
+
+
+def many(count: int) -> list[dict[str, Any]]:
+    """A shelf longer than a page."""
+    return [text(f"t-{n:03d}", f"טקסט {n}", difficulty=10 + n % 20) for n in range(count)]
+
+
+def test_see_all_draws_fifty_rows_and_show_more_draws_fifty_more(tmp_path: Path) -> None:
+    """726 rows on one page was 31,354px of desk and 37,515px of phone."""
+    shelf_ = many(120)
+    first = browse(tmp_path, catalogue=shelf_)
+    assert len(first["rows"]) == 50
+    assert first["more"] is True
+    assert first["tally"] == "50 of 120 · easiest first"
+
+    second = browse(tmp_path, catalogue=shelf_, do=[{"more": True}])
+    assert len(second["rows"]) == 100
+
+    last = browse(tmp_path, catalogue=shelf_, do=[{"more": True}, {"more": True}])
+    assert len(last["rows"]) == 120
+    assert last["more"] is False
+    assert last["tally"] == "120 texts · easiest first"
+
+
+def test_a_row_the_address_names_is_on_the_page_however_far_down(tmp_path: Path) -> None:
+    shelf_ = many(120)
+    drawn = browse(tmp_path, catalogue=shelf_, view={"sort": "title", "dir": 1}, hash="#t-119")
+    assert drawn["pointed"] == ["טקסט 119"]
+    assert len(drawn["rows"]) >= 100
+
+
+def test_the_heads_sort_the_table(tmp_path: Path) -> None:
+    """Text, Length and % known, as the board heads them; pressing one twice turns it."""
+    shelf_ = [text("a", "א", words=300), text("b", "ב", words=100), text("c", "ג", words=200)]
+    longest = browse(tmp_path, catalogue=shelf_, do=[{"sort": "minutes"}, {"sort": "minutes"}])
+    shortest = browse(tmp_path, catalogue=shelf_, do=[{"sort": "minutes"}])
+    assert shortest["columns"][1] == "Length ↑"
+    assert longest["columns"][1] == "Length ↓"
+    assert longest["tally"].endswith("longest first")
+    known = {"a": {"known": 0.5}, "b": {"known": 0.9}, "c": {"known": 0.7}}
+    by_known = browse(tmp_path, catalogue=shelf_, catalogueKnown=known)
+    assert [row["id"] for row in by_known["rows"]] == ["b", "c", "a"]
+    assert by_known["tally"].endswith("% known, high to low")
+
+
+def test_the_menus_choose_a_kind_and_a_level(tmp_path: Path) -> None:
+    """Kind and Level are menus of the desk's own, not native selects; Level is the
+    band, and choosing one writes its address."""
+    kind = browse(tmp_path, do=[{"menu": "kind", "pick": "talk"}])
+    assert kind["kindOn"] == "Videos"
+    assert {row["id"] for row in kind["rows"]} == {"physics", "chemistry"}
+
+    level = browse(tmp_path, catalogueKnown=BANDED, do=[{"menu": "level", "pick": "stretch"}])
+    assert level["fitOn"] == "A stretch"
+    assert level["hash"] == "#see/stretch"
+    assert {row["id"] for row in level["rows"]} == {row["id"] for row in SHELF[3:6]}
+    assert level["seeTitle"].startswith("A stretch")
+    assert level["languageOn"] == "Hebrew"
+
+    source = (ASSETS / "library.js").read_text(encoding="utf-8")
+    assert 'el("select"' not in source, "no native select on the page"
+
+
+def portion_shelf() -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    catalogue = [
+        text("parasha-noach", "נח", kind="prose", register="biblical"),
+        text("parasha-lech", "לך לך", kind="prose", register="biblical"),
+        text("kan-one", "כאן", kind="talk", video=True),
+        text("kan-two", "כאן שני", kind="talk", video=True),
+        text("story-one", "סיפור", kind="essay"),
+    ]
+    groups = [
+        {
+            "id": "torah-portions",
+            "title": "פרשות השבוע",
+            "english": "The Torah, by portion",
+            "members": ["parasha-noach", "parasha-lech"],
+            "ordered": True,
+            "door": "portions",
+        },
+        {
+            "id": "kan",
+            "title": "כאן ארכיון",
+            "english": "Kan Archive",
+            "members": ["kan-one", "kan-two"],
+            "channel": "https://www.youtube.com/@kanarchive",
+        },
+    ]
+    portions = {
+        "week": {"diaspora": "noach", "israel": "noach"},
+        "portions": [
+            {
+                "slug": "noach",
+                "id": "parasha-noach",
+                "href": "/parasha/read/noach/",
+                "listed": True,
+                "hebrew": "נח",
+                "name": "Noach",
+                "numbers": [2],
+            },
+            {
+                "slug": "lech",
+                "id": "parasha-lech",
+                "href": "/parasha/read/lech/",
+                "listed": True,
+                "hebrew": "לך לך",
+                "name": "Lech",
+                "numbers": [3],
+            },
+        ],
+    }
+    return catalogue, groups, portions
+
+
+def test_a_series_and_a_channel_are_subscribed_to_from_their_rows(tmp_path: Path) -> None:
+    """design.md §12, "A subscription is the account's": subscribing happens on a Library
+    row. A portion is the weekly portion, a collection the catalogue names a channel for is
+    that channel — once a list, on the collection's row — and a stranger is offered none."""
+    catalogue, groups, portions = portion_shelf()
+    drawn = browse(
+        tmp_path, catalogue=catalogue, collections=groups, portions=portions, signedIn=True
+    )
+    rows = {row["id"]: row for row in drawn["rows"]}
+    assert rows["group:torah-portions"]["subscribe"]["kind"] == "series"
+    assert rows["group:torah-portions"]["subscribe"]["given"] == "parasha"
+    assert rows["group:kan"]["subscribe"] == {
+        "kind": "channel",
+        "given": "https://www.youtube.com/@kanarchive",
+        "text": "Subscribe",
+    }
+    assert rows["story-one"]["subscribe"] is None, "a text that is no series offers nothing"
+    assert drawn["columns"][-1] == "Subscribe"
+
+    opened = browse(
+        tmp_path,
+        catalogue=catalogue,
+        collections=groups,
+        portions=portions,
+        signedIn=True,
+        opened={"kan": True},
+    )
+    members = [row for row in opened["rows"] if row["member"]]
+    assert members and all(row["subscribe"] is None for row in members), "once a list"
+
+    stranger = browse(tmp_path, catalogue=catalogue, collections=groups, portions=portions)
+    assert all(row["subscribe"] is None for row in stranger["rows"])
+    assert "Subscribe" not in stranger["columns"]

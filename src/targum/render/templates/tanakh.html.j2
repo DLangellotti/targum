@@ -19,20 +19,12 @@
 <body class="tanakh">
 {% set here = 'library' %}{% set title = t("tanakh.page.title", "The Tanakh") %}
 {% set crumbs = [(t("nav.library", "Library"), "/library")] %}
+{% set title_he = "תנ״ך" %}{% set title_aside = "_tanakh_views.html.j2" %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
 <main>
-  {#- Two ways into the same books (board LibraryTanakh): this map, and the Library's
-      own list of them behind the Beit Midrash's Tanakh door. -#}
-  <div class="tanakh-views" role="group" aria-label="{{ t("tanakh.page.how-to-show-it", "How to show it") }}">
-    <span class="tanakh-view" aria-current="page">{{ t("tanakh.page.map", "Map") }}</span>
-    <a class="tanakh-view" href="/library#bm/tanakh">{{ t("tanakh.page.list-of-books", "List of books") }}</a>
-  </div>
   <p class="tanakh-lede">{{ t("tanakh.page.lede", "Every chapter, shaded by how many of its words you know. Press one to read it.") }}</p>
-  {#- The one sentence the shading adds up to, filled by `tanakh.js`. Signed out it says
-      where the shading comes from instead. -#}
-  <p class="tanakh-sum" id="tanakh-sum" aria-live="polite"></p>
 
   {#- The ramp and the three things that are not on it: a square is a share of words
       known, Aramaic, or a book that is not on the shelf — never two of these at once. -#}
@@ -44,13 +36,19 @@
   <nav class="panel tanakh-year" aria-label="{{ t("tanakh.page.year", "The year of portions") }}">
     {#- Its own card above the map since 2026-10-09 (board LibraryTanakh): the year is
         read first, and this week's tick is where a Torah reader starts. -#}
-    <p class="year-head">{{ t("tanakh.page.year", "The year of portions") }}</p>
+    {#- The year's name, and at the far end this week's portion and its chapters (board
+        LibraryTanakh: "This week: Noach · Genesis 6–11"); a tick pointed at says its own
+        there until the pointer leaves. -#}
+    <div class="year-top">
+      <p class="year-head">{{ t("tanakh.page.year", "The year of portions") }}</p>
+      <p class="year-said" id="year-said" aria-live="polite" data-this-week="{{ t("tanakh.page.this-week-is", "This week:") }}"></p>
+    </div>
     <ol class="year-ticks" id="tanakh-year">
       {%- for portion in year %}
-      <li class="year-item"><a class="year-tick" href="{{ portion.href }}" data-slug="{{ portion.slug }}" data-chapters="{{ portion.chapters|join('|') }}" aria-label="{{ portion.name }}, {{ portion.chapters[0] }}{% if portion.chapters|length > 1 %}–{{ portion.chapters[-1].rsplit(' ', 1)[1] }}{% endif %}"></a></li>
+      {%- set span = portion.chapters[0] ~ ('–' ~ portion.chapters[-1].rsplit(' ', 1)[1] if portion.chapters|length > 1 else '') %}
+      <li class="year-item"><a class="year-tick" href="{{ portion.href }}" data-slug="{{ portion.slug }}" data-chapters="{{ portion.chapters|join('|') }}" data-name="{{ portion.name }}" data-span="{{ span }}" aria-label="{{ portion.name }}, {{ span }}"></a></li>
       {%- endfor %}
     </ol>
-    <p class="year-said" id="year-said" aria-live="polite"></p>
   </nav>
   {%- endif %}
   <section class="panel tanakh-panel" aria-label="{{ t("tanakh.page.every-chapter", "Every chapter") }}">
@@ -64,6 +62,10 @@
     <li><i class="cell week"></i>{{ t("tanakh.page.this-week", "This week's portion") }}</li>
     <li><i class="cell read"></i>{{ t("tanakh.page.finished", "Read through") }}</li>
   </ul>
+  {#- The one sentence the shading adds up to, filled by `tanakh.js`, under the legend it
+      counts by (board LibraryTanakh puts nothing over the map). Signed out it says where
+      the shading comes from instead. -#}
+  <p class="tanakh-sum" id="tanakh-sum" aria-live="polite"></p>
 
   {#- The squares are links, so the map is a table of contents for the whole Tanakh and
       works with no script at all. `aria-label` is the chapter; the card says the rest. -#}
