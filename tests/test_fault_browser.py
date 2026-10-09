@@ -265,3 +265,51 @@ def test_a_panel_draws_top_up_greyed_until_there_is_somewhere_to_pay(browser) ->
     assert drawn["up"] == ["Top up", True]
     assert drawn["facts"] == ["Payments open soon", "The library still opens"]
     assert drawn["upInk"] == "rgb(107, 100, 92)", "greyed: ink-soft, not the primary's"
+
+
+def test_a_refusal_from_a_rail_is_a_panel_in_place_of_the_price(browser) -> None:
+    """A panel in place (2026-10-09): what the rail said, its way on and what still
+    works, where the price would have been. The server sends the three apart
+    (`serve.Refusal`); the sentence no longer recites the quiet line."""
+
+    def answer(route, request):
+        if "/prepare" in request.url:
+            json_answer(
+                route,
+                {
+                    "id": "j1",
+                    "title": "A text",
+                    "stage": "blocked",
+                    "blocked": "We've hit our limit for today. Try again in 24 hours.",
+                    "fact": "Your texts still open",
+                    "act": "library",
+                },
+            )
+        else:
+            json_answer(route, {})
+
+    context, page, thrown = served(browser, add_page(TOKEN), "/add", answer)
+    page.fill("#given", "https://example.com/a")
+    page.click("#go")
+    page.wait_for_selector("#status .fault-panel")
+    drawn = page.evaluate(
+        """() => {
+          const box = document.querySelector('#status .fault-panel');
+          const go = box.querySelector('.fault-go');
+          return {
+            said: box.querySelector('.fault-panel-said').textContent,
+            go: [go.textContent, go.getAttribute('href')],
+            fact: box.querySelector('.fault-fact').textContent,
+            title: document.querySelector('#status b').textContent,
+          };
+        }"""
+    )
+    context.close()
+
+    assert not thrown, thrown
+    assert drawn == {
+        "said": "We've hit our limit for today. Try again in 24 hours.",
+        "go": ["Open the library", "/library?k=test-key"],
+        "fact": "Your texts still open",
+        "title": "A text",
+    }

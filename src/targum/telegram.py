@@ -685,7 +685,11 @@ class Door:
             )
             return True
         if job.stage == "blocked":
-            self._reply(chat_id, f"{job.blocked} {self.address}/you".strip())
+            # What a page draws beside the sentence, said after it (design.md §12,
+            # 2026-10-09).
+            fact = getattr(job.blocked, "fact", "")
+            said = f"{job.blocked} {fact}." if fact else job.blocked
+            self._reply(chat_id, f"{said} {self.address}/you".strip())
             return True
         return False
 

@@ -205,7 +205,10 @@ def test_a_refusal_says_which_limit_and_when_it_lifts(tmp_path: Path) -> None:
     refused = library.claim(owned(library, 1, 1.0, "b"))
 
     assert str(BUDGET_HOURS) in refused, "it must say when it lifts"
-    assert "library" in refused, "and what is still free meanwhile"
+    # What is still free is the panel's quiet line beside the sentence (design.md §12,
+    # 2026-10-09), carried on the refusal.
+    assert "library" in refused.fact, "and what is still free meanwhile"
+    assert refused.act == "library"
     assert "$" not in refused, "the reader pays by the month, never by the text"
 
 
@@ -457,8 +460,9 @@ def test_the_hours_refusal_says_what_to_do_and_what_still_works(tmp_path: Path) 
 
     assert "Top up" in refused, "what the reader can do now"
     assert "come back on" in refused, "and when it lifts by itself"
-    assert "library" in refused, "and what is still free"
-    assert "Text uploads" in refused, "and that text is not affected"
+    assert "library" in refused.fact, "and what is still free"
+    assert "Uploading text uses none" in refused.fact, "and that text is not affected"
+    assert refused.act == "top-up", "drawn as Top up, greyed until there is a way to pay"
     assert "$" not in refused, "never in money"
 
 
@@ -497,7 +501,8 @@ def test_no_refusal_ever_says_a_reader_has_read_their_fill(tmp_path: Path) -> No
     for refusal in (rate, clock, library._out_of("everyone")):
         assert refusal
         assert "your fill" not in refusal
-        assert "read" not in refusal.lower() or "library" in refusal
+        said = f"{refusal} {getattr(refusal, 'fact', '')}"
+        assert "read" not in said.lower().replace("ready", "") or "library" in said
 
 
 def test_a_reader_may_upload_text_all_month_without_a_ceiling(tmp_path: Path) -> None:

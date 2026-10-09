@@ -3017,6 +3017,11 @@ def _said(job: Any, left: int | None, behind: int, language: str = "en") -> str:
             said += " " + said_in(language, "job.said.nothing-used", "Nothing was used.")
         return said
     if job.stage == "blocked":
+        # A page draws the refusal's quiet line beside it (design.md §12, 2026-10-09);
+        # said in words, it follows the sentence.
+        fact = getattr(job.blocked, "fact", "")
+        if job.blocked and fact:
+            return f"{job.blocked} {fact}."
         return job.blocked or said_in(
             language, "job.said.blocked", "We can't make this one right now."
         )

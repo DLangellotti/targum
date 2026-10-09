@@ -407,6 +407,12 @@ What this departs from, and why:
   a sentence beside a Try again button is said twice, and "the library still opens" moves
   into the panel's quiet line.
 
+- **A rail's refusal carries its panel apart from its sentence.** The out-of-credits,
+  out-of-day and no-key refusals are a sentence and, beside it, the quiet line of what still
+  works and the one way on (Top up greyed, the library, Your targums), sent as `fact` and
+  `act` (`serve.Refusal`). Where nothing draws a panel, a chat tool or the Telegram bot,
+  the sentence is said with its fact after it.
+
 What it does not overturn: offline. "You're offline" and the saved-for-offline lines are
 their own slice and are not drawn here; the banner says only that targum is out of reach.
 

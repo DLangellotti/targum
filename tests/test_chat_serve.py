@@ -187,7 +187,8 @@ def test_an_empty_line_and_a_missing_key_are_refused(chatting) -> None:
     assert call(port, "POST", f"/chat/say?k={key}", {"text": "   "})[0] == 400
     chats.usable = False
     status, answer, _ = call(port, "POST", f"/chat/say?k={key}", {"text": "hi"})
-    assert status == 402 and "still opens" in answer["error"]
+    assert status == 402 and "anything new" in answer["error"]
+    assert "still opens" in answer["fact"] and answer["act"] == "yours"
 
 
 def test_the_policy_did_not_move_for_the_chat() -> None:

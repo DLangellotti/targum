@@ -1733,6 +1733,13 @@
     var box = document.createDocumentFragment();
     var head = titled(job);
     box.appendChild(head);
+    // A panel in place of the price: the sentence, the one way on (Top up greyed, or
+    // the library) and what still works (design.md §12, 2026-10-09).
+    if (window.TargumFault && job.blocked) {
+      box.appendChild(window.TargumFault.refusal(job.blocked, job.fact, job.act));
+      say(box);
+      return;
+    }
     var why = document.createElement("span");
     why.className = "cost";
     why.textContent = job.blocked || "";
@@ -2192,6 +2199,21 @@
            to hold the conversion in their head — and the decimal goes with it: "6.5 of
            your 8 hours" was a number nobody reads as six hours thirty. */
         var spare = Math.round(left * 60);
+        if (left <= 0 && window.TargumFault) {
+          // Spent: a panel with Top up, greyed until there is somewhere to pay, and what
+          // still works beside it (design.md §12, 2026-10-09).
+          hoursLine.hidden = true;
+          var spent = window.TargumFault.refusal(
+            t("add.credits.none", "You've used all your credits this month. Top up, or they come back on {date}.", {
+              date: hours.ends || "",
+            }),
+            t("add.credits.none.fact", "The library still opens"),
+            "top-up"
+          );
+          spent.classList.add("credits-spent");
+          hoursLine.parentNode.insertBefore(spent, hoursLine.nextSibling);
+          return;
+        }
         hoursLine.textContent =
           left > 0
             ? tn("add.credits.left", spare, "You have {n} credit left this month.", "You have {n} credits left this month.") +
@@ -2199,7 +2221,7 @@
               t("add.credits.rate", "That's about {clock} of audio, and the library costs none of it.", {
                 clock: clockOf(left),
               })
-            : t("add.credits.none", "You've used all your credits this month. Top up, or they come back on {date}. The library still opens.", {
+            : t("add.credits.none", "You've used all your credits this month. Top up, or they come back on {date}.", {
                 date: hours.ends || "",
               });
         hoursLine.hidden = false;

@@ -507,6 +507,21 @@
     }
     var note = document.createElement("p");
     note.className = "quote-note";
+    // A refusal on the card: the sentence with the clay mark, or, where the rail that
+    // stopped it sent what still works, a panel with its way on (design.md §12,
+    // 2026-10-09). It was a sentence in clay.
+    function refuse(state, fallback) {
+      var said = state.blocked || state.error || fallback;
+      card.classList.add("refused");
+      if (window.TargumFault && state.blocked && (state.fact || state.act)) {
+        note.textContent = "";
+        note.hidden = true;
+        card.appendChild(window.TargumFault.refusal(said, state.fact, state.act));
+        return;
+      }
+      note.textContent = said;
+      note.classList.add("fault-marked");
+    }
     if (job.stage === "ready") {
       var spends = uses(job);
       if (spends) {
@@ -523,8 +538,8 @@
         go.disabled = true;
         start(job).then(function (state) {
           if (state.error || state.blocked) {
-            note.textContent = state.error || state.blocked;
-            card.classList.add("refused");
+            go.hidden = true;
+            refuse(state, "");
             return;
           }
           note.textContent = t("bring.started", "We're getting it ready. You'll find it in Your targums.");
@@ -552,8 +567,7 @@
       card.appendChild(open);
       card.classList.add("started");
     } else {
-      note.textContent = job.blocked || job.error || t("bring.cannot", "We can't get this ready right now.");
-      card.classList.add("refused");
+      refuse(job, t("bring.cannot", "We can't get this ready right now."));
     }
     card.appendChild(note);
     host.appendChild(card);

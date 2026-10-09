@@ -10901,10 +10901,39 @@ var targumReader = function () {
     var making = "";
     var wanted = false;
     var timer = 0;
-    var tell = function (state, text) {
+    var tell = function (state, text, job) {
       if (door) door.setAttribute("data-state", state);
       if (said) said.textContent = text || "";
       if (again) again.hidden = state !== "failed";
+      // A refusal wears the clay mark, and one that was refused by a rail says what still
+      // works and draws its way on: Top up greyed, until there is somewhere to pay
+      // (design.md §12, 2026-10-09).
+      if (said) said.classList.toggle("fault-marked", state === "failed" || state === "refused");
+      var extra = door && door.querySelector(".film-next-extra");
+      if (extra) extra.parentNode.removeChild(extra);
+      if (state === "refused" && job && (job.fact || job.act === "top-up") && said) {
+        extra = document.createElement("span");
+        extra.className = "film-next-extra fault-panel-row";
+        if (job.act === "top-up") {
+          var up = document.createElement("button");
+          up.type = "button";
+          up.className = "fault-go";
+          up.disabled = true;
+          up.textContent = S.t("fault.top-up", "Top up");
+          extra.appendChild(up);
+          var soon = document.createElement("span");
+          soon.className = "fault-fact";
+          soon.textContent = S.t("fault.payments-soon", "Payments open soon");
+          extra.appendChild(soon);
+        }
+        if (job.fact) {
+          var fact = document.createElement("span");
+          fact.className = "fault-fact";
+          fact.textContent = job.fact;
+          extra.appendChild(fact);
+        }
+        said.parentNode.insertBefore(extra, said.nextSibling);
+      }
     };
     var stop = function () {
       clearInterval(timer);
@@ -10922,9 +10951,9 @@ var targumReader = function () {
       stop();
       tell("failed", text || S.t("reader.film.next-part-trouble", "We couldn't get the next part ready."));
     };
-    var refused = function (text) {
+    var refused = function (text, job) {
       stop();
-      tell("refused", text);
+      tell("refused", text, job);
     };
     // Looked at only while the door is on screen or was pressed: a part takes minutes
     // and the reader is watching this one, so nobody needs a clock ticking under it.
@@ -10937,7 +10966,7 @@ var targumReader = function () {
         })
         .then(function (state) {
           if (state.stage === "done") ready();
-          else if (state.stage === "blocked" || state.blocked) refused(state.blocked || state.error);
+          else if (state.stage === "blocked" || state.blocked) refused(state.blocked || state.error, state);
           else if (state.stage === "failed" || (state.error && !state.stage)) failed(state.error);
         })
         .catch(function () {});
@@ -10969,7 +10998,7 @@ var targumReader = function () {
         })
         .then(function (job) {
           if (job.ready || job.stage === "done") return ready();
-          if (job.blocked || job.stage === "blocked") return refused(job.blocked || job.error);
+          if (job.blocked || job.stage === "blocked") return refused(job.blocked || job.error, job);
           if (job.stage === "failed") return failed(job.error);
           if (job.id) return watch(job.id);
           // `waiting`: this part is not ready itself, so nothing is made ahead of it.

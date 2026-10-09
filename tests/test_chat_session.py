@@ -329,7 +329,9 @@ def test_the_chat_rail_refuses_and_names_when_it_lifts(tmp_path: Path) -> None:
     assert feed is not None
     errors = [json.loads(data) for kind, data in feed.events if kind == "error"]
     assert errors and "talking" in errors[0]["message"]
-    assert "Try again in" in errors[0]["message"] and "library still open" in errors[0]["message"]
+    assert "Try again in" in errors[0]["message"]
+    # What still works rides beside it, for the panel (design.md §12, 2026-10-09).
+    assert "library still open" in errors[0]["fact"] and errors[0]["act"] == "library"
     assert "$" not in errors[0]["message"]
     turn = next(t for t in store.chat_turns(first.chat_id) if t["n"] == second.n)
     assert turn["stage"] == "failed" and turn["error"] == errors[0]["message"]
@@ -700,8 +702,10 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     chats.answer(asked)
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
-    said = [json.loads(data) for kind, data in feed.events if kind == "error"][0]["message"]
-    assert "credits for audio and talk" in said and "library still open" in said
+    error = [json.loads(data) for kind, data in feed.events if kind == "error"][0]
+    said, fact = error["message"], error["fact"]
+    assert "credits for audio and talk" in said and "library still open" in fact
+    assert error["act"] == "top-up"
     assert "$" not in said
     assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"
 

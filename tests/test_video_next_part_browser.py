@@ -273,20 +273,26 @@ def test_a_refused_part_says_why_and_a_failed_one_offers_again(
     tmp_path,
 ) -> None:
     reader = two_parts(tmp_path, second_ready=False)
-    refusal = (
-        "That's a lot to get ready in one day. Try again in 24 hours. The library still opens."
-    )
-    context, page, _asked = film_page(
-        browser,
-        reader,
-        "sec-0001.html",
-        "theatre",
-        (402, {"id": "j1", "stage": "blocked", "blocked": refusal, "error": ""}),
-    )
+    refusal = "You've used this month's credits. Top up, or they come back on 1 November."
+    # What still works and the way on ride beside the sentence (design.md §12,
+    # 2026-10-09): Top up drawn and greyed, with the reason and the fact after it.
+    refused = {
+        "id": "j1",
+        "stage": "blocked",
+        "blocked": refusal,
+        "error": "",
+        "fact": "The library still opens",
+        "act": "top-up",
+    }
+    context, page, _asked = film_page(browser, reader, "sec-0001.html", "theatre", (402, refused))
     try:
         play_to_end(page)
         assert page.locator(".film-next-said").inner_text() == refusal
         assert not page.locator(".film-next-again").is_visible()
+        up = page.locator(".film-next-extra .fault-go")
+        assert up.inner_text() == "Top up" and up.is_disabled()
+        facts = page.locator(".film-next-extra .fault-fact").all_inner_texts()
+        assert facts == ["Payments open soon", "The library still opens"]
     finally:
         context.close()
 

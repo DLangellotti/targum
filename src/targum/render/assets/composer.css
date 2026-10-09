@@ -189,7 +189,7 @@
 /* What could be done with it after it is built, not now: a note, so it does not read
    as another thing to press (targum-internal#246). */
 .quote-voice { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
-.quote-card.refused .quote-note { color: var(--clay); }
+.quote-card.refused .quote-note { color: var(--ink); }
 /* The first lines of a text that arrived as pages, in the reading face: what the
    reader will get, seen before the press. Four lines at most, set by the server. */
 .quote-excerpt {
@@ -268,7 +268,7 @@
 .chat-hours { margin: 0 0 0.5rem; font-size: 0.8125rem; color: var(--ink-soft); }
 .chat-hours[hidden] { display: none; }
 
-.chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--clay); }
+.chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--ink); }
 .chat-said[hidden] { display: none; }
 
 /* The chips: the things most readers ask, as buttons (targum-internal#240). Ink-bordered

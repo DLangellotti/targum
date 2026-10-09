@@ -141,7 +141,7 @@
     var slot = { title: SLOT };
     if (job.stage === "done") return filled(t("building.ready", "{title} is ready.", slot), title);
     if (job.stage === "failed") {
-      var failed = job.error || t("building.failed", "we couldn't get it ready. Try uploading it again.");
+      var failed = job.error || t("building.failed", "we couldn't get it ready.");
       return filled(SLOT + ": " + failed, title);
     }
     if (job.stage === "blocked") {
@@ -233,10 +233,21 @@
     if (job.stage === "failed") {
       // What happened and what to do, in the server's one sentence: the build's own
       // reason, and whether anything was used.
+      var said = job.said || job.error || t("building.failed", "we couldn't get it ready.");
+      // A line with its way on, Upload again, where we have no reason of our own to
+      // give (design.md §12, 2026-10-09): a build's own reason says its own way on.
+      // The sentence said "Try uploading it again" until the button was drawn.
+      if (window.TargumFault && !job.said && !job.error) {
+        var line = window.TargumFault.line(said, t("building.upload-again", "Upload again"), function () {
+          location.href = keyed("/add");
+        });
+        line.classList.add("notices-said");
+        box.appendChild(line);
+        return box;
+      }
       var why = document.createElement("p");
       why.className = "notices-said";
-      why.textContent =
-        job.said || job.error || t("building.failed", "we couldn't get it ready. Try uploading it again.");
+      why.textContent = said;
       box.appendChild(why);
       return box;
     }
