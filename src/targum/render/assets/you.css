@@ -237,3 +237,8 @@
 #connection-rows .when,
 #telegram-rows .when { font-size: 0.8125rem; color: var(--ink-soft); }
 #connection-rows .when:empty { display: none; }
+
+/* Credits, the account page's first panel since they left Your Progress (design.md §12,
+   2026-10-09): the line account.js writes, in ink at reading size, and the rate under it. */
+.you .credits-left { margin: 0; font-size: 1.0625rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+.you .credits .note { margin-block-start: 0.4rem; }

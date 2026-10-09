@@ -1,8 +1,9 @@
-"""The Your Progress page's ledger, run rather than read.
+"""The Your Progress page, run rather than read.
 
-The page was analytics and is now an account of what a reader has built, which means it
-does arithmetic it never used to: how many words count as known, which milestone that has
-passed, how many are left to the next, and which of the last twelve weeks were read on.
+A story in three parts under the totals (design.md §12, "Your Progress is a story in three
+parts", 2026-10-09): the touchstones the account places the reader on, the words taken up
+week by week, and what next — and the totals, which do arithmetic of their own: how many
+words count as known, how many were learned here, how many targums finished.
 
 `progress.js` is eight hundred lines and had no test that ran any of it — a parse check
 and source greps stood in. Same harness as `test_learn_js.py`: a stub document in
@@ -43,6 +44,8 @@ def draw(
     chosen: str = "",
     strings: dict[str, Any] | None = None,
     reading: dict[str, Any] | None = None,
+    story: dict[str, Any] | None = None,
+    totals: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -54,6 +57,8 @@ def draw(
                     "chosen": chosen,
                     "strings": strings,
                     "reading": reading,
+                    "story": story,
+                    "totals": totals,
                 }
             ),
             encoding="utf-8",
@@ -107,209 +112,11 @@ def test_one_of_a_thing_is_not_said_in_the_plural() -> None:
     assert drawn["counts"]["day on targum"] == 1
 
 
-def test_a_milestone_is_reached_or_it_is_not() -> None:
-    """Ten known words passes the first one and leaves the rest listed and quiet. The
-    unreached ones are still shown: what is next is the point of a ledger."""
-    drawn = draw({"targum:vocab:he": vocab(known=12)})
-
-    assert drawn["marks"]["on"] == [10]
-    assert drawn["marks"]["off"][:3] == [50, 100, 250]
-
-
-def test_the_next_milestone_says_how_far_it_is() -> None:
-    """The arithmetic somebody would notice being wrong, and the thousands separator —
-    these numbers are the thing the page is for and they get read.
-
-    In a language with no level ladder behind it — Yiddish, since French, Russian and
-    Italian have the CEFR (2026-09-13) — which is where the word-count ladder still leads
-    the block. A language with a ladder shows the rung it has reached instead.
-    """
-    drawn = draw(
-        {
-            "targum:vocab:yi": vocab(known=962),
-            "targum:docs": {"a": {"language": "yi", "title": "One"}},
-            "targum:opened": {"a": 1},
-        }
-    )
-
-    assert drawn["reached"] == "500 words known"
-    assert drawn["next"] == "Another 38 known words to reach 1,000."
-
-
-def test_the_page_says_its_words_in_the_readers_language() -> None:
-    """A Russian reader's ledger is Russian, the figure still bold wherever the sentence
-    puts it, the plural chosen by Russian's rules, and a gap said in English
-    (targum-internal#184)."""
-    drawn = draw(
-        {
-            "targum:vocab:yi": vocab(known=962),
-            "targum:docs": {"a": {"language": "yi", "title": "One"}},
-            "targum:opened": {"a": 1},
-            "targum:days": {"2026-08-24": 1, "2026-08-25": 1},
-        },
-        strings={
-            "language": "ru",
-            "strings": {
-                "progress.milestone.next.many": "До {next} ещё {bold}.",
-                "progress.milestone.next.other": "До {next} ещё {bold}.",
-                "progress.count.days.few": "дня чтения",
-                "progress.count.days.other": "дня чтения",
-            },
-        },
-    )
-
-    assert drawn["next"] == "До 1,000 ещё 38."
-    assert drawn["counts"]["дня чтения"] == 2
-    assert drawn["reached"] == "500 words known", "a gap is English, not the key"
-
-
-def test_nothing_kept_yet_asks_rather_than_boasting() -> None:
-    """A word marked while reading is the one thing that starts this page off, so that is
-    what it says. No zero-state milestone, no encouragement."""
-    drawn = draw({"targum:vocab:he": vocab(learning=3)})
-
-    assert drawn["counts"]["words marked known"] == 0
-    assert drawn["reached"] == "", "nothing has been reached, so no chip"
-    assert drawn["next"] == "Mark a word as known and your level starts here."
-
-
-def test_the_day_strip_is_twelve_weeks_ending_today() -> None:
-    """Days are the one count that is not per-language — a day is not in a language — and
-    a day outside the window is still counted in the total, just not drawn."""
-    today = date.today()
-    days = {
-        (today - timedelta(days=n)).isoformat(): 1
-        for n in (0, 1, 5, 40, 200)  # the last one is outside the twelve weeks
-    }
-    drawn = draw({"targum:vocab:he": vocab(known=3), "targum:days": days})
-
-    assert drawn["days"]["cells"] == 84, "twelve weeks of squares"
-    assert drawn["days"]["read"] == 4, "and the one 200 days ago is off the end of it"
-    assert drawn["counts"]["days on targum"] == 5, "though the count still knows about it"
-    assert "4 days on targum in the last twelve weeks" == drawn["days"]["label"]
-
-
-def test_a_day_nobody_read_on_says_nothing_at_all() -> None:
-    """§6: missed days are quiet, never red. A gap is the resting colour and no label."""
-    drawn = draw({"targum:vocab:he": vocab(known=3)})
-
-    assert drawn["days"]["read"] == 0
-    assert drawn["days"]["said"] == "Open something and today is your first."
-
-
-# --- how far into Hebrew ------------------------------------------------------
-
-
-def banded(**spec: int) -> dict[str, Any]:
-    """A Hebrew word list of known words, so many in each difficulty band."""
-    out: dict[str, Any] = {}
-    n = 0
-    for band, count in spec.items():
-        for _ in range(count):
-            key = f"w{n}"
-            out[key] = {"status": KNOWN, "surface": key, "at": 1_700_000_000_000 + n}
-            if band != "unrated":
-                out[key]["band"] = band.replace("_", " ")
-            n += 1
-    return out
-
-
-def ulpan(words: dict[str, Any], language: str = "he") -> dict[str, Any]:
-    return draw(
-        {
-            f"targum:vocab:{language}": words,
-            "targum:docs": {"a": {"language": language, "title": "One"}},
-            "targum:opened": {"a": 1},
-            "targum:days": {"2026-08-25": 1},
-        }
-    )["ulpan"]
-
-
-def test_a_rung_is_reached_on_words_weighted_by_how_common_they_are() -> None:
-    """Both halves of it: how many words, and how far out they sit. A thousand words that
-    reach into the harder bands is a different vocabulary from a thousand of the commonest
-    ones, and the ladder has to be able to tell them apart."""
-    common = ulpan(banded(easy=1000))
-    spread = ulpan(banded(easy=400, fairly_easy=300, moderate=200, hard=100))
-    assert "aleph" in common["rung"]
-    assert "aleph plus" in spread["rung"]
-    assert "aleph plus" not in common["rung"], "the same count, not the same reach"
-
-
-def test_the_ladder_does_not_flatter() -> None:
-    """A mixed six thousand words is somebody who reads; it is not somebody at the top of
-    the ulpan ladder. Weighted upward from one rather than around it, this said hey."""
-    assert (
-        "dalet"
-        in ulpan(banded(easy=1500, fairly_easy=1500, moderate=1500, hard=1000, very_hard=500))[
-            "rung"
-        ]
-    )
-
-
-def test_below_the_first_rung_is_said_plainly() -> None:
-    """And is not an achievement: the reader is told the distance, not congratulated for
-    standing at the bottom of the ladder."""
-    early = ulpan(banded(easy=120, fairly_easy=55, moderate=16))
-    assert early["rung"] == "", "no chip, because nothing has been reached"
-    assert "words to" in early["next"]
-
-
-def test_the_distance_to_the_next_rung_is_counted_in_words() -> None:
-    """Words, because words are what the reader has and what they can go and get. The
-    weighted total is the page's own arithmetic and is never shown — a score on a scale
-    nobody else uses is the invented currency §7 rules out."""
-    said = ulpan(banded(easy=400, fairly_easy=300, moderate=200, hard=100))["next"]
-    assert said.startswith("Another ")
-    assert "words to" in said and "(bet)" in said
-
-
-def test_the_top_of_the_ladder_stops_rather_than_inventing_more() -> None:
-    said = ulpan(banded(easy=3000, fairly_easy=3000, moderate=3000, hard=2000, very_hard=1000))
-    assert "vav" in said["rung"]
-    assert said["next"] == "You're past every rung an ulpan keeps."
-
-
-def test_a_language_with_cefr_shows_cefr_and_hebrew_shows_both() -> None:
-    """Decided 2026-09-13: languages with CEFR levels have them. Hebrew keeps the ulpan
-    rung first with its CEFR equivalent beside it, French, Russian and Italian show a CEFR
-    level, and a language with no word list to measure against keeps its milestones and
-    says why."""
-    hebrew = ulpan(banded(easy=400), language="he")
-    assert "aleph" in hebrew["rung"] and "about A1" in hebrew["rung"]
-    assert hebrew["title"] == "Ulpan level" and hebrew["shown"]
-
-    french = ulpan(banded(easy=1500, fairly_easy=400, hard=900), language="fr")
-    assert french["title"] == "CEFR level" and french["shown"], "a guide, said as one"
-    assert french["rung"] == "A2", "1,900 common words: the hard ones do not count here"
-    assert french["next"] == "Another 100 common words to B1."
-
-    russian = ulpan(banded(easy=2000), language="ru")
-    assert russian["rung"] == "B1"
-
-    yiddish = ulpan(banded(easy=400), language="yi")
-    assert yiddish["rung"] == "250 words known", "the milestone it always had"
-    assert not yiddish["shown"], "and no caveat about a ladder it is not on"
-    assert "no level for this language" in yiddish["why"]
-
-
-def test_the_top_of_the_cefr_stops_rather_than_inventing_more() -> None:
-    said = ulpan(banded(easy=3300), language="it")
-    assert said["rung"] == "C2" and said["next"] == "You're past every CEFR level."
-
-
-def test_a_word_no_frequency_data_can_rate_still_counts() -> None:
-    """Counted at its face value rather than guessed at, the way `annotate/base.py` shows
-    an unrated word as no level at all rather than as a level it invented."""
-    assert "aleph" in ulpan(banded(unrated=400))["rung"]
-
-
 # --- an ignored word is ignored -----------------------------------------------
 
 
 def marked(**spec: int) -> dict[str, Any]:
-    """A Hebrew word list by status name, every word in the same difficulty band so the
-    band chart has one row to look at."""
+    """A Hebrew word list by status name, every word in the same difficulty band."""
     status = {"known": KNOWN, "learning": 2, "ignored": 0}
     out: dict[str, Any] = {}
     n = 0
@@ -358,8 +165,7 @@ def test_a_name_marked_known_is_not_a_word_marked_known() -> None:
     """The line Learn opens with — "You know N Hebrew words" — leaves out every name and
     number, because knowing that אחשורוש is a king is not knowing a word of Hebrew. The
     ledger counted them, so its figure sat above Learn's by exactly the names the reader
-    had ticked off while reading; so did the status bar under it, while the milestones
-    beside it did not. Every figure on the page leaves them out now, from one rule."""
+    had ticked off while reading. Every figure on the page leaves them out, from one rule."""
     words = marked(known=4, learning=2)
     for n, kind in enumerate(("name", "number", "name")):
         words[f"n{n}"] = {"status": KNOWN, "surface": f"n{n}", "band": kind, "at": 1}
@@ -371,51 +177,7 @@ def test_a_name_marked_known_is_not_a_word_marked_known() -> None:
     assert tile(drawn, "words marked known") == 4
     assert tile(drawn, "words on your list") == 6
     assert tile(drawn, "words learned on targum") == 0
-    assert drawn["marks"] == plain["marks"]
-    assert drawn["bar"] == plain["bar"] == "Your Hebrew words: 2 getting there, 4 known"
-
-
-def test_nothing_on_the_page_says_how_many_you_ignored() -> None:
-    """The line under "Where they are" kept a tally of them. Being shown a count of what
-    you dismissed is not being allowed to dismiss it."""
-    drawn = page(marked(known=4, ignored=5))
-    assert drawn["progressNote"] == ""
-    assert "ignor" not in json.dumps(drawn).lower()
-
-
-def test_ignored_words_are_not_drawn_among_the_others() -> None:
-    """Not in the bar of where they are, and not in the chart of how common they are —
-    both of which would otherwise put them back in front of the reader as a slice."""
-    only_known = page(marked(known=4))
-    with_ignored = page(marked(known=4, ignored=5))
-    assert with_ignored["bands"] == only_known["bands"]
-
-
-def test_a_word_with_no_difficulty_is_not_a_kind_of_word() -> None:
-    """ "not rated" was a seventh row that read as a category a word could belong to. It is
-    not: it is the absence of frequency data for a language, which is a fact about targum
-    rather than about the word."""
-    words = marked(known=3)
-    words["nameless"] = {"status": KNOWN, "surface": "nameless", "at": 1_700_000_000_100}
-    drawn = page(words)
-    assert "not rated" not in drawn["bands"]
-    assert "easy" in drawn["bands"]
-
-
-def test_a_language_with_no_word_list_says_so_rather_than_nothing_marked() -> None:
-    """Copy audit, 2026-09-28 (Q4). Yiddish and Aramaic have no frequency bands, so none
-    of a reader's words falls in one, and the chart said "Nothing marked yet." to a
-    reader with hundreds marked."""
-    drawn = draw(
-        {
-            "targum:vocab:yi": banded(unrated=300),
-            "targum:docs": {"a": {"language": "yi", "title": "One"}},
-            "targum:opened": {"a": 1},
-            "targum:days": {"2026-08-25": 1},
-        }
-    )
-    assert "We have no word list for this language" in drawn["bands"]
-    assert "Nothing marked yet" not in drawn["bands"]
+    assert drawn["weeks"] == plain["weeks"], "nor among the words taken up"
 
 
 # --- what targum taught, and what you already had -----------------------------
@@ -472,9 +234,7 @@ def test_every_figure_is_said_once_on_the_page() -> None:
         "phrases saved",
         "targums finished",
         "day on targum",
-        # The longest run of days, and never the current one (targum-internal#175).
-        "day in your longest run",
-    ], "in the order somebody would say them"
+    ], "in the order somebody would say them, and no run of days (§12, 2026-10-09)"
 
 
 def test_a_figure_carries_its_name_and_nothing_else() -> None:
@@ -482,29 +242,10 @@ def test_a_figure_carries_its_name_and_nothing_else() -> None:
     is however many words happen to be part-way up the ladder, so it fell when a reader
     saved a new word and rose when they gave up on one."""
     drawn = page(marked(known=9, learning=1))
-    assert [box["delta"] for box in drawn["tiles"]] == [""] * 7
+    assert [box["delta"] for box in drawn["tiles"]] == [""] * 6
 
 
-# --- a name is not a word ------------------------------------------------------
-
-
-def test_a_name_is_not_on_the_ladder() -> None:
-    """Every name and number is a token now, and marking one known keeps it with "name"
-    or "number" as its band. Rare by corpus frequency, a known name would otherwise weigh
-    as much as three everyday words; David asked that they not count at all."""
-    words = banded(easy=100)
-    for n in range(300):
-        words[f"name-{n}"] = {"status": KNOWN, "surface": f"name-{n}", "band": "name", "at": 1}
-    assert "aleph" not in ulpan(words)["rung"], "three hundred names are not a vocabulary"
-    assert "aleph" in ulpan(banded(easy=400))["rung"]
-
-
-def test_a_name_is_not_a_milestone() -> None:
-    words = vocab(known=8)
-    for n in range(5):
-        words[f"name-{n}"] = {"status": KNOWN, "surface": f"name-{n}", "band": "number", "at": 1}
-    drawn = draw({"targum:vocab:he": words})
-    assert drawn["marks"]["on"] == [], "eight words and five numbers is eight words"
+# --- what was finished ----------------------------------------------------------
 
 
 def test_a_text_said_finished_is_counted_once() -> None:
@@ -602,75 +343,6 @@ def _on(day: date, n: int, tag: str) -> dict[str, Any]:
     return {
         f"{tag}-{i}": {"status": KNOWN, "surface": f"{tag}-{i}", "at": at + i} for i in range(n)
     }
-
-
-def test_a_day_is_shaded_by_how_many_words_were_marked_on_it() -> None:
-    """The strip was two-state: read or not. Now the colour says how much, on the same
-    five-shade ramp the about page's calendar uses, so a heavy day and a day somebody
-    opened a text and marked nothing do not look identical (targum-internal #19)."""
-    today = date.today()
-    words: dict[str, Any] = {}
-    words |= _on(today, 12, "heavy")
-    words |= _on(today - timedelta(days=1), 6, "middling")
-    words |= _on(today - timedelta(days=2), 1, "light")
-
-    drawn = draw(
-        {
-            "targum:vocab:he": words,
-            "targum:days": {(today - timedelta(days=n)).isoformat(): 1 for n in range(4)},
-        }
-    )
-
-    shades = drawn["days"]["shades"]
-    assert len(shades) == 4, "four read days, four shaded squares"
-    # Chronological, so the last four are: the empty day, then light, middling, heavy.
-    quiet, light, middling, heavy = shades
-    assert quiet == 1, "a day read with nothing marked is the faintest green, never grey"
-    assert light == 1, "one word out of twelve is the bottom of the ramp"
-    assert heavy == 4, "the busiest day in the window is the top of it"
-    assert light < middling < heavy, "and the ramp climbs in between"
-
-
-def test_the_shading_is_scaled_to_the_window_not_to_all_time() -> None:
-    """A first-week binge outside the twelve weeks must not flatten everything inside
-    them. The busiest day is the busiest visible day."""
-    today = date.today()
-    words: dict[str, Any] = {}
-    words |= _on(today - timedelta(days=200), 400, "ancient")
-    words |= _on(today, 2, "now")
-
-    drawn = draw({"targum:vocab:he": words, "targum:days": {today.isoformat(): 1}})
-
-    assert drawn["days"]["shades"] == [4], (
-        "two words is the busiest day on screen, so it is the top shade"
-    )
-
-
-def test_the_longest_run_of_days_is_counted_and_the_current_one_never() -> None:
-    """targum-internal#175, decided 2026-09-03 and recorded in design.md §12: the
-    longest run can be tied or beaten and never lost, which is the property every other
-    count in the ledger has; the current one is the count that makes people quit in the
-    week they break it, and it is refused rather than unbuilt."""
-    drawn = draw(
-        {
-            "targum:vocab:he": vocab(known=1),
-            "targum:docs": {},
-            "targum:opened": {},
-            "targum:days": {
-                "2026-08-01": 1,
-                "2026-08-02": 1,
-                "2026-08-03": 1,
-                "2026-08-10": 1,
-                "2026-08-11": 1,
-            },
-        }
-    )
-    assert drawn["counts"]["days in your longest run"] == 3
-    assert drawn["counts"]["days on targum"] == 5, "the days themselves are still all counted"
-    assert not [label for label in drawn["counts"] if "current" in label or "in a row" in label]
-
-    one = draw({"targum:vocab:he": vocab(known=1), "targum:days": {"2026-08-01": 1}})
-    assert one["counts"]["day in your longest run"] == 1, "singular, like the rest"
 
 
 def test_a_language_with_no_words_in_it_yet_draws_an_empty_ledger() -> None:
@@ -773,3 +445,218 @@ def test_two_months_draw_no_line_and_say_what_would() -> None:
 
     signed_out = draw({"targum:vocab:he": vocab(known=3)})["reading"]
     assert not signed_out["shown"], "absent signed out, not nought"
+
+
+# -- the story (design.md §12, "Your Progress is a story in three parts", 2026-10-09) ---
+
+
+LADDER = {
+    "library": True,
+    "known": 3,
+    "ladder": [
+        {"kind": "dialogue", "name": "dialogue", "share": 99, "state": "passed", "texts": 9},
+        {"kind": "talk", "name": "talk", "share": 96, "state": "passed", "texts": 9},
+        {"kind": "article", "name": "article", "share": 93, "state": "here", "texts": 9},
+        {"kind": "story", "name": "story", "share": 86, "state": "next", "texts": 9},
+        {"kind": "novel", "name": "novel", "share": 70, "state": "ahead", "texts": 9},
+        {"kind": "poetry", "name": "poetry", "share": None, "state": "ahead", "texts": 9},
+    ],
+    "here": 2,
+    "said": "nearly",
+    "texts": [
+        {
+            "id": "jonah",
+            "title": "יונה",
+            "english": "Jonah",
+            "author": "",
+            "kind": "prose",
+            "known": 91,
+        },
+    ],
+    "words": [{"lemma": "soft-0", "texts": 4}, {"lemma": "elsewhere", "texts": 2}],
+}
+
+
+def story(**changes: Any) -> dict[str, Any]:
+    return draw({"targum:vocab:he": vocab(known=3, learning=2)}, story={**LADDER, **changes})
+
+
+def test_where_you_are_names_the_hardest_kind_you_would_follow() -> None:
+    """The headline is worded by the share: 90–95% is "nearly all of"."""
+    drawn = story()["where"]
+    assert drawn["head"] == "You'd follow nearly all of a news article"
+    assert drawn["shown"] and not drawn["note"]
+    assert [rung["state"] for rung in drawn["rungs"]] == [
+        "passed",
+        "passed",
+        "here",
+        "next",
+        "ahead",
+        "ahead",
+    ]
+    # The share is on the rung you are on and the next one, and nowhere else.
+    assert [rung["text"] for rung in drawn["rungs"]] == [
+        "A dialogue",
+        "A video talk",
+        "A news article93%",
+        "A short story86%",
+        "A novel",
+        "Poetry",
+    ]
+    assert [rung["ticked"] for rung in drawn["rungs"]] == [True, True, False, False, False, False]
+    assert drawn["rungs"][2]["current"] == "step"
+
+
+def test_every_touchstone_opens_its_shelf_in_the_library() -> None:
+    rungs = story()["where"]["rungs"]
+    assert rungs[3]["href"] == "/library?k=k#see/kind/story"
+    assert all("#see/kind/" in rung["href"] for rung in rungs)
+
+
+@pytest.mark.parametrize(
+    ("said", "head"),
+    [
+        ("follow", "You'd follow a news article"),
+        ("most", "You'd follow most of a news article"),
+    ],
+)
+def test_the_three_wordings(said: str, head: str) -> None:
+    assert story(said=said)["where"]["head"] == head
+
+
+def test_with_no_rung_reached_the_first_is_where_to_start() -> None:
+    ladder = [dict(rung, state="ahead") for rung in LADDER["ladder"]]
+    ladder[0]["state"] = "next"
+    drawn = story(ladder=ladder, here=None, said="")["where"]
+    assert drawn["head"] == "A dialogue is the place to start"
+
+
+def test_italian_picture_books_are_called_so() -> None:
+    ladder = [{"kind": "story", "name": "picture-book", "share": 97, "state": "here", "texts": 19}]
+    drawn = story(ladder=ladder, here=0, said="follow")["where"]
+    assert drawn["head"] == "You'd follow a picture book"
+    assert drawn["rungs"][0]["href"].endswith("#see/kind/story")
+
+
+def test_aramaic_shows_known_words_and_no_ladder() -> None:
+    """wordfreq has no Aramaic list, so its texts cannot be measured (David, 2026-10-08)."""
+    drawn = draw(
+        {"targum:vocab:arc": vocab(known=12)},
+        chosen="arc",
+        story={
+            "library": True,
+            "known": 12,
+            "ladder": [],
+            "here": None,
+            "said": "",
+            "texts": [],
+            "words": [],
+        },
+    )
+    assert drawn["where"]["head"] == "You know 12 words so far"
+    assert not drawn["where"]["shown"]
+    assert "no ladder of texts for Aramaic" in drawn["where"]["note"]
+    assert drawn["how"] == "Reading"
+    assert drawn["next"]["wordsTitle"].startswith("Words you keep meeting, from your Aramaic list")
+
+
+def test_yiddish_has_no_library_so_what_next_is_what_you_bring() -> None:
+    drawn = draw(
+        {"targum:vocab:yi": vocab(known=5)},
+        chosen="yi",
+        story={
+            "library": False,
+            "known": 5,
+            "ladder": [],
+            "here": None,
+            "said": "",
+            "texts": [],
+            "words": [],
+            "uploads": [{"name": "song", "title": "אויפֿן פּריפּעטשיק", "known": 84}],
+        },
+    )
+    assert "library has nothing in this language" in drawn["where"]["note"]
+    assert drawn["how"] == "Reading and watching", "nobody's voice in Yiddish"
+    nxt = drawn["next"]
+    assert nxt["textsTitle"].startswith("The library has nothing in this language yet")
+    assert nxt["level"][0]["href"] == "/add?k=k"
+    assert nxt["level"][1]["text"] == "אויפֿן פּריפּעטשיקUploaded by you | 84% known"
+    assert nxt["more"] == "All your uploads →"
+
+
+def test_signed_out_the_story_says_what_signing_in_would_show() -> None:
+    drawn = draw({"targum:vocab:he": vocab(known=3)})
+    assert drawn["where"]["head"] == "Sign in and we'll say which texts you'd follow."
+    assert not drawn["where"]["shown"]
+    assert drawn["next"]["metEmpty"].startswith("Sign in")
+
+
+def test_what_next_names_the_words_with_their_own_meanings_and_the_texts() -> None:
+    words = vocab(known=3, learning=2)
+    words["soft-0"]["surface"] = "מושלים"
+    drawn = draw(
+        {
+            "targum:vocab:he": words,
+            "targum:meanings:he:en": {"soft-0": {"meaning": "rulers"}},
+        },
+        story=LADDER,
+    )["next"]
+    assert drawn["met"][0]["text"].startswith("מושלים")
+    assert drawn["met"][0]["text"].endswith("met in 4 texts")
+    # A word the server met that this browser has not seen yet is still named.
+    assert drawn["met"][1]["text"] == "elsewhere | met in 2 texts"
+    assert drawn["level"] == [{"text": "יונהJonah | 91% known", "href": "/library?k=k#jonah"}]
+    assert drawn["more"] == "More in the Library →"
+
+
+def test_nothing_met_twice_says_what_would_gather_there() -> None:
+    drawn = story(words=[], texts=[])["next"]
+    assert drawn["met"] == [] and drawn["metEmpty"].startswith("Finish a few sections")
+    assert drawn["levelEmpty"].startswith("Nothing is quite at your level yet")
+
+
+def test_the_story_is_asked_for_the_language_on_the_page() -> None:
+    drawn = draw({"targum:vocab:ru": vocab(known=3)}, chosen="ru", story=LADDER)
+    assert any(url.startswith("/account/story?language=ru") for url in drawn["asked"])
+
+
+def test_the_words_taken_up_are_a_column_a_week_for_twelve_weeks() -> None:
+    """By the week a word was saved and coloured by where it is now: nothing records the
+    day a word became known (§12, 2026-10-09)."""
+    today = date.today()
+    words: dict[str, Any] = {}
+    words |= _on(today, 3, "now")
+    words |= _on(today - timedelta(days=8), 2, "last")
+    words["last-0"]["status"] = 2
+    words |= _on(today - timedelta(days=200), 40, "long-ago")
+    drawn = draw({"targum:vocab:he": words})["weeks"]
+    assert drawn["columns"] == 12
+    assert drawn["label"] == "5 words taken up in the last twelve weeks"
+    # This week: three known, one part; last week: one known and one at step 2.
+    assert drawn["parts"][-1] == 1 and drawn["parts"][-2] == 2
+    assert drawn["titles"][-1].endswith(": 3 words")
+
+
+def test_no_words_lately_is_said_rather_than_drawn_flat() -> None:
+    words = _on(date.today() - timedelta(days=300), 4, "old")
+    assert draw({"targum:vocab:he": words})["weeks"]["said"] == (
+        "No words taken up in the last twelve weeks."
+    )
+
+
+def test_words_read_joins_the_totals_where_the_account_keeps_a_record() -> None:
+    today = date.today().isoformat()
+    totals = [
+        {
+            "day": today,
+            "language": "he",
+            "medium": "read",
+            "words": 1200,
+            "listened": 0,
+            "watched": 0,
+        },
+        {"day": today, "language": "ru", "medium": "read", "words": 5, "listened": 0, "watched": 0},
+    ]
+    drawn = draw({"targum:vocab:he": vocab(known=3)}, totals=totals)
+    assert drawn["counts"]["words read"] == 1200
+    assert "words read" not in draw({"targum:vocab:he": vocab(known=3)})["counts"]

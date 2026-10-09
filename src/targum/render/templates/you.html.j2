@@ -26,6 +26,16 @@
     <p class="note">{{ t("you.page.sign-in-from-the-corner-and-we", "Sign in from the corner and we'll fill this page in.") }}</p>
   </section>
 
+  {#- Credits, first, as the board draws the account page (AccountDesk, 2026-10-08): they
+      moved here off Your Progress, which became a story of a reader's reading (design.md
+      §12, "Your Progress is a story in three parts", 2026-10-09). Filled by `account.js`
+      from who is signed in; absent where there is no cap. -#}
+  <section class="panel credits" id="credits" hidden>
+    <h2>{{ t("you.page.credits", "Credits") }}</h2>
+    <p class="credits-left" id="hours-line"></p>
+    <p class="note">{{ t("you.page.credits-rate", "One credit is a minute of audio or video.") }}</p>
+  </section>
+
   <section class="panel" id="who" hidden>
     <div class="who-head">
       <span class="avatar-large" id="you-avatar"></span>

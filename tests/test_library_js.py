@@ -1152,6 +1152,19 @@ def test_an_address_opens_a_see_all_list(tmp_path: Path) -> None:
     assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[6:]}
 
 
+def test_a_touchstone_address_opens_that_kind_in_every_band(tmp_path: Path) -> None:
+    """Your Progress's rungs link to `#see/kind/<kind>` (design.md §12, 2026-10-09): the
+    See all list, narrowed to that kind of text and to no band."""
+    drawn = browse(tmp_path, hash="#see/kind/article", catalogueKnown=BANDED)
+    assert drawn["shelving"] is False
+    assert drawn["fitOn"] == "everything"
+    assert drawn["kindOn"] == "News"
+    assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[:4]}
+
+    unknown = browse(tmp_path, hash="#see/kind/sermon", catalogueKnown=BANDED)
+    assert unknown["kindOn"] in ("", "All"), "a kind the Library has no word for is not chosen"
+
+
 def test_a_search_over_the_shelves_is_the_whole_list(tmp_path: Path) -> None:
     """A text looked for by name is not narrowed away by a level."""
     drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED, do=[{"type": "ליגה"}])

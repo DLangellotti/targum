@@ -1213,9 +1213,10 @@ def test_the_progress_page_stands_on_its_own() -> None:
     # here and passed on "Your words follow you" in the account panel, which every page
     # carries — so it would have gone on passing with every heading stripped out.
     assert "<h1>Your Progress</h1>" in html
-    assert 'id="progress"' in html  # where your words are
-    assert 'id="growth"' in html  # kept over time
-    assert 'id="bands"' in html  # how common they are
+    # A story in three parts (§12, 2026-10-09): where you are, how you got here, what next.
+    assert 'id="touchstones"' in html  # where you are
+    assert 'id="weeks"' in html  # the words taken up, week by week
+    assert 'id="met-rows"' in html and 'id="level-rows"' in html  # what next
 
     # The same three stores the reader writes, and no fourth copy of anything. The
     # reading of them lives in charts.js, because Learn draws the same numbers from the
@@ -5899,14 +5900,15 @@ def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
         strings,
         "catalogue",
         lambda code: (
-            {"nav.library": "Библиотека", "progress.page.milestones": "Вехи"}
+            {"nav.library": "Библиотека", "progress.next.title": "Что дальше"}
             if code == "ru"
             else real(code)
         ),
     )
     russian = progress_page("k", language="ru")
-    assert "<span>Библиотека</span>" in russian and "<h2>Вехи</h2>" in russian
-    assert "<span>Library</span>" in english and "<h2>Milestones</h2>" in english
+    assert "<span>Библиотека</span>" in russian and ">Что дальше</h2>" in russian
+    assert "<span>Library</span>" in english
+    assert ">The words and texts that would help most</h2>" in english
     assert progress_page("k") == english
 
 

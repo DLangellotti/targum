@@ -403,6 +403,27 @@ def family(
     return list(out)
 
 
+def texts_met(
+    lemmas: Iterable[str],
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "",
+) -> dict[str, int]:
+    """In how many texts the reader has met each of `lemmas`: Your Progress's "Words you
+    keep meeting" (design.md §12, 2026-10-09). Met is `met`'s — inside a section they
+    finished — and a text counts once however often the word comes round in it. A word
+    met nowhere is left out rather than counted 0."""
+    wanted = set(lemmas)
+    out: dict[str, int] = {}
+    if not wanted:
+        return out
+    for _document, sections, counted in _finished_texts(finished, folder_for, language):
+        for lemma in wanted:
+            if lemma in counted.lemmas and counted.where(lemma, sections):
+                out[lemma] = out.get(lemma, 0) + 1
+    return out
+
+
 def _finished_texts(
     finished: Iterable[tuple[str, str, int]],
     folder_for: FolderFor,

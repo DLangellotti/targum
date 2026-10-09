@@ -116,12 +116,14 @@
     drawHours(who.hours);
   }
 
-  // The month's hours, in the panel and — where the page has the line — under the
-  // ledger on Your Progress: the real count, off the chat page where it stood in every
-  // reader's face on every visit (2026-09-10, targum-internal#237). Nothing where there
-  // is no cap.
+  // The month's credits, in the panel and — where the page has the line — on the
+  // account page's Credits panel: the real count, off the chat page where it stood in
+  // every reader's face on every visit (2026-09-10, targum-internal#237), and off Your
+  // Progress since it became a story (design.md §12, 2026-10-09). Nothing where there is
+  // no cap.
   var hoursLine = document.getElementById("account-hours");
   var ledgerLine = document.getElementById("hours-line");
+  var creditsPanel = document.getElementById("credits");
   // "50 minutes", "1 hour 5 minutes", "3 hours": the hours as a person says them. "0.83
   // of 8 hours" was a decimal nobody reads as fifty minutes (2026-09-14).
   function spoken(hours) {
@@ -165,6 +167,7 @@
         : "";
       ledgerLine.hidden = !has;
     }
+    if (creditsPanel) creditsPanel.hidden = !has;
   }
 
   open.addEventListener("click", function () {

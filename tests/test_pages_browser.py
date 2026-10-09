@@ -808,7 +808,13 @@ def test_the_arrival_asks_which_language_first_on_a_phone(browser, width: int) -
     assert got["pillClear"] and not got["sideways"], got
 
 
-def _progress_with(browser, totals: dict, reading: dict | None = None, width: int = 390):
+def _progress_with(
+    browser,
+    totals: dict,
+    reading: dict | None = None,
+    width: int = 390,
+    story: dict | None = None,
+):
     from datetime import date, timedelta
 
     from targum.render.builder import progress_page
@@ -834,6 +840,8 @@ def _progress_with(browser, totals: dict, reading: dict | None = None, width: in
         body = said if "/account/totals" in request.url else {}
         if "/account/reading" in request.url and reading is not None:
             body = {"signedIn": True, "reading": reading}
+        if "/account/story" in request.url and story is not None:
+            body = {"signedIn": True, **story}
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
     context = browser.new_context(viewport={"width": width, "height": 844})
@@ -862,22 +870,81 @@ def test_progress_says_time_listened_watched_and_words_read_and_narrows_them(bro
     """targum-internal#339: "track hours/minutes listened/watched + words read… displayed
     and filterable on Progress." Read off the account's own record, in the page's language
     (the Russian row is not counted here), in hours and minutes and words — no invented
-    unit — and a figure that is nought is not drawn."""
+    unit — and a figure that is nought is not drawn. Filtered by period only, the last 30
+    days first (§12, 2026-10-09)."""
     context, page = _progress_with(browser, {})
-    everything = page.evaluate(SPENT)
-    page.locator("#spent-medium .chip", has_text="Watching").click()
-    watching = page.evaluate(SPENT)
-    page.locator("#spent-medium .chip", has_text="Everything").click()
+    month = page.evaluate(SPENT)
+    page.locator("#spent-period .chip", has_text="All time").click()
+    ever = page.evaluate(SPENT)
     page.locator("#spent-period .chip", has_text="Last 7 days").click()
     lately = page.evaluate(SPENT)
+    medium = page.locator("#spent-medium").count()
     context.close()
 
-    assert everything["shown"] and not everything["sideways"]
-    assert everything["figures"] == ["1 h 35 min listened", "25 min watched", "12,400 words read"]
-    assert watching["figures"] == ["25 min watched"]
-    assert lately["figures"] == ["1 h 35 min listened", "25 min watched"], (
+    assert month["shown"] and not month["sideways"]
+    assert month["figures"] == ["1 h 35 min listened", "25 min watched"], (
         "the book was two months ago"
     )
+    assert ever["figures"] == ["12,400 words read", "1 h 35 min listened", "25 min watched"]
+    assert lately["figures"] == month["figures"]
+    assert medium == 0, "the three figures say the medium"
+
+
+STORY = {
+    "library": True,
+    "known": 1,
+    "ladder": [
+        {"kind": "dialogue", "name": "dialogue", "share": 99, "state": "passed", "texts": 9},
+        {"kind": "talk", "name": "talk", "share": 96, "state": "passed", "texts": 9},
+        {"kind": "article", "name": "article", "share": 93, "state": "here", "texts": 9},
+        {"kind": "story", "name": "story", "share": 86, "state": "next", "texts": 9},
+        {"kind": "novel", "name": "novel", "share": None, "state": "ahead", "texts": 9},
+        {"kind": "poetry", "name": "poetry", "share": None, "state": "ahead", "texts": 9},
+    ],
+    "here": 2,
+    "said": "nearly",
+    "texts": [{"id": "jonah", "title": "יונה", "english": "Jonah", "known": 91}],
+    "words": [{"lemma": "a", "texts": 3}],
+}
+
+STORY_SEEN = """() => ({
+  head: document.getElementById('where-title').textContent,
+  rungs: [...document.querySelectorAll('#touchstones .touch a')].map((a) => ({
+    text: a.textContent, href: a.getAttribute('href'), height: a.getBoundingClientRect().height,
+  })),
+  parts: [...document.querySelectorAll('.story-step')].map((p) => p.textContent),
+  credits: !!document.getElementById('hours-line'),
+  level: [...document.querySelectorAll('#level-rows .next-row')].map((r) => r.textContent),
+  sideways: document.documentElement.scrollWidth > window.innerWidth,
+})"""
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_progress_tells_its_story_in_three_parts(browser, width: int) -> None:
+    """§12, 2026-10-09: where you are on the ladder of the language's own kinds of text,
+    each opening its shelf; how you got here; what next. No credits on the page, and
+    nothing wider than a phone."""
+    import os
+
+    context, page = _progress_with(browser, {}, width=width, story=STORY)
+    got = page.evaluate(STORY_SEEN)
+    shots = os.environ.get("TARGUM_SHOTS")
+    if shots:
+        page.screenshot(path=f"{shots}/progress-{width}.png", full_page=True)
+    page.locator("#touchstones .touch a", has_text="A short story").click()
+    page.wait_for_timeout(200)
+    went = page.url
+    context.close()
+
+    assert got["parts"] == ["1 · Where you are", "2 · How you got here", "3 · What next"]
+    assert got["head"] == "You'd follow nearly all of a news article"
+    assert [rung["text"] for rung in got["rungs"]][2:4] == ["A news article93%", "A short story86%"]
+    assert not got["credits"], "credits are the account page's"
+    assert got["level"] == ["יונהJonah91% known"]
+    assert not got["sideways"], got
+    if width == 390:
+        assert all(rung["height"] >= 44 for rung in got["rungs"]), "§8's thumb"
+    assert went.endswith("/library?k=" + TOKEN + "#see/kind/story"), went
 
 
 def test_progress_draws_no_such_figures_where_there_is_no_record(browser) -> None:

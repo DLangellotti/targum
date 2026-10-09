@@ -354,6 +354,59 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### Your Progress is a story in three parts — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards Progress, ProgressPhone and Progress{Ru,RuUi,Fr,
+It,Yi,Arc} with their phones): Your Progress was every chart the page could draw — the
+ledger, milestones, a ladder of ulpan or CEFR rungs, twelve weeks of day squares, the
+stages bar, the commonness bars, words saved over time, time and words, and what you knew
+of what you read. It is now three parts, in order, under the totals, per language (the
+menu's language, as everywhere):
+
+- **The totals band stays**, the one inversion §9 allows: words on your list, words marked
+  known, learned on targum, phrases saved, targums finished, days on targum, and — where
+  the account keeps a record — words read. **The longest run is no longer one of them**:
+  the board has no figure about runs of days, and David's word for the page is "no
+  streaks". `charts.longest` stays, for nothing else draws one. **Credits are not on this
+  page**: the month's credits moved to the account page, its first panel ("Credits").
+  **No "sections finished"**: it means nothing to a learner (David).
+- **1 · Where you are: touchstones.** A short ladder of real kinds of text from the
+  language's own library — a dialogue, a video talk, a news article, a short story, a
+  novel, poetry (Italian's stories are its picture books, and are called so) — ordered by
+  the catalogue's median measured `difficulty` for each kind; a kind with nothing measured
+  in that language is not a rung. The headline names the hardest kind the reader would
+  follow, worded by the share of its **running words** whose dictionary form they have
+  marked known (the middle text of the kind, so one long book does not speak for forty
+  short ones): **95% and up "You'd follow a news article", 90–95% "You'd follow nearly all
+  of a news article", 75–90% "You'd follow most of a news article"**; under 75% nothing is
+  claimed and the first rung is the place to start. Passed rungs carry a tick, the one
+  you are on and the next carry their percentage, and **every rung is a link that opens
+  that kind's shelf in the Library** (`/library#see/kind/<kind>`: the See all list, every
+  band, that kind). Not a placement (§6): each rung is texts you can open. Under it, what
+  you knew of what you read, month by month (2026-09-27), unchanged and still said as a
+  count in ten.
+- **Aramaic gets no ladder** (David, 2026-10-08): wordfreq has no Aramaic list, so every
+  Aramaic text measures 0, which is false. Its part 1 says how many Aramaic words are known
+  and why there is no ladder. **Yiddish has no library**, so no ladder either, and its
+  part 3 offers Upload and the reader's own texts instead of the Library's.
+- **2 · How you got here.** Time and words (2026-09-20), filtered by period only — Last 30
+  days, Last 7 days, All time; the medium chips are gone, the three figures say the
+  medium. Under it, **the words you took up, week by week, coloured by where each is
+  now**. The board says "Words you came to know, week by week", and nothing records the
+  day a word reached known — only the day it was saved — so the chart says what it can
+  truthfully say rather than drawing a date nobody kept.
+- **3 · What next.** The words still at steps 1 to 3 that the reader keeps meeting — met
+  as the card means it, inside a section they finished, in two texts or more — with
+  "Practise these words" to the Words page; and texts at their level now, 90% of their
+  words known and up, the Library's own Read it now measure so the two pages never
+  disagree about a text, the nearest to the line first, with "More in the Library".
+
+What this retires on Your Progress, and only here: the milestone chips, the ulpan and CEFR
+rung ("A language with CEFR levels shows them", 2026-09-13 — the ladders stay in
+`charts.js`, where the Library's first-visit seed still reads the ulpan), the day strip,
+the stages bar, the commonness bars and the words-saved line. What it keeps: every figure a
+real count (§6), nothing on the page spends, a fall in the reading line is still said
+plainly and never in clay, and nothing names a current run of days.
 ### The five stages are one control, on every card — 2026-10-09
 
 David, 2026-10-08: "why don't the word cards show the stages of learning?" A word is never
