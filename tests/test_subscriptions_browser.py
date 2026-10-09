@@ -365,3 +365,106 @@ def test_the_cap_is_changed_on_the_subscriptions_own_page(browser) -> None:
     assert ("/subscriptions/2", {"action": "cap", "cap": 120}) in posted
     assert said == "Saved. The cap is 120 credits a month." and now == "120"
     assert not thrown, thrown
+
+
+def test_what_a_subscription_brought_leads_continue_marked_new(browser) -> None:
+    """design.md §12, "A subscription is the account's, and what it brings comes under
+    Continue": New, named by what it came from, and opening it says so to the account."""
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    posted: list[tuple[str, Any]] = []
+    brought = {
+        "signedIn": True,
+        "items": [
+            {
+                "subscription": 2,
+                "key": "v1",
+                "title": "פלאפל או מקדונלדס?",
+                "kind": "channel",
+                "name": "כאן ארכיון",
+                "topic": "",
+                "language": "he",
+                "door": "/reader/v1/reader/index.html",
+                "seconds": 240,
+                "published": 1,
+                "found": 1,
+            },
+            {
+                "subscription": 3,
+                "key": "a1",
+                "title": "הפועל חולון אלופה",
+                "kind": "topic",
+                "name": "",
+                "topic": "sport",
+                "language": "he",
+                "door": "/add?source=https%3A%2F%2Fone%2Fa1",
+                "seconds": 0,
+                "published": 1,
+                "found": 1,
+            },
+            {
+                "subscription": 4,
+                "key": "r1",
+                "title": "Новости",
+                "kind": "outlet",
+                "name": "РБК",
+                "topic": "",
+                "language": "ru",
+                "door": "/add?source=x",
+                "seconds": 0,
+                "published": 1,
+                "found": 1,
+            },
+        ],
+    }
+    serve(
+        page,
+        {
+            "/": list_page("", "texts"),
+            "/readers": {
+                "readers": [
+                    {
+                        "name": "own",
+                        "document": "own",
+                        "title": "כתבה",
+                        "language": "he",
+                        "entry": "",
+                        "built": 1,
+                        "minutes": 3,
+                        "seconds": 0,
+                        "sections": 1,
+                        "chapters": [],
+                    }
+                ],
+                "shared": [],
+                "trash": [],
+            },
+            "/subscriptions/new.json": brought,
+            "/reader/v1/reader/index.html": "<!doctype html><title>reader</title>",
+            ("POST", "/subscriptions/seen"): {"seen": True},
+        },
+        posted,
+    )
+    page.goto(f"{SITE}/")
+    page.wait_for_selector("#continue-cards .home-card.is-new")
+    got = page.evaluate(
+        """() => [...document.querySelectorAll('#continue-cards .home-card')].map((li) => ({
+          tag: li.querySelector('.home-tag').textContent,
+          go: li.querySelector('.home-card-go').textContent,
+          href: li.querySelector('a').getAttribute('href'),
+        }))"""
+    )
+    assert got[0] == {
+        "tag": "New · כאן ארכיון",
+        "go": "Watch",
+        "href": "/reader/v1/reader/index.html",
+    }, got
+    assert got[1]["tag"] == "New · Sport" and got[1]["href"].startswith("/add?source="), got
+    assert all("РБК" not in card["tag"] for card in got), "a Russian outlet is not Hebrew's"
+    page.click("#continue-cards .home-card.is-new a")
+    page.wait_for_url(f"{SITE}/reader/v1/reader/index.html")
+    context.close()
+    assert ("/subscriptions/seen", {"subscription": 2, "key": "v1"}) in posted
+    assert not thrown, thrown

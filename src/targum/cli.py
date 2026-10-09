@@ -215,6 +215,7 @@ def serve(
             announce=announce,
             require_account=hosted,
             keep_feeds=hosted,
+            keep_subscriptions=hosted,
             public_address=public,
         )
     except TargumError as error:
@@ -1081,6 +1082,41 @@ def watch_weekly(
     except Exception as error:
         fail(TargumError("The weekly is not out and the mail about it did not go.", str(error)))
     console.print(said)
+
+
+subscriptions_app = typer.Typer(
+    help="What readers subscribed to (design.md §12, 2026-10-09).", no_args_is_help=True
+)
+app.add_typer(subscriptions_app, name="subscriptions")
+
+
+@subscriptions_app.command("poll")
+def subscriptions_poll(
+    store: Annotated[
+        Path | None, typer.Option("--store", help="The store the subscriptions are in.")
+    ] = None,
+    kind: Annotated[
+        list[str] | None,
+        typer.Option("--kind", help="Look only at these kinds: series, topic, outlet…"),
+    ] = None,
+) -> None:
+    """Look for what every live subscription's source put out, and write it down.
+
+    Run every half hour by targum-subscriptions.timer on the box. It reads the series this
+    box has built, the news feeds, YouTube's Data API (TARGUM_YOUTUBE_API_KEY) and podcast
+    feeds, and writes each new item; it never builds and never spends. A channel's or a
+    podcast's new item is marked due, and the server gets it ready inside its cap. Safe to
+    run twice: an item already written is found once.
+    """
+    from . import subscriptions as subscriptions_module
+    from .accounts import Store
+    from .serve import default_store, shelves_are_public
+
+    keeping = Store(store or default_store())
+    looked = subscriptions_module.poll(keeping, public=shelves_are_public(), only=tuple(kind or ()))
+    console.print(f"subscriptions: {looked}")
+    for sub_id, why in looked.failed:
+        console.print(f"[yellow]  {sub_id}: {why}[/yellow]")
 
 
 @app.command("roll-visits")

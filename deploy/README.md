@@ -217,3 +217,13 @@ box's own index (`TARGUM_WEEKLY_DIR`, which `ship-weekly.sh` writes into `targum
 and mails once if it is not published, which is the only way a run that never started
 is heard about. Every week it sees is a line in `/var/lib/targum/weekly-watch.json`, out
 or not. On the laptop, every run is a line in `targum-out/weekly/runs.log`.
+
+Subscriptions (design.md §12, 2026-10-09) have one timer and one loop. Every half hour
+`targum-subscriptions.timer` runs `targum subscriptions poll`, which reads each live
+subscription's source — the series built here, the news feeds, YouTube's Data API with
+`TARGUM_YOUTUBE_API_KEY` (in `box.env.op`), a podcast's feed — and writes what is new; it
+never builds and never spends. Inside `targum.service`, every five minutes, the server
+gets a channel's or a podcast's new item ready: prepared like a pasted link (through the
+proxy and the token minter), held to the subscription's monthly cap, and claimed through
+`Library.press` like any build. Every deploy installs and enables the timer;
+`journalctl -u targum-subscriptions -n 20` says what each run found.

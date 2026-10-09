@@ -380,12 +380,74 @@
     return item;
   }
 
-  function drawContinue(cards, fresh) {
+  /* What a subscription brought and the reader has not opened from here (design.md §12,
+     "A subscription is the account's, and what it brings comes under Continue",
+     2026-10-09): first, marked New and named by what it came from. A series' instalment
+     or a video that got ready by itself opens as its text; a news article is a link to
+     the Upload page with its address in the box. Opening one says so to the account, so
+     it is New on no device after. */
+  function topicName(key) {
+    return {
+      world: t("subs.topic.world", "World"),
+      politics: t("subs.topic.politics", "Politics"),
+      economy: t("subs.topic.economy", "Economy"),
+      culture: t("subs.topic.culture", "Culture"),
+      science: t("subs.topic.science", "Science"),
+      tech: t("subs.topic.tech", "Technology"),
+      sport: t("subs.topic.sport", "Sport"),
+      health: t("subs.topic.health", "Health"),
+    }[key] || key;
+  }
+
+  function newCard(item) {
+    var name = item.kind === "topic" ? topicName(item.topic) : item.name;
+    var card = el("li", "home-card is-new");
+    var link = el("a", "home-card-open");
+    link.href = keyed(item.door);
+    var reader = /^\/reader\//.test(item.door) ? null : undefined;
+    card.appendChild(coverFor(reader, item.title, item.language, item.door));
+    card.appendChild(tag(t("home.card.new-from", "New · {name}", { name: name }), "new"));
+    link.appendChild(titled(item.title, item.language));
+    card.appendChild(link);
+    var facts = [];
+    if (item.seconds > 0) facts.push(t("home.minutes", "{n} min", { n: Math.max(1, Math.round(item.seconds / 60)) }));
+    if (facts.length) card.appendChild(el("span", "home-card-facts", facts.join(" · ")));
+    var go = {
+      channel: t("home.card.watch", "Watch"),
+      podcast: t("home.card.listen", "Listen"),
+    }[item.kind] || t("home.card.read", "Read");
+    card.appendChild(el("span", "home-card-go", go));
+    link.setAttribute("aria-label", item.title + " — " + go);
+    link.addEventListener("click", function () {
+      seen(item);
+    });
+    return card;
+  }
+
+  function seen(item) {
+    try {
+      fetch(keyed("/subscriptions/seen"), {
+        method: "POST",
+        credentials: "same-origin",
+        keepalive: true,
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ subscription: item.subscription, key: item.key }),
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  //: How many New cards lead Continue at most.
+  var NEW_AT_MOST = 2;
+
+  function drawContinue(cards, fresh, brought) {
     var host = document.getElementById("continue");
     var list = document.getElementById("continue-cards");
     if (!host || !list) return;
     list.textContent = "";
     var docs = stored("targum:docs");
+    (brought || []).slice(0, NEW_AT_MOST).forEach(function (item) {
+      list.appendChild(newCard(item));
+    });
     (fresh || []).slice(0, 1).forEach(function (one) {
       list.appendChild(seriesCard(one));
     });
@@ -493,6 +555,7 @@
      text this browser has opened; `building` the builds still running. */
   var first = true;
   var placed = null;
+  var brought = null;
   // Asked once a language and kept for the visit: `yours.js` draws again every few
   // seconds while something builds, and the series and the suggestion do not move.
   var seriesIn = {};
@@ -501,10 +564,19 @@
   function draw(code, readers, building) {
     var opened = stored("targum:opened");
     var follow = window.TargumFollow;
-    if (!seriesIn[code]) seriesIn[code] = code === "he" && follow ? follow.list() : Promise.resolve([]);
+    // The account's subscriptions first; signed out, this browser's follows as before.
+    brought = brought || ask("/subscriptions/new.json").catch(function () {
+      return null;
+    });
+    if (!seriesIn[code]) {
+      seriesIn[code] = brought.then(function (answer) {
+        if (answer && answer.signedIn) return [];
+        return code === "he" && follow ? follow.list() : [];
+      });
+    }
     var sawSeries = seriesIn[code];
     placed = placed || accountPlaces();
-    return Promise.all([me, placed, sawSeries]).then(function (all) {
+    return Promise.all([me, placed, sawSeries, brought]).then(function (all) {
       var who = all[0];
       var places = mergePlaces(all[1]);
       // Only from a page a server is behind: off the disk there is no `/welcome`.
@@ -515,14 +587,36 @@
       }
       first = false;
       var fresh = follow && code === "he" ? follow.fresh(all[2]) : [];
+      var mine = ((all[3] && all[3].items) || []).filter(function (item) {
+        return shelf.base(item.language) === code;
+      });
       var cards = gatherContinue(readers, places, building, opened, code);
-      drawContinue(cards, fresh);
-      var nothing = !cards.length && !fresh.length;
+      drawContinue(cards, fresh, mine);
+      var nothing = !cards.length && !fresh.length && !mine.length;
       var empty = document.getElementById("first-home");
       if (empty) empty.hidden = !nothing;
       if (suggestedIn[code] !== nothing) {
         suggestedIn[code] = nothing;
         suggest(code, readers, nothing);
+      }
+      if (mine.length && !rang["subs:" + code]) {
+        rang["subs:" + code] = true;
+        mine.forEach(function (item) {
+          var notices = window.TargumNotices;
+          if (!notices || !notices.note) return;
+          var name = item.kind === "topic" ? topicName(item.topic) : item.name;
+          var line = name + ": " + item.title;
+          if (notices.bdi) {
+            line = document.createDocumentFragment();
+            line.appendChild(notices.bdi(name));
+            line.appendChild(document.createTextNode(": "));
+            line.appendChild(notices.bdi(item.title));
+          }
+          notices.note("sub:" + item.subscription + ":" + item.key, line, {
+            href: keyed(item.door),
+            label: t("home.open", "Open"),
+          });
+        });
       }
       if (follow && fresh.length && !rang[code]) {
         rang[code] = true;

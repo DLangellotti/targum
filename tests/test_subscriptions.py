@@ -321,3 +321,25 @@ def test_an_item_opened_from_home_is_no_longer_new(box: tuple[int, str, str, Pat
     )
     assert got == {"seen": True}
     assert all(item["key"] != "a1" for item in store.new_sub_items(me.id))
+
+
+def test_home_is_handed_what_is_new_with_where_it_opens(box: tuple[int, str, str, Path]) -> None:
+    port, mine, theirs, store_path = box
+    store = Store(store_path)
+    me = store.person_by_email("one@example.com")
+    assert me is not None
+    sub = int(store.add_subscription(me.id, "topic", "culture", language="he")["id"])
+    store.add_sub_items(
+        sub,
+        [
+            {"key": "c1", "title": "תרבות", "link": "https://c.example/1", "published": 5},
+            {"key": "c0", "title": "ישן", "link": "https://c.example/0", "came": "before"},
+        ],
+    )
+    status, got = send(port, "GET", "/subscriptions/new.json", session=mine)
+    assert status == 200 and got["signedIn"]
+    (item,) = [one for one in got["items"] if one["subscription"] == sub]
+    assert item["door"] == "/add?source=https%3A%2F%2Fc.example%2F1"
+    assert item["kind"] == "topic" and item["topic"] == "culture"
+    status, got = send(port, "GET", "/subscriptions/new.json", session=theirs)
+    assert all(one["subscription"] != sub for one in got["items"])
