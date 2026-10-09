@@ -1,16 +1,10 @@
-/* Runs the Your Progress page's script against a stub document and reports the ledger.
+/* Runs the Your Progress page's script against a stub document and reports the story.
  *
  *   node tests/js/progress.js payload.json
  *
- * The page's arithmetic is the thing worth running: how many words count as known, which
- * milestone that has passed, how many are left to the next one, and which of the last
- * twelve weeks of days were read on. All of it was written here and none of it is
- * checked by a parse check or a grep.
- *
- * The growth line and the tiles are stubbed — they draw into an SVG and are not what
- * this is for. Everything else, including `collect()`, is the page's own code. The word
- * table and the phrase list used to be stubbed here too; they live on Learn now, and
- * `tests/js/arrival.js` runs them.
+ * The page's arithmetic is the thing worth running: the totals, the touchstones the
+ * account's story places the reader on, the words taken up week by week, and what next.
+ * Everything, including `collect()`, is the page's own code.
  */
 
 "use strict";
@@ -60,26 +54,26 @@ global.localStorage = {
    until a page draws a chart. Same plain element: nothing here reads a namespace. */
 global.document.createElementNS = (namespace, tag) => element(tag);
 
-/* What the account says of the reading line (targum-internal#291), when a test hands one
-   over; every other fetch the page makes answers as a server with nothing to say. Settled
-   in microtasks, so the report below waits a turn for them. */
-global.fetch = global.window.fetch = (url) =>
-  Promise.resolve({
-    json: () =>
-      Promise.resolve(
-        String(url).indexOf("/account/reading") === 0 && payload.reading
-          ? { signedIn: true, reading: payload.reading }
-          : { signedIn: false }
-      ),
-  });
+/* What the account says — the reading line (targum-internal#291), the totals and the
+   story (§12, 2026-10-09) — when a test hands one over; every other fetch the page makes
+   answers as a server with nothing to say. Settled in microtasks, so the report below
+   waits a turn for them. */
+const asked = [];
+global.fetch = global.window.fetch = (url) => {
+  asked.push(String(url));
+  let body = { signedIn: false };
+  if (String(url).indexOf("/account/reading") === 0 && payload.reading) {
+    body = { signedIn: true, reading: payload.reading };
+  } else if (String(url).indexOf("/account/totals") === 0 && payload.totals) {
+    body = { signedIn: true, kept: true, on: true, totals: payload.totals };
+  } else if (String(url).indexOf("/account/story") === 0 && payload.story) {
+    body = Object.assign({ signedIn: true }, payload.story);
+  }
+  return Promise.resolve({ json: () => Promise.resolve(body) });
+};
 
 require(path.join(assets, "strings.js"));
 require(path.join(assets, "charts.js"));
-/* After charts.js and before the page, so the page binds these rather than the real
-   ones. `collect` and `days` stay real — they are the shape everything else is drawn
-   from, and stubbing them would leave the test asserting against its own fixture. */
-global.window.TargumCharts.growth = () => {};
-
 require(path.join(assets, "progress.js"));
 
 const at = (id) => byId[id] || { textContent: "", children: [], hidden: true };
@@ -102,26 +96,6 @@ function counts_() {
     delta: box.children[2] ? box.children[2].textContent : "",
   }));
 }
-
-/** Which milestones are lit, and which are only listed. */
-function marks() {
-  const row = at("milestones").children[0];
-  if (!row) return { on: [], off: [] };
-  const on = [];
-  const off = [];
-  row.children.forEach((chip) => {
-    const value = Number(chip.textContent.replace(/,/g, ""));
-    (String(chip.className).includes("on") ? on : off).push(value);
-  });
-  return { on, off };
-}
-
-/* The rung lives in one of two places: Hebrew's ulpan ladder has a block of its own
-   under the milestones, and every other language's milestone line sits under the chips it
-   belongs to. Whichever drew is the one to report. */
-const rung = at("rung-standing");
-const standing = rung.children.length ? rung : at("standing");
-const strip = at("days").children[0];
 
 /** The reading panel: whether it is shown, what it says, and the line it drew. */
 function reading() {
@@ -146,58 +120,60 @@ function reading() {
   };
 }
 
-setImmediate(() => process.stdout.write(
+function rows(id) {
+  return at(id).children.map((item) => ({
+    text: item.children.map((node) => node.textContent).join(" | "),
+    href: item.children[0] ? item.children[0].href || "" : "",
+  }));
+}
+
+setImmediate(() => setImmediate(() => process.stdout.write(
   JSON.stringify({
     reading: reading(),
     nothing: at("nothing").hidden === false,
     counts: counts(),
-    reached: (standing.children.find((c) => String(c.className) === "reached") || { textContent: "" })
-      .textContent,
-    next: (standing.children.find((c) => String(c.className) === "next") || { textContent: "" })
-      .textContent,
-    marks: marks(),
-    // Which band each marked word fell in, as the chart labelled them.
-    bands: at("bands")
-      .children.map((node) => node.textContent)
-      .join(" "),
-    progressNote: at("progress-note").textContent,
-    // What the status bar says of itself: "Your Hebrew words: 4 known, 2 just met".
-    bar: (function () {
-      var chart = at("progress").children[0];
-      var picture = chart && chart.children ? chart.children[0] : null;
-      return picture && picture.getAttribute ? picture.getAttribute("aria-label") || "" : "";
-    })(),
-    // Every figure lives in the one block at the top now, so they are read from there.
     tiles: counts_(),
-    ulpan: {
-      shown: at("basis").hidden === false,
-      title: at("rung-title").textContent,
-      why: (at("standing").children.find((c) => String(c.className) === "why") || {
-        textContent: "",
-      }).textContent,
-      rung: (standing.children.find((c) => String(c.className) === "reached") || {
-        textContent: "",
-      }).textContent,
-      next: (standing.children.find((c) => String(c.className) === "next") || {
-        textContent: "",
-      }).textContent,
+    asked: asked,
+    where: {
+      head: at("where-title").textContent,
+      shown: at("touchstones").hidden === false,
+      note: at("where-note").hidden === false ? at("where-note").textContent : "",
+      rungs: at("touchstones")
+        .children.filter((item) => String(item.className) === "touch")
+        .map((item) => {
+          const link = item.children[0];
+          return {
+            text: link.textContent,
+            state: String(link.className).replace("touch-", ""),
+            href: link.href,
+            current: link.getAttribute("aria-current") || "",
+            ticked: Boolean(link.innerHTML),
+          };
+        }),
     },
-    days: {
-      cells: strip ? strip.children.length : 0,
-      /* `read` is now one class among several on a square — the shade rides beside it —
-         so this asks whether the square is read rather than what its whole class is. */
-      read: strip
-        ? strip.children.filter((c) => String(c.className).split(" ").includes("read")).length
-        : 0,
-      // The shade of each read square, busiest day first, so a test can see the ramp.
-      shades: strip
-        ? strip.children
-            .map((c) => String(c.className).match(/level-(\d)/))
-            .filter(Boolean)
-            .map((m) => Number(m[1]))
-        : [],
-      label: strip ? strip.getAttribute("aria-label") : "",
-      said: (at("days").children[1] || { textContent: "" }).textContent,
+    how: at("how-title").textContent,
+    weeks: (function () {
+      const bars = at("weeks").children[0];
+      if (!bars || bars.tagName !== "ol") {
+        return { columns: 0, said: (bars || { textContent: "" }).textContent, label: "", parts: [] };
+      }
+      return {
+        columns: bars.children.length,
+        label: bars.getAttribute("aria-label"),
+        said: "",
+        parts: bars.children.map((bar) => bar.children[0].children.length),
+        titles: bars.children.map((bar) => bar.title),
+      };
+    })(),
+    next: {
+      wordsTitle: at("next-words-title").textContent,
+      met: rows("met-rows"),
+      metEmpty: at("met-empty").hidden === false ? at("met-empty").textContent : "",
+      textsTitle: at("next-texts-title").textContent,
+      level: rows("level-rows"),
+      levelEmpty: at("level-empty").hidden === false ? at("level-empty").textContent : "",
+      more: at("more-texts").textContent,
+      moreHref: at("more-texts").href,
     },
   })
-));
+)));

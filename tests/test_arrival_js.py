@@ -362,17 +362,22 @@ def test_nothing_prints_the_rung_back() -> None:
 
 def test_the_measured_rung_is_untouched_by_this() -> None:
     """`level.py` still climbs the ulpan ladder off words the reader actually marked, and
-    Your Progress still shows it — that is the level §12 sanctions. Pinned when the asked
-    rung was taken out (2026-09-18) so a clean-up could not take this with it, and kept
-    now that the asked one is back, for the same reason."""
+    the ladder stays in the chart kit. Pinned when the asked rung was taken out
+    (2026-09-18) so a clean-up could not take this with it. Your Progress places a reader
+    on touchstones since 2026-10-09 (§12, "Your Progress is a story in three parts"), and
+    the rung is no longer drawn there; the kit keeps it for the Library's seed."""
     from pathlib import Path as _P
 
     root = _P(__file__).resolve().parent.parent
     assert (root / "src" / "targum" / "level.py").is_file()
+    charts = (root / "src" / "targum" / "render" / "assets" / "charts.js").read_text(
+        encoding="utf-8"
+    )
+    assert "function ladderFor(" in charts and "function standingIn(" in charts
     progress = (root / "src" / "targum" / "render" / "templates" / "progress.html.j2").read_text(
         encoding="utf-8"
     )
-    assert "rung" in progress, "the measured rung still has its panel"
+    assert 'id="touchstones"' in progress, "where you are is said in kinds of text"
 
 
 def test_a_subject_pressed_twice_is_put_back() -> None:

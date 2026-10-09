@@ -1,4 +1,5 @@
-/* Your Progress: the ledger, the milestones and the days.
+/* Your Progress: the totals, and the story in three parts under them (design.md §12,
+ * "Your Progress is a story in three parts", 2026-10-09).
  *
  * Everything else this page draws is the chart kit on `.words`, which Learn borrows too.
  * What is here is only the part that is new — and most of it is one block.
@@ -58,192 +59,6 @@
 .progress .ledger .lit.iris b { color: var(--iris-bright); }
 .progress .ledger .lit.sun b { color: var(--sun); }
 
-/* Where the rung comes from. The block is the one inversion on the page, so this is
-   mixed towards it rather than named — --ink-soft is a value for paper. */
-.progress .ledger .basis {
-  margin: 0.9rem 0 0;
-  max-inline-size: 34rem;
-  font-size: 0.6875rem;
-  color: color-mix(in srgb, var(--page-max) 55%, var(--ink-max));
-}
-.progress .ledger .basis[hidden] { display: none; }
-
-.progress .ledger .standing {
-  margin-block-start: 1.25rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-}
-
-/* The one celebration chip, and the one place --gloss-strong is spent: §9 allows a
-   top-down sheen at 22% on exactly this. One sheen, light on glass, never a ramp.
-
-   Two surfaces now: on the ink block it is --leaf-bright, and on the panels below — where
-   the ulpan rung went — it is --leaf, because the bright set is measured at 2.70:1
-   against paper and is ink-panel only. */
-.progress .panel .reached {
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  background: linear-gradient(var(--gloss-strong), transparent) var(--leaf);
-  color: var(--paper);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-.progress .panel .standing {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-block-start: 0.9rem;
-}
-.progress .panel .standing:empty { margin-block-start: 0; }
-.progress .panel .next { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
-.progress .panel .next b { color: var(--ink); font-variant-numeric: tabular-nums; }
-/* Why a language has milestones and no level: said once, quietly, like `.next`. */
-.progress .panel .why { margin: 0.25rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
-.progress .panel .basis { margin-block-start: 0.9rem; max-inline-size: 34rem; }
-.progress .panel .basis[hidden] { display: none; }
-
-.progress .ledger .reached {
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  background: linear-gradient(var(--gloss-strong), transparent) var(--leaf-bright);
-  color: var(--ink-max);
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
-
-.progress .ledger .next {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: color-mix(in srgb, var(--page-max) 72%, var(--ink-max));
-}
-.progress .ledger .next b {
-  color: var(--page-max);
-  font-variant-numeric: tabular-nums;
-}
-
-/* --- milestones ------------------------------------------------------------ */
-
-.progress .marks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-/* Reached is ink, because it is a thing that happened and the reader came to read it.
-   Unreached is muted: quiet, never red, and still legible. --off is a chart fill and
-   was never a text value — #c3bdb1 on raised paper is 1.75:1, so the rungs a reader
-   has not reached yet could not be read at all. */
-.progress .mark {
-  padding: 0.25rem 0.7rem;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-soft);
-}
-.progress .mark.on {
-  border-color: var(--ink-soft);
-  color: var(--ink);
-  font-weight: 600;
-}
-/* Not buttons (2026-09-14). A bordered pill is the shape of a press, and none of these
-   can be pressed: reached is a filled leaf wash with its figure in ink, unreached is the
-   figure alone. */
-.progress .mark { border-color: transparent; }
-.progress .mark.on {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--leaf) 16%, transparent);
-}
-
-/* --- days reading ---------------------------------------------------------- */
-
-/* One square a day, twelve weeks of them, the same shape the about page uses for
-   commits. Leaf because this is on paper and the bright set is not: --sun is 2.09:1
-   here, which is a graphic nobody can see.
-
-   A wash rather than the full hue, and this is the whole difference between a ledger and
-   a contributions graph. Eighty-four cells with sixty of them saturated is a field of
-   colour, and §9 budgets roughly 5% hue "where the user acts or achieved something,
-   never into decoration" — a grid is decoration by volume however good the news in it
-   is. At 55% the day is still plainly leaf and still plainly read, and the panel stays
-   paper. The count underneath is the part that is meant to be read anyway. */
-.progress .strip {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  grid-auto-flow: column;
-  grid-template-rows: repeat(7, 1fr);
-  gap: 3px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-width: 26rem;
-}
-.progress .strip li {
-  aspect-ratio: 1;
-  border-radius: var(--radius-control);
-  background: var(--rule);
-}
-/* Five shades, the same ramp the about page's calendar uses and the same one the
-   knowledge ramp climbs (design.md §12: to leaf, not to gold). `read` on its own keeps
-   the old middle green so a page rendered by an older script does not go grey. */
-.progress .strip li.read {
-  background: color-mix(in srgb, var(--leaf) 55%, var(--paper-raised));
-}
-.progress .strip li.level-1 {
-  background: color-mix(in srgb, var(--leaf) 32%, var(--paper-raised));
-}
-.progress .strip li.level-2 {
-  background: color-mix(in srgb, var(--leaf) 55%, var(--paper-raised));
-}
-.progress .strip li.level-3 {
-  background: color-mix(in srgb, var(--leaf) 78%, var(--paper-raised));
-}
-.progress .strip li.level-4 {
-  background: var(--leaf);
-}
-
-.progress .legend-days {
-  margin: 0.9rem 0 0;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-
-@media (max-width: 40rem) {
-  .progress .ledger { padding: 1.1rem 1rem; }
-  .progress .ledger .counts { gap: 1rem 0.75rem; }
-}
-
-/* The milestone chips run to three lines and the day strip to seven. Stretched to match
-   each other, the chips panel is two thirds empty — so this row is sized to what is in
-   it and the ragged bottom edge is the honest one. */
-.progress .panels.paired {
-  align-items: start;
-}
-/* One column of the paired row, holding two panels. Without it the milestones sat two
-   rows tall beside a strip seven rows tall, and the hole beside them was most of the
-   page. */
-.progress .stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  min-inline-size: 0;
-}
-
-
-/* §3: Hebrew and Latin share a screen at the same size, so the letter is not a large
-   glyph with a small caption beside it. */
-.progress .ledger .reached .letter,
-.progress .panel .reached .letter { margin-inline-end: 0.4rem; }
-/* The CEFR equivalent beside an ulpan name: part of the label, a shade quieter. */
-.progress .ledger .reached .cefr { color: var(--ink-soft); }
-/* On the leaf chip the equivalent is the chip's own paper, a weight lighter. In the muted
-   ink it was olive on green and could not be read (2026-09-14). */
-.progress .panel .reached .cefr { color: inherit; font-weight: 400; }
-
-
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
 .panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
 
@@ -251,12 +66,12 @@
    The ledger's own treatment on paper: the figure in the reading face with tabular
    numbers, its word under it in the chrome's, no fill and no hue — these are counts of
    what was done, not achievements, so leaf is not theirs. */
-.spent-filters { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-block-end: 1rem; }
 .spent-figures { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; }
 .spent-figure { display: grid; gap: 0.1rem; }
 .spent-amount { font-family: var(--reading); font-size: 1.75rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .spent-label { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
 .spent .note { margin-block-start: 1rem; }
+.spent .chips { margin-block-end: 1rem; }
 
 
 /* --- what you knew of what you read (targum-internal#291) ---------------------------
@@ -267,3 +82,140 @@
 .reading .chart { max-inline-size: 30rem; }
 .reading .reading-point { cursor: default; }
 .reading-words p { margin: 0.75rem 0 0; max-inline-size: 40rem; color: var(--ink); }
+
+
+/* --- the story (design.md §12, 2026-10-09) -------------------------------------------
+   Three panels in order, each a step name in small capitals over a serif headline, the
+   board's way of telling a story rather than laying out a dashboard. */
+.progress .story-step {
+  margin: 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.progress .story-head {
+  margin: 0.35rem 0 1.1rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.progress .story-head:empty { display: none; }
+.progress .story-sub {
+  margin: 1.4rem 0 0.4rem;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.progress .story .note { margin: 0.25rem 0 0.75rem; }
+
+/* The touchstones: a row of rungs joined by chevrons, each a link to its shelf. Passed
+   is leaf with a tick (§4: what has been reached), here is the teal wash every "you are
+   here" in the desk uses, the next one is outlined as the thing to press, and the rest
+   are quiet. Forty-four pixels tall on a phone, §8's thumb. */
+.progress .touchstones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+.progress .touchstones[hidden] { display: none; }
+.progress .touch { display: flex; }
+.progress .touch a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  box-sizing: border-box;
+  min-block-size: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  text-decoration: none;
+  color: var(--ink-soft);
+}
+.progress .touch a:hover { background: var(--teal-wash); }
+.progress .touch a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.progress .touch a.touch-passed { color: var(--leaf); }
+.progress .touch a.touch-here { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+.progress .touch a.touch-next { border-color: var(--well); color: var(--ink); }
+.progress .touch a.touch-next .touch-share { color: var(--ink-soft); }
+.progress .touch-tick { inline-size: 0.875rem; block-size: 0.875rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.progress .touch-share { font-variant-numeric: tabular-nums; }
+.progress .touch-gap { display: flex; align-items: center; color: var(--well); }
+.progress .touch-gap svg { inline-size: 0.875rem; block-size: 0.875rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The words taken up, a column a week: each column a stack on the knowledge ramp, known
+   at its foot. */
+.progress .weeks {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  block-size: 5.5rem;
+}
+.progress .week { flex: 1; block-size: 100%; display: flex; align-items: flex-end; }
+.progress .week-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  inline-size: 100%;
+  min-block-size: 2px;
+  border-radius: var(--radius-control) var(--radius-control) 0 0;
+  overflow: hidden;
+}
+.progress .week-part { display: block; flex-basis: 0; min-block-size: 1px; }
+
+/* What next: two halves, a hairline under each row, the figure at the end of it. */
+.progress .next-halves {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem 2.5rem;
+}
+.progress .next-half .story-sub { margin-block-start: 0; }
+.progress .next-rows { list-style: none; margin: 0; padding: 0; }
+.progress .next-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-block-size: 2.75rem;
+  border-block-end: 1px solid var(--rule);
+}
+.progress .next-link {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-inline-size: 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+.progress a.next-link:hover .next-term { text-decoration: underline; }
+.progress .next-term { font-size: 1.0625rem; }
+.progress .next-term:lang(he),
+.progress .next-term:lang(yi),
+.progress .next-term:lang(arc) { font-family: var(--reading-hebrew); font-size: 1.25rem; }
+.progress .next-aside {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.progress .next-end { flex: none; font-size: 0.875rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.progress .next-end.leaf { color: var(--leaf); font-weight: 600; }
+.progress .next-more { display: inline-block; margin-block-start: 0.9rem; font-weight: 600; color: var(--teal); }
+
+@media (max-width: 40rem) {
+  .progress .ledger { padding: 1.1rem 1rem; }
+  .progress .ledger .counts { gap: 1rem 0.75rem; }
+  .progress .story-head { font-size: 1.25rem; }
+  .progress .touch a { min-block-size: 2.75rem; padding: 0 0.85rem; }
+  .progress .next-halves { grid-template-columns: minmax(0, 1fr); }
+}

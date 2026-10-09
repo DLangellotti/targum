@@ -119,11 +119,13 @@ def test_the_arrival_is_a_page_of_its_own() -> None:
 
 
 def test_the_numbers_belong_to_the_progress_page() -> None:
-    """Learn used to carry a smaller, worse copy of both charts. One place counts, and it
-    is the page somebody goes to on purpose."""
+    """Learn used to carry a smaller, worse copy of the charts. One place counts, and it
+    is the page somebody goes to on purpose: a story in three parts (§12, 2026-10-09)."""
     home, progress = PAGES["texts"], PAGES["progress"]
     assert 'id="tiles"' not in home and 'id="growth"' not in home
-    assert 'id="growth"' in progress
+    for part in ('id="where"', 'id="how"', 'id="next"'):
+        assert part in progress, part
+    assert progress.index('id="where"') < progress.index('id="how"') < progress.index('id="next"')
 
 
 def test_the_progress_page_is_only_the_numbers() -> None:
@@ -132,7 +134,9 @@ def test_the_progress_page_is_only_the_numbers() -> None:
     progress = PAGES["progress"]
     for gone in ('id="word-table"', 'id="phrase-list"', 'id="search"', 'id="export-all"'):
         assert gone not in progress, f"{gone} belongs to Learn now"
-    assert 'id="ledger"' in progress and 'id="milestones"' in progress
+    assert 'id="ledger"' in progress and 'id="touchstones"' in progress
+    for gone in ('id="milestones"', 'id="days"', 'id="rung"', 'id="bands"'):
+        assert gone not in progress, f"{gone} left with the story (§12, 2026-10-09)"
 
 
 def test_the_progress_page_says_it_is_empty_above_its_foot() -> None:
@@ -286,12 +290,14 @@ def test_the_box_s_actions_are_glyphs_with_the_word_as_their_label() -> None:
 
 def test_the_hours_are_where_a_reader_looks_for_them_and_not_in_their_face() -> None:
     """Until 2026-09-10 the month's hours stood in the conversation page's side column on
-    every visit. Now the count is under the ledger on Your Progress and in the account
-    panel on every page, and the box says it only when the hours are nearly gone
-    (targum-internal#237)."""
+    every visit. Now the count is in the account panel on every page and on the account
+    page's Credits panel — off Your Progress since it became a story (§12, 2026-10-09) —
+    and the box says it only when the hours are nearly gone (targum-internal#237)."""
     for name, page in PAGES.items():
         assert page.count('id="account-hours"') == 1, f"{name}: the panel, once"
-    assert PAGES["progress"].count('id="hours-line"') == 1
+    assert PAGES["progress"].count('id="hours-line"') == 0
+    assert PAGES["you"].count('id="hours-line"') == 1
+    assert PAGES["you"].index('id="credits"') < PAGES["you"].index('id="who"'), "credits first"
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert page.count('id="chat-hours"') == 1, f"{name}: one line, above the box"
         assert page.index('id="chat-hours"') < page.index('id="composer"'), name

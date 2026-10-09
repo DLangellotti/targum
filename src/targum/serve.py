@@ -7291,6 +7291,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._totals()
         if route == "/account/reading":
             return self._reading()
+        if route == "/account/story":
+            return self._story(parse_qs(urlparse(self.path).query))
         if route == "/account/places":
             return self._places(parse_qs(urlparse(self.path).query))
         if route == "/word/met":
@@ -10941,6 +10943,85 @@ class Handler(BaseHTTPRequestHandler):
                 },
             }
         )
+
+    def _story(self, query: dict[str, list[str]]) -> None:
+        """Your Progress's story for one language (design.md §12, "Your Progress is a
+        story in three parts", 2026-10-09): where the reader is on that language's ladder
+        of kinds of text, the texts they could read now, and the words still being learned
+        that they keep meeting.
+
+        Everything is arithmetic over the catalogue, its lemma index and the reader's own
+        rows; nothing is fetched and nothing spends. Signed out there is no list to
+        measure, and the page draws its totals from the browser alone.
+        """
+        from . import catalogue as catalogue_module
+        from . import coverage as coverage_module
+        from . import occurrences as occurrences_module
+        from . import touchstones
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str((query.get("language") or [""])[0]).split("-")[0].strip().lower()
+        if not language:
+            return self._json({"error": "no language"}, 400)
+        marked = self.store.marked(person, language)
+        entries = [entry for entry in catalogue_module.everything() if entry.language == language]
+        index = coverage_module.read_index(catalogue_module.lemmas_path())
+        rungs = touchstones.ladder(entries, language)
+        answer: dict[str, Any] = {
+            "signedIn": True,
+            "language": language,
+            # Whether the library has anything in this language at all: Yiddish has not,
+            # and its page leads with Upload rather than with an empty shelf.
+            "library": bool(entries),
+            "known": sum(1 for status in marked.values() if status == coverage_module.KNOWN),
+        }
+        answer.update(
+            touchstones.standing(rungs, index, marked)
+            if rungs and index.texts
+            else {"ladder": [], "here": None, "said": ""}
+        )
+        answer["texts"] = touchstones.at_level(
+            entries, index, marked, language, ui_language=self._ui_language()
+        )
+
+        # The words still being learned that they keep meeting, met the way the card
+        # means it: inside a section they finished (`occurrences.met`).
+        still = touchstones.learning(marked)
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        met = occurrences_module.texts_met(
+            still, self.store.finished(person.id), folder_for, language
+        )
+        answer["words"] = touchstones.met_often(still, lambda lemma: met.get(lemma, 0))
+
+        # A language with no library has nothing to offer at its level but what the
+        # reader brought (board ProgressYi): their own texts, measured as the shelf does.
+        if not entries:
+            mine = [
+                reader
+                for reader in self.library.readers(self._home())
+                if str(reader.get("language") or "").split("-")[0] == language
+            ]
+            self._measure(self._home(), mine)
+            mine = [reader for reader in mine if isinstance(reader.get("known"), (int, float))]
+            mine.sort(key=lambda reader: -float(reader["known"]))
+            answer["uploads"] = [
+                {
+                    "name": str(reader.get("name") or ""),
+                    "title": str(reader.get("title") or ""),
+                    "known": touchstones.percent(float(reader["known"])),
+                }
+                for reader in mine[: touchstones.TEXTS]
+            ]
+        self._json(answer)
 
     def _already(self, payload: dict[str, Any]) -> None:
         """Whether the library already has what is in the Add box (targum-internal#251).

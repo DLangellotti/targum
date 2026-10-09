@@ -24,105 +24,74 @@
 <script>{{ asset('building.js') }}</script>
 
 <main id="page" hidden>
+  {#- A story in three parts under the totals (design.md §12, "Your Progress is a story in
+      three parts", 2026-10-09): where you are, how you got here, what next. -#}
   {#- The one block on this page that inverts. §9 allows a screen a single one and calls
       it the wake-up move — spent on one it is striking, spent on three it is a dark
       theme — so everything below here stays paper and ink. It is also the only surface
       the bright set is legal on: --leaf-bright does not reach 3:1 against paper. -#}
-  {#- Four numbers, not seven. What a reader wants from this block is the feeling of
-      having got somewhere, and a row of everything countable is a row nobody reads. -#}
   <section class="ledger" id="ledger" aria-label="{{ t("progress.page.what-you-have-built", "What you have built") }}">
     <div class="counts" id="counts"></div>
   </section>
-  {#- The month's hours, under the ledger and not in it: a real count, but of an
-      allowance rather than of anything the reader did, so it is a note beside the
-      figures and never a lit one. Filled by `account.js` from who is signed in;
-      absent for a visit with no account and where there is no cap (targum-internal#237). -#}
-  <p class="note hours-line" id="hours-line" hidden></p>
-  {#- The Tanakh map was a door here until 2026-10-09; it is the Library's now
-      (design.md §12, "The Tanakh map is a door in the Library"). -#}
 
-  {#- Time listened, time watched and words read (targum-internal#339), read off the
-      account's record of what happened in each text (#127) — so, unlike everything else
-      on this page, not from this browser's own store, and absent where there is no such
-      record: signed out, a box that keeps none, a reader who has stopped theirs. The
-      filters narrow these figures and nothing else: a day is not in a language, and the
-      longest run is not in a medium (§12). Real counts in the ledger's own treatment —
-      hours and minutes, words — and no invented unit. Drawn by `progress.js`. -#}
-  <section class="panel spent" id="spent" hidden>
-    <h2>{{ t("progress.spent.title", "Time and words") }}</h2>
-    <div class="spent-filters">
-      <div class="chips" id="spent-medium" role="group" aria-label="{{ t("progress.spent.which", "What you did") }}"></div>
+  {#- 1 · Where you are: the touchstones, a ladder of kinds of text from the language's
+      own library, each a link to its shelf; then what you knew of what you read. -#}
+  <section class="panel story" id="where" aria-labelledby="where-title">
+    <p class="story-step">{{ t("progress.story.where", "1 · Where you are") }}</p>
+    <h2 id="where-title" class="story-head"></h2>
+    <ol class="touchstones" id="touchstones" aria-label="{{ t("progress.touch.ladder", "Kinds of text, easiest first") }}" hidden></ol>
+    <p class="note" id="where-note" hidden></p>
+
+    {#- What the reader knew of what they read, a point a month (targum-internal#291): the
+        share of the running words in each finished section that were marked known on the
+        day it was finished, kept then and never recomputed. The one figure here allowed to
+        fall, said as a count in ten and never a percentage (§6, §12 2026-09-27). Read from
+        the account, so absent signed out. Drawn by `progress.js`. -#}
+    <div class="reading" id="reading" hidden>
+      <h3 class="story-sub">{{ t("progress.reading.title", "What you knew of what you read") }}</h3>
+      <p class="note">{{ t("progress.reading.note", "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}</p>
+      <div id="reading-line"></div>
+      <div class="reading-words" id="reading-said"></div>
+    </div>
+  </section>
+
+  {#- 2 · How you got here. Time and words (targum-internal#339), read off the account's
+      record of what happened in each text (#127), filtered by period; then the words
+      taken up week by week. -#}
+  <section class="panel story" id="how" aria-labelledby="how-title">
+    <p class="story-step">{{ t("progress.story.how", "2 · How you got here") }}</p>
+    <h2 id="how-title" class="story-head"></h2>
+    <div class="spent" id="spent" hidden>
       <div class="chips" id="spent-period" role="group" aria-label="{{ t("progress.spent.when", "When") }}"></div>
+      <div class="spent-figures" id="spent-figures"></div>
+      <p class="note" id="spent-note">{{ t("progress.spent.note", "A word counts as read when you turn past its page or mark its section done.") }}</p>
     </div>
-    <div class="spent-figures" id="spent-figures"></div>
-    <p class="note" id="spent-note">{{ t("progress.spent.note", "A word counts as read when you turn past its page or mark its section done.") }}</p>
-  </section>
-  <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "Time and words aren't shown because recording is stopped. You can start it again on your account page.") }}</p>
-
-  {#- What the reader knew of what they read, a point a month (targum-internal#291): the
-      share of the running words in each finished section that were marked known on the
-      day it was finished, kept then and never recomputed. The one figure here allowed to
-      fall, said as a count in ten and never a percentage (§6, §12 2026-09-27). Read from
-      the account, so absent signed out, like Time and words. Drawn by `progress.js`. -#}
-  <section class="panel reading" id="reading" hidden>
-    <h2>{{ t("progress.reading.title", "What you knew of what you read") }}</h2>
-    <p class="note">{{ t("progress.reading.note", "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}</p>
-    <div id="reading-line"></div>
-    <div class="reading-words" id="reading-said"></div>
+    <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "Time and words aren't shown because recording is stopped. You can start it again on your account page.") }}</p>
+    <h3 class="story-sub">{{ t("progress.weeks.title", "The words you took up, week by week") }}</h3>
+    <p class="note">{{ t("progress.weeks.note", "Each week's words, coloured by where they are now.") }}</p>
+    <div id="weeks"></div>
   </section>
 
-  {#- The day strip is seven rows tall and the milestones are two, so the milestones
-      share their column with the ladder rather than leaving a hole beside it. -#}
-  <div class="panels paired">
-    <div class="stack">
-      <section class="panel">
-        <h2>{{ t("progress.page.milestones", "Milestones") }}</h2>
-        <p class="note">{{ t("progress.page.counted-from-the-words-you-ve-marked", "Counted from the words you've marked known.") }}</p>
-        <div id="milestones"></div>
-        {#- The rung and the distance to the next one, for a language with no ulpan ladder
-            behind it. Hebrew's is the block under this. -#}
-        <div class="standing" id="standing"></div>
-      </section>
-
-      {#- For a language with a ladder — the ulpan for Hebrew, the CEFR for French, Russian
-          and Italian — and under the milestones because it is the same question asked in
-          the language's own units: how far in am I. The heading is the ladder's name. -#}
-      <section class="panel" id="rung" hidden>
-        <h2 id="rung-title">{{ t("progress.page.ulpan-level", "Ulpan level") }}</h2>
-        <div class="standing" id="rung-standing"></div>
-        {#- Where the rung comes from, said once. §6 is plain about limits, and
-            `annotate/base.py` refuses to call a difficulty band a CEFR level for the same
-            reason: frequency data is not a graded syllabus. -#}
-        <p class="note basis" id="basis" hidden></p>
-      </section>
+  {#- 3 · What next: the words still being learned that keep coming round, and texts at
+      the reader's level now. -#}
+  <section class="panel story" id="next" aria-labelledby="next-title">
+    <p class="story-step">{{ t("progress.story.next", "3 · What next") }}</p>
+    <h2 id="next-title" class="story-head">{{ t("progress.next.title", "The words and texts that would help most") }}</h2>
+    <div class="next-halves">
+      <div class="next-half" id="next-words">
+        <h3 class="story-sub" id="next-words-title">{{ t("progress.next.words", "Words you keep meeting and haven't learned") }}</h3>
+        <ul class="next-rows" id="met-rows"></ul>
+        <p class="note" id="met-empty" hidden></p>
+        <a class="next-more" id="practise" href="/words">{{ t("progress.next.practise", "Practise these words") }} →</a>
+      </div>
+      <div class="next-half" id="next-texts">
+        <h3 class="story-sub" id="next-texts-title">{{ t("progress.next.texts", "Texts at your level now") }}</h3>
+        <ul class="next-rows" id="level-rows"></ul>
+        <p class="note" id="level-empty" hidden></p>
+        <a class="next-more" id="more-texts" href="/library">{{ t("progress.next.library", "More in the Library") }} →</a>
+      </div>
     </div>
-
-    <section class="panel">
-      <h2>{{ t("progress.page.days-reading", "Days on targum") }}</h2>
-      <p class="note">{{ t("progress.page.every-language-together-a-day-counts-when", "Every language together. A day counts when you open something.") }}</p>
-      <div id="days"></div>
-    </section>
-  </div>
-
-  <section class="panel">
-    <h2>{{ t("progress.page.where-they-are", "How well you know them") }}</h2>
-    <p class="note" id="progress-note"></p>
-    <div id="progress"></div>
   </section>
-
-  <div class="panels">
-    <section class="panel">
-      <h2>{{ t("progress.page.words-saved-over-time", "Words saved over time") }}</h2>
-      <p class="note">{{ t("progress.page.from-when-you-first-marked-each", "From when you first marked each.") }}</p>
-      <div id="growth"></div>
-    </section>
-
-    <section class="panel">
-      <h2>{{ t("progress.page.how-common-they-are", "How common they are") }}</h2>
-      <p class="note">{{ t("progress.page.how-often-each-turns-up-in-everyday", "How often each turns up in everyday use.") }}</p>
-      <div id="bands"></div>
-    </section>
-  </div>
 </main>
 
 {#- Before the foot, not after it: it was drawn under the foot, so a reader with

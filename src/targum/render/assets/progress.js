@@ -1,8 +1,14 @@
-/* Everything you have kept, and what it adds up to.
+/* Your Progress, as a story in three parts (design.md §12, "Your Progress is a story in
+ * three parts", 2026-10-09).
  *
- * Reads the same stores the reader writes — words per language, phrases per text —
- * so this page is a view of them rather than a second copy. Nothing is computed on
- * the server; the server only handed over the page.
+ * Under the totals: where you are — a ladder of real kinds of text from the language's own
+ * library, each a link to its shelf, and what you knew of what you read; how you got here —
+ * time and words, and the words taken up week by week; and what next — the words you keep
+ * meeting and the texts at your level now.
+ *
+ * The totals and the weeks are read from the browser's own store, the same one the reader
+ * writes; the ladder, the words met and the texts at your level from `/account/story`, and
+ * time and the reading line from the account's record. Nothing here spends.
  */
 
 (function () {
@@ -15,7 +21,10 @@
      that started the process. Both cases are this one branch. */
   function keyed(path) {
     if (!key) return path;
-    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+    var parts = String(path).split("#");
+    var bare = parts[0];
+    bare = bare + (bare.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+    return bare + (parts.length > 1 ? "#" + parts.slice(1).join("#") : "");
   }
 
   var names = window.TARGUM_LANGUAGES || {};
@@ -25,52 +34,71 @@
   var tn = words.tn;
 
   var KNOWN = 9;
-  var STATUS = {
-    1: { name: t("progress.status.1", "just met"), slot: "--step-1" },
-    2: { name: t("progress.status.2", "getting there"), slot: "--step-2" },
-    3: { name: t("progress.status.3", "nearly there"), slot: "--step-3" },
-    9: { name: t("progress.status.9", "known"), slot: "--step-4" },
-  };
-  // The six real ones. "not rated" was a seventh row that read as a category a word could
-  // belong to, and it is not: it is the absence of frequency data for a language, which
-  // is a fact about targum rather than about the word or the reader. A word that has one
-  // is counted; a word that has none is not placed on a scale it has no reading for.
-  var BANDS = ["easy", "fairly easy", "moderate", "hard", "very hard", "extremely hard"];
-  // What each is called on the page; the names above are the words' own data.
-  var BAND_NAMES = [
-    t("progress.band.easy", "easy"),
-    t("progress.band.fairly-easy", "fairly easy"),
-    t("progress.band.moderate", "moderate"),
-    t("progress.band.hard", "hard"),
-    t("progress.band.very-hard", "very hard"),
-    t("progress.band.extremely-hard", "extremely hard"),
+  var STEPS = [
+    { status: 1, name: t("progress.status.1", "just met"), slot: "--step-1" },
+    { status: 2, name: t("progress.status.2", "getting there"), slot: "--step-2" },
+    { status: 3, name: t("progress.status.3", "nearly there"), slot: "--step-3" },
+    { status: KNOWN, name: t("progress.status.9", "known"), slot: "--step-4" },
   ];
 
-  /* One bar per band, and each its own colour. A scale rather than six unrelated hues:
-     it runs leaf → iris → clay, which is the order §4 already gives them — what you can
-     read, what is new to you, what it costs you. Mixed from the three working cuts, so
-     nothing here is a colour the palette does not have. Green to purple to red, deliberately: green to red alone mixes to brown in
-     the middle, which is the thing this page was getting too much of. */
-  var COMMONNESS = [
-    "var(--leaf)",
-    "color-mix(in srgb, var(--iris) 28%, var(--leaf))",
-    "var(--iris)",
-    "color-mix(in srgb, var(--clay) 40%, var(--iris))",
-    "color-mix(in srgb, var(--clay) 70%, var(--iris))",
-    "var(--clay)",
-  ];
-  /* A sentence with one figure in bold: `{bold}` in the text is where it goes, so a
-     language can put it wherever its grammar wants it. */
-  function boldIn(host, text, bold) {
-    var at = text.indexOf("{bold}");
-    if (at < 0) {
-      host.textContent = text;
-      return;
-    }
-    host.appendChild(document.createTextNode(text.slice(0, at)));
-    host.appendChild(el("b", null, bold));
-    host.appendChild(document.createTextNode(text.slice(at + "{bold}".length)));
-  }
+  /* The rungs, each with what its chip says and the four sentences the headline can be.
+     A sentence each rather than a name dropped into one: Russian declines the kind
+     («почти всю новостную статью», «большую часть новостной статьи»), and a name in a
+     slot would be wrong in two of the three. */
+  var RUNGS = {
+    dialogue: {
+      chip: t("progress.touch.dialogue", "A dialogue"),
+      follow: t("progress.where.follow.dialogue", "You'd follow a dialogue"),
+      nearly: t("progress.where.nearly.dialogue", "You'd follow nearly all of a dialogue"),
+      most: t("progress.where.most.dialogue", "You'd follow most of a dialogue"),
+      start: t("progress.where.start.dialogue", "A dialogue is the place to start"),
+    },
+    talk: {
+      chip: t("progress.touch.talk", "A video talk"),
+      follow: t("progress.where.follow.talk", "You'd follow a video talk"),
+      nearly: t("progress.where.nearly.talk", "You'd follow nearly all of a video talk"),
+      most: t("progress.where.most.talk", "You'd follow most of a video talk"),
+      start: t("progress.where.start.talk", "A video talk is the place to start"),
+    },
+    article: {
+      chip: t("progress.touch.article", "A news article"),
+      follow: t("progress.where.follow.article", "You'd follow a news article"),
+      nearly: t("progress.where.nearly.article", "You'd follow nearly all of a news article"),
+      most: t("progress.where.most.article", "You'd follow most of a news article"),
+      start: t("progress.where.start.article", "A news article is the place to start"),
+    },
+    story: {
+      chip: t("progress.touch.story", "A short story"),
+      follow: t("progress.where.follow.story", "You'd follow a short story"),
+      nearly: t("progress.where.nearly.story", "You'd follow nearly all of a short story"),
+      most: t("progress.where.most.story", "You'd follow most of a short story"),
+      start: t("progress.where.start.story", "A short story is the place to start"),
+    },
+    "picture-book": {
+      chip: t("progress.touch.picture-book", "A picture book"),
+      follow: t("progress.where.follow.picture-book", "You'd follow a picture book"),
+      nearly: t("progress.where.nearly.picture-book", "You'd follow nearly all of a picture book"),
+      most: t("progress.where.most.picture-book", "You'd follow most of a picture book"),
+      start: t("progress.where.start.picture-book", "A picture book is the place to start"),
+    },
+    novel: {
+      chip: t("progress.touch.novel", "A novel"),
+      follow: t("progress.where.follow.novel", "You'd follow a novel"),
+      nearly: t("progress.where.nearly.novel", "You'd follow nearly all of a novel"),
+      most: t("progress.where.most.novel", "You'd follow most of a novel"),
+      start: t("progress.where.start.novel", "A novel is the place to start"),
+    },
+    poetry: {
+      chip: t("progress.touch.poetry", "Poetry"),
+      follow: t("progress.where.follow.poetry", "You'd follow a poem"),
+      nearly: t("progress.where.nearly.poetry", "You'd follow nearly all of a poem"),
+      most: t("progress.where.most.poetry", "You'd follow most of a poem"),
+      start: t("progress.where.start.poetry", "Poetry is the place to start"),
+    },
+  };
+
+  //: Languages with nobody's voice in them have no listening to count (§12, 2026-10-08).
+  var SILENT = { arc: true, yi: true };
 
   function named(code) {
     return names[code] || (code || "").toUpperCase();
@@ -83,26 +111,10 @@
   }
   wireNav();
 
-  function withKey(href) {
-    return href + (href.indexOf("?") === -1 ? "?" : "&") + "k=" + encodeURIComponent(key);
-  }
-
-  /* --- what is in the browser ---------------------------------------------- */
-
-  // The chart kit, the growth line, the tiles and the collector live in charts.js —
-  // Learn draws the same numbers, and two copies of a chart drift.
-  //
-  // Bound here rather than beside the charts further down, because `collect` is called
-  // during start-up: `var` hoists the name but not the value, so reading it from a
-  // declaration below meant `charts` was undefined and the page threw on load.
   var charts = window.TargumCharts;
   var el = charts.el;
   var svg = charts.svg;
   var tipFor = charts.tipFor;
-  var drawGrowth = charts.growth;
-
-  // Words are filed per language; phrases per text, with the text index saying which
-  // language each belongs to. Gathered here into one shape per language.
   var collect = charts.collect;
 
   // Anything still in the per-document lists is moved across first, or someone who
@@ -118,11 +130,10 @@
 
   if (!codes.length) {
     document.getElementById("nothing").hidden = false;
-    document.getElementById("library-link").href = withKey("/library");
+    document.getElementById("library-link").href = keyed("/library");
     wireNav();
     // Signing in on a browser that has nothing is the whole point of signing in: this
-    // is the new phone, and everything is about to arrive. The page has drawn its empty
-    // state and built none of the rest, so it is started again rather than patched up.
+    // is the new phone, and everything is about to arrive.
     if (window.TargumSync) {
       window.TargumSync.onChange(function (changed) {
         if (changed) location.reload();
@@ -134,280 +145,41 @@
 
   document.getElementById("page").hidden = false;
 
-  // Which language everything below is drawn for. The switcher moves it.
+  // Which language everything below is drawn for. The menu moves it.
   var currentCode = window.TargumLang.current(codes);
-
-  /* --- small helpers -------------------------------------------------------- */
-
-
-  /* --- the charts ----------------------------------------------------------- */
-
-  // Part-to-whole across an ordered scale: one bar, one hue, light to dark, with every
-  // segment labelled. Four classes, so direct labels are not optional.
-  function drawProgress(host, note, words) {
-    host.textContent = "";
-    var counts = {};
-    charts.kept(words).forEach(function (word) {
-      counts[word.status] = (counts[word.status] || 0) + 1;
-    });
-    var order = [1, 2, 3, KNOWN];
-    var segments = order
-      .map(function (status) {
-        return { status: status, count: counts[status] || 0 };
-      })
-      .filter(function (segment) {
-        return segment.count > 0;
-      });
-    var total = segments.reduce(function (sum, segment) {
-      return sum + segment.count;
-    }, 0);
-
-    // Ignored words are not mentioned. Ignore means "this is not vocabulary" — a name, a
-    // numeral, a word from another language — and a page that keeps a tally of what you
-    // dismissed has not dismissed it.
-    note.textContent = "";
-
-    if (!total) {
-      host.appendChild(el("p", "empty", t("progress.empty", "Nothing marked yet.")));
-      return;
-    }
-
-    var wrap = el("div", "chart");
-    var height = 34;
-    var picture = svg("svg", {
-      viewBox: "0 0 100 " + height,
-      preserveAspectRatio: "none",
-      role: "img",
-      height: height,
-      "aria-label": t("progress.chart.status", "Your {language} words: {counts}", {
-        language: named(currentCode),
-        counts: segments
-          .map(function (segment) {
-            return segment.count + " " + STATUS[segment.status].name;
-          })
-          .join(", "),
-      }),
-    });
-    picture.style.height = height + "px";
-
-    var tip = null;
-    var x = 0;
-    segments.forEach(function (segment) {
-      var width = (segment.count / total) * 100;
-      var rect = svg("rect", {
-        x: x,
-        y: 0,
-        width: width,
-        height: height,
-        rx: 1,
-        fill: "var(" + STATUS[segment.status].slot + ")",
-      });
-      rect.addEventListener("mousemove", function (event) {
-        var box = wrap.getBoundingClientRect();
-        tip.show(
-          "<b>" +
-            segment.count +
-            "</b> " +
-            STATUS[segment.status].name +
-            " · " +
-            Math.round((segment.count / total) * 100) +
-            "%",
-          event.clientX - box.left,
-          event.clientY - box.top
-        );
-      });
-      rect.addEventListener("mouseleave", function () {
-        tip.hide();
-      });
-      picture.appendChild(rect);
-      x += width;
-    });
-
-    wrap.appendChild(picture);
-    host.appendChild(wrap);
-    tip = tipFor(wrap);
-
-    var legend = el("div", "legend");
-    segments.forEach(function (segment) {
-      var item = el("span");
-      var swatch = el("i");
-      swatch.style.background = "var(" + STATUS[segment.status].slot + ")";
-      item.appendChild(swatch);
-      item.appendChild(el("b", null, grouped(segment.count)));
-      item.appendChild(document.createTextNode(" " + STATUS[segment.status].name));
-      legend.appendChild(item);
-    });
-    host.appendChild(legend);
-  }
-
-  // One series over time, so an area with no legend: the heading names it.
-
-
-  // Magnitude across ordered classes: bars, one hue, length carries the number.
-  function drawBands(host, words) {
-    host.textContent = "";
-    var counts = BANDS.map(function () {
-      return 0;
-    });
-    var any = false;
-    var kept = charts.kept(words);
-    kept.forEach(function (word) {
-      var index = BANDS.indexOf(word.band);
-      if (index < 0) return;
-      counts[index] += 1;
-      any = true;
-    });
-    if (!any) {
-      /* Words marked and none of them banded is a language with no frequency list —
-         Yiddish, Aramaic — and "Nothing marked yet" told a reader with hundreds marked
-         that they had marked nothing (copy audit, 2026-09-28). */
-      host.appendChild(
-        el(
-          "p",
-          "empty",
-          kept.length
-            ? t(
-                "progress.bands.no-list",
-                "We have no word list for this language, so we can't say how common its words are."
-              )
-            : t("progress.empty", "Nothing marked yet.")
-        )
-      );
-      return;
-    }
-
-    var top = Math.max.apply(null, counts) || 1;
-    var rowHeight = 22;
-    var W = 320;
-    var labelW = 92;
-    var H = BANDS.length * rowHeight + 6;
-
-    var wrap = el("div", "chart");
-    var picture = svg("svg", {
-      viewBox: "0 0 " + W + " " + H,
-      role: "img",
-      "aria-label": t("progress.chart.bands", "By how common: {counts}", {
-        counts: BAND_NAMES.map(function (band, index) {
-          return counts[index] + " " + band;
-        }).join(", "),
-      }),
-    });
-
-    var tip = null;
-    BANDS.forEach(function (band, index) {
-      var y = index * rowHeight + 3;
-      // Room for the count after the longest bar: 26 units was two digits' worth, and a
-      // four-digit count ran past the card's edge (2026-09-14).
-      var width = (counts[index] / top) * (W - labelW - 48);
-
-      var label = svg("text", { x: labelW - 8, y: y + 13, "text-anchor": "end" });
-      label.textContent = BAND_NAMES[index];
-      picture.appendChild(label);
-
-      var bar = svg("rect", {
-        x: labelW,
-        y: y + 3,
-        width: Math.max(counts[index] ? 2 : 0, width),
-        height: rowHeight - 9,
-        rx: 3,
-        fill: COMMONNESS[index] || "var(--iris)",
-      });
-      if (counts[index]) {
-        bar.addEventListener("mousemove", function (event) {
-          var box = wrap.getBoundingClientRect();
-          tip.show(
-            "<b>" + counts[index] + "</b> " + BAND_NAMES[index],
-            event.clientX - box.left,
-            event.clientY - box.top
-          );
-        });
-        bar.addEventListener("mouseleave", function () {
-          tip.hide();
-        });
-      }
-      picture.appendChild(bar);
-
-      var value = svg("text", {
-        x: labelW + Math.max(counts[index] ? 2 : 0, width) + 6,
-        y: y + 13,
-        class: "value",
-      });
-      value.textContent = grouped(counts[index]);
-      picture.appendChild(value);
-    });
-
-    wrap.appendChild(picture);
-    host.appendChild(wrap);
-    tip = tipFor(wrap);
-  }
-
-  /* --- the tiles ------------------------------------------------------------ */
-
-
-
-  /* --- what you have built ----------------------------------------------------
-   *
-   * The ledger, the milestones and the days. Real counts of real things, in the reading
-   * face with tabular figures — a ledger rather than a score. Nothing here is invented:
-   * every number is something the reader did, and there is no currency to inflate.
-   */
-
-  // Words known, and the thresholds worth saying so about. Known only — the learning
-  // ladder is deliberately out, because a word somebody is halfway through is a word the
-  // page still costs them.
-  var MARKS = [10, 50, 100, 250, 500, 1000, 2500, 5000];
 
   // 1,000 rather than 1000. The counts are the point of the page and they get read.
   function grouped(count) {
     return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
 
-  // Everything the page counts, in one block. They were a row of tiles under this one,
-  // which meant a reader read the same words twice on the way down the page in two
-  // different shapes — and read "phrases saved" twice, in both.
-  function drawLedger(counts, standing, entry, days, code) {
-    counts.textContent = "";
-    standing.textContent = "";
+  /* --- the totals ------------------------------------------------------------
+   *
+   * Real counts of real things, in the reading face with tabular figures — a ledger
+   * rather than a score. Kept from the page before the story (§12, 2026-10-09), less the
+   * longest run: the board has no figure about runs of days. Words read joins them where
+   * the account keeps a record.
+   */
+  function drawLedger(host, entry, days, code) {
+    host.textContent = "";
     var sums = charts.totals(entry);
 
     /* `hue` is the one thing this block is allowed that the rest of the page is not:
        §9 makes the inverted surface the only place the bright set is legal, and §4 says
-       which is which — leaf for what has been reached, iris for phrases, sun for turning
-       up. Everything without one stays paper-white. */
+       which is which — leaf for what has been reached, iris for phrases, sun for what
+       targum taught. Everything without one stays paper-white. */
     function count(value, label, hue, title) {
-      // A zero is not a peak moment. The bright set is for what happened, and spending
-      // --sun on "0 words learned" paints the loudest colour in the system on the one
-      // line that has nothing to report; §6 keeps what has not happened quiet.
+      // A zero is not a peak moment: §6 keeps what has not happened quiet.
       var box = el("div", hue && value ? "lit " + hue : null);
       box.appendChild(el("b", null, grouped(value)));
-      // Singular where there is one of it. These sit at display size beside the figure
-      // they belong to, which is where "1 words learned" is impossible not to read.
       box.appendChild(el("span", null, label));
       if (title) box.title = title;
-      counts.appendChild(box);
+      host.appendChild(box);
     }
 
-    /* Four, and each one a thing a reader would say out loud about their own reading.
-       Seven included every number this page could work out — words saved beside words
-       known beside words learned, and a count of texts opened, which is a fact about
-       browsing rather than about Hebrew. */
-    // A figure and its name, and nothing under either. "80% of the way" was a share of
-    // known against still-learning — a fraction whose denominator is however many words
-    // happen to be part-way up the ladder, so it fell when a reader saved a new word and
-    // rose when they gave up on one. A number that moves the wrong way is worse company
-    // than no number.
-    // Everything kept, and then the half of it that has been finished with. "Known" on
-    // its own read as a claim about the reader; "marked known" is what actually happened,
-    // which is that they pressed a key while reading.
     count(sums.saved, tn("progress.count.saved", sums.saved, "word on your list", "words on your list"));
-    count(
-      sums.known,
-      tn("progress.count.known", sums.known, "word marked known", "words marked known"),
-      "leaf"
-    );
+    count(sums.known, tn("progress.count.known", sums.known, "word marked known", "words marked known"), "leaf");
     // What targum carried up to known, rather than what a reader arrived already having.
-    // "Learned" alone read as contradicting the known count beside it (2026-09-14): it
-    // is the part of that count that started lower on the ladder and was read up to known.
     count(
       sums.learned,
       tn("progress.count.learned", sums.learned, "word learned on targum", "words learned on targum"),
@@ -415,304 +187,136 @@
       t("progress.count.learned.title", "Saved as new and since marked known.")
     );
     count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris");
-    // Said finished, at the foot of the text, by the reader. A real count of a real
-    // thing, and the one on this page that is a whole text rather than a word.
     count(sums.finished, tn("progress.count.finished", sums.finished, "targum finished", "targums finished"), "leaf");
     count(days.length, tn("progress.count.days", days.length, "day on targum", "days on targum"));
-    // The longest run of days there has ever been, and never the current one. Decided
-    // 2026-09-03 (targum-internal#175) and recorded in design.md §12: a current streak
-    // is a count that can be destroyed, and that is what makes people quit in the week
-    // they break a long one; the longest can be tied or beaten and never lost, which is
-    // the property every other figure in this block has. Sun is the streak's hue (§4),
-    // legal here because this block is the inverted surface. It rises on /progress
-    // quietly; the day it rises, the foot of the section that did it says so.
-    var longest = charts.longest(days);
-    count(
-      longest,
-      tn("progress.count.longest", longest, "day in your longest run", "days in your longest run"),
-      "sun"
-    );
-
-    drawStanding(standing, entry, code, sums.known);
+    var read = wordsRead(code);
+    if (read !== null) count(read, tn("progress.count.read", read, "word read", "words read"));
   }
 
-  // What the block is about: the rung reached and the distance to the next. One hue in
-  // here, and it is leaf — §4 gives achievement to leaf, and a rung reached is one.
-  //
-  // Hebrew gets ulpan levels, which is a ladder with real names outside targum. Every
-  // other language keeps the count of words known, because there is no such ladder to
-  // put a Russian reader on and inventing one would be a score with a letter on it.
-  function drawStanding(standing, entry, code, known) {
-    var basis = document.getElementById("basis");
-    var rung = document.getElementById("rung");
-    var inside = document.getElementById("rung-standing");
-    standing.textContent = "";
-    inside.textContent = "";
+  /* --- 1 · where you are ------------------------------------------------------ */
 
-    // A language with a ladder has a block of its own under the milestones: the ulpan
-    // for Hebrew, the CEFR for French, Russian and Italian (2026-09-13). A language with
-    // none — Yiddish, Aramaic — keeps the milestones as its standing, and says why.
-    var ladder = charts.ladderFor(code);
-    var title = document.getElementById("rung-title");
-    rung.hidden = !ladder;
-    basis.hidden = !ladder;
-    if (ladder) {
-      if (title) title.textContent = ladder.title;
-      // What the ladder is, then its limit (David, 2026-09-28, COPY_QUESTIONS 29): a
-      // newcomer meets "ב+" or "A2" here with nothing to say which end is the start.
-      basis.textContent =
-        code === "he"
-          ? t("progress.basis.ulpan", "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement.")
-          : t("progress.basis.cefr", "The European scale runs from A1, for beginners, to C2. A guide, not a placement.");
-      drawLevel(inside, entry.words, ladder);
+  var story = {};
+  var storyAsked = {};
+  var signedIn = null;
+
+  var TICK =
+    '<svg class="touch-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M3.5 8.5l3 3 6-7"/></svg>';
+
+  function shelfHref(kind) {
+    return keyed("/library#see/kind/" + encodeURIComponent(kind));
+  }
+
+  function drawWhere(code) {
+    var head = document.getElementById("where-title");
+    var list = document.getElementById("touchstones");
+    var note = document.getElementById("where-note");
+    list.textContent = "";
+    list.hidden = true;
+    note.hidden = true;
+    note.textContent = "";
+    var said = story[code];
+
+    if (signedIn === false) {
+      head.textContent = t("progress.where.signed-out", "Sign in and we'll say which texts you'd follow.");
+      return;
+    }
+    if (!said) {
+      head.textContent = "";
+      return;
+    }
+    var ladder = said.ladder || [];
+    if (!ladder.length) {
+      // Aramaic has no ladder, Yiddish no library, and a box without the lemma index has
+      // measured nothing: each says so, with the one count it does have.
+      var known = said.known || 0;
+      head.textContent = tn("progress.where.known", known, "You know {n} word so far", "You know {n} words so far", {
+        n: grouped(known),
+      });
+      note.textContent =
+        code === "arc"
+          ? t(
+              "progress.where.no-ladder-arc",
+              "There's no ladder of texts for Aramaic: we have no list of how common its words are, so its texts can't be measured."
+            )
+          : !said.library
+            ? t("progress.where.no-library", "The library has nothing in this language yet, so there's no ladder of texts to place you on.")
+            : t("progress.where.unmeasured", "We haven't measured this language's texts yet, so there's no ladder to place you on.");
+      note.hidden = false;
       return;
     }
 
-    var passed = null;
-    var next = null;
-    MARKS.forEach(function (mark) {
-      if (known >= mark) passed = mark;
-      else if (next === null) next = mark;
-    });
+    var here = typeof said.here === "number" ? ladder[said.here] : null;
+    var wording = here ? RUNGS[here.name] || RUNGS[here.kind] : RUNGS[ladder[0].name] || RUNGS[ladder[0].kind];
+    head.textContent = here && said.said ? wording[said.said] : wording ? wording.start : "";
 
-    if (passed) {
-      standing.appendChild(
-        el(
-          "span",
-          "reached",
-          tn("progress.milestone.reached", passed, "{n} word known", "{n} words known", { n: grouped(passed) })
-        )
-      );
-    }
-    // Said once, beside the milestones that stand in for a level.
-    standing.appendChild(
-      el(
-        "p",
-        "why",
-        t(
-          "progress.milestone.why",
-          "There's no level for this language yet: we have no word list to measure it against."
-        )
-      )
-    );
-
-    var line = el("p", "next");
-    if (next === null) {
-      line.textContent = t("progress.milestone.past", "You're past every milestone we keep.");
-    } else if (known === 0) {
-      line.textContent = t("progress.milestone.start", "Mark a word as known and your count starts here.");
-    } else {
-      boldIn(
-        line,
-        tn("progress.milestone.next", next - known, "Another {bold} known word to reach {next}.", "Another {bold} known words to reach {next}.", {
-          next: grouped(next),
-        }),
-        grouped(next - known)
-      );
-    }
-    standing.appendChild(line);
-  }
-
-  /* --- how far into Hebrew ---------------------------------------------------
-   *
-   * The ladder itself — the rungs, the band weighting, and what a reader's marked words
-   * add up to — moved into the chart kit, because Learn needs it too: it opens the
-   * weekly at the reader's own rung, and a second copy of a weighting is two pages
-   * disagreeing about the same person. `charts.ULPAN`, `charts.reach`,
-   * `charts.standingIn`.
-   */
-
-  function drawLevel(host, words, ladder) {
-    ladder = ladder || charts.ladderFor("he");
-    var got = charts.reach(words);
-    var weighted = ladder.measure === "weighted";
-    var value = weighted ? got.weighted : charts.common(words);
-    var found = charts.standingIn(value, ladder.rungs);
-
-    // The rung takes the celebration chip §9 allows one of per screen. Hebrew and Latin
-    // at the same size inside it, because §3 does not let Hebrew be the small half.
-    if (found.here) {
-      var chip = el("span", "reached");
-      if (weighted) {
-        var letter = el("bdi", "letter", found.here.letter);
-        // Said outright rather than left to the first strong character. Left to right,
-        // because the name it stands beside is English and the pair reads as one label —
-        // under rtl the plus went to the far side and "א+" came out as "+א".
-        letter.setAttribute("dir", "ltr");
-        letter.setAttribute("lang", "he");
-        chip.appendChild(letter);
-        chip.appendChild(el("span", "name", found.here.name));
-        // The CEFR equivalent beside the ulpan name, so one scale reads across languages.
-        if (found.here.cefr) {
-          chip.appendChild(
-            el("span", "cefr", " · " + t("progress.level.about", "about {level}", { level: found.here.cefr }))
-          );
-        }
-      } else {
-        chip.appendChild(el("span", "name", found.here.name));
+    ladder.forEach(function (rung, index) {
+      if (index) {
+        var gap = el("li", "touch-gap");
+        gap.setAttribute("aria-hidden", "true");
+        gap.innerHTML =
+          '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5l4.5 4.5L6 12.5"/></svg>';
+        list.appendChild(gap);
       }
-      host.appendChild(chip);
-    }
-
-    var line = el("p", "next");
-    if (!got.words) {
-      line.textContent = t("progress.level.start", "Mark a word as known and your level starts here.");
-    } else if (!found.next) {
-      line.textContent = weighted
-        ? t("progress.level.past-ulpan", "You're past every rung an ulpan keeps.")
-        : t("progress.level.past-cefr", "You're past every CEFR level.");
-    } else {
-      // In words either way, because words are what the reader has. The ulpan's total is
-      // weighted, so it is turned back into words at the weight of the ones this reader
-      // knows; counting a point is inventing a currency. The CEFR counts words already.
-      var more = weighted
-        ? Math.max(1, Math.round((found.next.at - got.weighted) / (got.weighted / got.words)))
-        : Math.max(1, found.next.at - value);
-      boldIn(
-        line,
-        weighted
-          ? tn("progress.level.next-ulpan", more, "Another {bold} word to {letter} ({name}).", "Another {bold} words to {letter} ({name}).", {
-              letter: found.next.letter,
-              name: found.next.name,
+      var item = el("li", "touch");
+      var link = el("a", "touch-" + rung.state);
+      link.href = shelfHref(rung.kind);
+      var named_ = (RUNGS[rung.name] || RUNGS[rung.kind] || { chip: rung.kind }).chip;
+      if (rung.state === "passed") link.innerHTML = TICK;
+      link.appendChild(el("span", "touch-name", named_));
+      var shown = (rung.state === "here" || rung.state === "next") && typeof rung.share === "number";
+      if (shown) link.appendChild(el("span", "touch-share", t("progress.touch.share", "{n}%", { n: rung.share })));
+      if (rung.state === "here") link.setAttribute("aria-current", "step");
+      link.title =
+        typeof rung.share === "number"
+          ? t("progress.touch.title", "{kind}: you know {n}% of the words. Open this shelf in the Library", {
+              kind: named_,
+              n: rung.share,
             })
-          : tn("progress.level.next-cefr", more, "Another {bold} common word to {name}.", "Another {bold} common words to {name}.", {
-              name: found.next.name,
-            }),
-        grouped(more)
-      );
-    }
-    host.appendChild(line);
-  }
-
-  function drawMarks(host, words) {
-    host.textContent = "";
-    var known = charts.known(words);
-    var marks = el("div", "marks");
-    MARKS.forEach(function (mark) {
-      var chip = el("span", "mark" + (known >= mark ? " on" : ""), grouped(mark));
-      chip.setAttribute("title", known >= mark ? t("progress.mark.reached", "Reached") : t("progress.mark.not-yet", "Not yet"));
-      marks.appendChild(chip);
+          : t("progress.touch.open", "Open this shelf in the Library");
+      item.appendChild(link);
+      list.appendChild(item);
     });
-    host.appendChild(marks);
+    list.hidden = false;
   }
 
-  // Twelve weeks, a column a week, ending today. Squares rather than a line because the
-  // question is which days rather than how many at once, and a day nobody read is the
-  // resting colour: §6 asks for missed days quiet, never red.
-  var WEEKS = 12;
-
-  function dayName(when) {
-    return (
-      when.getFullYear() +
-      "-" +
-      String(when.getMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(when.getDate()).padStart(2, "0")
-    );
+  function askStory(code) {
+    if (!window.fetch || storyAsked[code]) return;
+    storyAsked[code] = true;
+    fetch(keyed("/account/story?language=" + encodeURIComponent(code)), { credentials: "same-origin" })
+      .then(function (answer) {
+        return answer.json();
+      })
+      .then(function (said) {
+        if (!said || said.signedIn === false) {
+          signedIn = false;
+        } else {
+          signedIn = true;
+          story[code] = said;
+        }
+        if (code === currentCode) {
+          drawWhere(code);
+          drawNext(code);
+        }
+      })
+      .catch(function () {
+        /* nothing to say is a part that says nothing, which is how the page already stood */
+      });
   }
 
-  /* The strip is twelve weeks of squares, one a day, and the colour says how much
-     vocabulary was marked that day — the about page's calendar arithmetic, run on the
-     browser's own words rather than on commits (`charts.shade`, `builder.level`).
-     Before this it was a two-state strip: read or not. A day you opened a text and
-     marked nothing still counts as read and gets the faintest green, because the
-     square is about showing up and the shade is about how much. */
-  function drawDays(host, days, words) {
-    host.textContent = "";
-    var had = {};
-    days.forEach(function (day) {
-      had[day] = true;
-    });
-    var marked = charts.buckets(words);
-
-    var strip = el("ul", "strip");
-    var cursor = new Date();
-    cursor.setHours(0, 0, 0, 0);
-    // Stepped with the calendar rather than by adding milliseconds: on the two days a
-    // year the clocks move, a fixed-size step lands an hour off and never matches a
-    // local midnight again — the same bug the growth line already had once.
-    cursor.setDate(cursor.getDate() - (WEEKS * 7 - 1));
-    /* The busiest day inside the window, not of all time: a strip scaled to a
-       first-week binge would read as twelve flat weeks forever after. */
-    var window_ = [];
-    var scan = new Date(cursor.getTime());
-    for (var w = 0; w < WEEKS * 7; w++) {
-      window_.push(marked[charts.dayOf(scan.getTime())] || 0);
-      scan.setDate(scan.getDate() + 1);
-    }
-    var busiest = window_.reduce(function (most, n) {
-      return n > most ? n : most;
-    }, 0);
-
-    var counted = 0;
-    for (var i = 0; i < WEEKS * 7; i++) {
-      var name = dayName(cursor);
-      var count = window_[i];
-      // A day with words but no opening still counts as read: marking a word is
-      // reading, and a green square with no `read` behind it would be a day the
-      // legend cannot explain.
-      var read = had[name] || count > 0;
-      var box = el("li", read ? "read level-" + Math.max(1, charts.shade(count, busiest)) : "");
-      box.setAttribute(
-        "title",
-        count ? name + " — " + tn("progress.days.words", count, "{n} word", "{n} words") : name
-      );
-      if (read) counted += 1;
-      strip.appendChild(box);
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    strip.setAttribute("role", "img");
-    strip.setAttribute(
-      "aria-label",
-      counted
-        ? tn(
-            "progress.days.reading",
-            counted,
-            "{n} day on targum in the last twelve weeks",
-            "{n} days on targum in the last twelve weeks"
-          )
-        : t("progress.days.none", "No days on targum in the last twelve weeks")
-    );
-    host.appendChild(strip);
-
-    var said = el("p", "legend-days");
-    if (!days.length) said.textContent = t("progress.days.first", "Open something and today is your first.");
-    else {
-      said.textContent = tn(
-        "progress.days.counted",
-        counted,
-        "{n} day in the last twelve weeks.",
-        "{n} days in the last twelve weeks."
-      );
-    }
-    host.appendChild(said);
-  }
-
-  /* --- putting it together --------------------------------------------------- */
-
-  /* --- time and words (targum-internal#339) ---------------------------------------
+  /* --- 2 · how you got here ------------------------------------------------------
    *
-   * "Track hours and minutes listened and watched, and words read; displayed and
-   * filterable on Progress." These are the account's reading of its own log
-   * (`/account/totals`, targum-internal#127), a row a day, language and medium — so they
-   * add up across devices, which a tally kept in this browser never could.
-   *
-   * Filtered by what the reader was doing and by when; the language is the page's own.
-   * A figure that is nought is not drawn ("a zero is worth suppressing rather than
-   * colouring"), and the panel is absent where there is no record at all.
+   * Time and words (targum-internal#339): the account's reading of its own log, a row a
+   * day, language and medium, so they add up across devices. Filtered by period only
+   * (§12, 2026-10-09): the three figures already say the medium. A figure that is nought
+   * is not drawn, and the part is absent where there is no record at all.
    */
   var spentRows = null;
-  var spentView = { medium: "", period: "" };
-  var MEDIA = [
-    ["", t("progress.spent.all", "Everything")],
-    ["read", t("progress.spent.reading", "Reading")],
-    ["listen", t("progress.spent.listening", "Listening")],
-    ["watch", t("progress.spent.watching", "Watching")],
-  ];
+  var spentPeriod = "30";
   var PERIODS = [
-    ["", t("progress.spent.ever", "All time")],
     ["30", t("progress.spent.month", "Last 30 days")],
     ["7", t("progress.spent.week", "Last 7 days")],
+    ["", t("progress.spent.ever", "All time")],
   ];
 
   function clock(seconds) {
@@ -735,33 +339,47 @@
     return then.getFullYear() + "-" + two(then.getMonth() + 1) + "-" + two(then.getDate());
   }
 
-  function spentChips(host, options, field) {
-    if (!host) return;
-    host.textContent = "";
-    options.forEach(function (pair) {
-      var chip = el("button", "chip", pair[1]);
-      chip.type = "button";
-      chip.setAttribute("aria-pressed", spentView[field] === pair[0] ? "true" : "false");
-      chip.addEventListener("click", function () {
-        spentView[field] = pair[0];
-        drawSpent(currentCode);
-      });
-      host.appendChild(chip);
+  //: Every word read in this language, ever, or null where the account keeps no record.
+  function wordsRead(code) {
+    if (!spentRows) return null;
+    var sum = 0;
+    spentRows.forEach(function (row) {
+      if (!row.language || row.language === code) sum += row.words || 0;
     });
+    return sum;
+  }
+
+  function drawHowTitle(code) {
+    var head = document.getElementById("how-title");
+    head.textContent =
+      code === "arc"
+        ? t("progress.how.reading", "Reading")
+        : SILENT[code]
+          ? t("progress.how.reading-watching", "Reading and watching")
+          : t("progress.how.all", "Reading, listening and watching");
   }
 
   function drawSpent(code) {
     var panel = document.getElementById("spent");
     var figures = document.getElementById("spent-figures");
+    var chips = document.getElementById("spent-period");
     if (!panel || !figures || !spentRows) return;
     panel.hidden = false;
-    spentChips(document.getElementById("spent-medium"), MEDIA, "medium");
-    spentChips(document.getElementById("spent-period"), PERIODS, "period");
-    var from = spentView.period ? since(Number(spentView.period)) : "";
+    chips.textContent = "";
+    PERIODS.forEach(function (pair) {
+      var chip = el("button", "chip", pair[1]);
+      chip.type = "button";
+      chip.setAttribute("aria-pressed", spentPeriod === pair[0] ? "true" : "false");
+      chip.addEventListener("click", function () {
+        spentPeriod = pair[0];
+        drawSpent(currentCode);
+      });
+      chips.appendChild(chip);
+    });
+    var from = spentPeriod ? since(Number(spentPeriod)) : "";
     var sums = { listened: 0, watched: 0, words: 0 };
     spentRows.forEach(function (row) {
       if (row.language && row.language !== code) return;
-      if (spentView.medium && row.medium !== spentView.medium) return;
       if (from && row.day < from) return;
       sums.listened += row.listened || 0;
       sums.watched += row.watched || 0;
@@ -774,14 +392,9 @@
       one.appendChild(el("span", "spent-label", label));
       figures.appendChild(one);
     }
-    if (sums.listened) figure(clock(sums.listened), t("progress.spent.listened", "listened"));
+    if (sums.words) figure(grouped(sums.words), tn("progress.spent.words", sums.words, "word read", "words read"));
+    if (sums.listened && !SILENT[code]) figure(clock(sums.listened), t("progress.spent.listened", "listened"));
     if (sums.watched) figure(clock(sums.watched), t("progress.spent.watched", "watched"));
-    if (sums.words) {
-      figure(
-        sums.words.toLocaleString(),
-        tn("progress.spent.words", sums.words, "word read", "words read")
-      );
-    }
     if (!figures.children.length) {
       figures.appendChild(el("p", "note", t("progress.spent.nothing", "Nothing recorded for this choice yet.")));
     }
@@ -802,10 +415,200 @@
         }
         spentRows = said.totals || [];
         drawSpent(currentCode);
+        drawLedger(document.getElementById("counts"), data[currentCode], readingDays, currentCode);
       })
       .catch(function () {
-        /* no record to read is no panel, which is how the page already stood */
+        /* no record to read is no figures, which is how the page already stood */
       });
+  }
+
+  /* The words taken up, a column a week for twelve weeks, each coloured by where its
+     words are now. "Came to know" is what the board says; nothing records the day a word
+     reached known, only the day it was saved, so the chart draws what was kept (§12,
+     2026-10-09). The ramp from just met to known, §4's leaf at the top. */
+  var WEEKS = 12;
+  var DAY = 24 * 60 * 60 * 1000;
+
+  function drawWeeks(host, list) {
+    host.textContent = "";
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Weeks end today, so the last column is the seven days up to now.
+    var end = today.getTime() + DAY;
+    var start = end - WEEKS * 7 * DAY;
+    var columns = [];
+    for (var w = 0; w < WEEKS; w++) columns.push({ 1: 0, 2: 0, 3: 0, 9: 0, all: 0 });
+    charts.kept(list).forEach(function (word) {
+      if (!word.at || word.at < start || word.at >= end) return;
+      var at = Math.floor((word.at - start) / (7 * DAY));
+      var step = word.status === KNOWN ? KNOWN : word.status;
+      if (!columns[at] || columns[at][step] === undefined) return;
+      columns[at][step] += 1;
+      columns[at].all += 1;
+    });
+    var most = columns.reduce(function (top, column) {
+      return Math.max(top, column.all);
+    }, 0);
+    if (!most) {
+      host.appendChild(el("p", "empty", t("progress.weeks.none", "No words taken up in the last twelve weeks.")));
+      return;
+    }
+    var bars = el("ol", "weeks");
+    var total = 0;
+    columns.forEach(function (column, index) {
+      total += column.all;
+      var bar = el("li", "week");
+      var from = new Date(start + index * 7 * DAY);
+      var label = tn("progress.weeks.week", column.all, "Week of {date}: {n} word", "Week of {date}: {n} words", {
+        date: from.toLocaleDateString(words.language || "en", { day: "numeric", month: "short" }),
+      });
+      bar.title = label;
+      bar.setAttribute("aria-label", label);
+      var stack = el("span", "week-stack");
+      stack.style.height = Math.round((column.all / most) * 100) + "%";
+      // Known at the foot, the steps above it: the column grows from what is settled.
+      STEPS.slice()
+        .reverse()
+        .forEach(function (step) {
+          if (!column[step.status]) return;
+          var part = el("span", "week-part");
+          part.style.flexGrow = String(column[step.status]);
+          part.style.background = "var(" + step.slot + ")";
+          stack.appendChild(part);
+        });
+      bar.appendChild(stack);
+      bars.appendChild(bar);
+    });
+    bars.setAttribute("role", "img");
+    bars.setAttribute(
+      "aria-label",
+      tn("progress.weeks.label", total, "{n} word taken up in the last twelve weeks", "{n} words taken up in the last twelve weeks")
+    );
+    host.appendChild(bars);
+    var legend = el("div", "legend");
+    STEPS.forEach(function (step) {
+      var item = el("span");
+      var swatch = el("i");
+      swatch.style.background = "var(" + step.slot + ")";
+      item.appendChild(swatch);
+      item.appendChild(document.createTextNode(step.name));
+      legend.appendChild(item);
+    });
+    host.appendChild(legend);
+  }
+
+  /* --- 3 · what next ------------------------------------------------------------ */
+
+  function meaningOf(code, lemma) {
+    var entry = data[code];
+    if (!entry) return null;
+    for (var n = 0; n < entry.words.length; n++) {
+      if (entry.words[n].lemma === lemma) return entry.words[n];
+    }
+    return null;
+  }
+
+  function row(host, main, mainLang, aside, end, href, endLeaf) {
+    var item = el("li", "next-row");
+    var holder = href ? el("a", "next-link") : el("span", "next-link");
+    if (href) holder.href = href;
+    var term = el("bdi", "next-term", main);
+    if (mainLang) term.setAttribute("lang", mainLang);
+    holder.appendChild(term);
+    if (aside) {
+      var quiet = el("bdi", "next-aside", aside);
+      quiet.setAttribute("dir", "auto");
+      holder.appendChild(quiet);
+    }
+    item.appendChild(holder);
+    if (end) item.appendChild(el("span", "next-end" + (endLeaf ? " leaf" : ""), end));
+    host.appendChild(item);
+  }
+
+  function drawNext(code) {
+    var said = story[code];
+    var met = document.getElementById("met-rows");
+    var metEmpty = document.getElementById("met-empty");
+    var level = document.getElementById("level-rows");
+    var levelEmpty = document.getElementById("level-empty");
+    var wordsTitle = document.getElementById("next-words-title");
+    var textsTitle = document.getElementById("next-texts-title");
+    var more = document.getElementById("more-texts");
+    met.textContent = "";
+    level.textContent = "";
+    metEmpty.hidden = true;
+    levelEmpty.hidden = true;
+    document.getElementById("practise").href = keyed("/words");
+
+    wordsTitle.textContent =
+      code === "arc"
+        ? t("progress.next.words-arc", "Words you keep meeting, from your Aramaic list (kept apart from your Hebrew one)")
+        : t("progress.next.words", "Words you keep meeting and haven't learned");
+
+    var found = (said && said.words) || [];
+    found.forEach(function (one) {
+      var word = meaningOf(code, one.lemma);
+      row(
+        met,
+        (word && word.term) || one.lemma,
+        code,
+        word ? word.note || word.meaning : "",
+        tn("progress.next.met", one.texts, "met in {n} text", "met in {n} texts")
+      );
+    });
+    if (!found.length) {
+      metEmpty.textContent =
+        signedIn === false
+          ? t("progress.next.words-signed-out", "Sign in and we'll find the words you keep meeting.")
+          : t("progress.next.words-none", "Finish a few sections and the words you keep meeting will gather here.");
+      metEmpty.hidden = false;
+    }
+
+    // A language with no library offers what the reader brought (board ProgressYi).
+    var library = !said || said.library !== false;
+    textsTitle.textContent = library
+      ? t("progress.next.texts", "Texts at your level now")
+      : t("progress.next.texts-yours", "The library has nothing in this language yet, so what comes next is what you bring");
+    more.textContent = library
+      ? t("progress.next.library", "More in the Library") + " →"
+      : t("progress.next.uploads", "All your uploads") + " →";
+    more.href = keyed(library ? "/library" : "/?show=uploads");
+
+    if (!library) {
+      row(level, "+ " + t("progress.next.upload", "Upload something new"), "", t("progress.next.upload-how", "A link, a file, or a photo of a page"), "", keyed("/add"));
+      ((said && said.uploads) || []).forEach(function (one) {
+        row(
+          level,
+          one.title,
+          code,
+          t("progress.next.uploaded", "Uploaded by you"),
+          t("progress.next.known", "{n}% known", { n: one.known }),
+          keyed("/reader/" + encodeURIComponent(one.name) + "/reader/index.html"),
+          one.known >= 90
+        );
+      });
+      return;
+    }
+
+    var texts = (said && said.texts) || [];
+    texts.forEach(function (one) {
+      row(
+        level,
+        one.title,
+        code,
+        one.english || one.author || "",
+        t("progress.next.known", "{n}% known", { n: one.known }),
+        keyed("/library#" + encodeURIComponent(one.id)),
+        true
+      );
+    });
+    if (!texts.length) {
+      levelEmpty.textContent =
+        signedIn === false
+          ? t("progress.next.texts-signed-out", "Sign in and we'll find the texts at your level.")
+          : t("progress.next.texts-none", "Nothing is quite at your level yet. The Library's Hard for now shelf has the nearest.");
+      levelEmpty.hidden = false;
+    }
   }
 
   /* --- what you knew of what you read (targum-internal#291) -----------------------
@@ -819,9 +622,9 @@
    * It is the one figure on this page that can fall, and it is allowed to: moving from a
    * graded dialogue to Agnon is a drop, and that is the truthful picture. When the latest
    * month is lower, one sentence says why — harder text, not lost ground — and nothing
-   * else: no apology, no encouragement. Said as a count in ten, the way the quote says
-   * it, never as a percentage, a level or a score (§6). Under three months there is no
-   * line, and the page says what would draw one. Absent signed out, like Time and words.
+   * else: no apology, no encouragement. Said as a count in ten, never as a percentage, a
+   * level or a score (§6). Under three months there is no line, and the page says what
+   * would draw one. Absent signed out.
    */
   var readingSeries = null;
 
@@ -1034,7 +837,7 @@
         drawReading(currentCode);
       })
       .catch(function () {
-        /* no account to read is no panel, which is how the page already stood */
+        /* no account to read is no line, which is how the page already stood */
       });
   }
 
@@ -1046,26 +849,18 @@
     window.TargumLang.set(code);
     window.TargumLang.switcher(document.getElementById("langs"), codes, names, code, show);
     var betaNote = document.getElementById("beta-note");
-    betaNote.hidden = !window.TargumLang.beta(code);
-    if (!betaNote.hidden) betaNote.textContent = window.TargumLang.betaNote(code, names);
-    drawLedger(
-      document.getElementById("counts"),
-      document.getElementById("standing"),
-      data[code],
-      readingDays,
-      code
-    );
-    drawMarks(document.getElementById("milestones"), data[code].words);
-    drawDays(document.getElementById("days"), readingDays, data[code].words);
-    drawProgress(
-      document.getElementById("progress"),
-      document.getElementById("progress-note"),
-      data[code].words
-    );
-    drawGrowth(document.getElementById("growth"), data[code].words);
-    drawBands(document.getElementById("bands"), data[code].words);
-    drawSpent(code);
+    if (betaNote) {
+      betaNote.hidden = !window.TargumLang.beta(code);
+      if (!betaNote.hidden) betaNote.textContent = window.TargumLang.betaNote(code, names);
+    }
+    drawLedger(document.getElementById("counts"), data[code], readingDays, code);
+    drawWhere(code);
     drawReading(code);
+    drawHowTitle(code);
+    drawSpent(code);
+    drawWeeks(document.getElementById("weeks"), data[code].words);
+    drawNext(code);
+    askStory(code);
   }
 
   show(currentCode);
@@ -1074,32 +869,29 @@
 
   // If the account turns out to hold words this browser had not seen — kept on a phone,
   // or kept here before signing in on another machine — everything is gathered again
-  // and the page redrawn. Cheaper than it looks: `collect()` reads localStorage, and it
-  // only runs when something actually arrived.
+  // and the page redrawn, and the story asked again: the ladder moves with the list.
   if (window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
       if (!changed) return;
       data = collect();
       readingDays = charts.days();
       codes = window.TargumLang.order(Object.keys(data), names);
-      // Down to nothing is a state this page has to be able to reach, not just start
-      // in: taking the last word off the list on another device has to empty this one
-      // too, rather than leave the table it drew a moment ago standing.
       document.getElementById("nothing").hidden = codes.length > 0;
       document.getElementById("page").hidden = codes.length === 0;
       if (!codes.length) return;
       if (codes.indexOf(currentCode) < 0) currentCode = window.TargumLang.current(codes);
+      storyAsked = {};
       show(currentCode);
     });
     window.TargumSync.start();
   }
 
-  // The charts are drawn to a viewBox, but the tooltip is placed in page pixels.
+  // The reading line is drawn to a viewBox, but its tooltip is placed in page pixels.
   var redrawing = null;
   window.addEventListener("resize", function () {
     clearTimeout(redrawing);
     redrawing = setTimeout(function () {
-      show(currentCode);
+      drawReading(currentCode);
     }, 150);
   });
 })();

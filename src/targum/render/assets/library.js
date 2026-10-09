@@ -1602,6 +1602,18 @@
     return bandNamed(band) ? band : "";
   }
 
+  /* The kind a See all address names — `#see/kind/story` — or null. A touchstone on Your
+     Progress opens its shelf this way (design.md §12, "Your Progress is a story in three
+     parts", 2026-10-09): the whole list, every band, narrowed to that kind of text. */
+  function kindAddressed() {
+    var now = decodeURIComponent((location.hash || "").slice(1));
+    var lead = SEE + "/kind/";
+    if (now.indexOf(lead) !== 0) return null;
+    var kind = now.slice(lead.length);
+    for (var n = 0; n < KINDS.length; n++) if (KINDS[n][0] === kind) return kind;
+    return null;
+  }
+
   /* A step the Back button can undo: from the shelves into a list is going somewhere. */
   function mark(hash) {
     var bare = location.pathname + location.search;
@@ -3218,9 +3230,15 @@
          its shelves every time, and each of the others has its address. */
       var see = seeAddressed();
       var named = decodeURIComponent((location.hash || "").slice(1));
+      var kindNamed = kindAddressed();
       if (see !== null) {
         seeAll = true;
         if (see) view.fit = see;
+        if (kindNamed) {
+          view.fit = "";
+          view.kind = kindNamed;
+          view.where = "library";
+        }
       } else if (!named) {
         seeAll = false;
         view.find = "";
@@ -3258,6 +3276,11 @@
       if (see !== null) {
         seeAll = true;
         if (see) view.fit = see;
+        var kindNamed = kindAddressed();
+        if (kindNamed) {
+          view.fit = "";
+          view.kind = kindNamed;
+        }
         view.where = "library";
         return redraw();
       }
