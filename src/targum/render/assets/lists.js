@@ -489,6 +489,26 @@
     return keys;
   }
 
+  /* The five stages on a row of the fold (design.md §12, "The five stages are one
+     control, on every card", 2026-10-09), in place of "I know this" and "Still learning":
+     a word is never just known or learning. Known takes it off the fold, as "I know this"
+     did; any other step is written as pressed and the row is passed over for the
+     sitting, as "Still learning" was; pressing the step it is already on passes it over
+     and writes nothing. Corrected lines keep their two answers: a sentence has no stage. */
+  function stagesFor(status, onKnown, onStep) {
+    var keys = el("span", "work-keys work-stages");
+    keys.appendChild(
+      window.TargumVocab.editor({
+        status: status,
+        onStatus: function (value) {
+          if (value === KNOWN) return onKnown();
+          onStep(value === null || value === status ? null : value);
+        },
+      })
+    );
+    return keys;
+  }
+
   function drawWordRows(host, rows) {
     host.textContent = "";
     rows.forEach(function (word) {
@@ -517,17 +537,18 @@
       }
 
       item.appendChild(
-        answers(
+        stagesFor(
+          word.status,
           function () {
             updateWord(word, { status: KNOWN });
             renderWorkOn();
             renderWords();
             if (onChanged) onChanged();
           },
-          function () {
+          function (step) {
             passed[word.lemma || word.term] = true;
-            if (word.status > 1) {
-              updateWord(word, { status: word.status - 1 });
+            if (step !== null) {
+              updateWord(word, { status: step });
               renderWords();
               if (onChanged) onChanged();
             }
@@ -564,17 +585,18 @@
       // The same ladder as a word, written the way the reader and the list below write
       // a phrase's level: into the text's own store, so the text shows it too.
       item.appendChild(
-        answers(
+        stagesFor(
+          phrase.status,
           function () {
             updatePhrase(phrase, { status: KNOWN });
             renderWorkOn();
             renderPhrases();
             if (onChanged) onChanged();
           },
-          function () {
+          function (step) {
             passed[phraseKey(phrase)] = true;
-            if (phrase.status > 1) {
-              updatePhrase(phrase, { status: phrase.status - 1 });
+            if (step !== null) {
+              updatePhrase(phrase, { status: step });
               renderPhrases();
               if (onChanged) onChanged();
             }

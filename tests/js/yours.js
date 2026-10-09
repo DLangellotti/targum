@@ -71,6 +71,7 @@ global.window.TargumVocab.editor = (options) => {
     const button = element("button");
     button.className = "level level-" + value + (options.status === value ? " on" : "");
     button.setAttribute("data-value", String(value));
+    button.textContent = value === 9 ? "known" : value === 0 ? "ignore" : String(value);
     button.addEventListener("click", () => options.onStatus && options.onStatus(value));
     scale.appendChild(button);
   });
@@ -212,7 +213,7 @@ function phraseRow(item) {
       ? (item.querySelector(".rewrote-recast") || {}).textContent || ""
       : (item.querySelector(".term") || {}).textContent || "",
     meaning: (item.querySelector(".work-meaning") || {}).textContent || "",
-    keys: (item.querySelector(".work-keys") || { children: [] }).children.map((key) => key.textContent),
+    keys: keysOf(item),
   };
 }
 
@@ -224,6 +225,33 @@ function phrases() {
     out[head.textContent] = list.children.map((item) => item.children[0].textContent);
   });
   return out;
+}
+
+/* A press on a row's answers. A word's or a phrase's row carries the five stages
+   (design.md §12, 2026-10-09): `key` 0 is known, 1 is the step it is already on — which
+   passes it over, as "Still learning" did — and `value` is any step by its number. A
+   corrected line keeps its two buttons, pressed by position. */
+function keysOf(item) {
+  const keys = item.querySelector(".work-keys") || { children: [] };
+  if (String(keys.className).includes("work-stages")) {
+    return keys.children[0].children[0].children.map((b) => b.textContent);
+  }
+  return keys.children.map((key) => key.textContent);
+}
+
+function pressKeys(row, step) {
+  const keys = row.querySelector(".work-keys");
+  if (!keys) return;
+  if (!String(keys.className).includes("work-stages")) {
+    keys.children[step.key || 0].fire("click");
+    return;
+  }
+  const scale = keys.children[0].children[0];
+  const on = scale.children.find((b) => String(b.className).includes(" on"));
+  const want =
+    step.value !== undefined ? String(step.value) : step.key ? (on ? on.getAttribute("data-value") : "") : "9";
+  const button = scale.children.find((b) => b.getAttribute("data-value") === want);
+  if (button) button.fire("click");
 }
 
 (async () => {
@@ -242,7 +270,7 @@ function phrases() {
         (item) => item.getAttribute("data-word") === step.word,
       );
       // `fire`, not `onclick`: the fold registers its handlers with addEventListener.
-      if (row) row.querySelector(".work-keys").children[step.key || 0].fire("click");
+      if (row) pressKeys(row, step);
     }
     /* A press on an export: `{type: "export", which: "anki"}`. The buttons are hidden
        until sync says there is an account, and a test that only wants the file should
@@ -257,7 +285,7 @@ function phrases() {
        the term is a kept phrase's text or a corrected line's recast. */
     if (step.type === "phrase") {
       const row = at("work-phrase-rows").children.find((item) => phraseRow(item).term === step.term);
-      if (row) row.querySelector(".work-keys").children[step.key || 0].fire("click");
+      if (row) pressKeys(row, step);
     }
     /* A press on a row that opens its card (2026-09-18): `{type: "open", in: "work-rows",
        term: "…"}`, where `in` is the list the row stands in and `term` its first word. */
@@ -327,9 +355,7 @@ function phrases() {
         rows: at("work-rows").children.map((item) => ({
           term: (item.querySelector(".term") || {}).textContent || "",
           meaning: (item.querySelector(".work-meaning") || {}).textContent || "",
-          keys: (item.querySelector(".work-keys") || { children: [] }).children.map(
-            (key) => key.textContent,
-          ),
+          keys: keysOf(item),
         })),
       },
       rewrote: {

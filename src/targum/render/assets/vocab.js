@@ -309,15 +309,13 @@
       STEPS.forEach(function (step) {
         if (step.value === options.status) pressed = step;
       });
-      // A step whose name is its own label says it once: "known" and "Known" are one
-      // word, and the card printed it twice (targum-internal#398).
-      var named = pressed ? pressed.title.toLowerCase() : "";
-      // A word the page took as known from the reader's rung, which they have not marked:
-      // it says so, and any level pressed below becomes their own (design.md §12, 2026-10-07).
+      // The stage's own name, written under the control (design.md §12, "The five
+      // stages are one control, on every card", 2026-10-09): "Getting there", "Known".
+      // It was "2 · getting there", the segment's label said again beside its name.
       legend.textContent = pressed
-        ? named === String(pressed.label).toLowerCase()
-          ? pressed.label
-          : pressed.label + " · " + named
+        ? pressed.value === IGNORED
+          ? t("vocab.legend.ignored", "Ignored: a name or a number")
+          : pressed.title
         : options.assumed
           ? t("vocab.assumed", "assumed known")
           : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");

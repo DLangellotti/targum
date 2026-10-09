@@ -304,10 +304,11 @@ def test_typing_again_offers_to_save_again() -> None:
 
 def test_the_scale_says_what_the_pressed_step_means() -> None:
     """ "Explain what the 1, 2, 3 stages of how well you know a word mean." The names were
-    in the buttons' tooltips, which is nowhere on a phone."""
-    assert run(status=2, legend=True)["legend"] == "2 · getting there"
-    assert run(status=9, legend=True)["legend"] == "known", "said once, not 'known · known'"
-    assert run(status=0, legend=True)["legend"] == "ignore · a name or a number"
+    in the buttons' tooltips, which is nowhere on a phone. Since 2026-10-09 (§12, "The
+    five stages are one control, on every card") the stage's own name, written once."""
+    assert run(status=2, legend=True)["legend"] == "Getting there"
+    assert run(status=9, legend=True)["legend"] == "Known", "said once, not 'known · known'"
+    assert run(status=0, legend=True)["legend"] == "Ignored: a name or a number"
     assert run(legend=True)["legend"] == "1 just met · 2 getting there · 3 nearly there"
     assert run(status=2)["legend"] is None, "the list beside the text has no room for it"
 
@@ -318,7 +319,7 @@ def test_a_word_taken_as_known_from_the_readers_rung_says_so() -> None:
     done = run(legend=True, assumed=True, level=9)
     assert done["legend"] == "assumed known"
     assert done["levels"] == [9], "known pressed is known said, never a mark taken off"
-    assert run(status=2, legend=True, assumed=True)["legend"] == "2 · getting there"
+    assert run(status=2, legend=True, assumed=True)["legend"] == "Getting there"
 
 
 # -- copying a word out -----------------------------------------------------------
