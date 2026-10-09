@@ -15,6 +15,7 @@ import base64
 import contextlib
 import email.utils
 import errno
+import functools
 import gzip
 import json
 import logging
@@ -59,6 +60,7 @@ from .models import Document, Segment, SegmentedDocument, Style, glossary_path, 
 from .pipeline import Build, Result
 from .remembered import Remembered
 from .render.builder import (
+    CONTENTS,
     LEGAL,
     about_page,
     approve_page,
@@ -5302,6 +5304,8 @@ class Handler(BaseHTTPRequestHandler):
         ".m4v": "video/mp4",
         ".webm": "video/webm",
         ".mp3": "audio/mpeg",
+        # A part's frame on a contents page's filmstrip (`video.poster.part_frames`).
+        ".jpg": "image/jpeg",
     }
 
     # How long a slow client may sit on one 64 KiB chunk before the thread is taken
@@ -12764,6 +12768,46 @@ class Handler(BaseHTTPRequestHandler):
                 return self._sent_on(where + (f"?{query}" if query else ""))
         return self._not_found()
 
+    def _contents_page(self, folder: Path, *, mine: bool) -> bool:
+        """A multi-part text's contents page, drawn for whoever is asking (design.md §12,
+        "A contents page is a page of its own", 2026-10-09): the build's `contents.json`,
+        and from the account where the reader stopped, which parts they finished and how
+        much of each they would follow. False where the file is one this targum cannot
+        read — an older shape — and the page the build wrote is served instead."""
+        from . import coverage as coverage_module
+        from .render.builder import CONTENTS_VERSION, contents_page
+
+        manifest = _read_contents(folder / "reader" / CONTENTS)
+        if manifest is None or manifest.get("version") != CONTENTS_VERSION:
+            return False
+        person = self._person()
+        state: dict[str, Any] = {"signed_in": person is not None}
+        document = str(manifest.get("document") or "")
+        if person is not None and document:
+            places = self.store.places(person.id, limit=1, document=document)
+            state["place"] = places[0] if places else None
+            state["finished"] = self.store.finished_sections(person.id, document)
+            language = str(manifest.get("language") or "").split("-")[0].lower()
+            marked = self.store.marked(person, language) if language else {}
+            if marked:
+                known: dict[int, tuple[int, int, int]] = {}
+                for number, lemmas in coverage_module.sections_lemmas(folder).items():
+                    hits = sum(1 for lemma in lemmas if marked.get(lemma) == coverage_module.KNOWN)
+                    fresh = len({lemma for lemma in lemmas if lemma not in marked})
+                    known[number] = (len(lemmas), hits, fresh)
+                state["known"] = known
+        cover = str(manifest.get("cover") or "")
+        html = contents_page(
+            manifest,
+            state,
+            token=self.token,
+            language=self._ui_language(),
+            mine=mine,
+            picture=cover or folder.name,
+        )
+        self._send(200, html.encode("utf-8"), "text/html; charset=utf-8", frames="out")
+        return True
+
     def _serve_reader(self, relative: str) -> None:
         """This person's readers, and the shared ones — never another person's.
 
@@ -12781,6 +12825,18 @@ class Handler(BaseHTTPRequestHandler):
         for root in roots:
             target = (root / wanted).resolve()
             if target.is_file() and root in target.parents:
+                # A text's contents page is the desk's, drawn here from the build's
+                # `contents.json` (design.md §12, "A contents page is a page of its own",
+                # 2026-10-09). The weekly's levels keep the page they were built with.
+                if (
+                    target.name == "index.html"
+                    and target.parent.name == "reader"
+                    and target.parent.parent.parent == root
+                    and root != roots[2]
+                    and (target.parent / CONTENTS).is_file()
+                    and self._contents_page(target.parent.parent, mine=root == roots[0])
+                ):
+                    return None
                 moving = self.MEDIA_KINDS.get(target.suffix.lower())
                 if moving:
                     return self._send_file(target, moving)
@@ -12803,6 +12859,24 @@ class Handler(BaseHTTPRequestHandler):
                     where = f"/reader/{quote(real)}/{quote(rest)}" + (f"?{query}" if query else "")
                     return self._sent_on(where)
         return self._not_found()
+
+
+def _read_contents(path: Path) -> dict[str, Any] | None:
+    """A reader's `contents.json`, read once while it is unchanged."""
+    try:
+        found = path.stat()
+    except OSError:
+        return None
+    return _contents_at(path, found.st_mtime_ns, found.st_size)
+
+
+@functools.lru_cache(maxsize=64)
+def _contents_at(path: Path, stamp: int, size: int) -> dict[str, Any] | None:
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, dict) else None
 
 
 def _punctuation_rate(hearing: float) -> float:

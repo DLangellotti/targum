@@ -419,6 +419,63 @@ def section_lemmas(folder: Path, number: int) -> list[str] | None:
     return out
 
 
+def sections_lemmas(folder: Path) -> dict[int, tuple[str, ...]]:
+    """`section_lemmas` for every section of a text at once, by section number: the
+    annotation read once, not once a row — a Torah book is fifty sections over 9 MB of
+    annotation. Kept while the annotation and the segments are unchanged, so a contents
+    page asked for again reads nothing (design.md §12, "A contents page is a page of its
+    own", 2026-10-09). Empty where there is no annotation: not measured."""
+    stamps = []
+    for name in (ANNOTATION, "segments.json"):
+        try:
+            found = (folder / name).stat()
+        except OSError:
+            return {}
+        stamps.append((found.st_mtime_ns, found.st_size))
+    return _sections_lemmas(folder, tuple(stamps))
+
+
+@lru_cache(maxsize=16)
+def _sections_lemmas(
+    folder: Path, stamps: tuple[tuple[int, int], ...]
+) -> dict[int, tuple[str, ...]]:
+    from .annotate.base import not_vocabulary
+    from .ingest import post as post_module
+    from .models import SegmentedDocument, read_artifact
+    from .render.builder import split_sections
+
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    if segmented is None:
+        return {}
+    try:
+        loaded = json.loads((folder / ANNOTATION).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    # The same sections the pages were written as: a text rendered whole is one.
+    written = len(list((folder / "reader").glob("sec-*.html")))
+    if written <= 1:
+        where = {segment.id: 1 for segment in segmented.segments}
+    else:
+        where = {sid: part.number for part in split_sections(segmented) for sid in part.segment_ids}
+    unwordly = post_module.left_out(folder) or {}
+    out: dict[int, list[str]] = {}
+    for sid, tokens in (loaded.get("tokens") or {}).items():
+        number = where.get(sid)
+        if number is None:
+            continue
+        kept = out.setdefault(number, [])
+        for token in tokens:
+            lemma = str(token.get("lemma") or "")
+            if not lemma or not_vocabulary(token.get("pos"), token.get("entity")):
+                continue
+            if sid in unwordly and post_module.inside(
+                int(token.get("start") or 0), int(token.get("end") or 0), unwordly[sid]
+            ):
+                continue
+            kept.append(lemma)
+    return {number: tuple(lemmas) for number, lemmas in out.items()}
+
+
 def section_reading(folder: Path, number: int, marked: dict[str, int]) -> Reading | None:
     """One section measured against what one person has marked, now.
 

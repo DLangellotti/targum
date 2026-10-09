@@ -38,6 +38,12 @@ def ensure(folder: Path) -> bool:
         return False
     # A second in, past a fade from black, or the middle of a cut shorter than two.
     at = min(1.0, max(0.0, (part.end - part.start) / 2))
+    return still(source, target, at)
+
+
+def still(source: Path, target: Path, at: float, width: int = WIDTH) -> bool:
+    """One frame of `source`, `at` seconds in, written whole to `target` as a JPEG, or
+    nothing. Best effort, as `ensure` is: a failing ffmpeg leaves no file and says so."""
     partial = target.with_suffix(".part.jpg")
     try:
         subprocess.run(
@@ -52,7 +58,7 @@ def ensure(folder: Path) -> bool:
                 "-frames:v",
                 "1",
                 "-vf",
-                f"scale='min({WIDTH},iw)':-2",
+                f"scale='min({width},iw)':-2",
                 "-q:v",
                 "4",
                 str(partial),
@@ -69,3 +75,40 @@ def ensure(folder: Path) -> bool:
         return False
     partial.replace(target)
     return True
+
+
+#: Where a part's frame is kept, beside the reader's folder rather than in it — a build
+#: empties the folder, and the film under a frame does not change — for the contents
+#: page's filmstrip (design.md §12, "A contents page is a page of its own", 2026-10-09).
+FRAMES = "frames"
+
+
+def frame_name(number: int) -> str:
+    return f"part-{number:03d}.jpg"
+
+
+def part_frames(folder: Path) -> dict[int, str]:
+    """A frame of each part's own film, kept in the text's `frames/`, by part number, as
+    the path the contents page names it by from beside the reader's pages.
+
+    Cut from the film already on the disk, a tenth of the way in — past a title card,
+    short of the end — and never fetched. A part not made yet, or with no film, has none,
+    and its cell says it is getting ready. A frame already there is kept."""
+    kept = manifest_module.load(folder)
+    if kept is None:
+        return {}
+    found: dict[int, str] = {}
+    for part in kept.parts:
+        if not part.video:
+            continue
+        source = folder / part.video
+        target = folder / FRAMES / frame_name(part.number)
+        if not target.is_file():
+            if not source.is_file():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            at = max(0.0, min(30.0, (part.end - part.start) / 10))
+            if not still(source, target, at):
+                continue
+        found[part.number] = f"../{FRAMES}/{target.name}"
+    return found

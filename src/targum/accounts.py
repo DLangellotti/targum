@@ -3886,6 +3886,17 @@ class Store:
         ).fetchall()
         return [(str(row["hash"]), str(row["section"]), int(row["at"] or 0)) for row in rows]
 
+    def finished_sections(self, person_id: int | None, document: str) -> set[str]:
+        """The sections of one text this person has finished and not un-finished — what a
+        contents page checks as Read or Watched."""
+        if person_id is None or not document:
+            return set()
+        rows = self.db.execute(
+            "SELECT section FROM section WHERE person = ? AND hash = ? AND gone = 0",
+            (person_id, document),
+        ).fetchall()
+        return {str(row["section"]) for row in rows}
+
     def marked(self, person: Person, language: str) -> dict[str, int]:
         """Every dictionary form this person has marked in one language, and how well.
 

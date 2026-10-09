@@ -50,7 +50,10 @@ function partsOf(row) {
   var key = new URLSearchParams(location.search).get("k") || "";
   var suffix = key ? "?k=" + encodeURIComponent(key) : "";
 
-  var links = document.querySelectorAll(".toc a");
+  // The served contents page has more ways in than its list (design.md §12, "A contents
+  // page is a page of its own", 2026-10-09): the filmstrip, the Tanakh's strip of
+  // chapters, Continue and Start from the beginning.
+  var links = document.querySelectorAll(".toc a, .parts-strip a, .parts-cells a, #start, .parts-again");
   Array.prototype.forEach.call(links, function (link) {
     var href = link.getAttribute("href");
     // A link out of the folder — a portion's own page, by route — needs no key. A link
@@ -117,14 +120,39 @@ function partsOf(row) {
     return last ? { section: String(last), at: 0 } : null;
   }
 
-  function point(place) {
-    if (!place || !place.section) return;
-    var row = toc.querySelector('[data-chapter="' + place.section + '"] a');
-    if (!row) return;
-    start.href = row.getAttribute("href");
-    start.textContent = t("contents.continue", "Continue");
+  // Said the board's way on the served page, "Continue: chapter 5" or "Continue: part 3,
+  // 4:12", from the patterns it carries; the page a disk opens says Continue.
+  function label(place, number) {
+    var at = Number(place.seconds || 0);
+    var pattern = (at && start.getAttribute("data-continue-at")) || start.getAttribute("data-continue");
+    if (!pattern) return t("contents.continue", "Continue");
+    var whole = Math.floor(at);
+    var clock = Math.floor(whole / 60) + ":" + ("0" + (whole % 60)).slice(-2);
+    if (whole >= 3600) {
+      var minutes = Math.floor((whole % 3600) / 60);
+      clock = Math.floor(whole / 3600) + ":" + ("0" + minutes).slice(-2) + ":" + ("0" + (whole % 60)).slice(-2);
+    }
+    return pattern.replace("{n}", number).replace("{time}", clock);
   }
 
+  function point(place) {
+    if (!place || !place.section) return;
+    var row = toc.querySelector('[data-chapter="' + place.section + '"]');
+    var link = row && row.querySelector("a");
+    if (!link) return;
+    start.href = link.getAttribute("href");
+    var said = start.querySelector(".parts-start-label") || start;
+    said.textContent = label(place, row.getAttribute("data-chapter"));
+    Array.prototype.forEach.call(document.querySelectorAll(".here[data-chapter], .here[data-frame]"), function (was) {
+      was.classList.remove("here");
+    });
+    row.classList.add("here");
+    var cell = document.querySelector('[data-frame="' + place.section + '"]');
+    if (cell) cell.classList.add("here");
+  }
+
+  // The server already pointed it, from the account: nothing here can know better.
+  if (start.hasAttribute("data-placed")) return;
   var here = mine();
   point(here);
 
@@ -257,6 +285,8 @@ function partsOf(row) {
       })[0];
       if (!chapter) return;
       row.classList.toggle("waiting", !chapter.ready);
+      var cell = document.querySelector('[data-frame="' + number + '"]');
+      if (cell && !chapter.ready) cell.classList.add("waiting");
       if (chapter.ready) return;
 
       // A part of a recording has no press here (David, 2026-10-07; design.md §12, "One

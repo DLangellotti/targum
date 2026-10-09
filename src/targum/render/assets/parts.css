@@ -1,0 +1,491 @@
+/* A multi-part text's contents page, on the desk (design.md §12, "A contents page is a
+   page of its own, not a small reader", 2026-10-09; boards PartsBookA, PartsBookPhone,
+   PartsVideoA, PartsVideoPhone and PartsTanakh). A hero card and a contents card in the
+   one column, the book as printed contents, the film as a filmstrip, the Tanakh by
+   portion.
+
+   TODO(P2): the components layer (buttons, rows, tiles, section titles) is being built
+   beside this; where it lands, the filled press, the tags, the meter and the rows here
+   take its classes and these page-local rules go. */
+
+.parts-main {
+  max-width: var(--column);
+  margin-inline: auto;
+  padding: 0 1.25rem 4rem;
+}
+
+/* The trail: where the text stands, the way back in teal (chrome.css's own crumbs). */
+.parts-crumbs {
+  margin-block: 1.5rem 1rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.parts-crumbs a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.parts-crumbs a:hover { text-decoration: underline; }
+.parts-crumbs a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+
+.parts .visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- the hero ----------------------------------------------------------------- */
+
+.parts-hero,
+.parts-ramp,
+.parts-contents {
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-raised);
+  padding: 2rem;
+}
+.parts-hero {
+  display: grid;
+  grid-template-columns: 15.5rem minmax(0, 1fr);
+  gap: 2.25rem;
+  align-items: start;
+}
+.parts-film .parts-hero { grid-template-columns: minmax(0, 7fr) minmax(0, 6fr); }
+
+.parts-cover,
+.parts-frame { margin: 0; position: relative; }
+.parts-cover img {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-row);
+  background: var(--paper-raised);
+}
+/* A film's own frame, at its own shape: wide, never cropped to a book's 2:3. */
+.parts-frame img {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-row);
+  background: var(--ink);
+}
+.parts-duration {
+  position: absolute;
+  inset-inline-start: 0.75rem;
+  inset-block-end: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.parts-about { min-inline-size: 0; }
+.parts-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; }
+.parts-tag {
+  padding: 0.15rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.parts-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.9375rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.parts-byline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+}
+.parts-english { font-style: italic; color: var(--ink-soft); }
+.parts-author { color: var(--ink); }
+.parts-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* How much of it they'd follow: leaf, because green is progress (§13). */
+.parts-known { max-inline-size: 26rem; margin-block-start: 1.25rem; }
+.parts-known p {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.875rem;
+  color: var(--ink);
+}
+.parts-known p span:last-child { color: var(--ink-soft); }
+/* A <progress>, so the share needs no style attribute, which the desk's policy refuses. */
+.parts-meter {
+  -webkit-appearance: none;
+  appearance: none;
+  min-inline-size: 0;
+  display: block;
+  inline-size: 100%;
+  block-size: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--divider);
+  color: var(--leaf);
+  overflow: hidden;
+}
+.parts-meter::-webkit-progress-bar { background: var(--divider); border-radius: 999px; }
+.parts-meter::-webkit-progress-value { background: var(--leaf); border-radius: 999px; }
+.parts-meter::-moz-progress-bar { background: var(--leaf); border-radius: 999px; }
+
+.parts-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin-block-start: 1.5rem;
+}
+/* The one filled press in the view (§13): the primary, flat. */
+.parts-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 1.5rem;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform var(--out) var(--ease);
+}
+.parts-start:hover { background: color-mix(in srgb, var(--teal) 88%, var(--ink)); }
+.parts-start:active { transform: scale(0.98); }
+.parts-start:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.parts-glyph {
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.parts-again { color: var(--teal); font-size: 0.9375rem; }
+.parts-again:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+.parts-offline { font-size: 0.9375rem; color: var(--ink-soft); }
+.parts-offline .offline-go {
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.parts-offline .offline-go:hover { color: var(--ink); }
+.parts-offline .m-icon svg { inline-size: 16px; block-size: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.parts .whole { margin: 1rem 0 0; font-size: 0.875rem; }
+.parts .whole[hidden] { display: none; }
+.parts .whole button,
+.parts-row .get {
+  min-block-size: 2rem;
+  padding: 0.2rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.parts .get-cost,
+.parts .get-said { color: var(--ink-soft); font-size: 0.8125rem; }
+
+/* --- the contents card -------------------------------------------------------- */
+
+.parts-ramp,
+.parts-contents { margin-block-start: 1.5rem; }
+.parts-contents-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-block-end: 1rem;
+}
+.parts-contents-head h2 {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+.parts-note { margin: 0; color: var(--ink-soft); font-size: 0.875rem; }
+
+.parts-rows,
+.parts-rows ol { list-style: none; margin: 0; padding: 0; }
+.parts-book .parts-rows { border-block-start: 1px solid var(--ink); }
+
+/* A row of printed contents: the number in the margin, the title and its first line,
+   then what it takes and how much of it they'd follow. */
+.parts-row {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) 14rem;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1.1rem 1rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.parts-row.here { background: var(--teal-wash); border-radius: var(--radius-row); }
+.parts-num {
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  color: var(--ink);
+  text-align: center;
+  font-variant-numeric: lining-nums;
+}
+.parts-row.here .parts-num { color: var(--teal); }
+.parts-what { display: flex; flex-direction: column; gap: 0.2rem; min-inline-size: 0; }
+.parts-kicker { color: var(--ink-soft); font-size: 0.8125rem; }
+.parts-name {
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.25rem;
+  text-decoration: none;
+}
+.parts-name:hover { text-decoration: underline; text-decoration-color: var(--teal); }
+.parts-name:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+.parts-first {
+  color: var(--ink-soft);
+  font-family: var(--reading);
+  font-size: 0.9375rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.parts-time { color: var(--ink-soft); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.parts-stats {
+  min-inline-size: 0;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.parts-stats .parts-meter { block-size: 4px; }
+.parts-state { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 600; }
+.parts-state.read { color: var(--leaf); }
+.parts-state.here { color: var(--teal); }
+.parts-state svg { inline-size: 14px; block-size: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.parts-row.waiting .parts-name { color: var(--ink-soft); }
+.parts-row .get,
+.parts-row .get-cost,
+.parts-row .get-said { grid-column: 2 / -1; justify-self: start; }
+
+/* --- a film: the filmstrip, then a column a part ------------------------------ */
+
+.parts-strip {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0.85rem;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(10rem, 1fr);
+  gap: 0.5rem;
+  border-radius: var(--radius-row);
+  background: var(--well);
+  overflow-x: auto;
+}
+.parts-strip-cell { display: flex; flex-direction: column; gap: 0.35rem; }
+.parts-strip-cell a {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.parts-strip-cell img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.parts-strip-cell.here a { box-shadow: 0 0 0 3px var(--teal); }
+.parts-strip-cell a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.parts-check {
+  position: absolute;
+  inset-block-start: 0.4rem;
+  inset-inline-end: 0.4rem;
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  background: var(--leaf);
+  color: var(--teal-ink);
+}
+.parts-check svg { inline-size: 14px; block-size: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.parts-strip-time { color: var(--ink); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+
+.parts-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+}
+.parts-columns .parts-row {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 0.6rem;
+  padding: 1rem;
+  border-block-end: 0;
+  border-radius: var(--radius-row);
+}
+.parts-columns .parts-num { display: none; }
+.parts-columns .parts-row .get-said { grid-column: auto; }
+
+/* --- a Tanakh book: the strip of chapters, then the chapters by portion -------- */
+
+.parts-ramp-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  margin-block-end: 1rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.parts-ramp-head p { margin: 0; }
+.parts-ramp-key { display: inline-flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.parts-ramp-key .cell { inline-size: 0.75rem; block-size: 0.75rem; display: inline-block; }
+.parts-cells {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 0.6rem;
+}
+.parts-cell-group { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+.parts-cell-run { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
+.parts-cell-name { font-family: var(--reading); font-size: 0.8125rem; color: var(--ink-soft); }
+.parts .cell {
+  display: block;
+  inline-size: 1rem;
+  block-size: 1.75rem;
+  border-radius: 4px;
+  background: var(--divider);
+}
+.parts .cell.step-1 { background: color-mix(in srgb, var(--leaf) 30%, var(--card)); }
+.parts .cell.step-2 { background: color-mix(in srgb, var(--leaf) 60%, var(--card)); }
+.parts .cell.step-3 { background: var(--leaf); }
+.parts .cell.unread { opacity: 0.45; }
+.parts .cell.here { box-shadow: 0 0 0 2px var(--teal); opacity: 1; }
+.parts a.cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.parts-tanakh .parts-rows { columns: 3 18rem; column-gap: 2rem; }
+.parts-tanakh .portion { break-inside: avoid; margin-block-end: 1.5rem; }
+.parts-tanakh .portion-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 0;
+  padding-block-end: 0.4rem;
+  border-block-end: 1px solid var(--ink);
+}
+.parts-tanakh .portion-name {
+  font-family: var(--reading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+.parts-tanakh .portion-span { color: var(--ink-soft); font-size: 0.8125rem; }
+.parts-tanakh .parts-row {
+  grid-template-columns: 2rem minmax(0, 1fr) 4.5rem;
+  gap: 0.75rem;
+  padding: 0.55rem 0.4rem;
+  break-inside: avoid;
+}
+.parts-tanakh .parts-num { font-family: var(--chrome); font-size: 0.8125rem; color: var(--ink-soft); }
+.parts-tanakh .parts-kicker { display: none; }
+.parts-tanakh .parts-name {
+  font-size: 1.0625rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.parts-tanakh .parts-row-known { display: none; }
+
+/* --- a phone ------------------------------------------------------------------- */
+
+@media (max-width: 40rem) {
+  .parts-main { padding-inline: 1rem; }
+  .parts-hero,
+  .parts-ramp,
+  .parts-contents { padding: 1.25rem; }
+  .parts-hero,
+  .parts-film .parts-hero { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+  .parts-book .parts-hero,
+  .parts-tanakh .parts-hero { grid-template-columns: 6rem minmax(0, 1fr); }
+  .parts-book .parts-about,
+  .parts-tanakh .parts-about { display: contents; }
+  .parts-book .parts-tags,
+  .parts-tanakh .parts-tags { display: none; }
+  .parts-book .parts-title,
+  .parts-tanakh .parts-title { grid-column: 2; grid-row: 1; align-self: start; }
+  .parts-book .parts-byline,
+  .parts-book .parts-facts,
+  .parts-book .parts-known,
+  .parts-book .parts-go,
+  .parts-book .whole,
+  .parts-tanakh .parts-byline,
+  .parts-tanakh .parts-facts,
+  .parts-tanakh .parts-known,
+  .parts-tanakh .parts-go,
+  .parts-tanakh .whole { grid-column: 1 / -1; margin-block-start: 0; }
+  .parts-title { font-size: 1.5rem; }
+  .parts-start { inline-size: 100%; justify-content: center; }
+  .parts-row { grid-template-columns: 2rem minmax(0, 1fr) 3.75rem; gap: 0.75rem; padding: 0.9rem 0.5rem; }
+  .parts-num { font-size: 1.25rem; }
+  .parts-name { font-size: 1.0625rem; }
+  .parts-first,
+  .parts-kicker,
+  .parts-count,
+  .parts-row-known { display: none; }
+  .parts-strip { grid-auto-columns: 11rem; margin-inline: -1.25rem; border-radius: 0; }
+  .parts-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .parts-columns .parts-row { grid-template-columns: 2rem minmax(0, 1fr) auto; border-block-end: 1px solid var(--hairline); border-radius: 0; }
+  .parts-columns .parts-row.here { border-radius: var(--radius-row); }
+  .parts-columns .parts-num { display: block; }
+  .parts-columns .parts-name { display: none; }
+  .parts-columns .parts-row .get-said { grid-column: 2 / -1; }
+  .parts-tanakh .parts-rows { columns: 1; }
+  .parts .cell { inline-size: 0.85rem; block-size: 1.25rem; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .parts-again,
+  .parts-crumbs a { display: inline-block; min-block-size: 44px; line-height: 44px; }
+  .parts-name { display: flex; align-items: center; min-block-size: 44px; }
+  .parts-start { min-block-size: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .parts-start { transition: none; }
+  .parts-start:active { transform: none; }
+}
