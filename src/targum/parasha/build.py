@@ -13,6 +13,7 @@ is what makes it safe to run this every week from a cron.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 import shutil
@@ -609,6 +610,42 @@ class Start:
     summary: str
 
 
+#: Where each of the 54 portions begins, as the corpus index on the laptop said it on
+#: 2026-10-09: Hebcal's names and ranges, the same five books every year.
+_STARTS = Path(__file__).with_name("starts.json")
+
+
+@functools.cache
+def _fixed() -> tuple[tuple[str, Start], ...]:
+    try:
+        rows = json.loads(_STARTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    return tuple(
+        (
+            str(row["book"]),
+            Start(
+                slug=str(row["slug"]),
+                name=str(row["name"]),
+                hebrew=str(row["hebrew"]),
+                chapter=int(row["chapter"]),
+                verse=int(row["verse"]),
+                summary=str(row["summary"]),
+            ),
+        )
+        for row in rows
+    )
+
+
+def fixed_starts(book: str) -> list[Start]:
+    """The portions that begin in one book of the five, off the table shipped with
+    targum rather than the corpus: what `portions_for` says where the corpus is absent."""
+    return sorted(
+        (start for name, start in _fixed() if name == book),
+        key=lambda one: (one.chapter, one.verse),
+    )
+
+
 def portions_for(book: str, index: Index | None = None) -> list[Start]:
     """Every listed portion that begins in one book, in the order they are read.
 
@@ -628,7 +665,14 @@ def portions_for(book: str, index: Index | None = None) -> list[Start]:
         name = by_hebrew.get(name, "")
     if not name:
         return []
-    index = index or load()
+    if index is None:
+        index = load()
+        # A machine with no corpus still knows where the 54 begin: they are fixed
+        # (design.md §12, "The parasha corpus is fixed"), so a Torah book built here — a
+        # reader's own copy of Genesis included — is grouped by portion as the library's
+        # is (board PartsTanakh, audit Q9, 2026-10-09). The corpus wins where it is.
+        if not index.listed():
+            return fixed_starts(name)
     out: list[Start] = []
     for portion in index.listed():
         if not portion.books or portion.books[0] != name:
