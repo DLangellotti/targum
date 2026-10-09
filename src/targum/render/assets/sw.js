@@ -43,6 +43,9 @@ var INDEX = "/offline/index";
 /* The three addresses a reader's files are served under: a reader's own and the shared
    shelf's (`/reader/<name>/reader/`), a Torah portion's, and a day of a daily cycle's. */
 var READER = /^\/(?:reader\/[^/]+\/reader|parasha\/read\/[^/]+\/reader|[^/]+\/read\/\d{4}-\d{2}-\d{2}\/reader)\//;
+/* The page that lists what is saved, kept so that it opens with no connection; its
+   query (`?away=`) is for the page to read, so it is one page whatever it says. */
+var SAVED = "/you/saved";
 var MEDIA = /\.(?:mp4|m4v|webm|mp3)$/i;
 
 /* What is saved, held in memory once it has been read, so that a film that was not saved
@@ -54,7 +57,7 @@ var saved = null;
 function keyOf(address) {
   var url = new URL(address, self.location.origin);
   url.hash = "";
-  if (READER.test(url.pathname)) {
+  if (READER.test(url.pathname) || url.pathname === SAVED) {
     url.search = "";
   } else {
     url.searchParams.delete("k");
@@ -196,7 +199,16 @@ function opening(event) {
     function (offline) {
       return fromStore(request).then(function (copy) {
         if (copy) return copy;
-        throw offline;
+        // Not saved: the page of what is, saying why, where it has been kept.
+        return caches
+          .open(STORE)
+          .then(function (cache) {
+            return cache.match(keyOf(SAVED), { ignoreVary: true });
+          })
+          .then(function (list) {
+            if (!list || new URL(request.url).pathname === SAVED) throw offline;
+            return Response.redirect(SAVED + "?away=1", 302);
+          });
       });
     }
   );

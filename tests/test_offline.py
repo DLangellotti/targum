@@ -235,3 +235,54 @@ def test_a_russian_reader_and_desk_carry_the_saving_s_words(
     )
     assert builder.reader_strings([russian])["strings"]["offline.save"] == "Сохранить офлайн"
     assert builder.script_strings("ru", "library.")["strings"]["offline.save"] == "Сохранить офлайн"
+
+
+def test_saved_on_this_device_is_a_page_under_the_account_s(tmp_path: Path) -> None:
+    from targum.render.builder import saved_page
+    from targum.serve import SAVED_ROUTE
+
+    assert SAVED_ROUTE == "/you/saved" and SAVED_ROUTE in Handler.PAGES
+    page = saved_page(TOKEN)
+    assert 'href="/you"' in page, "the account's page above it, as a crumb"
+    for script in ("sw.js", "offline.js"):
+        source = (ASSETS / script).read_text(encoding="utf-8")
+        assert 'var SAVED = "/you/saved";' in source, script
+
+
+def test_the_saved_page_is_served_where_it_was_drawn(tmp_path: Path) -> None:
+    from targum.render.builder import saved_page
+
+    out = tmp_path / "targum-out"
+    out.mkdir()
+    for drawn, status in ((saved_page(TOKEN), 200), ("", 404)):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        port = server.server_address[1]
+        server.RequestHandlerClass = type(
+            "TestHandler",
+            (Handler,),
+            {
+                "library": Library(out),
+                "token": TOKEN,
+                "store": Store(tmp_path / "words.db"),
+                "address": f"http://127.0.0.1:{port}",
+                "translated": {},
+                "saved_html": drawn,
+            },
+        )
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            got, _, body = get(port, f"/you/saved?k={TOKEN}")
+            assert got == status
+            if status == 200:
+                assert b"Saved on this device" in body
+        finally:
+            server.shutdown()
+            server.server_close()
+
+
+def test_persist_is_asked_only_from_its_button() -> None:
+    source = (ASSETS / "saved.js").read_text(encoding="utf-8")
+    code = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    assert code.count(".persist()") == 1
+    handler = code[code.index('at("saved-ask").addEventListener') :]
+    assert handler.index(".persist()") < handler.index("});")
