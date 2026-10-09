@@ -1159,6 +1159,28 @@ def subscriptions_mail(
         console.print(f"[yellow]  {email}: {why}[/yellow]")
 
 
+@app.command("mails")
+def mails(
+    out: Annotated[Path, typer.Option("--out", help="Where to write the drawn mails.")],
+    language: Annotated[
+        list[str] | None,
+        typer.Option("--language", help="A language to draw them in; every one if left out."),
+    ] = None,
+) -> None:
+    """Draw every mail from sample data, as HTML and as text, and send nothing.
+
+    For comparing a mail with its board (design.md §12, "Every mail is the board's",
+    2026-10-09): open DIR/index.html, or screenshot each page at a desk's width and a
+    phone's.
+    """
+    from . import mail_samples
+    from . import strings as strings_module
+
+    languages = language or strings_module.languages()
+    written = mail_samples.write(out, languages)
+    console.print(f"{len(written)} mails drawn in {out}")
+
+
 @app.command("roll-visits")
 def roll_visits(
     store: Annotated[

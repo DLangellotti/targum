@@ -3228,10 +3228,11 @@ def test_taking_a_mark_off_is_asked_for_rather_than_inferred() -> None:
     assert (
         "function toggled(index, status) {\n    return statusOf(lemmas[index]) === status" in script
     )
-    assert "setStatus(index, surface, band, value);" in script, "the card's own row"
+    # Asked whether a free word list is full first (design.md §12, 2026-10-09).
+    assert "setStatus(index, surface, band, value) === LIST_FULL" in script, "the card's own row"
     # The keys do not toggle. The back arrow lands on words already marked, and a level
     # pressed to confirm one took the mark off instead and walked on — silently.
-    assert "setStatus(index, surface, levelOf(word), status);" in script, "the keys"
+    assert "setStatus(index, surface, levelOf(word), status) === LIST_FULL" in script, "the keys"
     assert "setStatus(index, surface, levelOf(word), toggled(index, status));" not in script
 
 

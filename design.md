@@ -366,6 +366,137 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Every mail is the board's, and the last one says the account is gone — 2026-10-09
+
+P18 of the polish plan. Boards MailsDesk, MailsPhone, MailsRu, SubMailDesk and
+SubMailPhone, with David's calls of 2026-10-09. "Mail is drawn, and fetches nothing"
+(2026-09-27) still holds whole; this is what changed inside it.
+
+- **The app's palette, the mark's too.** The mark's columns are ink `#1c1a17` and gold
+  `#b8935e`, the app's own, where they were the paper values (`#201e1b`, `#a5824f`). A
+  heading is the reading serif at 500, 26px (20px on a phone), as the boards draw every
+  mail's; it was the sans at 700. The card's corner is 14px.
+- **A picture is a tile drawn in CSS.** "Your text is ready" and each thing in the daily
+  mail carry their text's first letter, paper on ink, in a cell with a background colour,
+  and a play badge on a video's. Nothing is loaded, so a client that blocks images loses
+  nothing. A Hebrew title is in the Hebrew face at 500, right to left.
+- **"Your text is ready" is a tile, the title and Open**, with one quiet line under the
+  title (uploaded by you, what it is, its parts, its length) and "It's at the top of Your
+  targums now, under Continue". Open is the one press whatever the medium, as the board
+  draws it: the label over the title already says Ready to watch, listen or read, which is
+  what the verb on the button was for (copy audit, 2026-09-28). **No vocabulary strip**:
+  the mail says the text is there, and its words are met in it.
+- **The digest's masthead is מבט השבוע** with the week's date in Hebrew, as the reader's
+  own title is. The subject keeps the public name, Weekly News Digest.
+- **The daily mail keeps what it says** ("Everything new comes in one mail a day") and is
+  drawn as SubMail draws one thing: each item a row with its tile, its title in its own
+  face and a line under it. The foot is one line, why and then Unsubscribe from all of
+  these · Your subscriptions. The one-click header and the List-Id are unchanged.
+- **The account-deleted mail.** Sent once, when the grace period is over and the rows are
+  gone (`Library.purge_departed`), to the address that is about to mean nothing to targum.
+  It says when they asked, when it went (`GRACE_DAYS`, seven days later), what went, that
+  nothing of it remains, and the day the last nightly backup that held it rolls off
+  (`backup.KEEP`, fourteen nights). It says we kept no copy and cannot restore one, and
+  that it is the last mail to the address. Transactional, so no list headers. It is in the
+  language the page was in when they pressed Delete (`person.said`, schema 44), English
+  where that is not known. **There is no export mail**: an export is a download, and it is
+  instant.
+- **Drawn on the boards, not built:** the series' own mail (The weekly portion: Noach) and
+  SubMail's mail a video and its capped twin. Everything new comes in the one daily mail,
+  and an item waiting on its cap is a row in it.
+- **A render harness.** `targum mails --out DIR` writes every mail in every language the
+  catalogue has, as HTML and as text, from sample data (`mail_samples.py`), and sends
+  nothing. It is how a mail is put next to its board.
+
+What it does not overturn: nothing fetched, light only, a plain-text half beside every
+HTML one, and every list mail's one-click unsubscribe and List-Id.
+
+### Free and Plan, behind a switch — 2026-10-09
+
+P15 of the polish plan (David, 2026-10-08 and 2026-10-09; boards PlanPricing,
+PlanPricingPhone, PlanUpgradeMoment, PlanTopUp and PlanAccount). **Everything here sits
+behind `TARGUM_PLANS`, which is off.** With it off nothing changes for anybody: every
+account keeps 480 credits a month and a word list of any length, and Your account keeps
+its one early-access plan. What the switch turns on:
+
+- **Two plans: Free and Plan.** The paid one is called just "Plan". Free gets **60
+  credits a month** (an hour); Plan gets **480** (eight hours), at $16 a month or $39 every
+  three months. Reading, the library, word cards and text uploads are unmetered on both.
+  Until there is a payment provider nobody is on Plan, so on means the operator alone
+  (`Person.admin`), which is how a box can be tried with plans on before anybody can buy
+  one (`plans.paid`).
+- **The free word list holds 300 words.** A word counts while it is being learned (stages
+  1 to 3, across every language). A word marked known or ignored does not, so reading
+  goes on marking as it always did. A reader already past 300 when the switch goes on keeps
+  every word; only a new one is refused. It is refused at the card, where the press is,
+  as a panel in place, and again by the server when the word arrives by sync, so a second
+  device cannot go round it.
+- **Monthly credits start fresh on the 1st, and topped-up credits stay until they are
+  used.** The first is what the ledger already did (`SUM(length)` since the 1st). The
+  second waits for a provider: nothing can buy a credit yet, so nothing stores one.
+- **No top-up on Free.** A free reader out of credits is offered the plan; a reader on
+  Plan is offered Top up. Both are greyed.
+- **Chatting stays included on Free**, held by the daily rail and not by the month's 60.
+  A turn's seconds still go into the one ledger, as they always have ("A cost is
+  credits"), so a great deal of talking uses some of the month; a message is about five
+  seconds, and 60 credits is some seven hundred of them. A voice made for a text is not a
+  turn and comes out of the 60 like any other audio.
+- **When a plan ends, its channel and podcast subscriptions pause.** The next round of the
+  poller finds the owner may no longer subscribe to something that builds by itself and
+  pauses the subscription, rather than leaving its items to wait. Resume is refused on
+  Free with the same panel; the series and the news stay on, because they are free.
+  Nothing cancels a plan yet, because nothing starts one; the operator's switch going on
+  for a free reader is the case that exists, and it is the same case.
+
+What it does not overturn: a build is still quoted and pressed, `Library.claim` is still
+the one gate and the job rows the one ledger, and a cost is still credits.
+
+
+### The plans page is the one place money shows — 2026-10-09
+
+"A cost is credits" (2026-09-23) says there is no money anywhere inside the product. It
+keeps holding everywhere but one page: **`/plans`**, which says what Free and Plan are and
+what Plan costs, in US dollars, because a price nobody may read is not a price.
+
+- **Signed in only, and only while plans are on.** It is linked from three places and no
+  others: the Plan card on Your account, the panels a free reader meets when they reach
+  for the plan, and the foot inside the app. The front door stays a waitlist, with no
+  figures (2026-09-16), and a stranger asking for `/plans` is sent to sign in.
+- **Every pay button is drawn and greyed**, with "Payments open soon" beside it: Start the
+  plan, Start a plan, Top up, Switch and Cancel plan. There is no payment provider and none
+  is chosen.
+- **A cost is still credits everywhere else.** The panels name the plan by its credits
+  ("A plan gives you 480 credits a month, which is 8 hours of audio or video") and send
+  the reader here for the price; no panel, card or mail carries a figure in money.
+- **What the board drew and is not here:** the tax line (no checkout exists to add it),
+  the example of hearing a chapter read aloud (its figure was a placeholder), "Hear any
+  text read aloud" among Plan's lines (a free reader hears text too, inside their 60),
+  and receipts and a payment method on Your account (there are none). The library's size
+  is said without a count, because a count baked into a page is out of date by the next
+  catalogue change.
+
+
+### A free reader meets the plan where they reach for it — 2026-10-09
+
+The fifth surface's panel in place ("A refusal is drawn on one of five surfaces") gets one
+more way on: **the plan.** Where a free reader reaches for something Plan has, the panel
+says what they reached for and what a plan gives, with Start a plan greyed, "Payments open
+soon", and See plans, and its quiet line says what still works. It is drawn in four
+places:
+
+- **Subscribing to a YouTube channel or a podcast**, on the confirm page: Subscribe stays
+  greyed, and the panel says the cap it would have had and how many credits are left for
+  opening its videos one at a time.
+- **Out of credits on a video's next part**, under the picture, and on any other press
+  the month's credits refuse: the refusal's `act` is `plan` rather than `top-up`.
+- **A recording uploaded that needs more credits than are left**, on Upload's card:
+  "It needs 45 credits and you have 12 left this month", then the plan.
+- **The word list at 300**, on the word's card.
+
+A reader on Plan who runs out is offered Top up instead (PlanTopUp): 60, 180 or 300
+credits, greyed, with Prices beside it. Nothing changes with the switch off: the refusal
+is the `top-up` one it was, and there is no word cap to meet.
+
 ### The connector's pages are the boards' — 2026-10-09
 
 P14 of the polish plan, after "The boards are the desk" and "The desk's controls are one
@@ -3468,6 +3599,8 @@ chose HTML for all seven.
   paper values (`#201e1b`, `#a5824f`). The wordmark beside them is live text in the
   reading face at 600, lowercase. Gmail and Outlook strip inline SVG. A CID-attached
   image would fetch nothing, but many clients show it as an attachment, so it is left out.
+  *(The columns are the app's ink and gold since 2026-10-09 — see "Every mail is the
+  board's".)*
 - **It fetches nothing.** There are no images, no remote stylesheets or fonts, no
   tracking pixel and no redirecting links. That is the readers' rule (§13, "What stays
   the reader's") applied to mail. The provider's open and click tracking stays off,

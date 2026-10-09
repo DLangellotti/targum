@@ -69,6 +69,17 @@ b.acct-name { font-weight: 600; }
 
 /* Plan: what there is to pay with is drawn and greyed, and the reason beside it. */
 .acct-soon { display: flex; align-items: center; gap: 0.4rem; margin: 0.75rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
+/* The plan with plans on (board PlanAccount, design.md §12, "Free and Plan, behind a
+   switch", 2026-10-09): what a plan gives under Free, and the pay presses greyed with
+   "Payments open soon" beside them. */
+.plan-offer { margin: 1rem 0 0; padding-block-start: 1rem; border-block-start: 1px solid var(--rule); font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
+.plan-pay-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 1rem 0 0; }
+.plan-pay-row .acct-soon { margin: 0; }
+.plan-top-ups > span { padding-inline: 0.75rem; color: var(--ink-soft); font-size: 0.8125rem; white-space: nowrap; }
+#plan-free[hidden], #plan-paid[hidden] { display: none; }
+@media (max-width: 40rem) {
+  .plan-pay-row > button { flex: 1 0 100%; }
+}
 .acct-soon svg { inline-size: 0.875rem; block-size: 0.875rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
 
 /* What's connected: an app's letter, its name and dates, what it may do, Disconnect. */

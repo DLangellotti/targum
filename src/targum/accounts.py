@@ -264,7 +264,12 @@ REGISTRATIONS_PER_HOUR = 60
 #    (`INSERT OR IGNORE`, so running it again on every open changes nothing). `follow` is
 #    no longer written.
 #
-# 43→44: job.audio, job.seconds, job.parts, job.transcription and job.reading — what a
+# 43→44: person.said — the language the page was in when somebody asked to be forgotten,
+#    so the mail that says their account is gone is written in it (design.md §12, "Every
+#    mail is the board's", 2026-10-09). A column on a table every box has, so it is in
+#    MIGRATIONS; empty, which is English, for every account before it.
+#
+# 44→45: job.audio, job.seconds, job.parts, job.transcription and job.reading — what a
 #    quote was priced at (targum-internal#436). They lived only on the job in memory, so
 #    a recording quoted before a restart and pressed after it came back with no length:
 #    `claim` held it to no hours, the reader was charged no credits, and it built anyway.
@@ -274,7 +279,7 @@ REGISTRATIONS_PER_HOUR = 60
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 44
+SCHEMA_VERSION = 45
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -464,6 +469,8 @@ CREATE TABLE IF NOT EXISTS chosen (
 
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
+    # The language a deletion was asked for in (schema 44): the last mail's.
+    "ALTER TABLE person ADD COLUMN said TEXT NOT NULL DEFAULT ''",
     # Which surface a mistake came from: '' is targum's own chat and is every row
     # written before 2026-09-22; 'connector' is a line checked through Claude or ChatGPT
     # (targum-internal#80). Not a quality mark — one judge writes both.
@@ -601,7 +608,7 @@ MIGRATIONS: tuple[str, ...] = (
     # visited last is the one they are in, until they have gone through it.
     "ALTER TABLE playlist ADD COLUMN at INTEGER",
     "ALTER TABLE playlist ADD COLUMN visited INTEGER",
-    # What a quote was priced at (schema 44, targum-internal#436): whether it is a
+    # What a quote was priced at (schema 45, targum-internal#436): whether it is a
     # recording, its length, how it divides, what hearing it costs, and what reading
     # its pages already cost. `length` is not it: that is what a claim took, zero until
     # the press, so a job read back between quote and press had nothing to be charged.
@@ -645,6 +652,9 @@ CREATE TABLE IF NOT EXISTS person (
   -- until then they are signed out and the account is unusable, so the only thing the
   -- delay buys is the chance to undo a mistake.
   leaving  INTEGER,
+  -- The language the page was in when they asked, so the mail that says it is done is
+  -- in it (design.md §12, "Every mail is the board's", 2026-10-09). Empty for English.
+  said     TEXT    NOT NULL DEFAULT '',
   -- When they accepted the contribution grant (targum-internal#164, door 3), or 0.
   -- CONTRIBUTING.md holds the sentence; this holds that they read it.
   granted  INTEGER NOT NULL DEFAULT 0
@@ -890,7 +900,7 @@ CREATE TABLE IF NOT EXISTS job (
   cache_read  INTEGER NOT NULL DEFAULT 0,
   cache_write INTEGER NOT NULL DEFAULT 0,
   cache_cost  REAL    NOT NULL DEFAULT 0,
-  -- What the quote was priced at: see schema 44. `length` is what the claim took.
+  -- What the quote was priced at: see schema 45. `length` is what the claim took.
   audio         INTEGER NOT NULL DEFAULT 0,
   seconds       REAL    NOT NULL DEFAULT 0,
   parts         INTEGER NOT NULL DEFAULT 0,
@@ -1550,6 +1560,10 @@ class Kind:
     key: tuple[str, ...]
     fields: tuple[str, ...]
 
+
+#: The word stages that put a word on the list: being learned. Known (9) and ignored (0)
+#: are not on it (`plans.LISTED` says the same for the pages).
+LISTED = (1, 2, 3)
 
 KINDS: dict[str, Kind] = {
     "words": Kind(
@@ -3493,15 +3507,20 @@ class Store:
         with self.write() as db:
             db.execute("DELETE FROM session WHERE hash = ?", (digest(session),))
 
-    def forget(self, person: Person) -> None:
+    def forget(self, person: Person, language: str = "") -> None:
         """Start forgetting someone. The other half of being allowed to keep it.
 
         Nothing is deleted yet. They are signed out of everywhere, the account stops
         working, and the data goes at the end of the grace period. Deleting an account
         is one click on a bad day, and the only thing that makes that safe is time.
+        `language` is the page's, kept so the mail that says it is done is in it.
         """
+        said = _language_code(language) if language else ""
         with self.write() as db:
-            db.execute("UPDATE person SET leaving = ? WHERE id = ?", (now(), person.id))
+            db.execute(
+                "UPDATE person SET leaving = ?, said = ? WHERE id = ?",
+                (now(), said, person.id),
+            )
             db.execute("DELETE FROM session WHERE person = ?", (person.id,))
             db.execute("DELETE FROM link WHERE person = ?", (person.id,))
             # And every Telegram chat, for the same reason: a bound chat is a way to
@@ -3541,6 +3560,16 @@ class Store:
         """Change their mind, while there is still something to change it about."""
         with self.write() as db:
             db.execute("UPDATE person SET leaving = NULL WHERE id = ?", (person.id,))
+
+    def leaving_due(self, days: int = GRACE_DAYS) -> list[dict[str, Any]]:
+        """Whoever `purge` is about to delete: their id, address, when they asked and in
+        which language — what the last mail needs, read while it still exists."""
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        rows = self.db.execute(
+            "SELECT id, email, leaving, said FROM person WHERE leaving IS NOT NULL AND leaving < ?",
+            (cutoff,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def purge(self, days: int = GRACE_DAYS) -> list[int]:
         """Delete everyone whose grace period is up, and say whose files still stand.
@@ -3635,12 +3664,24 @@ class Store:
             return None
         return (int(row["made"]), int(row["revision"]), int(row["ledger"]))
 
-    def push(self, person: Person, changes: dict[str, list[dict[str, Any]]]) -> int:
+    def push(
+        self,
+        person: Person,
+        changes: dict[str, list[dict[str, Any]]],
+        *,
+        word_cap: int | None = None,
+    ) -> int:
         """Take a browser's changes, keeping whichever version of each record is newer.
 
         Everything lands in one transaction and under one revision number, so a client
         pulling at the same moment sees either all of a push or none of it. Half a
         push is how a phrase arrives without the document it belongs to.
+
+        `word_cap` is a free word list's (design.md §12, "Free and Plan, behind a switch",
+        2026-10-09): a word that would go on the list — into stages 1 to 3 from anywhere
+        else — once it already holds that many is not taken. A word already on it moves
+        between stages freely, and known or ignored are never held. None, as it is with
+        plans off, takes everything as it always did.
         """
         with self.write() as db:
             stamp = self._next_revision(db, person)
@@ -3649,8 +3690,44 @@ class Store:
                 if kind is None:
                     continue
                 for item in items:
+                    if (
+                        word_cap is not None
+                        and name == "words"
+                        and self._over_cap(db, person, item, word_cap)
+                    ):
+                        continue
                     self._merge(db, person, kind, item, stamp)
             return stamp
+
+    @staticmethod
+    def _over_cap(db: sqlite3.Connection, person: Person, item: dict[str, Any], cap: int) -> bool:
+        """Whether this word would go on a list already holding `cap` words."""
+        try:
+            status = int(item.get("status"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return False
+        if item.get("gone") or status not in LISTED:
+            return False
+        was = db.execute(
+            "SELECT status, gone FROM word WHERE person = ? AND language = ? AND lemma = ?",
+            (person.id, str(item.get("language") or ""), str(item.get("lemma") or "")),
+        ).fetchone()
+        if was is not None and not was["gone"] and was["status"] in LISTED:
+            return False
+        held = db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status IN (1, 2, 3)",
+            (person.id,),
+        ).fetchone()
+        return int(held["n"]) >= cap
+
+    def listed_words(self, person_id: int) -> int:
+        """How many words this reader is learning (stages 1 to 3), across every language:
+        what a free word list's cap counts."""
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status IN (1, 2, 3)",
+            (person_id,),
+        ).fetchone()
+        return int(row["n"])
 
     def _merge(
         self,

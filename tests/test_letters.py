@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import io
 import re
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -83,6 +85,9 @@ def every(language: str) -> dict[str, Letter]:
         "ready": letters.build_ready(
             "Shakshuka at home", f"{SITE}/reader/x", SITE, language, asked=False, listen=False
         ),
+        "deleted": letters.account_deleted(
+            SITE, date(2026, 10, 8), language, grace_days=7, backups_kept=14
+        ),
     }
 
 
@@ -130,8 +135,10 @@ def test_every_mail_is_light_only_and_carries_the_drawn_mark(language: str) -> N
     for name, letter in every(language).items():
         assert 'content="light only"' in letter.html, name
         assert f'<html lang="{language}"' in letter.html, name
-        # The mark's two columns in its own paper values, and the wordmark as text.
-        assert 'bgcolor="#201e1b"' in letter.html and 'bgcolor="#a5824f"' in letter.html
+        # The mark's two columns in the app's ink and gold (§12, "Every mail is the
+        # board's", 2026-10-09), and the wordmark as text.
+        assert 'bgcolor="#1c1a17"' in letter.html and 'bgcolor="#b8935e"' in letter.html
+        assert "#201e1b" not in letter.html and "#a5824f" not in letter.html
         assert ">targum</td>" in letter.html
 
 
@@ -155,7 +162,7 @@ def test_the_postal_address_is_drawn_only_when_there_is_one(
     after = every("en")
     for name in ("weekly", "daily"):
         assert "1 Somewhere St" in after[name].text and "1 Somewhere St" in after[name].html
-    for name in ("sign-in", "ready", "invitation"):
+    for name in ("sign-in", "ready", "invitation", "deleted"):
         assert "Somewhere" not in after[name].text, f"{name} is not a list"
 
 
@@ -178,6 +185,13 @@ def test_the_digest_is_named_and_says_what_this_week_is() -> None:
     assert quiet.text.startswith("Monday, September 28, 2026"), "no blurb, nothing in its place"
 
 
+def test_the_digest_s_masthead_is_its_hebrew_name_and_the_week() -> None:
+    """Board MailsDesk: מבט השבוע and the Monday, in Hebrew, whatever the issue's title."""
+    mail = letters.weekly_issue(issue().model_copy(update={"title": "כותרת"}), SITE, "tok")
+    assert "מבט השבוע · 28 בספטמבר 2026" in mail.html
+    assert ">כותרת<" not in mail.html
+
+
 def test_a_ready_mail_says_why_it_came_in_the_readers_language() -> None:
     unasked = letters.build_ready("Ruth", f"{SITE}/r", SITE, "ru", asked=False, listen=False)
     assert unasked.subject == "Можно читать: ⁨Ruth⁩"
@@ -191,21 +205,82 @@ def test_a_ready_mail_says_why_it_came_in_the_readers_language() -> None:
     assert film.subject == "Можно смотреть: ⁨Ruth⁩", "a film is watched before it is heard"
 
 
-def test_a_ready_mail_s_button_says_what_the_subject_does() -> None:
-    """Copy audit, 2026-09-28 (Q28), and §6: "Open" under "Ready to watch" named no
-    action. The button's verb is chosen as the subject's is."""
-    for listen, watch, verb in (
-        (False, False, "Read"),
-        (True, False, "Listen"),
-        (True, True, "Watch"),
-    ):
-        mail = letters.build_ready(
-            "Ruth", f"{SITE}/r", SITE, "en", asked=False, listen=listen, watch=watch
-        )
-        assert f">{verb}<" in mail.html, verb
-        assert ">Open<" not in mail.html
-    russian = letters.build_ready("Ruth", f"{SITE}/r", SITE, "ru", asked=False, listen=True)
-    assert ">Слушать<" in russian.html
+def test_a_ready_mail_is_a_tile_the_title_and_open() -> None:
+    """Board MailsDesk and David's call of 2026-10-09: a tile, the title and Open, with no
+    vocabulary strip. The label over the title says what it is ready for."""
+    film = letters.build_ready(
+        "האם החשמונאים המציאו את היהדות?",
+        f"{SITE}/r",
+        SITE,
+        "en",
+        asked=False,
+        listen=True,
+        watch=True,
+        title_language="he",
+        parts=4,
+        seconds=24 * 60,
+    )
+    assert ">Open<" in film.html and ">Watch<" not in film.html
+    assert "Ready to watch" in film.html
+    assert 'dir="rtl" lang="he"' in film.html, "the title in its own direction"
+    assert ">ה</span>" in film.html, "the tile carries its first letter"
+    assert "&#9654;&#65038;" in film.html, "a video's tile has the play badge, as text"
+    assert "Uploaded by you · Video · 4 parts · 24 min" in film.text
+    assert "under Continue" in film.text
+    for absent in ("words", "vocabulary", "Words"):
+        assert absent not in film.text, "no vocabulary strip"
+    book = letters.build_ready("Отец Сергий", f"{SITE}/r", SITE, "ru", asked=False, listen=True)
+    assert ">Открыть<" in book.html and "&#9654;" not in book.html
+    assert "Загружено вами · Запись" in book.text
+
+
+def test_the_account_deleted_mail_says_when_what_and_when_the_backups_forget() -> None:
+    """Board MailsDesk's last mail: when they asked, when it went, what went, that nothing
+    remains, and when the last backup holding it rolls off (14 nights after)."""
+    from targum import backup
+    from targum.accounts import GRACE_DAYS
+
+    # The mail says "seven days" in words; the grace period it describes is seven.
+    assert GRACE_DAYS == 7 and backup.KEEP == 14
+    mail = letters.account_deleted(
+        SITE, date(2026, 10, 8), "en", grace_days=GRACE_DAYS, backups_kept=backup.KEEP
+    )
+    assert mail.subject == "Your targum account is deleted"
+    assert "on October 8, 2026" in mail.text and "on October 15, 2026" in mail.text
+    assert "gone by October 29, 2026" in mail.text and "every 14 days" in mail.text
+    assert "can't restore it" in mail.text and "last email" in mail.text
+    assert not mail.headers, "transactional: no list headers"
+    russian = letters.account_deleted(
+        SITE, date(2026, 10, 8), "ru", grace_days=GRACE_DAYS, backups_kept=backup.KEEP
+    )
+    assert "8 октября 2026" in russian.text and "29 октября 2026" in russian.text
+
+
+def test_the_harness_draws_every_mail_and_sends_nothing(tmp_path: Path) -> None:
+    """`targum mails --out DIR`: every mail, in every language, as HTML and text."""
+    from typer.testing import CliRunner
+
+    from targum import mail_samples, strings
+    from targum.cli import app
+
+    result = CliRunner().invoke(app, ["mails", "--out", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    names = set(mail_samples.samples("en"))
+    assert {"sign-in", "ready", "daily", "weekly", "deleted"} <= names
+    for code in strings.languages():
+        for name in names:
+            page = tmp_path / f"{name}.{code}.html"
+            assert page.is_file() and (tmp_path / f"{name}.{code}.txt").is_file(), page
+            assert f'<html lang="{code}"' in page.read_text(encoding="utf-8")
+    assert (tmp_path / "index.html").is_file()
+
+
+def test_the_daily_mail_draws_each_thing_as_a_tile_and_keeps_its_ways_out() -> None:
+    mail = every("en")["daily"]
+    assert ">ה</td>" in mail.html or "ה</td>" in mail.html, "the first letter on its tile"
+    assert "Unsubscribe from all of these" in mail.html and "Your subscriptions" in mail.html
+    assert mail.headers["List-Unsubscribe"] == f"<{SITE}/subscriptions/stop?t=stop2&t=stop3>"
+    assert mail.headers["List-Id"].startswith("subscriptions <")
 
 
 def test_a_daily_cycle_is_in_the_one_mail_a_day(tmp_path: Any) -> None:
@@ -236,3 +311,50 @@ def test_every_daily_cycle_says_it_is_daily() -> None:
     ids = {cycle.slug for cycle in CYCLES}
     rows = [row for row in series.current(public=True) if row["id"] in ids]
     assert rows and all(row["cadence"] == "daily" for row in rows)
+
+
+def test_an_account_is_told_once_when_it_is_gone(tmp_path: Path) -> None:
+    """The mail goes when the grace period ends and the rows go (`purge_departed`), in the
+    language the page was in when they pressed Delete, and never to an account still
+    inside its seven days. A recording mailer: nothing is sent anywhere."""
+    from targum.accounts import GRACE_DAYS, Store, now
+    from targum.serve import Library
+
+    sent: list[tuple[str, str, str]] = []
+
+    class Recording:
+        def send(self, to: str, link: str, language: str = "en") -> None:
+            raise AssertionError("no sign-in link here")
+
+        def notify(
+            self,
+            to: str,
+            subject: str,
+            body: str,
+            headers: Any = None,
+            html: str | None = None,
+        ) -> None:
+            sent.append((to, subject, body))
+
+    store = Store(tmp_path / "targum.db")
+    for address in ("gone@example.com", "staying@example.com"):
+        store.start_sign_in(address)
+    gone = store.person_by_email("gone@example.com")
+    staying = store.person_by_email("staying@example.com")
+    assert gone is not None and staying is not None
+    store.forget(gone, "ru-RU")
+    store.forget(staying, "en")
+    with store.write() as db:
+        stale = now() - (GRACE_DAYS + 1) * 24 * 60 * 60 * 1000
+        db.execute("UPDATE person SET leaving = ? WHERE id = ?", (stale, gone.id))
+
+    Library(tmp_path / "out", store=store, mailer=Recording(), address=SITE)
+
+    assert [(to, subject) for to, subject, _ in sent] == [
+        ("gone@example.com", "Ваш аккаунт targum удалён")
+    ]
+    assert "14 дней" in sent[0][2]
+    assert store.person_by_email("gone@example.com") is None
+    sent.clear()
+    Library(tmp_path / "out", store=store, mailer=Recording(), address=SITE)
+    assert sent == [], "once"

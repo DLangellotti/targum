@@ -1,0 +1,121 @@
+{#- The plans page (design.md §12, "The plans page is the one place money shows" and "Free
+    and Plan, behind a switch", 2026-10-09; boards PlanPricing and PlanPricingPhone).
+
+    Signed in only, and only while `TARGUM_PLANS` is on; linked from Your account, the
+    panels a free reader meets and the foot inside the app, and from nowhere in front of
+    the door. Every pay button is drawn and greyed until there is a payment provider. No
+    script: the month or the three months is a pair of radios, and the price follows them
+    in CSS. -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("plans.page.title-tab", "Plans — targum") }}</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('plans.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+<body class="plans">
+{% set here = 'plans' %}{% set title = t("plans.page.title", "Plans") %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+<main class="plans-main">
+  <p class="plans-lede">{{ t("plans.page.lede", "Reading on targum is free, and it stays free. The plan is for the videos, podcasts and recordings you want to learn from.") }}</p>
+
+  {%- set mine = plan.plan|default('free') %}
+  <div class="plans-pair">
+    {#- Free first at a desk; on a phone Plan comes first (PlanPricingPhone), by order. -#}
+    <section class="card plan-card plan-free" aria-labelledby="plan-free-name">
+      <div class="plan-top">
+        <h2 class="plan-name" id="plan-free-name">{{ t("plans.page.free", "Free") }}</h2>
+        {%- if mine == 'free' %}<span class="plan-yours">{{ t("plans.page.your-plan", "Your plan") }}</span>{% endif %}
+      </div>
+      <p class="plan-price"><span class="plan-figure">$0</span> <span class="plan-per">{{ t("plans.page.free-per", "for as long as you like") }}</span></p>
+      <p class="plan-says">{{ t("plans.page.free-says", "Everything you need to read and learn from text.") }}</p>
+      <ul class="plan-lines is-checks">
+        <li>{{ t("plans.page.free-library", "Every text in the library, and every recording that comes with them") }}</li>
+        <li>{{ t("plans.page.free-words", "Tap any word for its card, and keep it on your word list, up to {n} words", n=free_words) }}</li>
+        <li>{{ t("plans.page.free-upload", "Upload as much text as you like, from a news article to a whole book") }}</li>
+        <li>{{ t("plans.page.free-subscribe", "Subscribe to a series or to the news, and new ones wait for you on your home page") }}</li>
+        <li>{{ t("plans.page.free-talk", "Talk to targum about what you read") }}</li>
+        <li><b>{{ t("plans.page.free-credits", "{n} credits a month", n=free_credits) }}</b>{{ t("plans.page.free-credits-says", ", about an hour, to try a video or a recording of your own") }}</li>
+      </ul>
+    </section>
+
+    <section class="card plan-card plan-paid" aria-labelledby="plan-paid-name">
+      <input class="plan-every" type="radio" name="every" id="every-month" checked>
+      <input class="plan-every" type="radio" name="every" id="every-quarter">
+      <div class="plan-top">
+        <h2 class="plan-name" id="plan-paid-name">{{ t("plans.page.plan", "Plan") }}</h2>
+        {%- if mine == 'plan' %}<span class="plan-yours">{{ t("plans.page.your-plan", "Your plan") }}</span>{% endif %}
+        <div class="seg plan-seg" role="group" aria-label="{{ t("plans.page.how-often", "How often you pay") }}">
+          <label for="every-month" class="plan-seg-month">{{ t("plans.page.monthly", "Monthly") }}</label>
+          <label for="every-quarter" class="plan-seg-quarter">{{ t("plans.page.quarterly", "Every 3 months") }}</label>
+        </div>
+      </div>
+      <div class="plan-price-month">
+        <p class="plan-price"><span class="plan-figure">${{ price_month }}</span> <span class="plan-per">{{ t("plans.page.a-month", "a month") }}</span></p>
+        <p class="plan-or">{{ t("plans.page.or-quarter", "Or ${quarter} every 3 months, which is ${each} a month", quarter=price_quarter, each=quarter_each) }}</p>
+      </div>
+      <div class="plan-price-quarter">
+        <p class="plan-price"><span class="plan-figure">${{ price_quarter }}</span> <span class="plan-per">{{ t("plans.page.every-quarter", "every 3 months") }}</span></p>
+        <p class="plan-or">{{ t("plans.page.or-month", "That's ${each} a month, or ${month} paid monthly", each=quarter_each, month=price_month) }}</p>
+      </div>
+      <p class="plan-says">{{ t("plans.page.plan-says", "Everything in Free, and the audio and video you bring.") }}</p>
+      <ul class="plan-lines is-pluses">
+        <li><b>{{ t("plans.page.plan-credits", "{n} credits a month, which is {hours} hours of audio or video", n=plan_credits, hours=plan_hours) }}</b></li>
+        <li>{{ t("plans.page.plan-upload", "Upload a YouTube video, a podcast episode or a recording. We transcribe it and time every word to the sound.") }}</li>
+        <li>{{ t("plans.page.plan-subscribe", "Subscribe to a YouTube channel or a podcast. Each new episode gets ready by itself, up to a monthly cap you set.") }}</li>
+        <li>{{ t("plans.page.plan-words", "Keep every word you meet on your list, however long it gets") }}</li>
+        <li>{{ t("plans.page.plan-top-up", "Top up at ${price} an hour if you need more in a month", price=top_up_hour) }}</li>
+      </ul>
+      {%- if mine != 'plan' %}
+      <div class="plan-pay">
+        <button type="button" class="btn soon plan-start" disabled>{{ t("plans.page.start", "Start the plan") }}</button>
+        <span class="fault-fact fault-soon"><svg class="fault-clock" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.25a5.75 5.75 0 1 0 0 11.5a5.75 5.75 0 1 0 0-11.5z"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</span>
+        <span class="plan-cancel-any">{{ t("plans.page.cancel-any-time", "Cancel any time") }}</span>
+      </div>
+      {%- endif %}
+    </section>
+  </div>
+
+  <p class="plans-small">{{ t("plans.page.dollars", "Prices are in US dollars.") }}</p>
+
+  <div class="plans-more">
+    <section class="card plans-far" aria-labelledby="plans-far-title">
+      <h2 class="section-title" id="plans-far-title">{{ t("plans.page.how-far", "How far {n} credits go", n=plan_credits) }}</h2>
+      <p class="plans-far-rate">{{ t("plans.page.rate", "One credit is a minute of audio or video. Reading uses none.") }}</p>
+      <dl class="plans-far-rows">
+        <div><dt>{{ t("plans.page.far-video", "A 4-minute video on YouTube") }}</dt><dd>{{ tn("plans.page.credits", 4, "{n} credit", "{n} credits") }}</dd></div>
+        <div><dt>{{ t("plans.page.far-podcast", "A 45-minute podcast episode") }}</dt><dd>{{ tn("plans.page.credits", 45, "{n} credit", "{n} credits") }}</dd></div>
+        <div><dt>{{ t("plans.page.far-lecture", "An hour-long lecture") }}</dt><dd>{{ tn("plans.page.credits", 60, "{n} credit", "{n} credits") }}</dd></div>
+        <div><dt>{{ t("plans.page.far-upload", "An article, a book or a PDF you upload") }}</dt><dd class="is-none">{{ t("plans.page.none", "none") }}</dd></div>
+        <div><dt>{{ t("plans.page.far-library", "Anything in the library") }}</dt><dd class="is-none">{{ t("plans.page.none", "none") }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="plans-faq" aria-labelledby="plans-faq-title">
+      <h2 class="section-title" id="plans-faq-title">{{ t("plans.page.questions", "Questions") }}</h2>
+      <h3>{{ t("plans.page.q-run-out", "What happens when my credits run out?") }}</h3>
+      <p>{{ t("plans.page.a-run-out", "Reading carries on as before, and so do the library and your word list. New videos and recordings wait until your credits come back on the 1st, or, on the plan, you can top up.") }}</p>
+      <h3>{{ t("plans.page.q-carry", "Do unused credits carry over?") }}</h3>
+      <p>{{ t("plans.page.a-carry", "No. Your monthly credits start fresh on the 1st. Credits you top up stay until you use them.") }}</p>
+      <h3>{{ t("plans.page.q-cancel", "Can I cancel?") }}</h3>
+      <p>{{ t("plans.page.a-cancel", "Yes, any time, from Your account. The plan runs to the end of what you've paid for. Your word list, your uploads and everything you've read stay yours. Your channel and podcast subscriptions pause, and you can start them again any time.") }}</p>
+      <h3>{{ t("plans.page.q-one", "Why is there only one plan?") }}</h3>
+      <p>{{ t("plans.page.a-one", "Because reading should never be the thing you pay for. You pay for the hours of audio and video we make for you, and everybody gets the same reader.") }}</p>
+    </section>
+  </div>
+</main>
+{% include '_foot.html.j2' %}
+<script>window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+</body>
+</html>

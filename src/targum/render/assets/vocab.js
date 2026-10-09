@@ -118,6 +118,30 @@
     write("targum:migrated", done);
   }
 
+  /* How many words are on the list — being learned, stages 1 to 3 — across every
+     language this browser keeps: what a free word list's cap counts (design.md §12,
+     "Free and Plan, behind a switch", 2026-10-09). */
+  function listed() {
+    var count = 0;
+    var names = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var name = localStorage.key(i);
+        if (name && name.indexOf("targum:vocab:") === 0) names.push(name);
+      }
+    } catch (e) {
+      return 0;
+    }
+    names.forEach(function (name) {
+      var words = read(name, "{}");
+      Object.keys(words).forEach(function (lemma) {
+        var word = words[lemma] || {};
+        if (!word.gone && LEARNING.indexOf(word.status) >= 0) count++;
+      });
+    });
+    return count;
+  }
+
   /* --- meanings, out of the word and into the pair --------------------------- */
 
   /* A word belongs to a language; a meaning belongs to a language pair.
@@ -635,6 +659,7 @@
       return steps();
     },
     LEARNING: LEARNING,
+    listed: listed,
     KNOWN: KNOWN,
     IGNORED: IGNORED,
   };

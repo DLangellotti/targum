@@ -583,7 +583,7 @@ def test_a_database_from_before_the_price_columns_gains_them(tmp_path: Path) -> 
     raw.executescript(
         "ALTER TABLE job DROP COLUMN audio; ALTER TABLE job DROP COLUMN seconds;"
         "ALTER TABLE job DROP COLUMN parts; ALTER TABLE job DROP COLUMN transcription;"
-        "ALTER TABLE job DROP COLUMN reading; PRAGMA user_version = 43;"
+        "ALTER TABLE job DROP COLUMN reading; PRAGMA user_version = 44;"
     )
     raw.close()
     store = Store(path)

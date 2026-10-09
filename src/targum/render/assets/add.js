@@ -2206,7 +2206,19 @@
           // Spent: a panel with Top up, greyed until there is somewhere to pay, and what
           // still works beside it (design.md §12, 2026-10-09).
           hoursLine.hidden = true;
-          var spent = window.TargumFault.refusal(
+          var plan = me.plan || {};
+          // Free, with plans on: the plan is the way on, never Top up (design.md §12, "A
+          // free reader meets the plan where they reach for it", 2026-10-09).
+          var spent = plan.on && plan.plan === "free"
+            ? window.TargumFault.upgrade(
+                t("fault.plan.used", "You've used this month's {credits} credits. A plan gives you {plan} credits a month, which is {hours} hours of audio or video.", {
+                  credits: plan.credits,
+                  plan: plan.planCredits,
+                  hours: Math.round(plan.planCredits / 60),
+                }),
+                t("fault.plan.fact", "Uploading text uses none, and your credits come back on {date}.", { date: hours.ends || "" })
+              )
+            : window.TargumFault.refusal(
             t("add.credits.none", "You've used all your credits this month. Top up, or they come back on {date}.", {
               date: hours.ends || "",
             }),

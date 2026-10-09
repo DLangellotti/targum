@@ -126,7 +126,14 @@
 
   {% else %}
     <h1 class="press-title">{{ t("press.page.we-can-t-make-this-one", "We can't make this one") }}</h1>
+    {%- if job.act == 'plan' and job.blocked and not job.error %}
+    {#- A free reader out of credits, offered the plan in place (design.md §12, "A free
+        reader meets the plan where they reach for it", 2026-10-09). -#}
+    {%- set upgrade_said = job.blocked %}{% set upgrade_fact = job.fact %}
+    {% include '_upgrade.html.j2' %}
+    {%- else %}
     <p class="said">{{ job.error or job.blocked or t("press.page.that-quote-has-gone-stale", "We couldn't get this one ready. Ask for it again where you asked before.") }}</p>
+    {%- endif %}
     <p class="aside"><a href="/">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
   {% endif %}
   </div>

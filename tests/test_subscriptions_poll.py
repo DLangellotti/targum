@@ -314,6 +314,19 @@ def test_with_plans_on_a_free_account_builds_nothing(
     sub = due(store, me, "v1")
     assert subs.get_ready(library, store).waiting == [("v1", "plan")]
     assert store.sub_items(sub)[0]["job"] == "", "not even prepared"
+    # A plan that ends pauses its channels and podcasts (design.md §12, 2026-10-09).
+    assert store.subscription(me, sub)["state"] == "paused"  # type: ignore[index]
+    assert store.sub_items(sub)[0]["state"] == "listed"
+
+
+def test_with_plans_off_a_free_account_is_never_paused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("TARGUM_PLANS", raising=False)
+    library, store, me = a_library(tmp_path, monkeypatch)
+    sub = due(store, me, "v1")
+    assert ("v1", "plan") not in subs.get_ready(library, store).waiting
+    assert store.subscription(me, sub)["state"] == "on"  # type: ignore[index]
 
 
 def test_a_paused_subscription_gets_nothing_ready(
