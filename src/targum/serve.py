@@ -12518,7 +12518,7 @@ class Handler(BaseHTTPRequestHandler):
         found = self._offline_folder(page)
         if found is None:
             return self._json({"error": "not found"}, 404)
-        prefix, bases, title = found
+        prefix, bases, about = found
         files: list[dict[str, Any]] = []
         for under, base, deep in bases:
             try:
@@ -12543,17 +12543,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         return self._json(
             {
-                "title": title,
+                **about,
                 "base": prefix,
                 "files": files,
+                "pages": sum(1 for file in files if str(file["url"]).endswith(".html")),
                 "bytes": sum(int(file["bytes"]) for file in files),
             }
         )
 
-    def _offline_folder(self, page: str) -> tuple[str, list[tuple[str, Path, bool]], str] | None:
+    def _offline_folder(
+        self, page: str
+    ) -> tuple[str, list[tuple[str, Path, bool]], dict[str, Any]] | None:
         """Where the text a page belongs to keeps its files: the address its files are
         served under, each folder they are read from (with the part of the address it
-        adds, and whether its sub-folders count), and its title where it keeps one."""
+        adds, and whether its sub-folders count), and what the shelf says of it — its
+        title, its kind and its name, for the list of what is saved."""
         mine = OFFLINE_READER.match(page)
         if mine is not None:
             name = unquote(mine.group(1))
@@ -12566,13 +12570,20 @@ class Handler(BaseHTTPRequestHandler):
                 base = folder / "reader"
                 if root not in folder.parents or not base.is_dir():
                     continue
-                title = ""
-                try:
-                    told = json.loads((folder / "document.json").read_text(encoding="utf-8"))
-                    title = str(told.get("title") or "") if isinstance(told, dict) else ""
-                except (OSError, ValueError):
-                    pass
-                return mine.group(0), [("", base, True)], title
+                about = {"title": "", "kind": "", "name": folder.name}
+                row = self.library.reader_row(folder)
+                if row is not None:
+                    about["title"] = str(row.get("title") or "")
+                    about["kind"] = str(row.get("kind") or "")
+                    about["name"] = str(row.get("entry") or folder.name)
+                else:
+                    try:
+                        told = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+                        if isinstance(told, dict):
+                            about["title"] = str(told.get("title") or "")
+                    except (OSError, ValueError):
+                        pass
+                return mine.group(0), [("", base, True)], about
             return None
         portion = OFFLINE_PORTION.match(page)
         if portion is not None:
@@ -12585,7 +12596,11 @@ class Handler(BaseHTTPRequestHandler):
             pages = portions.reader_dir(slug, language).resolve()
             sound = (portions.reader_dir(slug) / "audio").resolve()
             # The pages, and the recordings every language's pages share (`_serve_parasha_reader`).
-            return portion.group(0), [("", pages, False), ("audio/", sound, False)], ""
+            return (
+                portion.group(0),
+                [("", pages, False), ("audio/", sound, False)],
+                {"title": "", "kind": "portion", "name": slug},
+            )
         day = OFFLINE_DAY.match(page)
         if day is not None:
             from .daily import build as days
@@ -12597,7 +12612,7 @@ class Handler(BaseHTTPRequestHandler):
             if not days.readable(day.group(1), when):
                 return None
             base = (days.folder_for(day.group(1), when) / "reader").resolve()
-            return day.group(0), [("", base, False)], ""
+            return day.group(0), [("", base, False)], {"title": "", "kind": "", "name": ""}
         return None
 
     def _serve_thumb(self, name: str) -> None:

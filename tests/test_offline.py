@@ -111,6 +111,9 @@ def test_a_text_lists_every_page_and_sidecar_with_its_size(served: tuple[int, Pa
     assert status == 200
     told = json.loads(body)
     assert told["title"] == "A Book"
+    assert told["name"] == "book-he"
+    assert "kind" in told, "what the shelf calls it, for the list of what is saved"
+    assert told["pages"] == 4
     assert told["base"] == "/reader/book-he/reader/"
     urls = {file["url"]: file for file in told["files"]}
     assert set(urls) == {
@@ -201,3 +204,34 @@ def test_every_page_with_the_bar_and_every_reader_carries_the_saving() -> None:
     assert "asset('offline.js')" in (TEMPLATES / "_nav.html.j2").read_text(encoding="utf-8")
     reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
     assert reader.index("asset('sync.js')") < reader.index("asset('offline.js')")
+
+
+def test_save_for_offline_is_the_first_thing_about_this_text_in_its_menu() -> None:
+    """In ⋯, under "This text", before the word list (board OffSaving)."""
+    from targum.render.builder import TEMPLATES
+
+    reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
+    menu = reader[reader.index('id="more"') :]
+    assert menu.index('id="offline-row"') < menu.index("reader.page.word-list")
+    assert 'id="offline-row" data-title="{{ title }}"' in menu
+
+
+def test_a_russian_reader_and_desk_carry_the_saving_s_words(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from targum import strings
+    from targum.models import Translation
+    from targum.render import builder
+
+    said = {"offline.save": "Сохранить офлайн", "reader.close": "Закрыть"}
+    monkeypatch.setattr(strings, "catalogue", lambda code: said if code == "ru" else {})
+    russian = Translation(
+        name="r",
+        document_hash="h",
+        source_language="he",
+        target_language="ru",
+        provider="x",
+        segments={},
+    )
+    assert builder.reader_strings([russian])["strings"]["offline.save"] == "Сохранить офлайн"
+    assert builder.script_strings("ru", "library.")["strings"]["offline.save"] == "Сохранить офлайн"

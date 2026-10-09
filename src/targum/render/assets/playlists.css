@@ -641,3 +641,9 @@ a.item-title:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .pl-card { transition: none; }
 }
+
+/* Saved for offline, on a card: what is so, said quietly; the press is on the playlist's
+   own page (design.md §12, 2026-10-09). */
+.pl-card .pl-offline { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.pl-card .pl-offline[hidden] { display: none; }
+.pl-presses .pl-offline { flex: 1 1 16rem; max-inline-size: 24rem; }
