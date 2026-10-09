@@ -13180,10 +13180,12 @@ var targumReader = function () {
       var end = filmUp() && (videoEl.ended || (!!last && subId === last));
       body.classList.toggle("film-at-end", !!end);
       var ending =
-        filmUp() && playedOut && videoEl.ended && view === "theatre" && wideFilm.matches && !inList && !lastOfMany();
+        filmUp() && playedOut && videoEl.ended && view === "theatre" && wideFilm.matches && !lastOfMany();
       // The end of a part is the card under the picture (board ReaderTheatreEnd), with no
       // column beside it: the column steps aside for it, without the reader's choice
-      // being written down, and is back with the next part.
+      // being written down, and is back with the next part. Inside a playlist too, where
+      // the card is the playlist's foot, moved in the same way (audit Q10, 2026-10-09):
+      // it stood at the foot of the transcript, far under the picture.
       if (ending && panel) {
         panel = false;
         place();

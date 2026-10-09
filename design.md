@@ -2479,7 +2479,9 @@ film ends; the part ended on "Next part" alone (2026-10-07).
   transcript opens: the foot returns under the transcript.
 - **What stays:** Beside, the foot under the transcript is the end, as before; the last
   part of a recording cut in parts still opens the transcript to its foot, where the
-  library's offer also is; a playlist's end is its own card. The copy is the foot's own
+  library's offer also is; a playlist's end is its own card. Inside a playlist an item's
+  part ends under the picture too, the playlist's foot moved in (audit Q10, 2026-10-09:
+  it stood at the foot of the transcript, far under a tall picture). The copy is the foot's own
   ("Done, and mark 14 words known", "Done without marking"), not new words for the same
   presses.
 
@@ -2865,7 +2867,9 @@ of its own. David chose three changes from mockups on the Kan driving-licence cl
   film, so between two sentences it holds the one just said (the full-screen subtitle
   went dark between lines; that mode is gone). A long line is set smaller rather than run
   off the window. Transcript opens the transcript as a panel at the right and the
-  picture grows smaller for it.
+  picture grows smaller for it; with it open the line being said is the transcript's
+  alone, lit there, and is not set again under the picture (audit Q10, 2026-10-09: an
+  upright video read every line twice).
 - **The switch.** "Beside | Theatre" in the bar, kept per reader (`targum:film-view`),
   like the speed, and `v` turns between them. Listen is not in the bar while the picture
   is up: the row under it plays it.
