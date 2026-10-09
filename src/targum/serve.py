@@ -5070,6 +5070,9 @@ class Handler(BaseHTTPRequestHandler):
         "/build/",
         # A set quoted as one, pressed as one (#365).
         "/set/",
+        # A sentence a search found, which opens its text there (design.md §12, "One
+        # search, everywhere"): a redirect, like `/open/`.
+        "/sentence/",
     )
 
     def _is_a_page(self, route: str) -> bool:
@@ -6740,6 +6743,455 @@ class Handler(BaseHTTPRequestHandler):
                 out[entry.id] = measured.state()
         return out
 
+    #: How many rows one group of a search answers with, and how many a word's sentences
+    #: page shows under each of its two heads. The counts are always the whole.
+    SEARCH_ROWS = 5
+    SEARCH_MOST = 40
+    WORD_SENTENCES = 3
+
+    def _kind_word(self, kind: str, video: bool = False, door: str = "") -> str:
+        """What a text is, in the boards' one word (design.md §12, "A text is named in
+        everyday words", 2026-10-09). A rabbinic text says the door it stands behind —
+        Mishnah, Halakhah — where "prose" would call a tractate Tanakh."""
+        if video:
+            return self._say("home.kind.video", "Video")
+        doors = {"mishnah": "Mishnah", "halakhah": "Halakhah", "thought": "Thought and ethics"}
+        if door in doors:
+            return self._say(f"library.door.{door}", doors[door])
+        words = {
+            "dialogue": "Dialogue",
+            "story": "Story",
+            "article": "News",
+            "novel": "Novel",
+            "essay": "Essay",
+            "talk": "Video",
+            "prose": "Tanakh",
+            "poetry": "Poetry",
+            "document": "Document",
+            "play": "Play",
+            "liturgy": "Prayer",
+        }
+        if kind in words:
+            return self._say(f"library.kind-one.{kind}", words[kind])
+        return self._say("home.kind.text", "Text")
+
+    def _band_word(self, band: str) -> str:
+        return {
+            "now": self._say("library.band.now", "Read it now"),
+            "stretch": self._say("library.band.stretch", "A stretch"),
+            "hard": self._say("library.band.hard", "Hard for now"),
+        }.get(band, "")
+
+    def _search(self, query: dict[str, list[str]]) -> None:
+        """One search, everywhere (design.md §12, "One search, everywhere", 2026-10-09):
+        what a typed line finds in this reader's targums, playlists and subscriptions,
+        in the Library and among their words, grouped and counted.
+
+        `q` is the line, `lang` the language the menu is set to ("all" for every one).
+        Every language is searched, so the page can say how many each holds; the groups
+        are drawn from the asked one. Spelling is folded and a transliteration is looked
+        up (`search.py`). Only what is shown is measured against the reader's words. With
+        no line, the texts they opened last, for the empty overlay's "Opened lately".
+        """
+        from . import catalogue as catalogue_module
+        from . import coverage as coverage_module
+        from . import search as search_module
+
+        person = self._person()
+        if person is None or self.store is None:
+            return self._json({"signedIn": False}, 401)
+
+        def one(name: str) -> str:
+            return str((query.get(name) or [""])[0]).strip()
+
+        line = one("q")[:120]
+        asked = one("lang").split("-")[0].lower() or "he"
+        every = asked == "all"
+        home = self._home()
+        mine = self.library.readers(home)
+        times = self.store.read_times(person.id)
+        ui = self._ui_language()
+
+        def opened(row: dict[str, Any]) -> int:
+            return int(times.get(str(row.get("document") or ""), {}).get("opened", 0))
+
+        def text_row(row: dict[str, Any]) -> dict[str, Any]:
+            uploaded = not row.get("entry")
+            return {
+                "kind": "text",
+                "name": row.get("name"),
+                "entry": row.get("entry") or "",
+                "title": row.get("title") or row.get("name"),
+                "english": row.get("english") or "",
+                "author": row.get("author") or "",
+                "language": row.get("language") or "",
+                "type": row.get("kind") or "",
+                "register": row.get("register") or "",
+                "what": self._kind_word(str(row.get("kind") or ""), bool(row.get("video"))),
+                "words": row.get("words") or 0,
+                "tag": "uploads" if uploaded else "recent",
+                "opened": opened(row),
+                "href": "/reader/" + quote(str(row.get("name"))) + "/reader/index.html",
+            }
+
+        # The languages the scope's menu offers: what the reader learns, Hebrew first.
+        learning = [
+            {"code": code, "name": self._named(code)}
+            for code in sorted(self._learning(person), key=lambda code: (code != "he", code))
+        ]
+        if not line:
+            recent = sorted((row for row in mine if opened(row)), key=opened, reverse=True)
+            return self._json(
+                {
+                    "q": "",
+                    "learning": learning,
+                    "opened": [text_row(row) for row in recent[: self.SEARCH_ROWS]],
+                }
+            )
+
+        match = search_module.Matcher.of(line)
+
+        def language_of(row: dict[str, Any]) -> str:
+            return str(row.get("language") or "").split("-")[0].lower()
+
+        # Your targums: every built text of theirs, the best match first, then the one
+        # opened last.
+        yours = []
+        for row in mine:
+            score = match.score(
+                str(row.get("title") or ""),
+                str(row.get("english") or ""),
+                str(row.get("author") or ""),
+                str(row.get("name") or ""),
+            )
+            if score:
+                yours.append((score, opened(row), row))
+        yours.sort(key=lambda found: (-found[0], -found[1]))
+
+        # The Library: the catalogue, less what is already one of their targums — by its
+        # entry, or by its title where their copy was built from the address itself.
+        have = {str(row.get("entry")) for row in mine if row.get("entry")}
+        titled = {
+            (search_module.title_key(str(row.get("title") or "")), language_of(row)) for row in mine
+        }
+        doors = {
+            member: collection.door
+            for collection in catalogue_module.collections()
+            for member in collection.members
+            if collection.door
+        }
+        library = []
+        for entry in catalogue_module.everything():
+            if entry.id in have:
+                continue
+            if (search_module.title_key(entry.title), entry.language.split("-")[0]) in titled:
+                continue
+            score = match.score(
+                entry.title,
+                entry.english,
+                entry.named.get(ui, ""),
+                entry.author,
+                entry.blurb,
+            )
+            if score:
+                library.append((score, entry))
+        library.sort(key=lambda found: -found[0])
+
+        playlists = [
+            row
+            for row in self.store.playlists(person.id)
+            if match.score(str(row.get("name") or ""))
+        ]
+        subscriptions = [
+            row
+            for row in self.store.subscriptions(person.id)
+            if match.score(str(row.get("name") or ""), str(row.get("key") or ""))
+        ]
+
+        # How many each language holds, for "Search all languages" and its counts.
+        counts: dict[str, int] = {}
+        for _, _, row in yours:
+            counts[language_of(row)] = counts.get(language_of(row), 0) + 1
+        for _, entry in library:
+            code = entry.language.split("-")[0]
+            counts[code] = counts.get(code, 0) + 1
+        for sub in subscriptions:
+            code = str(sub.get("language") or "").split("-")[0]
+            if code:
+                counts[code] = counts.get(code, 0) + 1
+
+        def held(code: str) -> bool:
+            return every or code == asked
+
+        index = coverage_module.read_index(catalogue_module.lemmas_path())
+        vocabulary: dict[str, dict[str, int]] = {}
+
+        def words_of(code: str) -> dict[str, int]:
+            if code not in vocabulary:
+                vocabulary[code] = self.store.marked(person, code)
+            return vocabulary[code]
+
+        def measured(row: dict[str, Any], known: float | None) -> dict[str, Any]:
+            # A band only where the reader has words to measure against: "Hard for now"
+            # said to somebody who has marked nothing is a claim about nobody.
+            if known is not None and words_of(str(row.get("language") or "")):
+                row["known"] = round(known, 4)
+                row["band"] = search_module.band(known)
+                row["bandWord"] = self._band_word(row["band"])
+            return row
+
+        def yours_rows(found: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            self._measure(home, found)
+            return [measured(text_row(row), row.get("known")) for row in found]
+
+        def library_row(entry: Any) -> dict[str, Any]:
+            row = {
+                "kind": "text",
+                "name": entry.id,
+                "entry": entry.id,
+                "title": entry.title,
+                "english": entry.named.get(ui, "") or entry.english,
+                "author": entry.author,
+                "language": entry.language,
+                "type": entry.kind.value,
+                "register": entry.register.value,
+                "what": self._kind_word(
+                    entry.kind.value,
+                    door=doors.get(entry.id, "") if entry.register.value == "rabbinic" else "",
+                ),
+                "words": entry.words,
+                "href": "/open/" + quote(entry.id),
+            }
+            got = index.against(entry.id, words_of(entry.language.split("-")[0]))
+            return measured(row, got.known if got is not None else None)
+
+        shown_yours = [row for _, _, row in yours if held(language_of(row))]
+        shown_library = [entry for _, entry in library if held(entry.language.split("-")[0])]
+        shown_subs = [
+            sub
+            for sub in subscriptions
+            if not sub.get("language") or held(str(sub.get("language")).split("-")[0])
+        ]
+        groups: list[dict[str, Any]] = [
+            {
+                "id": "yours",
+                "count": len(shown_yours),
+                "rows": yours_rows(shown_yours[: self.SEARCH_MOST]),
+            },
+            {
+                "id": "playlists",
+                "count": len(playlists),
+                "rows": [
+                    {
+                        "kind": "playlist",
+                        "name": row.get("first") or "",
+                        "title": row.get("name") or "",
+                        "count": int(row.get("count") or 0),
+                        "by": row.get("made_by") or "",
+                        "href": f"/playlists/{int(row['id'])}",
+                    }
+                    for row in playlists[: self.SEARCH_MOST]
+                ],
+            },
+            {
+                "id": "subscriptions",
+                "count": len(shown_subs),
+                "rows": [
+                    {
+                        "kind": "subscription",
+                        "title": sub.get("name") or sub.get("key") or "",
+                        "language": sub.get("language") or "",
+                        "type": "series",
+                        "what": self._say("palette.kind.series", "Series"),
+                        "state": sub.get("state") or "",
+                        "href": f"/subscriptions/{int(sub['id'])}",
+                    }
+                    for sub in shown_subs[: self.SEARCH_MOST]
+                ],
+            },
+            {
+                "id": "library",
+                "count": len(shown_library),
+                "rows": [library_row(entry) for entry in shown_library[: self.SEARCH_MOST]],
+            },
+        ]
+
+        # Words: a dictionary form the line names. In the language's own letters, any
+        # word on the shelf; in Latin letters, only a word on the reader's own list
+        # (David, 2026-10-08) — a meaning they kept, or a name the table spells.
+        words: list[dict[str, Any]] = []
+        for code in sorted(self._learning(person)) if every else [asked]:
+            marked = self.store.meanings(person, code)
+            lemmas = search_module.matching_words(line, marked)
+            if not lemmas and search_module.script(line) != "la":
+                bare = search_module.fold(line)
+                if bare and " " not in bare and index._position(bare) is not None:
+                    lemmas = [bare]
+            status = words_of(code)
+            meaning = {lemma: said for lemma, said, _ in marked}
+            for lemma in lemmas[:3]:
+                total, texts = index.count_across(lemma)
+                words.append(
+                    {
+                        "kind": "word",
+                        "lemma": lemma,
+                        "language": code,
+                        "meaning": meaning.get(lemma, ""),
+                        "stage": status.get(lemma),
+                        "sentences": total,
+                        "texts": texts,
+                    }
+                )
+        groups.append({"id": "words", "count": len(words), "rows": words})
+
+        # The language with most elsewhere, a few of its rows: the board's "10 more in
+        # Russian", under a search held to one language that found little in it.
+        elsewhere: dict[str, Any] = {}
+        if not every:
+            others = sorted(
+                ((n, code) for code, n in counts.items() if code and code != asked),
+                reverse=True,
+            )
+            if others:
+                n, code = others[0]
+                rows = [text_row(row) for _, _, row in yours if language_of(row) == code][:4]
+                rows += [
+                    library_row(entry)
+                    for _, entry in library
+                    if entry.language.split("-")[0] == code
+                ][: 4 - len(rows)]
+                elsewhere = {"language": code, "name": self._named(code), "count": n, "rows": rows}
+
+        self._json(
+            {
+                "q": line,
+                "learning": learning,
+                "language": "all" if every else asked,
+                "name": "" if every else self._named(asked),
+                "languages": [
+                    {"code": code, "name": self._named(code), "count": n}
+                    for code, n in sorted(counts.items(), key=lambda kv: -kv[1])
+                    if code
+                ],
+                "groups": groups,
+                "elsewhere": elsewhere,
+            }
+        )
+
+    def _search_word(self, query: dict[str, list[str]]) -> None:
+        """Texts with this word (design.md §12, "One search, everywhere"): every sentence
+        on the reader's shelf and on the shared one where a dictionary form comes round,
+        counted, and the first few of each — read off each text's own annotation, by
+        `tools.sentences_in`, the connector's `sentences_with` underneath. Spends nothing."""
+        from . import search as search_module
+        from .chat.tools import sentences_in
+
+        person = self._person()
+        if person is None or self.store is None:
+            return self._json({"signedIn": False}, 401)
+        lemma = str((query.get("lemma") or [""])[0]).strip().lower().replace("\u0301", "")
+        language = str((query.get("lang") or [""])[0]).split("-")[0].lower()
+        if not lemma:
+            return self._json({"error": "no word"}, 400)
+        home = self._home()
+        found: dict[str, dict[str, Any]] = {}
+        forms: list[str] = []
+        for where, rows in (("yours", self.library.readers(home)), ("library", None)):
+            shelf = self.library.readers(self.library.shared) if rows is None else rows
+            folder = home if rows is not None else self.library.shared
+            texts: set[str] = set()
+            kept: list[dict[str, Any]] = []
+            count = 0
+            for hit in sentences_in(((folder, shelf),), lemma, language):
+                count += 1
+                texts.add(hit["name"])
+                for form in hit["forms"]:
+                    if form not in forms:
+                        forms.append(form)
+                # One sentence a text, so the few shown are from as many texts as there
+                # are: three lines of one novel say less than one line each of three.
+                if len(kept) < self.WORD_SENTENCES and all(
+                    hit["name"] != was["name"] for was in kept
+                ):
+                    kept.append(hit)
+            measuring = [hit["row"] for hit in kept]
+            self._measure(folder, measuring)
+            sentences = []
+            for hit in kept:
+                row = hit["row"]
+                one: dict[str, Any] = {
+                    "sentence": hit["sentence"],
+                    "forms": hit["forms"],
+                    "title": hit["title"],
+                    "name": hit["name"],
+                    "entry": row.get("entry") or "",
+                    "language": row.get("language") or "",
+                    "type": row.get("kind") or "",
+                    "what": self._kind_word(str(row.get("kind") or ""), bool(row.get("video"))),
+                    "author": row.get("author") or "",
+                    "href": "/sentence/"
+                    + quote(hit["name"])
+                    + "?at="
+                    + quote(hit["segment"])
+                    + ("&shared=1" if rows is None else ""),
+                }
+                known = row.get("known")
+                if known is not None:
+                    one["known"] = known
+                    one["band"] = search_module.band(known)
+                sentences.append(one)
+            found[where] = {"count": count, "texts": len(texts), "sentences": sentences}
+        meaning = ""
+        stage = None
+        if language:
+            for said_lemma, said, status in self.store.meanings(person, language):
+                if said_lemma == lemma:
+                    meaning, stage = said, status
+                    break
+        self._json(
+            {
+                "lemma": lemma,
+                "language": language,
+                "meaning": meaning,
+                "stage": stage,
+                "forms": forms[:8],
+                "sentences": found["yours"]["count"] + found["library"]["count"],
+                "texts": found["yours"]["texts"] + found["library"]["texts"],
+                "yours": found["yours"],
+                "library": found["library"],
+            }
+        )
+
+    def _sentence(self, name: str) -> None:
+        """Open a text at one sentence: the page of the reader that holds it, at its id
+        (`reader.js` goes to a pair named by the address). Looked for in the reader's own
+        home, or the shared shelf with `shared=1`; a folder or a sentence that is not
+        there opens the text, or Your targums, rather than a 404."""
+        query = parse_qs(urlparse(self.path).query)
+        at = str((query.get("at") or [""])[0])
+        folder_name = unquote(name).strip("/")
+        if not folder_name or "/" in folder_name or folder_name.startswith("."):
+            return self._sent_on("/")
+        shared = (query.get("shared") or [""])[0] == "1"
+        root = self.library.shared if shared else self._home()
+        reader = root / folder_name / "reader"
+        key = (query.get("k") or [""])[0]
+        tail = f"?k={quote(key)}" if key else ""
+        if not reader.is_dir():
+            return self._sent_on("/" + tail)
+        page = "index.html"
+        needle = f'data-id="{at}"'
+        if at:
+            for candidate in sorted(reader.glob("sec-*.html")):
+                try:
+                    if needle in candidate.read_text(encoding="utf-8"):
+                        page = candidate.name
+                        break
+                except OSError:
+                    continue
+        where = f"/reader/{quote(folder_name)}/reader/{page}{tail}"
+        self._sent_on(where + (f"#{quote(at)}" if at else ""))
+
     def _health(self) -> None:
         """Whether the process is alive and can still reach the one file that matters.
 
@@ -7146,6 +7598,8 @@ class Handler(BaseHTTPRequestHandler):
                     "/tanakh-map.json",
                     "/portions",
                     "/offline.json",
+                    # One search's answers (design.md §12, "One search, everywhere").
+                    "/search",
                 )
             ):
                 return self._json(
@@ -7359,6 +7813,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._playlist_end(route[len("/playlists/") : -len("/end.json")])
         if route.startswith("/playlists/") and route.endswith(".json"):
             return self._playlists_get(route[len("/playlists/") : -len(".json")])
+        if route == "/search.json":
+            return self._search(parse_qs(urlparse(self.path).query))
+        if route == "/search/word.json":
+            return self._search_word(parse_qs(urlparse(self.path).query))
+        if route.startswith("/sentence/"):
+            return self._sentence(route[len("/sentence/") :])
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()

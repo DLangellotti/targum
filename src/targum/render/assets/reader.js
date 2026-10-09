@@ -8559,7 +8559,16 @@ var targumReader = function () {
   function verseInHash() {
     var found = /^#(\d+)[:.](\d+)$/.exec(location.hash);
     var pair = found ? document.getElementById(found[1] + ":" + found[2]) : null;
-    return pair && pair.classList.contains("pair") ? pair : null;
+    if (pair && pair.classList.contains("pair")) return pair;
+    // Or a sentence by its id: where search's "Open at this sentence" lands (design.md
+    // §12, "One search, everywhere", 2026-10-09), through `/sentence/`.
+    var named = "";
+    try {
+      named = decodeURIComponent(location.hash.slice(1));
+    } catch (e) {
+      named = "";
+    }
+    return (named && pairBySegment[named]) || null;
   }
 
   function arrive() {

@@ -272,6 +272,16 @@ THUMBED = (
     ".account > button",
     ".palette-open",
     ".palette-row",
+    # And the one search's own presses (design.md §12, "One search, everywhere",
+    # 2026-10-09): a result, a recent search's ×, the field's ×, the way back on a phone,
+    # the language it searches in and each of its rows, and the level.
+    ".palette-hit",
+    ".palette-drop",
+    ".palette-clear",
+    ".palette-back",
+    ".palette-lang",
+    ".palette-lang-row",
+    ".palette-level-pick",
     # (The row of doors above Learn's sheet and its subscriptions menu went with Learn,
     # design.md §12, 2026-10-08.)
     # And the door that makes a silent section's audio (2026-09-10, #246).

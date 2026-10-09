@@ -1164,10 +1164,11 @@ is browsed, not looked up" (2026-09-17).
 - **See all is the one list, under that band**, with every filter, sort and shape it had,
   and "← Library" back to the shelves. A band there is exactly itself: "a step up" no
   longer includes what can be read now, which has its own shelf. A search typed over the
-  shelves opens the whole list, unbanded. `#see` and `#see/<band>` are addresses; a text's
+  shelves opens the whole list, unbanded *(until 2026-10-09: it opens the one search now)*. `#see` and `#see/<band>` are addresses; a text's
   own and `#bm` open what they always opened.
 - **The search box and its fold stay as they were** until search has its own slice; what
-  the fold narrows, the shelves narrow too. The Weekly portion stands among the shelves,
+  the fold narrows, the shelves narrow too. *(The box is the one search since
+  2026-10-09, opened held to the Library — "One search, everywhere".)* The Weekly portion stands among the shelves,
   not over a See all list.
 - **Every picture in the Library comes through `?drawn=1`** ("Every text has a picture",
   2026-10-08), on the shelves, the cards and the table: the Library draws no letter of its

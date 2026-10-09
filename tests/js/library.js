@@ -108,6 +108,13 @@ global.fetch = (address) =>
       ),
   });
 
+/* The one search (design.md §12, "One search, everywhere", 2026-10-09): the Library's box
+   opens it rather than narrowing the list, so what it was opened with is what a test reads. */
+const searched = [];
+global.TargumPalette = global.window.TargumPalette = {
+  show: (on, options) => searched.push(Object.assign({ on: on }, options || {})),
+};
+
 require(path.join(assets, "strings.js"));
 require(path.join(assets, "charts.js"));
 require(path.join(assets, "scenes.js"));
@@ -357,6 +364,7 @@ setTimeout(() => {
         return head ? { text: head.textContent.trim(), disabled: head.getAttribute("aria-disabled") === "true" } : null;
       })(),
       find: byId["find"].value || "",
+      searched,
       // The Beit Midrash: the tabs on offer, the doors drawn, the trail, and the address.
       tabs: byId["where"].children.map((c) => c.textContent),
       doors,

@@ -50,13 +50,13 @@
     <p class="chips-label" id="subject-label">{{ t("library.page.what-its-about", "What it's about") }}</p>
     <div class="chips subjects" id="subject-chips" role="group" aria-label="{{ t("library.page.what-its-about", "What it's about") }}"></div>
 
-    {#- The controls are the page. A library of a hundred texts is only as good as the
-        speed of getting to the one you want, so they sit above the list and act on it
-        as you type. -#}
+    {#- The search box is the one search, opened already held to the Library (design.md
+        §12, "One search, everywhere", 2026-10-09): pressing it opens the search over the
+        page, where it narrowed this list in place until that day. -#}
     <div class="sift">
       <input
         id="find" class="well find" type="search" dir="auto" autocomplete="off" spellcheck="false"
-        placeholder="{{ t("library.page.search-a-title-hebrew-or-english", "Search titles in Hebrew or English") }}" aria-label="{{ t("library.page.search-the-library", "Search the library") }}">
+        placeholder="{{ t("library.page.search-box", "Search the Library") }}" aria-label="{{ t("library.page.search-box", "Search the Library") }}" aria-haspopup="dialog" aria-controls="palette">
       {#- The Hebrew of the Mishnah, of Maimonides, of Mendele and of this morning's paper
           are not four genres, they are close to four languages, and which one somebody is
           learning is the first question this page asks. A switch with its own label rather
@@ -144,7 +144,6 @@ window.TARGUM_SETS = {{ sets|tojson }};
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
-<script>{{ asset('covers.js') }}</script>
 <script>{{ asset('library.js') }}</script>
 </body>
 </html>

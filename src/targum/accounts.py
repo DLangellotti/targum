@@ -3909,6 +3909,18 @@ class Store:
         )
         return {row["lemma"]: row["status"] for row in rows if row["status"] is not None}
 
+    def meanings(self, person: Person, language: str) -> list[tuple[str, str, int | None]]:
+        """Every word this person keeps in one language, with the meaning they wrote for
+        it and how well they know it: what search meets English against, since an
+        English line finds a word only on the reader's own list (design.md §12, "One
+        search, everywhere", 2026-10-09)."""
+        rows = self.db.execute(
+            "SELECT lemma, meaning, status FROM word WHERE person = ? AND language = ?"
+            " AND gone = 0",
+            (person.id, language.split("-")[0].lower()),
+        )
+        return [(str(row["lemma"]), str(row["meaning"] or ""), row["status"]) for row in rows]
+
     def counts(self, person: Person) -> dict[str, int]:
         """What someone has, for the sake of saying so on the page."""
         out = {}
