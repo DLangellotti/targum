@@ -975,6 +975,9 @@
     becomes Next. English chrome in a page that may run right to left, so it carries its own
     direction. -#}
 <div class="foot" id="foot" dir="ltr">
+  {#- Named, as board ReaderTheatreEnd names it (design.md §12, "The reader's chrome is
+      the desk's", 2026-10-09): the foot is a card that says which end this is. -#}
+  <h2 class="foot-title">{% if standalone %}{{ t("reader.film.end", "The end") }}{% elif by_part %}{{ t("reader.film.end-of-part", "End of part {n} of {count}", n=section.number, count=section_count) }}{% else %}{{ t("reader.foot.end-of-chapter", "End of chapter {n} of {count}", n=section.number, count=section_count) }}{% endif %}</h2>
   <div class="finished" id="finished" hidden>
     <span id="done-said" hidden></span>
     <button type="button" class="undo" id="done-undo">{{ t("reader.finish.undo", "Undo") }}</button>

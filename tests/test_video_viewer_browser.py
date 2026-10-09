@@ -85,12 +85,29 @@ BOXES = """
 FIRST_LINE = "#reader .pair.voiced"
 
 
-def film_open(browser, built: Path, viewport=None, view: str | None = None):  # noqa: F811
-    """A reader with its picture up, standing `view` way if one is given."""
+def film_open(
+    browser,  # noqa: F811
+    built: Path,
+    viewport=None,
+    view: str | None = None,
+    panel: bool | None = None,
+):
+    """A reader with its picture up, standing `view` way if one is given.
+
+    Theatre opens with the transcript in a column at the right since 2026-10-09 (design.md
+    §12, "The reader's chrome is the desk's"). A test of the picture's own size in Theatre
+    asks for it put away, as a reader who closed it once has it (`panel=False`, the default
+    when `view` is Theatre); `panel=True` opens it as a new reader finds it."""
     context = opened(browser, viewport)
     if view:
         context.add_init_script(
             f"try {{ localStorage.setItem('targum:film-view', '{view}'); }} catch (e) {{}}"
+        )
+    if panel is None:
+        panel = view != "theatre"
+    if not panel:
+        context.add_init_script(
+            "try { localStorage.setItem('targum:film-panel', '0'); } catch (e) {}"
         )
     page = context.new_page()
     page.goto(address(built))
@@ -156,8 +173,8 @@ def test_the_switch_is_kept_for_the_reader_not_for_the_text(browser, tmp_path) -
         seen = page.evaluate(FILM)
         assert seen["theatre"] and seen["pressed"] == ["theatre"], seen
         assert seen["stored"] == "theatre", seen
-        assert not seen["transcript"], "the transcript waits behind its press"
-        assert page.locator("#film-sub").is_visible(), "the line is under the picture"
+        # The transcript in a column at the right, as a new reader finds Theatre.
+        assert seen["panel"] and seen["transcript"], seen
 
         page.reload()
         page.wait_for_selector("#video:not([hidden])")
@@ -172,6 +189,34 @@ def test_the_switch_is_kept_for_the_reader_not_for_the_text(browser, tmp_path) -
         page.keyboard.press("v")
         seen = page.evaluate(FILM)
         assert seen["beside"] and seen["stored"] == "beside", seen
+    finally:
+        context.close()
+
+
+def test_theatre_opens_with_the_transcript_at_the_right_until_it_is_put_away(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """Board PlaylistSwipeDesk: Theatre's transcript is a column at the right with its ×.
+    Put away, it stays away on this device; the press brings it back."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(browser, built, view="theatre", panel=True)
+    try:
+        seen = page.evaluate(FILM)
+        assert seen["theatre"] and seen["panel"] and seen["transcript"], seen
+        at = page.evaluate(BOXES, {"picture": ".film-frame", "line": FIRST_LINE})
+        assert at["line"]["left"] >= at["picture"]["right"], at
+        page.click(".film-panel-close")
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        seen = page.evaluate(FILM)
+        assert seen["theatre"] and not seen["panel"], "put away, it stays away"
+        page.click(".film-transcript")
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(FILM)["panel"], "and the press brings it back for good"
     finally:
         context.close()
 

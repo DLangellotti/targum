@@ -935,6 +935,41 @@ goes past those calls:
 What it does not overturn: nothing on home spends, no streaks and no counts to beat, and
 a brand-new reader still sees the one line, the one to start with and the upload.
 
+### The word card, the end of a part and Theatre are the boards' — 2026-10-09
+
+The second half of P7, after "The reader's chrome is the desk's" (below). Boards
+WordCardDesk, WordCardPhone, ReaderTheatreEnd and PlaylistSwipeDesk.
+
+- **The word card.** At the card's white on the floating shadow, no border: the word
+  large (twice the card's size), the meaning under it, then **what the word is here** in
+  a wash line that says so ("Here: noun · f · accusative"), then the reading, the form,
+  the verb's root and binyan and where it was met, as before, quieter. The stage control
+  is a step larger and **the word said is a 40px press at its end**, where the board puts
+  it. The copy keys wait for the pointer, as they do in a row. **Your own meaning is
+  folded** behind "Add your meaning" until a reader writes one, since the board draws no
+  field; a meaning written shows as it did. Ask stays, under a hairline, as it was.
+- **On a phone the card is a sheet on a dimmed page**, the sheet's corners, its handle,
+  and a × at its start. The dim is the sheet's own shadow, so a press on the page still
+  reaches the page and puts the card away, as before.
+- **The end of a part is a card.** "End of chapter 2 of 19" (of part, in a text cut in
+  parts; "The end" on a text of one), the words its press would mark **shown as chips with
+  their meanings**, four and "+N more", where #677 folded them behind "Show them"; then the
+  press in teal and the plain finish beside it as a line press, one line under it on a
+  phone. The same card under a large picture. The press keeps its words ("Done, and mark
+  12 words known"), because a press says what it does; the board's "Mark them known and
+  finish" is the same press with the count moved to the question.
+- **Where the card does not fit beside the last line**, it has the last page to itself,
+  and the walk with the arrows turns to that page before it leaves for the next chapter.
+  The door's room under it (9rem, for the player) is not doubled when the credits stand
+  under it with their own.
+- **Theatre opens with the transcript in a column at the right**, "Transcript" and its ×,
+  as board PlaylistSwipeDesk draws it; put away, it stays away on this device, and the
+  press brings it back. At the end of a part the column steps aside for the end card
+  without the choice being written down.
+
+What it does not change: what the card knows and asks, the five stages, the walk's keys,
+what the press marks, and the playlist's own end.
+
 ### The reader's chrome is the desk's — 2026-10-09
 
 P7 of the polish plan, carrying out the ruling in "The boards are the desk" (the same
