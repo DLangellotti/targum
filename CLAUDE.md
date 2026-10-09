@@ -178,6 +178,13 @@ wrong. There is; it is just not in the environment of a fresh shell.
   `CHAT_BUDGET` and the eight hours, and still no second counter. Everything else holds:
   a build needs its own press, the model cannot press anything, and a quote is
   information. Do not widen this to a second tool without an entry in §12 first.
+- **A subscription's monthly cap is the second** (2026-10-09, design.md §12). A YouTube
+  channel or a podcast subscribed to builds each new item by itself, as a `job` row of
+  kind `subscription` through `Library.press` and so `Library.claim`, inside a cap in
+  credits the reader chose on targum's own confirm page — never set by a model:
+  `quote_subscription` returns that page's link and nothing else. The month's use is the
+  subscription's own job rows, so there is still no second counter. Nothing a series or a
+  news topic brings spends; their items are links with a press each.
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.
