@@ -485,7 +485,9 @@ def test_a_refused_upload_says_what_the_server_said_not_check_your_connection() 
     caught = press[press.index("    prepared\n") :][:1800]
     assert ".catch(function (why)" in caught
     assert 'typeof why === "string"' in caught
-    assert caught.index('typeof why === "string"') < caught.index('t("add.unreachable"')
+    # A sentence goes under the box; anything else is the connection's banner
+    # (design.md §12, 2026-10-09), and the string is asked about first.
+    assert caught.index('typeof why === "string"') < caught.index("unreachable(")
     bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
     assert "if (opened.error) throw opened.error;" in bring, "the door rejects with its sentence"
 

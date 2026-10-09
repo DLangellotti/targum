@@ -85,6 +85,25 @@
     status.className = "status" + (bad ? " bad" : "");
     status.innerHTML = "";
     status.appendChild(html);
+    // A refusal's first line wears the clay mark and stays ink (design.md §12,
+    // 2026-10-09): it was a clay sentence.
+    var first = bad && status.querySelector("p");
+    if (first) first.classList.add("fault-marked");
+  }
+
+  /* What the box was given can't be used: said under the box, the box outlined, focus
+     left in it (design.md §12, 2026-10-09). The card under the box steps aside, since
+     the refusal is about what is in the box and not about anything priced. */
+  function refuseBox(text) {
+    if (!window.TargumFault) return say(line(text), true);
+    status.hidden = true;
+    window.TargumFault.field(given, text, drop);
+  }
+
+  /* targum out of reach: the connection's banner, whose Try again presses again. */
+  function unreachable(again) {
+    status.hidden = true;
+    if (window.TargumFault) window.TargumFault.unreachable(again);
   }
 
   function line(text) {
@@ -1312,6 +1331,7 @@
     found = null;
 
     go.disabled = true;
+    if (window.TargumFault) window.TargumFault.clear(given);
     say(waiting());
 
     /* Whatever the reader gave, and then — if they brought a translation — that too,
@@ -1466,14 +1486,10 @@
         // wifi. `bringing.upload` rejects with the server's `error`, a string; a failed
         // fetch or a file the browser could not read rejects with an object. The post
         // form below already told the two apart (copy audit, 2026-09-28).
-        say(
-          line(
-            typeof why === "string"
-              ? why
-              : t("add.unreachable", "We can't reach targum. Check your connection and try again.")
-          ),
-          true
-        );
+        if (typeof why === "string") return refuseBox(why);
+        unreachable(function () {
+          go.click();
+        });
       });
   };
 
@@ -1870,7 +1886,7 @@
         why.appendChild(way);
         return say(why, true);
       }
-      return say(line(job.error), true);
+      return posted ? say(line(job.error), true) : refuseBox(job.error);
     }
     var box = document.createDocumentFragment();
     box.appendChild(line(job.error));
@@ -2102,7 +2118,11 @@
         })
         .catch(function (why) {
           // A sentence the upload door said, or else the connection.
-          stop(typeof why === "string" ? why : t("add.unreachable", "We can't reach targum. Check your connection and try again."));
+          if (typeof why === "string") return stop(why);
+          sending.disabled = false;
+          unreachable(function () {
+            sending.click();
+          });
         });
     };
   })();

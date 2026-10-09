@@ -31,7 +31,7 @@ MAX_STEPS = 8
 TURN_DEADLINE_S = 240.0
 
 #: What the reader is told about a turn that ran out of time.
-TURN_TOO_LONG = "We took too long to answer that. Try again."
+TURN_TOO_LONG = "We took too long to answer that."
 
 #: Threads answering turns. Their own pool rather than `Library.queue`: a turn behind a
 #: novel is a broken chat, and a novel behind a turn is a broken build. Capped, because

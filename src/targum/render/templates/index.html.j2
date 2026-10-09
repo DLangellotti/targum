@@ -96,6 +96,7 @@
 </main>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('fault.js') }}</script>
 <script>{{ asset('contents.js') }}</script>
 </body>
 </html>

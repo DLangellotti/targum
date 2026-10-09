@@ -53,13 +53,19 @@
     });
   }
 
-  function say(where, message, bad) {
+  function say(where, message, bad, again) {
     var node = at(where);
     node.hidden = !message;
     node.textContent = message || "";
-    // §4 gives errors to --clay. Without this an error and "Saved." were the same
-    // sentence in the same ink, and the only way to tell them apart was to read them.
+    // An error and "Saved." were the same sentence in the same ink, and the only way to
+    // tell them apart was to read them. A refusal is a line with the clay mark, and Try
+    // again where there is something to try again (design.md §12, 2026-10-09); it was a
+    // sentence in clay.
     node.classList.toggle("bad", !!bad);
+    if (bad && message && window.TargumFault) {
+      node.textContent = "";
+      node.appendChild(window.TargumFault.line(message, "", again || null, true));
+    }
   }
 
   function grouped(count) {
@@ -622,8 +628,12 @@
           press.disabled = false;
           say(
             "you-ending-said",
-            t("you.forget.unreachable", "We couldn't reach targum, so nothing was deleted. Try again."),
-            true
+            t("you.forget.unreachable", "We couldn't reach targum, so nothing was deleted."),
+            true,
+            function () {
+              say("you-ending-said", "");
+              press.click();
+            }
           );
         });
     });

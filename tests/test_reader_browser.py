@@ -1159,6 +1159,127 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     context.close()
 
 
+#: The word card's refusal, as `fault.js` draws it: the sentence, its button, and
+#: whether the look-up button it stands in for is out of sight.
+FAULT_IN_CARD = """
+() => {
+  const card = document.getElementById('gloss-card');
+  const line = card && card.querySelector('.fault-line');
+  if (!line) return null;
+  const ask = card.querySelector('.look-up');
+  return {
+    said: line.querySelector('.fault-said').textContent,
+    act: (line.querySelector('.fault-act') || {}).textContent || "",
+    askHidden: !!ask && ask.hidden,
+    ink: getComputedStyle(line).color,
+    mark: getComputedStyle(line.querySelector('.fault-icon')).stroke,
+  };
+}
+"""
+
+
+def test_a_look_up_that_fails_is_a_line_with_try_again(browser, built: Path) -> None:
+    """design.md §12, "A refusal is drawn on one of five surfaces" (2026-10-09). The
+    server's sentence stood under the button as a caveat, and the button beside it asked
+    nothing, because the refused answer was still held. It is a line in the card now: the
+    sentence in ink with the clay mark, and Try again, which really asks again."""
+    html = built.read_text(encoding="utf-8")
+    bought: list[str] = []
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/gloss" in request.url:
+            if request.post_data_json.get("free"):
+                body: dict = {"meaning": None}
+            else:
+                bought.append(request.url)
+                if len(bought) == 1:
+                    body = {"error": "We couldn't look this word up."}
+                    route.fulfill(
+                        status=502, content_type="application/json", body=json.dumps(body)
+                    )
+                    return
+                body = {"meaning": MEANING, "grounded": True}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair")
+    page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    page.eval_on_selector(".look-up", "button => button.click()")
+    page.wait_for_selector("#gloss-card .fault-line")
+    refused = page.evaluate(FAULT_IN_CARD)
+    page.click("#gloss-card .fault-act")
+    page.wait_for_timeout(300)
+    after = page.evaluate(CARD)
+    context.close()
+
+    assert refused["said"] == "We couldn't look this word up."
+    assert refused["act"] == "Try again" and refused["askHidden"]
+    assert refused["ink"] == "rgb(28, 26, 23)", "the sentence is ink, never clay"
+    assert refused["mark"] == "rgb(180, 85, 63)", "the mark is clay"
+    assert len(bought) == 2, "Try again asked once more"
+    assert after == {"meaning": MEANING, "asking": False}
+
+
+def test_targum_out_of_reach_is_a_band_under_the_bar(browser, built: Path) -> None:
+    """The connection's banner (2026-10-09): one band under the reader's bar that says
+    the page stays open, with no ×, and whose Try again asks again. The look-up that
+    could not reach targum used to say nothing at all."""
+    html = built.read_text(encoding="utf-8")
+    asked: list[str] = []
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/gloss" in request.url:
+            if request.post_data_json.get("free"):
+                route.fulfill(status=200, content_type="application/json", body='{"meaning": null}')
+                return
+            asked.append(request.url)
+            if len(asked) == 1:
+                route.abort()
+                return
+            body = {"meaning": MEANING, "grounded": True}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair")
+    page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    page.eval_on_selector(".look-up", "button => button.click()")
+    page.wait_for_selector("#fault-banner:not([hidden])")
+    band = page.evaluate(
+        """() => {
+          const band = document.getElementById('fault-banner');
+          const bar = document.querySelector('body > header.bar');
+          return {
+            said: band.querySelector('.fault-said').textContent,
+            buttons: [...band.querySelectorAll('button')].map((b) => b.textContent),
+            underBar: band.previousElementSibling === bar,
+            top: Math.round(band.getBoundingClientRect().top),
+            barBottom: Math.round(bar.getBoundingClientRect().bottom),
+          };
+        }"""
+    )
+    page.click("#fault-banner .fault-act")
+    page.wait_for_timeout(400)
+    hidden = page.evaluate("() => document.getElementById('fault-banner').hidden")
+    context.close()
+
+    assert band["said"] == "We can't reach targum. This page stays open."
+    assert band["buttons"] == ["Try again"], "one way on, and no ×"
+    assert band["underBar"] and band["top"] == band["barBottom"]
+    assert len(asked) == 2 and hidden
+
+
 #: A card's answer in the conversation's shape: the Hebrew, then "= " and its English.
 HEBREW_ANSWER = "הַצּוּרָה הִיא רַבִּים.\n= Plural."
 

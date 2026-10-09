@@ -353,6 +353,63 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A refusal is drawn on one of five surfaces — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards ErrorSystem, ErrorCatalogDesk,
+ErrorCatalogPhone and NotFound). The copy came first, in "Refusals say what to do next"
+below; this is where it goes. Every refusal is one of five things, drawn once in
+`reader.css` (`.fault-*`) and by `fault.js`, and a page uses those rather than its own:
+
+- **Under a field**, for what was typed, pasted or dropped and can't be used: the field
+  outlined in clay, focus left in it, one line under it. Typing again takes the outline
+  away.
+- **A line in a card**, for one small thing failing inside a word card, a row, a menu or a
+  turn of the conversation: one ink line, a clay icon before it, and a teal text button
+  after it, usually Try again.
+- **A panel in place**, where the thing the reader came for can't happen now (a part, the
+  voice, a build, the conversation, credits): the sentence, one teal button, and an
+  optional quiet line of what still works.
+- **A connection banner**, only for targum being out of reach: one band under the top bar,
+  a crossed-out cloud, "We can't reach targum. This page stays open." and Try again. It
+  sits in the flow under the bar, so it never covers text, and it has no ×: it goes when
+  targum answers again.
+- **A whole page**, for an address with nothing at it, a link that has expired and an
+  account being closed: the top bar, a heading in the reading serif, one sentence, one
+  button.
+
+What this departs from, and why:
+
+- **Clay is only ever an icon or an outline.** §4 lets clay be text at its working cut,
+  and refusals used it that way: a clay sentence under the box, in the account panel, in
+  the playlist menu. On the board the sentence is ink and the clay is the mark beside it,
+  because a refusal is something to read, and a sentence in clay is read as a warning
+  before it is read as words. §4's own note still holds: the words carry it, never the
+  colour.
+- **Try again is teal inside the reader too.** §13 leaves the brown to the reader, and the
+  word card and the player are the reader's. But a teal thing is always a control (§13),
+  and a refusal's way on is the same control wherever it stands, so it does not change
+  colour at the reader's edge.
+- **A whole page's one button is filled teal**, not the ink of §9's calls to action. Go to
+  the library and Email us are a way back, not a door in; the sign-in page's own Send a
+  link stays ink.
+- **The 404 has the desk's top bar.** It stood in the holding page's frame, the mark alone
+  on the ground with Sign in in a corner (2026-09-14). An address with nothing at it is
+  most often met from inside, by somebody following an old link, and the top bar is how
+  the board keeps them somewhere. A stranger sees the same bar, with Sign in where the
+  account would be.
+- **Top up is drawn and greyed.** The out-of-credits panels carry a Top up button that
+  cannot be pressed, with "Payments open soon" beside it, until a payment provider is
+  chosen. The sentence already names Top up (the entry below), and a name with nothing
+  drawn behind it read as a promise; a greyed button with the reason beside it reads as a
+  date.
+- **The action leaves the sentence once it has a control.** "Until a surface is built, the
+  sentence keeps its action" (below) is now spent where the surface exists: "Try again" in
+  a sentence beside a Try again button is said twice, and "the library still opens" moves
+  into the panel's quiet line.
+
+What it does not overturn: offline. "You're offline" and the saved-for-offline lines are
+their own slice and are not drawn here; the banner says only that targum is out of reach.
+
 
 ### Your Progress is a story in three parts — 2026-10-09
 

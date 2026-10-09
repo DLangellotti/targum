@@ -47,10 +47,17 @@
   var signedIn = panel.querySelector(".signed-in");
 
   function say(message, showing, bad) {
+    if (window.TargumFault && field) window.TargumFault.clear(field);
     said.hidden = !message;
     said.textContent = message || "";
     said.classList.toggle("bad", !!bad);
     if (showing) show(true);
+    // A refusal about the address is said under its field, which keeps the focus
+    // (design.md §12, 2026-10-09); it was a clay line under the form.
+    if (bad && message && window.TargumFault && field && !signedOut.hidden && !panel.hidden) {
+      said.hidden = true;
+      window.TargumFault.field(field, message);
+    }
   }
 
   function show(showing) {

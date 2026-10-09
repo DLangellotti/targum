@@ -99,6 +99,14 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
   outline: 0;
   box-shadow: inset 0 0 0 2px var(--teal);
 }
+/* An address we couldn't use (design.md §12, 2026-10-09): the well outlined in clay, and
+   the line under it takes the gap the well kept before the button. */
+.gate input[type="email"].fault-field,
+.gate input[type="email"].fault-field:focus-visible {
+  margin-block-end: 0;
+  box-shadow: inset 0 0 0 2px var(--clay);
+}
+.gate .fault-under { margin-block: 0.5rem 0.75rem; }
 
 /* The one call to action on the page, so it is ink (§9): the max-contrast pair.
 
@@ -153,7 +161,6 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
 }
 
 .gate .sent { margin-block-start: 1rem; margin-block-end: 0; color: var(--ink); }
-.gate .sent.bad { color: var(--clay); }
 .gate .sent[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -299,3 +306,21 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
 @media (hover: none) and (pointer: coarse) {
   .gate .set-items li { min-block-size: 44px; }
 }
+
+/* A whole page (design.md §12, 2026-10-09): the link that has expired and the account
+   being closed. The heading takes the reading serif and the sentence is ink, as the
+   board draws them; the card around them is still the door. */
+.gate .door.whole { text-align: center; }
+.gate .door.whole h1 {
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.gate .door.whole .said {
+  color: var(--ink);
+  font-size: 1.0625rem;
+}
+.gate .door.whole form { text-align: start; }
+.gate .trouble.fault-panel { margin-block-end: 1.25rem; }

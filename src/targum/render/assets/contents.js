@@ -17,6 +17,12 @@ function spends() {
   return window.TargumStrings.t("contents.uses-no-credits", "Uses none of your credits");
 }
 
+/* targum out of reach: the connection's banner under the top of the page (`fault.js`;
+   design.md §12, 2026-10-09), whose Try again runs `retry`. */
+function unreachable(retry) {
+  if (window.TargumFault) window.TargumFault.unreachable(retry);
+}
+
 /* The parts of a recording a row holds, as the page writes them on `data-parts`. */
 function partsOf(row) {
   return (row.getAttribute("data-parts") || "").split(" ").filter(Boolean);
@@ -293,8 +299,13 @@ function partsOf(row) {
             watch(job.id, get);
           })
           .catch(function () {
+            // The connection's banner, not the button's label (design.md §12,
+            // 2026-10-09): the button goes back to what it was, and Try again presses it.
             get.disabled = false;
-            get.textContent = t("contents.unreachable", "We can't reach targum. Try again.");
+            get.textContent = t("contents.translate", "Translate");
+            unreachable(function () {
+              get.click();
+            });
           });
       };
       row.appendChild(get);
@@ -392,8 +403,11 @@ function partsOf(row) {
         })
         .catch(function () {
           clearInterval(timer);
-          button.disabled = false;
-          button.textContent = t("contents.unreachable", "We can't reach targum. Try again.");
+          // Still building, as far as anybody knows: the banner says the connection
+          // went, and Try again goes back to watching rather than starting it twice.
+          unreachable(function () {
+            watch(id, button);
+          });
         });
     }, 1500);
   }
@@ -454,6 +468,8 @@ function partsOf(row) {
     cost.hidden = !cost.textContent;
   }
 
+  var pressLabel = press.textContent;
+
   press.onclick = function () {
     press.disabled = true;
     press.textContent = t("contents.preparing", "Preparing…");
@@ -490,13 +506,19 @@ function partsOf(row) {
             .catch(function () {
               clearInterval(timer);
               press.disabled = false;
-              press.textContent = t("contents.unreachable", "We can't reach targum. Try again.");
+              press.textContent = pressLabel;
+              unreachable(function () {
+                press.click();
+              });
             });
         }, 1500);
       })
       .catch(function () {
         press.disabled = false;
-        press.textContent = t("contents.unreachable", "We can't reach targum. Try again.");
+        press.textContent = pressLabel;
+        unreachable(function () {
+          press.click();
+        });
       });
   };
 

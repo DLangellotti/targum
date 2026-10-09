@@ -129,10 +129,11 @@
 .you .elsewhere { color: var(--ink-soft); }
 .you .elsewhere a { color: var(--ink); text-underline-offset: 2px; }
 
-/* What the page says back. Errors carry --clay and the wording carries it too, which
-   §4 asks for because clay sits close to the accent under protanopia. */
+/* What the page says back. A refusal is ink with the clay mark before it (`fault.js`,
+   design.md §12, 2026-10-09), and the wording carries it too, which §4 asks for because
+   clay sits close to the accent under protanopia. */
 .you .said { margin: 0.6rem 0 0; color: var(--ink); font-size: 0.8125rem; }
-.you .said.bad { color: var(--clay); }
+.you .said.bad { color: var(--ink); }
 .you .said[hidden] { display: none; }
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */

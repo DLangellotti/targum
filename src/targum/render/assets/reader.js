@@ -214,6 +214,13 @@ var targumReader = function () {
   }
   window.TargumStrings = { t: t, tn: tn };
 
+  // targum out of reach: the connection's banner under the bar (`fault.js`; design.md
+  // §12, 2026-10-09), whose Try again runs `retry`. A reader opened off the disk has
+  // nothing to reach, and its presses say so where they are.
+  function unreachable(retry) {
+    if (window.TargumFault && canAsk()) window.TargumFault.unreachable(retry);
+  }
+
   var translationData = data.translations || {};
   var wordData = data.words || {};
   var lemmas = data.lemmas || [];
@@ -1781,7 +1788,11 @@ var targumReader = function () {
       })
       .catch(function () {
         asked[form] = false;
-        onDone(t("reader.error.connect", "We can't reach targum. Try again."));
+        // Said by the connection's banner, whose Try again asks once more.
+        unreachable(function () {
+          lookUp(index, sentence, onDone);
+        });
+        onDone("");
       });
   }
 
@@ -4525,9 +4536,27 @@ var targumReader = function () {
       var played = new Audio(clip).play();
       if (played && played.catch) played.catch(function () {});
     }
-    function failed(why) {
+    function failed(why, lost) {
       button.removeAttribute("aria-busy");
-      say(why || t("reader.card.could-not-say", "We couldn't say this word."));
+      if (lost) {
+        // targum out of reach: the banner says it, and its Try again presses again.
+        return unreachable(function () {
+          button.click();
+        });
+      }
+      var sentence = why || t("reader.card.could-not-say", "We couldn't say this word.");
+      say(sentence);
+      // And a line in the card, with Try again (design.md §12, 2026-10-09).
+      var host = button.parentNode;
+      if (!window.TargumFault || !host || !host.parentNode) return;
+      var old = host.parentNode.querySelector(".fault-line.said-fault");
+      if (old) old.parentNode.removeChild(old);
+      var line = window.TargumFault.line(sentence, function () {
+        if (line.parentNode) line.parentNode.removeChild(line);
+        button.click();
+      });
+      line.classList.add("said-fault");
+      host.parentNode.insertBefore(line, host.nextSibling);
     }
     button.addEventListener("click", function (event) {
       event.stopPropagation();
@@ -4549,7 +4578,7 @@ var targumReader = function () {
           play(answer.audio);
         })
         .catch(function () {
-          failed("");
+          failed("", true);
         });
     });
     return button;
@@ -5269,6 +5298,19 @@ var targumReader = function () {
           })
           .then(function (answer) {
             row.innerHTML = "";
+            var lost = t("reader.card.correction-lost", "We couldn't send your correction.");
+            if (!(answer && answer.proposed) && window.TargumFault) {
+              // A line with Try again, which sends what was written once more.
+              row.appendChild(
+                window.TargumFault.line(lost, function () {
+                  row.innerHTML = "";
+                  row.appendChild(form);
+                  go.disabled = false;
+                  go.click();
+                })
+              );
+              return;
+            }
             var thanks = document.createElement("p");
             thanks.className = "fix-said";
             thanks.textContent =
@@ -5277,11 +5319,14 @@ var targumReader = function () {
                     "reader.card.correction-taken",
                     "Thanks. We'll check it before it changes for anyone."
                   )
-                : t("reader.card.correction-lost", "We couldn't send your correction. Try again later.");
+                : lost;
             row.appendChild(thanks);
           })
           .catch(function () {
             go.disabled = false;
+            unreachable(function () {
+              go.click();
+            });
           });
       });
       row.appendChild(form);
@@ -5520,7 +5565,21 @@ var targumReader = function () {
           });
         };
         card.appendChild(ask);
-        if (outcome) {
+        if (outcome && window.TargumFault) {
+          // A line where the meaning would be, and Try again asks once more (design.md
+          // §12, 2026-10-09). The answer that refused is forgotten first, or the ask
+          // would stop at the one already made.
+          ask.hidden = true;
+          card.appendChild(
+            window.TargumFault.line(outcome, function () {
+              var asking = glossedAs(index);
+              asked[asking] = false;
+              delete lookup[asking];
+              ask.hidden = false;
+              ask.click();
+            })
+          );
+        } else if (outcome) {
           var trouble = document.createElement("span");
           trouble.className = "caveat";
           trouble.textContent = outcome;
@@ -5880,6 +5939,19 @@ var targumReader = function () {
       q.className = "ask-q";
       q.textContent = turn.asked;
       row.appendChild(q);
+      if (turn.error && window.TargumFault) {
+        // A line with Try again, which asks the same question again in its place
+        // (design.md §12, 2026-10-09). It was the sentence in clay.
+        turn.node = null;
+        row.appendChild(
+          window.TargumFault.line(turn.text, function () {
+            var at = state.turns.indexOf(turn);
+            if (at > -1) state.turns.splice(at, 1);
+            askAbout(index, word, shown, lemma, turn.asked);
+          })
+        );
+        return;
+      }
       var a = document.createElement("p");
       a.className = "ask-a" + (turn.error ? " bad" : "") + (turn.done ? "" : " working");
       drawAnswer(a, turn.text);
@@ -6007,11 +6079,11 @@ var targumReader = function () {
         return response.json();
       })
       .catch(function () {
-        return { error: t("reader.error.connect", "We can't reach targum. Try again.") };
+        return { error: t("reader.error.connect", "We can't reach targum.") };
       })
       .then(function (got) {
         if (!got || got.error) {
-          return settle((got && got.error) || t("reader.error.connect", "We can't reach targum. Try again."), true);
+          return settle((got && got.error) || t("reader.error.connect", "We can't reach targum."), true);
         }
         state.chat = got.chat;
         followAsk(got.chat, got.turn, draw, settle);
@@ -6049,7 +6121,7 @@ var targumReader = function () {
             why = {};
           }
           settle(
-            why.message || t("reader.error.conversation", "We couldn't answer that. Try again."),
+            why.message || t("reader.error.conversation", "We couldn't answer that."),
             true
           );
         } else if (source.readyState === 2) {
@@ -6068,7 +6140,7 @@ var targumReader = function () {
           return response.json();
         })
         .catch(function () {
-          return { error: t("reader.error.connect", "We can't reach targum. Try again."), done: true };
+          return { error: t("reader.error.connect", "We can't reach targum."), done: true };
         })
         .then(function (state) {
           if (state.error && state.done) return settle(state.error, true);
@@ -10973,6 +11045,7 @@ var targumReader = function () {
   // Its cost beside it, where the page knows one; shown with the press it prices.
   var costs = document.getElementById("waiting-cost");
   if (costs) costs.hidden = false;
+  var pressWord = press.textContent;
   function fail(text) {
     press.disabled = false;
     if (!hearing) {
@@ -11037,7 +11110,14 @@ var targumReader = function () {
             })
             .catch(function () {
               clearInterval(timer);
-              fail(said.t("reader.chapter.could-not-reach", "We can't reach targum. Try again."));
+              if (!window.TargumFault) return fail(said.t("reader.chapter.could-not-reach", "We can't reach targum."));
+              // The connection's banner (design.md §12, 2026-10-09), whose Try again asks
+              // again; the server hands back the job already under way.
+              press.disabled = false;
+              press.textContent = pressWord;
+              window.TargumFault.unreachable(function () {
+                press.onclick();
+              });
             });
         }, 1500);
       })
@@ -11364,8 +11444,9 @@ var targumReader = function () {
                 "reader.player.sound-blocked",
                 "This tab is muted. Allow sound for targum in the address bar."
               )
-            : t("reader.player.could-not-play", "We couldn't play this recording. Try again."),
-          why
+            : t("reader.player.could-not-play", "We couldn't play this recording."),
+          why,
+          why && why.name === "NotAllowedError" ? null : from
         );
       });
     }
@@ -11373,11 +11454,33 @@ var targumReader = function () {
 
   /* Playback failed, and the reader is told which. A control that reverts and explains
      nothing is the worst of both: it looks broken and gives nobody anything to act on. */
-  function refused(message, why) {
+  function refused(message, why, again) {
     halt();
     if (player) {
       player.classList.add("refused");
-      if (said) said.textContent = message;
+      if (said) {
+        said.textContent = message;
+        // The clay mark before it, the sentence in ink (design.md §12, 2026-10-09).
+        said.classList.add("fault-marked");
+      }
+      var retry = player.querySelector(".player-again");
+      if (retry) retry.parentNode.removeChild(retry);
+      // Try again, beside a recording that would not play, plays it again from where
+      // it was asked to start.
+      if (said && typeof again === "number") {
+        retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "fault-act player-again";
+        retry.textContent = t("fault.try-again", "Try again");
+        retry.addEventListener("click", function (event) {
+          event.stopPropagation();
+          player.classList.remove("refused");
+          said.classList.remove("fault-marked");
+          if (retry.parentNode) retry.parentNode.removeChild(retry);
+          play(again);
+        });
+        said.parentNode.insertBefore(retry, said.nextSibling);
+      }
     }
     // The label is written where sighted eyes are; the live region is where everyone
     // else's are. A play button that reverts silently looks broken and says nothing.
@@ -13532,13 +13635,24 @@ else targumReader();
         }, window.TargumVoice.POLL);
       })
       .catch(function () {
-        failed(S.t("reader.error.connect", "We can't reach targum. Try again."));
+        lost(function () {
+          follow(id);
+        });
       });
   }
 
   function failed(message) {
     tell(message);
     go.disabled = false;
+  }
+
+  // targum out of reach: the connection's banner (`fault.js`; design.md §12,
+  // 2026-10-09), whose Try again picks up where this stopped.
+  function lost(again) {
+    if (!window.TargumFault) return failed(S.t("reader.error.connect", "We can't reach targum."));
+    tell("");
+    go.disabled = false;
+    window.TargumFault.unreachable(again);
   }
 
   go.onclick = function () {
@@ -13569,7 +13683,9 @@ else targumReader();
         follow(state.id);
       })
       .catch(function () {
-        failed(S.t("reader.error.connect", "We can't reach targum. Try again."));
+        lost(function () {
+          go.click();
+        });
       });
   };
 

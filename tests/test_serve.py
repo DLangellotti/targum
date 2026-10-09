@@ -411,7 +411,7 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     link = postbox.link
     status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
     assert status == 200
-    assert b"no longer works" in body
+    assert b"This link has expired" in body
 
 
 def test_an_address_is_never_confirmed_or_denied(served: tuple[int, str, Path]) -> None:

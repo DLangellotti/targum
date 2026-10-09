@@ -25,12 +25,20 @@
   {#- The door itself is a card on the desk (§13, 2026-09-14): the lockup and the foot
       stand on the ground around it, the way the places and the footer do on every page
       behind it. -#}
-  <div class="door">
+  <div class="door{% if expired or closing %} whole{% endif %}">
   {#- What went wrong last time, where something did: a Google sign-in that was
       cancelled, took too long, or was for an address that is not on the guest list. Said
       on the door itself rather than on a page of its own, because the way out of every
       one of them is the form underneath. -#}
-  {%- if said %}<p class="said trouble" role="status">{{ said }}</p>{% endif %}
+  {#- A sign-in through Google that took too long or didn't finish is a panel with its
+      one way on, Sign in again (design.md §12, 2026-10-09); anything else said here is a
+      line with the clay mark, ink rather than clay. -#}
+  {%- if said and again %}
+  <div class="fault-panel trouble" role="status">
+    <p class="fault-panel-said">{{ said }}</p>
+    <div class="fault-panel-row"><a class="fault-go" href="{{ again }}">{{ t("signin.page.sign-in-again", "Sign in again") }}</a></div>
+  </div>
+  {%- elif said %}<p class="said trouble fault-marked" role="status">{{ said }}</p>{% endif %}
   {#- Why they are here, when an app sent them: Connect in Claude or ChatGPT asks for an
       account first, and a door that said nothing about it looked like a different
       errand (copy audit, 2026-09-28). -#}
@@ -49,9 +57,18 @@
   </form>
   <p class="aside">{{ t("signin.page.didn-t-ask-for-this-you-can", "Didn't ask for this? You can close the page.") }}</p>
 
+  {% elif closing %}
+  {#- A whole page (design.md §12, 2026-10-09): an account inside its grace period is
+      told so at every door, and the one way to keep it is a mail. -#}
+  <h1>{{ t("signin.page.account-closing", "This account is being closed") }}</h1>
+  <p class="said">{{ t("signin.page.to-keep-it-email-us", "To keep it, email us at hello@targum.page.") }}</p>
+  <a class="fault-go" href="mailto:hello@targum.page">{{ t("signin.page.email-us", "Email us") }}</a>
+
   {% elif expired %}
-  <h1>{{ t("signin.page.that-link-has-been-used", "That link no longer works") }}</h1>
-  <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Each link works once, for twenty minutes. Enter your email and we'll send a new one.") }}</p>
+  {#- A whole page too: a heading, one sentence, and the form whose one button sends a
+      new link. Send a link stays ink, as the door's call to action (§9). -#}
+  <h1>{{ t("signin.page.that-link-has-been-used", "This link has expired") }}</h1>
+  <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Enter your email and we'll send a new one.") }}</p>
   <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
@@ -97,6 +114,7 @@
 {% include '_public_foot.html.j2' %}
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('fault.js') }}</script>
 <script>{{ asset('signin.js') }}</script>
 </body>
 </html>

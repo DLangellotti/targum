@@ -212,7 +212,7 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
     said = {
         key: text
         for key, text in catalogue(code).items()
-        if key.startswith(("reader.", "vocab.", "playlist-menu."))
+        if key.startswith(("reader.", "vocab.", "playlist-menu.", "fault."))
     }
     return {"strings": said, "stringsLanguage": code} if said else {}
 
@@ -649,6 +649,8 @@ SHARED_SCRIPT_KEYS = (
     "follow.",
     "palette.",
     "nav.",
+    # How a refusal is drawn, on every page (`fault.js`, design.md §12, 2026-10-09).
+    "fault.",
 )
 
 
@@ -2031,10 +2033,19 @@ def build_text_card(language: str = "en") -> str:
     )
 
 
-def not_found_page() -> str:
-    """An address that is not a page: said plainly, with the way back, in the same
-    quiet frame a stranger already meets."""
-    return _environment().get_template("holding.html.j2").render(missing=True)
+def not_found_page(token: str = "", language: str = "en") -> str:
+    """An address that is not a page: said plainly, with the way back, as a whole page
+    under the desk's own top bar (design.md §12, 2026-10-09)."""
+    return (
+        _environment()
+        .get_template("missing.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            strings=script_strings(language),
+            token=token,
+        )
+    )
 
 
 #: The date the four legal pages say they were last changed on. One line rather than
@@ -2332,6 +2343,8 @@ def signin_page(
     said: str = "",
     asked: str = "",
     connecting: str = "",
+    again: str = "",
+    closing: bool = False,
 ) -> str:
     """The door. Three states, one template.
 
@@ -2343,6 +2356,10 @@ def signin_page(
     `connecting` is the line that says why they are here when Claude or ChatGPT sent
     them — "Sign in to finish connecting Claude" — said by the server, which is what
     knows (copy audit, 2026-09-28).
+
+    `again` is where Sign in again goes, for a sign-in that took too long, so `said` is
+    drawn as a panel with that one button; `closing` is the whole page an account in its
+    grace period meets at every door (design.md §12, 2026-10-09).
     """
     from .. import google as google_module
 
@@ -2357,6 +2374,8 @@ def signin_page(
             token=token,
             expired=expired,
             said=said,
+            again=again,
+            closing=closing,
             connecting=connecting,
             # Only where this install can finish a Google sign-in. A door that fails at
             # its last step is worse than a door that is not there (#304).

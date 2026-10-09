@@ -69,6 +69,8 @@
     button.disabled = true;
     said.hidden = true;
     said.classList.remove("bad");
+    var fault = window.TargumFault;
+    if (fault) fault.clear(field);
 
     fetch("/account/sign-in", {
       method: "POST",
@@ -89,15 +91,30 @@
           form.hidden = true;
           return;
         }
-        said.classList.add("bad");
-        said.textContent = answer.body.error || t("account.could-not-send", "We couldn't send the link. Try again in a minute.");
         button.disabled = false;
+        var why = answer.body.error || t("account.could-not-send", "We couldn't send the link. Try again in a minute.");
+        // About the address that was typed, so under its field, which keeps the focus
+        // (design.md §12, 2026-10-09).
+        if (fault) {
+          said.hidden = true;
+          fault.field(field, why);
+          return;
+        }
+        said.classList.add("bad");
+        said.textContent = why;
       })
       .catch(function () {
+        button.disabled = false;
+        // The connection's banner, whose Try again sends the form again.
+        if (fault) {
+          fault.unreachable(function () {
+            button.click();
+          });
+          return;
+        }
         said.hidden = false;
         said.classList.add("bad");
-        said.textContent = t("signin.unreachable", "We can't reach targum. Check your connection and try again.");
-        button.disabled = false;
+        said.textContent = t("signin.unreachable", "We can't reach targum.");
       });
   });
 })();
