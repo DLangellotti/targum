@@ -123,7 +123,7 @@ def test_the_room_at_the_top_goes_when_the_picture_does(browser, tmp_path) -> No
         page.evaluate("() => window.TargumVideo.hide()")
         page.wait_for_timeout(400)
         closed = page.evaluate(STANDS)
-        page.evaluate("() => document.querySelector('.group [data-video]').click()")
+        page.evaluate("() => document.querySelector('.m-row[data-video]').click()")
         page.wait_for_timeout(400)
         back = page.evaluate(STANDS)
     finally:

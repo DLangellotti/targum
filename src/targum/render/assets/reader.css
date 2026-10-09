@@ -272,8 +272,7 @@ a.bar-brand:hover { color: var(--accent); }
   body:not(.has-keyboard) .bar [data-keys] { display: none; }
 }
 @media (max-width: 60rem) {
-  body:not(.has-keyboard) .bar [data-keys],
-  body:not(.has-keyboard) .bar-more .group[data-what="Keys"] { display: none; }
+  body:not(.has-keyboard) .bar [data-keys] { display: none; }
 }
 
 /* The keys button says "Keys" in the bar (targum-internal#338). It keeps its mark behind
@@ -2530,26 +2529,7 @@ body.voicing .pair:hover:not(.now):not(.here):not(.practising):not(:focus-visibl
 .credits .credit { margin: 0 0 0.4rem; }
 .credits a { color: inherit; }
 body.paged .credits { margin-block-end: 6rem; }
-.more-credit { display: block; margin-block-start: 0.35rem; font-size: 0.8125rem; color: var(--ink-soft); }
-
-.more-player { display: none; }
-.more-player .more-get,
-.more-player .more-close {
-  display: block;
-  inline-size: auto;
-  block-size: auto;
-  padding: 0.4rem 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  text-align: start;
-  font: inherit;
-  cursor: pointer;
-}
-.more-player .more-get:focus-visible,
-.more-player .more-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (max-width: 60rem) {
-  .more-player { display: block; }
   .player > .player-get,
   .player > .player-close { display: none; }
 }
@@ -3029,23 +3009,6 @@ body.film .film-views {
 .bar .film-view:hover { color: var(--ink); background: none; }
 .bar .film-view[aria-pressed="true"] { color: var(--ink); border-block-end-color: var(--leaf); }
 
-/* --- ⋯, while the picture is up: Hear first, the step, and the file --- */
-.bar-more.open .group.film-only { display: none; }
-body.film .bar-more.open .group.film-only { display: flex; }
-.bar-more .more-step { gap: 0.15rem; }
-/* The recording's row — the file and whose it is — at every width while the picture is
-   up, since the strip that carried them on a wide window is not on the page. */
-body.film .bar-more.open .group.more-player {
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: 1rem;
-  row-gap: 0.1rem;
-}
-body.film .bar-more.open .more-player .label,
-body.film .bar-more.open .more-player .more-credit { flex: 1 0 100%; margin-block-start: 0; }
-body.film .bar-more.open .more-player .more-get { order: 1; }
-body.film .bar-more .more-player .more-close { display: none; }
-
 /* --- the speed, under its press --- */
 .rates-pop .film-rates { display: grid; gap: 0.1rem; }
 .rates-pop .film-rate-pick {
@@ -3422,66 +3385,6 @@ html:fullscreen { background: var(--paper); }
   /* The list and the keys card say their own name and carry their own ×; the video
      panel has a close of its own. Only the two word cards are built without one. */
 
-  /* Closed, the menu is nothing. Open, it is the occupant: each group is a row, named
-     by what it says of itself, its control at the end. On raised paper a button needs
-     its edge (§9); the bar's are borderless because the bar is paper. */
-  .bar-more { display: none; }
-  .bar-more.open {
-    display: grid;
-    gap: 0;
-    direction: ltr;
-    font-family: var(--ui);
-    font-size: 0.9375rem;
-  }
-  .bar .more-head {
-    display: flex;
-    align-items: baseline;
-    gap: 0.6rem;
-    padding-block: 0.15rem 0.35rem;
-    color: var(--ink-soft);
-    font-size: 0.6875rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .bar .more-head b { font-weight: 500; }
-  .bar .more-head button {
-    margin-inline-start: auto;
-    border: 0;
-    font-size: 1.0625rem;
-    line-height: 1;
-    letter-spacing: 0;
-    text-transform: none;
-  }
-  .bar-more.open .group {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding-block: 0.55rem;
-    border-block-end: 1px solid var(--rule);
-  }
-  .bar-more.open .group:last-child { border-block-end: 0; }
-  .bar-more.open .group::before {
-    content: attr(data-what);
-    flex: 1 1 auto;
-    color: var(--ink);
-  }
-  .bar-more.open .group .label { flex: 1 1 auto; color: var(--ink); }
-  .bar-more.open .group button,
-  .bar-more.open .group select,
-  .bar-more.open .group .home,
-  .bar-more.open .group .level { border-color: var(--rule); }
-  /* The recording's row holds four things, and the open menu's one-line flex gave each a
-     quarter of a phone: "Close / the / player", a word to a line (targum-internal#397).
-     It wraps instead: the label, the credit under it, then the two controls together.
-     It has no `data-what`, so its `::before` would only be an empty item taking room. */
-  .bar-more.open .group.more-player { flex-wrap: wrap; column-gap: 1rem; row-gap: 0.1rem; }
-  .bar-more.open .group.more-player::before { content: none; }
-  .bar-more.open .more-player .label,
-  .bar-more.open .more-player .more-credit { flex: 1 0 100%; }
-  .bar-more.open .more-player .more-credit { margin-block-start: 0; }
-  .bar-more.open .more-player .more-get,
-  .bar-more.open .more-player .more-close { order: 1; white-space: nowrap; }
-
   /* --- the strip --- */
   body .player,
   body.paged .player {
@@ -3597,27 +3500,6 @@ html:fullscreen { background: var(--paper); }
   #reader.turned-from-left, #reader.turned-from-right { animation: none; }
 }
 
-/* Hear a silent text (targum-internal#246): the one door in This text that asks the
-   reader to act, so it takes ink (§9); what it costs, in their own hours, beside it. */
-.bar-more .voice-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.bar-more .voice-go {
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.5rem 0.9rem;
-  border: 0;
-  border-radius: 6px;
-  background: var(--ink);
-  color: var(--paper);
-  cursor: pointer;
-}
-.bar-more .voice-go:hover { background: var(--ink-soft); }
-.bar-more .voice-go:disabled { opacity: 0.5; cursor: default; }
-.bar-more .voice-cost, .bar-more .voice-said { font-size: 0.8125rem; color: var(--ink-soft); }
-.bar-more .voice-offer[hidden] { display: none; }
-@media (hover: none) and (pointer: coarse) {
-  .voice-go { min-height: 44px; }
-}
 
 /* =====================================================================================
    Phase 5 (2026-09-11): the reader's chrome on the desk's scale — its bar, its cards,
@@ -4127,11 +4009,10 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   .list-end-home { min-block-size: 44px; }
 }
 
-/* Add to playlist, in the bar's This text group: drawn as the bar's other controls are —
-   a pill with no line until the pointer or the focus finds it, in the bar's ink — and
-   never as a bare link. Download PDF beside it on a portion (targum-internal#415) is the
-   same press. */
-.bar .group .more-playlist,
+/* Download PDF, on a portion (targum-internal#415): drawn as the bar's other controls
+   are — a pill with no line until the pointer or the focus finds it, in the bar's ink —
+   and never as a bare link. (Add to a playlist was this press too, until ⋯ became rows,
+   2026-10-09.) */
 .bar .group .more-sheet {
   display: inline-flex;
   align-items: center;
@@ -4144,17 +4025,10 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   white-space: nowrap;
   cursor: pointer;
 }
-.bar .group .more-playlist:hover,
-.bar .group .more-playlist:focus-visible,
 .bar .group .more-sheet:hover,
 .bar .group .more-sheet:focus-visible { color: var(--ink); border-color: var(--rule); }
-.bar .group .more-playlist[aria-expanded="true"] { color: var(--ink); background: var(--teal-wash); }
-/* "Play next" beside it (targum-internal#434) is a button, drawn as the link is. */
-.bar .group button.more-playlist { font: inherit; font-family: var(--chrome); background: none; }
-.bar-more.open .group .more-playlist,
 .bar-more.open .group .more-sheet { border-color: var(--rule); }
 @media (hover: none) and (pointer: coarse) {
-  .bar .group .more-playlist,
   .bar .group .more-sheet { min-block-size: 44px; }
 }
 
@@ -4363,46 +4237,27 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   max-inline-size: min(21rem, calc(100vw - 2rem));
   max-block-size: calc(100vh - 5rem);
   overflow-y: auto;
-  padding: 0.5rem 0 0.6rem;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  background: var(--paper);
-  box-shadow: var(--shadow-raised);
+  padding: 0.5rem 0;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-floating);
   color: var(--ink);
   direction: ltr;
   font-family: var(--chrome);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   text-align: start;
 }
 .bar .bar-pop .more-head,
 .bar .bar-more .more-head { display: none; }
-.pop-head,
-.aa-head {
+.pop-head {
   display: block;
   margin: 0;
   padding: 0.35rem 1.1rem 0.2rem;
   color: var(--ink-soft);
   font-size: 0.8125rem;
 }
-.aa-rule { block-size: 1px; margin: 0.45rem 1.1rem; background: var(--rule); }
-/* A rule divides two groups, and is never the first thing in the panel. */
-.aa > .more-head + .aa-rule { display: none; }
-
-/* A row: its name, then its control at the end. */
-.aa-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  min-block-size: 2.25rem;
-  padding: 0 1.1rem;
-}
-.aa-label { color: var(--ink); }
-/* A choice with a position: words, the live one underlined in leaf. The renderings, the
-   layout, the level and the reading all take it, here and only here. */
-.bar-pop .renderings,
-.bar-pop .practice,
-.bar-pop .levels,
+/* The reading's choice, in its own panel: words, the live one underlined. */
 .bar-pop .recordings {
   gap: 0.9rem;
   padding: 0;
@@ -4410,56 +4265,126 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   border-radius: 0;
   background: none;
 }
-.bar-pop .renderings .rendering,
-.bar-pop .practice .practice-key,
-.bar-pop .levels .level {
-  padding: 0.2rem 0;
-  border: 0;
-  border-block-end: 1.5px solid transparent;
-  border-radius: 0;
-  background: none;
-  color: var(--ink-soft);
-  font-size: 0.875rem;
-}
-.bar-pop .renderings .rendering:hover,
-.bar-pop .practice .practice-key:hover,
-.bar-pop .levels .level:hover { color: var(--ink); background: none; }
-.bar-pop .renderings .rendering.on,
-.bar-pop .practice .practice-key.on,
-.bar-pop .levels .level.here {
-  border-block-end-color: var(--leaf);
-  background: none;
-  color: var(--ink);
-}
 
-/* On or off: the row is the press, the switch is drawn at its end. */
-.bar .aa-switch,
-.bar .bar-more .more-switch {
+/* =====================================================================================
+   Aa and ⋯, as the board draws them (ReaderMenus, OffSaving; design.md §12, 2026-10-09,
+   "The reader's menus are the board's"). The reader joins the desk here: the chrome's
+   face, teal for a control and for "on", a card floating on its shadow.
+
+   A group: a quiet head, its rows, and a hairline before the next group. A row: a
+   drawing at the start, the name, and the value or the control at the end — at one
+   height, 44px, so a thumb and a pointer find every row the same. Three kinds of
+   control and no more: a switch for on or off, a segmented control for a choice of a
+   few, and the row itself for a press. No pill, no underlined link. */
+.m-menu .m-sect + .m-sect {
+  margin-block-start: 0.375rem;
+  padding-block-start: 0.375rem;
+  border-block-start: 1px solid var(--rule);
+}
+.m-menu .m-sect:not(:has(.m-row:not([hidden]), .m-offline:not([hidden]))) { display: none; }
+/* The view's row is drawn on a phone only, so the group after it draws no line over it. */
+.m-menu .m-view + .m-sect { margin-block-start: 0; padding-block-start: 0; border-block-start: 0; }
+.m-menu .m-head {
+  margin: 0;
+  padding: 0.375rem 1.125rem 0.125rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.m-menu .m-wrap { display: contents; }
+.m-menu .m-wrap[hidden],
+.m-menu .m-row[hidden] { display: none; }
+.m-menu .m-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
+  box-sizing: border-box;
   inline-size: 100%;
-  min-block-size: 2.25rem;
-  padding: 0 1.1rem;
+  min-block-size: 44px;
+  margin: 0;
+  padding: 0.25rem 1.125rem;
   border: 0;
   border-radius: 0;
   background: none;
   color: var(--ink);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  line-height: 1.3;
   text-align: start;
+  text-decoration: none;
+  cursor: pointer;
 }
-.bar .aa-switch:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); }
-.bar .aa-switch.on,
-.bar .bar-more .more-switch.on { background: none; color: var(--ink); border-color: transparent; }
-.bar .aa-switch.on:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
-.bar .aa-switch:focus-visible { outline-offset: -2px; }
+.m-menu div.m-row,
+.m-menu label.m-row { cursor: default; }
+.m-menu button.m-row:hover,
+.m-menu a.m-row:hover { background: var(--teal-wash); color: var(--ink); }
+.m-menu .m-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.m-menu .m-row:disabled { opacity: 0.5; cursor: default; }
+.m-menu .m-row.m-wide { flex-wrap: wrap; row-gap: 0.25rem; }
+.m-menu .m-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 1.375rem;
+  color: var(--ink-soft);
+}
+.m-menu .m-icon svg {
+  display: block;
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.m-menu .m-label { flex: 1 1 auto; min-inline-size: 0; color: var(--ink); }
+.m-menu .m-sub {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.m-menu .m-end { flex: none; margin-inline-start: auto; }
+.m-menu .m-value,
+.m-menu .m-out { color: var(--ink-soft); font-size: 0.875rem; }
+/* A key that does the same, quiet at the end of its row, where there is a keyboard. */
+.m-menu .m-key {
+  flex: none;
+  min-inline-size: 1.25rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  line-height: 1.6;
+  text-align: center;
+}
+@media (max-width: 60rem) {
+  body:not(.has-keyboard) .m-menu .m-key { display: none; }
+}
+/* A line under a row that is not itself a press: whose reading it is, what the voice
+   said back, that the columns stand aside while the practice is on. */
+.m-menu .m-note {
+  display: block;
+  margin: -0.25rem 0 0.25rem;
+  padding: 0 1.125rem 0 calc(1.125rem + 1.375rem + 0.75rem);
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.m-menu .m-note:empty,
+.m-menu .m-note[hidden] { display: none; }
+
+/* On or off: a switch, teal when on. */
 .sw {
   position: relative;
   flex: none;
-  inline-size: 1.75rem;
-  block-size: 1rem;
+  inline-size: 2.125rem;
+  block-size: 1.25rem;
   border-radius: 999px;
-  background: var(--rule);
+  background: var(--well);
   transition: background-color 160ms ease;
 }
 .sw::after {
@@ -4467,20 +4392,96 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   position: absolute;
   inset-block-start: 2px;
   inset-inline-start: 2px;
-  inline-size: 12px;
-  block-size: 12px;
+  inline-size: 1rem;
+  block-size: 1rem;
   border-radius: 50%;
-  background: var(--paper);
+  background: var(--card);
   box-shadow: 0 1px 1px rgb(28 26 23 / 0.12);
   transition: transform 160ms ease;
 }
-[aria-pressed="true"] > .sw { background: var(--leaf); }
-[aria-pressed="true"] > .sw::after { transform: translateX(12px); }
+[aria-pressed="true"] > .sw { background: var(--teal); }
+[aria-pressed="true"] > .sw::after { transform: translateX(0.875rem); }
+.m-menu .aa-switch.held { color: var(--ink-soft); }
+.m-menu .aa-switch.held .sw { opacity: 0.45; }
 .companions { display: block; }
 .companions .aa-switch:disabled { opacity: 0.4; }
 
+/* A choice of a few: one bordered strip, the live one in the teal wash. The view's
+   drawings, the renderings, the levels, the way shnayim mikra is kept, the step. */
+.bar .m-menu .m-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: none;
+  overflow: hidden;
+}
+.bar .m-menu .m-seg > button,
+.bar .m-menu .m-seg > a,
+.bar .m-menu .m-seg > span {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  margin: 0;
+  padding: 0 0.625rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bar .m-menu .m-seg > * + * { border-inline-start: 1px solid var(--rule); }
+.bar .m-menu .m-seg > [hidden] { display: none; }
+.bar .m-menu .m-seg > :hover { color: var(--ink); background: var(--teal-wash); }
+.bar .m-menu .m-seg > .on,
+.bar .m-menu .m-seg > [aria-pressed="true"],
+.bar .m-menu .m-seg > .here,
+.bar .m-menu .renderings .rendering.on {
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-weight: 600;
+  cursor: default;
+}
+.bar .m-menu .m-seg > :disabled { opacity: 0.35; cursor: default; }
+.bar .m-menu .m-seg > :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.bar .m-menu .m-seg svg {
+  display: block;
+  inline-size: 18px;
+  block-size: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bar .m-menu .m-seg svg .faint { opacity: 0.55; stroke-width: 1.1; }
+.m-menu .m-sub-row { padding-inline-start: calc(1.125rem + 1.375rem + 0.75rem); }
+
+/* A select, quiet at the end of its row: the value and a caret, no box. */
+.m-menu .m-select {
+  max-inline-size: 10rem;
+  padding: 0.25rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.m-menu .m-select:hover { color: var(--ink); border-color: var(--rule); }
+
 /* Text size: a small A, how far along the size is, and a large one. */
-.aa-size { display: flex; align-items: center; gap: 0.6rem; }
+.aa-size { display: flex; align-items: center; gap: 0.5rem; }
 .bar .aa-step {
   display: grid;
   place-items: center;
@@ -4491,28 +4492,19 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   border-radius: 999px;
   background: none;
   color: var(--ink-soft);
-  font-family: var(--reading);
+  font-family: var(--chrome);
   line-height: 1;
 }
-.bar .aa-step:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.bar .aa-step:hover { color: var(--teal); background: var(--teal-wash); }
 .bar .aa-step[aria-disabled="true"] { opacity: 0.4; }
 .bar .aa-step.small { font-size: 0.8125rem; }
 .bar .aa-step.large { font-size: 1.25rem; }
-.bar .aa-step.leading svg {
-  inline-size: 18px;
-  block-size: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 .aa-meter {
   position: relative;
-  inline-size: 3.5rem;
-  block-size: 2px;
+  inline-size: 5rem;
+  block-size: 3px;
   border-radius: 999px;
-  background: var(--rule);
+  background: var(--well);
 }
 .aa-meter i {
   position: absolute;
@@ -4520,7 +4512,128 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   inset-inline-start: 0;
   inline-size: 20%;
   border-radius: 999px;
-  background: var(--leaf);
+  background: var(--teal);
+}
+
+/* The dimmed page under a sheet is a phone's (below). */
+.m-scrim { display: none; }
+/* ⋯ on a wide window: the view's drawings are the bar's own, so its row is the phone's.
+   The keys are in the bar's row past 75rem, and here below that. */
+.m-menu .m-view { display: none; }
+/* Talk's row is a row, whatever the bar's press of the same name draws. */
+.bar .m-menu .talk-cta[aria-expanded="true"] { color: var(--ink); background: var(--teal-wash); }
+/* "Play next", the script's row after Add to a playlist, has no drawing: its words
+   stand where the names do. */
+.m-menu .more-play-next { padding-inline-start: calc(1.125rem + 1.375rem + 0.75rem); }
+/* The strip's × is the strip's on a wide window, and the picture's own while it is up. */
+@media (min-width: 60.01rem) {
+  .m-menu .more-close { display: none; }
+}
+body.film .m-menu .more-close { display: none; }
+
+/* Save for offline, as one of ⋯'s rows (`offline.js` draws it; design.md §12,
+   2026-10-09): the drawing, the name and what it takes. Saving, the bar and how far
+   under the name, Stop at the end. Saved, the size at the end and Remove as a row of its
+   own under it. A refusal is its line, as everywhere. */
+.m-menu .m-offline {
+  display: grid;
+  grid-template-columns: 1.375rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.75rem;
+  padding: 0.25rem 1.125rem;
+}
+.m-menu .m-offline[hidden] { display: none; }
+.m-menu .m-offline .offline-glyph { grid-column: 1; grid-row: 1; color: var(--ink-soft); }
+.m-menu .m-offline .offline-what {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  min-block-size: 36px;
+  align-content: center;
+  flex-wrap: wrap;
+}
+.m-menu .m-offline .offline-label { flex: 1 1 auto; color: var(--ink); font-size: 0.9375rem; }
+.m-menu .m-offline .offline-size { color: var(--ink-soft); font-size: 0.875rem; }
+.m-menu .m-offline .offline-go {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1.375rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.75rem;
+  min-block-size: 44px;
+  margin: -0.25rem -1.125rem;
+  padding: 0.25rem 1.125rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.m-menu .m-offline .offline-go .offline-glyph { grid-column: 1; }
+.m-menu .m-offline .offline-go .offline-label { grid-column: 2; }
+.m-menu .m-offline .offline-go .offline-size { grid-column: 3; }
+.m-menu .m-offline .offline-go:hover { background: var(--teal-wash); }
+.m-menu .m-offline .offline-go:hover .offline-label { color: var(--ink); }
+.m-menu .m-offline .offline-go:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.m-menu .m-offline.offline-saving .offline-what { grid-column: 2; }
+.m-menu .m-offline .offline-stop {
+  grid-column: 3;
+  grid-row: 1;
+  min-block-size: 36px;
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.m-menu .m-offline .offline-stop:hover { color: var(--ink); background: var(--teal-wash); }
+.m-menu .m-offline .offline-bar {
+  grid-column: 2;
+  grid-row: 2;
+  block-size: 6px;
+  margin: 0.125rem 0 0.25rem;
+  border-radius: 999px;
+  background: var(--rule);
+}
+.m-menu .m-offline .offline-fill { background: var(--teal); border-radius: 999px; }
+.m-menu .m-offline .offline-note {
+  grid-column: 2 / -1;
+  grid-row: 3;
+  margin: 0 0 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.m-menu .m-offline .offline-remove {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  justify-self: stretch;
+  min-block-size: 44px;
+  margin: 0 -1.125rem 0 0;
+  padding: 0 1.125rem 0 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+.m-menu .m-offline .offline-remove:hover { color: var(--clay); }
+.m-menu .m-offline .offline-remove:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.m-menu .m-offline .offline-said,
+.m-menu .m-offline .fault-line { grid-column: 1 / -1; }
+
+@media (max-width: 60rem) {
+  body:not(.has-keyboard) .m-menu .m-last:not(:has(#fullscreen-group:not([hidden]))) { display: none; }
 }
 
 /* The recording choice and print: a short list of picks, each a name and a quiet
@@ -4571,89 +4684,6 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 }
 .print-pop .sheet-said[hidden] { display: none; }
 .pick-meta[lang|="he"] { font-size: 0.9375rem; }
-
-/* ⋯: the rare things, a row each, named by what the row says of itself. */
-.bar-more.open { display: grid; gap: 0; padding: 0.4rem 0; }
-.bar-more.open .group {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  min-block-size: 2.4rem;
-  padding: 0.2rem 1.1rem;
-  border: 0;
-}
-.bar-more.open .group[hidden] { display: none; }
-.bar-more.open .group::before { content: attr(data-what); flex: 1 1 auto; color: var(--ink); }
-.bar-more.open .group.more-player::before { content: none; }
-/* The recording's own row is the phone's, where the strip has no room for it; on a wide
-   window the strip carries the file and the close itself. */
-@media (min-width: 60.01rem) {
-  .bar-more.open .group.more-player { display: none; }
-}
-.bar-more.open .group .label { flex: 1 1 auto; color: var(--ink); }
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button,
-.bar-more .group select,
-.bar-more .group .home {
-  display: grid;
-  place-items: center;
-  min-inline-size: 2rem;
-  block-size: 2rem;
-  padding: 0 0.45rem;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  color: var(--ink-soft);
-}
-.bar-more .group select { display: block; border: 1px solid var(--rule); font-size: 0.8125rem; }
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button:not(.more-switch):hover,
-.bar-more .group .home:hover { color: var(--ink); background: var(--paper-raised); }
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button.on:not(.more-switch),
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button[aria-expanded="true"] { color: var(--ink); background: var(--paper-raised); }
-.bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button svg,
-.bar-more .group .home svg {
-  inline-size: 16px;
-  block-size: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.bar-more .group .more-switch { inline-size: auto; min-block-size: 2rem; padding: 0; }
-/* The view's three drawings: the live one in ink and underlined, no sliding pill. */
-.bar-more .modes { gap: 0.15rem; padding: 0; border: 0; background: none; }
-.bar-more.open .modes button {
-  display: grid;
-  place-items: center;
-  min-inline-size: 2rem;
-  block-size: 2rem;
-  padding: 0 0.45rem;
-  background: none;
-  color: var(--ink-soft);
-}
-.bar-more.open .modes button:hover { color: var(--ink); background: none; }
-.bar-more.open .modes button svg { inline-size: 16px; block-size: 16px; }
-.bar-more .modes .slide { display: none; }
-.bar-more.open .modes button { border: 0; border-block-end: 1.5px solid transparent; border-radius: 0; }
-.bar-more.open .modes button.on { color: var(--ink); background: none; border-block-end-color: var(--leaf); }
-.bar-more .modes button:disabled { opacity: 0.35; }
-.bar-more [data-keys] .keys-word { display: none; }
-.bar-more [data-keys] .keys-mark { display: inline; font-size: 0.9375rem; }
-.bar-more .more-playlist {
-  padding: 0;
-  border: 0;
-  color: var(--ink);
-  text-decoration: none;
-  cursor: pointer;
-}
-.bar-more.open .group.to-playlist::before { content: none; }
-.bar-more .more-playlist:hover { color: var(--accent); }
-.bar-more.open .voice-offer { flex-wrap: wrap; padding-block: 0.5rem; }
-.bar-more.open .voice-offer .label { flex: 1 1 auto; margin: 0; text-align: start; }
-.bar-more.open .voice-offer .voice-cost { flex: 1 0 100%; }
-.bar-more.open .group.voice-offer::before { content: none; }
-.bar-more .voice-go { display: block; block-size: auto; color: var(--paper); background: var(--ink); }
-.bar-more .voice-go:hover { color: var(--paper); background: var(--ink-soft); }
 
 /* --- B: the columns switch themselves --- */
 .cmp-x {
@@ -4749,9 +4779,16 @@ body.practice-section .beside-add { display: none; }
   .bar .aa-step,
   .bar-pop .recordings .recording-key,
   .bar-pop .to-sheet .more-sheet,
-  .bar-more .group:not(.more-player):not(.voice-offer):not(.modes):not(.offline-row) button,
-  .bar-more .group .home,
+  .m-menu .m-row,
+  .m-menu .voice-go,
+  .bar .m-menu .m-seg > *,
+  .m-menu .offline-go,
+  .m-menu .offline-stop,
+  .m-menu .offline-remove,
+  .m-menu .m-select,
+  .m-grab,
   .cmp-add { min-block-size: 44px; }
+  .bar .m-menu .m-seg > * { min-inline-size: 44px; }
   .bar .bar-tool,
   .bar .aa-step { min-inline-size: 44px; }
 }
@@ -4759,8 +4796,10 @@ body.practice-section .beside-add { display: none; }
 /* --- on a phone: the same row, smaller, and the panels are sheets from the foot --- */
 @media (max-width: 60rem) {
   .bar { padding: 0 0.75rem 0 1rem; min-block-size: 3.25rem; gap: 0; }
+  /* The title gives way before the tools do: shrunk by its width alone it kept 254px of a
+     390px phone for a long headline and pushed ⋯ off the screen (2026-10-09). */
   .bar > .bar-title,
-  [dir="rtl"] .bar > .bar-title { flex: 1 1 auto; margin-inline-start: 0.8rem; display: flex; }
+  [dir="rtl"] .bar > .bar-title { flex: 1 1000 auto; margin-inline-start: 0.8rem; display: flex; }
   .bar > .controls,
   [dir="rtl"] .bar > .controls { gap: 0.4rem; margin-inline-start: 0.5rem; }
   .bar .more { display: grid; padding: 0; font-size: 0.8125rem; }
@@ -4821,8 +4860,68 @@ body.practice-section .beside-add { display: none; }
     border-radius: 999px;
     font-size: 1.0625rem;
   }
-  .aa-row, .bar .aa-switch, .bar-more.open .group { min-block-size: 2.75rem; }
-  .bar-more.open .group { border-block-end: 0; }
+  /* Aa and ⋯ as the board's sheet (OffSaving, phone): the card from the foot, a handle
+     to pull it down by or tap, and the page dimmed under it; a press on the dimmed page
+     puts it away, as a tap on the page always has. */
+  .m-menu.open {
+    padding-block-start: 0;
+    background: var(--card);
+  }
+  .bar .m-menu .m-grab-head {
+    display: block;
+    margin: 0;
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    padding: 0;
+    background: var(--card);
+  }
+  .bar .m-menu .m-grab-head .m-grab {
+    display: block;
+    inline-size: 100%;
+    block-size: 1.75rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+  .m-grab::before {
+    content: "";
+    display: block;
+    inline-size: 2.5rem;
+    block-size: 5px;
+    margin-inline: auto;
+    border-radius: 999px;
+    background: var(--well);
+  }
+  .m-grab:active::before { background: var(--ink-soft); }
+  .m-grab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .m-menu .m-row,
+  .m-menu .m-offline { padding-inline: 1.25rem; }
+  .m-menu .m-row { min-block-size: 52px; }
+  .m-menu .m-head { padding: 0.75rem 1.25rem 0.25rem; }
+  .m-menu .m-sect + .m-sect { margin-block-start: 0; padding-block-start: 0; }
+  .m-menu .m-sect + .m-sect:has(> .m-head) { border-block-start: 0; }
+  /* On a phone the rows are ruled, one under the next, as the board's sheet is. */
+  .m-menu .m-row + .m-row,
+  .m-menu .m-wrap + .m-row,
+  .m-menu .m-row + .m-wrap > .m-row:first-child,
+  .m-menu .m-offline + .m-row,
+  .m-menu .m-offline + .m-wrap > .m-row:first-child,
+  .m-menu .companions > .m-row + .m-row { box-shadow: inset 0 1px var(--rule); }
+  .m-menu .m-note { padding-inline-start: calc(1.25rem + 1.375rem + 0.75rem); }
+  .m-scrim {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    background: rgb(28 26 23 / 0.38);
+  }
+  body.pop-open .m-scrim { display: block; }
+  /* The presses that open the sheets stay above the dim, so a second press of ⋯ or Aa
+     still shuts what it opened. */
+  body.pop-open .bar .bar-tools { position: relative; z-index: 30; }
   @keyframes pop-rise {
     from { transform: translateY(100%); }
     to { transform: none; }
@@ -4881,21 +4980,8 @@ body.practice-section .beside-add { display: none; }
 .aa-practice-how[hidden],
 .aa-held[hidden],
 .bar-pop .practice .practice-key[hidden] { display: none; }
-.aa-note {
-  margin: 0;
-  padding: 0 1.1rem 0.15rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.aa-practice-how .aa-row { justify-content: flex-start; }
-.aa-held {
-  display: block;
-  padding: 0 1.1rem 0.2rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.bar .aa-switch.held { color: var(--ink-soft); }
-.bar .aa-switch.held .sw { opacity: 0.45; }
+/* The two ways of keeping it sit under the switch, where the names start. */
+.m-menu .aa-practice-how .m-note { margin-block-start: 0; }
 
 /* --- the bar by how often it is pressed (David, 2026-10-08, design.md §12) ---
    Play and the speed, the one switch of marks a language has, and the view, as drawings
@@ -4969,11 +5055,10 @@ body.film .film-views {
 /* While the picture is up the row under it plays it and sets its speed. */
 body.film .bar .bar-rate { display: none; }
 /* The view on a phone is a row of ⋯: the bar keeps play, the marks, Aa and ⋯. */
-.bar-more .more-modes { display: none; }
 @media (max-width: 40rem) {
   .bar .bar-tools > .modes,
   .bar .bar-tool.bar-rate { display: none; }
-  .bar-more.open .group.more-modes { display: flex; }
+  .bar-more.open .m-view { display: block; }
 }
 @media (hover: none) and (pointer: coarse) {
   .bar .bar-tools > .modes button,
@@ -4982,6 +5067,7 @@ body.film .bar .bar-rate { display: none; }
 /* One column has no "beside" (`foldParallel`), in ⋯'s copy as in the bar's. */
 @media (max-width: 46rem) {
   .bar-more.open .more-modes [data-mode="parallel"] { display: none; }
+  .bar-more.open .more-modes [data-mode="parallel"] + * { border-inline-start: 0; }
 }
 /* Beside, the line between the picture and the transcript (David, 2026-10-08; design.md
    §12): a hairline the reader can take and move, a wider picture or more room for the

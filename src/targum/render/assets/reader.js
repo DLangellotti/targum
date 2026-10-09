@@ -7289,6 +7289,22 @@ var targumReader = function () {
     // Hebrew and Arabic keep their extra room as the leading moves.
     root.style.setProperty("--leading-rtl", (prefs.leading + 0.2).toFixed(2));
     paintSize();
+    paintLeading();
+  }
+
+  // Line spacing's row in Aa says which of the four it is on, in the words the page was
+  // built with (`data-names`, in the order of LEADINGS), so a press that steps it on
+  // shows where it landed rather than only moving the text.
+  function paintLeading() {
+    var named = document.querySelector("[data-leading-name]");
+    // Asked before the list of spacings below is set, the first time the type is applied.
+    if (!named || !LEADINGS) return;
+    var names = (named.getAttribute("data-names") || "").split("|");
+    var at = 0;
+    for (var i = 0; i < LEADINGS.length; i++) {
+      if (Math.abs(prefs.leading - LEADINGS[i]) < 0.01) at = i;
+    }
+    if (names[at]) named.textContent = names[at];
   }
 
   // A cycle rather than a one-way increase, but one that includes the default and
@@ -9757,7 +9773,7 @@ var targumReader = function () {
     // A row of the menu is one control with its name beside it, and on a phone the
     // name is most of the row. A tap on the name presses the control. Not a row of
     // several — the type sizes, the levels — where the name says nothing about which.
-    var row = event.target.closest ? event.target.closest(".bar-more.open .group") : null;
+    var row = event.target.closest ? event.target.closest(".m-menu.open .m-row") : null;
     if (row && !button) {
       var controls = row.querySelectorAll("button, a");
       if (controls.length === 1 && !row.querySelector("select")) {
@@ -13960,7 +13976,7 @@ else targumReader();
           { name: name, title: link.getAttribute("data-title") || name },
           key,
           playing,
-          "more-playlist more-play-next"
+          "m-row more-playlist more-play-next"
         )
       );
     });

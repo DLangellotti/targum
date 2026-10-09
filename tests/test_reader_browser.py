@@ -3667,13 +3667,14 @@ def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
     assert "Rabbi Somebody" in menu, "beside the control that carries the recording off"
 
 
-def test_the_recording_row_wraps_rather_than_splitting_into_columns(
+def test_the_recording_s_rows_each_keep_a_line_of_their_own(
     browser, tmp_path, monkeypatch
 ) -> None:
-    """targum-internal#397. The open menu lays each group out as one flex line, and the
-    recording's row has four things in it since the credit joined: at 390px each got a
-    quarter of the width and broke a word to a line — "Close / the / player". It wraps
-    now: the label, the credit under it, and the two controls together, each on one line."""
+    """targum-internal#397. The recording's row once held four things on one flex line, and
+    at 390px each got a quarter of the width: "Close / the / player", a word to a line. Since
+    the menus became the board's (design.md §12, 2026-10-09) each is a row of its own —
+    Save the audio, whose reading it is under it, then Close the player — and none of
+    them breaks a word to a line."""
     monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
     built = recorded(tmp_path / "recordings", tmp_path / "reader")
     context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
@@ -3684,29 +3685,28 @@ def test_the_recording_row_wraps_rather_than_splitting_into_columns(
     page.wait_for_selector(".bar-more.open")
     laid = page.evaluate(
         """() => {
-          const row = document.querySelector('.more-player');
           const box = (sel) => {
-            const el = row.querySelector(sel);
+            const el = document.querySelector('.bar-more.open ' + sel);
             const r = el.getBoundingClientRect();
             const line = parseFloat(getComputedStyle(el).lineHeight) || 20;
-            return { top: r.top, height: r.height, line };
+            return { top: r.top, height: r.height, line, width: r.width };
           };
           return {
-            label: box('.label'),
+            get: box('.more-get .m-label'),
             credit: box('.more-credit'),
-            get: box('.more-get'),
-            close: box('.more-close'),
+            close: box('.more-close .m-label'),
+            row: box('.more-get'),
           };
         }"""
     )
     context.close()
 
-    for name in ("label", "get", "close"):
+    for name in ("get", "close"):
         part = laid[name]
-        assert part["height"] < part["line"] * 1.6 + 16, (name, part)
-    assert laid["credit"]["top"] > laid["label"]["top"], "the credit stands under the label"
-    assert laid["get"]["top"] > laid["credit"]["top"], "the controls come after the credit"
-    assert abs(laid["get"]["top"] - laid["close"]["top"]) < 2, "the two controls share a line"
+        assert part["height"] < part["line"] * 1.6, (name, part)
+    assert laid["row"]["height"] >= 44, "a row a thumb can find"
+    assert laid["credit"]["top"] > laid["get"]["top"], "the credit stands under Save the audio"
+    assert laid["close"]["top"] > laid["credit"]["top"], "and Close the player after it"
 
 
 def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
@@ -4235,11 +4235,12 @@ def test_the_keys_are_a_named_row_behind_the_more_press(browser, built: Path, wi
     got = open_page.evaluate(
         """() => {
           const press = document.querySelector('.bar-more.open [data-keys]');
-          const row = press.closest('.group');
+          const row = press.closest('.m-row');
           return {
             row: row.getAttribute('data-what'),
-            says: press.innerText.trim(),
-            named: press.getAttribute('aria-label'),
+            says: press.querySelector('.m-label').innerText.trim(),
+            key: press.querySelector('.m-key').innerText.trim(),
+            named: press.getAttribute('title'),
             tall: document.querySelector('.bar').getBoundingClientRect().height,
             sideways: document.documentElement.scrollWidth > window.innerWidth,
           };
@@ -4251,8 +4252,10 @@ def test_the_keys_are_a_named_row_behind_the_more_press(browser, built: Path, wi
     context.close()
 
     assert in_bar == 0, "not in the row itself"
-    assert got["row"] == "Keys" and got["says"] == "?", got
-    assert got["named"] == "Keyboard shortcuts", "and a screen reader is told the whole of it"
+    # One row since the menus became the board's (design.md §12, 2026-10-09): the row
+    # says the word and its key is at its end; the hover says the whole of it.
+    assert got["row"] == "Keys" and got["says"] == "Keys" and got["key"] == "?", got
+    assert got["named"] == "Keyboard shortcuts (?)"
     assert got["tall"] <= 60, f"one row at {width}px: {got}"
     assert not got["sideways"]
     assert opens, "and it still opens the card"
@@ -4556,8 +4559,8 @@ def test_the_menu_is_drawn_over_the_sheet_and_a_tap_on_the_page_closes_it(
     )
     assert on_top, "drawn over the sheet, not under it"
     names = page.evaluate(
-        "() => [...document.querySelectorAll('.bar-more.open .group[data-what]')]"
-        ".map((g) => g.getAttribute('data-what'))"
+        "() => [...document.querySelectorAll('.bar-more.open .m-row[data-what]')]"
+        ".filter((g) => g.getClientRects().length).map((g) => g.getAttribute('data-what'))"
     )
     # The type moved to Aa with targum-internal#421, and the pages with it on
     # 2026-10-08; on a phone the view is the setting that lays the page out again from

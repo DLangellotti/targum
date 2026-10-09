@@ -749,6 +749,21 @@
     return track;
   }
 
+  /* The drawing at the start of a row in a reader's ⋯ (`data-glyphs`; design.md §12,
+     2026-10-09, "The reader's menus are the board's"): an arrow down to save, a tick
+     once it is here. The menu's rows each start with one; a playlist's page has none. */
+  var GLYPHS = {
+    save: '<path d="M8 2.5v7.5M4.75 7 8 10.25 11.25 7M3 13.5h10"></path>',
+    saved: '<path d="M3 8.5 6.5 12 13 4.5"></path>',
+  };
+  function glyph(row, kind) {
+    if (!row.hasAttribute("data-glyphs")) return null;
+    var span = element("span", "m-icon offline-glyph");
+    span.setAttribute("aria-hidden", "true");
+    span.innerHTML = '<svg viewBox="0 0 16 16" focusable="false">' + GLYPHS[kind] + "</svg>";
+    return span;
+  }
+
   /* The saves this page is making, by id, so a menu drawn again while one runs shows it
      and a second press does not start another. */
   var running = {};
@@ -788,6 +803,8 @@
     }
     if (state && state.handle) {
       row.classList.add("offline-saving");
+      var saving = glyph(row, "save");
+      if (saving) row.appendChild(saving);
       var head = element("span", "offline-what");
       head.appendChild(element("span", "offline-label", t("offline.saving", "Saving for offline")));
       var counted = playlist
@@ -845,6 +862,8 @@
     }
     if (item) {
       row.classList.add("offline-saved");
+      var tick = glyph(row, "saved");
+      if (tick) row.appendChild(tick);
       var saved = element("span", "offline-what");
       saved.appendChild(
         element(
@@ -870,6 +889,8 @@
     }
     row.classList.add("offline-idle");
     var go = press("offline-go", "", begin);
+    var arrow = glyph(row, "save");
+    if (arrow) go.appendChild(arrow);
     go.appendChild(element("span", "offline-label", t("offline.save", "Save for offline")));
     var meta = element("span", "offline-size", what.bytes ? size(what.bytes) : "");
     go.appendChild(meta);

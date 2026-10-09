@@ -379,6 +379,14 @@ THUMBED = (
     # The bar by how often it is pressed (design.md §12, 2026-10-08): the view's three
     # drawings stand in the bar. The speed and the marks are `.bar-tool`s.
     ".bar .bar-tools > .modes button",
+    # Aa and ⋯ as the board draws them (design.md §12, 2026-10-09): every row, every
+    # part of a segmented control, the rows Save for offline draws, and a sheet's handle.
+    ".m-menu .m-row",
+    ".bar .m-menu .m-seg > *",
+    ".m-menu .offline-go",
+    ".m-menu .offline-stop",
+    ".m-menu .offline-remove",
+    ".m-grab",
     # The build card's door, in somebody else's chat (design.md §12, 2026-10-06).
     ".card-door",
     # And the text card's Listen, beside its door (2026-10-06).

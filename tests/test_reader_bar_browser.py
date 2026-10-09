@@ -581,8 +581,8 @@ DRAWN = """
     words: el.textContent.trim(),
     drawn: !!el.querySelector('svg'),
   });
-  const more = [...document.querySelectorAll('#more .group[data-what]')]
-    .filter((g) => !g.hidden)
+  const more = [...document.querySelectorAll('#more .m-row[data-what]')]
+    .filter((g) => !g.closest('[hidden]'))
     .map((g) => g.getAttribute('data-what'));
   return {
     play: shown(document.querySelector('.bar .listen-play'))
