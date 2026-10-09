@@ -1013,11 +1013,11 @@ def test_the_library_opens_as_cards_and_the_table_is_one_press_away(tmp_path: Pa
     The sortable thing is kept rather than argued with."""
     fresh = draw(tmp_path, firstVisit=True)
     assert fresh["shape"] == "cards", "a reader who has chosen nothing browses"
-    assert fresh["shapeOn"] == "Cards"
+    assert fresh["shapeOn"] == "Rows"
 
     listed = draw(tmp_path, view={"shape": "list"})
     assert listed["shape"] == "list"
-    assert listed["shapeOn"] == "List"
+    assert listed["shapeOn"] == "Table"
     assert listed["columns"][:2] == ["Text", "Kind"], "the table keeps its columns"
 
 
@@ -1262,6 +1262,47 @@ def test_a_card_carries_the_facts_a_reader_chooses_by(tmp_path: Path) -> None:
     assert "72%" in one["known"]
     two = next(row for row in rows if row["title"] == "סיפור שני")
     assert two["known"] == "New to you", "never 0%, which is a claim about the reader"
+
+
+def test_a_row_of_see_all_says_what_the_text_is(tmp_path: Path) -> None:
+    """design.md §12, "See all says what each text is" (2026-10-09; board SeeAllDesk): the
+    catalogue's own sentence under the facts, in the reader's language where it has one,
+    and how much of it they would follow, in leaf only where they can read it now."""
+    shelf_ = [
+        text("story-one", "סיפור", blurb="A woman, and a whole life implied around her."),
+        text(
+            "story-two",
+            "סיפור שני",
+            blurb="One room and two doors.",
+            blurbs={"ru": "Одна комната и две двери."},
+        ),
+        text("story-three", "סיפור שלישי"),
+    ]
+    known = {"story-one": {"known": 0.934}, "story-two": {"known": 0.8}}
+    rows = {
+        row["title"]: row
+        for row in browse(tmp_path, catalogue=shelf_, catalogueKnown=known)["rows"]
+    }
+    assert rows["סיפור"]["blurb"] == "A woman, and a whole life implied around her."
+    assert rows["סיפור"]["meta"] == "Stories · 7 min · 18% hard words"
+    assert rows["סיפור"]["known"] == "93% known" and rows["סיפור"]["near"] is True
+    assert rows["סיפור שני"]["known"] == "80% known" and rows["סיפור שני"]["near"] is False
+    assert rows["סיפור שלישי"]["blurb"] == "", "nothing is invented where the file says nothing"
+
+    from targum.render.builder import script_strings
+
+    russian = {
+        row["title"]: row
+        for row in browse(
+            tmp_path,
+            catalogue=shelf_,
+            catalogueKnown=known,
+            strings=script_strings("ru", "library."),
+        )["rows"]
+    }
+    assert russian["סיפור שני"]["blurb"] == "Одна комната и две двери."
+    assert russian["סיפור שני"]["blurbLang"] == "ru"
+    assert russian["סיפור"]["blurbLang"] == "en", "English is the fallback, and says so"
 
 
 def test_a_card_keeps_the_cell_a_build_narrates_itself_in(tmp_path: Path) -> None:
