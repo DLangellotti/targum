@@ -337,8 +337,10 @@ def test_the_add_page_names_no_refusal_before_it_is_met() -> None:
         flags=re.S,
     )
 
-    drawn = english["add.page.a-recording-or-a-video-uses-some"]
-    assert drawn == "A recording or a video uses some of your credits — one credit a minute."
+    # What is left of that paragraph is the board's What works (2026-10-09): what can be
+    # brought, and nothing that cannot.
+    drawn = " ".join(value for key, value in english.items() if key.startswith("add.page.works-"))
+    assert "Podcast episodes" in drawn
     # Asserted against the template as well as the catalogue, because the template
     # carries the English as `t()`'s fallback and a reader with no catalogue sees that.
     for said, where in ((drawn, "the catalogue"), (template, "the template")):

@@ -9,7 +9,7 @@
   // The page's words in the reader's language, from `strings.js` (targum-internal#184).
   var t = window.TargumStrings.t;
   var tn = window.TargumStrings.tn;
-  var CHANGE_LANGUAGE = t("add.change-language", "Choose its language under Change.");
+  var CHANGE_LANGUAGE = t("add.change-language.beside", "Choose the language it's in beside Upload.");
   var WE_TRANSLATE = t("add.summary.we-translate", "we translate");
 
   var key = window.TARGUM_KEY;
@@ -43,7 +43,12 @@
   var given = document.getElementById("given");
   var understood = document.getElementById("understood");
   var givenFiles = document.getElementById("given-files");
-  var askTargum = document.getElementById("ask-targum");
+  //: The box's field and its well, put away while a file is held (the board's card,
+  //: 2026-10-09): the well is what a refusal outlines.
+  var givenField = document.getElementById("given-field");
+  var givenWell = document.getElementById("given-well");
+  var dropSay = document.getElementById("drop-say");
+  var bringBox = document.getElementById("bring-box");
   var summary = document.getElementById("summary");
   var summaryLine = document.getElementById("summary-line");
   var change = document.getElementById("change");
@@ -81,8 +86,17 @@
   }
 
   function say(html, bad) {
+    // Under the box, where the two columns are one (a phone): the card is brought into
+    // view the first time it is drawn, so a press is never answered off the screen.
+    var appearing = status.hidden;
     status.hidden = false;
-    status.className = "status" + (bad ? " bad" : "");
+    if (appearing && window.matchMedia && window.matchMedia("(max-width: 60rem)").matches && status.scrollIntoView) {
+      var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setTimeout(function () {
+        status.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+      }, 0);
+    }
+    status.className = "card status" + (bad ? " bad" : "");
     status.innerHTML = "";
     status.appendChild(html);
     // A refusal's first line wears the clay mark and stays ink (design.md §12,
@@ -97,7 +111,7 @@
   function refuseBox(text) {
     if (!window.TargumFault) return say(line(text), true);
     status.hidden = true;
-    window.TargumFault.field(given, text, drop);
+    window.TargumFault.field(given, text, givenWell || drop);
   }
 
   /* targum out of reach: the connection's banner, whose Try again presses again. */
@@ -129,7 +143,7 @@
    * and nothing on the page says Hebrew (2026-09-14).
    */
 
-  var RESTING = understood ? understood.textContent : "";
+  var RESTING = "";
   var SUBTITLES = /\.(srt|vtt)$/i;
   var TEXTUAL = /\.(txt|md|markdown)$/i;
   var MOVING = /\.(mp4|m4v|mov|webm|mkv)$/i;
@@ -398,6 +412,8 @@
     });
     givenFiles.hidden = !rows.length;
     if (given) given.hidden = !!chosen;
+    if (givenField) givenField.hidden = !!chosen;
+    if (dropSay) dropSay.hidden = !!chosen;
   }
 
   // What targum thinks it was given, in a sentence.
@@ -436,17 +452,15 @@
       });
     }
     if (read.kind === "few") {
-      return talks()
-        ? t("add.few.talks", "A few words. Continue and we'll read them as a text, or Ask targum and we'll find something to read.")
-        : t("add.few", "A few words. We'll read them as a text.");
+      return t("add.few", "A few words. We'll read them as a text.");
     }
     if (read.kind === "description") {
       // Said *before* the press, because the press is what spends: looking is a turn of
       // conversation and is metered like one (targum-internal#253). The old line sent
       // them to the drawer; Continue does it in place now.
       return t(
-        "add.description.look",
-        "That sounds like what you want to read. Press Continue and we'll look for it."
+        "add.description.look.upload",
+        "That sounds like what you want to read. Press Upload and we'll look for it."
       );
     }
     if (read.kind === "foreign") {
@@ -470,11 +484,6 @@
     return mine
       ? t("add.how.mine", "We'll line it up with the {language}, sentence by sentence.", { language: named(adding()) })
       : t("add.how.ours", "We'll translate it, sentence by sentence.");
-  }
-
-  // Whether the conversation is on this page to ask in.
-  function talks() {
-    return !!(window.TargumTalk && window.TargumTalk.say);
   }
 
   // Every choice on one line, and Change at the end of it.
@@ -516,13 +525,12 @@
     drawFiles();
     var name = named(adding());
     if (given) {
-      given.placeholder = t("add.given.placeholder", "Paste a link or some {language}, drop a file, or say what you want", {
+      // The board's examples, and the one thing a link field takes that a reader would
+      // not guess: the text itself, in the language chosen (2026-10-09).
+      given.placeholder = t("add.given.placeholder.link", "An article, a video, a podcast, or some {language}", {
         language: name,
       });
-      given.setAttribute(
-        "aria-label",
-        t("add.given.label", "A link, some {language}, or what you're looking for", { language: name })
-      );
+      given.setAttribute("aria-label", t("add.given.label.link", "A link, or some {language}", { language: name }));
     }
     var note = document.getElementById("how-note");
     var mine = document.querySelector('[data-how="mine"]');
@@ -530,10 +538,9 @@
     var read = readGiven();
     if (understood) {
       understood.textContent = understanding();
-      understood.hidden = quoted !== null && quoted === holding();
+      understood.hidden = !understood.textContent || (quoted !== null && quoted === holding());
     }
     var something = !!chosen || read.kind === "link" || read.kind === "text" || read.kind === "few";
-    if (askTargum) askTargum.hidden = chosen !== null || !talks() || (read.kind !== "description" && read.kind !== "few");
     if (summary) {
       summary.hidden = !something && (!choices || choices.hidden);
       summaryLine.textContent = summarise();
@@ -577,78 +584,34 @@
     if (fileInput.files[0]) take(Array.prototype.slice.call(fileInput.files));
   };
 
-  /* Something the reader recorded themselves (targum-internal#254). The recording is
-     `speak.js`'s, the same one the composer's Speak uses; what a clip is for is the
-     caller's business, and here it is a file like any dropped one — up the chunked door,
-     priced as a recording, nothing new on the server at all.
-
-     The button is drawn only where the browser can record, so the page never offers
-     what it cannot do. */
-  var recordButton = document.getElementById("record");
-  var recordWord = document.getElementById("record-word");
-  var speaking = window.TargumSpeak;
-  if (recordButton && speaking && speaking.can) {
-    recordButton.hidden = false;
-    var startedAt = 0;
-    recordButton.onclick = function () {
-      if (speaking.recording()) {
-        // The word follows the press, the way the composer's does: Stop while it runs.
-        speaking.toggle(recordButton);
-        return;
-      }
-      startedAt = Date.now();
-      var going = speaking.toggle(
-        recordButton,
-        function (clip) {
-          if (recordWord) recordWord.textContent = t("add.page.record", "Record");
-          var seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-          // Named for what it is and when, because a blob has no name of its own and a
-          // reader looking at their uploads should see a voice note and not "blob".
-          var name = "voice-note." + (extensionOf(clip.type) || "webm");
-          var note = new File([clip], name, { type: clip.type || "audio/webm" });
-          note.recordedSeconds = seconds;
-          take([note]);
-        },
-        function (why) {
-          if (recordWord) recordWord.textContent = t("add.page.record", "Record");
-          say(line(why), true);
-        },
-        t("add.page.record", "Record")
-      );
-      if (going && recordWord) recordWord.textContent = t("speak.stop", "Stop");
-    };
-  }
-
-  // What a browser called the clip it just made, as a file's last piece: "audio/webm;
-  // codecs=opus" is a webm. Empty where the type says nothing, and the caller falls back.
-  function extensionOf(type) {
-    var kind = String(type || "").split(";")[0].trim().toLowerCase();
-    return (
-      {
-        "audio/webm": "webm",
-        "audio/ogg": "ogg",
-        "audio/opus": "opus",
-        "audio/mp4": "m4a",
-        "audio/mpeg": "mp3",
-        "audio/wav": "wav",
-      }[kind] || ""
-    );
-  }
-
-  // The whole box is where a file is dropped.
+  // The whole card is where a file is dropped; the dashed place says so.
+  var dropOn = bringBox || drop;
   ["dragenter", "dragover"].forEach(function (name) {
-    drop.addEventListener(name, function (event) {
+    dropOn.addEventListener(name, function (event) {
       event.preventDefault();
       drop.classList.add("over");
     });
   });
   ["dragleave", "drop"].forEach(function (name) {
-    drop.addEventListener(name, function (event) {
+    dropOn.addEventListener(name, function (event) {
       event.preventDefault();
       drop.classList.remove("over");
     });
   });
-  drop.addEventListener("drop", function (event) {
+  // The dashed place is itself a press for choosing (board UploadPhone: the place is
+  // the button on a phone); a press on anything inside it that is its own button is not.
+  if (dropSay) {
+    dropSay.addEventListener("click", function () {
+      fileInput.click();
+    });
+    dropSay.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        fileInput.click();
+      }
+    });
+  }
+  dropOn.addEventListener("drop", function (event) {
     var files = event.dataTransfer && event.dataTransfer.files;
     if (files && files[0]) take(Array.prototype.slice.call(files));
   });
@@ -888,15 +851,6 @@
     // turn of it, so there is nothing to charge and nothing to say (copy audit,
     // 2026-09-28).
     say(box);
-  }
-
-  // Said in the conversation, by the reader's own press: a description is a turn of it.
-  if (askTargum) {
-    askTargum.onclick = function () {
-      var read = readGiven();
-      if (!read.text || !talks()) return;
-      window.TargumTalk.say(read.text);
-    };
   }
 
   /* --- the translation, where the reader has one ----------------------------- */
@@ -1204,14 +1158,16 @@
     var to = document.getElementById("to");
     if (!to) return;
 
-    function fill(select, rows, allowed) {
+    // The language the text is in is named alone, as the board draws it; how far along
+    // it is goes under the box. The language read into keeps its stage beside it.
+    function fill(select, rows, allowed, bare) {
       var was = select.value;
       select.textContent = "";
       rows.forEach(function (row) {
         if (allowed && allowed.indexOf(row.code) < 0) return;
         var option = document.createElement("option");
         option.value = row.code;
-        option.textContent = row.name + " (" + row.label + ")";
+        option.textContent = bare ? row.name : row.name + " (" + row.label + ")";
         select.appendChild(option);
       });
       // Whatever was chosen may be a language this account no longer has; the first
@@ -1223,7 +1179,7 @@
 
     if (window.TargumSync) {
       window.TargumSync.onChange(function () {
-        fill(from, window.TARGUM_READING || [], window.TargumSync.learning());
+        fill(from, window.TARGUM_READING || [], window.TargumSync.learning(), true);
         fill(to, window.TARGUM_INTO || [], window.TargumSync.reads());
         // The note under the first picker is about whatever it now shows.
         from.dispatchEvent(new Event("change"));
@@ -1421,11 +1377,9 @@
         say(
           line(
             read.kind === "description"
-              ? talks()
-                ? t("add.continue.talks", "Continue reads a link, a file or the text itself. Press Ask targum and we'll look for it.")
-                : t("add.continue", "Continue reads a link, a file or the text itself. Paste one of those here.")
+              ? t("add.continue.upload", "Upload reads a link, a file or the text itself. Paste one of those here.")
               : read.kind === "foreign"
-                ? t("add.continue.foreign", "Choose its language under Change, then press Continue.")
+                ? t("add.continue.foreign.beside", "Choose the language it's in beside Upload, then press Upload.")
                 : t("add.continue.empty", "Paste a link or some {language}, or drop a file.", { language: named(adding()) })
           ),
           true
@@ -1709,22 +1663,33 @@
     say(box);
   }
 
-  // The card's first line: the title in bold, then its facts, with nothing said for a
-  // part the quote did not carry.
-  function titled(job, lengthSaid) {
-    var head = document.createElement("p");
-    head.style.margin = "0";
-    // Isolated, so a Hebrew title in an English line keeps its own direction and the
-    // facts after it: unisolated, the clock joined the title's run and was drawn in
-    // front of it ("12:35 · זו מדינת אויב?").
-    var own = document.createElement("bdi");
-    var bold = document.createElement("b");
-    bold.textContent = job.title || "";
-    own.appendChild(bold);
-    head.appendChild(own);
+  // The card's head, as the board draws it (UploadDesk, 2026-10-09): what it is in a
+  // quiet line, then its title in the reading face, then how much of it is known.
+  //: `knownSaid`: what was found already said how much of it is known.
+  function titled(job, lengthSaid, knownSaid) {
+    var head = document.createElement("div");
+    head.className = "quote-head";
     var facts = describe(job, lengthSaid);
-    if (job.title && facts.textContent) head.appendChild(document.createTextNode(" · "));
-    head.appendChild(facts);
+    if (facts.textContent) {
+      var meta = document.createElement("p");
+      meta.className = "quote-meta";
+      meta.appendChild(facts);
+      head.appendChild(meta);
+    }
+    // Its own direction, from its own letters: a Hebrew title stands at the right.
+    var title = document.createElement("p");
+    title.className = "quote-title";
+    title.setAttribute("dir", "auto");
+    if (job.language) title.setAttribute("lang", job.language);
+    title.textContent = job.title || "";
+    head.appendChild(title);
+    var known = !knownSaid && bringing && bringing.knownLine ? bringing.knownLine(job.known_share) : "";
+    if (known) {
+      var mine = document.createElement("p");
+      mine.className = "quote-known";
+      mine.textContent = known;
+      head.appendChild(mine);
+    }
     return head;
   }
 
@@ -1754,10 +1719,12 @@
     var box = document.createDocumentFragment();
     // What was found stays above what it costs: the reader read it while the price was
     // being worked out, and it should not vanish the moment the price lands.
+    // What was found stays on the card, under its title: the reader read it while the
+    // price was being worked out, and it should not vanish the moment the price lands.
     var was = foundBlock(found);
-    if (was) box.appendChild(was);
-    var head = titled(job, !!(was && found.seconds));
+    var head = titled(job, !!(was && found.seconds), !!was);
     box.appendChild(head);
+    if (was) box.appendChild(was);
 
     // A text that arrived as pages: its first lines as read, and how many it could
     // not read cleanly, so the reader sees what will be built before pressing.
@@ -1780,25 +1747,43 @@
       );
     }
 
-    var cost = document.createElement("span");
+    // How long until it opens.
+    var cost = document.createElement("p");
     cost.className = "cost";
     cost.textContent = price(job);
     box.appendChild(cost);
-    // And what the press spends, beside it (copy audit, 2026-09-28).
+
+    // What the press spends, and beside it what is left with the rate (design.md §12,
+    // 2026-09-23: the rate goes wherever a balance is), then that nothing is spent yet.
+    var spend = document.createElement("div");
+    spend.className = "quote-spend";
     var spends = bringing.uses(job);
     if (spends) {
       var uses = document.createElement("span");
       uses.className = "cost uses";
       uses.textContent = spends;
-      box.appendChild(uses);
+      spend.appendChild(uses);
     }
+    if (balance) {
+      var left = document.createElement("span");
+      left.className = "quote-left";
+      left.textContent = tn("add.quote.left", balance.credits, "{n} left this month", "{n} left this month");
+      spend.appendChild(left);
+    }
+    box.appendChild(spend);
+    var until = document.createElement("p");
+    until.className = "quote-until";
+    until.textContent =
+      (balance ? t("add.quote.rate", "That's about {clock} of audio.", { clock: clockOf(balance.hours) }) + " " : "") +
+      t("add.quote.until", "Nothing is used until you confirm.");
+    box.appendChild(until);
 
     var row = document.createElement("div");
     row.className = "row";
     var confirm = document.createElement("button");
     confirm.type = "button";
-    confirm.className = "btn filled";
-    confirm.textContent = t("add.start-reading", "Open");
+    confirm.className = "btn filled confirm";
+    confirm.textContent = t("add.confirm", "Confirm");
     confirm.onclick = function () {
       // Held down until the server answers: the press is what spends, and a second
       // press while the first was in flight had nothing to tell it the first had landed.
@@ -1820,10 +1805,26 @@
         });
     };
     row.appendChild(confirm);
-    if (job.pictures_offered > 0) {
-      row.appendChild(readPictures(job.pictures_offered, true, job.pictures_are === "pages"));
-    }
+    // Cancel puts the card away and leaves the box as it was: nothing was spent.
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "btn ghost outline cancel";
+    cancel.textContent = t("add.cancel", "Cancel");
+    cancel.onclick = function () {
+      status.hidden = true;
+      status.textContent = "";
+      quoted = null;
+      go.disabled = false;
+      settle();
+    };
+    row.appendChild(cancel);
     box.appendChild(row);
+    if (job.pictures_offered > 0) {
+      var also = document.createElement("div");
+      also.className = "row";
+      also.appendChild(readPictures(job.pictures_offered, true, job.pictures_are === "pages"));
+      box.appendChild(also);
+    }
     say(box);
   }
 
@@ -2182,6 +2183,8 @@
      named here as costing none of them, because the sentence above is about limits and
      somebody reading it quickly could take the whole page to be metered. */
   var hoursLine = document.getElementById("hours");
+  //: What is left this month, for the card a press is priced on: credits and hours.
+  var balance = null;
   if (hoursLine) {
     fetch(keyed("/account/me"), { credentials: "same-origin" })
       .then(function (answer) {
@@ -2214,16 +2217,17 @@
           hoursLine.parentNode.insertBefore(spent, hoursLine.nextSibling);
           return;
         }
-        hoursLine.textContent =
-          left > 0
-            ? tn("add.credits.left", spare, "You have {n} credit left this month.", "You have {n} credits left this month.") +
-              " " +
-              t("add.credits.rate", "That's about {clock} of audio, and the library costs none of it.", {
-                clock: clockOf(left),
-              })
-            : t("add.credits.none", "You've used all your credits this month. Top up, or they come back on {date}.", {
-                date: hours.ends || "",
-              });
+        if (left > 0) {
+          // Said on the card a press is priced on, with its rate (the board's preview),
+          // rather than in a line on the page before anything is priced.
+          balance = { credits: spare, hours: left };
+          return;
+        }
+        hoursLine.textContent = t(
+          "add.credits.none",
+          "You've used all your credits this month. Top up, or they come back on {date}.",
+          { date: hours.ends || "" }
+        );
         hoursLine.hidden = false;
       })
       .catch(function () {
