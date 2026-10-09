@@ -94,6 +94,20 @@
         </label>
         <select class="acct-pick" id="you-level"></select>
       </li>
+      {#- How the conversation says "you" in Hebrew (2026-09-14; a row again after #695,
+          design.md §12). Every second person in Hebrew has a gender, and nikkud makes it
+          visible. Shown only while Hebrew is being learned; `you.js` marks the one the
+          account keeps and saves a press at `/account/address`. -#}
+      <li class="row" id="you-address-row" hidden>
+        <span class="row-main">
+          <span class="acct-name" id="address-label">{{ t("you.page.address", "In Hebrew, we talk to you") }}</span>
+          <span class="acct-says">{{ t("you.page.address-says", "Hebrew says “you” one way to a man and another to a woman") }}</span>
+        </span>
+        <span class="seg" id="you-address" role="radiogroup" aria-labelledby="address-label">
+          <button type="button" role="radio" aria-checked="false" id="address-m">{{ t("you.page.address-m", "As a man") }}</button>
+          <button type="button" role="radio" aria-checked="false" id="address-f">{{ t("you.page.address-f", "As a woman") }}</button>
+        </span>
+      </li>
     </ul>
     <p class="said" id="you-languages-said" hidden></p>
   </section>

@@ -816,10 +816,15 @@ def test_the_shelf_grid_outranks_the_list_it_shares_a_class_with() -> None:
 
 def test_the_profile_page_holds_what_an_account_is() -> None:
     """Board AccountDesk (2026-10-09): Credits, Plan, Your languages and Account — the
-    address, Saved on this device, the export, and the way out. The name and the Hebrew
-    form of address are no longer asked here."""
+    address, Saved on this device, the export, and the way out. The name is no longer
+    asked here; the Hebrew form of address is a row of Your languages, a `.seg` of its two
+    forms, because the conversation still reads it."""
     you = PAGES["you"]
-    assert 'id="you-name"' not in you and 'id="you-address"' not in you
+    assert 'id="you-name"' not in you
+    assert '<span class="seg" id="you-address" role="radiogroup"' in you
+    assert 'id="address-m"' in you and 'id="address-f"' in you
+    languages = you[you.index('id="languages"') : you.index('id="connections"')]
+    assert 'id="you-address-row"' in languages, "a row of Your languages"
     assert 'id="you-email"' in you and 'href="/you/saved"' in you
     assert 'id="you-export"' in you and 'href="/account/export" download' in you
     assert 'id="you-forget"' in you, "and the way out"

@@ -73,8 +73,8 @@
 
   /* --- who you are ----------------------------------------------------------- */
 
-  // The address, on the Account card. The name and the Hebrew form of address are no
-  // longer asked here (the board draws neither); the account keeps what was said.
+  // The address, on the Account card. The name is no longer asked here (the board draws
+  // none); the Hebrew form of address is a row of Your languages (`drawAddress`).
   function drawWho(who) {
     at("you-email").textContent = who.email || "";
   }
@@ -189,6 +189,40 @@
     reads = (who.reads || ["en"]).slice();
     drawLearning();
     drawReads();
+    drawAddress();
+  }
+
+  /* How the conversation says "you" in Hebrew: 'm', 'f', or '' where they have not said.
+     A row of Your languages, there only while Hebrew is being learned, and saved on the
+     press at the endpoint that has always kept it. */
+  var address = "";
+
+  function drawAddress() {
+    var row = at("you-address-row");
+    if (row) row.hidden = learning.indexOf("he") < 0;
+    ["m", "f"].forEach(function (form) {
+      var press = at("address-" + form);
+      if (press) press.setAttribute("aria-checked", String(address === form));
+    });
+  }
+
+  function wireAddress() {
+    ["m", "f"].forEach(function (form) {
+      var press = at("address-" + form);
+      if (!press) return;
+      press.addEventListener("click", function () {
+        if (address === form) return;
+        ask("/account/address", { address: form }).then(function (answer) {
+          if (answer.error || answer.signedIn === false) {
+            drawAddress();
+            return say("you-languages-said", answer.error || SIGNED_OUT, true);
+          }
+          address = answer.address || "";
+          drawAddress();
+          say("you-languages-said", SAVED);
+        });
+      });
+    });
   }
 
   var savingLanguages = null;
@@ -826,6 +860,7 @@
       show(!!who.signedIn);
       if (!who.signedIn) return;
       drawWho(who);
+      address = who.address || "";
       drawLanguages(who);
       drawLevel(who);
       drawRecord(who);
@@ -834,6 +869,7 @@
       drawPrompts(who);
       drawGrant(who);
       wireLanguages();
+      wireAddress();
       ending();
       if (window.TargumSync) window.TargumSync.start();
     })

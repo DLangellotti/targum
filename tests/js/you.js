@@ -126,6 +126,13 @@ setTimeout(() => {
           on: Boolean(option.selected),
         })),
         declaredHere: localStorage.getItem("targum:declared"),
+        /* How the conversation says "you" in Hebrew: whether its row is drawn, and which
+           of the two forms is marked. */
+        address: {
+          hidden: at("you-address-row").hidden,
+          m: byId["address-m"] ? byId["address-m"].getAttribute("aria-checked") : null,
+          f: byId["address-f"] ? byId["address-f"].getAttribute("aria-checked") : null,
+        },
         languagesSaid: {
           text: at("you-languages-said").textContent,
           hidden: at("you-languages-said").hidden,

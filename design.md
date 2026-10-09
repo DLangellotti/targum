@@ -413,8 +413,8 @@ for each section:
 What goes, each because the board draws none of it (David's #13, left open; the defaults
 taken, for him to overrule):
 
-- **The name field and the Hebrew form of address.** The account keeps what was said
-  before, and the conversation still reads it. Neither is asked anywhere now.
+- **The name field.** The account keeps what was said before, and the conversation
+  still reads it. It is not asked anywhere now.
 - **"Your reading"** (the tally and its three links). The tally is Your Progress's,
   Saved on this device is a row of Account, and subscriptions are a tab of Your targums.
 - **The explainers.** "Hebrew always stays on…", the long paragraph on what is recorded
@@ -422,6 +422,10 @@ taken, for him to overrule):
 
 What is not drawn because nothing behind it exists: the email address's Change, receipts,
 and "Brought in this month" on a connection.
+
+The Hebrew form of address went with the name and came back the same day, as a `.seg`
+row of Your languages shown while Hebrew is learned, because the conversation still
+reads it and a setting that changes behaviour stays reachable.
 
 **Saved on this device** takes its two columns at a desk: at the left, "Saved on their
 own" and "Saved by you" as tables with column heads (picture, title over what was kept,
