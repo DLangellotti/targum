@@ -25,6 +25,22 @@
 }
 .tanakh .tanakh-sum:empty { display: none; }
 
+/* Map or the list of books (board LibraryTanakh): where you are is the desk's teal on
+   its wash, as the Library's Cards and List are; the other is a link. */
+.tanakh .tanakh-views { display: flex; gap: 0.25rem; margin: 0 0 0.75rem; font-family: var(--chrome); font-size: 0.8125rem; }
+.tanakh .tanakh-view {
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+.tanakh .tanakh-view[aria-current="page"] { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+.tanakh a.tanakh-view:hover { color: var(--ink); text-decoration: underline; }
+.tanakh a.tanakh-view:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) {
+  .tanakh a.tanakh-view { display: inline-block; min-block-size: 44px; line-height: 44px; padding-block: 0; }
+}
+
 /* --- the squares ---------------------------------------------------------------- */
 
 .tanakh .cell {
@@ -204,7 +220,14 @@
 /* One proportional row of 54 ticks, on the phone as on the desk. A tick is the rule's
    tone, this week's is ink like its ring on the map, and a lit one — and the chapters it
    lights — wear a ring in the soft ink, so the shade under a chapter still reads. */
+/* Its own card above the map's since 2026-10-09 (board LibraryTanakh). */
 .tanakh .tanakh-year { margin: 0 0 1rem; }
+.tanakh .year-head {
+  margin: 0 0 0.6rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
 .tanakh .year-ticks {
   display: flex;
   gap: 2px;

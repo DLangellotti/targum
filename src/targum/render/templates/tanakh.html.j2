@@ -12,14 +12,23 @@
 </head>
 {#- The Tanakh map (targum-internal#144; design.md §12, 2026-09-28). Every chapter a
     square, in three parts and the Hebrew count, shaded on the knowledge ramp by the share
-    of its running words the reader has marked known. Reached from Your Progress, so the
-    nav lights that. `words` for the ramp's four steps, which are defined on it. -#}
+    of its running words the reader has marked known. A door of the Library since
+    2026-10-09 (§12, "The Tanakh map is a door in the Library"), so the nav lights that
+    and the trail above the heading says Library › The Tanakh. `words` for the ramp's four
+    steps, which are defined on it. -#}
 <body class="words progress tanakh">
-{% set here = 'progress' %}{% set title = t("tanakh.page.title", "The Tanakh") %}
+{% set here = 'library' %}{% set title = t("tanakh.page.title", "The Tanakh") %}
+{% set crumbs = [(t("nav.library", "Library"), "/library")] %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
 <main>
+  {#- Two ways into the same books (board LibraryTanakh): this map, and the Library's
+      own list of them behind the Beit Midrash's Tanakh door. -#}
+  <div class="tanakh-views" role="group" aria-label="{{ t("tanakh.page.how-to-show-it", "How to show it") }}">
+    <span class="tanakh-view" aria-current="page">{{ t("tanakh.page.map", "Map") }}</span>
+    <a class="tanakh-view" href="/library#bm/tanakh">{{ t("tanakh.page.list-of-books", "List of books") }}</a>
+  </div>
   <p class="tanakh-lede">{{ t("tanakh.page.lede", "Every chapter, shaded by how many of its words you know. Press one to read it.") }}</p>
   {#- The one sentence the shading adds up to, filled by `tanakh.js`. Signed out it says
       where the shading comes from instead. -#}
@@ -27,6 +36,23 @@
 
   {#- The ramp and the three things that are not on it: a square is a share of words
       known, Aramaic, or a book that is not on the shelf — never two of these at once. -#}
+  {#- The Torah's year (targum-internal#144): a tick a portion, in the order they are
+      read, each the link to its portion and as wide as the chapters it is read from
+      (`tanakh.js` sets that; with no script they are even). Hover or focus on a tick
+      lights its chapters on the map, and a Torah chapter lights its tick. -#}
+  {%- if year %}
+  <nav class="panel tanakh-year" aria-label="{{ t("tanakh.page.year", "The year of portions") }}">
+    {#- Its own card above the map since 2026-10-09 (board LibraryTanakh): the year is
+        read first, and this week's tick is where a Torah reader starts. -#}
+    <p class="year-head">{{ t("tanakh.page.year", "The year of portions") }}</p>
+    <ol class="year-ticks" id="tanakh-year">
+      {%- for portion in year %}
+      <li class="year-item"><a class="year-tick" href="{{ portion.href }}" data-slug="{{ portion.slug }}" data-chapters="{{ portion.chapters|join('|') }}" aria-label="{{ portion.name }}, {{ portion.chapters[0] }}{% if portion.chapters|length > 1 %}–{{ portion.chapters[-1].rsplit(' ', 1)[1] }}{% endif %}"></a></li>
+      {%- endfor %}
+    </ol>
+    <p class="year-said" id="year-said" aria-live="polite"></p>
+  </nav>
+  {%- endif %}
   <section class="panel tanakh-panel" aria-label="{{ t("tanakh.page.every-chapter", "Every chapter") }}">
   <ul class="tanakh-legend" id="tanakh-legend" data-steps="{{ steps|join(' ') }}">
     <li><i class="cell" data-step="0"></i>{{ t("tanakh.page.under-half", "Under half") }}</li>
@@ -41,20 +67,6 @@
 
   {#- The squares are links, so the map is a table of contents for the whole Tanakh and
       works with no script at all. `aria-label` is the chapter; the card says the rest. -#}
-  {#- The Torah's year (targum-internal#144): a tick a portion, in the order they are
-      read, each the link to its portion and as wide as the chapters it is read from
-      (`tanakh.js` sets that; with no script they are even). Hover or focus on a tick
-      lights its chapters on the map, and a Torah chapter lights its tick. -#}
-  {%- if year %}
-  <nav class="tanakh-year" aria-label="{{ t("tanakh.page.year", "The year of portions") }}">
-    <ol class="year-ticks" id="tanakh-year">
-      {%- for portion in year %}
-      <li class="year-item"><a class="year-tick" href="{{ portion.href }}" data-slug="{{ portion.slug }}" data-chapters="{{ portion.chapters|join('|') }}" aria-label="{{ portion.name }}, {{ portion.chapters[0] }}{% if portion.chapters|length > 1 %}–{{ portion.chapters[-1].rsplit(' ', 1)[1] }}{% endif %}"></a></li>
-      {%- endfor %}
-    </ol>
-    <p class="year-said" id="year-said" aria-live="polite"></p>
-  </nav>
-  {%- endif %}
 
   <div class="tanakh-map" id="tanakh-map">
     {%- for part in parts %}
