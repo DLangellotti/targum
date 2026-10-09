@@ -307,17 +307,18 @@ def test_leaving_says_nothing_about_whether_the_token_was_one(
 
 
 def test_the_desk_it_carries_is_the_desk_the_rest_of_the_product_stands_on() -> None:
-    """The page copies `reader.css`'s token blocks rather than loading that file,
-    because the reader's sheet styles `.lines`, `.thread`, `.card` and `.stage` for the
-    reader and this page draws things by those names too — loading both put the
-    conversation on top of the hero. A copy drifts unless something holds it, and this
-    is the something."""
+    """The page copies the tokens' `:root` block rather than loading a sheet, because
+    the reader's sheet styles `.lines`, `.thread`, `.card` and `.stage` for the reader
+    and this page draws things by those names too — loading both put the conversation on
+    top of the hero. A copy drifts unless something holds it, and this is the something.
+    The block lives in `tokens.css` since 2026-10-09 (design.md §11)."""
     assets = Path(__file__).resolve().parents[1] / "src/targum/render/assets"
-    reader = assets.joinpath("reader.css").read_text(encoding="utf-8").splitlines()
+    lines = assets.joinpath("tokens.css").read_text(encoding="utf-8").splitlines()
     landing = assets.joinpath("landing.css").read_text(encoding="utf-8")
     # The light block alone: the front door has no dark half (David, 2026-09-16).
-    tokens = "\n".join(reader[:113])
-    assert tokens in landing, "landing.css no longer carries reader.css's tokens verbatim"
+    start = lines.index(":root {")
+    tokens = "\n".join(lines[start : lines.index("}", start) + 1])
+    assert tokens in landing, "landing.css no longer carries the tokens verbatim"
 
 
 def test_the_front_door_is_light_whatever_the_browser_prefers() -> None:

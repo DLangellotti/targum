@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("playlists.page.title-targum", "Your playlists — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}{{ asset('playlists.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}{{ asset('playlists.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
-<body class="words you playlists">
+<body class="playlists">
 {#- Playlists is Your targums' third tab (design.md §12, 2026-09-26): the nav lights Your
     targums, the heading is its, and the same strip stands at the top with Playlists
     chosen, so the three read as one place though this is a page of its own. -#}

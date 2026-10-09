@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("saved.page.title-targum", "Saved on this device — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('you.css') }}{{ asset('saved.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('you.css') }}{{ asset('saved.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
-<body class="words you saved">
+<body class="saved">
 {#- Saved on this device (design.md §12, "What is saved is a page of the account's",
     2026-10-09; boards OffSavedDesk and OffSavedPhone). Everything on it is this
     browser's: what is kept, how much room it takes, and what saves itself. Nothing is

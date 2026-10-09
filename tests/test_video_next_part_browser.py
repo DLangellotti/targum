@@ -394,7 +394,8 @@ def test_beside_has_one_primary_at_the_end_of_a_part(browser, tmp_path) -> None:
     )
     try:
         done = page.evaluate(looks)
-        assert done["line"] == "underline" and "gradient" not in done["bg"], done
+        # The pill is the primary's flat fill (§13; its sheen went on 2026-10-09).
+        assert done["line"] == "underline" and "rgb(31, 111, 107)" not in done["bg"], done
     finally:
         context.close()
     context, page, _asked = film_page(
@@ -402,7 +403,7 @@ def test_beside_has_one_primary_at_the_end_of_a_part(browser, tmp_path) -> None:
     )
     try:
         done = page.evaluate(looks)
-        assert "gradient" in done["bg"] and done["line"] != "underline", done
+        assert "rgb(31, 111, 107)" in done["bg"] and done["line"] != "underline", done
     finally:
         context.close()
 

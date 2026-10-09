@@ -23,6 +23,12 @@ body.signin {
   width: 100%;
   max-width: 26rem;
 }
+/* The door's own room. It came from the reader's `main` while every page carried
+   reader.css; a door is not a reader, and says so here (2026-10-09). */
+main.gate { padding: 3rem 1.25rem 6rem; }
+@media (max-width: 46rem) {
+  main.gate { padding: 2rem 1rem 4rem; }
+}
 
 /* The wordmark keeps the reading serif (§13: "and in the wordmark"). */
 .gate .brand {
@@ -131,7 +137,8 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
   padding: 0.6rem 1.25rem;
   border: none;
   border-radius: 999px;
-  background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
+  /* Flat: §13's filled button is a fill, and the desk draws no sheen (2026-10-09). */
+  background: var(--ink-max);
   color: var(--page-max, #fffdf9);
   font: inherit;
   font-size: 1.0625rem;

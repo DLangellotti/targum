@@ -202,8 +202,8 @@ def test_every_desk_page_wears_the_chrome_s_face() -> None:
         )
     from targum.render.builder import ASSETS
 
-    reader = (ASSETS / "reader.css").read_text(encoding="utf-8")
-    assert "--chrome:" in reader and "--ground:" in reader and "--teal:" in reader
+    tokens = (ASSETS / "tokens.css").read_text(encoding="utf-8")
+    assert "--chrome:" in tokens and "--ground:" in tokens and "--teal:" in tokens
 
 
 def test_the_command_palette_is_on_every_page() -> None:

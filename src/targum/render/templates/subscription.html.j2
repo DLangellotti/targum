@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("subs.page.title", "Subscription — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}{{ asset('subs.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}{{ asset('subs.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
-<body class="words you subs-page">
+<body class="subs-page">
 {#- One subscription (design.md §12, "A subscription is the account's", 2026-10-09; board
     SubDetail). Your targums' Subscriptions tab, one row opened: the nav lights Your
     targums and the strip stands at the top with Subscriptions chosen, as Playlists does. -#}

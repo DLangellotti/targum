@@ -1084,7 +1084,7 @@ def test_interlinear_shows_the_translation_not_the_words(tmp_path: Path) -> None
     assert 'data-mode="inter"' in html
     assert "<dt>l</dt>" in html
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     # The translation is shown, under the line rather than beside it.
     assert ".mode-inter .tr {" in css
     assert ".mode-inter .tr { display: none; }" not in css
@@ -1294,7 +1294,7 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
         assert "prefers-color-scheme" not in css, sheet.name
         assert "data-theme" not in css, sheet.name
         assert "color-scheme: dark" not in css, sheet.name
-    assert "color-scheme: light" in (ASSETS / "reader.css").read_text(encoding="utf-8")
+    assert "color-scheme: light" in _reader_css()
 
 
 def _favicon(html: str) -> str:
@@ -1360,9 +1360,8 @@ def test_the_reader_styles_every_floating_card() -> None:
     That is what "adding words does not work" looked like: the definition card was
     being built and shown correctly, with its styles removed by an unrelated cleanup.
     """
-    from targum.render.builder import ASSETS
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     for selector in (".gloss-card {", ".pick-card {", ".list {"):
         assert selector in css, selector
     # Each floats over the text, so each needs taking out of the flow.
@@ -1378,7 +1377,7 @@ def test_every_word_a_reader_meets_offers_to_copy_itself() -> None:
     carries, and in the reader it speaks through the reader's own live region."""
     from targum.render.builder import ASSETS
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     assert ".copy {" in css and ".gloss-card .copy-line {" in css
     reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
     assert reader.count("window.TargumVocab.copyButton(") == 5, (
@@ -1408,7 +1407,7 @@ def test_pressing_a_card_does_not_cancel_the_selection_behind_it() -> None:
     assert "chip.contains(event.target)" in script
     assert 'chip.addEventListener("mousedown"' in script
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     assert "user-select: none" in css
 
 
@@ -1698,7 +1697,7 @@ def test_every_page_that_reads_hebrew_carries_a_face() -> None:
     missing = [
         path.name
         for path in templates
-        if "asset('reader.css')" in path.read_text(encoding="utf-8")
+        if "asset('tokens.css')" in path.read_text(encoding="utf-8")
         and "hebrew_face(" not in path.read_text(encoding="utf-8")
     ]
     assert not missing, f"these carry the stylesheet but no Hebrew face: {', '.join(missing)}"
@@ -2604,9 +2603,8 @@ def test_a_pair_is_not_separated_by_a_blank_line() -> None:
     Pinned as a fraction of a line rather than as a number, because the number only means
     anything against the leading.
     """
-    from targum.render.builder import ASSETS
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     line = 1.0625 * 1.95  # a Hebrew line, per §5
 
     def gap(*blocks: str) -> float:
@@ -2950,9 +2948,14 @@ def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
 
 
 def _reader_css() -> str:
+    """What a reader page carries: the tokens, what it shares with the desk, and its own
+    rules, in the order it inlines them (design.md §11, 2026-10-09)."""
     from targum.render.builder import ASSETS
 
-    return (ASSETS / "reader.css").read_text(encoding="utf-8")
+    return "".join(
+        (ASSETS / name).read_text(encoding="utf-8")
+        for name in ("tokens.css", "shared.css", "reader.css")
+    )
 
 
 def test_marking_is_what_a_text_opens_in() -> None:
@@ -3377,7 +3380,7 @@ def test_a_quoted_phrase_is_marked_in_the_parallel_text() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    sheet = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    sheet = _reader_css()
     rule = sheet[sheet.index(".tr .echo {") : sheet.index("}", sheet.index(".tr .echo {"))]
     assert re.search(r"var\(--iris\) (1[2-9]|2[0-2])%", rule), "the wash is iris, 12–22%"
     assert "transition" not in rule and "gradient" not in rule, "flat"
@@ -4398,7 +4401,7 @@ def test_a_card_goes_once_the_level_it_asked_for_has_been_said() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
 
     assert "if (open) spendCard();" in script, "a level said on an open card spends it"
     spend = script[script.index("function spendCard() {") : script.index("function stopFade() {")]
@@ -4697,11 +4700,17 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     # The video panel was in the occupant list by design — §12's moving-pictures entry —
     # until targum-internal#422, when a phone's picture went to stand at the top, above its
     # transcript, always; it is no longer in the band at all.
-    shared = "\n  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {"
+    shared = "\n  .list, .pick-card, .keys-card, .bar-more.open {"
     occupants = phone.split(shared, 1)[1]
     occupants = occupants.split("\n  }\n", 1)[0]
     assert "position: fixed;" in occupants and "inset-block: auto 0;" in occupants
     assert "max-block-size: 45svh;" in occupants, "the band's ceiling"
+    # The word's card rises into the same band, from `shared.css`, which the desk's
+    # lists open too (design.md §11, 2026-10-09).
+    card = (ASSETS / "shared.css").read_text(encoding="utf-8")
+    card = card[card.index("@media (max-width: 60rem) {\n  @keyframes rise") :]
+    card = card.split("\n  .gloss-card {", 1)[1].split("\n  }\n", 1)[0]
+    assert "position: fixed;" in card and "max-block-size: 45svh;" in card
     assert "inset-block-end: var(--occupant, 0px);" in phone, "the strip stands on the occupant"
     assert "var(--occupant, 0px) + var(--strip, 0px)" in phone, "the arrows stand on the strip"
     assert "body { padding-block-end: var(--foot, 0px); }" in phone, "the page above the lot"
@@ -4726,8 +4735,9 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "return [card, chip, more].concat(" in script
     assert room.count("settledTop(thing, false)") == 1
     assert room.count("settledTop(thing, true)") == 1
-    over = "\n  .gloss-card, .pick-card, .bar-more.open { z-index: 30; }\n"
+    over = "\n  .pick-card, .bar-more.open { z-index: 30; }\n"
     assert over in phone, "over the strip and the tab"
+    assert "z-index: 30;" in card, "the word's card, over the strip and the tab too"
     assert ".bar:has(.bar-more.open) { z-index: 30; }" in phone, "the menu's bar rises with it"
     # One occupant at a time, and the sheet left standing under a card.
     assert "function occupy(which)" in script and "function vacate(which)" in script

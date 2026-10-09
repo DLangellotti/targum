@@ -1,180 +1,15 @@
-/* targum reader.
+/* targum reader: what only the reader draws.
+   It comes after `tokens.css` and `shared.css` in every reader page, so its rules
+   have the last word on its own page and never reach the desk's.
    Logical properties throughout: nothing here says left or right, so one stylesheet
    serves an RTL source beside an LTR translation and the columns land the right way
    round on their own. */
 
-:root {
-  color-scheme: light;
-
-  /* Latin faces first, then Hebrew ones. A Latin serif carries no Hebrew glyphs, so
-     Hebrew falls through to the first face here that has them rather than to whatever
-     the platform picks — which decided how well the nikkud sat, and was left to
-     chance. The CLM faces are the good ones where they are installed; the two after
-     them ship with macOS and Windows respectively. */
-  --reading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
-             "Times New Roman", serif;
-  /* The same faces §5 names, in their own stack rather than appended to the Latin one.
-     Appended, every pointed Hebrew cluster walked four Latin faces before reaching a
-     face that could carry it — and a base letter with its marks is one cluster to
-     resolve, not one character. Measured on the Declaration: 901ms to first frame
-     against 5ms. The reader was not slow; the page could not be laid out. */
-  /* Only what is left if a page carries no face of its own — every page built by
-     `hebrew_face()` overrides this with the one it has embedded. Kept because these are
-     the right fonts to reach for and some readers do have them; not relied on, because
-     most do not, and New Peninim MT at the end of it has no accents at all. */
-  --reading-hebrew: "Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew",
-                    "New Peninim MT", David, serif;
-  --measure: 34rem;
-  --size: 1.0625rem;
-  --leading: 1.75;
-  --leading-rtl: 1.95;   /* Hebrew needs more room than Latin at the same size */
-  --gap: 2.5rem;
-
-  --ink: #1c1a17;
-  --ink-soft: #6b645c;
-  --paper: #fbf9f5;
-  --paper-raised: #f3efe7;
-  --rule: #e2dcd1;
-  --accent: #7a5c38;
-  --focus: #b8935e;
-  /* The mark's translation column is its own value on paper: the working accent
-     goes muddy at 22px wide, and every brand asset already uses this one. */
-  --mark-accent: #a5824f;
-
-  /* Functional colour (§4). Three hues for UI features — feedback, progress, badges,
-     charts — and never in the identity. One hue per moment, flat always, text only at
-     these working cuts. Green and purple are the positions nobody in the category
-     owns; blue and orange stay out. */
-  --leaf: #5a7340;   /* progress, success, known        5.0:1 on paper */
-  --clay: #b4553f;   /* cost, errors, destructive       4.6:1 */
-  --iris: #6b5a8e;   /* phrases, discovery, new         5.7:1 */
-
-  /* The bright set (§4): peak moments only, one hue at a time. These live on ink
-     panels as fills, chips and glyphs. On paper they are allowed only as graphics at
-     3:1 or better — which measured, --sun (2.09:1) and --leaf-bright (2.70:1) do not
-     reach, so those two are ink-panel only. Text at these colours only on ink. */
-  --sun: #e2a33c;          /* streak milestones, the daily spark */
-  --leaf-bright: #7ba646;  /* goal met, personal best */
-  --iris-bright: #8e74c9;  /* rare finds, a perfect week */
-  --rose: #c2517a;         /* records, special events — large glyphs only */
-
-  /* Deep paper (§9) is structural: desks, rails and dividers. Never a text
-     background — text sits on --paper only. */
-  --desk: #ece7de;
-  --rail: #e7e1d6;
-  --divider: #e6e1d8;
-
-  /* The max-contrast pair (§9), for a screen that should feel switched on. 18.6:1. */
-  --page-max: #fffdf9;
-  --ink-max: #121110;
-  /* The desk (§13, 2026-09-11): the chrome's own system. The ground every chrome page
-     stands on, the cards that sit on it, the one cool hue that marks a control, the ink
-     bar, and the chrome's face. The reader uses none of these. */
-  --ground: #ece7de;
-  --card: #fffdf9;
-  --well: #cfc7b9;
-  --teal: #1f6f6b;
-  --teal-ink: #fffdf9;
-  --teal-wash: rgb(31 111 107 / 0.09);
-  --bar: #171614;
-  --bar-ink: #e6e1d8;
-  --bar-muted: #9a9288;
-  --card-shadow: 0 1px 2px rgb(28 26 23 / 0.06);
-  --page-shadow: 2px 3px 0 rgb(28 26 23 / 0.08), 0 12px 28px rgb(28 26 23 / 0.10);
-  --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
-  /* The desk grown up (§13, 2026-09-11, "it's from 2016 not 2026"): corners on a scale
-     of their own, depth in three tiers rather than a line around every box, a hairline
-     only where two same-tone surfaces meet, tint for the ordinary press, glass for the
-     bar, and one curve for everything that moves. */
-  --radius-control: 8px;
-  --radius-row: 12px;
-  --radius-card: 16px;
-  --radius-sheet: 24px;
-  --hairline: rgb(28 26 23 / 0.08);
-  --shadow-rest: 0 1px 2px rgb(28 26 23 / 0.06);
-  --shadow-raised: 0 1px 2px rgb(28 26 23 / 0.05), 0 8px 24px -12px rgb(28 26 23 / 0.18);
-  --shadow-floating: 0 2px 6px rgb(28 26 23 / 0.06), 0 24px 48px -20px rgb(28 26 23 / 0.28);
-  --glass: color-mix(in srgb, var(--card) 78%, transparent);
-  --field: color-mix(in srgb, var(--ground) 65%, var(--card));
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --in: 240ms;
-  --out: 160ms;
-
-  /* Gloss (§9) is light on glass, never metal: one sheen per element, never on the
-     mark or the lockup, never on a resting text surface. */
-  --gloss: rgb(255 255 255 / 0.14);
-  --gloss-strong: rgb(255 255 255 / 0.22);
-  --lift: 0 2px 10px rgb(0 0 0 / 0.10);
-
-  /* What separates a floating overlay from the page. On paper the shadows do it and
-     this is just the ordinary hairline. It is its own token because an ink surface
-     would want a lighter line here, where a black shadow draws nothing. */
-  --overlay-rule: var(--rule);
-}
-
-* { box-sizing: border-box; }
-
-/* Focus is one colour everywhere (§4), and it has to be the app's ring and not the
-   browser's: the bar, the shelf and the avatar were drawing Chrome's blue over a
-   hairline that was meant to be the whole of it. Zero specificity, so anything that
-   draws its own ring, or deliberately none, still wins. */
-:where(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-/* Selection is quiet ink with paper text (§4), never accent and never the browser's
-   blue — which is what a phrase-drag painted before this rule existed. */
-::selection { background: var(--ink-soft); color: var(--paper); }
-
+.w, .list-tab { touch-action: manipulation; }
 /* Every surface that floats (§8) takes the overlay edge, from one place. */
-.keys-card, .gloss-card, .pick-card, .player, .list, .list-tab { border-color: var(--overlay-rule); }
+.keys-card, .pick-card, .player, .list, .list-tab { border-color: var(--overlay-rule); }
+.list-tab:active { color: var(--ink); border-color: var(--ink-soft); }
 
-/* Hebrew is set from its own stack. Every element that holds source text carries a
-   `lang`, so this reaches the text without reaching the chrome around it — and a
-   Russian or Latin source still takes the reading stack above.
-
-   The selector is the attribute rather than `:lang(he)`, which is what that sentence
-   always meant and never did. `:lang()` matches an element's *inherited* language, so on
-   a reader whose <html> says lang="he" it also matched <body>, <main> and every wrapper
-   in between — and it outranks the `font-family` on `body`, so the whole page took the
-   Hebrew face and the English translation column inherited it.
-
-   That was invisible for as long as the Hebrew stack held nothing that could draw Latin
-   and fell through to the same serif the Latin stack ends in. The day the page began
-   carrying a Hebrew face of its own — which has Latin glyphs — the translations were set
-   in them. `[lang|="he"]` matches only what declares itself Hebrew, `he` or `he-*`; the
-   root is excluded so `body` keeps the reading face underneath it. */
-[lang|="he"]:not(html) { font-family: var(--reading-hebrew); }
-
-/* And that rule loses to any component that names its own face with two classes —
-   `.chat-turn .chat-pair .chat-he`, `.gloss-card .lemma`, `.books .book-title` — so the
-   Hebrew in every conversation and on every word card was drawn in whatever the system
-   put in for Iowan Old Style (2026-09-14). Specificity is the wrong fight. Inside
-   anything that declares itself Hebrew-script, the reading and chrome faces *are* the
-   Hebrew stack, so a component that says `var(--reading)` or `var(--chrome)` gets the
-   right face whatever its selector weighs. Romanised Hebrew (`he-Latn`, the greeting)
-   and pronunciation (`he-fonipa`) are Latin letters and keep their Latin faces. */
-[lang|="he"]:not(html):not([lang$="-Latn"]):not([lang*="-fonipa"]),
-[lang|="yi"]:not(html):not([lang$="-Latn"]),
-[lang="arc"]:not(html) {
-  --reading: var(--reading-hebrew);
-  --chrome: var(--reading-hebrew);
-}
-
-/* Every field a reader types into takes each line's direction from what is typed, so a
-   Hebrew sentence with an English word, a number or a question mark in it reads in order
-   while it is being written (2026-09-14). `dir="auto"` decides the field; `plaintext`
-   decides each paragraph inside it. */
-textarea[dir="auto"],
-input[dir="auto"] { unicode-bidi: plaintext; }
-
-body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--reading);
-  font-size: var(--size);
-  line-height: var(--leading);
-  -webkit-text-size-adjust: 100%;
-}
 
 /* --- chrome ------------------------------------------------------------- */
 
@@ -204,7 +39,7 @@ body {
   background: color-mix(in srgb, var(--paper) 92%, transparent);
   backdrop-filter: blur(8px);
   border-block-end: 1px solid var(--rule);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
 }
 
@@ -298,7 +133,7 @@ a.bar-brand:hover { color: var(--accent); }
   max-width: calc(var(--measure) * 2 + var(--gap));
   margin: 0 auto;
   padding: 0.5rem 1.25rem 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   color: var(--ink-soft);
   text-align: center;
@@ -451,32 +286,8 @@ a.bar-brand:hover { color: var(--accent); }
   .bar [data-keys] .keys-mark { display: inline; }
 }
 
-/* No blue flash. Chrome on Android paints its own highlight over anything tapped, in
-   a blue this palette does not have (§4) — on a word it flashed over the one thing the
-   reader was looking at, forty times a page. The reader's own pressed states say what
-   was pressed. And `manipulation`: two quick presses of A+ are two presses, never a
-   zoom. */
-html { -webkit-tap-highlight-color: transparent; }
-button, select, a, .w, .list-tab { touch-action: manipulation; }
-
-button, select {
-  font: inherit;
-  color: var(--ink-soft);
-  background: transparent;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  padding: 0.2rem 0.55rem;
-  cursor: pointer;
-}
-button:hover, select:hover { color: var(--ink); border-color: var(--ink-soft); }
-/* Pressed. A touch screen has no hover, so this is the whole of the feedback for a tap
-   on a control: the same lift, muted to ink, at the moment of the press. A word takes
-   the look-up wash it will wear a beat later anyway, so the tap and the card read as
-   one act. */
-button:active, select:active, .list-tab:active { color: var(--ink); border-color: var(--ink-soft); }
 .w:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .player-play:active { background: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
-button.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
 
 
 /* --- reading surface ---------------------------------------------------- */
@@ -633,7 +444,7 @@ body:not(.beside-on) .pair > .beside { display: none; }
 .cmp.empty .cmp-name { visibility: hidden; }
 .cmp-name {
   display: block;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.6875rem;
   line-height: 1.4;
   color: var(--ink-soft);
@@ -734,7 +545,7 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
   border: 1px solid var(--rule);
   border-radius: 6px;
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   direction: ltr;
   text-align: start;
@@ -763,7 +574,6 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
 
 .quote { font-style: italic; padding-inline-start: 1rem; border-inline-start: 2px solid var(--rule); }
 
-[dir="rtl"] { line-height: var(--leading-rtl); }
 
 .byline { color: var(--ink-soft); font-style: italic; margin-block-start: -0.75rem; }
 /* The title in English under the Hebrew heading of the contents page, in ink: a reader
@@ -824,7 +634,7 @@ html[dir="rtl"] #reader > .english { text-align: end; }
   align-items: center;
   gap: 0.75rem;
   margin-block-end: 1rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   line-height: 1.35;
 }
 /* The author's own picture, small, in a disc; their first letter where the post gave
@@ -912,7 +722,7 @@ html[dir="rtl"] #reader > .english { text-align: end; }
 .post-more {
   margin-block: -0.5rem 1rem;
   color: var(--ink-soft);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
 }
 /* Under a film, where what its author typed starts: named once, muted, with the rule a
@@ -923,7 +733,7 @@ html[dir="rtl"] #reader > .english { text-align: end; }
   padding-inline: 0.6rem;
   border-block-start: 1px solid var(--rule);
   color: var(--ink-soft);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
 }
 /* An address the author wrote is text, and a long one breaks rather than widening the
@@ -1019,478 +829,6 @@ body.marking .w.here,
   box-shadow: none;
 }
 
-/* Beside the word, not pinned to the foot of the window — see `placeNear()`. Absolute
-   rather than fixed so it scrolls with the word it belongs to. */
-.gloss-card {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  align-items: start;
-  width: max-content;
-  z-index: 20;
-  max-width: min(30rem, calc(100vw - 2rem));
-  padding: 0.7rem 1rem;
-  background: var(--paper-raised);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
-  font-family: system-ui, sans-serif;
-  font-size: 0.9375rem;
-  line-height: 1.45;
-  direction: ltr;
-  text-align: start;
-}
-.gloss-card[hidden] { display: none; }
-
-/* Where a card is a panel beside the word, there is nothing to take hold of: Escape and
-   a click elsewhere are the way out, and a bar across the top would be furniture. The
-   sheet at the foot of a phone is the case that needs one — see the breakpoint. */
-.grab { display: none; }
-
-/* A card that has been answered and is leaving. Saying a level closes the card it was
-   said in, but not in the frame the key was pressed in — it holds the level it took for
-   a beat, then goes. §8: where the reader asked for stillness there is no fade, only the
-   beat and then nothing. The timings are `LINGER` and `FADE` in reader.js. */
-.gloss-card.going { opacity: 0; transition: opacity 220ms ease; }
-/* The word the card is about, larger than anything else on it (2026-09-14). At 1.1em it
-   was smaller than the English meaning under it, and Hebrew is never the small half. */
-.gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.5em; line-height: 1.5; }
-.gloss-card .form { color: var(--ink-soft); font-size: 0.8125rem; }
-
-/* How well you know it, and what you want it to say. A scale rather than a switch: the
-   word "save" was hiding a decision the reader wants to make more than once. The same
-   control appears in the card, in the list beside the text and on the words page, so
-   the rules for it live in one place. */
-.vocab-editor { display: flex; flex-direction: column; gap: 0.35rem; }
-.vocab-editor .levels { display: flex; align-items: center; flex-wrap: wrap; }
-/* One segmented control on the knowledge ramp (design.md §12, "The five stages are one
-   control, on every card", 2026-10-09; David, 2026-10-08: "why don't the word cards show
-   the stages of learning?"). Four segments joined — 1, 2, 3, known — the one a word is on
-   filled with its step of the ramp, the rest outlined; ignore after a gap, a quiet word
-   rather than a segment, because a name is not a step anybody climbs. */
-.vocab-editor {
-  --ramp-1: color-mix(in srgb, var(--leaf) 32%, var(--paper));
-  --ramp-2: color-mix(in srgb, var(--leaf) 55%, var(--paper));
-  --ramp-3: color-mix(in srgb, var(--leaf) 78%, var(--paper));
-}
-.vocab-editor .level {
-  min-inline-size: 2rem;
-  margin-inline-start: -1px;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid var(--well);
-  border-radius: 0;
-  background: var(--card);
-  color: var(--ink);
-  /* rem, not em: em compounded with each card's base size, and 0.75em of the card's
-     15px was 11.3px — under §9's 13px floor for anything muted on raised paper. */
-  font-size: 0.8125rem;
-  line-height: 1.4;
-}
-.vocab-editor .level-1 {
-  margin-inline-start: 0;
-  border-start-start-radius: var(--radius-control);
-  border-end-start-radius: var(--radius-control);
-}
-.vocab-editor .level-9 {
-  border-start-end-radius: var(--radius-control);
-  border-end-end-radius: var(--radius-control);
-}
-.vocab-editor .level-1.on { background: var(--ramp-1); border-color: var(--ramp-1); }
-.vocab-editor .level-2.on { background: var(--ramp-2); border-color: var(--ramp-2); }
-.vocab-editor .level-3.on { background: var(--ramp-3); border-color: var(--ramp-3); }
-/* Finishing a word is an achievement, and §4 gives achievement to leaf. */
-.vocab-editor .level-9.on {
-  background: var(--leaf);
-  border-color: var(--leaf);
-  color: var(--paper);
-}
-.vocab-editor .level-0 {
-  margin-inline-start: 0.75rem;
-  border-color: transparent;
-  border-radius: var(--radius-control);
-  background: none;
-  color: var(--ink-soft);
-}
-.vocab-editor .level-0.on { color: var(--ink); text-decoration: underline; }
-@media (max-width: 40rem) {
-  .vocab-editor .level { min-block-size: 2.75rem; }
-}
-.vocab-editor .note-field {
-  width: 100%;
-  padding: 0.2rem 0.4rem;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.8125rem;
-}
-.vocab-editor .note-field:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-
-/* Where the note ends. It was always kept as it was typed, which is right and which
-   nobody could see — the field looked like something you were still in the middle of.
-   §9 wants ink or a hue on anything tappable and forbids a beige button on a beige card;
-   ink rather than accent, because the accent in this card is already spoken for by
-   whichever level is set. `start` and not `left`: the card mirrors with the page. */
-.vocab-editor .note-save {
-  align-self: start;
-  padding: 0.15rem 0.55rem;
-  border: 1px solid var(--ink);
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 0.8125rem;
-  line-height: 1.4;
-}
-
-/* The card is now a small form, so it stacks and its control gets room. */
-.pick-card .vocab-editor .note-field { min-width: 12rem; }
-.pick-card .drop-pick { align-self: start; font-size: 0.8125rem; color: var(--ink-soft); }
-
-.gloss-card .vocab-editor { width: 100%; }
-
-.gloss-card .look-up {
-  align-self: start;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-}
-.gloss-card .look-up:disabled { opacity: 0.6; cursor: default; border-color: transparent; }
-
-/* A meaning you wrote yourself is the one that counts, and it says so quietly. */
-.meaning.mine { color: var(--ink); }
-.meaning.mine::after {
-  content: "·  yours";
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.gloss-card .form bdi { font-family: var(--reading); color: var(--ink); }
-
-/* How the word is said, under the meaning, bare — the IPA needs no introduction and
-   "said" was one. Left in the UI face rather than the reading face: IPA is notation,
-   not text, and Palatino has no glyph for half of it. */
-.gloss-card .said {
-  display: block;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.gloss-card .said bdi {
-  color: var(--ink);
-  /* The stress mark is the point of showing this at all, and it is one narrow glyph
-     against a letter. A little air keeps it from reading as part of the letter. */
-  letter-spacing: 0.01em;
-}
-
-/* "inferred", after a reading we guessed part of (design.md §12, 2026-09-27): one word in
-   muted ink at the line's own size, outside the reading. No hue, no icon, no italic, no
-   question mark — a word in a sentence, not a state. It is a button, so a hairline under
-   it in muted ink says it can be tapped without lending it the accent. */
-.gloss-card .inferred {
-  padding: 0;
-  background: none;
-  border: 0;
-  border-block-end: 1px dotted var(--ink-soft);
-  border-radius: 0;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 0.8125rem;
-  line-height: inherit;
-  cursor: pointer;
-}
-/* What it stands for, on the line under the reading, in the card's quiet style. It
-   wraps to the card it opens in rather than widening it: the card was placed beside the
-   word at the width it had, and a line that grew it would push it off the screen. */
-.gloss-card .guessed {
-  display: block;
-  inline-size: 0;
-  min-inline-size: 100%;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.gloss-card .guessed[hidden] { display: none; }
-/* A word of scripture's accent, named (design.md §12, "A word in scripture names its
-   accent"): its own line under the reading, muted, at the card's size, and wrapping to
-   the card for the reason the line above does. */
-.gloss-card .accent {
-  display: block;
-  inline-size: 0;
-  min-inline-size: 100%;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-
-/* A Hebrew verb taken apart: its root and the binyan it is built in. Its own line
-   rather than a tag beside the level, because it is the answer to a different
-   question — not how hard the word is, but how it is made. */
-.gloss-card .verb {
-  display: block;
-  margin-block-start: 0.3rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.gloss-card .verb bdi { font-family: var(--reading); color: var(--ink); }
-.gloss-card .verb .root { letter-spacing: 0.02em; font-weight: 600; }
-.gloss-card .verb .pealim {
-  margin-inline-start: 0.5rem;
-  color: var(--accent);
-  text-decoration: none;
-  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-}
-.gloss-card .verb .pealim:hover { border-block-end-color: var(--accent); }
-/* A partner verb used in the same text: a way there, drawn like the conjugations link. */
-.gloss-card .verb .here {
-  margin-inline-start: 0.5rem;
-  padding: 0;
-  background: none;
-  border: 0;
-  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  color: var(--accent);
-  font: inherit;
-  cursor: pointer;
-}
-.gloss-card .verb .here:hover { border-block-end-color: var(--accent); }
-/* The root as a way in to the words of it the reader has met (targum-internal#96), on
-   a box that shows where words come round (`TARGUM_OCCURRENCES`). Drawn as the other
-   ways on this line are — accent, a hairline under it — and still set as a root. */
-.gloss-card .verb .root-open {
-  padding: 0;
-  background: none;
-  border: 0;
-  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  border-radius: 0;
-  color: var(--accent);
-  font: inherit;
-  cursor: pointer;
-}
-.gloss-card .verb .root-open:hover { border-block-end-color: var(--accent); }
-.gloss-card .verb .root-open bdi { color: inherit; }
-/* Where the word comes round, and where the reader met it (targum-internal#95, #96).
-   Metadata, set as the register line is: muted, a line each. */
-.gloss-card .card-round {
-  display: block;
-  margin-block-start: 0.3rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.gloss-card .card-round > span { display: block; }
-.gloss-card .card-round bdi { font-family: var(--reading); color: var(--ink); }
-.gloss-card .card-root-words { display: block; }
-/* The part of speech's own line — a verb's parsing, a noun's gender, a name saying it
-   is one. Muted like the other metadata; the answer above it is the ink. The register
-   line is the same kind of fact and is set the same way: which Hebrew the word belongs
-   to, on the few cards where the two registers disagree. */
-.gloss-card .use,
-.gloss-card .register {
-  display: block;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.gloss-card .meaning { display: block; margin-block-start: 0.2rem; }
-.gloss-card .caveat {
-  display: block;
-  margin-block-start: 0.35rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-
-/* Asking about the word (2026-09-06). A hairline above, then the exchange: the reader's
-   question quiet, the answer in ink, and one field for the next question. Ask is a
-   working action, so it takes the accent the send button has elsewhere; the way on to
-   the conversation page is a link. The field and the answer take a selection: the card
-   itself refuses one so a tap on a word does not drag, and a question is typed. */
-.gloss-card .ask {
-  align-self: stretch;
-  margin-block-start: 0.4rem;
-  padding-block-start: 0.5rem;
-  border-block-start: 1px solid var(--rule);
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  -webkit-user-select: text;
-  user-select: text;
-}
-.gloss-card .ask-q { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
-.gloss-card .ask-a {
-  margin: 0;
-  color: var(--ink);
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.gloss-card .ask-a > span { display: block; }
-.gloss-card .ask-a [lang|="he"] { line-height: 1.95; }
-/* The conversation's shape in the card (2026-09-11): the Hebrew in the text's own
-   face, right to left; its English under it, quieter; a recast set off a little. */
-.gloss-card .ask-he { font-size: 1.0625rem; text-align: right; }
-.gloss-card .ask-en,
-.gloss-card .ask-why { color: var(--ink-soft); font-size: 0.875rem; margin-block-end: 0.3rem; }
-.gloss-card .ask-recast { padding-inline-end: 0.5rem; border-inline-end: 2px solid var(--rule); }
-.gloss-card .ask-a.bad { color: var(--ink); }
-.gloss-card .ask-a.working:empty::after { content: "…"; color: var(--ink-soft); }
-.gloss-card .ask-form { display: flex; gap: 0.4rem; align-items: center; }
-.gloss-card .ask-field {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  font-size: 0.9375rem;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  background: var(--paper);
-  color: var(--ink);
-}
-.gloss-card .ask-field:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
-.gloss-card .ask-go {
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.4rem 0.8rem;
-  border: 0;
-  border-radius: 4px;
-  background: var(--accent);
-  color: var(--paper);
-  cursor: pointer;
-}
-.gloss-card .ask-go:disabled { opacity: 0.5; cursor: default; }
-.gloss-card .ask-on { align-self: start; font-size: 0.8125rem; color: var(--accent); }
-/* §8: a control a thumb presses answers a tap over 44px. */
-@media (hover: none) and (pointer: coarse) {
-  .gloss-card .ask-go,
-  .gloss-card .ask-field { min-height: 44px; }
-}
-
-
-/* --- saying a meaning is wrong (targum-internal#164, door 3) ---------------
-   Quiet, and under everything else on the card: a reader came to find out what a word
-   means, not to audit it. It is ink on paper rather than an accented key — the accent is
-   for the thing the card is for, and this is the thing it is not. */
-.gloss-card .fix-row { display: flex; flex-direction: column; gap: 0.4rem; }
-.gloss-card .fix-open {
-  align-self: start;
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink-soft);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-.gloss-card .fix-open:hover { color: var(--ink); }
-.gloss-card .fix-form { display: flex; gap: 0.4rem; align-items: center; }
-.gloss-card .fix-field {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  font-size: 0.9375rem;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  background: var(--paper);
-  color: var(--ink);
-}
-.gloss-card .fix-field:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
-.gloss-card .fix-go {
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.4rem 0.8rem;
-  border: 0;
-  border-radius: 4px;
-  background: var(--accent);
-  color: var(--paper);
-  cursor: pointer;
-}
-.gloss-card .fix-go:disabled { opacity: 0.5; cursor: default; }
-.gloss-card .fix-said { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
-/* §8 again: these are controls, drawn to be pressed. */
-@media (hover: none) and (pointer: coarse) {
-  .gloss-card .fix-open,
-  .gloss-card .fix-go,
-  .gloss-card .fix-field { min-height: 44px; }
-}
-
-
-/* --- copying a word out --------------------------------------------------- */
-
-/* One control beside the thing it copies, built by `TargumVocab.copyButton`. An icon at
-   rest; pressed, it says "Copied" in its own place for a beat, in the legend's face, so
-   the confirmation is where the press was. §7 for the stroke, §9 for the ink: soft until
-   hovered, never a hue, because copying is not the reader's achievement. */
-.copy {
-  display: inline-flex;
-  align-items: center;
-  min-inline-size: 1.4rem;
-  block-size: 1.4rem;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  color: var(--ink-soft);
-  vertical-align: middle;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 0.6875rem;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.copy svg {
-  inline-size: 1em;
-  block-size: 1em;
-  font-size: 0.9375rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.copy:hover, .copy.copied { color: var(--ink); }
-
-/* The word's own sound, drawn with the line-audio button's triangle so one glyph means
-   "play" everywhere. Filled, per the hear macro; soft until hovered, like the copy —
-   playing a word back is not the reader's achievement either. */
-.hear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-inline-size: 1.4rem;
-  block-size: 1.4rem;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  color: var(--ink-soft);
-  vertical-align: middle;
-  cursor: pointer;
-}
-.hear svg {
-  inline-size: 1em;
-  block-size: 1em;
-  font-size: 0.9375rem;
-  fill: currentColor;
-  stroke: none;
-}
-.hear:hover { color: var(--ink); }
-/* A card line that carries one: the text, then the control, on the same baseline. */
-.gloss-card .copy-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 0.35rem;
-}
-.pick-card .copy { margin-inline-start: 0.35rem; }
-/* In a row it waits like the button that drops the row, and reserves the width "Copied"
-   needs so the swap moves nothing beside it — the column is shared by every row. */
-.list-items .copy, table.rows .copy, .text-group .copy {
-  opacity: 0;
-  margin-inline-start: 0.35rem;
-  min-inline-size: 3.6rem;
-}
-.list-items li:hover .copy,
-table.rows tr:hover .copy,
-.text-group li:hover .copy,
-.copy:focus-visible,
-.copy.copied { opacity: 1; }
 
 /* --- one case at a time -------------------------------------------------- */
 
@@ -1547,7 +885,7 @@ body[data-case="Loc"] .w.case-Loc {
   border: 1px solid var(--rule);
   border-radius: 8px;
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.22);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   line-height: 1.45;
   direction: ltr;
@@ -1555,10 +893,10 @@ body[data-case="Loc"] .w.case-Loc {
 }
 .pick-card[hidden] { display: none; }
 /* Pressing the card is never the start of a new selection. */
-.pick-card, .gloss-card { -webkit-user-select: none; user-select: none; }
+.pick-card { -webkit-user-select: none; user-select: none; }
 /* `placeNear()` caps the height when neither side of the word can hold the whole card.
    Scrolling is what the cap costs; covering the word is what it buys. */
-.pick-card, .gloss-card { overflow-y: auto; }
+.pick-card { overflow-y: auto; }
 .pick-card [dir] { display: block; text-align: start; }
 .pick-card .phrase { display: block; color: var(--ink); font-weight: 600; }
 .pick-card .reading { display: block; margin-block-start: 0.25rem; color: var(--ink-soft); }
@@ -1615,7 +953,7 @@ body[data-case="Loc"] .w.case-Loc {
   border-inline-start: 1px solid var(--rule);
   background: color-mix(in srgb, var(--paper) 94%, transparent);
   backdrop-filter: blur(6px);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
 }
 .list[hidden] { display: none; }
@@ -1820,7 +1158,7 @@ body[data-case="Loc"] .w.case-Loc {
   background: var(--paper-raised);
   border: 1px solid var(--rule);
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.16);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
 }
 .list-tab[hidden] { display: none; }
@@ -1845,7 +1183,6 @@ body[data-case="Loc"] .w.case-Loc {
 
 @media (prefers-reduced-motion: reduce) {
   .list-items li { animation: none; }
-  .gloss-card.going { transition: none; }
   #reader.settled { animation: none; }
   .modes.ready .slide { transition: none; }
   /* These two animate and were never listed here. test_motion_is_always_optional
@@ -1854,140 +1191,6 @@ body[data-case="Loc"] .w.case-Loc {
   .modes button, .pair { transition: none; }
   .bar .levels .level { transition: none; }
   .bar .renderings .rendering { transition: none; }
-}
-
-/* --- reaching things with a thumb -------------------------------------------
- *
- * Every control in this interface is sized for a mouse, where a 24px target is generous
- * because the pointer is one pixel wide. A finger is not: the number everybody uses is
- * 44px and almost nothing here reaches it. So the hit area grows past the paint, and
- * only where there is no hover to lean on — the desktop stays as quiet as it was.
- *
- * Two treatments, because one does not fit both cases. A control that stands alone gets
- * an invisible box centred on it. A control in a wrapping cluster — the filter chips,
- * the segmented switches — grows for real instead: an invisible 44px box on a 26px chip
- * would reach into the row below it and swallow taps meant for that one. A <select> and
- * an <input> are replaced elements and draw no pseudo-element, so they grow too.
- *
- * Deliberately absent: the controls inside table rows (.bin, .restore, .open-chapters,
- * .rows-head button). Rows are 34px apart, so a 44px box would overlap its neighbours,
- * and the control it would steal a tap for is Delete. A destructive action is the last
- * thing that should get a hit area larger than it looks. */
-@media (hover: none) and (pointer: coarse) {
-  :is(
-    .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
-    .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
-    .list-close, .list-foot button,
-    /* The four that had no reach anywhere. The block further down already carries the
-       play button, both steps, the download and the ×; these were simply never added to
-       either. The speed and the picture toggle draw at 24-38px in the strip. */
-    .player-rate-now, .player-video,
-    /* The row under the picture, the switch beside it in the bar, and the panel's ×
-       (targum-internal#422): thin on purpose, and given their reach here. */
-    .film-play, .film-rate, .film-loop, .film-transcript, .film-view, .film-panel-close,
-    .film-rate-pick, .more-back, .more-on,
-    /* Hear first, in the strip (2026-09-15, targum-internal#265). */
-    .player-first,
-    /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
-       reach grows and whose look and line do not. */
-    .gloss-card .inferred,
-    /* The root, where it opens the words of it the reader has met (targum-internal#96). */
-    .gloss-card .verb .root-open
-  ) {
-    position: relative;
-  }
-  :is(
-    .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
-    .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
-    .list-close, .list-foot button,
-    /* The four that had no reach anywhere. The block further down already carries the
-       play button, both steps, the download and the ×; these were simply never added to
-       either. The speed and the picture toggle draw at 24-38px in the strip. */
-    .player-rate-now, .player-video,
-    /* The row under the picture, the switch beside it in the bar, and the panel's ×
-       (targum-internal#422): thin on purpose, and given their reach here. */
-    .film-play, .film-rate, .film-loop, .film-transcript, .film-view, .film-panel-close,
-    .film-rate-pick, .more-back, .more-on,
-    /* Hear first, in the strip (2026-09-15, targum-internal#265). */
-    .player-first,
-    /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
-       reach grows and whose look and line do not. */
-    .gloss-card .inferred,
-    /* The root, where it opens the words of it the reader has met (targum-internal#96). */
-    .gloss-card .verb .root-open
-  )::after {
-    content: "";
-    position: absolute;
-    inset-inline: 0;
-    inset-block-start: 50%;
-    block-size: 44px;
-    transform: translateY(-50%);
-  }
-  :is(
-    .chip, .clear, .draw, .segment, .find, .go, .list-controls input[type="search"],
-    .field input, .pick select
-  ) {
-    min-block-size: 44px;
-  }
-
-  /* The reader's own controls, which the lists above never covered: the bar's mode and
-     type buttons, the grading buttons on a word's card, the player, the per-line play,
-     a saved word's remove. Grown by hit-area rather than by drawing — a thumb's 44px
-     of glass, the same 22px of ink. The inline growth stops at the midline of the gap
-     to the neighbour, so a near-miss lands on the button it looks like it landed on. */
-  :is(
-    .bar .group button, .modes button, .renderings .rendering,
-    .vocab-editor .level, .keys-close,
-    .player-play, .player-get, .player-close, .player-slower, .player-faster,
-    .player-back, .player-on, .pair.voiced .say,
-    .list-items .drop, .toc .get, .rest .keep, .picked-note button,
-    .practice-key, .practice-row button, .practice-step button
-  ) {
-    position: relative;
-  }
-  :is(
-    .bar .group button, .modes button, .renderings .rendering,
-    .vocab-editor .level, .keys-close,
-    .player-play, .player-get, .player-close, .player-slower, .player-faster,
-    .player-back, .player-on, .pair.voiced .say,
-    .list-items .drop, .toc .get, .rest .keep, .picked-note button,
-    .practice-key, .practice-row button, .practice-step button
-  )::after {
-    content: "";
-    position: absolute;
-    inset-inline: -0.25rem;
-    inset-block-start: 50%;
-    block-size: max(100%, 44px);
-    transform: translateY(-50%);
-  }
-
-  /* The ones the audit of 2026-09-14 found under 44px with no reach at all: the copy and
-     hear keys on every card line, the grab that closes every phone sheet, the words tab,
-     Keep on a phrase, the pager's links, a weekly's level links, look it up, a note's
-     Save, Translate on a waiting chapter and Undo under the rest. Reached both ways — the
-     earlier reach grew height only, so a 22px key stayed 22px wide under a thumb — and
-     centred on the key by its margins, which needs no left or right. */
-  /* The grab and the words tab are already placed (sticky, fixed), and a `position` here
-     would unplace them; the rest are given one. */
-  :is(
-    .copy, .hear, .pick-card button, .pager a, .bar .levels .level,
-    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .foot-plain,
-    .list-nav .list-back, .arrived button
-  ) {
-    position: relative;
-  }
-  :is(
-    .copy, .hear, .grab, .list-tab, .pick-card button, .pager a, .bar .levels .level,
-    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .foot-plain,
-    .list-nav .list-back, .arrived button
-  )::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    margin: auto;
-    inline-size: max(100%, 44px);
-    block-size: max(100%, 44px);
-  }
 }
 
 /* --- source only --------------------------------------------------------- */
@@ -2095,7 +1298,7 @@ body[data-case="Loc"] .w.case-Loc {
 }
 .toc .portion-page {
   margin-inline-start: 0.5rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   direction: ltr;
   unicode-bidi: isolate;
@@ -2110,7 +1313,7 @@ body[data-case="Loc"] .w.case-Loc {
   max-width: calc(var(--measure) * 2 + var(--gap));
   margin: 0 auto;
   padding: 0 1.25rem 4rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
 }
 .pager a { color: var(--ink-soft); text-decoration: none; }
@@ -2157,7 +1360,7 @@ body.paged:not(.last-page) .foot { display: none; }
   align-items: center;
   justify-content: space-between;
   pointer-events: none;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
@@ -2234,7 +1437,7 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
   border-radius: 999px;
   background: none;
   color: var(--ink-soft);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.6875rem;
   cursor: pointer;
 }
@@ -2245,7 +1448,7 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
 .toc .get-cost, .whole .get-cost, .toc .get-said {
   margin-inline-start: 0.5rem;
   color: var(--ink-soft);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.6875rem;
 }
 .whole .get-cost[hidden] { display: none; }
@@ -2265,7 +1468,7 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
   gap: 1rem;
   border: 1px solid var(--rule);
   border-radius: 6px;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
@@ -2312,6 +1515,8 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
   gap: 0.4rem;
 }
 .foot-press[hidden] { display: none; }
+/* Filled in the primary, flat (§13: three kinds of button, and a fill is a fill). The
+   sheen it wore was the one gradient left on a press (2026-10-09). */
 .foot-go {
   display: inline-flex;
   align-items: center;
@@ -2320,7 +1525,7 @@ body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
   padding: 0 1.4rem;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(var(--gloss), transparent) var(--teal);
+  background: var(--teal);
   color: var(--teal-ink);
   font: inherit;
   font-size: 0.9375rem;
@@ -2378,7 +1583,7 @@ body.film-ended:not(.in-list):has(#film-next) .foot-go:hover { filter: none; col
   align-items: center;
   justify-content: flex-end;
   gap: 1rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
@@ -2438,7 +1643,7 @@ body.film-ended:not(.in-list):has(#film-next) .foot-go:hover { filter: none; col
   align-items: baseline;
   gap: 0.6rem;
   flex-wrap: wrap;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
@@ -2550,7 +1755,7 @@ body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
 .finished.ledger .tile:first-child b { color: var(--leaf-bright); }
 .finished.is-done .tile span {
   color: color-mix(in srgb, var(--page-max) 72%, transparent);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   line-height: 1.3;
 }
@@ -2561,12 +1766,10 @@ body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
 .finished.is-done button.undo {
   color: var(--page-max);
   border-color: color-mix(in srgb, var(--page-max) 30%, transparent);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
 }
 
-/* What the pressed step means, under the scale. Secondary by §9. */
-.vocab-editor .level-legend { font-size: 0.8125rem; color: var(--ink-soft); }
 
 /* The one primary action on a contents page, and so the one place the accent goes. */
 .contents .start { margin-block: 1.5rem 2rem; }
@@ -2577,7 +1780,7 @@ body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
   background: var(--accent);
   color: var(--paper);
   text-decoration: none;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.9375rem;
 }
 .contents .start a:hover { filter: brightness(1.08); }
@@ -2591,7 +1794,7 @@ body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
   border-radius: 999px;
   background: none;
   color: var(--ink-soft);
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.6875rem;
   cursor: pointer;
 }
@@ -2754,7 +1957,7 @@ body.practice-hebrew .src { max-width: none; }
   align-items: center;
   justify-content: flex-end;
   gap: 0.75rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
@@ -3308,7 +2511,7 @@ body.voicing .pair:hover:not(.now):not(.here):not(.practising):not(:focus-visibl
   margin: 2rem auto 0;
   padding: 0.9rem 1.25rem 0;
   border-block-start: 1px solid var(--rule);
-  font-family: var(--chrome, system-ui, sans-serif);
+  font-family: var(--ui);
   font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--ink-soft);
@@ -3633,7 +2836,7 @@ body.film-theatre .film-next { justify-content: center; margin-block-end: 0.5rem
   min-block-size: 2.75rem;
   padding: 0 1.4rem;
   border-radius: 999px;
-  background: linear-gradient(var(--gloss), transparent) var(--teal);
+  background: var(--teal);
   color: var(--teal-ink);
   font-size: 0.9375rem;
   font-weight: 600;
@@ -4137,7 +3340,7 @@ html:fullscreen { background: var(--paper); }
   .bar .more[aria-expanded="true"] { color: var(--paper); background: var(--ink-soft); }
 
   /* --- the occupants: one place, one at a time --- */
-  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
+  .list, .pick-card, .keys-card, .bar-more.open {
     position: fixed;
     inset-block: auto 0;
     inset-inline: 0;
@@ -4161,7 +3364,7 @@ html:fullscreen { background: var(--paper); }
   }
   /* Over the strip (28) and the tab (29), which do not ride up for an overlay and are
      under it while it is up. */
-  .gloss-card, .pick-card, .bar-more.open { z-index: 30; }
+  .pick-card, .bar-more.open { z-index: 30; }
   /* The menu is drawn inside the bar, whose own z-index makes it a stacking context: at
      16 the menu stood under the sheet, the strip and the tab it is meant to cover. The
      bar rises with it for as long as it is open. */
@@ -4172,7 +3375,6 @@ html:fullscreen { background: var(--paper); }
     background: color-mix(in srgb, var(--paper) 94%, transparent);
     backdrop-filter: blur(6px);
   }
-  .gloss-card { width: auto; }
 
   /* The handle on a sheet: what says it can be pulled down, and what closes it when it
      is tapped instead. Full width so the target is the whole head of the card rather
@@ -4217,7 +3419,7 @@ html:fullscreen { background: var(--paper); }
     display: grid;
     gap: 0;
     direction: ltr;
-    font-family: system-ui, sans-serif;
+    font-family: var(--ui);
     font-size: 0.9375rem;
   }
   .bar .more-head {
@@ -4348,11 +3550,8 @@ html:fullscreen { background: var(--paper); }
      be. The mode pill's curve and roughly its time, so the reader is one instrument:
      §8 allows motion that is rare and says something, and "this came from the foot,
      and will go back there" is what a sheet says. Nothing under `prefers-reduced-motion`. */
-  @keyframes rise {
-    from { transform: translateY(100%); }
-    to { transform: none; }
-  }
-  .list:not([hidden]), .gloss-card:not([hidden]), .pick-card:not([hidden]),
+  /* `rise` itself is in shared.css, beside the word's card that rises too. */
+  .list:not([hidden]), .pick-card:not([hidden]),
   .keys-card:not([hidden]), .bar-more.open {
     animation: rise 220ms cubic-bezier(0.32, 0.72, 0, 1);
   }
@@ -4362,10 +3561,10 @@ html:fullscreen { background: var(--paper); }
   /* Let go of, an occupant settles back or goes on down along the line the finger
      drew — the same curve. Under the finger it has no transition at all: it is the
      finger's, and a transition there would be a lag. */
-  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
+  .list, .pick-card, .keys-card, .bar-more.open {
     transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
   }
-  .list.pulling, .gloss-card.pulling, .pick-card.pulling, .keys-card.pulling,
+  .list.pulling, .pick-card.pulling, .keys-card.pulling,
   .bar-more.pulling {
     transition: none;
   }
@@ -4376,9 +3575,9 @@ html:fullscreen { background: var(--paper); }
    of this block left the rise running under `reduce`, and every phone test measured a
    sheet mid-flight. */
 @media (prefers-reduced-motion: reduce) {
-  .list:not([hidden]), .gloss-card:not([hidden]), .pick-card:not([hidden]),
+  .list:not([hidden]), .pick-card:not([hidden]),
   .keys-card:not([hidden]), .bar-more.open,
-  .list, .gloss-card, .pick-card, .keys-card, .bar-more { animation: none; transition: none; }
+  .list, .pick-card, .keys-card, .bar-more { animation: none; transition: none; }
   body .player, body.paged .player, body .list-tab, body.paged .list-tab, .turn, body.paged .turn {
     transition: none;
   }
@@ -4428,16 +3627,16 @@ html:fullscreen { background: var(--paper); }
 .bar button, .bar select, .bar .group .home { border-radius: 999px; }
 .modes { border-radius: 999px; border-color: var(--hairline); background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .modes button, .modes .slide { border-radius: 999px; }
-.gloss-card, .keys-card, .pick-card, .player {
+.keys-card, .pick-card, .player {
   border: 0;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-floating);
 }
-.gloss-card .look-up, .keys-close { border-radius: 999px; }
+.keys-close { border-radius: 999px; }
 .pager a { padding: 0.35rem 0.8rem; border-radius: 999px; }
 .pager a:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 @media (max-width: 60rem) {
-  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
+  .list, .pick-card, .keys-card, .bar-more.open {
     border-block-start: 0;
     border-start-start-radius: var(--radius-sheet);
     border-start-end-radius: var(--radius-sheet);
@@ -4462,7 +3661,7 @@ html:fullscreen { background: var(--paper); }
   border-radius: var(--radius-sheet);
   box-shadow: var(--shadow-floating);
   overflow: hidden;
-  font-family: system-ui, sans-serif;
+  font-family: var(--ui);
   direction: ltr;
   animation: talk-in var(--in) var(--ease);
 }
@@ -4946,81 +4145,6 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 @media (hover: none) and (pointer: coarse) {
   .bar .group .more-playlist,
   .bar .group .more-sheet { min-block-size: 44px; }
-}
-
-/* Add to a playlist, in place (2026-09-24): a floating panel under the press, on every
-   page that has a shelf row or a reader's ⋯ menu. §13: radius 24 for a floating panel,
-   the playlists as tonal presses, Confirm the one filled press in it. */
-.playlist-menu {
-  position: fixed;
-  z-index: 60;
-  inline-size: min(18rem, calc(100vw - 1rem));
-  padding: 0.5rem;
-  border-radius: 24px;
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--lift, 0 8px 28px rgba(0, 0, 0, 0.16));
-  font-family: var(--chrome, system-ui, sans-serif);
-  font-size: 0.9375rem;
-}
-.playlist-menu .pm-list {
-  list-style: none;
-  margin: 0 0 0.5rem;
-  padding: 0;
-  max-block-size: 14rem;
-  overflow-y: auto;
-}
-.playlist-menu .pm-choice {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  inline-size: 100%;
-  min-block-size: 2.5rem;
-  padding: 0 0.75rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ink);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-.playlist-menu .pm-choice:hover,
-.playlist-menu .pm-choice:focus-visible { background: var(--teal-wash); }
-.playlist-menu .pm-choice bdi { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.playlist-menu .pm-count { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.playlist-menu .pm-new { display: flex; gap: 0.5rem; }
-.playlist-menu .pm-name {
-  flex: 1;
-  min-inline-size: 0;
-  min-block-size: 2.5rem;
-  padding: 0 0.75rem;
-  border: 0;
-  border-radius: 12px;
-  background: var(--field);
-  color: var(--ink);
-  font: inherit;
-}
-.playlist-menu .pm-confirm {
-  min-block-size: 2.5rem;
-  padding: 0 1rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--teal);
-  color: var(--teal-ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.playlist-menu .pm-confirm:hover { filter: brightness(1.08); }
-.playlist-menu .pm-choice:focus-visible,
-.playlist-menu .pm-confirm:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
-.playlist-menu .pm-name:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--teal); }
-.playlist-menu .pm-status { margin: 0.5rem 0.25rem 0; color: var(--ink-soft); }
-@media (pointer: coarse) {
-  .playlist-menu .pm-choice,
-  .playlist-menu .pm-name,
-  .playlist-menu .pm-confirm { min-block-size: 2.75rem; }
 }
 
 /* =====================================================================================
@@ -5520,93 +4644,6 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 .bar-more .voice-go { display: block; block-size: auto; color: var(--paper); background: var(--ink); }
 .bar-more .voice-go:hover { color: var(--paper); background: var(--ink-soft); }
 
-/* Save for offline (design.md §12, 2026-10-09): one row that says where a text or a
-   playlist stands — what it will take, the progress and Stop, Saved and Remove, or what
-   went wrong and Try again — in the reader's ⋯ and on a playlist's page. Drawn by
-   `offline.js`. The progress is leaf, as every progress is (§4). */
-.offline-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.75rem; }
-.offline-row[hidden] { display: none; }
-.bar-more.open .group.offline-row { flex-wrap: wrap; padding-block: 0.35rem; }
-.bar-more.open .group.offline-row::before { content: none; }
-.offline-row .offline-go,
-.offline-row .offline-what {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  color: var(--ink);
-}
-.offline-row .offline-go {
-  min-block-size: 2rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-.offline-row .offline-go:hover .offline-label,
-.offline-row .offline-go:focus-visible .offline-label { color: var(--accent); }
-.offline-row .offline-size {
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.offline-row .offline-stop,
-.offline-row .offline-again {
-  min-block-size: 2rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--ink);
-  border-radius: 8px;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-.offline-row .offline-stop:hover,
-.offline-row .offline-again:hover { background: var(--paper-raised); }
-.offline-row .offline-remove {
-  min-block-size: 2rem;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 0.8125rem;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-  cursor: pointer;
-}
-.offline-row .offline-remove:hover { color: var(--ink); }
-.offline-row .offline-bar {
-  display: block;
-  flex: 1 0 100%;
-  block-size: 3px;
-  border-radius: 999px;
-  background: var(--rule);
-  overflow: hidden;
-}
-.offline-row .offline-fill { display: block; block-size: 100%; background: var(--leaf); }
-.offline-row .offline-note,
-.offline-row .offline-said {
-  flex: 1 0 100%;
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-  white-space: normal;
-}
-.offline-row .offline-said { flex: 1 1 14rem; color: var(--ink); }
-@media (hover: none) and (pointer: coarse) {
-  /* §8: what a thumb presses answers a tap over 44px. */
-  .offline-go,
-  .offline-stop,
-  .offline-again,
-  .offline-remove { min-block-size: 44px; }
-}
-
 /* --- B: the columns switch themselves --- */
 .cmp-x {
   display: inline-grid;
@@ -6028,273 +5065,3 @@ body.film-ended .film-sub { display: none; }
   border: 0;
 }
 body.film-theatre .film-end + .film-next { justify-content: flex-start; }
-
-/* --- Refusals: the five surfaces (design.md §12, "A refusal is drawn on one of five
-   surfaces", 2026-10-09). Here because every page carries this sheet, the reader
-   included, and drawn by `fault.js` so no page keeps a refusal of its own. Clay is only
-   ever the mark or the outline; the sentence is ink, and the way on is teal. */
-.fault-icon {
-  flex: none;
-  inline-size: 1.125em;
-  block-size: 1.125em;
-  margin-block-start: 0.2em;
-  fill: none;
-  stroke: var(--clay);
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* The same mark, for a refusal a page already draws as a paragraph of its own: the
-   class puts the clay circle before the first line, and the line stays ink. A mask, so
-   the colour is the palette's and nothing is fetched (a reader fetches nothing). */
-.fault-marked::before {
-  content: "";
-  display: inline-block;
-  inline-size: 1.125em;
-  block-size: 1.125em;
-  margin-inline-end: 0.5em;
-  vertical-align: -0.22em;
-  background: var(--clay);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5V13M12 16.5v.1'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5V13M12 16.5v.1'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-
-/* 1 · Under a field: the field outlined, focus left in it, one line under it. */
-.fault-field,
-.fault-field:focus,
-.fault-field:focus-visible {
-  border-color: var(--clay);
-  box-shadow: 0 0 0 1px var(--clay);
-}
-.fault-under {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  margin: 0.5rem 0 0;
-  color: var(--ink);
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  line-height: 1.45;
-  text-align: start;
-}
-
-/* 2 · A line in a card: what didn't come, and a text button to try again. */
-.fault-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.5rem;
-  align-items: flex-start;
-  margin: 0;
-  color: var(--ink);
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  font-weight: 400;
-  line-height: 1.45;
-  text-align: start;
-}
-.fault-line .fault-said { flex: 0 1 auto; min-inline-size: 0; }
-.fault-act {
-  padding: 0 0.25rem;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: none;
-  color: var(--teal);
-  font: inherit;
-  font-weight: 600;
-  line-height: inherit;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.fault-act:hover { background: var(--teal-wash); }
-
-/* 3 · A panel in place: one button, and a quiet line of what still works. */
-.fault-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1.25rem;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
-  color: var(--ink);
-  font-family: var(--chrome);
-  text-align: start;
-}
-.fault-panel-said {
-  margin: 0;
-  font-size: 1.0625rem;
-  line-height: 1.5;
-}
-.fault-panel-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  align-items: center;
-}
-.fault-go {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-block-size: 2.5rem;
-  padding: 0 1.25rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--teal);
-  color: var(--teal-ink);
-  font: inherit;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-.fault-go:hover { color: var(--teal-ink); box-shadow: var(--lift); }
-/* Top up, until there is somewhere to pay (§12): drawn, greyed, and not a press. */
-.fault-go:disabled,
-.fault-go[aria-disabled="true"] {
-  background: var(--paper-raised);
-  color: var(--ink-soft);
-  box-shadow: none;
-  cursor: not-allowed;
-}
-.fault-fact {
-  color: var(--ink-soft);
-  font-size: 0.875rem;
-}
-
-/* 4 · The connection: one band under the top bar, in the flow, with no ×. */
-.fault-banner {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.625rem;
-  align-items: center;
-  padding: 0.5rem 1.25rem;
-  border-block-end: 1px solid var(--rule);
-  background: var(--paper-raised);
-  color: var(--ink);
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  line-height: 1.45;
-  direction: inherit;
-}
-.fault-banner[hidden] { display: none; }
-.fault-banner .fault-cloud {
-  flex: none;
-  inline-size: 1.125rem;
-  block-size: 1.125rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.fault-banner .fault-said { flex: 1 1 12rem; }
-/* In the reader the bar is sticky, so the band stands just under it (`fault.js` sets
-   the offset to the bar's height) rather than scrolling away with the first line. */
-.fault-banner.is-under-bar {
-  position: sticky;
-  z-index: 15;
-}
-
-/* With no connection (design.md §12, "With no connection, a page says what still works",
-   2026-10-09). The band carries the way to what is saved and what is waiting to go; a
-   text not on this device is dimmed with its reason; what needs the connection is
-   greyed with its own. Words carry every one of these, never colour alone (§4). */
-.fault-banner .offline-to-saved {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-.fault-banner .offline-owed {
-  flex: 1 0 100%;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-}
-.fault-banner .offline-owed[hidden] { display: none; }
-.offline-why,
-.offline-back {
-  margin: 0;
-  padding: 0.45rem 1.25rem;
-  font-family: var(--chrome);
-  font-size: 0.875rem;
-}
-.offline-why { background: var(--paper-raised); color: var(--ink); }
-/* Back: the one moment that is good news, in leaf's wash (§4: progress, success). */
-.offline-back { background: rgb(90 115 64 / 0.14); color: var(--ink); }
-.offline-back.is-under-bar { position: sticky; z-index: 15; }
-.offline-why[hidden],
-.offline-back[hidden] { display: none; }
-.offline-away { opacity: 0.55; }
-.offline-away a[aria-disabled="true"] { cursor: default; }
-.offline-tag {
-  display: inline-block;
-  margin-inline-start: 0.5rem;
-  color: var(--ink-soft);
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-  font-weight: 400;
-}
-.offline-tag.is-here { color: var(--leaf); }
-.offline-off,
-.offline-off:hover { opacity: 0.5; cursor: not-allowed; }
-/* Talk's reason stands over its pill, the way the board draws it. */
-.talk-cta.offline-off::before {
-  content: attr(data-why);
-  position: absolute;
-  inset-block-end: calc(100% + 0.4rem);
-  inset-inline-end: 0;
-  padding: 0.3rem 0.6rem;
-  border-radius: 8px;
-  background: var(--paper-raised);
-  color: var(--ink);
-  font-size: 0.8125rem;
-  font-weight: 400;
-  white-space: nowrap;
-}
-.bar-more .talk-cta.offline-off,
-.bar-more .talk-cta.offline-off::before { position: static; }
-.bar-more .talk-cta.offline-off::before { content: none; }
-.card-held,
-.card-later {
-  display: block;
-  color: var(--ink-soft);
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-}
-
-/* 5 · A whole page: the top bar stays, a heading, one sentence, one button. */
-.fault-page {
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 1rem;
-  min-block-size: 50vh;
-  padding: 4rem 1.25rem 4.5rem;
-  color: var(--ink);
-  font-family: var(--chrome);
-  text-align: center;
-}
-.fault-page h1 {
-  margin: 0;
-  font-family: var(--reading);
-  font-size: 1.75rem;
-  font-weight: 600;
-  line-height: 1.2;
-  text-wrap: balance;
-}
-.fault-page p {
-  max-inline-size: 34rem;
-  margin: 0;
-  font-size: 1.0625rem;
-  line-height: 1.5;
-}
-.fault-page .fault-go { margin-block-start: 0.5rem; }
-
-@media (hover: none) and (pointer: coarse) {
-  .fault-act,
-  .fault-go {
-    min-block-size: 44px;
-  }
-}

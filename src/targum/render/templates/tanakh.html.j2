@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("tanakh.page.title-targum", "The Tanakh — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('progress.css') }}{{ asset('tanakh.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('progress.css') }}{{ asset('tanakh.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 <script>window.TARGUM_KEY = "{{ token }}";</script>
@@ -16,7 +16,7 @@
     2026-10-09 (§12, "The Tanakh map is a door in the Library"), so the nav lights that
     and the trail above the heading says Library › The Tanakh. `words` for the ramp's four
     steps, which are defined on it. -#}
-<body class="words progress tanakh">
+<body class="tanakh">
 {% set here = 'library' %}{% set title = t("tanakh.page.title", "The Tanakh") %}
 {% set crumbs = [(t("nav.library", "Library"), "/library")] %}
 {% include '_nav.html.j2' %}

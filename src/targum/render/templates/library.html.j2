@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("library.page.library-targum", "Library — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
@@ -15,7 +15,7 @@
     the chat list were refused. The hosted box has no key and was never affected. -#}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
-<body class="words shelf">
+<body class="shelf">
 {% set here = 'library' %}{% set title = t("nav.library", "Library") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>

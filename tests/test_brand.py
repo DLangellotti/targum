@@ -158,8 +158,8 @@ def test_radii_are_on_the_scale(sheet: Path) -> None:
 
 
 def test_the_radius_tokens_are_the_scale() -> None:
-    """§13: the desk names its corners once, in the stylesheet every page loads."""
-    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    """§13: the desk names its corners once, in the stylesheet every page loads (§11)."""
+    text = (ASSETS / "tokens.css").read_text(encoding="utf-8")
     for token, size in RADIUS_TOKENS.items():
         found = set(re.findall(rf"{token}:\s*([^;]+);", text))
         assert found == {size}, f"{token} should be {size} everywhere, found {found}"
@@ -182,8 +182,8 @@ def test_absolute_type_sizes_are_on_the_scale(sheet: Path) -> None:
 
 
 def test_the_focus_ring_is_one_colour() -> None:
-    """§4 gives one focus colour, and it is defined once."""
-    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    """§4 gives one focus colour, and it is defined once, with the tokens (§11)."""
+    text = (ASSETS / "tokens.css").read_text(encoding="utf-8")
     rings = set(re.findall(r"--focus:\s*([^;]+);", text))
     assert rings == {"#b8935e"}, f"focus ring should be #b8935e everywhere, found {rings}"
 
@@ -791,3 +791,104 @@ def test_the_card_names_its_faces_and_carries_none() -> None:
     css = re.sub(r"/\*.*?\*/", " ", (ASSETS / "card.css").read_text(encoding="utf-8"), flags=re.S)
     assert "@font-face" not in css and "url(" not in css
     assert '"Source Sans 3"' in css
+
+
+# -- the desk and the reader, apart (design.md §11 and §13, 2026-10-09) ----------------
+#
+# The design review of 2026-10-09 found most of the desk drawn in the platform's face:
+# every desk page inlined the reader's whole sheet, `words.css` named system-ui on the
+# body after `chrome.css` had named the chrome's face, and whichever came last won. A page
+# passed every test above in the wrong face. These hold the cascade itself.
+
+
+def _page_sheets(template: Path, seen: set[str] | None = None) -> list[str]:
+    """Every stylesheet a page inlines, its partials' included, in order."""
+    seen = set() if seen is None else seen
+    if template.name in seen or not template.exists():
+        return []
+    seen.add(template.name)
+    text = template.read_text(encoding="utf-8")
+    sheets = re.findall(r"asset\('([\w-]+\.css)'\)", text)
+    for partial in re.findall(r"""\{%-?\s*include\s+['"]([^'"]+)['"]""", text):
+        sheets += _page_sheets(TEMPLATES / partial, seen)
+    return sheets
+
+
+#: §13: a desk page stands on the ground in the chrome's face — the app's pages, which
+#: carry `chrome.css`, and the doors in front of it, which carry `signin.css`.
+DESK_PAGES = [
+    page
+    for page in PAGES
+    if not page.name.startswith("_") and {"chrome.css", "signin.css"} & set(_page_sheets(page))
+]
+DESK_SHEETS = sorted({sheet for page in DESK_PAGES for sheet in _page_sheets(page)})
+
+
+def _declarations(css: str) -> list[tuple[str, str, str]]:
+    """(selector, property, value) for every declaration, comments dropped."""
+    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    out = []
+    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        for prop, value in re.findall(r"([\w-]+)\s*:\s*([^;]+)", body):
+            out.append((selector.strip(), prop.strip(), value.strip()))
+    return out
+
+
+def test_every_page_carries_the_tokens_and_no_desk_page_carries_the_reader() -> None:
+    """§11: the tokens are `tokens.css`, which every page carries first; the reader's
+    own rules are `reader.css`, and a desk page never carries them, so no rule of the
+    reader's decides how the desk looks by where it sits in the cascade."""
+    assert DESK_PAGES, "no desk page found"
+    for page in DESK_PAGES:
+        sheets = _page_sheets(page)
+        assert "reader.css" not in sheets, f"{page.name} carries the reader's sheet"
+        assert sheets[:2] == ["tokens.css", "shared.css"], f"{page.name}: {sheets[:3]}"
+    for page in PAGES:
+        sheets = _page_sheets(page)
+        if "reader.css" in sheets:
+            at = sheets.index("reader.css")
+            assert sheets[at - 2 : at] == ["tokens.css", "shared.css"], page.name
+
+
+def test_each_page_wears_one_body_class() -> None:
+    """A body's classes were stacked history — `words you playlists` — and every one of
+    them was a selector some sheet could still reach. One page, one name (2026-10-09)."""
+    for page in DESK_PAGES:
+        body = re.search(r'<body class="([^"{]*)', page.read_text(encoding="utf-8"))
+        assert body is not None, f"{page.name} has no body class"
+        assert len(body.group(1).split()) == 1, f"{page.name}: {body.group(1)!r}"
+
+
+@pytest.mark.parametrize("sheet", DESK_SHEETS, ids=lambda name: name)
+def test_the_desk_names_no_platform_face(sheet: str) -> None:
+    """§13: the chrome speaks in Source Sans 3, with "Segoe UI", system-ui as the
+    fallback inside `--chrome` and nowhere else. A desk rule names a face by its token
+    (`--chrome`, `--ui`, `--reading`); one that names system-ui is the rule that put
+    1,157 runs of See all in the platform's face."""
+    css = (ASSETS / sheet).read_text(encoding="utf-8")
+    for selector, prop, value in _declarations(css):
+        if prop not in ("font-family", "font"):
+            continue
+        bare = re.sub(r"var\([^)]*\)", "var()", value)
+        assert "system-ui" not in bare, f"{sheet}: {selector} names system-ui"
+
+
+@pytest.mark.parametrize("sheet", DESK_SHEETS, ids=lambda name: name)
+def test_no_press_on_the_desk_is_a_gradient(sheet: str) -> None:
+    """§13: a button is filled, tonal or ghost, and each is a flat fill — the primary,
+    its tint, or nothing — on surfaces that are flat too. The black sheen on the doors'
+    one button was the last gradient on the desk (2026-10-09)."""
+    css = (ASSETS / sheet).read_text(encoding="utf-8")
+    for selector, prop, value in _declarations(css):
+        if prop.startswith("background") and "gradient(" in value:
+            raise AssertionError(f"{sheet}: {selector} draws {value}")
+
+
+def test_a_press_in_the_primary_is_flat_everywhere() -> None:
+    """§13 gives the filled button to the primary, and the reader's own chrome takes the
+    desk's buttons (phase 5): so a press filled in teal is flat on the reader's page too —
+    the end of a part, Next part under a picture."""
+    for sheet in STYLESHEETS:
+        for selector, prop, value in _declarations(sheet.read_text(encoding="utf-8")):
+            if prop.startswith("background") and "var(--teal)" in value:
+                assert "gradient(" not in value, f"{sheet.name}: {selector} draws {value}"
