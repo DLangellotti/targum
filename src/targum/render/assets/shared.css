@@ -525,8 +525,10 @@ table.rows tr:hover .copy,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
        reach grows and whose look and line do not. */
     .gloss-card .inferred,
-    /* The root, where it opens the words of it the reader has met (targum-internal#96). */
-    .gloss-card .verb .root-open
+    /* The root, where it opens the words of it the reader has met (targum-internal#96),
+       in the card's list since audit Q6 (2026-10-09), and the way to all its forms. */
+    .gloss-card .card-facts .root-open,
+    .gloss-card .card-all
   ) {
     position: relative;
   }
@@ -547,8 +549,10 @@ table.rows tr:hover .copy,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
        reach grows and whose look and line do not. */
     .gloss-card .inferred,
-    /* The root, where it opens the words of it the reader has met (targum-internal#96). */
-    .gloss-card .verb .root-open
+    /* The root, where it opens the words of it the reader has met (targum-internal#96),
+       in the card's list since audit Q6 (2026-10-09), and the way to all its forms. */
+    .gloss-card .card-facts .root-open,
+    .gloss-card .card-all
   )::after {
     content: "";
     position: absolute;
