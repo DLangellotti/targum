@@ -474,6 +474,34 @@ own origin, and only a picture of ours**:
 
 It still fetches no script, style or font, and nothing from anybody else. The connect
 page's example card is drawn from the same door.
+### Talk is a sheet over a dimmed page — 2026-10-09
+
+P19 of the polish plan, after "The boards are the desk" and "The desk's controls are one
+layer" (the same day). Boards ChatDesk and ChatPhone. The pill stays the only door, in
+ink (#684); this is what it opens.
+
+- **The page dims under it, at every width.** The drawer floated over an undimmed page at
+  a desk, and the reader read on beside a conversation about it. Now the shared `.scrim`
+  lies under it everywhere, and a tap on it closes the drawer, as Escape and × do.
+- **At a desk it is 460px from the window's end edge, top to foot**, on the floating
+  shadow, where it was a 26rem card inset under the bar. **On a phone it is a sheet up
+  from the foot** to just under the top of the window, with the shared `.sheet-grab`,
+  which closes it.
+- **The head**: "Talk to targum" in the reading serif at a section title's size, the ×
+  as a line glyph, and, in a reader, **"About:" and this part of this text** as a chip in
+  the teal wash, so it says once what the conversation is about. A desk page names
+  nothing there: there is nothing in front of the reader to be about.
+- **The suggestions and the Reading line stand only while the conversation is empty.**
+  Once there is a turn the thread has the room, and the chip says what it is about.
+  In a reader the box says "Ask about the text, or write in {language}".
+- **The conversation's own look**: the reader's lines in the teal wash at the end edge,
+  sized to what was said, targum's on the page; a door to a text ("Open …") is the
+  primary, a pill at its words' width, where it was an ink block — "A door's one press is
+  the primary" (the same day). The box in the drawer is one field, as the board draws it:
+  the well's border round the `+`, the line, Speak and Send.
+
+What it does not change: what the conversation may say or spend, the one pill, and the
+reader fetching nothing until the pill is pressed.
 
 ### Your account is the board's sections, and Saved on this device its two columns — 2026-10-09
 
