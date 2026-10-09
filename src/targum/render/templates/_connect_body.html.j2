@@ -1,0 +1,267 @@
+{#- The body of /connect, for both its shells (design.md §12, "The connector's pages are
+    the boards'", 2026-10-09): `connect.html.j2` puts it in the public bar and foot for a
+    stranger, `connect-desk.html.j2` in the app's for a reader. Expects `signed_in`,
+    `address`, `t`, and for a stranger's close `asked`, `joined_from` and `canonical`. -#}
+{%- set mcp = address ~ "/mcp" -%}
+{%- set desk = signed_in -%}
+{%- macro mark() -%}
+<svg class="mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false"><rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect><rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect></svg>
+{%- endmacro -%}
+{%- macro glyph(name) -%}
+{#- §7: sixteen pixels, a stroke at 1.4, round caps. -#}
+<svg class="cn-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+{%- if name == 'search' %}<circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5"/>
+{%- elif name == 'lines' %}<path d="M3 4.5h10M3 8h7M3 11.5h4"/>
+{%- elif name == 'talk' %}<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>
+{%- elif name == 'list' %}<path d="M2.5 4.5h8M2.5 8h8M2.5 11.5h5M11.5 9.5v4l2.5-2z"/>
+{%- elif name == 'feed' %}<path d="M3.5 12.5a.5.5 0 1 0 0 .01M3.5 8a4.5 4.5 0 0 1 4.5 4.5M3.5 3.5a9 9 0 0 1 9 9"/>
+{%- elif name == 'lock' %}<rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>
+{%- elif name == 'check' %}<path d="M3.5 8.5l3 3 6-7"/>
+{%- elif name == 'copy' %}<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>
+{%- elif name == 'arrow' %}<path d="M3 8h10M9 4l4 4-4 4"/>
+{%- elif name == 'out' %}<path d="M6.5 3.5h6v6M12.5 3.5 4 12"/>
+{%- elif name == 'play' %}<path d="M5 3.2 12.8 8 5 12.8Z"/>
+{%- endif -%}
+</svg>
+{%- endmacro -%}
+{%- macro copyable(text, label, big=false) -%}
+<span class="copyable{% if big %} cn-address{% endif %}">
+  <code>{{ text }}</code>
+  <button class="cn-copy" type="button" data-copy="{{ text }}" hidden>{{ glyph('copy') }}<span>{{ label }}</span></button>
+</span>
+{%- endmacro -%}
+{#- The apps, each with its letter, as the board draws the tabs. Only apps the steps
+    cover are named. -#}
+{%- set apps = [
+  ('claude', 'C', 'Claude'),
+  ('chatgpt', 'G', 'ChatGPT'),
+  ('code', 'C', 'Claude Code'),
+  ('vscode', 'V', 'VS Code'),
+  ('gemini', 'G', 'Gemini CLI'),
+  ('codex', 'X', 'Codex'),
+  ('other', '+', t("connect.page.another-app", "Another app")),
+] -%}
+<main class="cn" id="top">
+  {#- The hero: what it is, the address to paste, and what a reader gets, in a host's
+      own plain chrome. -#}
+  <section class="cn-hero" aria-labelledby="cn-h">
+    <div class="cn-lead">
+      <p class="cn-kicker">{{ t("connect.head.title", "targum in Claude and ChatGPT") }}</p>
+      <h1 class="cn-title" id="cn-h">{{ t("connect.page.learn-hebrew-in", "Learn Hebrew in") }} <span class="cn-app" id="cn-app">Claude</span></h1>
+      <p class="cn-lede">{{ t("connect.page.connect-targum-to-the-ai-you-already-use", "Connect targum to the AI you already use. It talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.") }}</p>
+      {{ copyable(mcp, t("connect.page.copy", "Copy"), big=true) }}
+      {%- if not signed_in %}
+      {#- Connecting needs an account, and accounts come off the waitlist, so a stranger
+          sent to the steps is told once, here, where to start. -#}
+      <p class="need-account">{{ t("connect.page.you-ll-need-a-targum-account", "You’ll need a targum account.") }} <a href="#join">{{ t("connect.page.join-the-waitlist-link", "Join the waitlist") }}</a></p>
+      {%- endif %}
+      <ul class="cn-facts">
+        <li>{{ glyph('check') }}{{ t("connect.page.free-to-connect", "Free to connect") }}</li>
+        <li>{{ glyph('check') }}{{ t("connect.page.set-up-in-two-minutes", "Set up in two minutes") }}</li>
+        <li>{{ glyph('check') }}{{ t("connect.page.chatting-is-included", "Chatting is included") }}</li>
+      </ul>
+    </div>
+
+    {#- An example, still: a conversation in no app in particular, with targum's text
+        card in it as a host draws it (board ConnCards). The three are real library
+        texts, and their covers come from our own `/cover/`. -#}
+    <figure class="cn-host" aria-label="{{ t("connect.page.example-a-conversation-with-targum-connected", "Example: a conversation with targum connected") }}">
+      <div class="cn-hbar"><span class="cn-hbar-name">{{ t("connect.example.thread", "Hebrew before the bus") }}</span></div>
+      <div class="cn-hcol">
+        <p class="cn-ub">{{ t("connect.example.ask", "Find me a short dialogue I can mostly follow.") }}</p>
+        <p class="cn-hchip">targum · {{ t("connect.page.find-something-to-read", "Find something to read") }}</p>
+        <div class="cn-k">
+          <p class="cn-k-head"><span class="cn-k-mark" aria-hidden="true"><i></i><i></i></span><b>targum</b><span aria-hidden="true">·</span><span>{{ t("card.text.title", "Something to read") }}</span></p>
+          {%- for id, title, english, minutes, known in [
+              ('scene-02-in-a-cafe', 'בבית קפה', t("connect.example.cafe", "In a café"), 3, 9),
+              ('scene-14-on-the-bus', 'באוטובוס', t("connect.example.bus", "On the bus"), 2, 9),
+              ('scene-11-what-time-is-it', 'מה השעה?', t("connect.example.time", "What time is it?"), 2, 9)] %}
+          <div class="cn-k-row">
+            <span class="cn-k-tile" lang="he" aria-hidden="true">{{ title[:1] }}<img src="/cover/{{ id }}" alt="" loading="lazy" decoding="async"></span>
+            <div class="cn-k-body">
+              <p class="cn-k-t" lang="he" dir="rtl">{{ title }}</p>
+              <p class="cn-k-en">{{ english }}</p>
+              <p class="cn-k-f">{{ t("home.kind.dialogue", "Dialogue") }} · {{ t("library.minutes", "{n} min", n=minutes) }} · {{ t("add.found.known.other", "You know about {n} words in 10", n=known) }}<span class="cn-k-meter" aria-hidden="true"><span></span></span></p>
+            </div>
+            <span class="cn-k-play" aria-hidden="true">{{ glyph('play') }}</span>
+            <span class="cn-k-door">{{ t("card.text.open", "Open") }}{{ glyph('out') }}</span>
+          </div>
+          {%- endfor %}
+        </div>
+        <p class="cn-at">{{ t("connect.example.answer", "Three at your level. {title} is the gentlest of them.", title=('<bdi lang="he" dir="rtl">בבית קפה</bdi>'|safe)) }}</p>
+      </div>
+      <div class="cn-hcomp" aria-hidden="true"><span>{{ t("connect.example.reply", "Reply…") }}</span></div>
+    </figure>
+  </section>
+
+  {#- The steps. One tab an app, with its own steps; with JavaScript off, every app's
+      block stands in order and the tabs are not drawn. Beside them, the page a reader
+      approves on, drawn small in the approval page's own words. -#}
+  <section class="cn-install" id="install" aria-labelledby="cn-install-h">
+    <h2 class="cn-section" id="cn-install-h">{{ t("connect.page.connect-in-two-minutes", "Connect in two minutes.") }}</h2>
+    <div class="cn-plats" role="tablist" aria-label="{{ t("connect.page.your-app", "Your app") }}" id="plats" hidden>
+      {%- for key, letter, name in apps %}
+      <button class="cn-plat" role="tab" type="button" id="tab-{{ key }}" aria-controls="p-{{ key }}" aria-selected="{{ 'true' if loop.first else 'false' }}"{% if not loop.first %} tabindex="-1"{% endif %} data-app="{{ name if key != 'other' else '' }}"><span class="cn-mono" aria-hidden="true">{{ letter }}</span>{{ name }}</button>
+      {%- endfor %}
+    </div>
+    <div class="cn-steps-card">
+      <div class="cn-panels">
+        <div class="cn-panel" id="p-claude" role="tabpanel" aria-labelledby="tab-claude" data-plat="claude">
+          <div class="how-to">
+            <h3>{{ t("connect.page.in-claude", "In Claude") }}</h3>
+            <ol class="cn-steps">
+              <li>{{ t("connect.page.claude-open-customize-then-connectors", "Open Customize, then Connectors.") }}</li>
+              <li>{{ t("connect.page.claude-choose-plus-then-add-custom-connector", "Choose the + button, then Add custom connector.") }}</li>
+              <li>{{ t("connect.page.claude-name-it-and-paste", "Name it targum, paste the address and choose Add.") }}</li>
+              <li>{{ t("connect.page.claude-sign-in-then-choose-connect", "Sign in to targum when asked, then choose Connect.") }}</li>
+            </ol>
+            <p class="quiet">{{ t("connect.page.claude-once-and-on-your-phone", "Add it once on the web or the desktop app and it’s on your phone too.") }}</p>
+          </div>
+        </div>
+
+        <div class="cn-panel" id="p-chatgpt" role="tabpanel" aria-labelledby="tab-chatgpt" data-plat="chatgpt">
+          <div class="how-to">
+            <h3>{{ t("connect.page.in-chatgpt", "In ChatGPT") }}</h3>
+            <ol class="cn-steps">
+              <li>{{ t("connect.page.chatgpt-open-settings-then-apps", "Open Settings, then Apps & Connectors.") }}</li>
+              <li>{{ t("connect.page.chatgpt-turn-on-developer-mode", "Under Advanced settings, turn on Developer mode.") }}</li>
+              <li>{{ t("connect.page.chatgpt-create-and-paste", "Choose Create, name it targum and paste the address.") }}</li>
+              <li>{{ t("connect.page.chatgpt-choose-oauth-then-connect", "Choose OAuth, then sign in to targum and choose Connect.") }}</li>
+              <li>{{ t("connect.page.chatgpt-turn-it-on-in-each-chat", "In each new chat, choose the + button and turn on targum.") }}</li>
+            </ol>
+            <p class="quiet">{{ t("connect.page.chatgpt-menus-move", "Developer mode is on ChatGPT’s paid plans. Its menus move now and then: if yours differ, look for Connectors or Apps.") }}</p>
+          </div>
+        </div>
+
+        <div class="cn-panel" id="p-code" role="tabpanel" aria-labelledby="tab-code" data-plat="code">
+          <div class="how-to">
+            <h3>{{ t("connect.page.in-claude-code", "In Claude Code") }}</h3>
+            <ol class="cn-steps">
+              <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}
+                {{ copyable("claude mcp add --transport http targum " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
+              <li>{{ t("connect.page.code-start-and-type-mcp", "Start Claude Code and type /mcp.") }}</li>
+              <li>{{ t("connect.page.code-choose-targum-and-sign-in", "Choose targum, then Authenticate, and sign in to targum in your browser.") }}</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="cn-panel" id="p-vscode" role="tabpanel" aria-labelledby="tab-vscode" data-plat="vscode">
+          <div class="how-to">
+            <h3>{{ t("connect.page.in-vs-code", "In VS Code") }}</h3>
+            <ol class="cn-steps">
+              <li>{{ t("connect.page.vscode-run-add-server", "Open the Command Palette and run MCP: Add Server.") }}</li>
+              <li>{{ t("connect.page.vscode-choose-http-and-paste", "Choose HTTP, paste the address and name it targum.") }}</li>
+              <li>{{ t("connect.page.vscode-sign-in", "Sign in to targum when VS Code asks.") }}</li>
+              <li>{{ t("connect.page.vscode-agent-mode", "Open Copilot Chat in Agent mode and ask away.") }}</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="cn-panel" id="p-gemini" role="tabpanel" aria-labelledby="tab-gemini" data-plat="gemini">
+          <div class="how-to">
+            <h3>{{ t("connect.page.in-gemini-cli", "In Gemini CLI") }}</h3>
+            <ol class="cn-steps">
+              <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}
+                {{ copyable("gemini mcp add --transport http targum " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
+              <li>{{ t("connect.page.gemini-start-and-auth", "Start Gemini CLI and type /mcp auth targum.") }}</li>
+              <li>{{ t("connect.page.sign-in-in-your-browser-then-connect", "Sign in to targum in your browser, then choose Connect.") }}</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="cn-panel" id="p-codex" role="tabpanel" aria-labelledby="tab-codex" data-plat="codex">
+          <div class="how-to">
+            <h3>{{ t("connect.page.in-codex", "In Codex") }}</h3>
+            <ol class="cn-steps">
+              <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}
+                {{ copyable("codex mcp add targum --url " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
+              <li>{{ t("connect.page.codex-then-sign-in", "Then run this to sign in:") }}
+                {{ copyable("codex mcp login targum", t("connect.page.copy", "Copy")) }}</li>
+              <li>{{ t("connect.page.sign-in-in-your-browser-then-connect", "Sign in to targum in your browser, then choose Connect.") }}</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="cn-panel" id="p-other" role="tabpanel" aria-labelledby="tab-other" data-plat="other">
+          <div class="how-to">
+            <h3>{{ t("connect.page.in-another-app", "In another app") }}</h3>
+            <ol class="cn-steps">
+              <li>{{ t("connect.page.other-find-where", "Find where your app adds a remote MCP server. Some call it a connector or an integration.") }}</li>
+              <li>{{ t("connect.page.other-paste-the-address", "Paste the address. If it asks how to connect, choose HTTP.") }}</li>
+              <li>{{ t("connect.page.other-choose-oauth", "If it asks how to sign in, choose OAuth. It opens targum, and you sign in there.") }}</li>
+            </ol>
+            <p class="quiet">{{ t("connect.page.other-no-key-to-copy", "There’s no key to copy. The address is all you need.") }}</p>
+          </div>
+        </div>
+      </div>
+      <aside class="cn-grant" aria-label="{{ t("connect.page.example-the-page-you-approve-on", "Example: the page you approve on") }}">
+        <p class="cn-grant-said">{{ t("connect.page.you-see-what-it-can-do-before-you-connect", "You see what it can do before you connect.") }}</p>
+        <div class="cn-grant-card">
+          <p class="cn-grant-title" id="cn-grant-title" data-says="{{ t("connect.page.connect-to-targum", "Connect {client} to targum") }}">{{ t("connect.page.connect-to-targum", "Connect {client} to targum", client="Claude") }}</p>
+          <p class="cn-grant-able">{{ t("connect.page.it-will-be-able-to", "It will be able to:") }}</p>
+          <ul class="cn-grant-list">
+            <li>{{ glyph('search') }}<span>{{ t("connect.scope.library", "Search the library and look up what is at a link") }}</span></li>
+            <li>{{ glyph('lines') }}<span>{{ t("connect.scope.record", "Read your words, your mistakes and your progress") }}</span></li>
+            <li>{{ glyph('talk') }}<span>{{ t("connect.scope.chat", "Send us what you write in a language you're learning, for us to correct") }}<small>{{ t("connect.scope.chat-also", "And add texts to your playlists, and offer texts, playlists and subscriptions, which you confirm here, on targum") }}</small></span></li>
+          </ul>
+          <span class="cn-grant-go">{{ t("connect.page.connect", "Connect") }}{{ glyph('arrow') }}</span>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="cn-why" id="why" aria-labelledby="cn-why-h">
+    <h2 class="cn-section" id="cn-why-h">{{ t("connect.page.every-chat-starts-from-what-you-know", "Every chat starts from what you know.") }}</h2>
+    {%- if not signed_in %}
+    {#- For somebody who has never heard of targum: what it is, before what connecting
+        it adds. A signed-in reader knows. -#}
+    <aside class="cn-new">
+      <span class="cn-new-mark">{{ mark() }}</span>
+      <p><b>{{ t("connect.page.new-to-targum", "New to targum?") }}</b> {{ t("connect.page.targum-is-where-you-learn-hebrew", "targum is where you learn Hebrew from videos, podcasts and books, with vowels on every word and English beside every line. Tap a word you don’t know and it goes onto your list.") }} <a href="/">{{ t("connect.page.see-targum", "See targum") }}</a></p>
+    </aside>
+    {%- endif %}
+    <div class="cn-feats">
+      {%- for icon, head, says in [
+          ('search', t("connect.page.something-to-read-next", "Something to read next"), t("connect.page.nearly-500-free-texts-and-videos-sorted-by-the-words-you-know", "More than 500 texts and videos, sorted by the words you know. Or paste a link to your own.")),
+          ('talk', t("connect.page.the-fix-and-why", "The fix, and why"), t("connect.page.write-in-hebrew-and-see-the-fix", "Write in Hebrew and see what to change and why. The mistake goes on your list to practise.")),
+          ('lines', t("connect.page.words-where-you-met-them", "Words where you met them"), t("connect.page.ask-about-a-word-and-see-it-in-the-sentence-you-read-it-in", "Ask about a word and see it in the sentence you read it in, with how well you know it.")),
+          ('list', t("connect.page.playlists", "Playlists"), t("connect.page.playlists-says", "Ask for a few texts on one theme. They come back as a playlist you confirm with one press.")),
+          ('feed', t("connect.page.subscriptions", "Subscriptions"), t("connect.page.subscriptions-says", "Ask to follow the news, a YouTube channel or a podcast. News comes as free links; a channel or podcast gets ready within a monthly cap you set.")),
+          ('lock', t("connect.page.nothing-starts-without-you", "Nothing starts without you"), t("connect.page.nothing-starts-says", "Your AI can’t make anything on its own. It sends a link, and you confirm on targum.")),
+        ] %}
+      <div class="cn-feat">
+        <span class="cn-fi">{{ glyph(icon) }}</span>
+        <h3>{{ head }}</h3>
+        <p>{{ says }}</p>
+      </div>
+      {%- endfor %}
+    </div>
+  </section>
+
+  <section class="cn-questions" id="questions" aria-labelledby="cn-q-h">
+    <h2 class="cn-section" id="cn-q-h">{{ t("connect.page.before-you-connect", "Before you connect.") }}</h2>
+      <div class="cn-faq">
+        <details><summary>{{ t("connect.page.q-do-i-need-an-account", "Do I need a targum account?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-do-i-need-an-account", "Yes. Your words and your progress live in it, and that’s what your AI reads. We’re opening in small groups, so join the waitlist and we’ll email you when it’s your turn.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so are searching the library and your word list. Chatting is included in your monthly credits. A new text, playlist or subscription uses credits, and you confirm it on targum first.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-which-apps", "Which apps does it work with?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-which-apps", "Claude, ChatGPT, Claude Code, VS Code, Gemini CLI and Codex, and any other app that can add a remote MCP server and sign in with OAuth.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-will-it-speak-hebrew", "Will it talk to me in Hebrew?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-will-it-speak-hebrew", "Yes. We give your AI the rules our own chat follows: short replies in simple Hebrew, built from the words you know, with the English when you ask.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "No. When you ask for a text, it sends you a link. Nothing is made until you confirm it on targum.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-how-do-i-disconnect", "How do I disconnect?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-how-do-i-disconnect", "From your targum account, where every connected app is listed, or by removing it in the app.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-what-is-mcp", "Why do the steps say MCP?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-what-is-mcp", "MCP is how these apps add a tool like targum. Some menus call it a connector.") }}</p></details>
+      </div>
+  </section>
+
+  {%- if not signed_in %}
+  <div class="cn-close">
+    <h2 class="cn-section">{{ t("connect.page.learn-hebrew-in-the-ai-you-already-use", "Learn Hebrew in the AI you already use.") }}</h2>
+    <form class="join-form" id="join" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}">
+      <input type="hidden" name="from" value="{{ joined_from|default(canonical|default('')) }}">
+      <label class="field">
+        <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("connect.page.you-example-com", "you@example.com") }}" aria-label="{{ t("connect.page.your-email", "Your email") }}">
+        <button class="btn cta" type="submit">{{ t("connect.page.join-the-waitlist", "Join the waitlist") }}</button>
+      </label>
+      <p class="join-note">{{ t("connect.page.we-re-opening-in-small-groups", "You’ll need a targum account. We’re opening in small groups, and we’ll email you when your turn comes.") }}</p>
+    </form>
+  </div>
+  {%- endif %}
+</main>

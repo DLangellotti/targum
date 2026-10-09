@@ -10,6 +10,7 @@
     It fetches nothing and asks for no tool. Its one door opens targum's own page where
     the reader confirms — the set's, or the subscription's with its cap — and nothing
     here confirms, chooses a cap or spends (§12, "A card never presses"). -#}
+{% from '_card_head.html.j2' import head %}
 <!doctype html>
 <html lang="{{ page_language }}">
 <head>
@@ -36,24 +37,32 @@
   data-kind-outlet="{{ t("subs.kind.outlet", "Outlet") }}"
   data-kind-channel="{{ t("card.offer.channel", "YouTube channel") }}"
   data-kind-podcast="{{ t("subs.kind.podcast", "Podcast") }}"
-  data-kind-set="{{ t("card.offer.set", "Playlist") }}">
+  data-kind-set="{{ t("card.offer.set", "Playlist") }}"
+  data-waits="{{ t("card.offer.waits", "{kind} · nothing starts until you confirm") }}">
   <p class="card-said card-none" id="none" hidden></p>
 </main>
 <template id="one">
   <article class="card card-offer">
-    <p class="card-label"></p>
-    <h2 class="card-title" dir="auto"></h2>
-    <p class="card-facts" hidden></p>
+    {% call head() %}<span class="card-kind">{{ t("card.offer.for-you", "For you to confirm") }}</span>{% endcall %}
+    <div class="card-offer-top">
+      {#- Letters on the colours of their kinds, never a picture: what is offered is not
+          made yet, and nothing here is fetched (design.md §12, 2026-10-09). -#}
+      <span class="card-mosaic" aria-hidden="true"></span>
+      <div class="card-body">
+        <p class="card-label"></p>
+        <h2 class="card-title" dir="auto"></h2>
+        <p class="card-facts" hidden></p>
+      </div>
+    </div>
     <ul class="card-items" hidden></ul>
     <p class="card-said card-sum" hidden></p>
-    <div class="card-actions">
-      <a class="card-door" target="_blank" rel="noopener" hidden></a>
-    </div>
+    <p class="card-foot"><span class="card-waits"></span><a class="card-door" target="_blank" rel="noopener" hidden></a></p>
   </article>
 </template>
 <template id="item">
   <li class="card-item"><span class="card-item-title" dir="auto"></span><span class="card-item-facts"></span></li>
 </template>
+<template id="arrow"><svg class="card-arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.5 3.5h6v6M12.5 3.5 4 12"></path></svg></template>
 <script>{{ asset('card-bridge.js') }}</script>
 <script>{{ asset('card-offer.js') }}</script>
 </body>

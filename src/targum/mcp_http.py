@@ -310,8 +310,10 @@ def _card_frame(uri: str = tools_module.BUILD_CARD, address: str = "") -> dict[s
     `resourceDomains`, which is the extension's field for media as well as images,
     scripts, styles and fonts and the only one that reaches `media-src`, because it may
     play a recording the text already has, streamed from targum.page (§12's second
-    exception, 2026-10-06). It loads nothing else from there: `test_cards.py` holds the
-    page to no address at all and its script to no element that loads but `<audio>`.
+    exception, 2026-10-06), and show a library text's cover from `/cover/` (§12, "A
+    card's picture comes from targum.page", 2026-10-09). It loads nothing else from
+    there: `test_cards.py` holds the page to no address at all and its script to no
+    element that loads but `<audio>` and `<img>`.
     Nothing in `connectDomains`: the card makes no request of its own.
     """
     origin = _origin(address)
@@ -602,6 +604,8 @@ def text_card_meta(text: str, ctx: tools_module.Ctx, address: str) -> list[dict[
     - `door`: the short link that opens the text where it is built; where it is not, our
       own library page for it, where it is got ready — never a press inside the card
       (design.md §12, "A card never presses").
+    - `cover`, for a library text: its cover at `/cover/<id>`, the one image a card
+      loads (design.md §12, "A card's picture comes from targum.page", 2026-10-09).
     - `audio`, only where the text already has a recording (`heard.recording_of`): a
       short-lived address for that one file, `ends` when it stops working (milliseconds,
       as a page's clock counts), and `credit` where the reading is somebody's.
@@ -645,6 +649,11 @@ def text_card_meta(text: str, ctx: tools_module.Ctx, address: str) -> list[dict[
             said["door"] = tools_module.shorten(reader, address)
         elif row.get("id") and origin:
             said["door"] = f"{origin}/library/{quote(str(row['id']))}"
+        # A library text's own cover, from our own origin and nothing else (design.md §12,
+        # "A card's picture comes from targum.page", 2026-10-09). A text of the reader's
+        # own has none here: its picture is theirs, and the card draws its letter.
+        if row.get("id") and origin and row.get("from", "library") == "library":
+            said["cover"] = f"{origin}/cover/{quote(str(row['id']), safe='')}"
         folder = _folder(row, reader, ctx)
         found = _recording(folder) if folder is not None and origin else None
         issued = heard.HEARD.issue(found.path, allowed) if found is not None else None

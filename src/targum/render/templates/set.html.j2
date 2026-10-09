@@ -7,32 +7,39 @@
     so a reader is never left holding half of what the page quoted. A refusal comes back
     to this page and says how many credits are left.
 
-    `press.html.j2`'s furniture — the lockup, one card, no navigation — for its reason:
-    somebody is in the middle of something that started elsewhere. No script at all: the
-    ticks are checkboxes and the press is a form post. -#}
+    In the app's shell since 2026-10-09, as the press for one text is (design.md §12,
+    "The connector's pages are the boards'"; boards ConnConfirm and ConnConfirmPhone): the
+    bar, and the board's 640px card. No script of its own: the ticks are checkboxes and
+    the press is a form post; the bar's scripts only draw the bar. -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('signin.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('subs.css') }}</style>
 {{ hebrew_face() }}
-{{ chrome_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
-<body class="signin">
-<main class="gate">
-  <a class="brand" href="/" aria-label="targum">
-    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-    </svg>
-    <span>targum</span>
-  </a>
-
-  <div class="door">
-    <h1><bdi dir="auto">{{ playlist.name }}</bdi></h1>
+<body class="press">
+{% set here = 'press' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+<main class="sub-gate">
+  <div class="card sub-confirm press-confirm">
+    <p class="sub-via"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>{{ t("press.page.from-an-assistant", "From an assistant") }}</p>
+    <div class="sub-confirm-head">
+      {%- set firsts = (playlist['items'] or [])[:4] %}
+      <span class="sub-confirm-tile is-mosaic set-mosaic{% if firsts|length < 2 %} is-one{% endif %}" aria-hidden="true">
+        {%- for item in firsts %}<span class="tone-set"><span class="glyph" lang="he">{{ (item.title or "?")[:1] }}</span></span>{% endfor %}</span>
+      <div class="sub-confirm-names">
+        <p class="sub-confirm-kicker">{{ t("set.page.a-playlist", "A playlist") }}</p>
+        <h1 class="sub-confirm-title"><bdi dir="auto">{{ playlist.name }}</bdi></h1>
+        <p class="sub-confirm-kicker">{{ tn("set.page.texts", (playlist['items'] or [])|length, "{n} text", "{n} texts") }}</p>
+      </div>
+    </div>
     {%- if refused %}
     <p class="said" role="alert">{{ refused }}</p>
     {%- endif %}
@@ -50,37 +57,46 @@
 
     {%- if waiting %}
     <form method="post" action="/set/{{ playlist.id }}" id="set-press">
-      <ul class="scopes set-items">
+      <ul class="set-rows">
       {%- for row in rows %}
-        <li>
-          {%- if row.job and row.stage == 'ready' %}
-          <label class="set-item">
+        <li class="set-row">
+          {%- set ticks = row.job and row.stage == 'ready' %}
+          <label class="set-row-label">
+            {%- if ticks %}
             <input type="checkbox" name="keep" value="{{ row.item.position }}" checked>
-            <bdi class="set-title" dir="auto">{{ row.item.title }}</bdi>
+            {%- else %}
+            <input type="checkbox" disabled{% if row.job is none %} checked{% endif %}>
+            {%- endif %}
+            <span class="thumb is-letter tone-set set-tile" aria-hidden="true"><span class="glyph" lang="he">{{ (row.item.title or "?")[:1] }}</span></span>
+            <span class="set-row-names">
+              <bdi class="set-title" dir="auto">{{ row.item.title }}</bdi>
+              {%- if row.job and row.job.known_line %}<span class="set-meta">{{ row.job.known_line }}</span>{% endif %}
+            </span>
+            <span class="set-cost">{% if ticks and row.credits %}{{ tn("set.page.uses-credits", row.credits, "{n} credit", "{n} credits") }}{% elif not ticks %}{{ state(row) }}{% endif %}</span>
           </label>
-          {%- if row.job.known_line %}<span class="set-meta">{{ row.job.known_line }}</span>{% endif %}
-          {%- if row.credits %}<span class="scope-cost">{{ tn("set.page.uses-credits", row.credits, "{n} credit", "{n} credits") }}</span>{% endif %}
-          {%- else %}
-          <bdi class="set-title" dir="auto">{{ row.item.title }}</bdi>
-          <span class="scope-cost">{{ state(row) }}</span>
-          {%- endif %}
         </li>
       {%- endfor %}
       </ul>
-      {%- if total %}
-      <p class="said set-total">{{ tn("set.page.uses-credits-in-all", total, "Uses {n} credit in all", "Uses {n} credits in all") }}</p>
-      {%- endif %}
-      <button class="btn filled go" type="submit">{{ t("set.page.read-these", "Confirm") }}</button>
+      <div class="press-foot">
+        <p class="press-cost">
+          <b>{{ tn("set.page.uses-credits-in-all", total, "Uses {n} credit in all", "Uses {n} credits in all") }}</b>
+          {%- if credits.left is not none and credits.left is defined %}
+          <span>{{ tn("set.page.left-this-month", credits.left, "{n} left this month · comes back {date}", "{n} left this month · comes back {date}", date=credits.back) }}</span>
+          {%- endif %}
+        </p>
+        <button class="btn filled go" type="submit">{{ t("set.page.read-these", "Confirm") }}</button>
+      </div>
     </form>
     <p class="aside">{{ t("set.page.you-asked-for-these-somewhere-else", "Untick what you don't want, then press Confirm. Unticked texts come out of the playlist.") }}</p>
 
     {%- else %}
-    <ul class="scopes set-items">
+    <ul class="set-rows">
     {%- for row in rows %}
-      <li>
-        <bdi class="set-title" dir="auto">{{ row.item.title }}</bdi>
-        <span class="scope-cost">{{ state(row) }}</span>
-      </li>
+      <li class="set-row"><span class="set-row-label">
+        <span class="thumb is-letter tone-set set-tile" aria-hidden="true"><span class="glyph" lang="he">{{ (row.item.title or "?")[:1] }}</span></span>
+        <span class="set-row-names"><bdi class="set-title" dir="auto">{{ row.item.title }}</bdi></span>
+        <span class="set-cost">{{ state(row) }}</span>
+      </span></li>
     {%- endfor %}
     </ul>
     {%- if making %}
@@ -112,5 +128,12 @@
     {%- endif %}
   </div>
 </main>
+{% include '_foot.html.j2' %}
+<script>window.TARGUM_LANGUAGES = { {% for code, name in names %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
 </body>
 </html>

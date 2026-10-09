@@ -229,12 +229,14 @@ def test_the_page_says_what_is_being_asked_for(connected: tuple[int, str, Path])
     assert "Claude" in page, "the client's claim about itself, shown as one"
     assert "Search the library" in page
     assert "Read your words" in page
-    assert "Add texts to your playlists" not in page, "not asked for, so not granted"
+    assert "And add texts to your playlists" not in page, "not asked for, so not granted"
 
 
 def test_the_spending_scope_says_chatting_is_included(connected: tuple[int, str, Path]) -> None:
     """design.md §12, 2026-09-24: a message rounds to no credits, so the page says that
-    chatting is included, and names no allowance that reads as being spent."""
+    chatting is included. Since 2026-10-09 ("The connector's pages are the boards'") it
+    names the month's balance beside the time of audio it comes to, and still never a
+    cost of chatting."""
     port, session, _ = connected
     client_id = a_client(port)
     _, challenge = pkce()
@@ -244,10 +246,11 @@ def test_the_spending_scope_says_chatting_is_included(connected: tuple[int, str,
         session=session,
     )
     page = body.decode()
-    assert "Add texts to your playlists" in page
+    assert "And add texts to your playlists" in page
     assert "Chatting is included." in page
     said = page.split("<main", 1)[1]  # the page inlines `reader.css`, which says plenty
-    assert "credits" not in said and "hours" not in said, "no allowance on this page"
+    assert "credits left this month, about" in said, "the balance, with its rate beside it"
+    assert "hours" not in said and "chatting uses" not in said.lower()
     assert '<b class="host">claude.ai</b>' in page, "where Connect sends the reader, in bold"
 
 
@@ -292,13 +295,15 @@ def test_a_connect_lost_on_the_way_through_the_mail_is_said_not_dropped(
 ) -> None:
     """Copy audit, 2026-09-28 (Q9). The link asked for mid-Connect is marked, so the page
     it opens can tell a Connect still waiting in this browser from one that was started in
-    another, or whose cookie ran out — which used to be dropped in silence."""
+    another, or whose cookie ran out — which used to be dropped in silence. Since
+    2026-10-09 it is a page of its own on the door, as board ConnApprove draws it."""
     port, _, store_path = connected
     store = Store(store_path)
-    lost = "We couldn't finish connecting. Sign in, then connect again from Claude or ChatGPT."
+    lost = "You started in another browser, or too long ago. Sign in, then connect again"
 
     elsewhere = _landing(port, f"/account/enter?t={store.start_sign_in('a@example.com')}&c=1")
-    assert lost in elsewhere and "Sign in as" in elsewhere
+    assert lost in elsewhere and "We couldn't finish connecting" in elsewhere
+    assert 'action="/account/enter"' in elsewhere, "and the one press that signs in"
 
     waiting = serve._short_cookie(
         serve.CONNECT_COOKIE, f"/oauth/authorize?{an_authorize(a_client(port), pkce()[1])}"
@@ -796,3 +801,74 @@ def test_every_other_page_keeps_the_narrow_policy(connected: tuple[int, str, Pat
     _, _, headers = get(port, "/connect")
     policy = headers["content-security-policy"]
     assert "form-action 'self';" in policy or policy.rstrip().endswith("form-action 'self'")
+
+
+# -- the boards' pages (design.md §12, "The connector's pages are the boards'", 2026-10-09)
+
+
+def test_the_approval_page_says_who_is_granting_and_not_you_signs_out(
+    connected: tuple[int, str, Path],
+) -> None:
+    """Signed in as …, with Not you?: a press that signs out and comes back to the same
+    request, granting nothing and telling the client nothing."""
+    port, _, store_path = connected
+    store = Store(store_path)
+    signed = store.finish_sign_in(store.start_sign_in("shared@example.com"))
+    assert signed is not None
+    session = signed[1]
+    client_id = a_client(port)
+    _, challenge = pkce()
+    query = an_authorize(client_id, challenge)
+    _, body, _ = get(port, f"/oauth/authorize?{query}", session=session)
+    page = html.unescape(body.decode())
+    assert "Signed in as shared@example.com" in page and "Not you?" in page
+
+    status, _, headers = post(
+        port, "/oauth/authorize", urlencode({"asked": query, "press": "not-you"}), session=session
+    )
+    assert status == 303
+    back = headers["location"]
+    assert back.startswith("/oauth/authorize?") and parse_qs(urlparse(back).query)["client_id"] == [
+        client_id
+    ]
+    assert "targum_session=;" in headers.get("set-cookie", "") and "Max-Age=0" in headers.get(
+        "set-cookie", ""
+    )
+    assert "code=" not in back and "error=" not in back, "the client is told nothing"
+    _, again, _ = get(port, back, session=session)
+    assert "Sign in to finish connecting Claude." in html.unescape(again.decode())
+
+
+def test_a_cover_is_open_to_a_card_and_only_a_catalogue_one(
+    connected: tuple[int, str, Path],
+) -> None:
+    """design.md §12, "A card's picture comes from targum.page" (2026-10-09): `/cover/`
+    answers without a cookie, for a catalogue id's own cover and nothing else."""
+    port, _, store_path = connected
+    thumbs = store_path.parent / "out" / "thumbs"
+    thumbs.mkdir(parents=True, exist_ok=True)
+    (thumbs / "ruth.webp").write_bytes(b"RIFF....WEBP")
+    (thumbs / "p1-ruth.webp").write_bytes(b"RIFF....WEBP")
+    (thumbs / "not-in-the-catalogue.webp").write_bytes(b"RIFF....WEBP")
+
+    status, body, headers = get(port, "/cover/ruth")
+    assert status == 200 and body == b"RIFF....WEBP" and headers["content-type"] == "image/webp"
+    assert "public" in headers.get("cache-control", "")
+    for refused in ("/cover/p1-ruth", "/cover/not-in-the-catalogue", "/cover/..%2Fthumbs%2Fruth"):
+        assert get(port, refused)[0] == 404, refused
+    assert get(port, "/cover/ruth", host="elsewhere.example")[0] == 404
+
+
+def test_connect_is_the_desk_for_a_reader_and_the_public_page_for_a_stranger(
+    connected: tuple[int, str, Path],
+) -> None:
+    port, session, _ = connected
+    _, mine, _ = get(port, "/connect", session=session)
+    _, theirs, _ = get(port, "/connect")
+    mine_page, their_page = html.unescape(mine.decode()), html.unescape(theirs.decode())
+    assert 'data-shell="desk"' in mine_page and "Join the waitlist" not in mine_page
+    assert 'data-shell="desk"' not in their_page and "Join the waitlist" in their_page
+    for page in (mine_page, their_page):
+        assert "Connect in two minutes." in page and "Before you connect." in page
+        assert "How it works" not in page, "the dark block is gone (board ConnConnect)"
+        assert '<img src="/cover/scene-02-in-a-cafe"' in page
