@@ -19,7 +19,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('signin.css') }}{{ asset('subs.css') }}</style>
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('subs.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 <script>window.TARGUM_KEY = "{{ token }}";</script>
@@ -28,26 +28,43 @@
 {% set here = 'subscribe' %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
-<main class="gate sub-gate">
-  <div class="door subscribe-door">
+<main class="sub-gate">
+  {#- The board's card (design.md §12, "A subscription's page is two columns, and the tab
+      is a table with its filters", 2026-10-09): 640px, where the press came from as a
+      chip, a 96px tile beside the name, labelled rows between hairlines, the cap as one
+      `.seg`, and Subscribe in the primary at the width of its words. -#}
+  <div class="card sub-confirm">
   {%- if offer is none %}
-    <h1>{{ t("subscribe.page.cant", "We can't subscribe you to this") }}</h1>
+    <h1 class="sub-confirm-title">{{ t("subscribe.page.cant", "We can't subscribe you to this") }}</h1>
     <p class="said" role="alert">{{ refused }}</p>
     <p class="aside"><a href="/?show=subscriptions">{{ t("subscribe.page.your-subscriptions", "Your subscriptions") }}</a></p>
   {%- else %}
     {%- set name = offer.name if offer.kind != 'topic' else t("subs.topic." ~ offer.key, offer.key) %}
     {%- set language_name = languages.get(offer.language, offer.language) %}
     {%- if via in ('chat', 'connector') %}
-    <p class="sub-via">{{ t("subscribe.page.asked-in-a-conversation", "Asked for in a conversation") }}</p>
+    <p class="sub-via"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>{{ t("subscribe.page.asked-in-a-conversation", "Asked for in a conversation") }}</p>
+    {%- elif via == 'library' %}
+    <p class="sub-via"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg>{{ t("subscribe.page.from-library", "From the Library") }}</p>
     {%- endif %}
-    <h1>{{ t("subscribe.page.subscribe-to", "Subscribe to {name}", name="") }}<bdi dir="auto"{% if offer.kind != 'series' %} lang="{{ offer.language }}"{% endif %}>{{ name }}</bdi></h1>
-    {%- if offer.hebrew %}<p class="said"><bdi lang="he" dir="rtl">{{ offer.hebrew }}</bdi></p>{% endif %}
+    <div class="sub-confirm-head">
+      {%- set tone = 'spoken' if offer.kind in ('channel', 'podcast') else ('news' if offer.kind in ('topic', 'outlet') else ('set' if 'mishn' in (offer.key or '') else 'book')) %}
+      {%- if offer.kind in ('channel', 'podcast') %}
+      <span class="sub-confirm-tile is-mosaic" aria-hidden="true">{% for _ in range(4) %}<span><svg viewBox="0 0 16 16" focusable="false"><path d="M6 4.5v7l5.5-3.5z"/></svg></span>{% endfor %}</span>
+      {%- else %}
+      <span class="sub-confirm-tile thumb is-letter tone-{{ tone }}" aria-hidden="true"><span class="glyph" lang="he">{{ (offer.hebrew or name)[:1] }}</span></span>
+      {%- endif %}
+      <div class="sub-confirm-names">
+        <p class="sub-confirm-kicker">{{ t("subscribe.page.subscribe-to-kicker", "Subscribe to") }}</p>
+        <h1 class="sub-confirm-title"><bdi dir="auto"{% if offer.kind != 'series' %} lang="{{ offer.language }}"{% endif %}>{{ name }}</bdi></h1>
+        {%- if offer.hebrew %}<p class="sub-confirm-hebrew"><bdi lang="he" dir="rtl">{{ offer.hebrew }}</bdi></p>{% endif %}
+      </div>
+    </div>
     {%- if refused %}<p class="said" role="alert">{{ refused }}</p>{% endif %}
 
     {%- if already %}
     <p class="said">{{ t("subscribe.page.already", "You're subscribed to this already.") }}</p>
     <form method="get" action="/subscriptions/{{ already.id }}">
-      <button class="btn filled go" type="submit">{{ t("subscribe.page.manage", "Manage") }}</button>
+      <button class="btn filled sub-confirm-go" type="submit">{{ t("subscribe.page.manage", "Manage") }}</button>
     </form>
     {%- else %}
     <form method="post" action="/subscribe" class="subscribe-form">
@@ -56,6 +73,7 @@
       <input type="hidden" name="language" value="{{ offer.language }}">
       {%- if via %}<input type="hidden" name="via" value="{{ via }}">{% endif %}
       <dl class="sub-facts">
+        <div class="sub-fact">
         <dt>{{ t("subscribe.page.what-it-is", "What it is") }}</dt>
         <dd>
           {%- if offer.kind == 'channel' %}{{ t("subscribe.page.a-channel", "A YouTube channel in {language}.", language=language_name) }}
@@ -66,6 +84,8 @@
           {%- if offer.builds and per_week %} {{ tn("subscribe.page.per-week", per_week, "About {n} new one a week.", "About {n} new ones a week.") }}
           {%- elif offer.builds and per_month %} {{ tn("subscribe.page.per-month", per_month, "About {n} new one a month.", "About {n} new ones a month.") }}{% endif %}
         </dd>
+        </div>
+        <div class="sub-fact">
         <dt>{{ t("subscribe.page.what-a-new-one-uses", "What a new one uses") }}</dt>
         <dd>
           {%- if offer.builds and offer.creditsEach %}{{ tn("subscribe.page.about-credits", offer.creditsEach, "About {n} credit. A credit is a minute of audio or video.", "About {n} credits. A credit is a minute of audio or video.") }}
@@ -73,10 +93,12 @@
           {%- elif offer.kind == 'series' %}{{ t("subscribe.page.series-free", "Nothing. Series are free.") }}
           {%- else %}{{ t("subscribe.page.news-free", "Nothing. New articles come as links, and you choose which to read.") }}{% endif %}
         </dd>
+        </div>
         {%- if offer.builds %}
+        <div class="sub-fact sub-fact-cap">
         <dt id="cap-head">{{ t("subscribe.page.cap", "Spend up to this many credits a month") }}</dt>
         <dd>
-          <div class="cap-choices" role="radiogroup" aria-labelledby="cap-head">
+          <div class="seg cap-choices" role="radiogroup" aria-labelledby="cap-head">
           {%- for one in caps %}
             <label class="cap-choice">
               <input type="radio" name="cap" value="{{ one.cap }}"{% if one.cap == chosen %} checked{% endif %}{% if not allowed %} disabled{% endif %}>
@@ -89,17 +111,22 @@
           <p class="cap-left">{{ tn("subscribe.page.left", credits.left, "{n} credit left in your plan this month. They come back on {date}.", "{n} credits left in your plan this month. They come back on {date}.", date=credits.back) }}</p>
           {%- endif %}
         </dd>
+        </div>
+        <div class="sub-fact">
         <dt>{{ t("subscribe.page.when-cap", "When the cap is reached") }}</dt>
         <dd>{{ t("subscribe.page.when-cap-says", "The next one waits until the 1st of the month, or until you raise the cap. We tell you once when one is waiting.") }}</dd>
+        </div>
         {%- endif %}
+        <div class="sub-fact">
         <dt>{{ t("subscribe.page.where", "Where new ones come") }}</dt>
         <dd>{{ t("subscribe.page.where-says", "Under Continue in Your targums, and in one mail a day. Every mail has a link to unsubscribe.") }}</dd>
+        </div>
       </dl>
       {%- if offer.builds and not allowed %}
       <p class="said">{{ t("subscribe.page.plan", "Channels and podcasts come with a plan. Series and news are free.") }}</p>
-      <button class="btn filled go" type="submit" disabled>{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
+      <button class="btn filled sub-confirm-go" type="submit" disabled>{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
       {%- else %}
-      <button class="btn filled go" type="submit">{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
+      <button class="btn filled sub-confirm-go" type="submit">{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
       {%- endif %}
     </form>
     <p class="aside">

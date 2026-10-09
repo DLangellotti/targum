@@ -301,7 +301,9 @@
       var home = window.TargumHome || null;
       var nothingYet = !readers.length && !building.length;
       var tabStrip = document.getElementById("yours-tabs");
-      if (tabStrip) tabStrip.hidden = nothingYet;
+      // Subscriptions answer even with nothing on the shelf: a reader may subscribe
+      // before they open anything (design.md §12, 2026-10-09).
+      if (tabStrip) tabStrip.hidden = nothingYet && view.tab !== "subscriptions";
       document.getElementById("shelf-panel").hidden = nothingYet;
       var grid = document.querySelector(".home-grid");
       if (grid) grid.classList.toggle("is-empty", nothingYet);
@@ -338,7 +340,8 @@
         var subscribing = view.tab === "subscriptions";
         if (subsPanel) subsPanel.hidden = !subscribing;
         document.getElementById("shelf-panel").hidden = subscribing || nothingYet;
-        placeTabs(subscribing && !nothingYet);
+        if (tabStrip) tabStrip.hidden = nothingYet && !subscribing;
+        placeTabs(subscribing);
         if (subscribing) {
           drawSubscriptions();
           return;
@@ -426,7 +429,7 @@
         lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         // No ceiling: this page is the whole of it, which is what it is for.
-        if (!nothingYet) render();
+        if (!nothingYet || view.tab === "subscriptions") render();
         // The head of home, in the same language; the page is shown once it is drawn, so
         // a reader sent on to the arrival never sees it flash first.
         var drawn = home ? home.draw(code, readers, building) : Promise.resolve(true);

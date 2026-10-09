@@ -1,0 +1,287 @@
+<!doctype html>
+{#- A series' own page, on the desk, for everyone (design.md §12, "A series is one page
+    of the desk, for everyone", 2026-10-09; boards SeriesWeekly, SeriesPortion and
+    SeriesCycle, and their phones). The weekly, the weekly portion and each learning
+    cycle: the series' head with Subscribe, the current one as a card, what comes next
+    beside it, and the past under it. Drawn per request by the server: the marks and the
+    known shares are the account's (`series_view.py`), and a stranger gets the same page
+    with a sign-in prompt where Subscribe stands. The head is `_public_head.html.j2`
+    because these are still the pages a search engine sees: title, description,
+    canonical and the `hreflang` alternates are kept as they were. -#}
+<html lang="{{ page_language|default('en') }}">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('series.css') }}</style>
+{%- if picture_uri %}
+{#- The series' one picture, once: every tile that wears it names the class, so a page
+    of past days does not carry the photograph a row at a time. -#}
+<style>.series-tile.has-pic { background-image: url({{ picture_uri }}); }</style>
+{%- endif %}
+{{ hebrew_face(scripture) }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+<body class="series-page" data-series-kind="{{ kind }}">
+{% set here = 'library' %}{% set title = '' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+{%- set kept = ('lang=' ~ asked) if asked else '' %}
+
+{#- A reading's mark: Read, Started, or where the reader stopped. Never "missed": a
+    reading not opened is not marked at all (David, 2026-10-08). -#}
+{%- macro mark_of(mark, stopped=false) -%}
+  {%- if stopped %}<span class="series-mark is-here"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 3.5v9l7-4.5z"/></svg>{{ t("series.mark.here", "You stopped here") }}</span>
+  {%- elif mark and mark.state == 'read' %}<span class="series-mark is-read"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 8.5l3 3 6-7"/></svg>{{ t("series.mark.read", "Read") }}</span>
+  {%- elif mark and mark.state == 'started' %}<span class="series-mark is-started"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("series.mark.started", "Started") }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{%- macro known_of(known) -%}
+  {%- if known is not none %}<span class="series-known">{{ t("series.known", "{n}% known", n=known) }}</span>{% endif -%}
+{%- endmacro %}
+
+{#- A tile: the picture where there is one, else the letter on the colour of its kind
+    (the one tile, chrome.css). -#}
+{%- macro tile(src, letter, tone, size='') -%}
+  {%- if src == '@pic' %}<span class="series-tile has-pic {{ size }}" aria-hidden="true"></span>
+  {%- elif src %}<span class="series-tile {{ size }}"><img src="{{ src }}" alt=""></span>
+  {%- else %}<span class="series-tile thumb is-letter tone-{{ tone }} {{ size }}" aria-hidden="true"><span class="glyph" lang="he">{{ letter }}</span></span>{% endif -%}
+{%- endmacro %}
+
+<main class="series-main">
+  <nav class="series-back" aria-label="{{ t("nav.where-you-are", "Where you are") }}">
+    <a href="/library{{ '?' ~ kept if kept }}"><span aria-hidden="true">← </span>{{ t("series.page.library", "Library") }}</a>
+  </nav>
+
+  <header class="series-head">
+    {%- if kind == 'weekly' %}
+    <span class="series-tile is-large series-masthead" aria-hidden="true"><span lang="he" dir="rtl">{{ series.hebrew }}</span><small>{{ t("series.weekly.every-monday", "Every Monday") }}</small></span>
+    {%- else %}
+    {{ tile(head_tile.src, head_tile.letter, head_tile.tone, 'is-large') }}
+    {%- endif %}
+    <div class="series-names">
+      <h1 class="series-title">{{ series.name }}</h1>
+      <p class="series-hebrew"><bdi lang="he" dir="rtl">{{ series.hebrew }}</bdi></p>
+      <p class="series-what">{{ series.what }}</p>
+      <p class="series-cadence">{{ series.cadence }}</p>
+    </div>
+    <div class="series-acts">
+      <div class="series-acts-row">
+        {%- if pdf_href %}
+        <a class="btn ghost outline series-pdf" href="{{ pdf_href }}" title="{{ t("parasha.page.download-pdf", "Download PDF") }}" aria-label="{{ t("parasha.page.download-pdf", "Download PDF") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 1.5h5.5L12.5 4.5v10h-8.5zM9.5 1.5v3h3M6 8.5h4.5M6 11h4.5"/></svg></a>
+        {%- endif %}
+        {%- if signed_in %}
+        {#- One press, because a series is free: the switch is the subscription. Drawn in
+            the state the account is in, and `subscribe.js` keeps it so. -#}
+        <div class="series-subscribe" id="series-subscribe" data-series="{{ series.id }}"
+          data-subscribe="{{ t("subs.subscribe", "Subscribe") }}"
+          data-subscribed="{{ t("follow.subscribed", "Subscribed") }}">
+          <button type="button" class="btn {{ 'tonal is-on' if subscribed else 'filled' }} series-switch" aria-pressed="{{ 'true' if subscribed else 'false' }}">
+            <svg class="bell-off" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0M12.5 1.5v3M11 3h3"/></svg>
+            <svg class="bell-on" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0M6.2 6.6l1.3 1.3 2.3-2.4"/></svg>
+            <span class="series-switch-label">{% if subscribed %}{{ t("follow.subscribed", "Subscribed") }}{% else %}{{ t("subs.subscribe", "Subscribe") }}{% endif %}</span>
+          </button>
+        </div>
+        {%- else %}
+        <a class="btn filled series-sign-in" href="/account/signin{{ '?' ~ kept if kept }}">{{ t("nav.sign-in", "Sign in") }}</a>
+        {%- endif %}
+      </div>
+      <p class="series-says">{% if signed_in %}{{ series.says }}{% else %}{{ t("series.page.sign-in-says", "Sign in to subscribe and to keep your place. Reading needs no account.") }}{% endif %}</p>
+    </div>
+  </header>
+
+  <div class="series-grid">
+    <div class="series-col">
+      {#- The current one. -#}
+      <section class="card series-now" aria-labelledby="series-now-title">
+        <div class="series-now-head">
+          {%- if kind == 'weekly' %}
+          <span class="series-tile is-cover series-masthead" aria-hidden="true"><span lang="he" dir="rtl">{{ series.hebrew }}</span><small>{{ now.date_said }}</small></span>
+          {%- else %}
+          {{ tile(now.tile.src, now.tile.letter, now.tile.tone, 'is-cover') }}
+          {%- endif %}
+          <div class="series-now-about">
+            <p class="series-kicker">{{ now.kicker }}</p>
+            <h2 class="series-now-title" id="series-now-title">
+              {%- if now.hebrew %}<bdi lang="he" dir="rtl" class="series-he">{{ now.hebrew }}</bdi>{% endif %}
+              {%- if now.name %} <span class="series-en">{{ now.name }}</span>{% endif -%}
+            </h2>
+            {%- if now.english %}<p class="series-now-sub">{{ now.english }}</p>{% endif %}
+            {%- if now.blurb %}<p class="series-now-blurb" lang="he" dir="rtl">{{ now.blurb }}</p>{% endif %}
+            {%- if now.facts %}<p class="series-facts">{{ now.facts }}</p>{% endif %}
+            {%- if now.band or now.known is not none %}
+            <p class="series-band-line">{% if now.band %}<span class="tag series-band">{{ now.band }}</span>{% endif %}{{ known_of(now.known) }}</p>
+            {%- endif %}
+          </div>
+        </div>
+
+        {%- if kind == 'weekly' %}
+        {#- Three levels, each with how much of it the reader knows; the one chosen for
+            them first, by what they would follow. -#}
+        <nav class="series-levels" aria-label="{{ t("series.weekly.levels", "Levels") }}">
+          {%- for one in levels %}
+          <a class="series-level{% if one.chosen %} is-chosen{% endif %}" href="{{ one.href }}"{% if one.chosen %} aria-current="page"{% endif %}>
+            <span class="series-level-name">{{ one.name }}{% if one.chosen and signed_in %}<span class="series-yours">{{ t("series.weekly.yours", "Yours") }}</span>{% endif %}</span>
+            <span class="series-level-for">{{ t("series.weekly.if-you-know", "if you know {figure} words", figure=one.figure) }}</span>
+            {{ known_of(one.known) }}
+          </a>
+          {%- endfor %}
+        </nav>
+        <p class="series-go"><a class="btn filled" href="{{ now.go_href }}">{{ now.go_label }}</a> <span class="series-go-note">{{ t("series.weekly.change-inside", "Change the level any time inside the issue.") }}</span></p>
+        {%- elif kind == 'parasha' %}
+        <div class="series-go series-go-row">
+          <a class="btn filled" href="{{ now.go_href }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 3.5v9l7-4.5z"/></svg>{{ now.go_label }}</a>
+          {%- if schedules %}
+          <nav class="seg series-schedule" aria-label="{{ t("series.portion.schedule", "Which schedule") }}">
+            {%- for one in schedules %}
+            <a href="{{ one.href }}"{% if one.on %} aria-current="page"{% endif %}>{{ one.label }}{% if one.hebrew %} · <bdi lang="he" dir="rtl">{{ one.hebrew }}</bdi>{% endif %}</a>
+            {%- endfor %}
+          </nav>
+          {%- endif %}
+        </div>
+        {%- if schedules_apart %}<p class="series-note">{{ t("parasha.page.israel-and-the-diaspora-are-reading-different", "Israel and the diaspora are reading different portions this week.") }}</p>{% endif %}
+        {%- if now.festival %}<p class="series-note">{{ now.festival }}</p>{% endif %}
+        <ol class="rows series-parts">
+          {%- for part in parts %}
+          <li class="row">
+            {%- if part.number %}<span class="series-number" aria-hidden="true">{{ part.number }}</span>{% else %}<span class="series-number is-list" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h0M2.5 8h0M2.5 12h0"/></svg></span>{% endif %}
+            <span class="row-main">
+              <a class="series-row-title" href="{{ part.href }}"><bdi lang="he" dir="rtl">{{ part.name }}</bdi>{% if part.english %} <span class="series-en">{{ part.english }}</span>{% endif %}</a>
+              {%- if part.line %}<span class="series-row-line">{{ part.line }}</span>{% endif %}
+            </span>
+            <span class="series-row-end">{{ mark_of(part.mark, part.stopped) }}</span>
+          </li>
+          {%- endfor %}
+        </ol>
+        {%- if around %}
+        {#- The way round the year, in the order the portions are read. -#}
+        <nav class="portions series-around" aria-label="{{ t("parasha.page.the-other-portions", "The other portions") }}">
+          {%- if around.previous %}<a class="prev" href="{{ around.href(around.previous) }}"><span class="which">{{ t("parasha.page.previous", "Previous") }}</span> <bdi {% if around.previous.hebrew %}lang="he" dir="rtl"{% endif %}>{{ around.previous.hebrew or around.previous.name }}</bdi></a>{% endif %}
+          <a class="all" href="{{ around.all_href }}">{{ t("parasha.page.all-portions", "All portions") }}</a>
+          {%- if around.following %}<a class="next" href="{{ around.href(around.following) }}"><span class="which">{{ t("parasha.page.next", "Next") }}</span> <bdi {% if around.following.hebrew %}lang="he" dir="rtl"{% endif %}>{{ around.following.hebrew or around.following.name }}</bdi></a>{% endif %}
+        </nav>
+        {%- endif %}
+        {%- else %}
+        <p class="series-go"><a class="btn filled" href="{{ now.go_href }}">{{ now.go_label }}</a></p>
+        {%- if cells %}
+        {#- The month as the contents of the book: a cell a day, what it reads, a tick on
+            a day read and a ring on the one shown. Never a streak (§12). -#}
+        <div class="series-month-head">
+          <h3 class="series-month-title">{{ month_title }}</h3>
+          <p class="series-note">{{ t("series.cycle.open-any-day", "Open any day that's ready.") }}</p>
+        </div>
+        <ol class="series-month">
+          {%- for cell in cells %}
+          <li>
+            {%- if cell.href %}<a class="series-day{% if cell.here %} is-here{% endif %}{% if cell.read %} is-read{% endif %}" href="{{ cell.href }}" title="{{ cell.title }}"{% if cell.here %} aria-current="page"{% endif %}>
+            {%- else %}<span class="series-day is-later" title="{{ cell.title }}">{% endif %}
+              <span class="series-day-n" lang="he">{{ cell.letter }}</span>
+              <span class="series-day-ref" dir="ltr">{{ cell.short }}</span>
+              {%- if cell.read %}<svg class="series-day-tick" viewBox="0 0 16 16" aria-label="{{ t("series.mark.read", "Read") }}" focusable="false"><path d="M3.5 8.5l3 3 6-7"/></svg>{% endif %}
+            {%- if cell.href %}</a>{% else %}</span>{% endif %}
+          </li>
+          {%- endfor %}
+        </ol>
+        {%- endif %}
+        {%- endif %}
+      </section>
+
+      {#- The past, newest first. -#}
+      {%- if past %}
+      <section class="card series-past" aria-labelledby="series-past-title">
+        <div class="series-card-head">
+          <h2 class="section-title" id="series-past-title">{{ past_title }}</h2>
+          {%- if see_all_href %}<a class="btn text small" href="{{ see_all_href }}">{{ t("series.page.see-all", "See all") }}</a>{% endif %}
+        </div>
+        <ul class="rows series-past-rows">
+          {%- for row in past %}
+          <li class="row">
+            {{ tile(row.tile.src, row.tile.letter, row.tile.tone, 'row-thumb') }}
+            <span class="row-main">
+              <a class="series-row-title" href="{{ row.href }}">{% if row.hebrew %}<bdi lang="he" dir="rtl">{{ row.hebrew }}</bdi>{% endif %}{% if row.name %} <span class="series-en">{{ row.name }}</span>{% endif %}</a>
+              {%- if row.blurb %}<span class="series-row-blurb" lang="he" dir="rtl">{{ row.blurb }}</span>{% endif %}
+              <span class="series-row-line">{{ row.line }}</span>
+            </span>
+            <span class="series-row-end">{{ mark_of(row.mark) }}{{ known_of(row.known) }}</span>
+          </li>
+          {%- endfor %}
+        </ul>
+      </section>
+      {%- endif %}
+    </div>
+
+    <aside class="series-side">
+      {%- if next %}
+      <section class="card series-next">
+        <p class="series-kicker">{{ next.kicker }}</p>
+        <p class="series-next-title">{% if next.hebrew %}<bdi lang="he" dir="rtl" class="series-he">{{ next.hebrew }}</bdi>{% endif %}{% if next.name %} <span class="series-en">{{ next.name }}</span>{% endif %}</p>
+        {%- if next.line %}<p class="series-row-line">{{ next.line }}</p>{% endif %}
+        {%- if next.known is not none %}<p class="series-next-known">{{ t("series.next.follow", "You'd follow about {n}% of it.", n=next.known) }}</p>{% endif %}
+        {%- if next.note %}<p class="series-note">{{ next.note }}</p>{% endif %}
+        {%- if next.href %}<p><a class="btn text small" href="{{ next.href }}">{{ next.open }}</a></p>{% endif %}
+      </section>
+      {%- endif %}
+      {%- if others %}
+      <section class="card series-others">
+        <h2 class="series-card-label">{{ t("series.cycle.other-cycles", "Other cycles") }}</h2>
+        <ul class="rows">
+          {%- for one in others %}
+          <li class="row">
+            {{ tile(None, one.letter, one.tone, 'row-thumb') }}
+            <span class="row-main">
+              <a class="series-row-title" href="{{ one.href }}">{{ one.name }} <bdi lang="he" dir="rtl" class="series-he-small">{{ one.hebrew }}</bdi></a>
+              <span class="series-row-line">{{ t("series.cycle.today", "Today: {reading}", reading=one.today) }}</span>
+            </span>
+          </li>
+          {%- endfor %}
+        </ul>
+        {%- for name, why in absent %}
+        <p class="series-note">{{ t("series.cycle.absent", "{name} isn't here: {why}", name=name, why=why) }}</p>
+        {%- endfor %}
+      </section>
+      {%- endif %}
+    </aside>
+  </div>
+
+  {#- What the page is made of, folded: a weekly's sources, each linked, and the
+      credits a recording's licence asks for; the portion's fifty-four, every one a
+      link away. -#}
+  <details class="card series-sources" id="sources"{% if open_sources %} open{% endif %}>
+    <summary class="series-card-label">{{ sources_title }}</summary>
+    {%- for line in credits %}
+    <p class="series-credit">{{ line }}</p>
+    {%- endfor %}
+    {%- if stories %}
+    <ul class="series-stories">
+      {%- for story in stories %}
+      <li>
+        {%- if story.links %}<a href="{{ story.links[0] }}" rel="noopener noreferrer nofollow" lang="he" dir="rtl">{{ story.headline }}</a>{% else %}<bdi lang="he" dir="rtl">{{ story.headline }}</bdi>{% endif %}
+        <span class="series-row-line">{% if story.outlets %}{{ story.outlets|join(', ') }}{% endif %}{% if story.licence %} · {{ story.licence }}{% endif %}{% if story.links %} · <a href="/add?source={{ story.links[0]|urlencode }}">{{ t("weekly.page.read-the-whole-thing", "Read the whole thing") }}</a>{% endif %}</span>
+      </li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+    {%- if listed %}
+    <h3 class="series-card-label">{{ t("parasha.page.every-portion", "Every portion") }} <span class="series-count">({{ listed|length }})</span></h3>
+    <ul class="series-portions">
+      {%- for one in listed %}
+      <li><a href="/parasha/{{ one.slug }}{{ '?' ~ kept if kept }}">{% if one.hebrew %}<bdi lang="he" dir="rtl">{{ one.hebrew }}</bdi> {% endif %}<span>{{ name_of(one) }}</span></a></li>
+      {%- endfor %}
+    </ul>
+    {%- endif %}
+  </details>
+</main>
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('subscribe.js') }}</script>
+<script>{{ asset('series.js') }}</script>
+</body>
+</html>

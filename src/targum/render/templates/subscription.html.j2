@@ -12,14 +12,14 @@
 </head>
 <body class="subs-page">
 {#- One subscription (design.md §12, "A subscription is the account's", 2026-10-09; board
-    SubDetail). Your targums' Subscriptions tab, one row opened: the nav lights Your
-    targums and the strip stands at the top with Subscriptions chosen, as Playlists does. -#}
-{% set here = 'texts' %}{% set title = t("yours.page.your-targums", "Your targums") %}
+    SubDetail; "A subscription's page is two columns", 2026-10-09). One row of Your targums'
+    Subscriptions tab, opened: the nav lights Your targums, and the page wears no tabs —
+    "‹ Subscriptions" is the way back. -#}
+{% set here = 'texts' %}{% set title = '' %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
 <main>
-  {% set tab = 'subscriptions' %}{% include '_yours_tabs.html.j2' %}
   <section class="panel" id="stranger" hidden>
     <p class="note">{{ t("subs.page.sign-in", "Sign in to see your subscriptions.") }}</p>
   </section>

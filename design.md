@@ -169,7 +169,9 @@ Two registers, and which one applies depends on who is reading.
   not sold to again, and is never talked down to. See §12, 2026-09-13.
 - **Inside the product there is no price.** The reader pays by the month; what a thing
   takes is said in minutes and in their hours, never as a price, a quote or a sale.
-- **On public pages — landing, pricing, the weekly's front — the copy sells.** A stranger
+- **On public pages — landing, pricing — the copy sells.** *(The weekly's front left this
+  list on 2026-10-09: a series is a page of the desk now — §12, "A series is one page of
+  the desk, for everyone".)* A stranger
   owes targum nothing and will leave in seconds, so lead with what they get, name it in
   their words rather than ours, and ask for the sign-up plainly. Feature names that only
   make sense inside the team ("the shelf", "scenes", "the weekly") are the failure mode
@@ -360,6 +362,98 @@ the reader and the desk both draw — the word's card, the thumb's reach, a refu
 Each entry below was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
+
+### A series is one page of the desk, for everyone — 2026-10-09
+
+David, 2026-10-09, on the audit's question 10 ("strangers keep the marketing landing while
+signed-in readers get the in-app page?"): **no — one in-app page for everyone.** A reader
+who was signed in and opened `/weekly`, `/parasha` or a cycle met the public landing: the
+front door's bar with Sign in in it, a hero selling the page to them, the waitlist's form,
+the whole reader in a frame, Why targum and Made honestly. Boards SeriesWeekly,
+SeriesPortion and SeriesCycle (and their phones) draw a page of the desk instead, and that
+is now the page at those addresses, signed in or not.
+
+- **The app's bar and the board's page.** "← Library"; the series' tile, its name in the
+  serif at 34px with its Hebrew, one line of what it is and one of how often it comes
+  ("Every Shabbat · seven aliyot and the haftarah · free"); Subscribe at the top right
+  with the line that says where new ones go. Then the current one as a card, what comes
+  next beside it, and the past under it.
+- **Subscribe is one press, because a series is free**, and it is a switch with two
+  states that look different: Subscribe filled in the primary with a bell, Subscribed
+  tonal with the bell ticked. No confirm page for a series met on its own page; the
+  confirm page stays for what is not free and for a press made from somewhere else ("A
+  monthly cap is the second press that lasts").
+- **A stranger gets the same page, with a sign-in prompt** where Subscribe stands, and
+  every reading opens for them as before. No waitlist on these pages and no pitch.
+- **Read marks are Read and Started, never "missed"** (David, 2026-10-08). They are the
+  account's — a section finished (`Store.finished_sections`) and the place a reader
+  stopped (`Store.places`) — drawn by the server when the page is asked for. Nothing is
+  marked for a stranger, and a past one not opened is not marked at all.
+- **The weekly** is this week's issue at three levels as three cards, each with how much
+  of it the reader knows, and "Read at Simplified" for the one chosen. **The level is
+  chosen for the reader**: the hardest one whose words they would follow (the Library's
+  "Read it now", 90% known), else the one they read last, else Simplified. `/weekly` sends
+  each reader to it, and the address of each level is still its own page.
+- **The weekly portion** is this Shabbat's: its aliyot as rows, each Read, Started or
+  where the reader stopped, the haftarah under them, "Pick up at aliyah 3" as its press,
+  Diaspora and Israel as a choice of two, next Shabbat beside it and the past weeks under
+  it. The PDF is a quiet press at the top, with the reader's own defaults.
+- **A cycle** is today's reading, and **the month as the contents of the book**: a cell
+  a day of the Hebrew month, each with what it reads, a tick on a day read, today ringed.
+  Never as a streak: no count of days in a row, and no gap drawn as a miss. Tomorrow and
+  the other cycles stand beside it, and the cycles this shelf cannot carry say why.
+
+What this retires, each marked where it stands: "The weekly, the parasha and the dailies
+are drawn as the front door is" (2026-09-27) — the front door's bar, hero, waitlist and
+closing section are off these pages; "The weekly landing carries the press" (2026-08-31)
+— the outlets' marks and the stack of front pages went with the hero; "A landing page has
+a headline the reader never needs" (2026-08-31) — these pages have none now, and the step
+stays for the front door; §6's "the weekly's front" among the pages whose copy sells; the
+frame of the whole reader on the page, and the te'amim switch beside it — a row opens the
+reader, which has its own; and the boxes beside Download PDF ("The week's sheet is a
+download", 2026-10-04), whose choices the reader's ⋯ still makes. The focus ring is the
+desk's here, as on every desk page.
+
+What it keeps: every address, its title, its description, its canonical and its
+`hreflang` alternates, and `?lang=`, which still chooses the page's language for a
+stranger — these are still the pages a search engine sees; the robots rule (`noindex`
+until a corpus is indexed); the weekly's sources, every one linked, and the credits a
+recording's licence asks for, folded at the foot as "Sources and credits"; the fifty-four
+portions, listed there too, so every one is a link away; the weekly's anonymous
+subscribers and its two mail doors; and that nothing on these pages spends.
+
+### A subscription's page is two columns, and the tab is a table with its filters — 2026-10-09
+
+P10 of the polish plan, boards SubDetail, SubConfirm, SubsTab and SubCapped, after "The
+desk's controls are one layer" left a subscription's page to this package.
+
+- **One subscription's page wears no tabs.** "‹ Subscriptions" in teal is the way back;
+  the head is its picture, its name in the serif with its Hebrew, and its facts, with
+  Pause and Unsubscribe at the right. Then two columns: what it brought, newest first,
+  each with its picture, its state (New, Watched, Read, Waiting for November 1) and one
+  press, then "Out while it was paused" and "Out before you subscribed", each item with a
+  press of its own; and beside them the Monthly cap and the Mail. **The cap is a `.seg`
+  of four** — 30, 60, 120, 240, each with about how many that is — and Save. On a phone
+  the cap comes first, and Pause and Unsubscribe stand at the foot with what each does.
+- **At the cap the page says so first** (board SubCapped): a card at the top with the
+  month's credits used, what gets ready by itself on the 1st, and Raise the cap, which
+  goes to the cap's choice; the items waiting say "Waiting for November 1" in clay.
+- **The confirm page is the board's 640px card**: where the press came from as a chip
+  ("Asked for in a conversation", "From the Library"), a 96px tile beside "Subscribe to"
+  and the name at 30px, labelled rows between hairlines, the cap as the same `.seg`, and
+  Subscribe in the primary at the width of its words.
+- **The Subscriptions tab is the board's table**: a filter row of All, Series, News,
+  Channels and Podcasts with how many each holds, the month's credits on subscriptions
+  and what is left in all, and All languages; then a row each with its picture, its kind
+  as a `.tag`, its newest, how often it comes, the month's credits as a `.meter` (clay,
+  with Raise the cap, at the cap), Pause, and the way to its page. **The series a reader
+  has not taken are offered on the tab only while it is empty**: Subscribe lives on the
+  series' own pages and in the Library. This amends the 2026-10-08 amendment to "Your
+  targums has tabs", whose tab listed every series with its switch.
+
+What it does not overturn: Pause still stops the building and the mail, nothing that came
+out while paused or before subscribing is built by itself, the cap is still set only by
+the reader on targum's page, and a cost is still credits.
 
 ### One search, everywhere — 2026-10-09
 
@@ -554,8 +648,8 @@ And four calls on what the boards left open:
   Install MCP and the licence ("One foot", 2026-09-28).
 - **A series page is one in-app page for everyone**, the weekly, the parasha and the
   daily cycles alike: the app's bar and the board's page, signed in or not, in place of
-  the public landing a signed-in reader still gets. (Built in its own package; until
-  then the landing stands.)
+  the public landing a signed-in reader still gets. (Built: "A series is one page of the
+  desk, for everyone", above.)
 
 What it does not overturn: the palette, the radii, the reader's page and its fetch-nothing
 rule, the voice, and every spend rule. A board that shows a price, a streak or a score
@@ -2726,6 +2820,9 @@ what they have done, so what it claims is set down here.
 
 ### The weekly, the parasha and the dailies are drawn as the front door is — 2026-09-27
 
+*(Retired 2026-10-09: a series is one page of the desk, for everyone, signed in or not —
+see "A series is one page of the desk, for everyone". Kept for the history.)*
+
 "Parasha and dailies and weekly digest pages should be updated to fit design of rest of
 website," David wrote, "and call to action would be to join waitlist." They were the last
 public pages still drawn the way the front door was drawn before #69: a masthead with a
@@ -2783,7 +2880,9 @@ on the box when pressed. Everything under "The week's sheet is the edition, twic
   or under, the marks on or off, and this aliyah or the whole portion with its haftarah.
   Each default is the reader's. `/parasha` has no reader behind it, so it asks the few
   choices that change the paper in a row of boxes beside its button, ticked as the reader
-  opens.
+  opens. *(Since 2026-10-09 `/parasha` is a page of the desk, and its PDF is
+  one quiet press with those defaults; the boxes went with the landing — §12, "A series is
+  one page of the desk, for everyone".)*
 - **It is ours, quietly.** The lockup once, small and centred over the first title with a
   hairline under it, the way a publisher's name stands on a chumash's title page; the mark
   at §2's 4 mm and `targum.page/parasha/<slug>` at the foot of every page, in the page
@@ -5326,6 +5425,10 @@ An imported video keeps its pictures, and three rules bend to carry them:
 
 ### The weekly landing carries the press — 2026-08-31
 
+*(Retired 2026-10-09 with the weekly's landing: the marks and the stack stood in its hero,
+and the weekly is a page of the desk now — "A series is one page of the desk, for
+everyone".)*
+
 The weekly landing page needed to read as news at a glance, and nothing in the identity
 says news. Two things now do, and both bend rules written for targum's own paint:
 
@@ -5356,6 +5459,9 @@ text, weight 600, paper-on-ink inside an inverted block. Working buttons inside 
 product keep the accent; nothing else moved.
 
 ### A landing page has a headline the reader never needs — 2026-08-31
+
+*(Since 2026-10-09 `/weekly` is a page of the desk and has no such headline; the step
+stays for the front door's.)*
 
 §5's scale topped out at display 1.75rem, which is right for a page somebody reads and wrong
 for the one page that has to be read from across a room. `/weekly` is a stranger's first

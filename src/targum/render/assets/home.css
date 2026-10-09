@@ -171,8 +171,8 @@ body.yours:not(.is-subscribing):has(#continue:not([hidden])) main { padding-bloc
 }
 /* Nothing yet (FirstRun): no shelf beside them, so the two cards stand in one column
    under the line that says what will appear. */
-.home-grid.is-empty { grid-template-columns: minmax(0, 30rem); }
-.home-grid.is-empty .home-shelf { display: none; }
+body:not(.is-subscribing) .home-grid.is-empty { grid-template-columns: minmax(0, 30rem); }
+body:not(.is-subscribing) .home-grid.is-empty .home-shelf { display: none; }
 .home-shelf { min-inline-size: 0; display: flex; flex-direction: column; gap: 1rem; }
 .home-shelf > .tabs[hidden] { display: none; }
 .home-side { display: flex; flex-direction: column; gap: 1.25rem; }

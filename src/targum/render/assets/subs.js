@@ -195,7 +195,7 @@
 
   /* --- the tab ------------------------------------------------------------------------ */
 
-  var tabView = { chip: "all" };
+  var tabView = { chip: "all", language: "" };
 
   function row(one, back) {
     var item = el("li", "sub-row" + (one.state === "paused" ? " is-paused" : ""));
@@ -212,9 +212,15 @@
       hebrew.className = "sub-hebrew";
       names.appendChild(hebrew);
     }
-    var meta = [kindWord(one.kind)];
-    if (languageName(one.language)) meta.push(languageName(one.language));
-    names.appendChild(el("span", "sub-meta", meta.join(" · ")));
+    // Its kind as a `.tag`, and where it comes from (board SubsTab).
+    var meta = el("span", "sub-meta");
+    meta.appendChild(el("span", "tag", kindWord(one.kind)));
+    var from = [];
+    if (one.kind === "channel") from.push("YouTube");
+    if (one.kind === "topic" || one.kind === "outlet") from.push(t("subs.chip.news", "News"));
+    if (languageName(one.language)) from.push(languageName(one.language));
+    if (from.length) meta.appendChild(document.createTextNode(" " + from.join(" · ")));
+    names.appendChild(meta);
     who.appendChild(names);
     item.appendChild(who);
 
@@ -250,10 +256,47 @@
       };
       right.appendChild(resume);
     } else {
-      var used = el("span", "sub-used" + (one.builds && one.cap && one.used >= one.cap ? " is-full" : ""), month(one));
+      var full = one.builds && one.cap && one.used >= one.cap;
+      var used = el("span", "sub-used" + (full ? " is-full" : ""), month(one));
       right.appendChild(used);
+      if (one.builds && one.cap) {
+        // The month's credits against the cap, as a meter: clay at the cap (§4).
+        var meter = el("span", "meter sub-meter " + (full ? "is-full" : "is-spent"));
+        var fill = el("span");
+        fill.style.setProperty("--done", String(Math.min(1, Number(one.used || 0) / Number(one.cap))));
+        meter.appendChild(fill);
+        right.appendChild(meter);
+      }
+      if (full) {
+        var raise = el("a", "btn text small danger sub-raise", t("subs.act.raise-cap", "Raise the cap"));
+        raise.href = keyed(one.page + "#sub-cap");
+        right.appendChild(raise);
+      }
     }
     item.appendChild(right);
+
+    // Pause in one press, and the way to its own page.
+    var acts = el("div", "sub-row-acts");
+    if (one.state === "on") {
+      var pause = el("button", "btn ghost small sub-row-pause");
+      pause.type = "button";
+      pause.title = t("subs.pause", "Pause");
+      pause.setAttribute("aria-label", t("subs.pause", "Pause") + " · " + nameOf(one));
+      pause.appendChild(glyph("pause"));
+      pause.onclick = function () {
+        pause.disabled = true;
+        ask("/subscriptions/" + one.id, { action: "pause" }).then(function () {
+          drawTab(lastHost);
+        });
+      };
+      acts.appendChild(pause);
+    }
+    var open = el("a", "btn ghost small sub-row-open");
+    open.href = keyed(one.page);
+    open.setAttribute("aria-label", nameOf(one));
+    open.appendChild(glyph("chevron"));
+    acts.appendChild(open);
+    item.appendChild(acts);
     return item;
   }
 
@@ -264,12 +307,11 @@
     });
     host.textContent = "";
     CHIPS.forEach(function (pair) {
-      if (pair[0] !== "all" && !counts[pair[0]]) return;
-      var press = el("button", "chip");
+      var press = el("button", "tab chip");
       press.type = "button";
       press.setAttribute("aria-pressed", tabView.chip === pair[0] ? "true" : "false");
       press.appendChild(document.createTextNode(pair[1]() + " "));
-      press.appendChild(el("span", "chip-count", String(counts[pair[0]])));
+      press.appendChild(el("span", "tab-count chip-count", String(counts[pair[0]])));
       press.onclick = function () {
         tabView.chip = pair[0];
         redraw();
@@ -338,9 +380,37 @@
         return false;
       }
       if (sayLine) sayLine.hidden = true;
-      var rows = answer.subscriptions || [];
+      var every = answer.subscriptions || [];
       var back = (answer.credits && answer.credits.back) || "";
+      var languages = host.querySelector("#subs-languages");
+      var spoken = [];
+      every.forEach(function (one) {
+        if (one.language && spoken.indexOf(one.language) < 0) spoken.push(one.language);
+      });
+      if (tabView.language && spoken.indexOf(tabView.language) < 0) tabView.language = "";
+      if (languages) {
+        // All languages, and each a subscription is in (board SubsTab).
+        languages.textContent = "";
+        var all = el("option", "", t("subs.languages.all", "All languages"));
+        all.value = "";
+        languages.appendChild(all);
+        spoken.forEach(function (code) {
+          var option = el("option", "", languageName(code) || code);
+          option.value = code;
+          languages.appendChild(option);
+        });
+        languages.value = tabView.language;
+        languages.hidden = spoken.length < 1;
+        languages.onchange = function () {
+          tabView.language = languages.value;
+          redraw();
+        };
+      }
+      var rows = every;
       function redraw() {
+        rows = every.filter(function (one) {
+          return !tabView.language || one.language === tabView.language;
+        });
         chips(chipHost, rows, redraw);
         table.textContent = "";
         rows
@@ -353,29 +423,33 @@
       }
       redraw();
       var head = host.querySelector("#subs-head");
-      if (head) head.hidden = !rows.length;
-      chipHost.hidden = rows.length < 2;
-      if (none) none.hidden = rows.length > 0;
+      if (head) head.hidden = !every.length;
+      chipHost.hidden = !every.length;
+      if (none) none.hidden = every.length > 0;
       if (line) {
-        var builds = rows.filter(function (one) {
+        var builds = every.filter(function (one) {
           return one.builds;
         });
         var spent = builds.reduce(function (sum, one) {
           return sum + Number(one.used || 0);
         }, 0);
         var parts = [];
-        if (builds.length) parts.push(tn("subs.credits.used", spent, "{n} credit on subscriptions this month", "{n} credits on subscriptions this month"));
-        if (builds.length && answer.credits && answer.credits.left !== null && answer.credits.left !== undefined) {
+        var known = every.length && answer.credits && answer.credits.left !== null && answer.credits.left !== undefined;
+        if (builds.length || known) parts.push(tn("subs.credits.used", spent, "{n} credit on subscriptions this month", "{n} credits on subscriptions this month"));
+        if (known) {
           parts.push(tn("subs.credits.left", answer.credits.left, "{n} left in all, back on {date}", "{n} left in all, back on {date}", { date: back }));
         }
         line.textContent = parts.join(" · ");
         line.hidden = !parts.length;
       }
       var taken = {};
-      rows.forEach(function (one) {
+      every.forEach(function (one) {
         if (one.kind === "series") taken[one.key] = true;
       });
-      offer(offered, answer.series, taken);
+      // The series not taken are offered here only while there is nothing on the tab:
+      // Subscribe lives on a series' own page and in the Library (design.md §12, "A
+      // subscription's page is two columns, and the tab is a table with its filters").
+      offer(offered, every.length ? [] : answer.series, taken);
       return true;
     });
   }
@@ -414,23 +488,99 @@
     }[one.kind];
   }
 
+  // A small line drawing (§7): sixteen pixels, a stroke at 1.4, round caps.
+  var GLYPHS = {
+    play: "M6 4.5v7l5.5-3.5z",
+    tick: "M3.5 8.5l3 3 6-7",
+    clock: "M8 2.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M8 5v3.2l2 1.3",
+    pause: "M5.5 3.5v9M10.5 3.5v9",
+    stop: "M8 2.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11M4.1 4.1l7.8 7.8",
+    mail: "M2.5 4h11v8h-11zM2.5 4.5 8 9l5.5-4.5",
+    lock: "M4.5 7.5h7v6h-7zM6 7.5V5.5a2 2 0 0 1 4 0v2",
+    back: "M10 3.5 5.5 8l4.5 4.5",
+    chevron: "M6 3.5 10.5 8 6 12.5",
+  };
+  function glyph(name, className) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.setAttribute("class", "sub-glyph" + (className ? " " + className : ""));
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", GLYPHS[name]);
+    svg.appendChild(path);
+    return svg;
+  }
+
+  // What the one who opened an item did with it, in the medium's word.
+  function doneWord(one) {
+    if (one.kind === "channel") return t("subs.state.watched", "Watched");
+    if (one.kind === "podcast") return t("subs.state.listened", "Listened");
+    return t("subs.state.read", "Read");
+  }
+
+  // The verb an item opens with once it was opened before: Watch again, Read again.
+  function againWord(one) {
+    if (one.kind === "channel") return t("subs.act.watch-again", "Watch again");
+    if (one.kind === "podcast") return t("subs.act.listen-again", "Listen again");
+    return t("subs.act.read-again", "Read again");
+  }
+
+  /* An item's picture: the frame its reader keeps once it is made, else a plain cell
+     with the medium's glyph — never somebody else's server. */
+  function itemPicture(one, item) {
+    var box = el("span", "sub-item-pic" + (one.kind === "channel" ? " is-wide" : ""));
+    var found = /^\/reader\/([^/]+)\/reader\//.exec(item.reader || "");
+    if (found) {
+      var img = el("img");
+      img.alt = "";
+      img.loading = "lazy";
+      img.src = keyed("/thumb/" + found[1]);
+      img.onerror = function () {
+        img.remove();
+      };
+      box.appendChild(img);
+    }
+    box.appendChild(glyph(one.kind === "channel" ? "play" : one.kind === "podcast" ? "play" : "tick", "sub-item-pic-glyph"));
+    return box;
+  }
+
   function itemRow(one, item, back) {
     var li = el("li", "sub-item");
-    var what = el("div", "sub-item-what");
     var door = doorOf(item);
+    li.appendChild(itemPicture(one, item));
+    var what = el("div", "sub-item-what");
     var title = el(item.reader ? "a" : "span", "sub-item-title");
     if (item.reader) title.href = keyed(door);
     title.appendChild(said(item.title, one.language));
     what.appendChild(title);
     var facts = [];
-    if (!item.seen && item.came === "" && (item.state === "ready" || item.state === "listed") && item.found >= one.since) {
-      li.classList.add("is-new");
-      what.insertBefore(el("span", "sub-new", t("subs.state.new", "New")), title);
-    }
-    var state = stateWord(item, back);
-    if (state) facts.push(state);
     if (item.seconds > 0) facts.push(minutes(item.seconds));
+    if (one.builds && item.seconds > 0) {
+      facts.push(tn("subs.credits.about", credits(item.seconds), "about {n} credit", "about {n} credits"));
+    }
     if (facts.length) what.appendChild(el("span", "sub-item-facts", facts.join(" · ")));
+    var state = el("span", "sub-item-state");
+    var isNew = !item.seen && item.came === "" && (item.state === "ready" || item.state === "listed") && item.found >= one.since;
+    if (isNew) {
+      li.classList.add("is-new");
+      state.appendChild(el("span", "sub-new", t("subs.state.new", "New")));
+    }
+    if (item.state === "waiting") {
+      var waiting = el("span", "sub-waiting");
+      waiting.appendChild(glyph("clock"));
+      waiting.appendChild(document.createTextNode(stateWord(item, back)));
+      state.appendChild(waiting);
+    } else if (item.seen && item.reader) {
+      var done = el("span", "sub-done");
+      done.appendChild(glyph("tick"));
+      done.appendChild(document.createTextNode(doneWord(one)));
+      state.appendChild(done);
+    } else {
+      var word = stateWord(item, back);
+      if (word) state.appendChild(el("span", "sub-state", word));
+    }
+    if (state.childNodes.length) what.appendChild(state);
     li.appendChild(what);
 
     var act;
@@ -438,7 +588,7 @@
       act = el("a", "btn text small danger sub-act", t("subs.act.raise-cap", "Raise the cap"));
       act.href = "#sub-cap";
     } else if (item.reader) {
-      act = el("a", "btn text small sub-act", verb(one));
+      act = el("a", "btn text small sub-act", item.seen ? againWord(one) : verb(one));
       act.href = keyed(door);
     } else if (item.link && item.state !== "building" && item.state !== "due") {
       // Not ready, and not going to get ready by itself: one press on the Upload page.
@@ -447,7 +597,7 @@
           ? tn("subs.act.get-ready-about", credits(item.seconds), "Get it ready · about {n} credit", "Get it ready · about {n} credits")
           : t("subs.act.get-ready", "Get it ready")
         : t("subs.act.read-on-targum", "Read on targum");
-      act = el("a", "btn ghost small sub-act is-quiet", label);
+      act = el("a", "btn ghost outline small sub-act is-quiet", label);
       act.href = keyed(door);
     }
     if (act) li.appendChild(act);
@@ -456,9 +606,9 @@
 
   function section(head, note, items, one, back) {
     if (!items.length) return null;
-    var box = el("section", "sub-items");
+    var box = el("section", "card sub-items");
     var top = el("div", "sub-items-head");
-    top.appendChild(el("h2", "", head));
+    top.appendChild(el("h2", "section-title", head));
     if (note) top.appendChild(el("p", "note", note));
     box.appendChild(top);
     var list = el("ul", "sub-item-list");
@@ -481,35 +631,31 @@
     }
   }
 
+  function thisMonth() {
+    var code = words.language || document.documentElement.lang || undefined;
+    try {
+      return new Date().toLocaleDateString(code, { month: "long" });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  /* One subscription's page (design.md §12, "A subscription's page is two columns",
+     2026-10-09; boards SubDetail and SubCapped): the head with Pause and Unsubscribe; at
+     the cap, a card that says so first; then what it brought beside its cap and its
+     mail. On a phone the cap comes first, and Pause and Unsubscribe stand at the foot
+     with what each does. */
   function drawOne(answer, body, saidLine) {
     var one = answer.subscription;
     var back = (answer.credits && answer.credits.back) || "";
     body.textContent = "";
     document.title = nameOf(one) + " — targum";
 
-    var head = el("header", "card sub-head");
-    head.appendChild(tile(one));
-    var names = el("div", "sub-names");
-    var h1 = el("h1", "sub-title");
-    h1.id = "sub-name";
-    h1.appendChild(said(nameOf(one), one.kind === "series" ? "" : one.language));
-    names.appendChild(h1);
-    if (one.hebrew) {
-      var hebrew = said(one.hebrew, "he");
-      hebrew.className = "sub-hebrew";
-      names.appendChild(hebrew);
-    }
-    var meta = [kindWord(one.kind)];
-    if (languageName(one.language)) meta.push(languageName(one.language));
-    meta.push(every(one));
-    if (one.since) meta.push(t("subs.since", "subscribed since {date}", { date: whenSaid(one.since) }));
-    names.appendChild(el("p", "sub-meta", meta.join(" · ")));
-    head.appendChild(names);
-
-    var acts = el("div", "sub-head-acts");
-    function act(label, action, className) {
-      var press = el("button", className, label);
+    function act(label, action, className, glyphName) {
+      var press = el("button", className);
       press.type = "button";
+      if (glyphName) press.appendChild(glyph(glyphName));
+      press.appendChild(document.createTextNode(label));
       press.onclick = function () {
         press.disabled = true;
         ask("/subscriptions/" + one.id, { action: action }).then(function (got) {
@@ -528,15 +674,45 @@
       };
       return press;
     }
-    if (one.state === "on") {
-      acts.appendChild(act(t("subs.pause", "Pause"), "pause", "btn ghost outline sub-pause"));
-      acts.appendChild(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "btn ghost danger sub-stop"));
-    } else if (one.state === "paused") {
-      acts.appendChild(act(t("subs.resume", "Resume"), "resume", "btn ghost outline sub-resume"));
-      acts.appendChild(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "btn ghost danger sub-stop"));
-    } else {
-      acts.appendChild(act(t("subs.subscribe-again", "Subscribe again"), "resume", "btn tonal sub-resume"));
+    function presses() {
+      var out = [];
+      if (one.state === "on") {
+        out.push(act(t("subs.pause", "Pause"), "pause", "btn ghost outline sub-pause", "pause"));
+        out.push(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "btn ghost outline danger sub-stop", "stop"));
+      } else if (one.state === "paused") {
+        out.push(act(t("subs.resume", "Resume"), "resume", "btn ghost outline sub-resume", "play"));
+        out.push(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "btn ghost outline danger sub-stop", "stop"));
+      } else {
+        out.push(act(t("subs.subscribe-again", "Subscribe again"), "resume", "btn filled sub-resume"));
+      }
+      return out;
     }
+
+    var head = el("header", "sub-head");
+    head.appendChild(tile(one));
+    var names = el("div", "sub-names");
+    var h1 = el("h1", "sub-title");
+    h1.id = "sub-name";
+    h1.appendChild(said(nameOf(one), one.kind === "series" ? "" : one.language));
+    names.appendChild(h1);
+    if (one.hebrew) {
+      var hebrew = said(one.hebrew, "he");
+      hebrew.className = "sub-hebrew";
+      names.appendChild(hebrew);
+    }
+    var meta = el("p", "sub-meta");
+    meta.appendChild(el("span", "tag", kindWord(one.kind)));
+    var facts = [];
+    if (languageName(one.language)) facts.push(languageName(one.language));
+    facts.push(every(one));
+    if (one.since) facts.push(t("subs.since", "subscribed since {date}", { date: whenSaid(one.since) }));
+    meta.appendChild(document.createTextNode(" " + facts.join(" · ")));
+    names.appendChild(meta);
+    head.appendChild(names);
+    var acts = el("div", "sub-head-acts");
+    presses().forEach(function (press) {
+      acts.appendChild(press);
+    });
     head.appendChild(acts);
     body.appendChild(head);
 
@@ -554,29 +730,93 @@
     var before = items.filter(function (item) {
       return item.came === "before";
     });
-    var main = section(itemsHead(one), t("subs.items.newest", "Newest first"), now, one, back);
-    if (main) body.appendChild(main);
-    else body.appendChild(el("p", "note sub-none", t("subs.items.none", "Nothing yet. New ones appear here as they come out.")));
-    var meanwhile = section(t("subs.paused.head", "Out while it was paused"), t("subs.not-by-itself", "Not got ready unless you choose"), paused, one, back);
-    if (meanwhile) body.appendChild(meanwhile);
-    var earlier = section(t("subs.before.head", "Out before you subscribed"), t("subs.not-by-itself", "Not got ready unless you choose"), before, one, back);
-    if (earlier) body.appendChild(earlier);
 
-    if (one.builds) body.appendChild(capSection(answer, body, saidLine));
+    // At the cap, the page says so before anything else (board SubCapped).
+    var capped = one.builds && one.cap && one.used >= one.cap && one.state === "on";
+    if (capped) {
+      var waiting = now.filter(function (item) {
+        return item.state === "waiting";
+      })[0];
+      var full = el("section", "card sub-capped");
+      full.appendChild(
+        el(
+          "p",
+          "",
+          waiting
+            ? t("subs.capped.says", "This month's {cap} credits for {name} are used. {title} gets ready by itself on {date}.", {
+                cap: one.cap,
+                name: nameOf(one),
+                title: waiting.title,
+                date: back,
+              })
+            : t("subs.capped.says-none", "This month's {cap} credits for {name} are used. The next one gets ready by itself on {date}.", {
+                cap: one.cap,
+                name: nameOf(one),
+                date: back,
+              })
+        )
+      );
+      var row = el("div", "sub-capped-row");
+      var raise = el("a", "btn filled", t("subs.act.raise-cap", "Raise the cap"));
+      raise.href = "#sub-cap";
+      row.appendChild(raise);
+      row.appendChild(el("span", "note", t("subs.capped.others", "Your other subscriptions carry on")));
+      full.appendChild(row);
+      body.appendChild(full);
+    }
+
+    var cols = el("div", "sub-cols");
+    var main = el("div", "sub-main");
+    var side = el("div", "sub-side");
+    var listed = section(itemsHead(one), t("subs.items.newest", "Newest first"), now, one, back);
+    if (listed) main.appendChild(listed);
+    else {
+      var none = el("section", "card sub-items");
+      none.appendChild(el("h2", "section-title", itemsHead(one)));
+      none.appendChild(el("p", "note sub-none", t("subs.items.none", "Nothing yet. New ones appear here as they come out.")));
+      main.appendChild(none);
+    }
+    var meanwhile = section(t("subs.paused.head", "Out while it was paused"), t("subs.not-by-itself", "Not got ready unless you choose"), paused, one, back);
+    if (meanwhile) main.appendChild(meanwhile);
+    var earlier = section(t("subs.before.head", "Out before you subscribed"), t("subs.not-by-itself", "Not got ready unless you choose"), before, one, back);
+    if (earlier) main.appendChild(earlier);
+
+    if (one.builds) side.appendChild(capSection(answer, body, saidLine, now));
     // The mail (design.md §12, "Everything new comes in one mail a day"): one a day, with
     // everything new; the way out of it is the way out of the subscription.
-    var mail = el("section", "card sub-cap sub-mail");
-    mail.appendChild(el("h2", "", t("subs.mail.head", "Mail")));
-    mail.appendChild(
-      el(
-        "p",
-        "note",
+    var mail = el("section", "card sub-mail");
+    mail.appendChild(el("h2", "section-title", t("subs.mail.head", "Mail")));
+    var line = el("p", "sub-mail-line");
+    line.appendChild(glyph("mail"));
+    line.appendChild(
+      document.createTextNode(
         one.key === "weekly" && one.kind === "series"
           ? t("subs.mail.weekly", "The weekly comes by mail every Monday. To stop it, unsubscribe.")
           : t("subs.mail.says", "What's new comes in one mail a day, with everything else new. To stop it, unsubscribe.")
       )
     );
-    body.appendChild(mail);
+    mail.appendChild(line);
+    mail.appendChild(el("p", "note", t("subs.mail.continue", "It shows under Continue too.")));
+    side.appendChild(mail);
+
+    // On a phone, Pause and Unsubscribe at the foot, each with what it does.
+    var stop = el("section", "card sub-stop-card");
+    presses().forEach(function (press) {
+      var wrap = el("div", "sub-stop-one");
+      wrap.appendChild(press);
+      var what = press.classList.contains("sub-stop")
+        ? t("subs.stop.says", "Ends the subscription and its mail. What you have stays in Your targums.")
+        : press.classList.contains("sub-pause")
+        ? t("subs.pause.says", "Nothing new gets ready and nothing is mailed until you resume. What came out meanwhile waits for you to choose.")
+        : "";
+      if (what) wrap.appendChild(el("p", "note", what));
+      stop.appendChild(wrap);
+    });
+
+    cols.appendChild(main);
+    cols.appendChild(side);
+    cols.appendChild(stop);
+    body.appendChild(cols);
     // For whatever draws more onto the page — the cap's choices (`TargumSubs.onOne`).
     hooks.forEach(function (hook) {
       try {
@@ -586,16 +826,41 @@
   }
 
   /* The month's cap, changed here and nowhere else (design.md §12, "A monthly cap is the
-     second press that lasts", 2026-10-09): the four the confirm page offers, the one
-     chosen marked, and Save. */
-  function capSection(answer, body, saidLine) {
+     second press that lasts", 2026-10-09): the four the confirm page offers as one
+     `.seg`, each with about how many that is, the one chosen marked, and Save. */
+  function capSection(answer, body, saidLine, items) {
     var one = answer.subscription;
     var cap = el("section", "card sub-cap");
     cap.id = "sub-cap";
-    cap.appendChild(el("h2", "", t("subs.cap.head", "Monthly cap")));
-    cap.appendChild(el("p", "sub-cap-used", t("subs.cap.used", "{used} of {cap} credits used this month", { used: one.used, cap: one.cap })));
+    cap.appendChild(el("h2", "section-title", t("subs.cap.head", "Monthly cap")));
+    var month = thisMonth();
+    cap.appendChild(
+      el(
+        "p",
+        "sub-cap-used",
+        month
+          ? t("subs.cap.used-in", "{used} of {cap} credits used in {month}", { used: one.used, cap: one.cap, month: month })
+          : t("subs.cap.used", "{used} of {cap} credits used this month", { used: one.used, cap: one.cap })
+      )
+    );
+    var meter = el("span", "meter " + (one.cap && one.used >= one.cap ? "is-full" : "is-spent"));
+    var fill = el("span");
+    fill.style.setProperty("--done", String(one.cap ? Math.min(1, one.used / one.cap) : 0));
+    meter.appendChild(fill);
+    cap.appendChild(meter);
+    // About how many a cap is, from how long this one's items have run.
+    var lengths = (items || [])
+      .map(function (item) {
+        return Number(item.seconds || 0);
+      })
+      .filter(function (seconds) {
+        return seconds > 0;
+      });
+    var each = lengths.length
+      ? Math.max(1, Math.round(lengths.reduce(function (a, b) { return a + b; }, 0) / lengths.length / 60))
+      : 0;
     var form = el("form", "sub-cap-form");
-    var group = el("div", "cap-choices");
+    var group = el("div", "seg cap-choices");
     group.setAttribute("role", "radiogroup");
     group.setAttribute("aria-label", t("subs.cap.head", "Monthly cap"));
     (one.caps || [30, 60, 120, 240]).forEach(function (value) {
@@ -607,16 +872,38 @@
       radio.checked = Number(value) === Number(one.cap);
       label.appendChild(radio);
       label.appendChild(el("span", "cap-number", String(value)));
+      if (each) {
+        label.appendChild(
+          el(
+            "span",
+            "cap-about",
+            one.kind === "podcast"
+              ? tn("subs.cap.about-episodes", Math.max(1, Math.round(value / each)), "about {n} episode", "about {n} episodes")
+              : tn("subs.cap.about-videos", Math.max(1, Math.round(value / each)), "about {n} video", "about {n} videos")
+          )
+        );
+      }
+      if (radio.checked) label.classList.add("on");
       group.appendChild(label);
     });
     form.appendChild(group);
     form.appendChild(el("p", "note", t("subs.cap.says", "New ones get ready by themselves until the cap is reached. Then the next one waits until the 1st, or until you raise the cap.")));
+    var foot = el("div", "sub-cap-foot");
     if (answer.credits && answer.credits.left !== null && answer.credits.left !== undefined) {
-      form.appendChild(el("p", "note", tn("subs.cap.left", answer.credits.left, "{n} credit left in your plan this month.", "{n} credits left in your plan this month.")));
+      foot.appendChild(el("p", "note", tn("subs.cap.left", answer.credits.left, "{n} credit left in your plan this month.", "{n} credits left in your plan this month.")));
     }
-    var save = el("button", "btn tonal sub-pause", t("subs.cap.save", "Save"));
+    var save = el("button", "btn filled sub-cap-save", t("subs.cap.save", "Save"));
     save.type = "submit";
-    form.appendChild(save);
+    save.disabled = true;
+    foot.appendChild(save);
+    form.appendChild(foot);
+    group.addEventListener("change", function () {
+      var picked = form.querySelector("input[name=cap]:checked");
+      [].forEach.call(group.querySelectorAll(".cap-choice"), function (choice) {
+        choice.classList.toggle("on", choice.contains(picked));
+      });
+      save.disabled = !picked || Number(picked.value) === Number(one.cap);
+    });
     form.onsubmit = function (event) {
       event.preventDefault();
       var picked = form.querySelector("input[name=cap]:checked");

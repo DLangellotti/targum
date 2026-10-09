@@ -140,8 +140,18 @@ def test_a_served_name_is_read_back_to_its_folder_and_language(built: Index) -> 
 
 
 def frame(body: str, name: str = "reading") -> str:
-    found = re.search(rf'<iframe\s+name="{name}"\s+src="([^"]+)"', body)
-    assert found, f"no {name} frame"
+    """Where the page opens a reading: its press for the portion, the haftarah's row for
+    the haftarah (no frame since 2026-10-09; design.md §12)."""
+    if name == "haftarah":
+        found = re.search(r'href="(/parasha/read/haftarah-[^"]+)"', body)
+    else:
+        found = re.search(
+            r'<p class="series-go[^"]*">\s*<a class="btn filled" href="([^"]+)"', body
+        )
+        found = found or re.search(
+            r'<div class="series-go series-go-row">\s*<a class="btn filled" href="([^"]+)"', body
+        )
+    assert found, f"no {name} press"
     return found.group(1)
 
 
@@ -156,11 +166,11 @@ def test_the_russian_page_frames_the_russian_reader(serving: int) -> None:
 def test_this_weeks_russian_page_names_its_parts_in_the_russian_reader(serving: int) -> None:
     body = get(serving, "/parasha?lang=ru")[1]
     assert frame(body) == f"/parasha/read/{SLUG}-ru/reader/sec-0001.html"
-    parts = re.findall(r'<a class="week-part" href="([^"]+)" target="reading"', body)
-    assert parts and all(f"/parasha/read/{SLUG}-ru/reader/" in href for href in parts)
-    # The haftarah has no Russian, so its frame is the one it has.
-    haftarah = re.findall(r'<a class="week-part" href="([^"]+)" target="haftarah"', body)
-    assert haftarah and "-ru/" not in haftarah[0]
+    rows = body.split('<ol class="rows series-parts">')[1].split("</ol>")[0]
+    parts = re.findall(r'<a class="series-row-title" href="([^"]+)"', rows)
+    aliyot = [href for href in parts if "haftarah-" not in href]
+    assert aliyot and all(f"/parasha/read/{SLUG}-ru/reader/" in href for href in aliyot)
+    # The haftarah has no Russian, so its row opens the one it has.
     assert "-ru/" not in frame(body, "haftarah")
 
 
@@ -198,41 +208,41 @@ def test_the_named_portion_page_says_its_book_its_name_and_shabbat_in_russian(
     serving: int,
 ) -> None:
     body = get(serving, f"/parasha/{SLUG}?lang=ru")[1]
-    assert '<p class="eyebrow">Второзаконие</p>' in body
-    assert "Ницавим-Ваелех — каждое слово с разбором." in body
-    assert "читают в субботу" in body
+    assert '<p class="series-kicker">Второзаконие</p>' in body
+    assert "Ницавим-Ваелех" in body.split('id="series-now-title"')[1].split("</h2>")[0]
     words = text_of(body)
     for english in ("Shabbat", "Deuteronomy", "Nitzavim", "GENESIS", "Genesis"):
         assert english not in words, english
     assert "<title>Ницавим-Ваелех — " in body
-    # Whose words stand beside the verse: the Russian Torah, since the frame is Russian.
+    # Whose words stand beside the verse: the Russian Torah, since the reader is Russian.
     assert "Герштейна и Гордона" in body and "Мецуда, опубликованный" not in body
 
 
 def test_the_english_page_is_what_it_was(serving: int) -> None:
     body = get(serving, f"/parasha/{SLUG}")[1]
-    assert '<p class="eyebrow">Deuteronomy</p>' in body
-    assert "is read on Shabbat" in body
-    assert "Nitzavim-Vayeilech, every word explained." in body
+    assert '<p class="series-kicker">Deuteronomy</p>' in body
+    assert "Nitzavim-Vayeilech" in body.split('id="series-now-title"')[1].split("</h2>")[0]
     assert "the Metsudah linear translation" in body
 
 
 def test_a_language_pressed_for_rides_on_the_links_that_stay_here(serving: int) -> None:
     body = get(serving, f"/parasha/{SLUG}?lang=ru")[1]
-    assert 'href="?taamim=off&amp;lang=ru"' in body or 'href="?taamim=off&lang=ru"' in body
     assert 'href="/parasha?lang=ru#sources"' in body
-    for href in re.findall(r'<a class="story" href="([^"]+)"', body):
-        assert href.endswith("?lang=ru"), href
+    assert 'href="/library?lang=ru"' in body, "the way back keeps it too"
+    listed = body.split('<ul class="series-portions">')[1].split("</ul>")[0]
+    links = re.findall(r'<a href="(/parasha/[^"]+)"', listed)
+    assert links and all(href.endswith("?lang=ru") for href in links)
     # Inferred from the browser rather than pressed, nothing is carried.
     plain = get(serving, f"/parasha/{SLUG}")[1]
     assert "lang=ru" not in plain.partition("<main")[2].partition("</main>")[0]
 
 
-def test_the_pdf_form_is_still_a_plain_link_without_a_script(serving: int) -> None:
+def test_the_pdf_is_a_plain_link_without_a_script(serving: int) -> None:
+    """One quiet press with the reader's defaults (design.md §12, 2026-10-09), in the
+    language the page was asked in."""
     body = get(serving, f"/parasha/{SLUG}?lang=ru")[1]
-    form = body.partition('<form class="sheet-choices"')[2].partition("</form>")[0]
-    assert f'action="/parasha/{SLUG}.pdf" method="get"' in form
-    assert '<button type="submit" class="btn tonal sheet">Скачать PDF</button>' in form
+    assert f'class="btn ghost outline series-pdf" href="/parasha/{SLUG}.pdf?lang=ru"' in body
+    assert 'aria-label="Скачать PDF"' in body
 
 
 def test_the_sheet_pressed_in_the_russian_reader_is_the_portions(

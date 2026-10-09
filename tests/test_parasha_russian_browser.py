@@ -17,7 +17,7 @@ from test_reader_browser import browser  # noqa: F401
 pytest.importorskip("playwright.sync_api", reason="Playwright is not installed")
 
 PDF = b"%PDF-1.4\n%%EOF\n"
-BUSY = "() => document.querySelector('form.sheet-choices button').ariaBusy === 'true'"
+BUSY = "() => document.querySelector('a.series-pdf').ariaBusy === 'true'"
 
 
 def opened(browser, port: int, path: str):  # noqa: F811
@@ -27,20 +27,19 @@ def opened(browser, port: int, path: str):  # noqa: F811
     return context, page
 
 
-def test_the_russian_page_frames_a_reader_in_russian(browser, serving: int) -> None:  # noqa: F811
+def test_the_russian_page_opens_a_reader_in_russian(browser, serving: int) -> None:  # noqa: F811
+    """No frame since 2026-10-09 (design.md §12): the press opens the reader built in
+    Russian, and the column it opens on is the Russian."""
     context, page = opened(browser, serving, f"/parasha/{SLUG}?lang=ru")
     try:
-        page.locator("#embed").scroll_into_view_if_needed()
-        reader = page.frame_locator("#embed iframe")
-        reader.locator(".pair").first.wait_for()
-        framed = next(one for one in page.frames if "/reader/" in one.url)
-        assert f"/parasha/read/{SLUG}-ru/reader/sec-0001.html" in framed.url
-        assert framed.evaluate("document.documentElement.lang") == "ru"
-        # The column it opens on is the Russian, drawn and showing.
-        column = reader.locator(".pair .tr", has_text="Русский стих").first
+        page.locator(".series-go .btn.filled").click()
+        page.wait_for_url(f"**/parasha/read/{SLUG}-ru/reader/sec-0001.html")
+        page.locator(".pair").first.wait_for()
+        assert page.evaluate("document.documentElement.lang") == "ru"
+        column = page.locator(".pair .tr", has_text="Русский стих").first
         assert column.is_visible()
         assert column.get_attribute("lang") == "ru"
-        assert reader.locator(".pair .tr", has_text="verse 1").count() == 0, "not the English"
+        assert page.locator(".pair .tr", has_text="verse 1").count() == 0, "not the English"
     finally:
         context.close()
 
@@ -59,15 +58,16 @@ def test_the_download_says_it_is_preparing_until_the_file_arrives(
     context, page = opened(browser, serving, f"/parasha/{SLUG}?lang=ru")
     try:
         waiting = held_pdf(page, {})
-        button = page.locator("form.sheet-choices button[type=submit]")
-        assert button.inner_text() == "Скачать PDF"
+        button = page.locator("a.series-pdf")
+        assert button.get_attribute("aria-label") == "Скачать PDF"
         button.click()
         page.wait_for_function(BUSY)
-        assert button.inner_text() == "Готовим PDF…"
+        assert button.get_attribute("aria-label") == "Готовим PDF…"
+        assert page.locator(".series-pdf-note").inner_text() == "Готовим PDF…"
         page.wait_for_timeout(200)
         assert len(waiting) == 1, "asked once"
         asked = waiting[0].request.url
-        assert "lang=ru" in asked and "with=ru" in asked and "vowels=1" in asked
+        assert "lang=ru" in asked, "the reader's own defaults, in the page's language"
         # A second press while it is preparing asks nothing more.
         button.click()
         page.wait_for_timeout(200)
@@ -91,10 +91,10 @@ def test_the_download_says_it_is_preparing_until_the_file_arrives(
         # gets the PDF.
         assert Path(arriving.value.path()).read_bytes() == PDF
         page.wait_for_function(
-            "() => !document.querySelector('form.sheet-choices button').hasAttribute('aria-busy')"
+            "() => !document.querySelector('a.series-pdf').hasAttribute('aria-busy')"
         )
-        assert button.inner_text() == "Скачать PDF"
-        assert page.locator(".sheet-note").is_hidden()
+        assert button.get_attribute("aria-label") == "Скачать PDF"
+        assert page.locator(".series-pdf-note").is_hidden()
     finally:
         context.close()
 
@@ -106,14 +106,16 @@ def test_a_sheet_the_box_cannot_make_says_so_in_one_sentence(
     context, page = opened(browser, serving, f"/parasha/{SLUG}?lang=ru")
     try:
         waiting = held_pdf(page, {})
-        page.locator("form.sheet-choices button[type=submit]").click()
+        page.locator("a.series-pdf").click()
         page.wait_for_function(BUSY)
         waiting[0].fulfill(status=503, body="no", content_type="text/plain")
-        note = page.locator(".sheet-note")
-        note.wait_for(state="visible")
+        note = page.locator(".series-pdf-note")
+        page.wait_for_function(
+            "() => document.querySelector('.series-pdf-note').textContent.indexOf('PDF.') > 0"
+        )
         assert note.inner_text() == "Сейчас мы не можем сделать PDF. Попробуйте через минуту."
         assert note.get_attribute("role") == "status"
-        assert page.locator("form.sheet-choices button").inner_text() == "Скачать PDF"
+        assert page.locator("a.series-pdf").get_attribute("aria-label") == "Скачать PDF"
     finally:
         context.close()
 
@@ -122,9 +124,9 @@ def test_in_english_the_wait_is_said_in_english(browser, serving: int) -> None: 
     context, page = opened(browser, serving, f"/parasha/{SLUG}")
     try:
         held_pdf(page, {})
-        button = page.locator("form.sheet-choices button[type=submit]")
+        button = page.locator("a.series-pdf")
         button.click()
         page.wait_for_function(BUSY)
-        assert button.inner_text() == "Preparing PDF…"
+        assert button.get_attribute("aria-label") == "Preparing PDF…"
     finally:
         context.close()
