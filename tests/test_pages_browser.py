@@ -609,19 +609,18 @@ def _arrival_page(
 ):
     """The arrival for a brand-new account on a shelf of three, at a phone's size.
 
-    A brand-new account whose browser gives a sign of Russian is asked which language it
-    reads before anything else (design.md §12, 2026-09-20 and 2026-09-28), so the page
-    handed back is the one after that answer — the subjects — unless `language` is None,
-    which leaves it on the first screen for the test that is about it. The browser says
-    Russian unless `locale` says otherwise; with no sign, nothing is asked and the page
-    starts on the subjects."""
+    A brand-new account whose browser gives a sign of Russian is asked which language the
+    page speaks before anything else (design.md §12, 2026-09-20 and 2026-09-28), so the
+    page handed back is the one after that answer — which language they are learning —
+    unless `language` is None, which leaves it on the first screen for the test that is
+    about it. With no sign of Russian nothing is asked and the page starts on the three."""
     html = welcome_page(TOKEN)
     shelf = [
         {
             "name": name, "document": name, "entry": name, "title": title, "language": "he",
-            "register": "modern", "kind": "article", "tags": ["sport"], "difficulty": hard,
-            "sections": 1, "chapters": [], "readyChapters": 0, "built": 1, "opened": 0,
-            "drawn": True,
+            "register": "modern", "kind": "article", "tags": ["sport", "journalism"],
+            "difficulty": hard, "sections": 1, "chapters": [], "readyChapters": 0, "built": 1,
+            "opened": 0, "drawn": True,
         }
         for name, title, hard in (("easy", "קל", 5), ("mid", "בינוני", 20), ("hard", "קשה", 45))
     ]  # fmt: skip
@@ -652,23 +651,15 @@ def _arrival_page(
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/welcome?k={TOKEN}")
 
-    def past_welcome() -> None:
-        # The welcome (2026-09-28) asks nothing; these tests are about what comes after
-        # it, so they go on the way a reader does, with Continue.
-        page.wait_for_selector("#arrival-welcome:not([hidden])")
-        page.locator("#arrival-done").tap()
-
     if not locale.startswith("ru"):
-        past_welcome()
-        page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
-        page.wait_for_timeout(150)
+        page.wait_for_selector("#arrival-learning:not([hidden]) .arrival-lang")
+        page.wait_for_timeout(300)
         return context, page, went
     page.wait_for_selector("#arrival-language:not([hidden]) .arrival-rung")
     if language is not None:
         page.locator("#arrival-tongues .arrival-rung", has_text=language).tap()
-        past_welcome()
-        page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
-    page.wait_for_timeout(150)
+        page.wait_for_selector("#arrival-learning:not([hidden]) .arrival-lang")
+    page.wait_for_timeout(300)
     return context, page, went
 
 
@@ -678,116 +669,89 @@ ARRIVAL_MEASURE = """() => {
     const box = el.getBoundingClientRect();
     return box.width > 0 && box.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   };
-  // In the page itself: the pill at the corner is the chrome's, and is on every page.
-  const filled = [...document.querySelectorAll('main button, main a')].filter((el) => {
+  const filled = [...document.querySelectorAll('button, a')].filter((el) => {
     if (!seen(el)) return false;
     const paint = getComputedStyle(el).backgroundColor;
     return paint === 'rgb(31, 111, 107)';  // the primary, filled (§13)
   });
   const foot = document.querySelector('.arrival-foot').getBoundingClientRect();
-  const doors = [...document.querySelectorAll('.arrival-door')]
+  const cards = [...document.querySelectorAll('.arrival-lang')]
     .map((d) => d.getBoundingClientRect());
   return {
     filled: filled.map((el) => el.id || el.className),
     footInView: foot.top >= 0 && foot.bottom <= window.innerHeight,
     footFixed: getComputedStyle(document.querySelector('.arrival-foot')).position,
-    rows: new Set(doors.map((d) => Math.round(d.top))).size,
-    short: doors.every((d) => d.height >= 43.5),
-    cards: seen(document.querySelector('.learn-cards')),
-    pill: seen(document.querySelector('.talk-cta')),
-    pillClear: (() => {
-      const pill = document.querySelector('.talk-cta').getBoundingClientRect();
-      return [...document.querySelectorAll('.arrival-foot > *')].every((el) => {
-        const box = el.getBoundingClientRect();
-        return box.width === 0 || box.right <= pill.left || box.left >= pill.right;
-      });
-    })(),
+    cards: cards.length,
+    tall: cards.every((d) => d.height >= 43.5),
+    clearOfFoot: cards.every((d) => d.bottom <= foot.top + 1),
+    chrome: ['.site-head', '.talk-cta', '.site-footer']
+      .filter((s) => seen(document.querySelector(s))),
     sideways: document.documentElement.scrollWidth > window.innerWidth,
-    skip: seen(document.getElementById('arrival-skip')),
-    nextOff: document.getElementById('arrival-done').disabled,
+    badges: [...document.querySelectorAll('.arrival-lang .lang-status')].map((b) => b.textContent),
   };
 }"""
 
 
 @pytest.mark.parametrize("width", [320, 375, 412])
 def test_the_arrival_is_the_screen_on_a_phone(browser, width: int) -> None:
-    """targum-internal#334. A new reader's first screen on a phone was nineteen full-width
-    rows with the only filled button on the page below all of them, disabled, and no way
-    past but to answer. It is the screen now: the question, the subjects wrapped as
-    pills, and Next and Skip at the foot of the window where a thumb is.
+    """The FirstRunPhone board (2026-10-09): the six languages a row each, a thumb's
+    height, all above Continue across the foot of the window, and nothing of the chrome —
+    no head, no pill, no foot: there is nowhere to go yet, and the pill covered the press.
 
-    Measured in a browser because none of this is visible in the file — it is a cascade,
-    a fixed foot and a wrap, and the last notes' bugs were all found by opening the page.
-    """
+    Measured in a browser because none of this is visible in the file — it is a cascade
+    and a fixed foot, and the last notes' bugs were all found by opening the page."""
     context, page, _ = _arrival_page(browser, width)
     got = page.evaluate(ARRIVAL_MEASURE)
     context.close()
     assert got["footFixed"] == "fixed" and got["footInView"], got
-    assert got["skip"] and got["nextOff"], "Skip is live from the start; Next waits for three"
-    assert got["filled"] == [], f"nothing filled competes while Next is asleep: {got['filled']}"
-    assert got["rows"] < 19, f"the subjects wrap, they do not stack: {got['rows']} rows"
-    assert got["short"], "and every one of them is a thumb's height"
-    assert not got["cards"], "no other text is drawn while it is up"
-    # §13: the pill is on every page. The foot stops short of it rather than putting it away.
-    assert got["pill"] and got["pillClear"], got
+    assert got["filled"] == ["arrival-done"], f"Continue is the one filled press: {got}"
+    assert got["cards"] == 6 and got["tall"] and got["clearOfFoot"], got
+    assert got["badges"] == ["Beta", "Alpha", "Alpha", "Alpha", "Experimental", "Experimental"]
+    assert got["chrome"] == [], got
     assert not got["sideways"]
 
 
-def test_the_arrival_leads_into_a_text_in_six_presses(browser) -> None:
-    """A language, three subjects, Next, a rung — and the reader is open, at the rung
-    they named. Not Learn again with a card to find (design.md §12, 2026-09-19; five
-    presses until the language was asked first, 2026-09-20)."""
-    context, page, went = _arrival_page(browser, 375)
-    for label in ("Sport", "History", "Art"):
-        page.locator(".arrival-door", has_text=label).first.tap()
-    # A press fades in over `--in`; measured mid-fade, Next is still transparent.
-    page.wait_for_timeout(400)
-    woke = page.evaluate(ARRIVAL_MEASURE)
-    assert woke["filled"] == ["arrival-done"], (
-        f"three picked, and Next is the one filled press: {woke}"
-    )
+def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
+    """Continue on Hebrew, a subject, Continue, a level, Continue — and the reader is
+    open, at the level they named (design.md §12, 2026-09-19 and 2026-10-09)."""
+    context, page, went = _arrival_page(browser, 375, locale="en-US")
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
+    page.locator(".arrival-door", has_text="News").first.tap()
     page.locator("#arrival-done").tap()
     page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
     second = page.evaluate(
         """() => ({
           step: document.getElementById('arrival-step').textContent,
-          rungs: document.querySelectorAll('#arrival-levels .arrival-rung').length,
-          asked: document.getElementById('arrival-asks-level').getBoundingClientRect().top
-                 >= document.querySelector('.site-head').getBoundingClientRect().bottom - 1,
-          fits: document.querySelector('.arrival-levels').getBoundingClientRect().bottom
-                <= document.querySelector('.arrival-foot').getBoundingClientRect().top + 1
-                || document.documentElement.scrollHeight > window.innerHeight,
+          rungs: [...document.querySelectorAll('#arrival-levels .arrival-rung')]
+            .map((r) => r.textContent),
+          asked: document.getElementById('arrival-asks-level').getBoundingClientRect().top >= 0,
+          asleep: document.getElementById('arrival-done').disabled,
         })"""
     )
-    assert second["step"] == "3 of 3" and second["rungs"] == 8 and second["fits"], second
-    assert second["asked"], "the second question starts at its top, not where the first was left"
-    page.locator(".arrival-rung", has_text="I follow almost anything").tap()
+    assert second["step"] == "3 of 3" and len(second["rungs"]) == 4, second
+    assert second["asked"] and second["asleep"], second
+    page.locator(".arrival-rung", has_text="I’m learning the letters").tap()
+    page.locator("#arrival-done").tap()
     page.wait_for_timeout(300)
     context.close()
-    assert went and "/reader/hard" in went[-1], f"hey opens the hardest sport text: {went}"
+    assert went and "/reader/easy" in went[-1], f"the letters open the easiest text: {went}"
 
 
 LANGUAGE_MEASURE = """() => {
   const foot = document.querySelector('.arrival-foot').getBoundingClientRect();
   const rows = [...document.querySelectorAll('#arrival-tongues .arrival-rung')];
   const seen = (el) => !!el && !el.hidden && el.getBoundingClientRect().width > 0;
-  const pill = document.querySelector('.talk-cta').getBoundingClientRect();
   return {
     step: document.getElementById('arrival-step').textContent,
     rows: rows.map((row) => row.textContent),
     spoken: rows.map((row) => row.getAttribute('lang')),
     asks: [...document.querySelectorAll('#arrival-asks-language span')].map((s) => s.textContent),
     tall: rows.every((row) => row.getBoundingClientRect().height >= 43.5),
-    footInView: foot.top >= 0 && foot.bottom <= window.innerHeight,
     rowsClearOfFoot: rows.every((row) => row.getBoundingClientRect().bottom <= foot.top + 1),
-    skip: seen(document.getElementById('arrival-skip')),
     back: seen(document.getElementById('arrival-back')),
     next: seen(document.getElementById('arrival-done')),
-    subjects: seen(document.getElementById('arrival-subjects')),
-    pillClear: [...document.querySelectorAll('.arrival-foot > *')].every((el) => {
-      const box = el.getBoundingClientRect();
-      return box.width === 0 || box.right <= pill.left || box.left >= pill.right;
-    }),
+    learning: seen(document.getElementById('arrival-learning')),
     sideways: document.documentElement.scrollWidth > window.innerWidth,
   };
 }"""
@@ -795,21 +759,21 @@ LANGUAGE_MEASURE = """() => {
 
 @pytest.mark.parametrize("width", [320, 375, 412])
 def test_the_arrival_asks_which_language_first_on_a_phone(browser, width: int) -> None:
-    """design.md §12, 2026-09-20. The first screen a new reader meets is the one they can
-    read whatever they read: the question a line a language, a row each in its own name,
-    and nothing else to press but Skip."""
+    """design.md §12, 2026-09-20. The first screen a browser that may read Russian meets
+    is the one they can read whatever they read: the question a line a language, and a
+    row each in its own name. Pressing a row is the answer."""
     context, page, _ = _arrival_page(browser, width, language=None)
     got = page.evaluate(LANGUAGE_MEASURE)
     context.close()
-    assert got["step"] == "1 of 3", got
+    assert got["step"] == "1 of 4", got
     assert got["rows"] == ["English", "Русский", "Other · Другой"], got
     # Each language's row says which language it is in; the last is in both, and says none.
     assert got["spoken"] == ["en", "ru", None], got
     assert len(got["asks"]) == 2, f"asked once in each language: {got['asks']}"
-    assert got["tall"] and got["rowsClearOfFoot"] and got["footInView"], got
-    assert got["skip"] and not got["back"] and not got["next"], got
-    assert not got["subjects"], "one question a screen"
-    assert got["pillClear"] and not got["sideways"], got
+    assert got["tall"] and got["rowsClearOfFoot"], got
+    assert not got["back"] and not got["next"], got
+    assert not got["learning"], "one question a screen"
+    assert not got["sideways"], got
 
 
 def _progress_with(
@@ -2346,15 +2310,20 @@ def test_a_browser_that_cannot_record_is_not_offered_the_button(browser, tmp_pat
 
 def test_an_english_phone_is_shown_no_russian(browser) -> None:
     """ "I don't want a non russian to see any russian" (David, 2026-09-28). A browser with
-    no sign of Russian starts on the subjects; the one way into Russian is EN · RU, and
-    nothing on the screen is Cyrillic."""
+    no sign of Russian is not asked which language the page speaks; the one way into
+    Russian is EN · RU, and nothing on the screen is Cyrillic but Russian's own greeting
+    on its card, which is the language to learn and not a word to read (2026-10-09)."""
     context, page, _ = _arrival_page(browser, 375, locale="en-US")
     try:
         seen = page.evaluate(
             """() => ({
               language: !document.getElementById('arrival-language').hidden,
               switch: document.getElementById('arrival-switch').innerText,
-              text: document.getElementById('arrival').innerText,
+              text: (() => {
+                const copy = document.getElementById('arrival').cloneNode(true);
+                copy.querySelectorAll('.arrival-greeting').forEach((g) => g.remove());
+                return copy.textContent;
+              })(),
             })"""
         )
         assert not seen["language"]

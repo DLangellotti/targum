@@ -5932,7 +5932,7 @@ def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
 @pytest.mark.parametrize(
     ("page", "key", "english"),
     [
-        ("welcome_page", "learn.arrival.welcome", "Welcome to targum"),
+        ("welcome_page", "welcome.learning.asks", "Which language are you learning?"),
         ("library_page", "nav.library", "Library"),
         ("you_page", "nav.your-account", "Your account"),
         ("add_page", "add.page.what-would-you-like-to-read", "What would you like to learn from?"),

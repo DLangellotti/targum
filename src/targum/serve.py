@@ -12996,7 +12996,7 @@ def start(
             # runs themselves and useless in an email: hosted, the link has to name the
             # address the reader can actually reach, not the one the server binds to.
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
-            "welcome": welcome_page(token, connector=connector_is_open()),
+            "welcome": welcome_page(token),
             "you": you_page(token),
             "saved_html": saved_page(token),
             "playlists": playlists_page(token),
@@ -13016,7 +13016,7 @@ def start(
                 code: {
                     "progress": progress_page(token, language=code),
                     "tanakh": tanakh_map_page(token, language=code),
-                    "welcome": welcome_page(token, language=code, connector=connector_is_open()),
+                    "welcome": welcome_page(token, language=code),
                     "you": you_page(token, language=code),
                     "saved": saved_page(token, language=code),
                     "playlists": playlists_page(token, language=code),

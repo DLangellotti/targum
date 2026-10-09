@@ -1,94 +1,105 @@
-/* The arrival — the questions a new reader is asked, on a page of their own
- * (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08).
+/* The arrival — the three questions a new reader is asked, on `/welcome`.
  *
- * Moved whole from Learn's stylesheet when Learn was taken apart: the card, the screens,
- * the subjects and the rungs, and the connector's two steps on the last card. What Learn
- * did around it — hiding the sheet and the rail while it was up — has nothing left to
- * hide, so the page is one column with the card in it. */
+ * Drawn as the FirstRun boards draw it (David, 2026-10-09: the boards win; design.md
+ * §12, "The arrival is three plain questions"): straight on paper, a bare head with the
+ * lockup and the step in words, the question in the reading face, the answers as cards
+ * on the card colour with a hairline, the one pressed in the primary's ring and wash,
+ * and Continue the one filled press. The site's own head, the pill and the foot are not
+ * drawn: there is nowhere to go yet, and the pill covered Continue on a phone.
+ *
+ * Spacing is in pixels, the boards' own, so the page measures as they do at 1440 and at
+ * 390; type is on §5's scale in rem, which at 1440 is the boards' sizes to a pixel or two.
+ */
 
+body.welcome {
+  background: var(--paper);
+  font-family: var(--chrome);
+  color: var(--ink);
+}
+body.welcome .site-head,
+body.welcome .site-footer,
+body.welcome .talk-cta,
+body.welcome .talk-drawer { display: none; }
+
+/* words.css draws every desk `main` as a 62rem flex column; this one is a block the
+   width of the window, so the head's rule runs edge to edge and a column centres. */
 body.welcome main {
+  display: block;
   inline-size: 100%;
-  max-inline-size: 44rem;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem 5rem;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 48px;
   box-sizing: border-box;
 }
+
 .arrival-waiting {
-  margin: 2rem 0;
-  font-family: var(--chrome);
+  margin: 2rem auto;
+  max-inline-size: 640px;
   font-size: 0.9375rem;
   color: var(--ink-soft);
 }
-.arrival-waiting[hidden] { display: none; }
+.arrival-waiting[hidden],
 body.arriving .arrival-waiting { display: none; }
-@media (max-width: 40rem) {
-  body.welcome main { padding-inline: 0; }
-}
 
-.arrival {
-  margin: 0 0 1.25rem;
-  padding: 2rem 2.25rem 1.5rem;
-  background: var(--card);
-  border-radius: var(--radius-sheet);
-  box-shadow: var(--shadow-raised);
-}
-.arrival[hidden], .arrival-screen[hidden] { display: none; }
+/* --- the head ---------------------------------------------------------------- */
 
-/* A screen arrives, on the desk's one curve (§13): up a little and in. Re-run each time
-   a screen is shown, because `hidden` takes it out of the box tree and back. */
-@keyframes arrival-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
-}
-.arrival-screen { animation: arrival-in 240ms var(--ease) both; }
-
-/* Where they are, in words and in leaf: three short bars, the ones behind and the one
-   they are on filled, because how far along is progress (§4). The words stay, in the
-   resting colour, for anybody not looking at the bars. */
-.arrival-step {
+.arrival-head {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 1.25rem;
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
+  gap: 16px;
+  padding: 18px 96px;
+  border-block-end: 1px solid var(--rule);
+}
+.arrival-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.arrival-brand .brand-mark { inline-size: 1.05rem; block-size: 1.35rem; }
+.arrival-brand:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 8px; }
+.arrival-step {
+  margin: 0 0 0 auto;
+  font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
 }
-.arrival-bars {
-  display: flex;
-  gap: 0.3rem;
-}
-.arrival-bar {
-  inline-size: 1.75rem;
-  block-size: 4px;
-  border-radius: 999px;
-  background: var(--hairline);
-  transition: background-color 240ms var(--ease);
-}
-.arrival-bar.is-done { background: var(--leaf); }
-
-/* The step and, on its right, EN · RU where it is drawn (design.md §12, 2026-09-28,
-   "Russian is shown to somebody who may read it"): the front door's own switch, two
-   Latin codes, the current one in ink. */
-.arrival-top {
-  display: flex;
+.arrival-back-mark {
+  display: none;
+  inline-size: 44px;
+  block-size: 44px;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0 0 1.25rem;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
 }
-.arrival-top .arrival-step { margin: 0; }
-/* Hidden on the cards that are not questions — the welcome and the optional one — and
-   `display: flex` above would otherwise outrank the attribute (found 2026-09-28: the
-   optional card still said "2 of 2"). */
-.arrival-step[hidden] { display: none; }
+.arrival-back-mark svg {
+  inline-size: 20px;
+  block-size: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.arrival-back-mark:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* EN · RU, where it is drawn (design.md §12, 2026-09-28): two Latin codes, the current
+   one in ink, beside the step. */
 .arrival-switch {
   display: flex;
   align-items: center;
   gap: 0.15rem;
   margin: 0;
-  font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
@@ -109,384 +120,208 @@ body.arriving .arrival-waiting { display: none; }
 .arrival-switch-key:hover:not([aria-pressed="true"]) { background: var(--teal-wash); color: var(--teal); }
 .arrival-switch-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-/* The welcome's one field: what to call them, optional (2026-09-28). A well, as §13
-   draws fields, with its label above it and "Optional" said beside the label. */
-.arrival-name { display: grid; gap: 0.4rem; margin-block-start: 0.5rem; max-inline-size: 22rem; }
-.arrival-name[hidden] { display: none; }
-.arrival-name label {
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--ink);
+/* --- the column -------------------------------------------------------------- */
+
+.arrival {
+  max-inline-size: 640px;
+  margin: 0 auto;
+  padding: 56px 0 0;
 }
-.arrival-name input {
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 1.0625rem;
-  color: var(--ink);
-  min-block-size: 2.75rem;
-  padding: 0.5rem 0.9rem;
-  border: 0;
-  border-radius: var(--radius-row);
-  background: color-mix(in srgb, var(--ground) 70%, var(--card));
+body[data-step="learning"] .arrival { max-inline-size: 960px; }
+.arrival[hidden], .arrival-screen[hidden] { display: none; }
+
+/* A screen arrives, on the desk's one curve (§13): up a little and in. */
+@keyframes arrival-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
-.arrival-name input:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
-/* "Optional", said as a label: beside the name's question, and over the connector's
-   card, which must never read as a step a reader has to take (2026-09-28). */
-.arrival-optional {
-  font-family: var(--chrome);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.arrival-optional-lead {
-  display: inline-block;
-  margin: 0 0 0.6rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
+.arrival-screen { animation: arrival-in 240ms var(--ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  .arrival-screen { animation: none; }
 }
 
-/* The question is the page's heading, and there is nothing to share the page with. */
 .arrival-asks {
-  margin: 0 0 0.35rem;
-  font-family: var(--chrome);
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1.25;
+  margin: 0 0 28px;
+  font-family: var(--reading);
+  font-size: 2.25rem;
+  font-weight: 500;
+  line-height: 1.2;
   color: var(--ink);
-  text-wrap: balance;
 }
-.arrival-asks > span { display: block; }
+.arrival-asks:has(+ .arrival-hint) { margin-block-end: 8px; }
+/* The interface question, said in each language it offers: a line each. */
+#arrival-asks-language span { display: block; }
 .arrival-hint {
-  margin: 0 0 1.25rem;
-  font-family: var(--chrome);
+  margin: 0 0 26px;
   font-size: 0.9375rem;
   color: var(--ink-soft);
-  text-wrap: pretty;
 }
-/* The language screen has no hint; the question takes the room under it instead. */
-#arrival-language .arrival-asks { margin-block-end: 1.25rem; }
 
-.arrival-doors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-/* Each subject a chip in the ground's tone inside the card — a well's colour, the quiet
-   state of a thing that can be turned on. */
-.arrival-door {
+/* --- the answers ------------------------------------------------------------- */
+
+.arrival-opts { display: flex; flex-direction: column; gap: 10px; }
+.arrival-doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.arrival-langs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+
+.arrival-opt {
   font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  color: var(--ink);
-  min-block-size: 2.5rem;
-  padding: 0.45rem 1rem;
-  border: 0;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ground) 70%, var(--card));
-  cursor: pointer;
-  transition:
-    background-color 160ms var(--ease),
-    color 160ms var(--ease),
-    transform 160ms var(--ease);
-}
-.arrival-door:hover { background: var(--teal-wash); color: var(--teal); }
-.arrival-door:active { transform: scale(0.98); }
-.arrival-door:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-/* A picked subject is on, and on the desk on is the primary (§13; §12, 2026-09-28 —
-   it was quiet ink, after §4's rule for the reader). In the primary's tint, its text and
-   a ring of it — not filled: filled is Next's, one per view (§13), and a first cut that
-   filled the chips gave the page four primaries (`test_pages_browser` said so).
-
-   Not grouped with `.arrival-rung`: a clean-up that dropped every rule naming the rung
-   once took the door half with it (2026-09-17), and a rung is never left pressed — the
-   press is the answer and the screen goes — so it has no pressed state to share.
-   `test_brand` reads the pressable controls out of `learn.js` and insists this answers
-   for each. */
-.arrival-door[aria-pressed="true"],
-.arrival-door[aria-pressed="true"]:hover {
-  background: color-mix(in srgb, var(--teal) 14%, var(--card));
-  color: var(--teal);
-  box-shadow: inset 0 0 0 1.5px var(--teal);
-}
-
-/* The ladder, on its own screen. Full-width rows rather than pills: each one is a
-   sentence a person reads, not a word they scan, and eight pills wrapping is a hedge. */
-.arrival-levels {
-  display: grid;
-  gap: 0.5rem;
-}
-/* At a desk the ladder is two columns of four, read down and then across — the order
-   the keyboard walks it in. */
-@media (min-width: 48rem) {
-  .arrival-levels {
-    grid-template-rows: repeat(4, auto);
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    column-gap: 0.6rem;
-  }
-}
-/* Two rows, not eight, and read down: a choice between two. */
-.arrival-tongues { max-inline-size: 26rem; }
-@media (min-width: 48rem) {
-  .arrival-tongues { grid-template-rows: none; grid-auto-flow: row; }
-}
-.arrival-rung {
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  color: var(--ink);
-  display: flex;
-  /* Centred, not `baseline`: a row is taller than its one line of words. */
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  text-align: start;
-  min-block-size: 3.25rem;
-  padding: 0.5rem 0.6rem 0.5rem 1rem;
-  border: 0;
-  border-radius: var(--radius-row);
-  background: color-mix(in srgb, var(--ground) 70%, var(--card));
-  cursor: pointer;
-  transition:
-    background-color 160ms var(--ease),
-    color 160ms var(--ease),
-    transform 160ms var(--ease);
-}
-.arrival-rung:hover { background: var(--teal-wash); color: var(--teal); }
-.arrival-rung:active { transform: scale(0.98); }
-.arrival-rung:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-/* The kitah beside the words: the whole label to somebody who did an ulpan, and noise
-   to everybody else, so it is the smaller half and never the only half — set in the
-   Hebrew face on a disc of card, where it reads as a letter rather than a symbol. */
-.arrival-rung-letter {
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  min-inline-size: 2.25rem;
-  block-size: 2.25rem;
-  padding-inline: 0.35rem;
-  border-radius: 999px;
-  background: var(--card);
-  font-family: var(--reading-hebrew);
   font-size: 1.0625rem;
-  line-height: 1;
-  color: var(--ink-soft);
+  text-align: start;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: 20px 22px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease), background-color 160ms var(--ease);
 }
-.arrival-rung:hover .arrival-rung-letter { color: var(--teal); }
+.arrival-opt:hover { border-color: var(--well); }
+.arrival-opt.is-on,
+.arrival-door[aria-pressed="true"],
+.arrival-rung[aria-pressed="true"],
+.arrival-rung[aria-checked="true"],
+.arrival-lang[aria-pressed="true"],
+.arrival-lang[aria-checked="true"] { border-color: var(--teal); background: var(--teal-wash); }
+.arrival-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-/* The foot: the ways out on the start side, where they are and Next on the end, under a
-   hairline — the card's own edge between the question and what to do about it. */
+/* A language: its greeting large, its name and badge under it. */
+.arrival-lang {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-block-size: 168px;
+}
+.arrival-greeting {
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  line-height: 1.3;
+}
+.arrival-greeting.is-rtl { font-family: var(--reading-hebrew); }
+.arrival-lang-name { display: inline-flex; align-items: center; gap: 10px; }
+.arrival-lang-word { font-size: 1.0625rem; font-weight: 600; }
+
+.arrival-unsure {
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  min-block-size: 44px;
+  padding: 16px 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  cursor: pointer;
+}
+.arrival-unsure:hover { text-decoration: underline; }
+.arrival-unsure:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+
+/* --- the foot ---------------------------------------------------------------- */
+
 .arrival-foot {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 1.5rem 0 0;
-  padding-block-start: 1rem;
-  border-block-start: 1px solid var(--hairline);
+  gap: 16px;
+  margin: 32px 0 0;
 }
-.arrival-count { order: 3; margin-inline-start: auto; }
-.arrival-done { order: 4; }
-/* Next is the one filled press on the page while the arrival is up, and on the desk a
-   filled press is the primary's (§13). */
+body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
+.arrival-foot-note { font-size: 0.8125rem; color: var(--ink-soft); }
+.arrival-foot-note[hidden] { display: none; }
+#arrival-later { display: none; }
+.arrival-back {
+  font: inherit;
+  font-size: 0.875rem;
+  min-block-size: 44px;
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.arrival-back[hidden] { display: none; }
+.arrival-back:hover { color: var(--ink); }
+.arrival-back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
 .arrival-done {
   font: inherit;
-  font-family: var(--chrome);
   font-size: 0.9375rem;
   font-weight: 600;
-  min-block-size: 2.75rem;
-  padding: 0.5rem 1.6rem;
+  margin-inline-start: auto;
+  min-block-size: 48px;
+  padding: 12px 32px;
   border: 0;
   border-radius: 999px;
   background: var(--teal);
   color: var(--teal-ink);
   cursor: pointer;
-  transition:
-    background-color 160ms var(--ease),
-    color 160ms var(--ease),
-    transform 160ms var(--ease);
 }
-.arrival-done:active:not(:disabled) { transform: scale(0.98); }
 .arrival-done[hidden] { display: none; }
-/* Asleep rather than hidden: the press is the shape of the answer, and a button that
-   appears once enough is picked is a page that moves under the hand. Tint, the ordinary
-   press, with the resting colour — plainly a button, plainly not yet. */
-.arrival-done:disabled {
-  background: var(--teal-wash);
-  color: var(--ink-soft);
-  cursor: default;
-}
-/* Skip and Back are ghosts (§13): declining is not an action of equal weight to
-   answering, and it must still be unmissable that a reader may. */
-.arrival-skip {
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  min-block-size: 2.75rem;
-  padding: 0.5rem 0.9rem;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.arrival-skip:hover { color: var(--ink); background: var(--teal-wash); }
-.arrival-back[hidden] { display: none; }
-.arrival-skip:focus-visible,
-.arrival-done:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-.arrival-count {
-  font-family: var(--chrome);
-  font-size: 0.875rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-soft);
-}
+.arrival-done:disabled { opacity: 0.4; cursor: default; }
+.arrival-done:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-@media (prefers-reduced-motion: reduce) {
-  .arrival-screen { animation: none; }
-  .arrival-bar,
-  .arrival-door,
-  .arrival-rung,
-  .arrival-done { transition: none; }
-  .arrival-door:active,
-  .arrival-rung:active,
-  .arrival-done:active:not(:disabled) { transform: none; }
-}
+/* --- a phone ----------------------------------------------------------------- */
 
-/* On a phone the arrival is the screen (design.md §12, 2026-09-19). There is no card:
-   the page is the card, the greeting and the question on it and Next and Skip at the
-   foot of the window — the one place a fixed control is right, because there is no page
-   under it yet. The pill that opens the conversation keeps its corner (§13: it is on
-   every page, and a first draft that put it away failed two tests that were right): the
-   foot stops short of it, and stands under it.
-
-   The subjects wrap as pills. Nineteen full-width rows were more than two screens, with
-   the only filled button on the page below all of them. */
+/* The FirstRunPhone board: no lockup, a chevron back and the step in the middle, the
+   question at 27px, the answers in one column of rows, and Continue across the foot of
+   the screen, which is the one place a fixed control is right because there is no page
+   under it yet (design.md §12, 2026-09-19). */
 @media (max-width: 40rem) {
-  body.arriving .arrival {
-    margin: 0;
-    padding: 0 1rem 7rem;
-    background: none;
-    border-radius: 0;
-    box-shadow: none;
+  .arrival-head {
+    min-block-size: 44px;
+    padding: 12px 8px 0 4px;
+    border: 0;
   }
-  body.arriving .arrival-asks { font-size: 1.25rem; }
-  body.arriving .arrival-door { min-block-size: 2.75rem; background: var(--card); }
-  /* And on stays on: the line above outranks the pressed rule by its `body.arriving`,
-     and a picked subject was card on card text — a blank pill (found 2026-09-28). */
-  body.arriving .arrival-door[aria-pressed="true"] {
-    background: color-mix(in srgb, var(--teal) 14%, var(--card));
-    color: var(--teal);
-  }
-  body.arriving .arrival-rung { background: var(--card); box-shadow: var(--shadow-rest); }
-  body.arriving .arrival-rung-letter { background: color-mix(in srgb, var(--ground) 70%, var(--card)); }
-  body.arriving .arrival-foot {
-    position: fixed;
+  .arrival-brand { display: none; }
+  .arrival-back-mark { display: inline-flex; }
+  .arrival-back-mark[hidden] { display: inline-flex; visibility: hidden; }
+  .arrival-step {
+    position: absolute;
     inset-inline: 0;
-    inset-block-end: calc(4rem + env(safe-area-inset-bottom));
-    z-index: 20;
+    inset-block-start: 12px;
     margin: 0;
-    /* The pill is 3.25rem wide, 1rem from the edge, and stacked over this (z 30). */
-    padding-block: 0.6rem;
-    padding-inline: 1rem 5rem;
-    min-block-size: 4.25rem;
-    background: var(--ground);
-    border-block-start: 1px solid var(--hairline);
-    /* Back, Next, Skip and the count are four things since the language came first
-       (2026-09-20), and on a 320px phone four in a row ran under the pill. The count is
-       a line of its own above the three presses, and takes no room while it is empty. */
-    flex-wrap: wrap;
-    row-gap: 0.1rem;
+    line-height: 44px;
+    text-align: center;
+    pointer-events: none;
   }
-  body.arriving .arrival-count { order: -1; flex: 1 0 100%; margin-inline-start: 0; }
-  body.arriving .arrival-count:empty { display: none; }
-  body.arriving .arrival-done { order: 0; }
-}
+  .arrival-switch { margin-inline-start: auto; }
+  /* The first screen has no way back, and the board closes the row up to the step. */
+  .arrival-head:has(.arrival-back-mark[hidden]) { min-block-size: 20px; }
+  .arrival-head:has(.arrival-back-mark[hidden]) .arrival-back-mark { display: none; }
+  .arrival-head:has(.arrival-back-mark[hidden]) .arrival-step { line-height: 20px; }
 
-/* The two steps, on the banner and on the arrival's last card alike: numbered, the first
-   with the address in a well and Copy beside it, so the first step of installing is one
-   press wherever the connector is met. */
-.connect-steps {
-  display: grid;
-  gap: 0.6rem;
-  margin: 0.25rem 0 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: connect-step;
+  .arrival { padding: 6px 16px 104px; }
+  body[data-step="learning"] .arrival { max-inline-size: none; }
+  .arrival-asks { font-size: 1.75rem; margin-block-end: 14px; }
+  .arrival-asks:has(+ .arrival-hint) { margin-block-end: 6px; }
+  .arrival-hint { margin-block-end: 16px; }
+
+  .arrival-opts, .arrival-doors, .arrival-langs { display: flex; flex-direction: column; gap: 8px; }
+  .arrival-opt {
+    font-size: 1em;
+    min-block-size: 56px;
+    padding: 10px 14px;
+    border-radius: var(--radius-row);
+  }
+  .arrival-lang {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    min-block-size: 56px;
+  }
+  /* Physical, not logical: a Hebrew greeting is right-to-left itself, and its own
+     inline start is the right-hand side. */
+  .arrival-lang .arrival-greeting { order: 2; margin-left: auto; font-size: 1.25rem; }
+  .arrival-lang-name { gap: 8px; }
+  #arrival-later { display: block; margin: 12px 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+  .arrival-foot-note, .arrival-back { display: none; }
+  .arrival-unsure { font-size: 1em; padding: 14px 0; margin-block-start: 6px; }
+
+  .arrival-foot {
+    position: fixed;
+    inset-inline: 16px;
+    inset-block-end: 24px;
+    margin: 0;
+  }
+  .arrival-done { inline-size: 100%; padding: 12px 22px; font-size: 1em; }
 }
-.connect-step {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem 0.6rem;
-  counter-increment: connect-step;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  color: var(--ink);
-}
-.connect-step::before {
-  content: counter(connect-step);
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.connect-address {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  max-inline-size: 100%;
-  padding-block: 0.25rem;
-  padding-inline: 0.75rem 0.25rem;
-  border-radius: var(--radius-row);
-  background: color-mix(in srgb, var(--ground) 70%, var(--card));
-}
-.connect-url {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.875rem;
-  color: var(--ink);
-}
-.connect-copy {
-  flex: none;
-  min-block-size: 2rem;
-  padding: 0 0.8rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.connect-copy:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
-.connect-copy:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.arrival-connect-more {
-  margin: 1rem 0 0;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-}
-.arrival-connect-more a { color: var(--teal); font-weight: 600; }

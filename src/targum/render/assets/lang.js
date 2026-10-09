@@ -542,6 +542,8 @@
     HOME: HOME,
     beta: beta,
     status: status,
+    // The badge itself, for the arrival's first question, which wears the same ones.
+    badge: badge,
     offered: offered,
     set: set,
     remember: remember,

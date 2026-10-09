@@ -1804,11 +1804,9 @@ class Store:
         "language",
     )
 
-    #: How many a reader is asked for. One is a label and two is a preference; three is
-    #: the first number that describes somebody, and it is cheap to give. The page
-    #: holds the reader to it — this is not enforced here, because clearing the answer
-    #: is a legitimate thing to do and a floor would make it impossible.
-    INTERESTS_WANTED = 3
+    #: The arrival offers eight of these and asks for none in particular (design.md §12,
+    #: "The arrival is three plain questions", 2026-10-09); the rest stay so an answer
+    #: given when all twenty were offered still reads.
 
     def interest(self, person_id: int | None) -> tuple[str, ...]:
         """The subjects they named, or empty where they have not answered."""

@@ -1,9 +1,9 @@
 """The arrival's script, run rather than read.
 
-The questions a new reader is asked, one a screen, on `/welcome` since Learn was taken
-apart (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08). These
-were Learn's tests; what they asked of the sheet under the arrival — which text it chose —
-is asked of the choice itself now (`first`), and of where the last answer goes.
+The three questions a new reader is asked on `/welcome` — which language, what they like,
+how much they read — one a screen, as the FirstRun boards draw them (design.md §12, "The
+arrival is three plain questions", 2026-10-09). What the answers choose is asked of the
+choice itself (`first`), and of where the last answer goes.
 
 Same harness as `test_library_js.py`: a stub document in `tests/js/`, not a browser.
 """
@@ -108,11 +108,21 @@ def seeded() -> list[dict[str, Any]]:
     return [
         reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern"),
         reader("ruth", "רות", "ruth", register="biblical", tags=["tanakh"]),
-        reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"]),
+        reader(
+            "holon",
+            "הפועל",
+            "holon",
+            kind="article",
+            register="modern",
+            tags=["sport", "journalism"],
+        ),
     ]
 
 
-THREE = [{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}]
+#: Past the first question with Hebrew, as it stands pressed.
+HEBREW = [{"press": "arrival-done"}]
+#: And past the second with one subject the seeded shelf can answer.
+LIKES_NEWS = [*HEBREW, {"subject": "News"}, {"press": "arrival-done"}]
 
 
 def test_the_page_does_not_quietly_give_up_drawing() -> None:
@@ -124,111 +134,197 @@ def test_the_page_does_not_quietly_give_up_drawing() -> None:
         assert answered["arrival"] == [] and answered["home"].startswith("/"), stamps
 
 
-def test_a_new_reader_is_asked_what_they_are_interested_in() -> None:
-    """In subjects, in the words somebody uses about themselves — not in the register,
-    collection and file format the library happens to be built from."""
-    drawn = draw([], shared=seeded())
-    assert drawn["arrival"][:4] == [
-        "Everyday conversation",
-        "Life in Israel: money, health, school, home",
-        "Torah and Judaism",
-        "News",
+def test_the_first_question_is_which_language_with_its_badge() -> None:
+    """Six languages, each in its own greeting and wearing how far along it is (David,
+    2026-10-08 and 2026-10-09), Hebrew pressed to start with so Continue is never asleep."""
+    page = draw([], shared=seeded())
+    assert page["learningUp"] and not page["subjectsUp"] and not page["levelUp"]
+    assert page["step"] == "1 of 3"
+    assert page["langs"] == [
+        "שָׁלוֹםHebrewBeta",
+        "ЗдравствуйтеRussianAlpha",
+        "BonjourFrenchAlpha",
+        "CiaoItalianAlpha",
+        "בְּקַדְמִיןAramaicExperimental",
+        "אַ גוטן טאָגYiddishExperimental",
     ]
-    assert "Archaeology" in drawn["arrival"]
-    assert not drawn["home"], "and the page stays for the answer"
+    assert page["chosen"] == "he" and page["done"] is True
+    assert page["footNote"] == "You can add a second language later."
+    assert not page["backShown"], "nothing to go back to"
+    assert not page["home"], "and the page stays for the answer"
 
 
-def test_every_subject_is_offered_including_the_ones_with_nothing_behind_them() -> None:
-    """The rule the one-door version held to — a door with nothing seeded behind it is
-    left out — belonged to an answer that routed straight to a text. Three answers are a
-    profile, and a profile may name something the library has not got yet. That it was
-    named is the most useful thing anybody can say about what to build next."""
-    thin = draw(
-        [], shared=[reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern")]
+def test_the_second_question_is_a_few_subjects_and_none_is_an_answer() -> None:
+    """A few, not twenty (2026-10-09). Continue is live with nothing pressed: liking
+    nothing in particular is an answer, and three was a quota."""
+    page = draw([], shared=seeded(), do=HEBREW)
+    assert page["subjectsUp"] and page["step"] == "2 of 3"
+    assert page["arrival"] == [
+        "Everyday conversation",
+        "News",
+        "Stories and novels",
+        "History",
+        "Torah and Judaism",
+        "Science and nature",
+        "Travel and places",
+        "Food and cooking",
+    ]
+    assert page["done"] is True and page["backShown"]
+
+
+def test_the_third_question_is_plain_words_with_no_letter() -> None:
+    """No rung letters, no codes (the review's "level codes leak", 2026-10-09): what a
+    person reads, in four sentences, and Continue waits for one."""
+    page = draw([], shared=seeded(), do=[*HEBREW, {"press": "arrival-done"}])
+    assert page["levelUp"] and page["step"] == "3 of 3"
+    assert page["levelAsks"] == "How much Hebrew can you read?"
+    assert page["levels"] == [
+        "I’m learning the letters",
+        "I can read short, simple sentences",
+        "I read the news with a dictionary nearby",
+        "I read most things without help",
+    ]
+    assert not any(any("\u05d0" <= c <= "\u05ea" for c in row) for row in page["levels"])
+    assert page["done"] is False, "nothing said yet"
+    picked = draw(
+        [], shared=seeded(), do=[*HEBREW, {"press": "arrival-done"}, {"rung": "I can read short"}]
     )
-    assert "Archaeology" in thin["arrival"], "asked for whether or not it can be answered"
-    assert "Poetry" in thin["arrival"]
-    assert len(thin["arrival"]) == 20  # "Life in Israel" made it twenty (#393)
+    assert picked["done"] is True and picked["levelUp"], "a press marks it; Continue goes on"
 
 
-def test_the_arrival_is_one_question_a_screen() -> None:
-    """targum-internal#334: "one question page", "always clear what next step is".
-
-    The subjects are the first screen and the only thing on it; the ladder is not drawn
-    beside them. Each screen says where it is, in words.
-    """
-    first = draw([], shared=seeded())
-    assert first["subjectsUp"] and first["levels"] == []
-    assert first["step"] == "1 of 2"
-    assert first["arriving"], "the page knows the arrival is up, so a phone can make it the screen"
-
-    second = draw([], shared=seeded(), do=[*THREE, {"press": "arrival-done"}])
-    assert not second["subjectsUp"], "the subjects have gone"
-    assert second["step"] == "2 of 2"
-    assert len(second["levels"]) == 8
-    assert second["levels"][0].startswith("Just starting")
-    # What a person can follow, not what they can read: many come to listen and watch.
-    assert any(row.startswith("I follow the news") for row in second["levels"])
-    assert not any("read" in row.lower() for row in second["levels"])
-    # Pressing a row is the answer, so the second screen has no Next to press.
-    assert not second["nextShown"]
+def test_the_level_is_asked_in_the_language_chosen() -> None:
+    page = draw(
+        [],
+        shared=seeded(),
+        do=[{"learn": "Russian"}, {"press": "arrival-done"}, {"press": "arrival-done"}],
+    )
+    assert page["levelAsks"] == "How much Russian can you read?"
+    assert page["levels"][1] == "I can read a short story (Chekhov)"
+    french = draw(
+        [],
+        shared=seeded(),
+        do=[{"learn": "French"}, {"press": "arrival-done"}, {"press": "arrival-done"}],
+    )
+    assert french["levels"] == ["I’m just starting", "I can read a short story"]
 
 
-def test_three_subjects_wake_next() -> None:
-    """One subject is a label and two is a preference; three is the first number that
-    describes somebody."""
-    two = draw([], shared=seeded(), do=[{"subject": "Sport"}, {"subject": "History"}])
-    assert two["done"] is False, "two is not enough"
-    assert two["counted"] == "Pick 1 more"
+def test_a_language_is_turned_on_without_dropping_hebrew() -> None:
+    """`/account/language` with `add`, the menu's own way (§12, 2026-10-07): an account
+    with no rows learns Hebrew by default, and the wholesale form would drop it."""
+    me = {"signedIn": True, "learning": ["he"]}
+    page = draw([], shared=seeded(), me=me, do=[{"learn": "Russian"}, {"press": "arrival-done"}])
+    said = [c["body"] for c in page["sent"] if c["path"].split("?")[0] == "/account/language"]
+    assert said == [{"language": "ru", "add": True}]
+    assert not [c for c in page["sent"] if c["path"].split("?")[0] == "/account/languages"]
+    assert page["languageSet"] == "ru"
 
-    three = draw([], shared=seeded(), do=THREE)
-    assert three["done"] is True, "three subjects and Next is live"
-    assert three["counted"] == ""
-
-
-def test_either_question_may_be_skipped() -> None:
-    """A question a reader may not decline is a gate, and the arrival is not one. Skip is
-    live from the first moment — the only filled button on a new reader's first screen
-    used to be a disabled one, with no way past it but to answer."""
-    past = draw([], shared=seeded(), do=[{"press": "arrival-skip"}])
-    assert past["step"] == "2 of 2", "skipping the subjects goes on to the ladder"
-    assert "targum:arrived" not in (past.get("kept") or {}), "and keeps nothing it was not told"
-
-    out = draw([], shared=seeded(), do=[{"press": "arrival-skip"}, {"press": "arrival-skip"}])
-    assert out["arrival"] == [] and not out["arriving"]
-    assert not any("/account/level" in str(where) for where in out["posted"])
-    assert "/reader/" in out["went"], "and still opens a text: the track's own start"
+    out = draw([], shared=seeded(), do=[{"learn": "Russian"}, {"press": "arrival-done"}])
+    assert not [c for c in out["sent"] if "/account/language" in c["path"]], "nobody to tell"
+    assert json.loads(out["kept"]["targum:learning"]) == ["he", "ru"]
 
 
 def test_the_last_answer_opens_the_text_it_chose() -> None:
-    """Not Learn with a card to find. The next step after the last question is the
-    reader, open (design.md §12, 2026-09-19)."""
+    """The next step after the last question is the reader, open (design.md §12)."""
     after = draw(
+        [],
+        shared=seeded(),
+        do=[*LIKES_NEWS, {"rung": "I can read short"}, {"press": "arrival-done"}],
+    )
+    assert "/reader/holon" in after["went"], after["went"]
+    assert after["kept"].get("targum:welcomed") == "1", "answered, and not asked again"
+
+
+def test_the_hebrew_answer_is_kept_as_the_rung_it_stands_for() -> None:
+    """The fifth state of #306 still holds: Hebrew's level is kept, as a seed, on the
+    ladder `accounts.Store.DECLARED` knows. Four sentences stand for four of its rungs."""
+    after = draw(
+        [],
+        shared=seeded(),
+        do=[*LIKES_NEWS, {"rung": "I read the news"}, {"press": "arrival-done"}],
+    )
+    assert after["kept"].get("targum:declared") == "gimel"
+    sent = [call for call in after["sent"] if "/account/level" in call["path"]]
+    assert sent and sent[0]["body"] == {"level": "gimel"}
+    liked = [c["body"] for c in after["sent"] if "/account/interest" in c["path"]]
+    assert liked == [{"interest": ["news"]}]
+
+
+def test_not_sure_keeps_no_level_and_shows_a_page() -> None:
+    """ "I'm not sure, show me a page" is an answer: no rung is kept, an earlier one is
+    taken back, and the track's own start opens."""
+    out = draw([], shared=seeded(), do=[*HEBREW, {"press": "arrival-done"}, {"unsure": True}])
+    sent = [call["body"] for call in out["sent"] if "/account/level" in call["path"]]
+    assert sent == [{"level": ""}]
+    assert "/reader/scene-1" in out["went"], out["went"]
+
+
+def russian_shelf() -> list[dict[str, Any]]:
+    return [
+        reader("mumu", "Муму", "", language="ru", kind="story", difficulty=30),
+        reader("kashtanka", "Каштанка", "", language="ru", kind="story", difficulty=10),
+        reader("sergius", "Отец Сергий", "", language="ru", kind="novel", difficulty=60),
+        *seeded(),
+    ]
+
+
+def test_another_language_opens_a_text_in_it_placed_by_what_they_read() -> None:
+    """Nothing reads a level for Russian yet, so the answer is kept nowhere and places
+    the first text along that shelf by difficulty."""
+    pick = [{"learn": "Russian"}, {"press": "arrival-done"}, {"press": "arrival-done"}]
+    novel = draw(
+        [],
+        shared=russian_shelf(),
+        do=[*pick, {"rung": "I can read a novel"}, {"press": "arrival-done"}],
+    )
+    assert "/reader/sergius" in novel["went"], novel["went"]
+    assert not [c for c in novel["sent"] if "/account/level" in c["path"]], "kept nowhere"
+    assert "targum:declared" not in novel["kept"]
+    unsure = draw([], shared=russian_shelf(), do=[*pick, {"unsure": True}])
+    assert "/reader/kashtanka" in unsure["went"], "the easiest page there is"
+
+
+def test_a_language_with_nothing_on_the_shelf_goes_home_in_it() -> None:
+    """Yiddish has no library yet: home in Yiddish, which is upload-first."""
+    out = draw(
         [],
         shared=seeded(),
         do=[
-            {"subject": "Sport"},
-            {"subject": "History"},
-            {"subject": "Archaeology"},
+            {"learn": "Yiddish"},
             {"press": "arrival-done"},
-            {"rung": "I can hold a simple conversation"},
+            {"press": "arrival-done"},
+            {"unsure": True},
         ],
     )
-    assert "/reader/holon" in after["went"], after["went"]
+    assert out["home"] == "/?learning=yi&k=k", out["home"]
+    assert not out["went"]
 
 
-def test_the_rung_is_kept_on_the_account_and_in_the_browser() -> None:
-    """The fifth state of #306. It was asked and thrown away (2026-09-17) and then not
-    asked (2026-09-18); since 2026-09-19 it is asked and **kept**, as a seed."""
-    after = draw(
+def test_back_keeps_what_was_pressed() -> None:
+    page = draw(
         [],
         shared=seeded(),
-        do=[*THREE, {"press": "arrival-done"}, {"rung": "I follow the news"}],
+        do=[
+            {"learn": "Italian"},
+            {"press": "arrival-done"},
+            {"subject": "History"},
+            {"back": True},
+        ],
     )
-    assert (after.get("kept") or {}).get("targum:declared") == "gimel"
-    sent = [call for call in after["sent"] if "/account/level" in call["path"]]
-    assert sent and sent[0]["body"] == {"level": "gimel"}
-    assert any("/account/interest" in str(where) for where in after["posted"])
+    assert page["learningUp"] and page["chosen"] == "it"
+    again = draw(
+        [],
+        shared=seeded(),
+        do=[*HEBREW, {"subject": "History"}, {"press": "arrival-done"}, {"back": True}],
+    )
+    assert again["subjectsUp"] and again["picked"] == ["History"]
+
+
+def test_nothing_but_the_three_questions_is_on_the_way() -> None:
+    """No welcome card, no name, no connector card: the boards draw none (2026-10-09)."""
+    root = Path(__file__).resolve().parent.parent / "src" / "targum" / "render"
+    page = (root / "templates" / "welcome.html.j2").read_text(encoding="utf-8")
+    for gone in ("arrival-welcome", "arrival-name", "arrival-connect", "arrival-skip"):
+        assert gone not in page, gone
 
 
 def hard_and_easy() -> list[dict[str, Any]]:
@@ -384,7 +480,7 @@ def test_a_subject_pressed_twice_is_put_back() -> None:
     off = draw(
         [],
         shared=seeded(),
-        do=[{"subject": "Sport"}, {"subject": "History"}, {"subject": "Sport"}],
+        do=[*HEBREW, {"subject": "News"}, {"subject": "History"}, {"subject": "News"}],
     )
     assert off["picked"] == ["History"]
 
@@ -406,7 +502,7 @@ def test_a_subject_nothing_is_filed_under_falls_back_to_the_track() -> None:
     """Three subjects the shelf cannot answer is not a reason to draw no sheet."""
     none = draw([], {"targum:arrived": "archaeology,art,music"}, shared=seeded())
     assert none["first"] == "", "no subject answers, and no rung was said"
-    skipped = draw([], shared=seeded(), do=[{"press": "arrival-skip"}, {"press": "arrival-skip"}])
+    skipped = draw([], shared=seeded(), do=[*HEBREW, {"press": "arrival-done"}, {"unsure": True}])
     assert "/reader/" in skipped["went"], "the track's own start opens instead"
 
 
@@ -479,112 +575,17 @@ def test_the_arrival_opens_a_book_at_its_first_chapter_not_its_contents() -> Non
         [],
         shared=[book],
         do=[
+            *HEBREW,
             {"subject": "Torah and Judaism"},
-            {"subject": "History"},
-            {"subject": "Art"},
             {"press": "arrival-done"},
-            {"rung": "Just starting"},
+            {"rung": "I’m learning the letters"},
+            {"press": "arrival-done"},
         ],
     )["went"]
     assert "/reader/ruth/reader/sec-0002.html" in went, went
 
     single = reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])
-    went = draw(
-        [],
-        shared=[single],
-        do=[
-            {"subject": "Sport"},
-            {"subject": "History"},
-            {"subject": "Art"},
-            {"press": "arrival-done"},
-            {"press": "arrival-skip"},
-        ],
-    )["went"]
+    went = draw([], shared=[single], do=[*HEBREW, {"press": "arrival-done"}, {"unsure": True}])[
+        "went"
+    ]
     assert "/reader/holon/reader/index.html" in went, went
-
-
-# --- the connector's banner, above the row (design.md §12, 2026-09-24) ----------------
-
-
-UNCONNECTED = {"signedIn": True, "connections": []}
-
-
-ANSWERED = [
-    {"subject": "Sport"},
-    {"subject": "History"},
-    {"subject": "Art"},
-    {"press": "arrival-done"},
-    {"rung": "Just starting"},
-]
-
-
-def test_the_arrival_ends_on_the_connector_and_continue_is_still_one_press() -> None:
-    """After the rung, a last card for a signed-in reader with no connection, said to be
-    optional (2026-09-28: "this makes it seem like installing the MCP is mandatory"):
-    the address to copy, and Continue as its only press, so the text the answers chose is
-    one press away. No Skip beside it: it did the same thing, and read like a step to get
-    past."""
-    shelf = [reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])]
-    up = draw([], shared=shelf, me=UNCONNECTED, do=ANSWERED)
-    assert up["connectUp"], "the rung leads to the card, not straight into the text"
-    assert up["step"] == "", "optional, so not counted as a step to get through"
-    assert up["connectAddress"].endswith("/mcp"), "this site's own address, as /connect shows"
-    assert up["doneSays"] == "Continue" and up["nextShown"] and up["done"]
-    assert not up["skipShown"], "one way on, not two that do the same"
-    assert not up["went"], "nothing is opened until the press"
-
-    opened = draw([], shared=shelf, me=UNCONNECTED, do=[*ANSWERED, {"press": "arrival-done"}])
-    assert "/reader/holon/" in opened["went"], opened["went"]
-
-
-@pytest.mark.parametrize(
-    ("me", "connector"),
-    [
-        ({"signedIn": True, "connections": [{"client": "c"}]}, True),
-        (UNCONNECTED, False),
-        (None, True),
-    ],
-    ids=["connected", "dark", "signed-out"],
-)
-def test_the_connector_card_is_only_for_somebody_who_can_take_it_up(
-    me: dict[str, Any] | None, connector: bool
-) -> None:
-    """The banner's rule: open, signed in, and no connection yet. Anybody else goes from
-    the rung straight into the text, as before."""
-    shelf = [reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])]
-    done = draw([], shared=shelf, me=me, connector=connector, do=ANSWERED)
-    assert not done["connectUp"]
-    assert "/reader/holon/" in done["went"], done["went"]
-
-
-def test_a_new_reader_is_welcomed_before_anything_is_asked() -> None:
-    """ "Very weird to come and see this as first screen. No welcome, no telling you where
-    you are, no asking your name, just a question" (David, 2026-09-28). The welcome says
-    where they are and asks what to call them; it is not a question, so the bars do not
-    count it and there is nothing to skip."""
-    page = draw([], shared=seeded(), me=UNCONNECTED, welcome=True)
-    assert page["welcomeUp"] and not page["subjectsUp"]
-    assert page["nameAsked"], "an account can keep a name"
-    assert page["doneSays"] == "Continue" and page["done"] and not page["skipShown"]
-    on = draw([], shared=seeded(), me=UNCONNECTED, welcome=True, do=[{"press": "arrival-done"}])
-    assert on["subjectsUp"] and on["step"] == "1 of 2", "the questions, and only they, counted"
-
-
-def test_a_name_given_is_kept() -> None:
-    page = draw(
-        [],
-        shared=seeded(),
-        me=UNCONNECTED,
-        welcome=True,
-        do=[{"name": "  David "}, {"press": "arrival-done"}],
-    )
-    named = [c["body"] for c in page["sent"] if c["path"].split("?")[0] == "/account/name"]
-    assert named == [{"name": "David"}]
-    quiet = draw([], shared=seeded(), me=UNCONNECTED, welcome=True, do=[{"press": "arrival-done"}])
-    assert not [c for c in quiet["sent"] if c["path"].split("?")[0] == "/account/name"]
-
-
-def test_somebody_signed_out_is_welcomed_and_not_asked_a_name() -> None:
-    """Nothing could keep it, so nothing is asked."""
-    page = draw([], shared=seeded(), welcome=True)
-    assert page["welcomeUp"] and not page["nameAsked"]

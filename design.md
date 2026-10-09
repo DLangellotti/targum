@@ -380,6 +380,67 @@ title and the refusal that sends a reader there.
   ⌘K) and Your playlists (the Playlists tab of Your targums). Each was a second copy of
   the navigation in a corner.
 
+### The arrival is three plain questions — 2026-10-09
+
+David, 2026-10-09: the mockups win (calmer surfaces, boards FirstRunDesk, FirstRunPhone,
+LangMenuDesk, LangMenuPhone and the Onboard boards for each language; the design review's
+§3.10). `/welcome` asked for a name, then twenty subjects ("pick three or more"), then
+eight rungs with their kitah letters, and never which language. It is **three questions,
+a screen each**, and nothing else:
+
+1. **Which language are you learning?** The six, each in its own greeting and wearing
+   the badge "A language wears how far along it is" (above) promised the first-run choice
+   would wear. The language the browser is already in is pressed to start with, so
+   Continue is never asleep. It is kept as the menu keeps it — in this browser, and on
+   the account through `/account/language` with `add`, which writes the whole learning
+   set down the first time anything is added, so an account with no rows (Hebrew by
+   default) keeps its Hebrew. Never the profile's wholesale form.
+2. **What do you like to read about?** Eight subjects from the same vocabulary, as many
+   or as few as a reader likes. Continue is live with none pressed: "nothing in
+   particular" is an answer. **This retires "Three at least"** (2026-09-17, in "The
+   arrival is two questions" below); three was a quota, and a quota on a list of eight
+   is most of it. `accounts.Store.INTERESTS` still holds all twenty, so an answer given
+   before reads as it did.
+3. **How much <language> can you read?** In plain sentences, in that language's own
+   texts, as the Onboard boards word them ("I can read a short story (Chekhov)"), and
+   "I'm not sure, show me a page". **No letter and no code** — the kitah letter beside
+   each rung is gone, which amends "The arrival is two questions" in that one respect.
+   Hebrew's four sentences stand for four of the ladder's rungs (aleph, bet, gimel,
+   dalet), kept on the account as `declared` exactly as before: still a seed, still
+   outvoted by the first measurement, still never shown back. "Not sure" keeps none and
+   takes an earlier one back. Your account still offers all eight in its own words, for
+   a reader who wants the finer step. **Every other language's answer is kept nowhere**:
+   nothing reads a level for Russian, French, Italian, Aramaic or Yiddish yet, so the
+   answer places the first text along that shelf by difficulty and is gone. When one of
+   them has a Library band to seed, it gets a column then.
+
+Then the text the answers chose opens, in the language chosen; where that shelf has
+nothing to open (Yiddish), home opens in that language (`/?learning=`), which is
+upload-first and offers one to start with.
+
+What goes with the old flow, each because the boards draw none of it:
+
+- **The welcome card and "What should we call you?"** ("The arrival opens with a welcome",
+  2026-09-28). The name is still the account's, asked on Your account. With the welcome
+  goes the arrival's line on what targum is; the front door says it, and everybody who
+  reaches `/welcome` came through it.
+- **The connector's last card** ("The connector is met on the way in", 2026-09-28). The
+  other three places it is met stand: a line at every finish, the banner, and the front
+  door.
+- **Skip.** No screen has one. Continue is live on the first two, and "I'm not sure" is
+  the third's way past. The interface question's "Other · Другой" was already its answer
+  for somebody who reads neither.
+- **The bars.** Where they are is said in words alone, "1 of 3", in the head.
+- **The site's head, pill and foot**, on this page only (the review's P1): a bare head
+  with the lockup and the step at a desk, a chevron and the step on a phone, and
+  Continue fixed at the foot of a phone's screen.
+
+What stands: the interface question for a browser that may read Russian, first, and
+counted ("1 of 4", the OnboardRuUi boards), with EN · RU for everybody else; "Russian is
+shown to somebody who may read it" in every word the page says — **except Russian's own
+greeting on its card**, Здравствуйте, which is a language to learn and not a sentence to
+read, as שָׁלוֹם is to somebody who reads no Hebrew. And nothing on the way in spends.
+
 ### A refusal is drawn on one of five surfaces — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards ErrorSystem, ErrorCatalogDesk,

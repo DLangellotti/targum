@@ -14,17 +14,13 @@ import shutil
 from typing import Any
 
 import pytest
-from test_arrival_js import THREE, reader, seeded
+from test_arrival_js import HEBREW, reader, seeded
 from test_arrival_js import draw as _draw
 
 
 def draw(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """With the connector dark unless a test says otherwise. These are about the language
-    question and count the screens; a signed-in reader with no connection is offered the
-    connector as a last card when it is open (design.md §12, "The connector is met on the
-    way in"), and `test_learn_js` pins that card."""
-    kwargs.setdefault("connector", False)
-    # And from a browser that says Russian: the question is asked only where there is a
+    """From a browser that says Russian, unless a test says otherwise."""
+    # From a browser that says Russian: the question is asked only where there is a
     # sign the reader may read it (2026-09-28), and these are about the question. The
     # rule itself is pinned at the foot of this file.
     kwargs.setdefault("browser", ["ru-RU", "en"])
@@ -43,10 +39,10 @@ def languages_sent(page: dict[str, Any]) -> list[dict[str, Any]]:
 
 def test_a_new_reader_is_asked_which_language_first_and_in_both() -> None:
     first = draw([], shared=seeded(), into=BOTH, me=NEW)
-    assert first["step"] == "1 of 3"
+    assert first["step"] == "1 of 4", "before the three, as the OnboardRuUi boards draw it"
     assert first["tongues"] == ["English", "Русский", "Other · Другой"], "each in its own name"
     assert first["tongueAsks"] == ["What is your native language?", "Какой у вас родной язык?"]
-    assert not first["subjectsUp"] and first["levels"] == [], "one question a screen"
+    assert not first["learningUp"] and first["levels"] == [], "one question a screen"
     assert not first["nextShown"], "pressing a row is the answer, as on the ladder"
     assert not first["backShown"], "and there is nowhere to go back to"
 
@@ -60,9 +56,9 @@ def test_russian_is_kept_told_to_the_account_and_the_page_loaded_again() -> None
     assert after["visit"].get("targum:arrival-tongue") == "1"
 
 
-def test_the_page_comes_back_on_the_second_of_three() -> None:
-    """Loaded again in Russian, the arrival is where the reader left it: the subjects,
-    as the second of three, with the language one Back away."""
+def test_the_page_comes_back_on_the_second_of_four() -> None:
+    """Loaded again in Russian, the arrival is where the reader left it: which language
+    they are learning, as the second of four, with the interface language one Back away."""
     back = draw(
         [],
         shared=seeded(),
@@ -73,7 +69,7 @@ def test_the_page_comes_back_on_the_second_of_three() -> None:
         stored={"targum:asked-read": "1"},
         visit={"targum:arrival-tongue": "1"},
     )
-    assert back["step"] == "2 of 3" and back["subjectsUp"]
+    assert back["step"] == "2 of 4" and back["learningUp"]
     assert back["backShown"]
     assert back["reloaded"] == 0 and languages_sent(back) == []
 
@@ -83,21 +79,21 @@ def test_english_goes_straight_on_with_nothing_loaded_again() -> None:
     assert after["heldInto"] == "en"
     assert languages_sent(after) == [{"learning": ["he"], "reads": ["en"]}]
     assert after["reloaded"] == 0
-    assert after["step"] == "2 of 3" and after["subjectsUp"]
+    assert after["step"] == "2 of 4" and after["learningUp"]
 
 
-def test_the_language_may_be_skipped_and_nothing_is_kept() -> None:
-    past = draw([], shared=seeded(), into=BOTH, me=NEW, do=[{"press": "arrival-skip"}])
-    assert past["step"] == "2 of 3" and past["subjectsUp"]
-    assert past["heldInto"] == "" and languages_sent(past) == []
-    assert "targum:asked-read" not in past["kept"]
+def test_the_language_has_no_skip_and_other_is_the_way_past() -> None:
+    """The boards draw no Skip on any screen (2026-10-09). "Other · Другой" was already
+    the answer for somebody who reads neither, and it is the one way past."""
+    page = draw([], shared=seeded(), into=BOTH, me=NEW)
+    assert "Other · Другой" in page["tongues"] and not page["nextShown"]
 
 
 def test_signed_out_the_browser_keeps_it_and_no_account_is_told() -> None:
     local = draw([], shared=seeded(), into=BOTH, do=[{"tongue": "Русский"}])
     assert local["heldInto"] == "ru"
     assert languages_sent(local) == [] and local["reloaded"] == 0
-    assert local["step"] == "2 of 3"
+    assert local["step"] == "2 of 4"
 
 
 @pytest.mark.parametrize(
@@ -112,7 +108,7 @@ def test_signed_out_the_browser_keeps_it_and_no_account_is_told() -> None:
 def test_somebody_who_has_already_said_is_not_asked(already: dict[str, Any]) -> None:
     options = {"into": BOTH, **already}
     page = draw([], shared=seeded(), **options)
-    assert page["step"] == "1 of 2" and page["subjectsUp"] and page["tongues"] == []
+    assert page["step"] == "1 of 3" and page["learningUp"] and page["tongues"] == []
 
 
 def test_a_press_on_the_front_door_is_handed_to_the_new_account() -> None:
@@ -120,7 +116,7 @@ def test_a_press_on_the_front_door_is_handed_to_the_new_account() -> None:
     this browser reads into. The account has never heard it, so it is told — and the
     reader is not asked a question they answered before they had an account."""
     page = draw([], shared=seeded(), into=BOTH, me=NEW, held="ru")
-    assert page["tongues"] == [] and page["step"] == "1 of 2"
+    assert page["tongues"] == [] and page["step"] == "1 of 3"
     assert languages_sent(page) == [{"learning": ["he"], "reads": ["ru"]}]
     assert page["reloaded"] == 1, "and the page comes back in Russian"
 
@@ -138,13 +134,26 @@ def test_the_first_text_is_one_with_their_language_under_it() -> None:
     def shelf(russian: str) -> list[dict[str, Any]]:
         rows = [
             *seeded(),
-            reader("derby", "דרבי", "derby", kind="article", register="modern", tags=["sport"]),
+            reader(
+                "derby",
+                "דרבי",
+                "derby",
+                kind="article",
+                register="modern",
+                tags=["sport", "journalism"],
+            ),
         ]
         for row in rows:
             row["targets"] = ["en", "ru"] if row["name"] == russian else ["en"]
         return rows
 
-    answers = [*THREE, {"press": "arrival-done"}, {"rung": "Just starting"}]
+    answers = [
+        *HEBREW,
+        {"subject": "News"},
+        {"press": "arrival-done"},
+        {"rung": "I’m learning the letters"},
+        {"press": "arrival-done"},
+    ]
     ordinary = draw([], shared=shelf(""), into=BOTH, held="en", do=answers)["went"]
     assert "/reader/" in ordinary
     # Whichever of the two sport texts the ordinary pick is not, given Russian.
@@ -168,7 +177,7 @@ def test_other_is_an_answer_and_reads_english() -> None:
     assert after["heldInto"] == "en"
     assert after["kept"].get("targum:asked-read") == "1"
     assert languages_sent(after) == [{"learning": ["he"], "reads": ["en"]}]
-    assert after["reloaded"] == 0 and after["step"] == "2 of 3"
+    assert after["reloaded"] == 0 and after["step"] == "2 of 4"
 
 
 # --- Russian is shown to somebody who may read it (design.md §12, 2026-09-28) ----------
@@ -180,10 +189,11 @@ CYRILLIC = re.compile("[\u0400-\u04ff]")
 def test_a_reader_with_no_sign_of_russian_is_shown_none(browser: list[str]) -> None:
     """ "I don't want a non russian to see any russian" (David, 2026-09-28). No question
     in two languages and no row in Cyrillic: the arrival starts on the subjects, and the
-    one way into Russian is EN · RU, which is Latin letters."""
+    one way into Russian is EN · RU, which is Latin letters. The greetings on the first
+    question are each language's own word, and Russian's is the one Cyrillic on it."""
     page = draw([], shared=seeded(), into=BOTH, me=NEW, browser=browser)
     assert page["tongues"] == [] and page["tongueAsks"] == []
-    assert page["subjectsUp"] and page["step"] == "1 of 2"
+    assert page["learningUp"] and page["step"] == "1 of 3"
     assert page["switchKeys"] == ["EN", "·", "RU"]
     shown = " ".join([page["step"], *page["switchKeys"], *page["levels"], *page["tongues"]])
     assert not CYRILLIC.search(shown)
