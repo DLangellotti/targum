@@ -439,7 +439,10 @@ def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -
             body=json.dumps({"readers": [], "shared": shared, "trash": [], "covers": False}),
         ),
     )
-    open_page.goto("http://targum.test/library")
+    # The list, which is behind See all since the Library landed on its shelves
+    # (design.md §12, 2026-10-09): sent to the scene, as Learn's links were, so its
+    # shelf is open and the card is in the list.
+    open_page.goto("http://targum.test/library#scene-01-nice-to-meet-you")
     open_page.wait_for_timeout(500)
     measured = open_page.evaluate(
         """() => {

@@ -613,41 +613,30 @@ def test_the_gauge_stops_promising_what_is_new_to_you(tmp_path: Path) -> None:
     assert not any("new to you" in label for label in labels)
 
 
-def test_a_first_visit_that_knows_nothing_opens_on_the_scenes(tmp_path: Path) -> None:
-    """No view remembered, no word marked, nothing of their own: the list opens on the
-    Scenes, in scene order, with the line that says to start at 1 above every control,
-    and the share column says what order the list is in and cannot be pressed."""
-    drawn = draw(tmp_path, firstVisit=True)
-    assert drawn["kindOn"] == "Scenes"
-    assert drawn["noteLeads"] is True
-    assert drawn["note"].startswith("Scenes — numbered conversations with audio. Start at 1.")
-    assert [row["title"] for row in drawn["rows"]] == [
-        "נעים מאוד",
-        "בבית קפה",
-        "איפה הרחוב",
-        "שני קפה",
-    ]
-    assert drawn["shareHead"] == {"text": "Scene number", "disabled": True}
+def test_a_first_visit_lands_on_the_shelves_with_the_first_scene_first(tmp_path: Path) -> None:
+    """It used to open the list on the Scenes, with "Start at 1" over every control. The
+    Library lands on its shelves since 2026-10-09 (design.md §12), and the same answer is
+    the first card of Read it now: the next scene, saying Start here — one card for the
+    whole collection, because a shelf of a hundred scenes is a shelf of one thing."""
+    drawn = draw(tmp_path, firstVisit=True, shelves=True, shared=SCENES)
+    assert drawn["shelving"] is True
+    assert drawn["rows"] == [], "the list waits behind See all"
+    now = drawn["shelves"][0]
+    assert now["band"] == "now"
+    assert now["cards"][0]["title"] == "נעים מאוד"
+    assert now["cards"][0]["chip"] == "Start here"
+    assert now["cards"][0]["kind"] == "Scene 1"
+    scenes = [card for card in now["cards"] if card["id"].startswith("scene-")]
+    assert len(scenes) == 1
 
 
-def test_a_first_visit_with_words_or_texts_of_your_own_is_left_alone(tmp_path: Path) -> None:
-    """The opening is for the reader who knows nothing. Anybody with a word marked or a
-    text of their own has started already, and gets the list as it is."""
-    with_words = draw(tmp_path, firstVisit=True, stored=vocabulary("שלום"))
-    assert with_words["kindOn"] == "All"
-    assert with_words["noteLeads"] is False
-
-    with_texts = draw(tmp_path, firstVisit=True, readers=[shelf("", "my-upload-he")])
-    assert with_texts["kindOn"] == "All"
-
-
-def test_a_remembered_view_wins_over_the_opening(tmp_path: Path) -> None:
-    """Once the reader has been here, their own choices stand — including having chosen
-    nothing. The opening happens once, never on every visit with an empty store."""
-    drawn = draw(tmp_path, view={})
-    assert drawn["kindOn"] == "All"
-    assert drawn["noteLeads"] is False
-    assert drawn["shareHead"] == {"text": "Hard words ↑", "disabled": False}
+def test_a_remembered_view_does_not_keep_the_reader_off_the_shelves(tmp_path: Path) -> None:
+    """A search or the Beit Midrash left open last time is not where the Library opens:
+    each has its address, and the Library is its shelves."""
+    drawn = draw(tmp_path, shelves=True, view={"find": "ruth", "where": "midrash"})
+    assert drawn["shelving"] is True
+    assert drawn["find"] == ""
+    assert drawn["tabs"][0] == "All texts"
 
 
 def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> None:
@@ -1091,24 +1080,145 @@ def test_a_stranger_is_shown_everything_rather_than_a_guess(tmp_path: Path) -> N
     assert len(drawn["rows"]) == len(SHELF)
 
 
-def test_a_reader_with_a_vocabulary_opens_on_what_they_can_read(tmp_path: Path) -> None:
-    """ "I want to be able to immediately choose a reading AT MY LEVEL" — answered by the
-    list already being there, not by a control that could be found."""
-    known = {row["id"]: {"known": 0.9} for row in SHELF[:7]}
-    known.update({row["id"]: {"known": 0.3} for row in SHELF[7:]})
-    drawn = browse(tmp_path, catalogueKnown=known)
-    assert drawn["fitOn"] == "you can read now"
-    assert len(drawn["rows"]) == 7, "the ones they know nine words in ten of"
+#: How much of SHELF a reader knows, one band each: three they can read now, three a
+#: stretch, four hard for now.
+BANDED = {
+    **{row["id"]: {"known": 0.95} for row in SHELF[:3]},
+    **{row["id"]: {"known": 0.8} for row in SHELF[3:6]},
+    **{
+        row["id"]: {"known": share}
+        for row, share in zip(SHELF[6:], (0.3, 0.6, 0.5, 0.1), strict=True)
+    },
+}
 
 
-def test_the_page_never_opens_on_an_almost_empty_shelf(tmp_path: Path) -> None:
-    """Somebody who has marked a dozen words honestly reads 2% known on every row, and
-    nothing is within reach yet. The default is the narrowest band that still leaves a
-    screen's worth, so it widens on its own rather than greeting them with nothing."""
+def test_the_library_is_shelved_by_how_much_you_would_follow(tmp_path: Path) -> None:
+    """design.md §12, 2026-10-09: Read it now (90% and up), A stretch (75–90%), Hard for
+    now — each band a shelf, with its own See all, said in the reader's own measure."""
+    drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED)
+    assert drawn["shelving"] is True
+    assert drawn["backShown"] is False
+    shelves = {one["band"]: one for one in drawn["shelves"]}
+    assert [one["band"] for one in drawn["shelves"]] == ["now", "stretch", "hard"]
+    assert [one["name"] for one in drawn["shelves"]] == ["Read it now", "A stretch", "Hard for now"]
+    assert {card["id"] for card in shelves["now"]["cards"]} == {row["id"] for row in SHELF[:3]}
+    assert {card["id"] for card in shelves["stretch"]["cards"]} == {row["id"] for row in SHELF[3:6]}
+    assert shelves["now"]["note"] == "You know 90% or more of their words."
+    assert all(one["seeAll"] for one in drawn["shelves"])
+    # Leaf is earned: only what can be read now wears it.
+    assert all(card["near"] for card in shelves["now"]["cards"])
+    assert not any(card["near"] for card in shelves["stretch"]["cards"])
+    assert shelves["now"]["cards"][0]["known"] == "95% known"
+    # Nearest first, under Hard for now: the most of it known leads.
+    assert [card["known"] for card in shelves["hard"]["cards"]] == [
+        "60% known",
+        "50% known",
+        "30% known",
+        "10% known",
+    ]
+    assert drawn["shelvesNote"] == "", "a reader with words is measured by them"
+
+
+def test_every_card_on_a_shelf_is_its_picture_from_the_server(tmp_path: Path) -> None:
+    """The Library draws no letter of its own any more: `?drawn=1` answers with the text's
+    own picture or the server's letter on the colour of its kind (§12, 2026-10-08)."""
+    drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED)
+    cards = [card for one in drawn["shelves"] for card in one["cards"]]
+    assert cards and all(card["pictures"] == 1 for card in cards)
+    assert drawn["pictures"], "the cover asks the server"
+    assert all("drawn=1" in address for address in drawn["pictures"])
+
+
+def test_see_all_is_the_list_under_that_band_and_back_is_the_shelves(tmp_path: Path) -> None:
+    drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED, do=[{"see": "stretch"}])
+    assert drawn["shelving"] is False
+    assert drawn["backShown"] is True
+    assert drawn["hash"] == "#see/stretch"
+    assert drawn["fitOn"] == "a step up from where you are"
+    # Exactly the band: what can be read now is its own shelf, not part of this one.
+    assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[3:6]}
+
+    back = browse(
+        tmp_path, shelves=True, catalogueKnown=BANDED, do=[{"see": "stretch"}, {"back": True}]
+    )
+    assert back["shelving"] is True
+    assert back["hash"] == ""
+
+
+def test_an_address_opens_a_see_all_list(tmp_path: Path) -> None:
+    drawn = browse(tmp_path, hash="#see/hard", catalogueKnown=BANDED)
+    assert drawn["shelving"] is False
+    assert drawn["fitOn"] == "hard for now"
+    assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[6:]}
+
+
+def test_a_search_over_the_shelves_is_the_whole_list(tmp_path: Path) -> None:
+    """A text looked for by name is not narrowed away by a level."""
+    drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED, do=[{"type": "ליגה"}])
+    assert drawn["shelving"] is False
+    assert drawn["fitOn"] == "everything"
+    assert [row["title"] for row in drawn["rows"]] == ["ליגה"]
+
+
+def test_a_reader_who_has_marked_nothing_is_shelved_by_the_texts_own_words(
+    tmp_path: Path,
+) -> None:
+    """Before anything is marked, the bands are the texts' hard-word share, and the page
+    says so once rather than under every shelf."""
+    catalogue = [
+        {**row, "difficulty": share}
+        for row, share in zip(SHELF, (12, 15, 18, 24, 26, 27, 33, 35, 36, 40), strict=True)
+    ]
+    drawn = browse(tmp_path, shelves=True, catalogue=catalogue)
+    assert [one["band"] for one in drawn["shelves"]] == ["now", "stretch", "hard"]
+    assert [len(one["cards"]) for one in drawn["shelves"]] == [3, 3, 4]
+    assert all(one["note"] == "" for one in drawn["shelves"])
+    assert drawn["shelvesNote"].startswith("Until you mark words you know")
+    assert drawn["shelves"][0]["cards"][0]["id"] == "news-one", "the fewest hard words first"
+
+
+def test_a_band_with_nothing_in_it_is_not_a_shelf(tmp_path: Path) -> None:
+    """Somebody who has marked a dozen words honestly reads 2% known on every row. There
+    is nothing to read now, and the page says so by drawing the nearest texts under Hard
+    for now rather than an empty shelf above them."""
     barely = {row["id"]: {"known": 0.02} for row in SHELF}
-    drawn = browse(tmp_path, catalogueKnown=barely)
-    assert drawn["fitOn"] == "everything", "not a greeting of nothing"
-    assert len(drawn["rows"]) == len(SHELF)
+    drawn = browse(tmp_path, shelves=True, catalogueKnown=barely)
+    assert [one["band"] for one in drawn["shelves"]] == ["hard"]
+    assert len(drawn["shelves"][0]["cards"]) == len(SHELF)
+
+
+def test_targums_own_playlists_are_a_shelf_of_their_own(tmp_path: Path) -> None:
+    """targum's swipe sets stand after A stretch, each the first four of what is built on
+    the shared shelf, and nothing about them is offered that is not built."""
+    sets = [
+        {
+            "id": "couples",
+            "title": "זוגות",
+            "english": "Couples and everyday life",
+            "named": {},
+            "members": ["news-one", "news-two", "match"],
+            "swipe": True,
+        },
+        {
+            "id": "nothing",
+            "title": "כלום",
+            "english": "Nothing built",
+            "named": {},
+            "members": ["league"],
+            "swipe": True,
+        },
+    ]
+    shared = [seeded("news-one", "ידיעה"), seeded("news-two", "ידיעה שנייה")]
+    drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED, sets=sets, shared=shared)
+    assert [one["band"] for one in drawn["shelves"]] == ["now", "stretch", "sets", "hard"]
+    played = drawn["shelves"][2]
+    assert played["name"] == "Playlists from targum"
+    assert played["seeAll"] is False
+    assert [card["id"] for card in played["cards"]] == ["couples"]
+    assert played["cards"][0]["title"] == "Couples and everyday life"
+    assert played["cards"][0]["kind"] == "2 texts"
+    assert played["cards"][0]["pictures"] == 2
+    assert played["cards"][0]["opens"] == "button", "opening one is a press, as on Your targums"
 
 
 def test_a_reader_who_asks_for_a_band_gets_it_however_little_it_leaves(tmp_path: Path) -> None:
@@ -1602,6 +1712,7 @@ def test_the_weekly_shelf_starts_this_shabbat_and_comes_round(tmp_path: Path) ->
         catalogue=catalogue,
         collections=[group],
         portions=_shelf({"diaspora": "lech-lecha"}),
+        shelves=True,
     )
     shelf_drawn = drawn["portions"]
     assert not shelf_drawn["hidden"]
@@ -1698,6 +1809,7 @@ def test_the_weekly_shelf_is_hebrews_and_speaks_the_readers_language(tmp_path: P
         portions=_shelf({"diaspora": "noach"}),
         readers=[shelf("voina", "voina-ru", language="ru")],
         language="ru",
+        shelves=True,
     )
     assert elsewhere["portions"]["hidden"]
 

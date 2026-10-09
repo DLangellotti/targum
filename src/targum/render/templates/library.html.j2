@@ -28,28 +28,12 @@
       Your uploads, until 2026-09-25, and are on Your targums now (design.md §12, "Yours
       and everyone's"). The tab strip stays for the Beit Midrash, and is hidden where it
       would hold one tab. -#}
-  {#- The one line that says what the list is, for the reader who cannot yet read a
-      title on it. It lives under the controls as `#picked-note`; on the first visit of
-      an account that knows no words, when the page opens on the Scenes, it is drawn
-      here instead — under the heading and above every control — because it is the
-      first thing that reader has to read, and thirteen chips they do not yet
-      understand should not come before it. -#}
-  <p class="note lead" id="picked-lead" hidden></p>
-  {#- The Weekly portion (targum-internal#411): this Shabbat's first, then the year onward
-      from it. Above the list, because "which portion is it this week" is asked every
-      week and the list cannot answer it. Every card opens the portion's reader, which is
-      built for everybody, so nothing here builds or spends (#410). Drawn by
-      `library.js` from `/portions`, and only on the Hebrew shelf. -#}
-  <section class="portions" id="portions" aria-labelledby="portions-head" hidden>
-    <div class="portions-top">
-      <h2 class="portions-head" id="portions-head">{{ t("library.page.weekly-portion", "Weekly portion") }} <bdi class="portions-hebrew" lang="he" dir="rtl">פרשת השבוע</bdi></h2>
-      <div class="segmented" id="portion-schedule" role="group" aria-label="{{ t("library.page.which-calendar", "Which calendar") }}" hidden></div>
-    </div>
-    <ol class="portion-cards" id="portion-cards"></ol>
-  </section>
   <div class="tabs" id="where" role="tablist" aria-label="{{ t("library.page.which-texts", "Which texts") }}"></div>
 
   <section class="panel" id="picked">
+    {#- The way back from a See all list to the shelves. -#}
+    <p class="see-back" id="see-back" hidden><a href="/library" id="see-back-link"><span aria-hidden="true">←</span> {{ t("nav.library", "Library") }}</a></p>
+
     <p class="note" id="picked-note">{{ t("library.page.tap-a-text-to-read-it", "Tap a text to open it.") }}</p>
 
     {#- How many texts there are, and how much of them is being shown — with the second
@@ -110,6 +94,24 @@
       <div class="shape" id="shape" role="group" aria-label="{{ t("library.page.how-to-show-them", "How to show them") }}"></div>
     </div>
 
+    {#- The shelves, where the Library lands (design.md §12, "The Library is shelved by
+        how much you'd follow", 2026-10-09): one row of texts for each band — Read it now,
+        A stretch, Hard for now — and targum's own playlists, each band with a See all
+        that is the list below under that band. Drawn by `library.js`. -#}
+    <div class="shelves" id="shelves" hidden></div>
+    {#- The Weekly portion (targum-internal#411): this Shabbat's first, then the year onward
+        from it. Among the Library's shelves, because "which portion is it this week" is
+        asked every week and the list cannot answer it. Every card opens the portion's reader, which is
+        built for everybody, so nothing here builds or spends (#410). Drawn by
+        `library.js` from `/portions`, and only on the Hebrew shelf. -#}
+    <section class="portions" id="portions" aria-labelledby="portions-head" hidden>
+      <div class="portions-top">
+        <h2 class="portions-head" id="portions-head">{{ t("library.page.weekly-portion", "Weekly portion") }} <bdi class="portions-hebrew" lang="he" dir="rtl">פרשת השבוע</bdi></h2>
+        <div class="segmented" id="portion-schedule" role="group" aria-label="{{ t("library.page.which-calendar", "Which calendar") }}" hidden></div>
+      </div>
+      <ol class="portion-cards" id="portion-cards"></ol>
+    </section>
+
     {#- Two shapes over one list: whichever is on is filled and the other is emptied, so
         nothing is ever drawn twice. The heading belongs to the table and is hidden with
         it — over a grid it is a row of sort buttons pointing at columns nobody can see. -#}
@@ -133,6 +135,7 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
 window.TARGUM_COLLECTIONS = {{ collections|tojson }};
+window.TARGUM_SETS = {{ sets|tojson }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
 <script>{{ asset('strings.js') }}</script>

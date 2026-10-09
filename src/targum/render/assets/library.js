@@ -110,20 +110,35 @@
      them — and not `difficulty`, which is a fact about the text alone. A reader asking
      "can I read this" is asking the first (design.md §12, 2026-09-17).
 
-     The cutoffs are the reading-comprehension ones: around 95% of running words known is
-     comfortable reading, and below about 80% a text stops being learnable by reading and
-     becomes a decoding exercise. Held a little lower than the literature's, because a
-     marked word here is a word somebody pressed rather than the whole of what they know. */
-  var COMFORTABLE = 85;
-  var WORKABLE = 65;
+     The cutoffs are David's, 2026-10-08, and the Library's shelves are drawn by them:
+     90% and up is Read it now, 75–90% is A stretch, and under that is Hard for now
+     (design.md §12, "The Library is shelved by how much you'd follow"). They were 85 and
+     65 while a band was a filter over one list; as the names of shelves they say what a
+     reader would find on opening one, and a text read at 80% is not read "now". */
+  var COMFORTABLE = 90;
+  var WORKABLE = 75;
 
-  /* The one setting that is on before a reader touches anything. "Now" is the default and
-     the page says so in words above the list; the other two widen it. */
+  /* The three shelves, in the order the page stands them, and the words each is called
+     by. One band each: since the shelves (2026-10-09) a band is exactly itself, and See
+     all under A stretch is the stretch and not the stretch with everything easier. */
+  var BANDS = [
+    ["now", t("library.band.now", "Read it now")],
+    ["stretch", t("library.band.stretch", "A stretch")],
+    ["hard", t("library.band.hard", "Hard for now")],
+  ];
+
+  /* The same bands as the sentence above a See all list says them, and "everything". */
   var FITS = [
     ["now", t("library.fit.now", "you can read now")],
     ["stretch", t("library.fit.stretch", "a step up from where you are")],
+    ["hard", t("library.fit.hard", "hard for now")],
     ["", t("library.fit.all", "everything")],
   ];
+
+  function bandNamed(id) {
+    for (var n = 0; n < BANDS.length; n++) if (BANDS[n][0] === id) return BANDS[n];
+    return null;
+  }
 
   /* Which Hebrew a text is in, oldest first. Chronological rather than alphabetical, and
      never sorted: the five of them are a ramp a learner climbs, and putting Modern above
@@ -237,21 +252,13 @@
     return clauses.join(" · ");
   }
 
-  /* Where the line is drawn. Under the controls, as `#picked-note`, every time but one:
-     on the first visit of an account that knows no words, when the page has opened on
-     the Scenes for them, it goes under the heading and above every control, because
-     "Start at 1" has to be read before thirteen chips they do not yet understand. */
-  var leading = false;
+  /* The line under the controls. It led the page once, on a first visit that opened on
+     the Scenes; the Library opens on its shelves since 2026-10-09, and the next scene is
+     the first card of Read it now with its "Start here", so the line is always here. */
   function placeNote(text) {
     var note = document.getElementById("picked-note");
-    var top = document.getElementById("picked-lead");
-    var lead = leading && view.kind === "dialogue" && !!top;
-    if (top) {
-      top.hidden = !lead;
-      top.textContent = lead ? text : "";
-    }
-    note.hidden = lead;
-    note.textContent = lead ? "" : text;
+    note.hidden = false;
+    note.textContent = text;
   }
 
   /* The page is the catalogue, which is everybody's (design.md §12, "Yours and
@@ -475,14 +482,12 @@
     return all;
   }
 
-  /* "Now" means now; "a step up" means now *and* the step. A band that excluded what the
-     reader can already read would be a filter nobody wants: asked for something a little
-     harder, they still want the whole of what is open to them above it. */
+  /* A band is exactly itself (2026-10-09). It used to be that "a step up" meant now *and*
+     the step, when the band was the one setting over one list; now each band is a shelf,
+     and See all under a shelf is that shelf's texts and no others. */
   function fits(row, want) {
     if (!want) return true;
-    var where = fitOf(row);
-    if (want === "now") return where === "now";
-    return where === "now" || where === "stretch";
+    return fitOf(row) === want;
   }
 
   function said(minutes) {
@@ -844,13 +849,7 @@
 
     var cover = el("span", "card-cover");
     cover.setAttribute("aria-hidden", "true");
-    cover.appendChild(
-      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(row.id)), {
-        title: row.title,
-        language: row.language,
-        drawn: row.entry ? row.drawn : false,
-      })
-    );
+    cover.appendChild(pictureOf(row, "thumb"));
     // One mark, never two: a video can be listened to as well, and a card saying both
     // says less than one saying "video" does. The word is on the label rather than on
     // the page, so the mark stays a mark.
@@ -999,6 +998,17 @@
     return item;
   }
 
+  /* A text's picture, the way home draws one (design.md §12, "Every text has a picture",
+     2026-10-08): `/thumb/<id>?drawn=1` answers with its own picture where it has one and
+     the server's letter on the colour of its kind where it has none, so the library draws
+     no letter of its own any more. */
+  function pictureOf(row, className) {
+    return window.TargumCovers.picture(
+      { entry: row.id, title: row.title, language: row.language },
+      { keyed: keyed, className: className }
+    );
+  }
+
   /* The two marks a cover can carry. §7: a 16 box, a 1.4 stroke, round caps, and no
      fill — the same drawing rules the nav's glyphs follow. */
   function glyph(which) {
@@ -1032,12 +1042,7 @@
       open.setAttribute("data-build", row.id);
     }
 
-    open.appendChild(
-      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(row.id)), {
-        title: row.title,
-        language: row.language,
-      })
-    );
+    open.appendChild(pictureOf(row, "thumb"));
 
     var what = el("span", "what");
     var title = el("span", "row-title");
@@ -1382,16 +1387,6 @@
   var nextRow = null;
   var anyFinished = false;
 
-  // Whether this browser has ever drawn the page. A remembered view means the reader has
-  // made choices here before, and those win over anything the page would choose for
-  // them; only a first visit is the page's to open somewhere.
-  var firstVisit = false;
-  try {
-    firstVisit = localStorage.getItem("targum:library") === null;
-  } catch (e) {
-    firstVisit = false;
-  }
-
   // One view per language (2026-09-14). A filter set on the Hebrew shelf is a question
   // about Hebrew texts: carried to French it hid the shelf behind a choice made
   // somewhere else, and "Poetry, under ten minutes" set for one language is not what
@@ -1449,50 +1444,13 @@
     return one;
   }
 
-  /* How much of the library to show, resolved rather than stored.
-   *
-   * The page opens on what the reader can read now: "I want to be able to immediately
-   * choose a reading AT MY LEVEL" is answered by the list already being there, not by a
-   * control that could be found (design.md §12, 2026-09-17).
-   *
-   * Except when that would be a near-empty page, which is the thing it must never be.
-   * Two readers would get one: somebody who has marked nothing, where the fallback
-   * measure is the text's own hard-word share and the page would be making a claim about
-   * a stranger; and somebody who has marked a dozen words, where every row honestly
-   * reads 2% known and nothing is within reach yet. Neither of them is helped by an
-   * empty shelf.
-   *
-   * So the default is the narrowest band that still leaves a screen's worth, and it
-   * widens on its own as a vocabulary grows. No threshold on how many words somebody
-   * knows: the question is whether the list it produces is worth showing, and that is
-   * the question this asks directly. A reader who picks a band gets it whatever it
-   * leaves — including an empty one, which is an answer rather than a greeting. */
-  var ENOUGH = 6;
-  var autoFit = "";
-
+  /* How much of the library a See all list shows: the band it was opened from, or
+     everything. No longer resolved for the reader (2026-09-17's narrowest band that left a
+     screen's worth): the Library opens on its shelves now, one per band, and a band with
+     nothing on it is a shelf that is not drawn rather than a list that is empty. */
   function fitWanted(state) {
     var one = state || view;
-    if (typeof one.fit === "string") return one.fit;
-    return autoFit;
-  }
-
-  function defaultFit(everything, code) {
-    // A stranger gets the whole shelf: a band would be a claim about somebody the page
-    // knows nothing of. A reader who said where they are is not a stranger.
-    if (!anyKnown && !seedReach()) return "";
-    var bands = ["now", "stretch", ""];
-    for (var i = 0; i < bands.length; i++) {
-      var pretend = {};
-      for (var key in view) pretend[key] = view[key];
-      // A string, so `fitWanted` answers from it and never comes back here.
-      pretend.fit = bands[i];
-      var standing = 0;
-      for (var j = 0; j < everything.length; j++) {
-        if (matches(everything[j], code, pretend)) standing++;
-        if (standing >= ENOUGH) return bands[i];
-      }
-    }
-    return "";
+    return typeof one.fit === "string" ? one.fit : "";
   }
 
   /* The doors, as cards on the grid the texts use: the Hebrew name in the reading face,
@@ -1577,7 +1535,7 @@
       if (mine) history.replaceState(null, "", location.pathname + location.search);
       return;
     }
-    if (now && !mine) return;
+    if (now && !mine && seeAddressed() === null) return;
     var want = "#" + TREE_HASH + (view.door ? "/" + view.door : "");
     if (location.hash !== want) history.replaceState(null, "", location.pathname + location.search + want);
   }
@@ -1589,6 +1547,320 @@
     if (now.indexOf(TREE_HASH + "/") !== 0) return null;
     var door = now.slice(TREE_HASH.length + 1);
     return doorNamed(door) ? door : "";
+  }
+
+
+  /* --- the shelves (design.md §12, "The Library is shelved by how much you'd follow",
+   * 2026-10-09) ------------------------------------------------------------------------
+   *
+   * The Library opens on its shelves, not on a list: one row of texts a band — what the
+   * reader can read now, what is a stretch, what is hard for now — each with a See all
+   * that is the one list, narrowed to that band, with every filter it always had. "I want
+   * to be able to immediately choose a reading AT MY LEVEL" (2026-09-17) is answered by
+   * the first shelf rather than by a band the list opened on, and a reader who has
+   * marked almost nothing is shown the texts nearest them under Hard for now rather than
+   * a narrowed list that had to widen itself to be worth showing.
+   *
+   * The measure is the one the list's band already used (`fitOf`): the share of a text's
+   * words this reader knows, and the text's own hard-word share until they have marked
+   * any. targum's own playlists (`swipe` collections) stand as a shelf of their own.
+   *
+   * The shelves are the landing. `#see` is the list, `#see/<band>` the list under one
+   * band, and any other address (a text somebody was sent to, `#bm` for the Beit
+   * Midrash) opens what it always opened.
+   */
+  var SEE = "see";
+  //: How many texts a shelf stands before its See all.
+  var SHELF_MOST = 10;
+  //: Whether the list is up rather than the shelves.
+  var seeAll = false;
+  //: targum's own playlists, as the catalogue file lists them; only the ones with
+  //: something built on the shared shelf are offered (`Library.targum_sets`).
+  var sets = window.TARGUM_SETS || [];
+
+  //: The band a See all address names, "" for the whole list, null for any other hash.
+  function seeAddressed() {
+    var now = decodeURIComponent((location.hash || "").slice(1));
+    if (now === SEE) return "";
+    if (now.indexOf(SEE + "/") !== 0) return null;
+    var band = now.slice(SEE.length + 1);
+    return bandNamed(band) ? band : "";
+  }
+
+  /* A step the Back button can undo: from the shelves into a list is going somewhere. */
+  function mark(hash) {
+    var bare = location.pathname + location.search;
+    if (window.history && history.pushState) history.pushState(null, "", bare + (hash ? "#" + hash : ""));
+    else location.hash = hash ? "#" + hash : "";
+  }
+
+  /* Nearest first: the most of it known, and before anything is marked the fewest hard
+     words. A text nobody measured goes after every one somebody did. */
+  function nearest(a, b) {
+    if (anyKnown) {
+      var left = knownOf(a);
+      var right = knownOf(b);
+      left = typeof left === "number" ? left : -1;
+      right = typeof right === "number" ? right : -1;
+      if (left !== right) return right - left;
+    }
+    var hardLeft = measured(a) ? a.difficulty || 0 : 1000;
+    var hardRight = measured(b) ? b.difficulty || 0 : 1000;
+    if (hardLeft !== hardRight) return hardLeft - hardRight;
+    return String(a.title).localeCompare(String(b.title));
+  }
+
+  /* One band's shelf: its texts nearest first, one from each collection — a hundred
+     scenes or thirty-nine of an author's stories are one place to start, and a shelf of
+     them is a shelf of one thing — and the next scene first wherever it falls. */
+  function shelfOf(pool, band) {
+    var inBand = pool.filter(function (row) {
+      return fitOf(row) === band;
+    });
+    inBand.sort(nearest);
+    if (nextRow) {
+      for (var n = 0; n < inBand.length; n++) {
+        if (inBand[n].id === nextRow.entry) {
+          inBand.unshift(inBand.splice(n, 1)[0]);
+          break;
+        }
+      }
+    }
+    var taken = {};
+    var out = [];
+    for (var i = 0; i < inBand.length && out.length < SHELF_MOST; i++) {
+      // The scenes are one sequence however the file folds them.
+      var scene = window.TargumScenes && window.TargumScenes.numberOf(inBand[i].id);
+      var group = scene ? { id: "scenes" } : GROUP_OF[inBand[i].id];
+      if (group) {
+        if (taken[group.id]) continue;
+        taken[group.id] = true;
+      }
+      out.push(inBand[i]);
+    }
+    return { rows: out, count: inBand.length };
+  }
+
+  /* One text on a shelf: its picture, what it is and how long, its title in its own face,
+     and how much of it the reader knows. Pressed, it does what a card does: a text the
+     reader has opens, and one they have not offers its build and waits for the press. */
+  function shelfCard(row, band) {
+    var item = el("li", "band-item");
+    item.setAttribute("data-row", row.id);
+    var reading = readerFor(row);
+    var open = el(reading ? "a" : "button", "band-card");
+    if (reading) {
+      open.href = keyed(reading);
+    } else {
+      open.type = "button";
+      open.setAttribute("data-build", row.id);
+    }
+    var cover = el("span", "band-cover");
+    cover.setAttribute("aria-hidden", "true");
+    cover.appendChild(pictureOf(row, "thumb band-thumb"));
+    if (row.video || row.spoken) {
+      var media = el("span", "card-media");
+      media.appendChild(glyph(row.video ? "video" : "audio"));
+      cover.appendChild(media);
+    }
+    open.appendChild(cover);
+    var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
+    var kind = number
+      ? t("library.scene", "Scene {n}", { n: number })
+      : [named(KINDS, row.kind), row.minutes ? said(row.minutes) : ""].filter(Boolean).join(" · ");
+    var what = el("span", "band-kind", kind);
+    what.setAttribute("lang", saidIn);
+    open.appendChild(what);
+    var title = el("bdi", "band-title", splitLevel(row.title).title);
+    title.setAttribute("lang", row.language);
+    title.setAttribute("dir", "auto");
+    open.appendChild(title);
+    if (nextRow && row.id === nextRow.entry) {
+      var next = el(
+        "span",
+        "row-next",
+        anyFinished ? t("library.next", "Next") : t("library.start-here", "Start here")
+      );
+      next.setAttribute("role", "status");
+      next.setAttribute("lang", saidIn);
+      open.appendChild(next);
+    }
+    var share = knownOf(row);
+    if (typeof share === "number" && share > 0) {
+      open.appendChild(
+        el(
+          "span",
+          "band-known" + (band === "now" ? " near" : ""),
+          // Rounded down, as the Tanakh map rounds: a card on A stretch never says 90%.
+          t("library.known-share", "{share}% known", { share: Math.floor(share * 100) })
+        )
+      );
+    }
+    open.appendChild(el("span", "row-state"));
+    item.appendChild(open);
+    return item;
+  }
+
+  /* The sets on the shared shelf in this language, each with its members that are built
+     there, in the file's order. A member not built is left out, as the playlists tab
+     leaves it out: opening a set spends nothing. */
+  function setsHere(shared, code) {
+    var built = {};
+    (shared || []).forEach(function (reader) {
+      if (reader.entry) built[reader.entry] = true;
+    });
+    var out = [];
+    sets.forEach(function (group) {
+      var members = (group.members || []).filter(function (id) {
+        var entry = catalogued(id);
+        return built[id] && entry && inLanguage(entry, code);
+      });
+      if (members.length) out.push({ group: group, members: members });
+    });
+    return out;
+  }
+
+  /* One of targum's playlists: the first four of it as one picture, as its card on Your
+     targums draws it, its name in the reader's language, and how many texts. */
+  function setCard(one) {
+    var item = el("li", "band-item");
+    item.setAttribute("data-set", one.group.id);
+    var open = el("button", "band-card band-set");
+    open.type = "button";
+    open.setAttribute("data-set", one.group.id);
+    var mosaic = el("span", "band-cover band-mosaic");
+    mosaic.setAttribute("aria-hidden", "true");
+    one.members.slice(0, 4).forEach(function (id) {
+      var entry = catalogued(id) || {};
+      mosaic.appendChild(pictureOf({ id: id, title: entry.title, language: entry.language }, "thumb"));
+    });
+    open.appendChild(mosaic);
+    var count = el("span", "band-kind", tn("library.group-texts", one.members.length, "{n} text", "{n} texts"));
+    count.setAttribute("lang", saidIn);
+    open.appendChild(count);
+    var name = el("bdi", "band-title band-set-name", titleIn(one.group) || one.group.title);
+    name.setAttribute("dir", "auto");
+    if (titleIn(one.group)) name.setAttribute("lang", namedIn(one.group) ? uiLanguage : "en");
+    open.appendChild(name);
+    open.appendChild(el("span", "row-state"));
+    item.appendChild(open);
+    return item;
+  }
+
+  /* Opening a set copies it into the reader's playlists, or finds the copy they have, and
+     goes to its first text — what Open does on Your targums' Playlists tab. */
+  function openSet(button, id) {
+    var state = button.querySelector(".row-state");
+    button.disabled = true;
+    ask("/playlists/targum/" + encodeURIComponent(id), {})
+      .then(function (answer) {
+        if (answer && answer.signedIn === false) {
+          window.location.href = keyed("/account/signin");
+          return;
+        }
+        if (!answer || answer.error) throw new Error("refused");
+        var first = (answer.items || []).filter(function (one) {
+          return one.open;
+        })[0];
+        if (!first) {
+          window.location.href = keyed("/playlists/" + answer.id);
+          return;
+        }
+        var path = first.open;
+        window.location.href = keyed(
+          path + (path.indexOf("?") < 0 ? "?" : "&") + "list=" + answer.id + "&at=" + first.position
+        );
+      })
+      .catch(function () {
+        tell(state, t("library.set.failed", "We couldn't open that playlist. Try again."));
+        button.disabled = false;
+      });
+  }
+
+  function shelf(id, name, note, cards, onSee) {
+    var section = el("section", "band");
+    section.setAttribute("data-band", id);
+    section.setAttribute("aria-labelledby", "band-" + id);
+    var head = el("div", "band-head");
+    var heading = el("h2", "band-name", name);
+    heading.id = "band-" + id;
+    head.appendChild(heading);
+    if (onSee) {
+      var all = el("a", "band-all", t("library.see-all", "See all"));
+      all.href = "#" + SEE + "/" + id;
+      all.setAttribute("aria-label", t("library.see-all-named", "See all: {name}", { name: name }));
+      all.addEventListener("click", function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+        onSee(id);
+      });
+      head.appendChild(all);
+    }
+    section.appendChild(head);
+    if (note) section.appendChild(el("p", "band-note", note));
+    var list = el("ul", "band-cards");
+    cards.forEach(function (card) {
+      list.appendChild(card);
+    });
+    section.appendChild(list);
+    return section;
+  }
+
+  var BAND_NOTES = {
+    now: t("library.band.now-note", "You know 90% or more of their words."),
+    stretch: t("library.band.stretch-note", "You know 75–90% of their words: a word to look up every line or two."),
+    hard: t("library.band.hard-note", "You know less than 75% of their words. The nearest come first."),
+  };
+
+  /* The shelves, in order: Read it now, A stretch, targum's playlists, Hard for now. A
+     band with nothing in it is not drawn. Answers how many shelves stand. */
+  function drawShelves(host, pool, shared, code, onSee) {
+    host.textContent = "";
+    var drawn = [];
+    BANDS.forEach(function (band) {
+      var found = shelfOf(pool, band[0]);
+      if (found.rows.length) {
+        drawn.push(
+          shelf(
+            band[0],
+            band[1],
+            anyKnown ? BAND_NOTES[band[0]] : "",
+            found.rows.map(function (row) {
+              return shelfCard(row, band[0]);
+            }),
+            onSee
+          )
+        );
+      }
+      if (band[0] === "stretch") {
+        var offered = setsHere(shared, code);
+        if (offered.length) {
+          drawn.push(
+            shelf(
+              "sets",
+              t("library.band.sets", "Playlists from targum"),
+              t("library.band.sets-note", "Short texts to swipe through, one after another."),
+              offered.map(setCard),
+              null
+            )
+          );
+        }
+      }
+    });
+    // Before anything is marked the bands are the texts' own hard words, and the page
+    // says so once rather than under every shelf.
+    if (drawn.length && !anyKnown) {
+      host.appendChild(
+        el(
+          "p",
+          "note shelves-note",
+          t("library.shelves.unmarked", "Until you mark words you know, these go by how common each text's words are.")
+        )
+      );
+    }
+    drawn.forEach(function (section) {
+      host.appendChild(section);
+    });
+    return drawn.length;
   }
 
   var view = viewFor(lang.HOME);
@@ -1942,6 +2214,8 @@
       tab.setAttribute("aria-selected", on ? "true" : "false");
       tab.addEventListener("click", function () {
         view[field] = pair[0];
+        // All texts is the shelves again: a tab is where you are, not a list in it.
+        if (field === "where") seeAll = false;
         redraw();
       });
       host.appendChild(tab);
@@ -2230,6 +2504,8 @@
    * calendars read different portions, as `/parasha` draws it.
    */
 
+  //: The shared shelf, as `/readers` last answered it.
+  var sharedNow = [];
   //: Each portion's reader by its catalogue id, filled from `/portions`.
   var portionsAt = {};
   //: What `/portions` said, kept so the shelf can be drawn again for the other calendar.
@@ -2377,12 +2653,13 @@
     }
   }
 
-  /* The shelf is Hebrew's: under another language it is not this page's. */
-  function placePortions(code) {
+  /* The shelf is Hebrew's: under another language it is not this page's. And it stands
+     among the shelves, not over a See all list, which is one list. */
+  function placePortions(code, shelving) {
     var section = document.getElementById("portions");
     if (!section) return;
     var any = !!(portionShelf && portionShelf.portions && portionShelf.portions.length);
-    section.hidden = !any || code !== lang.HOME;
+    section.hidden = !any || code !== lang.HOME || shelving === false;
   }
 
   /* The shelf and what is building, asked for together (design.md §12, 2026-09-17).
@@ -2405,6 +2682,8 @@
     drawPortions();
     var readers = data.readers || [];
     var shared = data.shared || [];
+    // What is on the shared shelf, for which of targum's playlists can be opened here.
+    sharedNow = shared;
     catalogueKnown = data.catalogue || {};
     /* Whether this reader has marked anything at all, which decides what "at my level"
        is a measure of. With words marked it is the share of a text this reader knows;
@@ -2447,11 +2726,54 @@
     var clear = document.getElementById("clear");
     var chosen;
 
+    /* What an empty page says. An empty list and an empty filter are different things to
+       be told. A language with no catalogue yet says so, and points at what the reader
+       has in it already, if anything (2026-09-14): "Nothing here yet" under Italian hid
+       the two Italian texts the reader had brought. They are on Your targums since
+       2026-09-25, so that is where it points. */
+    function emptySaid(here) {
+      var uploaded = yoursAlone.filter(function (reader) {
+        return inLanguage(reader, chosen);
+      }).length;
+      return here
+        ? t("library.empty.no-match", "Nothing here matches that. Try another search or fewer filters.")
+        : uploaded
+          ? tn(
+              "library.empty.language-yours",
+              uploaded,
+              "No {language} texts in the library yet. You have {n} in Your targums.",
+              "No {language} texts in the library yet. You have {n} in Your targums.",
+              { language: names[chosen] || chosen }
+            )
+          : t("library.empty.language", "No {language} texts in the library yet.", {
+              language: names[chosen] || chosen,
+            });
+    }
+
+    /* See all: the one list, under the band its shelf is, with every filter it had. */
+    function seeBand(band) {
+      view.fit = band || "";
+      view.find = "";
+      find.value = "";
+      view.where = "library";
+      seeAll = true;
+      mark(SEE + (band ? "/" + band : ""));
+      redraw();
+      if (window.scrollTo) window.scrollTo(0, 0);
+    }
+
+    /* And back to the shelves, which is the Library. */
+    function toShelves() {
+      seeAll = false;
+      view.find = "";
+      find.value = "";
+      view.where = "library";
+      mark("");
+      redraw();
+    }
+
     function redraw() {
       remember("targum:library", views);
-      // Resolved before anything is filtered, and before the chips are counted, so the
-      // whole page agrees about how much of the library it is showing.
-      autoFit = defaultFit(everything, chosen);
       // "Which Hebrew" asks nothing of another language (2026-09-13).
       var registerSet = document.getElementById("register-chips");
       if (registerSet && registerSet.parentNode) registerSet.parentNode.hidden = chosen !== lang.HOME;
@@ -2501,14 +2823,6 @@
       heading(redraw);
       var tree = view.where === "midrash";
       if (!tree) view.door = "";
-      /* A first visit opens All texts on the Scenes, which is the page's doing and not the
-         reader's. Carried into the tree it left every door with nothing behind it —
-         there are no dialogues in the Tanakh — and the tab drew an empty page (found by
-         opening it, 2026-09-19). A kind the *reader* chose still narrows the tree. */
-      if (tree && leading) {
-        view.kind = "";
-        leading = false;
-      }
       // At the doors themselves there is no list yet, so nothing that narrows one: the
       // subjects (every row here is Tanakh or Judaica), the band, the sorts.
       var atDoors = tree && !view.door && !view.find;
@@ -2522,6 +2836,47 @@
       });
       crumbs(document.getElementById("crumbs"), tree, redraw);
       address(tree);
+
+      /* The shelves, where the page lands (design.md §12, 2026-10-09): everything the
+         filters leave, whatever band a See all was last opened on, and no search — a
+         search is a list. */
+      var shelving = !tree && !seeAll;
+      var shelvesHost = document.getElementById("shelves");
+      var back = document.getElementById("see-back");
+      if (back) back.hidden = !(!tree && seeAll);
+      placePortions(chosen, shelving);
+      tally.hidden = shelving;
+      if (shelvesHost) shelvesHost.hidden = !shelving;
+      if (shelving) {
+        ["said", "subject-label", "subject-chips", "sorts", "shape", "picked-note", "rows-head"].forEach(
+          function (id) {
+            var part = document.getElementById(id);
+            if (part) part.hidden = true;
+          }
+        );
+        host.textContent = "";
+        cards.textContent = "";
+        host.hidden = true;
+        cards.hidden = true;
+        var unbanded = {};
+        for (var field in view) unbanded[field] = view[field];
+        unbanded.fit = "";
+        unbanded.find = "";
+        var pool = everything.filter(function (row) {
+          return matches(row, chosen, unbanded);
+        });
+        var standing = shelvesHost ? drawShelves(shelvesHost, pool, sharedNow, chosen, seeBand) : 0;
+        empty.hidden = standing > 0;
+        if (!standing) {
+          empty.textContent = emptySaid(
+            everything.filter(function (row) {
+              return inLanguage(row, chosen) && row.entry;
+            }).length
+          );
+        }
+        clear.hidden = !(view.kind || view.register || view.length || view.level || view.subject);
+        return;
+      }
 
       var surviving = everything.filter(function (row) {
         return matches(row, chosen);
@@ -2587,27 +2942,7 @@
       });
       empty.hidden = showing.length > 0;
       if (!showing.length) {
-        // An empty list and an empty filter are different things to be told.
-        // A language with no catalogue yet says so, and points at what the reader has in
-        // it already, if anything (2026-09-14): "Nothing here yet" under Italian hid the
-        // two Italian texts the reader had brought. They are on Your targums since
-        // 2026-09-25, so that is where it points.
-        var uploaded = yoursAlone.filter(function (reader) {
-          return inLanguage(reader, chosen);
-        }).length;
-        empty.textContent = here.length
-          ? t("library.empty.no-match", "Nothing here matches that. Try another search or fewer filters.")
-          : uploaded
-            ? tn(
-                "library.empty.language-yours",
-                uploaded,
-                "No {language} texts in the library yet. You have {n} in Your targums.",
-                "No {language} texts in the library yet. You have {n} in Your targums.",
-                { language: names[chosen] || chosen }
-              )
-            : t("library.empty.language", "No {language} texts in the library yet.", {
-                language: names[chosen] || chosen,
-              });
+        empty.textContent = emptySaid(here.length);
       }
       var total = here.length;
       // Texts, not rows. A folded list is thirty-six rows over three hundred and
@@ -2747,6 +3082,7 @@
             buildingNow = (both[0] && both[0].jobs) || [];
             if (both[1] && both[1].readers) {
               everything = rows(both[1].readers, both[1].shared || []);
+              sharedNow = both[1].shared || [];
             }
             redraw();
             follow();
@@ -2759,6 +3095,13 @@
     find.value = view.find || "";
     find.addEventListener("input", function () {
       view.find = find.value.trim();
+      // A search is a list. Typed over the shelves, it opens the whole of it, unbanded:
+      // the text somebody is looking for by name is not narrowed away by a level.
+      if (view.find && !seeAll && view.where !== "midrash") {
+        seeAll = true;
+        view.fit = "";
+        mark(SEE);
+      }
       redraw();
     });
     clear.addEventListener("click", function () {
@@ -2796,6 +3139,22 @@
 
     host.addEventListener("click", pressed);
     if (cards) cards.addEventListener("click", pressed);
+    /* The shelves press the same way a card does, and one of targum's playlists opens. */
+    var shelvesHost = document.getElementById("shelves");
+    if (shelvesHost) {
+      shelvesHost.addEventListener("click", function (event) {
+        var set = event.target.closest ? event.target.closest("button[data-set]") : null;
+        if (set) return openSet(set, set.getAttribute("data-set"));
+        pressed(event);
+      });
+    }
+    var backLink = document.getElementById("see-back-link");
+    if (backLink) {
+      backLink.addEventListener("click", function (event) {
+        if (event && event.preventDefault) event.preventDefault();
+        toShelves();
+      });
+    }
 
     // Hebrew is always on offer, whether or not anything is on the shelf in it.
     //
@@ -2816,29 +3175,25 @@
     view = viewFor(chosen);
     var betaNote = document.getElementById("beta-note");
 
-    /* Where the page opens for an account that knows nothing. A first visit, no word
-       marked in Hebrew and nothing of their own in it: the list opens on the Scenes,
-       in order, with the line that says to start at 1 above everything else. Once
-       only — from then on the view is remembered and the reader's own choices win. The
-       count is the same one Learn opens with, from the same store. */
-    if (firstVisit && chosen === lang.HOME && !view.kind) {
-      var charts = window.TargumCharts;
-      var store = charts ? charts.collect(charts.meaningLanguage(chosen))[chosen] : null;
-      var known = charts ? charts.known(store && store.words) : 0;
-      var ownHebrew = readers.some(function (reader) {
-        return inLanguage(reader, chosen);
-      });
-      // Somebody who said they follow the news is not led to Scene 1 (#306, 2026-09-19).
-      if (!known && !ownHebrew && !seedReach()) {
-        view.kind = "dialogue";
-        leading = true;
-      }
-    }
-
     function show(code) {
       chosen = code;
       view = viewFor(code);
-      placePortions(code);
+      /* Where the page stands: the shelves where the address names nothing, the list under
+         `#see` and wherever a text was named, the tree under `#bm`. Landing on the
+         shelves leaves a search behind, and the Beit Midrash too: the Library opens on
+         its shelves every time, and each of the others has its address. */
+      var see = seeAddressed();
+      var named = decodeURIComponent((location.hash || "").slice(1));
+      if (see !== null) {
+        seeAll = true;
+        if (see) view.fit = see;
+      } else if (!named) {
+        seeAll = false;
+        view.find = "";
+        view.where = "library";
+      } else if (addressed() === null) {
+        seeAll = true;
+      }
       find.value = view.find || "";
       inHebrew = code === lang.HOME;
       // An address into the tree opens the tree, where the shelf showing is Hebrew's.
@@ -2864,13 +3219,31 @@
     }
 
     // A link followed, or the address edited, while the page is open.
-    window.addEventListener("hashchange", function () {
+    function moved() {
+      var see = seeAddressed();
+      if (see !== null) {
+        seeAll = true;
+        if (see) view.fit = see;
+        view.where = "library";
+        return redraw();
+      }
+      if (!location.hash || location.hash === "#") {
+        if (!seeAll && view.where === "library") return;
+        seeAll = false;
+        view.find = "";
+        find.value = "";
+        view.where = "library";
+        return redraw();
+      }
       var into = addressed();
       if (into === null || chosen !== lang.HOME) return;
       view.where = "midrash";
       view.door = into;
       redraw();
-    });
+    }
+    window.addEventListener("hashchange", moved);
+    // A step made with `pushState` comes back as a pop, without a hash change.
+    window.addEventListener("popstate", moved);
 
     show(chosen);
 

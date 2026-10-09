@@ -354,6 +354,47 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The Library is shelved by how much you'd follow — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards Library, LibraryPhone, SeeAllDesk and
+SeeAllPhone): "everything is way too busy and it's hard to find anything". The Library
+opened on one list, narrowed to a band it chose for the reader; it opens on shelves now,
+one for each band, and the list is behind each shelf's See all. This amends "The library
+is browsed, not looked up" (2026-09-17).
+
+- **Three bands, each a shelf, in this order: Read it now (90% of a text's words known
+  and up), A stretch (75–90%), Hard for now (under 75%).** The cutoffs were 85% and 65%
+  while a band was a filter over one list; as the names of shelves they say what a reader
+  will find, and a text known at 80% is not read "now". The measure is the one the band
+  already used: the share of the text's words this reader knows, the text's own hard-word
+  share until they have marked any (said once, above the shelves), and the rung named on
+  arrival until their words have one.
+- **A shelf is the nearest texts first, one from each collection**, up to ten: a hundred
+  scenes or an author's thirty-nine stories are one place to start, so they are one card.
+  The next scene leads Read it now with its Start here, which replaces opening a first
+  visit's list on the Scenes. A band with nothing in it is not a shelf, so a reader who has
+  marked a dozen words meets Hard for now with the nearest texts first, rather than a list
+  that had to widen itself to be worth showing.
+- **targum's own playlists are a shelf**, after A stretch: the swipe sets with something
+  built on the shared shelf, each the first four of them as one picture. Pressing one is
+  Open on Your targums' Playlists tab: a copy of the set in the reader's playlists, and its
+  first text. Nothing is built and nothing spends.
+- **See all is the one list, under that band**, with every filter, sort and shape it had,
+  and "← Library" back to the shelves. A band there is exactly itself: "a step up" no
+  longer includes what can be read now, which has its own shelf. A search typed over the
+  shelves opens the whole list, unbanded. `#see` and `#see/<band>` are addresses; a text's
+  own and `#bm` open what they always opened.
+- **The search box and its fold stay as they were** until search has its own slice; what
+  the fold narrows, the shelves narrow too. The Weekly portion stands among the shelves,
+  not over a See all list.
+- **Every picture in the Library comes through `?drawn=1`** ("Every text has a picture",
+  2026-10-08), on the shelves, the cards and the table: the Library draws no letter of its
+  own any more. A collection still has its caret rather than a picture.
+
+What it does not overturn: one list, never two rooms; a band never applies inside the
+Beit Midrash; "at my level" is the reader's known share and not the text's difficulty; and
+nothing on a shelf spends, as nothing on a card did.
+
 ### A subscription is the account's, and what it brings comes under Continue — 2026-10-09
 
 David, 2026-10-08 (the calmer-surfaces boards SubsTab, SubDetail, SubHome, SubConfirm,
