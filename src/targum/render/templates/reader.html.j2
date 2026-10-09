@@ -201,7 +201,7 @@
   {% set mains = translations|rejectattr("companion")|list %}
   {% set beside_verse = translations|selectattr("companion")|list %}
   <div class="bar-pop aa m-menu" id="aa" role="dialog" aria-label="{{ t("reader.page.text-and-columns", "Text and columns") }}" dir="ltr">
-    <div class="more-head m-grab-head"><button type="button" class="m-grab" data-pop-close="aa" aria-label="{{ t("reader.page.close", "Close") }}"></button></div>
+    <div class="more-head m-grab-head"><button type="button" class="sheet-grab" data-pop-close="aa" aria-label="{{ t("reader.page.close", "Close") }}"></button></div>
     <div class="m-sect">
       <p class="m-head">{{ t("reader.page.how-the-text-looks", "How the text looks") }}</p>
       <div class="m-row aa-row" role="group" aria-label="{{ t("reader.page.type-size", "Type size") }}" data-what="Type">
@@ -269,7 +269,7 @@
       <div class="m-row m-wide aa-row">
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M3.5 13.5v-4M8 13.5v-7M12.5 13.5v-11"></path></svg></span>
         <span class="m-label aa-label">{{ t("reader.page.level", "Level") }}</span>
-        <div class="m-end m-seg levels" role="group" aria-label="{{ t("reader.page.level", "Level") }}" data-what="Level">
+        <div class="m-end seg levels" role="group" aria-label="{{ t("reader.page.level", "Level") }}" data-what="Level">
           {%- for other in siblings %}
           {%- if other.current %}
           <span class="level here" aria-current="page" title="{{ t("contents.page.written-for", "Written for {figure}", figure=other.figure) }}">{{ other.name }}</span>
@@ -289,7 +289,7 @@
       <div class="m-row m-wide aa-row">
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M1.75 4.5h5M1.75 8h5M1.75 11.5H5M9.25 4.5h5M9.25 8h5M10.5 11.5h3.75"></path></svg></span>
         <span class="m-label aa-label">{{ t("reader.page.translation", "Translation") }}</span>
-        <div class="m-end m-seg renderings" id="translation" role="group" aria-label="{{ t("reader.page.translation", "Translation") }}" data-what="Translation" data-drawn="{{ drawn_id }}">
+        <div class="m-end seg renderings" id="translation" role="group" aria-label="{{ t("reader.page.translation", "Translation") }}" data-what="Translation" data-drawn="{{ drawn_id }}">
           {%- for t in mains %}
           <button type="button" class="rendering{% if t.id == drawn_id %} on{% endif %}" data-translation="{{ t.id }}" aria-pressed="{{ 'true' if t.id == drawn_id else 'false' }}" title="{{ t.name }}"{% if t.id not in covered %} disabled{% endif %}>{{ t.label }}</button>
           {%- endfor %}
@@ -331,7 +331,7 @@
         <div class="aa-practice-how" id="practice-how" hidden>
           <p class="aa-note m-note">{{ t("reader.page.each-verse-twice-in-hebrew-then-once", "Each verse twice in Hebrew, then once in Onkelos") }}</p>
           <div class="m-row m-sub-row">
-            <div class="m-seg practice" id="practice" role="group" aria-label="{{ t("reader.page.shnayim-mikra", "Shnayim mikra") }}" data-what="Shnayim mikra">
+            <div class="seg practice" id="practice" role="group" aria-label="{{ t("reader.page.shnayim-mikra", "Shnayim mikra") }}" data-what="Shnayim mikra">
               <button type="button" class="practice-key on" data-practice="" aria-pressed="true" title="{{ t("reader.page.read-as-usual", "Read as usual") }}" hidden>{{ t("reader.page.read", "Read") }}</button>
               <button type="button" class="practice-key" data-practice="verse" aria-pressed="false" title="{{ t("reader.page.each-verse-twice-in-hebrew-then-once", "Each verse twice in Hebrew, then once in Onkelos") }}">{{ t("reader.page.by-verse", "By verse") }}</button>
               <button type="button" class="practice-key" data-practice="section" aria-pressed="false" title="{% if practice == "aliyah" %}{{ t("reader.page.whole-aliyah-twice", "The whole aliyah twice in Hebrew, then once in Onkelos") }}{% else %}{{ t("reader.page.whole-chapter-twice", "The whole chapter twice in Hebrew, then once in Onkelos") }}{% endif %}">{% if practice == "aliyah" %}{{ t("reader.page.by-aliyah", "By aliyah") }}{% else %}{{ t("reader.page.by-chapter", "By chapter") }}{% endif %}</button>
@@ -366,14 +366,14 @@
       laying it out again (§12, 2026-09-14). `data-what` names a row for the tests and the
       events, never for the eye. -#}
   <div class="bar-more m-menu" id="more" role="dialog" aria-label="{{ t("reader.page.more", "More") }}" dir="ltr">
-    <div class="more-head m-grab-head"><button type="button" class="m-grab" data-more aria-label="{{ t("reader.page.close", "Close") }}"></button></div>
+    <div class="more-head m-grab-head"><button type="button" class="sheet-grab" data-more aria-label="{{ t("reader.page.close", "Close") }}"></button></div>
     {#- The view, on a phone, where the bar has no room for its drawings: the same
         presses, so one idea of which is on. -#}
     <div class="m-sect m-view">
       <div class="m-row m-wide" data-what="{{ t("reader.page.view", "View") }}">
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><rect x="1.75" y="2.5" width="12.5" height="11" rx="1"></rect><path d="M8 2.5v11"></path></svg></span>
         <span class="m-label">{{ t("reader.page.view", "View") }}</span>
-        <div class="m-end m-seg more-modes" role="group" aria-label="{{ t("reader.page.view", "View") }}">
+        <div class="m-end seg more-modes" role="group" aria-label="{{ t("reader.page.view", "View") }}">
           {%- for key, label, path in [
             ("parallel", t("reader.bar.beside", "Translation beside the text"), '<path d="M2.5 5h6M2.5 9h6M2.5 13H7M11.5 5h6M11.5 9h6M13 13h4.5"></path>'),
             ("inter", t("reader.bar.under", "Translation under each line"), '<path d="M3 4h14M3 12h14"></path><path class="faint" d="M5 7.5h10M5 15.5h10"></path>'),
@@ -452,7 +452,7 @@
       <div class="m-row more-step" data-what="{{ t("reader.page.step", "Step") }}">
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M5 3.5 10.5 8 5 12.5"></path><path d="M12 3.5v9"></path></svg></span>
         <span class="m-label">{{ t("reader.page.step-line-by-line", "Step line by line") }}</span>
-        <span class="m-end m-seg">
+        <span class="m-end seg">
           <button type="button" class="more-back" aria-label="{{ t("reader.page.back", "Back") }}" title="{{ t("reader.page.back", "Back") }}">
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M11 3.5 5.5 8 11 12.5"></path><path d="M4 3.5v9"></path></svg>
           </button>
@@ -512,7 +512,7 @@
     </div>
   </div>
   {#- Under a sheet on a phone, the page dims: a press on it puts the sheet away. -#}
-  <div class="m-scrim" aria-hidden="true"></div>
+  <div class="scrim m-scrim" aria-hidden="true"></div>
 </header>
 
 {#- The sections, straight from the bar.

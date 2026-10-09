@@ -47,7 +47,7 @@
     {%- if already %}
     <p class="said">{{ t("subscribe.page.already", "You're subscribed to this already.") }}</p>
     <form method="get" action="/subscriptions/{{ already.id }}">
-      <button class="go" type="submit">{{ t("subscribe.page.manage", "Manage") }}</button>
+      <button class="btn filled go" type="submit">{{ t("subscribe.page.manage", "Manage") }}</button>
     </form>
     {%- else %}
     <form method="post" action="/subscribe" class="subscribe-form">
@@ -97,9 +97,9 @@
       </dl>
       {%- if offer.builds and not allowed %}
       <p class="said">{{ t("subscribe.page.plan", "Channels and podcasts come with a plan. Series and news are free.") }}</p>
-      <button class="go" type="submit" disabled>{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
+      <button class="btn filled go" type="submit" disabled>{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
       {%- else %}
-      <button class="go" type="submit">{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
+      <button class="btn filled go" type="submit">{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
       {%- endif %}
     </form>
     <p class="aside">

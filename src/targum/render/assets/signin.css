@@ -114,38 +114,20 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
 }
 .gate .fault-under { margin-block: 0.5rem 0.75rem; }
 
-/* The one call to action on the page, so it is ink (§9): the max-contrast pair.
-
-   Drawn from the pill in the 2026-09-24 sneak peek, which showed targum appearing inside
-   ChatGPT — David, seeing it: "let's also use that button in the app". Two of its three
-   parts travel and one does not.
-
-   The lift is here, so the press sits a little off the card at rest and not only when a
-   pointer finds it, which a phone has not got. The arrow is *not* here: it says "this
-   takes you somewhere", which is true of Read this and of Connect and false of Send a
-   link, so it is written into the buttons that mean it rather than given to all three.
-   And the mark stays in the mockup — two bars inside a button say "targum, over here",
-   which is worth saying inside somebody else's app and not on a page already carrying
-   the lockup above it. */
+/* The one press on the page. Drawn from the pill in the 2026-09-24 sneak peek, which
+   showed targum appearing inside ChatGPT — David, seeing it: "let's also use that button
+   in the app". The arrow is written into the buttons that mean "this takes you
+   somewhere" (Read this, Connect) rather than given to all of them, and the mark stays
+   in the mockup. */
+/* The press is the shared `.btn` (shared.css), filled in the primary as the boards draw
+   it — Subscribe, Connect, Sign in — where it was ink, full width and lifted
+   (2026-10-09, design.md §12, "A door's one press is the primary"). Here only the door's
+   size: a step up from a page's, at the boards' 46px. Sign-in's stands the width of its
+   form (`.wide`); the rest stand at their words' width. */
 .gate .go {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  width: 100%;
   min-block-size: 2.75rem;
-  padding: 0.6rem 1.25rem;
-  border: none;
-  border-radius: 999px;
-  /* Flat: §13's filled button is a fill, and the desk draws no sheen (2026-10-09). */
-  background: var(--ink-max);
-  color: var(--page-max, #fffdf9);
-  font: inherit;
+  padding-inline: 1.5rem;
   font-size: 1.0625rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--shadow-rest);
-  transition: box-shadow 200ms ease;
 }
 /* Dimmed, because it hints where the press goes and is not a second thing to read. */
 .gate .go .go-arrow {
@@ -154,9 +136,6 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
   block-size: 0.8em;
   opacity: 0.7;
 }
-.gate .go:hover { box-shadow: var(--lift); }
-.gate .go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.gate .go[disabled] { opacity: 0.5; cursor: default; box-shadow: none; }
 /* An arrow on a button that cannot be pressed promises a way on that is not there yet. */
 .gate .go[disabled] .go-arrow { display: none; }
 
@@ -170,9 +149,6 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
 .gate .sent { margin-block-start: 1rem; margin-block-end: 0; color: var(--ink); }
 .gate .sent[hidden] { display: none; }
 
-@media (prefers-reduced-motion: reduce) {
-  .gate .go { transition: none; }
-}
 
 
 /* --- the second door (targum-internal#304) ---------------------------------- */
@@ -180,12 +156,7 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
 /* An anchor styled as the same press the form carries, because it is the same act.
    No Google mark: that would be an image off the network on the one page that must not
    fetch anything, and the words say it. */
-.gate .with-google {
-  display: block;
-  text-align: center;
-  text-decoration: none;
-  margin-block-end: 0.75rem;
-}
+.gate .with-google { margin-block-end: 0.75rem; }
 /* "or", between the two doors, as quiet as it can be while still separating them. */
 .gate .or {
   margin: 0 0 0.75rem;

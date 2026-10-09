@@ -80,10 +80,6 @@ body.yours .nothing a:hover { border-block-end-color: var(--ink-soft); }
 .words-back:hover { text-decoration: underline; }
 .words-summary { margin: 0; font-size: 0.9375rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .words-summary:empty { display: none; }
-.list-tabs a.tab { text-decoration: none; background: var(--teal-wash); color: var(--teal); }
-.list-tabs a.tab[aria-current="page"] { background: var(--teal); color: var(--teal-ink); }
-.list-tabs .tab-count { font-variant-numeric: tabular-nums; opacity: 0.8; }
-.list-tabs .tab-count:empty { display: none; }
 
 .stage-chips { flex-basis: 100%; }
 

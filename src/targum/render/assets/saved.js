@@ -123,8 +123,8 @@
       element("span", "saved-how", mine ? t("saved.by-you", "By you") : t("saved.on-its-own", "On its own"))
     );
     var act = mine
-      ? element("button", "go-quiet saved-remove", t("saved.remove", "Remove"))
-      : element("button", "go-quiet saved-keep-it", t("saved.keep", "Keep"));
+      ? element("button", "btn ghost outline small saved-remove", t("saved.remove", "Remove"))
+      : element("button", "btn ghost outline small saved-keep-it", t("saved.keep", "Keep"));
     act.type = "button";
     act.setAttribute(
       "aria-label",

@@ -265,7 +265,8 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
     assert not thrown, thrown
     assert got == [
         {
-            "cells": 4,
+            # As many cells as texts, filling the square (P2): no empty quarter.
+            "cells": 2,
             "here": "You're in it · 2 of 2",
             "facts": "By you · 2 texts · 10 min",
             "known": "88% known",
@@ -273,7 +274,7 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
             "open": "/playlists/1?k=test-key",
         },
         {
-            "cells": 4,
+            "cells": 2,
             "here": None,
             "facts": "From an assistant · 3 texts · 10 min",
             "known": "88% known",

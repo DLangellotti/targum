@@ -65,7 +65,7 @@
   <p class="said">{{ t("signin.page.press-to-sign-in-on-this-browser", "Press to sign in on this browser.") }}</p>
   <form method="post" action="/account/enter">
     <input type="hidden" name="t" value="{{ token }}">
-    <button class="go" type="submit">{{ t("signin.page.sign-in", "Sign in") }}</button>
+    <button class="btn filled wide go" type="submit">{{ t("signin.page.sign-in", "Sign in") }}</button>
   </form>
   <p class="aside">{{ t("signin.page.didn-t-ask-for-this-you-can", "Didn't ask for this? You can close the page.") }}</p>
 
@@ -87,7 +87,7 @@
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
-    <button class="go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
+    <button class="btn filled wide go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
   </form>
 
   {% else %}
@@ -102,7 +102,7 @@
       an anchor to accounts.google.com, which is a link the reader chooses to follow and
       the one thing §11 lets off the page. -#}
   {%- if google %}
-  <a class="go with-google" href="/account/google">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
+  <a class="btn ghost outline wide go with-google" href="/account/google">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
   <p class="or">{{ t("signin.page.or", "or") }}</p>
   {%- endif %}
   <p class="said">{{ t("signin.page.no-password-we-ll-email-you-a", "No password. We'll email you a link.") }}</p>
@@ -110,7 +110,7 @@
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
-    <button class="go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
+    <button class="btn filled wide go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
   </form>
   {% endif %}
 

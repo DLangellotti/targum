@@ -128,59 +128,13 @@ body.add > .add-main {
 
 .bring-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 
-/* --- the three kinds of button (§13) ------------------------------------------------
+/* --- the buttons are the desk's `.btn` (chrome.css) ---------------------------------
    Filled in the primary, one per view: Continue, and the card's own press once it is
-   drawn. Tonal, tint with the primary's text, for the ordinary press. Ghost for Change,
-   Done and dismiss. All pills. */
-.add .go,
-.add .filled,
-.add .bring-choose,
-.add .bring-ask,
-.add .status button,
-.add .change,
-.add .ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.45rem;
-  min-block-size: 2.5rem;
-  padding: 0 1rem;
-  border: 0;
-  border-radius: 999px;
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  background: var(--teal-wash);
-  color: var(--teal);
-  box-shadow: none;
-}
+   drawn. Tonal for the ordinary press (Choose files, Record, Bring a post). Ghost for
+   Change, Back and dismiss. Here only where Continue stands, and that a refused one
+   says it is waiting. */
 .add .go { margin-inline-start: auto; }
-.add .go,
-.add .filled,
-.add .status .filled { background: var(--teal); color: var(--teal-ink); }
-.add .go:hover,
-.add .filled:hover,
-.add .status .filled:hover { background: var(--teal); filter: brightness(1.08); }
-.add .bring-choose:hover,
-.add .bring-ask:hover,
-.add .status button:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
-.add .change,
-.add .ghost,
-.add .status .ghost { background: transparent; color: var(--ink-soft); }
-.add .change:hover,
-.add .ghost:hover,
-.add .status .ghost:hover { background: var(--teal-wash); color: var(--ink); }
-.add .go[disabled] { opacity: 0.5; cursor: progress; }
-.add .go:focus-visible,
-.add .filled:focus-visible,
-.add .bring-choose:focus-visible,
-.add .bring-ask:focus-visible,
-.add .change:focus-visible,
-.add .ghost:focus-visible,
-.add .status button:focus-visible,
+.add .go[disabled] { cursor: progress; }
 .given-file-x:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .add [hidden] { display: none; }
 .glyph { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -221,26 +175,10 @@ body.add > .add-main {
 }
 .option-body { display: grid; gap: 0.55rem; min-inline-size: 0; }
 .pickers { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; }
-.field { display: grid; gap: 0.3rem; margin: 0; }
-.field span { color: var(--ink-soft); font-size: 0.8125rem; }
+/* A field is the desk's `.field` (chrome.css): a label over a well, the primary's ring
+   on focus; the pasted translation is a `.well` on its own. */
 .field.short { inline-size: 12rem; max-inline-size: 100%; }
-.field select,
-.field input,
-.options textarea {
-  inline-size: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 0;
-  border-radius: var(--radius-row);
-  background: var(--field);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.9375rem;
-}
-.options textarea { min-block-size: 4.5rem; resize: vertical; }
-.field select:focus-visible,
-.field input:focus-visible,
-.options textarea:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--teal); }
-.add .segment { font-size: 0.875rem; font-weight: 600; padding: 0.35rem 0.85rem; }
+.options textarea.well { min-block-size: 4.5rem; }
 
 /* A translation or a transcript the reader has, in its own small well. */
 .drop.small {
@@ -338,7 +276,6 @@ body.add > .add-main {
 .post-form-title + .hint { margin-block-start: -0.5rem; }
 .post-label { display: block; color: var(--ink-soft); font-size: 0.8125rem; }
 .post-where { display: grid; gap: 0.3rem; justify-items: start; }
-.post-where .segment { font-size: 0.875rem; font-weight: 600; padding: 0.35rem 0.85rem; }
 .post-who { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.6rem 1rem; }
 .post-form textarea {
   inline-size: 100%;
@@ -356,8 +293,7 @@ body.add > .add-main {
 .post-form textarea:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--teal); }
 .post-media { display: grid; gap: 0.45rem; }
 .post-media .hint { flex: 1 1 14rem; font-size: 0.8125rem; }
-.post-form .ghost:focus-visible,
-.post-where .segment:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.post-form .ghost:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
 @media (max-width: 40rem) {
   .add-main { padding-block-start: 1.25rem; }
@@ -397,8 +333,7 @@ body.add > .add-main {
   font-size: 0.9375rem;
   font-weight: 600;
 }
-/* Change is a press, and looks like one. */
-.add .change { color: var(--teal); }
+/* Change is a press, and looks like one: the desk's text button. */
 
 /* What targum found at the end of a link, said before the price (targum-internal#250).
    A reading and not a control: no border, no ink, nothing to press — it is what the

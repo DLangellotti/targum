@@ -1143,3 +1143,184 @@ body.missing main.fault-page h1 { font-size: 1.9375rem; font-weight: 500; }
   body.missing main.fault-page { inline-size: calc(100% - 2rem); margin-block-start: 1rem; }
   body.missing main.fault-page h1 { font-size: 1.75rem; }
 }
+
+/* =====================================================================================
+   The components the reader and the desk both draw (design.md §12, "The boards are the
+   desk", 2026-10-09; P2 of the polish plan). One definition each, here, so a reader's ⋯
+   and a desk page's filter cannot drift into two looks for one control. What only the
+   desk draws — tabs, cards, rows, fields, meters, tags, tiles — is the end of
+   `chrome.css`. */
+
+/* --- a button: `.btn` and one of four ------------------------------------------------
+   Filled in the primary, one a view — Subscribe, Save, Upload; tonal, the ordinary
+   press; ghost, no fill, for Hide, Close, Remove and dismiss (§13), with `.outline` for
+   the boards' "line" press, a hairline round it on the card (Cancel, Change, Pause); and
+   text, a press that is only its words in the primary ("Open it", "Pick up at 0:31").
+   All pills, 40px tall and 44 under a thumb, flat: no sheen (§9's gloss is retired on the
+   desk). The doors (sign-in, a press, a set, Subscribe) and the public pages wear it
+   too; their call to action in ink is `.cta`, which stays theirs (front.css). `.danger` puts a ghost or a text press in clay; `.small` is the dense one, for a
+   row. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  inline-size: auto;
+  min-block-size: 2.5rem;
+  margin: 0;
+  padding: 0 1.125rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.btn[hidden] { display: none; }
+.btn svg {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn:disabled,
+.btn[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+.btn.filled { background: var(--teal); color: var(--teal-ink); }
+.btn.filled:hover:not(:disabled) { background: color-mix(in srgb, var(--teal) 86%, var(--ink)); color: var(--teal-ink); }
+.btn.tonal { background: var(--teal-wash); color: var(--teal); }
+.btn.tonal:hover:not(:disabled),
+.btn.tonal[aria-pressed="true"] { background: color-mix(in srgb, var(--teal) 16%, transparent); color: var(--teal); }
+.btn.ghost { background: transparent; color: var(--ink-soft); }
+.btn.ghost:hover:not(:disabled) { background: var(--teal-wash); color: var(--ink); }
+.btn.ghost.outline { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule); }
+.btn.ghost.outline:hover:not(:disabled) { background: var(--teal-wash); }
+.btn.text { padding-inline: 0.375rem; background: none; color: var(--teal); }
+.btn.text:hover:not(:disabled) { background: var(--teal-wash); color: var(--teal); }
+.btn.danger { color: var(--clay); }
+.btn.danger:hover:not(:disabled),
+.btn.danger[data-sure="yes"] { color: var(--clay); background: color-mix(in srgb, var(--clay) 10%, transparent); }
+.btn.small { min-block-size: 2rem; padding-inline: 0.875rem; font-size: 0.875rem; }
+.btn.text.small { padding-inline: 0.25rem; }
+.btn.wide { inline-size: 100%; }
+
+/* --- a choice of a few: `.seg` ------------------------------------------------------
+   One bordered strip, the live part in the teal wash: the reader's view, renderings,
+   level and shnayim mikra (2026-10-09), a page's Diaspora / Israel, Which Hebrew, Where
+   the translation comes from, and what a saved page keeps. It replaced three looks — the
+   reader's strip, the desk's pill track and the saved page's ink-filled pair. The live
+   part is marked by `aria-pressed`, `aria-checked`, `aria-current` or `.on`, whichever
+   the control already says. */
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: none;
+  overflow: hidden;
+}
+.seg[hidden] { display: none; }
+.seg > button,
+.seg > a,
+.seg > span,
+.seg > label {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 2.25rem;
+  min-block-size: 2.25rem;
+  margin: 0;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-family: var(--ui);
+  font-size: 0.875rem;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.seg > * + * { border-inline-start: 1px solid var(--rule); }
+.seg > [hidden] { display: none; }
+.seg > :hover { color: var(--ink); background: var(--teal-wash); }
+.seg > .on,
+.seg > [aria-pressed="true"],
+.seg > [aria-checked="true"],
+.seg > [aria-current],
+.seg > .here {
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-weight: 600;
+}
+.seg > :disabled { opacity: 0.35; cursor: default; }
+.seg > :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.seg svg {
+  display: block;
+  inline-size: 18px;
+  block-size: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- the page dimmed under a sheet: `.scrim` ----------------------------------------
+   The reader's menus, the conversation's drawer and the find box each drew their own
+   dim, in three alphas. One now; each keeps its own place in the stack. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+}
+.scrim[hidden] { display: none; }
+
+/* --- a sheet's handle: `.sheet-grab` -------------------------------------------------
+   What says a sheet can be pulled down, and what closes it when it is tapped: a 40 by 5
+   pill in the well's grey, centred in a 28px strip at the sheet's head (board
+   OffSaving). The reader's Aa and ⋯ and a desk sheet wear the same one. */
+.sheet-grab {
+  display: block;
+  inline-size: 100%;
+  block-size: 1.75rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.sheet-grab::before {
+  content: "";
+  display: block;
+  inline-size: 2.5rem;
+  block-size: 5px;
+  margin-inline: auto;
+  border-radius: 999px;
+  background: var(--well);
+}
+.sheet-grab:active::before { background: var(--ink-soft); }
+.sheet-grab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+@media (hover: none) and (pointer: coarse) {
+  .btn,
+  .btn.small,
+  .seg > *,
+  .sheet-grab { min-block-size: 44px; }
+  .seg > * { min-inline-size: 44px; }
+}

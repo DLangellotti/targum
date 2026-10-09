@@ -68,9 +68,6 @@ body.yours:has(#continue:not([hidden])) main { padding-block-start: 2.25rem; }
   flex-direction: column;
   gap: 0.6rem;
   padding: 1.25rem;
-  background: var(--card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
   font-family: var(--chrome);
   transition: box-shadow 240ms var(--ease), transform 160ms var(--ease);
 }
@@ -144,36 +141,11 @@ body.yours:has(#continue:not([hidden])) main { padding-block-start: 2.25rem; }
 .home-card-go.is-waiting { color: var(--ink-soft); font-weight: 400; }
 .home-card-go.is-waiting::after { content: none; }
 
-.home-tag {
-  align-self: flex-start;
-  padding: 0.1rem 0.6rem;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-}
-.home-tag.is-building { color: var(--teal); border-color: var(--teal); }
-.home-tag.is-new { color: var(--iris); border-color: var(--iris); }
-
-/* How much of it you know, in leaf (§4: green is progress); a build's, how far it has
-   got, in the primary. */
-.home-bar {
-  display: block;
-  block-size: 6px;
-  border-radius: 999px;
-  background: var(--rule);
-  overflow: hidden;
-}
-.home-fill {
-  display: block;
-  block-size: 100%;
-  inline-size: calc(var(--done, 0) * 100%);
-  background: var(--leaf);
-}
-.home-bar.is-building .home-fill { background: var(--teal); }
+/* Its kind is the desk's `.tag`, and how much of it you know the desk's `.meter`, in
+   leaf; a build's, how far it has got, in the primary (chrome.css). */
 
 /* --- a build's picture: its letter, until it has a folder for the server to draw from --- */
-.home-thumb.is-letter { border: 0; background: var(--paper-raised); }
+/* Its letter rests on the colour of its kind, as every tile's does (chrome.css). */
 .home-thumb.is-letter .glyph { font-size: 2.75rem; }
 
 /* --- nothing yet ------------------------------------------------------------------------ */
@@ -209,9 +181,6 @@ body.yours:has(#continue:not([hidden])) main { padding-block-start: 2.25rem; }
   display: flex;
   gap: 1rem;
   padding: 1.25rem;
-  background: var(--card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
   font-family: var(--chrome);
 }
 .try-next[hidden] { display: none; }
@@ -279,7 +248,6 @@ body.yours:has(#continue:not([hidden])) main { padding-block-start: 2.25rem; }
 @media (max-width: 40rem) {
   /* A 16px gutter: the cards are on the ground, not a sheet to the edges. */
   body.yours main { gap: 1.5rem; padding-inline: 1rem; padding-block-start: 1.25rem; }
-  .home-tag { justify-self: start; }
   .continue-cards { grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
   /* Two, not four: the first screen is for picking up, and the rest are on the shelf. */
   .continue-cards > li:nth-child(n + 3) { display: none; }

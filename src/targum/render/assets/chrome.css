@@ -240,23 +240,8 @@ body {
 .account-panel .hours { color: var(--ink); font-size: 0.875rem; margin: 0.35rem 0 0; }
 .account-panel .rate { margin: 0; }
 .account-panel form { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.account-panel input {
-  flex: 1 1 9rem;
-  min-width: 0;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-control);
-  background: var(--paper-raised);
-  color: inherit;
-  font: inherit;
-  font-size: 0.8125rem;
-}
-.account-panel form button {
-  padding: 0.35rem 0.7rem;
-  border-radius: var(--radius-control);
-  font-size: 0.8125rem;
-}
-.account-panel form button { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+/* The address is the desk's `.well` and Send a link its filled `.btn`. */
+.account-panel input { flex: 1 1 9rem; inline-size: auto; min-width: 0; }
 /* The menu's rows have the reader menus' anatomy (board ReaderMenus, 2026-10-09): the
    panel runs edge to edge, a row is a full-width line of ink at the body size, and a
    hairline from edge to edge stands between the head and the rows. Sign out is one of
@@ -288,16 +273,10 @@ body {
 .account-panel [hidden] { display: none; }
 
 /* --- a segmented switch ----------------------------------------------------
-   A few answers to one question, in one track, so it reads as a switch between things
-   rather than as more pills among the filters. Discover asks which Hebrew with it; the
-   upload page asks where a translation comes from. Here rather than in either, because a
-   copy of it in the second file is the copy that stops matching.
-
-   It wraps. It carried two answers for as long as Hebrew was biblical or modern, and
-   carries five now — Biblical, Rabbinic, Medieval, Revival, Modern, plus All — which is
-   about fifty pixels more than a phone has. Wrapped it is two lines inside one outline,
-   which still reads as one control; scrolled it would be a filter whose options you
-   cannot see. */
+   A few answers to one question, in one strip: the shared `.seg` (shared.css) since
+   2026-10-09, where it was a pill track here and an ink-filled pair on the saved page.
+   Discover asks which Hebrew with it; the upload page asks where a translation comes
+   from. Its label, where it has one, stands before it. */
 .switch-set { display: flex; align-items: center; gap: 0.35rem; }
 .switch-set[hidden] { display: none; }
 .switch-label {
@@ -306,29 +285,6 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.segmented {
-  display: inline-flex;
-  flex-wrap: wrap;
-  row-gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  /* §9: one raised layer per view. This always sits inside a raised card or
-     panel, so the fill repeated the surface underneath it and the hairline is
-     what marks the edge — "if a card needs a card, use a hairline instead". */
-}
-.segment {
-  padding: 0.2rem 0.6rem;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-  cursor: pointer;
-}
-.segment:hover { color: var(--ink); }
-/* §4: selection in UI is quiet ink, never the accent. */
-.segment[aria-pressed="true"] { background: var(--ink-soft); color: var(--paper); }
 
 
 /* Notifications (2026-09-11): a bell in the bar with a count, and a panel under it —
@@ -504,18 +460,6 @@ body {
 /* Clear all (2026-09-14): a ghost at the head of the panel, as dismiss is (§13). */
 .notices-head { display: flex; justify-content: flex-end; padding: 0 0.2rem 0.2rem; }
 .notices-head[hidden] { display: none; }
-.notices-clear {
-  padding: 0.25rem 0.7rem;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--teal);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.notices-clear:hover { background: var(--teal-wash); }
 .notices-empty { margin: 0.3rem 0.6rem; font-size: 0.8125rem; color: var(--ink-soft); }
 .notices-empty[hidden] { display: none; }
 .notices-list { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -639,7 +583,7 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
     border-radius: var(--radius-card) var(--radius-card) 0 0;
     border-block-end: 0;
   }
-  .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
+  .talk-scrim { display: block; z-index: 30; }
   .talk-scrim[hidden] { display: none; }
   /* The end edge only. Both edges made the pill a bar the width of the window, over the
      reader's page count on a tablet (2026-09-14). */
@@ -745,26 +689,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .account-panel .said { padding-inline: 1.125rem; }
 .account-panel .account-head { padding-block: 0.6rem 0.2rem; }
 .account-panel .signed-out > p:first-child { padding-block-start: 0.6rem; }
-.account-panel input {
-  border: 1px solid transparent;
-  border-radius: var(--radius-row);
-  background: var(--field);
-  padding: 0.5rem 0.7rem;
-}
-.account-panel input:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
-.account-panel form button { background: var(--teal); border: 0; border-radius: 999px; color: var(--teal-ink); padding: 0.5rem 0.9rem; }
 .account-panel .account-phone { display: none; }
-.account-panel .account-find {
-  padding: 0.45rem 0.9rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
 .notices-list li + li { border-block-start: 1px solid var(--hairline); }
 .talk-drawer { animation: talk-in var(--in) var(--ease); }
 .talk-drawer-head { border-block-end: 1px solid var(--hairline); padding: 0.8rem 0.8rem 0.7rem 1.2rem; }
@@ -772,8 +697,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 @media (max-width: 48rem) {
   .talk-drawer { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
 }
-.segmented { border: 1px solid var(--hairline); background: var(--field); }
-.segment[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow-rest); }
 
 /* --- phase 4 (2026-09-11): the phone ------------------------------------------------
    The four places are a bar at the foot of the window, a glyph over each word, on
@@ -926,7 +849,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 .palette-open:hover, .palette-open[aria-expanded="true"] { color: var(--ink); background: var(--teal-wash); }
 .palette-open .bell { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.palette-scrim { position: fixed; inset: 0; z-index: 40; background: rgb(0 0 0 / 0.25); }
+/* The dim is the shared `.scrim` (shared.css); here only its place in the stack. */
+.palette-scrim { z-index: 40; }
 .palette-scrim[hidden] { display: none; }
 .palette {
   position: fixed;
@@ -943,17 +867,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
   animation: talk-in var(--in) var(--ease);
 }
 .palette[hidden] { display: none; }
-.palette-find {
-  inline-size: 100%;
-  font: inherit;
-  font-size: 1.0625rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-row);
-  background: var(--field);
-  color: var(--ink);
-}
-.palette-find:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+/* The find box is the desk's `.well`, a size up. */
+.palette-find { font-size: 1.0625rem; padding: 0.75rem 1rem; }
 .palette-list { list-style: none; margin: 0.6rem 0 0; padding: 0; max-block-size: 50svh; overflow: auto; }
 .palette-list[hidden] { display: none; }
 .palette-row {
@@ -983,19 +898,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 @media (prefers-reduced-motion: reduce) { .palette { animation: none; } }
 .switch-label { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
-.notices-act {
-  border: 0;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.3rem 0.7rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.notices-act:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 
 /* A build opened in place (2026-10-06): the line is the button, and under it the stage,
    a bar and the server's sentence. The chevron points down and up rather than at the
@@ -1150,4 +1052,261 @@ body .site-footer { max-inline-size: var(--column); }
   /* "Your targums" read whole at 320px: the foot's cells give up their side padding. */
   .site-head-row .site-nav { gap: 0; padding-inline: 0.25rem; }
   .site-nav a { padding-inline: 0; }
+}
+
+/* =====================================================================================
+   The components (design.md §12, "The boards are the desk", 2026-10-09; P2 of the
+   polish plan). One button, one row of tabs, one card, one list of rows, one field, one
+   meter, one tag, one tile and one section title for every desk page, at the boards'
+   values, so a page draws a control by naming it rather than by drawing it again. Each
+   replaced a page's own copy: the Upload page's, the playlists', /you's and the doors'
+   buttons; the Library's, Your targums' and Your Words' three kinds of tab; five
+   meters; a beige letter box in four places. A button (`.btn`), a choice of a few
+   (`.seg`), the dim under a sheet (`.scrim`) and a sheet's handle are in `shared.css`,
+   because the doors, the public pages and the reader draw them too. Written last, so a page's older rule cannot win by being later. */
+
+/* --- a button is the shared `.btn` (shared.css): the doors and the public pages draw
+   it too. ---------------------------------------------------------------------------- */
+
+/* --- a row of tabs: `.tabs` of `.tab` -------------------------------------------------
+   Tinted pills (design.md §12, "The boards are the desk": "each a pill on the wash, the
+   chosen one filled in the primary with paper text"). The underlined tabs are retired —
+   the Library's, Your targums' and the strip drawn as the Library's — and so is §4's
+   quiet ink for a chosen tab on the desk. Links (`aria-current`) or buttons
+   (`aria-selected`, `aria-pressed`): whichever a row already is, it is drawn the same. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.tabs[hidden] { display: none; }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-block-size: 2.25rem;
+  margin: 0;
+  padding: 0 0.875rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tab:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); color: var(--teal); }
+.tab[aria-current="page"],
+.tab[aria-current="true"],
+.tab[aria-selected="true"],
+.tab[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); cursor: default; }
+.tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tab .tab-count { font-variant-numeric: tabular-nums; opacity: 0.8; font-weight: 400; }
+.tab .tab-count:empty { display: none; }
+/* On a phone a row of tabs is one line that scrolls sideways, as the boards' phones draw
+   it: wrapped, Your targums' four took two lines and pushed the list a screen down. */
+@media (max-width: 40rem) {
+  .tabs {
+    flex-wrap: nowrap;
+    gap: 0.375rem;
+    overflow-x: auto;
+    padding-block: 3px;
+    margin-block: -3px;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; padding-inline: 0.75rem; }
+}
+
+/* --- a card: `.card` (and `.panel`, its older name) ----------------------------------
+   What sits on the ground: the card's paper, 16px corners, raised by the resting shadow
+   and no line (the boards' card; §13's tiers). A card is never inside a card — what
+   groups things inside one is a hairline (§9, "if a card needs a card, use a hairline"),
+   and `test_brand` and the pages' browser test hold it. `.panel` is the same thing under
+   the name five pages and their scripts already use; there is one rule for both. */
+.card,
+.panel {
+  min-inline-size: 0;
+  padding: 1.25rem 1.5rem;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  color: var(--ink);
+}
+.card[hidden],
+.panel[hidden] { display: none; }
+@media (max-width: 40rem) {
+  .card,
+  .panel { padding: 1rem; }
+}
+
+/* --- a section's title: `.section-title` ---------------------------------------------
+   The reading serif at 24px, weight 500 (design.md §12, "The boards are the desk"), on
+   the ground or at the head of a card: a shelf, a part of a page. A card's own name, a
+   label and a column head stay in the chrome's sans. */
+.section-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+@media (max-width: 40rem) {
+  .section-title { font-size: 1.25rem; }
+}
+
+/* --- a list of rows: `.rows` of `.row` ------------------------------------------------
+   The boards' row: a picture 44px square (64 in `.rows.is-large`), the title, its kind
+   as a `.tag`, how much is known as a `.meter`, and a quiet fact at the end
+   (`.row-end`); a hairline between rows and none after the last. The parts are named, so
+   a row may leave any of them out. Only `.row` items take the anatomy: the Library's own
+   list keeps its rows until it moves onto these (P5). */
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows > .row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-inline-size: 0;
+  padding-block: 0.875rem;
+  border-block-end: 1px solid var(--rule);
+}
+.rows > .row:last-child { border-block-end: 0; }
+.row-thumb {
+  flex: none;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+.rows.is-large .row-thumb { inline-size: 4rem; block-size: 4rem; }
+.row-thumb img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.row-main { flex: 1 1 auto; min-inline-size: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.rows > .row .row-meter { flex: none; inline-size: 7.5rem; }
+.row-end {
+  flex: none;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 40rem) {
+  .rows > .row { gap: 0.75rem; }
+  .rows > .row .row-meter { inline-size: 4rem; }
+}
+
+/* --- a field: `.field` ----------------------------------------------------------------
+   A label above a well: no line, the ground mixed into the card, 12px corners, and the
+   primary's ring on focus (§13; the boards' field). `.field` is the label that holds it;
+   an input that stands alone takes `.well` for the same look. */
+.field { display: flex; flex-direction: column; gap: 0.3rem; margin: 0; min-inline-size: 0; }
+.field > span {
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.field input,
+.field select,
+.field textarea,
+.well {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  margin: 0;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+}
+.field textarea,
+textarea.well { min-block-size: 5rem; resize: vertical; }
+.field input::placeholder,
+.field textarea::placeholder,
+.well::placeholder { color: var(--ink-soft); }
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.well:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+
+/* --- how far: `.meter` ----------------------------------------------------------------
+   A 6px rail in the rule's grey with a fill in leaf, because green is progress (§4): how
+   much of a text is known, how far through a playlist. `--done` is the share, 0 to 1.
+   `.is-building` fills in the primary (a build under way is a control at work); `.is-spent`
+   in ink-soft (credits used, which is neither); `.is-full` in clay (a cap reached). */
+.meter {
+  display: block;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.meter > span {
+  display: block;
+  block-size: 100%;
+  inline-size: calc(var(--done, 0) * 100%);
+  border-radius: 999px;
+  background: var(--leaf);
+}
+.meter.is-building > span { background: var(--teal); }
+.meter.is-spent > span { background: var(--ink-soft); }
+.meter.is-full > span { background: var(--clay); }
+
+/* --- what a thing is: `.tag` -----------------------------------------------------------
+   A small outlined pill: "Video", "Uploaded by you", "Book · Tanakh". `.is-building` and
+   `.is-new` take the primary and iris, the one hue each means. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-start;
+  inline-size: max-content;
+  max-inline-size: 100%;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.tag.is-building { color: var(--teal); border-color: var(--teal); }
+.tag.is-new { color: var(--iris); border-color: var(--iris); }
+
+/* --- a text's picture: the tile -----------------------------------------------------
+   One path draws every tile, `TargumCovers.picture()` (covers.js): the text's own
+   picture where it has one, or the server's drawn letter on the colour of its kind. A
+   tile the server cannot draw — a build with no folder yet, a picture that did not come
+   — keeps its letter here on the same colours, never on beige: teal news, iris sets and
+   Mishnah, clay things said, the muted grey of books (thumbs.py `TONES`; David,
+   2026-10-08). */
+.thumb.is-letter,
+.thumb.is-letter.tone-book { border: 0; background: var(--ink-soft); }
+.thumb.is-letter.tone-news { background: var(--teal); }
+.thumb.is-letter.tone-set { background: var(--iris); }
+.thumb.is-letter.tone-spoken { background: var(--clay); }
+.thumb.is-letter .glyph { color: var(--card); }
+
+@media (hover: none) and (pointer: coarse) {
+  .tab,
+  .field input,
+  .field select,
+  .well { min-block-size: 44px; }
 }

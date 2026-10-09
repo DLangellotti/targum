@@ -383,11 +383,11 @@ THUMBED = (
     # Aa and ⋯ as the board draws them (design.md §12, 2026-10-09): every row, every
     # part of a segmented control, the rows Save for offline draws, and a sheet's handle.
     ".m-menu .m-row",
-    ".bar .m-menu .m-seg > *",
+    ".bar .m-menu .seg > *",
     ".m-menu .offline-go",
     ".m-menu .offline-stop",
     ".m-menu .offline-remove",
-    ".m-grab",
+    ".sheet-grab",
     # The build card's door, in somebody else's chat (design.md §12, 2026-10-06).
     ".card-door",
     # And the text card's Listen, beside its door (2026-10-06).
@@ -401,6 +401,12 @@ THUMBED = (
     # banner, and the one button of a panel or a whole page.
     ".fault-act",
     ".fault-go",
+    # The components (design.md §12, "The desk's controls are one layer", 2026-10-09):
+    # a button, a part of a choice of a few, a tab, and a field's well.
+    ".btn",
+    ".seg > *",
+    ".tab",
+    ".well",
 )
 
 
@@ -998,3 +1004,145 @@ def test_the_language_menu_draws_no_flag() -> None:
         text = (ASSETS / name).read_text(encoding="utf-8")
         code = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
         assert "lang-flag" not in code and "FLAGS" not in code, name
+
+
+# -- the components (design.md §12, "The desk's controls are one layer", 2026-10-09) --------
+
+
+def _rules(sheet: str) -> dict[str, dict[str, str]]:
+    """selector -> its declarations, first rule of each selector winning, comments dropped."""
+    found: dict[str, dict[str, str]] = {}
+    for selector, prop, value in _declarations((ASSETS / sheet).read_text(encoding="utf-8")):
+        found.setdefault(selector, {}).setdefault(prop, value)
+    return found
+
+
+def test_the_components_wear_the_boards_values() -> None:
+    """One button, one row of tabs, one card, one field, one meter, one tag, one choice of
+    a few and one section title, at the boards' values, each defined once."""
+    shared = _rules("shared.css")
+    chrome = _rules("chrome.css")
+
+    button = shared[".btn"]
+    assert button["border-radius"] == "999px" and button["font-weight"] == "600"
+    assert button["min-block-size"] == "2.5rem"
+    assert shared[".btn.filled"] == {"background": "var(--teal)", "color": "var(--teal-ink)"}
+    assert shared[".btn.tonal"]["background"] == "var(--teal-wash)"
+    assert shared[".btn.ghost"]["background"] == "transparent"
+    assert shared[".btn.text"]["color"] == "var(--teal)"
+    assert shared[".btn.danger"]["color"] == "var(--clay)"
+
+    tab = chrome[".tab"]
+    assert tab["border-radius"] == "999px" and tab["background"] == "var(--teal-wash)"
+    chosen = (
+        '.tab[aria-current="page"],\n.tab[aria-current="true"],\n'
+        '.tab[aria-selected="true"],\n.tab[aria-pressed="true"]'
+    )
+    assert chrome[chosen]["background"] == "var(--teal)"
+    assert chrome[chosen]["color"] == "var(--teal-ink)"
+
+    card = chrome[".card,\n.panel"]
+    assert card["background"] == "var(--card)"
+    assert card["border-radius"] == "var(--radius-card)"
+    assert card["box-shadow"] == "var(--shadow-rest)"
+    assert card["border"] == "0"
+
+    well = chrome[".field input,\n.field select,\n.field textarea,\n.well"]
+    assert well["border-radius"] == "var(--radius-row)" and well["background"] == "var(--field)"
+    focus = chrome[".field input:focus,\n.field select:focus,\n.field textarea:focus,\n.well:focus"]
+    assert focus["border-color"] == "var(--teal)"
+
+    assert chrome[".meter"]["block-size"] == "6px"
+    assert chrome[".meter"]["background"] == "var(--rule)"
+    assert chrome[".meter > span"]["background"] == "var(--leaf)"
+    assert chrome[".tag"]["border"] == "1px solid var(--rule)"
+    assert chrome[".tag"]["border-radius"] == "999px"
+
+    title = chrome[".section-title"]
+    assert title["font-family"] == "var(--reading)"
+    assert title["font-size"] == "1.5rem" and title["font-weight"] == "500"
+
+    seg = shared[".seg"]
+    assert seg["border"] == "1px solid var(--rule)"
+    assert seg["border-radius"] == "var(--radius-control)"
+    live = shared[
+        '.seg > .on,\n.seg > [aria-pressed="true"],\n.seg > [aria-checked="true"],\n'
+        ".seg > [aria-current],\n.seg > .here"
+    ]
+    assert live["background"] == "var(--teal-wash)" and live["color"] == "var(--teal)"
+    assert shared[".scrim"]["background"] == "var(--scrim)"
+
+
+def _desk_sheets_but(owner: str) -> list[str]:
+    return [sheet for sheet in DESK_SHEETS if sheet != owner]
+
+
+@pytest.mark.parametrize(
+    ("needle", "owner"),
+    [(r"\.btn", "shared.css"), (r"\.tab", "chrome.css"), (r"\.seg", "shared.css")],
+)
+def test_a_component_is_drawn_in_one_sheet(needle: str, owner: str) -> None:
+    """A page may place a component — its width, its margin — but its look (fill, colour,
+    corners, border) is the component's own sheet's alone, so a second copy cannot drift
+    (P2, 2026-10-09: there were five copies of the button and three of the tab)."""
+    look = {"background", "background-color", "color", "border-radius", "border", "box-shadow"}
+    alone = re.compile(needle + r"(?![\w-])")
+    for sheet in _desk_sheets_but(owner):
+        for selector, prop, _ in _declarations((ASSETS / sheet).read_text(encoding="utf-8")):
+            if prop in look and any(alone.search(part.strip()) for part in selector.split(",")):
+                # A component's look is its sheet's; a page may still say how a part of it
+                # sits (`body.front .btn.cta` is the public pages' own call to action).
+                if sheet == "front.css" and ".cta" in selector:
+                    continue
+                if sheet == "front.css" and ".tonal:hover" in selector:
+                    continue
+                raise AssertionError(f"{sheet}: {selector} draws {prop} of a component")
+
+
+@pytest.mark.parametrize("sheet", DESK_SHEETS, ids=lambda name: name)
+def test_no_tab_is_underlined(sheet: str) -> None:
+    """Tabs are tinted pills (design.md §12, "The boards are the desk"). The Library's tabs
+    were underlined, Your targums' strip copied them, and Your Words' meaning languages
+    drew a third kind; a tab that wears a line under it is one of those come back."""
+    tabbish = re.compile(r"\.(?:tab|tabs|[\w-]+-tabs?)(?![\w-])")
+    for selector, prop, value in _declarations((ASSETS / sheet).read_text(encoding="utf-8")):
+        if not tabbish.search(selector):
+            continue
+        underline = (
+            prop in ("border-block-end", "border-bottom", "border-block-end-color")
+            or (prop == "text-decoration" and "underline" in value)
+            or (prop == "box-shadow" and "inset 0 -" in value)
+        )
+        assert not underline, f"{sheet}: {selector} underlines a tab ({prop}: {value})"
+
+
+@pytest.mark.parametrize("sheet", STYLESHEETS, ids=lambda p: p.name)
+def test_no_choice_of_a_few_is_filled_in_ink(sheet: Path) -> None:
+    """A choice of a few marks its live part in the teal wash, the reader's and the desk's
+    alike; the saved page's pair was the last one filled in ink."""
+    for selector, prop, value in _declarations(sheet.read_text(encoding="utf-8")):
+        if not re.search(r"seg(?:ment)?(?![\w-])", selector) or not prop.startswith("background"):
+            continue
+        assert value not in ("var(--ink)", "var(--ink-soft)"), f"{sheet.name}: {selector}"
+
+
+@pytest.mark.parametrize("sheet", DESK_SHEETS, ids=lambda name: name)
+def test_a_letter_tile_never_rests_on_beige(sheet: str) -> None:
+    """A tile without a picture is its letter on the colour of its kind (thumbs.py
+    `TONES`), never a beige box (P2, 2026-10-09; the boards' fallback tile)."""
+    for selector, prop, value in _declarations((ASSETS / sheet).read_text(encoding="utf-8")):
+        if "is-letter" in selector and prop.startswith("background"):
+            assert value not in ("var(--paper-raised)", "var(--desk)", "var(--paper)"), (
+                f"{sheet}: {selector} puts a letter on {value}"
+            )
+
+
+def test_every_tile_is_drawn_by_one_path() -> None:
+    """`TargumCovers.picture()` draws every text's tile on the desk: home, the shelf, the
+    Library, a playlist's mosaic and a subscription. A page that calls `tile()` with an
+    address of its own is a second path, which is how the beige boxes survived."""
+    for name in ("home.js", "shelf.js", "library.js", "playlists.js", "subs.js"):
+        code = (ASSETS / name).read_text(encoding="utf-8")
+        assert "TargumCovers.tile(" not in code and "covers.tile(" not in code, name
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    assert '"tone-" + tone(' in covers

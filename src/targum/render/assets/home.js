@@ -262,11 +262,11 @@
   }
 
   function tag(text, kind) {
-    return el("span", "home-tag" + (kind ? " is-" + kind : ""), text);
+    return el("span", "tag home-tag" + (kind ? " is-" + kind : ""), text);
   }
 
   function bar(share, building) {
-    var line = el("span", "home-bar" + (building ? " is-building" : ""));
+    var line = el("span", "meter home-bar" + (building ? " is-building" : ""));
     line.setAttribute("aria-hidden", "true");
     var fill = el("span", "home-fill");
     fill.style.setProperty("--done", String(Math.max(0, Math.min(1, share))));
@@ -287,7 +287,7 @@
       document: card.place.hash,
     };
     var place = card.place;
-    var item = el("li", "home-card");
+    var item = el("li", "card home-card");
     var link = el("a", "home-card-open");
     var href = place && place.path ? place.path : "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html";
     link.href = keyed(href);
@@ -345,7 +345,7 @@
   }
 
   function buildCard(job) {
-    var item = el("li", "home-card is-building");
+    var item = el("li", "card home-card is-building");
     item.setAttribute("role", "status");
     item.appendChild(coverFor(null, job.title, job.language));
     item.appendChild(tag(t("home.card.getting-ready", "Uploaded · getting ready"), "building"));
@@ -366,7 +366,7 @@
   function seriesCard(one) {
     var follow = window.TargumFollow;
     var inst = one.instalment;
-    var item = el("li", "home-card is-new");
+    var item = el("li", "card home-card is-new");
     var link = el("a", "home-card-open");
     link.href = keyed(follow.readerOf(one));
     var title = inst.hebrew || inst.title;
@@ -406,7 +406,7 @@
 
   function newCard(item) {
     var name = item.kind === "topic" ? topicName(item.topic) : item.name;
-    var card = el("li", "home-card is-new");
+    var card = el("li", "card home-card is-new");
     var link = el("a", "home-card-open");
     link.href = keyed(item.door);
     var reader = /^\/reader\//.test(item.door) ? null : undefined;

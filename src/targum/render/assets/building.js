@@ -364,7 +364,7 @@
       // A press that acts on this page rather than going to another: the drawer.
       var act = document.createElement("button");
       act.type = "button";
-      act.className = "notices-act";
+      act.className = "btn tonal small notices-act";
       act.textContent = entry.label || t("building.open", "Open");
       act.onclick = function () {
         putAway(entry.id);

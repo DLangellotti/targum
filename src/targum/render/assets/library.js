@@ -1032,7 +1032,7 @@
      no letter of its own any more. */
   function pictureOf(row, className) {
     return window.TargumCovers.picture(
-      { entry: row.id, title: row.title, language: row.language },
+      { entry: row.id, title: row.title, language: row.language, kind: row.kind, register: row.register },
       { keyed: keyed, className: className }
     );
   }
@@ -1810,7 +1810,7 @@
     section.setAttribute("data-band", id);
     section.setAttribute("aria-labelledby", "band-" + id);
     var head = el("div", "band-head");
-    var heading = el("h2", "band-name", name);
+    var heading = el("h2", "section-title band-name", name);
     heading.id = "band-" + id;
     head.appendChild(heading);
     if (onSee) {

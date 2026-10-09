@@ -4406,63 +4406,31 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 .companions { display: block; }
 .companions .aa-switch:disabled { opacity: 0.4; }
 
-/* A choice of a few: one bordered strip, the live one in the teal wash. The view's
-   drawings, the renderings, the levels, the way shnayim mikra is kept, the step. */
-.bar .m-menu .m-seg {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0;
-  padding: 0;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-control);
-  background: none;
-  overflow: hidden;
-}
-.bar .m-menu .m-seg > button,
-.bar .m-menu .m-seg > a,
-.bar .m-menu .m-seg > span {
-  display: inline-grid;
-  place-items: center;
+/* A choice of a few is the shared `.seg` (shared.css, 2026-10-09): one bordered strip,
+   the live one in the teal wash — the view's drawings, the renderings, the levels, the
+   way shnayim mikra is kept, the step. The bar draws its own presses as bordered pills
+   (`.bar button`), and the levels and the renderings as presses of their own, all more
+   specific than the component; inside a strip they give way to it. Resets only, and the
+   live part said again over the bar's own `.on`: the look is the component's. */
+.bar .m-menu .seg > * {
   min-inline-size: 2.25rem;
   min-block-size: 2.25rem;
-  margin: 0;
   padding: 0 0.625rem;
   border: 0;
   border-radius: 0;
   background: none;
   color: var(--ink-soft);
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.875rem;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
 }
-.bar .m-menu .m-seg > * + * { border-inline-start: 1px solid var(--rule); }
-.bar .m-menu .m-seg > [hidden] { display: none; }
-.bar .m-menu .m-seg > :hover { color: var(--ink); background: var(--teal-wash); }
-.bar .m-menu .m-seg > .on,
-.bar .m-menu .m-seg > [aria-pressed="true"],
-.bar .m-menu .m-seg > .here,
+.bar .m-menu .seg > * + * { border-inline-start: 1px solid var(--rule); }
+.bar .m-menu .seg > :hover { color: var(--ink); background: var(--teal-wash); }
+.bar .m-menu .seg > :is(.on, [aria-pressed="true"], .here),
 .bar .m-menu .renderings .rendering.on {
   background: var(--teal-wash);
   color: var(--teal);
   font-weight: 600;
   cursor: default;
 }
-.bar .m-menu .m-seg > :disabled { opacity: 0.35; cursor: default; }
-.bar .m-menu .m-seg > :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-.bar .m-menu .m-seg svg {
-  display: block;
-  inline-size: 18px;
-  block-size: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.bar .m-menu .m-seg svg .faint { opacity: 0.55; stroke-width: 1.1; }
+.bar .m-menu .seg svg .faint { opacity: 0.55; stroke-width: 1.1; }
 .m-menu .m-sub-row { padding-inline-start: calc(1.125rem + 1.375rem + 0.75rem); }
 
 /* A select, quiet at the end of its row: the value and a caret, no box. */
@@ -4516,7 +4484,7 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 }
 
 /* The dimmed page under a sheet is a phone's (below). */
-.m-scrim { display: none; }
+.m-scrim { display: none; z-index: 29; }
 /* ⋯ on a wide window: the view's drawings are the bar's own, so its row is the phone's.
    The keys are in the bar's row past 75rem, and here below that. */
 .m-menu .m-view { display: none; }
@@ -4781,14 +4749,14 @@ body.practice-section .beside-add { display: none; }
   .bar-pop .to-sheet .more-sheet,
   .m-menu .m-row,
   .m-menu .voice-go,
-  .bar .m-menu .m-seg > *,
+  .bar .m-menu .seg > *,
   .m-menu .offline-go,
   .m-menu .offline-stop,
   .m-menu .offline-remove,
   .m-menu .m-select,
-  .m-grab,
+  .sheet-grab,
   .cmp-add { min-block-size: 44px; }
-  .bar .m-menu .m-seg > * { min-inline-size: 44px; }
+  .bar .m-menu .seg > * { min-inline-size: 44px; }
   .bar .bar-tool,
   .bar .aa-step { min-inline-size: 44px; }
 }
@@ -4876,7 +4844,9 @@ body.practice-section .beside-add { display: none; }
     padding: 0;
     background: var(--card);
   }
-  .bar .m-menu .m-grab-head .m-grab {
+  /* The handle is the shared `.sheet-grab`; here it only beats the head's own round
+     press (`.more-head button`). */
+  .bar .m-menu .m-grab-head .sheet-grab {
     display: block;
     inline-size: 100%;
     block-size: 1.75rem;
@@ -4886,17 +4856,6 @@ body.practice-section .beside-add { display: none; }
     background: none;
     cursor: pointer;
   }
-  .m-grab::before {
-    content: "";
-    display: block;
-    inline-size: 2.5rem;
-    block-size: 5px;
-    margin-inline: auto;
-    border-radius: 999px;
-    background: var(--well);
-  }
-  .m-grab:active::before { background: var(--ink-soft); }
-  .m-grab:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   .m-menu .m-row,
   .m-menu .m-offline { padding-inline: 1.25rem; }
   .m-menu .m-row { min-block-size: 52px; }
@@ -4911,13 +4870,6 @@ body.practice-section .beside-add { display: none; }
   .m-menu .m-offline + .m-wrap > .m-row:first-child,
   .m-menu .companions > .m-row + .m-row { box-shadow: inset 0 1px var(--rule); }
   .m-menu .m-note { padding-inline-start: calc(1.25rem + 1.375rem + 0.75rem); }
-  .m-scrim {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 29;
-    background: rgb(28 26 23 / 0.38);
-  }
   body.pop-open .m-scrim { display: block; }
   /* The presses that open the sheets stay above the dim, so a second press of ⋯ or Aa
      still shuts what it opened. */

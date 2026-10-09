@@ -287,6 +287,15 @@ def test_the_last_five_texts_opened_are_kept_on_their_own(browser, served: Serve
         for n in range(6):
             page.goto(served.url(f"/reader/text-{n}/reader/index.html"))
             kept(page, f"/reader/text-{n}/reader/")
+        # The sixth's save and the first's eviction are two writes; on a slow runner the
+        # list was read between them (master went red on it, 2026-10-09). Wait for the
+        # room to have been made, then say so if it never was.
+        try:
+            page.wait_for_function(
+                "async () => (await window.TargumOffline.list()).length === 5", timeout=15000
+            )
+        except Exception:  # noqa: BLE001 - the assertion below says what is wrong
+            pass
         saved = page.evaluate(LIST)
         assert sorted(item["id"] for item in saved) == [
             f"/reader/text-{n}/reader/" for n in range(1, 6)

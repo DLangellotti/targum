@@ -79,8 +79,13 @@ body.playlists main { gap: 1.75rem; }
   block-size: 100%;
   object-fit: cover;
 }
-.pl-mosaic .pl-empty { background: var(--desk); }
-.pl-mosaic .pl-cell.is-letter { background: var(--paper-raised); }
+/* Fewer than four fill the square between them rather than leaving a cell of the desk:
+   one is the whole square, two stand side by side, and of three the first takes the
+   start half (P2, 2026-10-09; a mosaic with an empty quarter read as one not loaded). */
+.pl-mosaic.n-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.pl-mosaic.n-2 { grid-template-rows: 1fr; }
+.pl-mosaic.n-3 > :first-child { grid-row: 1 / span 2; }
+.pl-mosaic.n-0 { background: var(--paper-raised); }
 .pl-mosaic .pl-cell .glyph { font-size: 1.75rem; }
 .pl-mosaic.is-small { inline-size: 6rem; flex: 0 0 auto; border-radius: var(--radius-control); }
 .pl-mosaic.is-small .glyph { font-size: 0.875rem; }
@@ -96,20 +101,8 @@ body.playlists main { gap: 1.75rem; }
   font-size: 0.875rem;
   color: var(--ink-soft);
 }
-.pl-bar {
-  display: block;
-  inline-size: 6rem;
-  block-size: 6px;
-  border-radius: 999px;
-  background: var(--rule);
-  overflow: hidden;
-}
-.pl-fill {
-  display: block;
-  block-size: 100%;
-  inline-size: calc(var(--done, 0) * 100%);
-  background: var(--leaf);
-}
+/* The bar is the desk's `.meter` (chrome.css); here only its width. */
+.pl-bar { inline-size: 6rem; flex: none; }
 
 /* --- the tab: a card a playlist --------------------------------------------------- */
 
@@ -131,9 +124,6 @@ body.playlists main { gap: 1.75rem; }
   flex-direction: column;
   gap: 0.5rem;
   padding: 1rem;
-  background: var(--card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
   font-family: var(--chrome);
   transition: box-shadow 240ms var(--ease);
 }
@@ -206,6 +196,7 @@ body.playlists main { gap: 1.75rem; }
   justify-content: center;
   min-block-size: 12rem;
   border: 1px dashed var(--well);
+  border-radius: var(--radius-card);
   background: transparent;
   box-shadow: none;
   color: var(--teal);
@@ -227,12 +218,6 @@ body.playlists main { gap: 1.75rem; }
   gap: 0.25rem 1rem;
   margin-block-end: 1rem;
 }
-.pl-section-head h2 {
-  margin: 0;
-  font-family: var(--reading);
-  font-size: 1.5rem;
-  font-weight: 400;
-}
 .pl-section-head .note { margin: 0; font-size: 0.875rem; color: var(--ink-soft); }
 .pl-targum {
   list-style: none;
@@ -247,9 +232,6 @@ body.playlists main { gap: 1.75rem; }
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: var(--card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
   font-family: var(--chrome);
 }
 .pl-targum-what {
@@ -342,10 +324,8 @@ body.playlists main { gap: 1.75rem; }
 .pl-items {
   list-style: none;
   margin: 0;
-  padding: 0.25rem 1.25rem;
-  background: var(--card);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
+  padding-block: 0.25rem;
+  padding-inline: 1.25rem;
   font-family: var(--chrome);
 }
 .pl-items:empty { display: none; }
@@ -494,41 +474,11 @@ a.item-title:hover { text-decoration: underline; }
 .playlists .new-list .field { flex: 1 1 14rem; min-inline-size: 0; }
 .playlists .said.bad { color: var(--clay); }
 
-/* §13's three kinds of button, and no more: filled in the primary, one per view (Confirm
-   on the tab, Continue on a playlist); tonal for the ordinary press (Open, Save, a
-   playlist to add to); ghost for moving, removing and deleting. All pills, at control
-   height. */
-.playlists .filled,
-.playlists .tonal,
-.playlists .ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  min-block-size: 2.5rem;
-  padding: 0 1rem;
-  border: 0;
-  border-radius: 999px;
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  white-space: nowrap;
-  text-decoration: none;
-  cursor: pointer;
-}
-.playlists .filled { background: var(--teal); color: var(--teal-ink); }
-.playlists .filled:hover { filter: brightness(1.08); }
-.playlists .pl-presses .filled { min-block-size: 2.75rem; padding: 0 1.25rem; }
-.playlists .tonal { background: var(--teal-wash); color: var(--teal); }
-.playlists .tonal:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
-.playlists .ghost { background: transparent; color: var(--ink-soft); }
-.playlists .ghost:hover { background: var(--teal-wash); color: var(--ink); }
-.playlists .ghost.danger:hover { background: transparent; color: var(--clay); }
-.playlists .ghost[disabled] { opacity: 0.4; cursor: default; }
-.playlists .filled:focus-visible,
-.playlists .tonal:focus-visible,
-.playlists .ghost:focus-visible,
+/* The buttons are the desk's `.btn` (chrome.css): filled once a view (Confirm on the
+   tab, Continue on a playlist), tonal for the ordinary press, ghost for moving, removing
+   and deleting. Here only what a playlist adds: the one filled press at the head a size
+   up. */
+.playlists .pl-presses .btn.filled { min-block-size: 2.75rem; padding: 0 1.25rem; }
 .grip:focus-visible,
 .pl-new-press:focus-visible,
 .pl-new-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -626,9 +576,6 @@ a.item-title:hover { text-decoration: underline; }
 
 @media (hover: none) and (pointer: coarse) {
   /* §8: what a thumb presses answers a tap over 44px. */
-  .playlists .filled,
-  .playlists .tonal,
-  .playlists .ghost,
   .playlists .rename input,
   .playlists .new-list .field input,
   .grip,

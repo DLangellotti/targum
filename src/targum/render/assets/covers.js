@@ -19,10 +19,38 @@
   // not the first character.
   var NOT_A_LETTER = /^[^\wא-תЀ-ӿ]+/;
 
+  /* The colour a letter rests on, by what the text is: thumbs.py's `tone`, which draws
+     the same tile on the server, so a letter drawn here and one drawn there agree
+     (design.md §12, "Every text has a picture", 2026-10-08). Teal news, iris sets and
+     the rabbinic shelf, clay things said, and the muted grey of books, which is what
+     anything unnamed is. A subscription's kinds are here too: a series is a set, a
+     channel or a podcast is said. */
+  var TONES = {
+    article: "news",
+    news: "news",
+    talk: "spoken",
+    video: "spoken",
+    podcast: "spoken",
+    podcasts: "spoken",
+    channel: "spoken",
+    channels: "spoken",
+    dialogue: "set",
+    liturgy: "set",
+    set: "set",
+    series: "set",
+  };
+
+  function tone(kind, register) {
+    var named = TONES[String(kind || "")];
+    if (named) return named;
+    return register === "rabbinic" ? "set" : "book";
+  }
+
   function tile(source, options) {
     var settings = options || {};
     var box = document.createElement("span");
     box.className = settings.className || "thumb";
+    box.classList.add("tone-" + tone(settings.kind, settings.register));
 
     var letter = String(settings.title || "?")
       .replace(NOT_A_LETTER, "")
@@ -85,10 +113,12 @@
     return tile(source, {
       title: reader.title,
       language: reader.language,
+      kind: reader.kind,
+      register: reader.register,
       drawn: !!source,
       className: settings.className || "thumb home-thumb",
     });
   }
 
-  window.TargumCovers = { tile: tile, chapterName: chapterName, picture: picture };
+  window.TargumCovers = { tile: tile, tone: tone, chapterName: chapterName, picture: picture };
 })();

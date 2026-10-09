@@ -297,6 +297,9 @@ acts.
   weight 600; on an inverted block it flips to paper with ink text. The accent keeps the
   product's working actions (play, Save, Send it) and links, where its calm is the
   point — as a call to action on warm paper it whispered. Added 2026-08-31; see §12.
+  *(Inside the product since 2026-10-09 the doors' one press — sign in, Connect, Open it,
+  Subscribe — is filled in the primary, as the boards draw it; ink stays the public
+  pages' call to action and the Talk pill's — §12, "The desk's controls are one layer".)*
 - **The chat page is one more surface, not a widget.** `/chat` takes the rules of any
   page inside the product: the thread is its one raised layer; the reader's lines and
   targum's are the same ink under a quiet label, never two colours of bubble; sending is
@@ -502,6 +505,56 @@ What it does not overturn: the palette, the radii, the reader's page and its fet
 rule, the voice, and every spend rule. A board that shows a price, a streak or a score
 is still wrong on that point; the boards win on how the desk looks, not on what it may
 say or spend.
+
+### The desk's controls are one layer — 2026-10-09
+
+P2 of the polish plan, after "The boards are the desk" (the same day) ruled that the
+boards win. The desk drew each control again on each page: five copies of the button
+(the Upload page's, the playlists', /you's, a subscription's, the doors'), three kinds
+of tab (two underlined, one tinted), a segmented control in three looks (the reader's
+strip, the desk's pill track, the saved page's ink pair), five meters, and a letter on a
+beige box in four places. Now there is one of each, named once:
+
+- **In `shared.css`, because the doors, the public pages and the reader draw them too:**
+  `.btn` (filled, tonal, ghost, text; `.outline`, `.danger`, `.small`, `.wide`), `.seg`
+  (a choice of a few: one bordered strip, the live part in the teal wash — the reader's
+  menus' look, now everyone's), `.scrim` (one dim, `--scrim`, where there were three
+  alphas) and `.sheet-grab` (a sheet's handle).
+- **At the end of `chrome.css`, the desk's alone:** `.tabs`/`.tab` (tinted pills; on a
+  phone one line that scrolls), `.card` (with `.panel`, its older name, in the same
+  rule), `.section-title` (the serif at 24px), `.rows`/`.row` (a 44 or 64px picture, the
+  title, a `.tag`, a `.meter`, a quiet fact), `.field`/`.well`, `.meter`, `.tag`, and the
+  letter tile's colours.
+- **One tile path.** Every text's tile on the desk is `TargumCovers.picture()`: home, the
+  shelf, the Library, a playlist's mosaic, a subscription. A letter rests on the colour
+  of its kind (thumbs.py's `tone`, mirrored in covers.js), never beige; a mosaic of fewer
+  than four shares the square instead of leaving a quarter of the desk.
+
+Where this goes beyond the boards ruling, deliberately:
+
+- **A door's one press is the primary.** Sign in, Connect, Open it, Confirm and Subscribe
+  are filled in teal at their words' width (sign-in's the width of its form), where §9
+  and §13 kept them ink and full width. The boards draw ConnApprove's Connect and
+  SubConfirm's Subscribe in teal. Ink stays the public pages' call to action (`.cta`) and
+  the Talk pill's.
+- **A card rests.** Every card is on the resting shadow, as the boards draw it; the
+  panels were on the raised one. Raised is now a hover.
+- **The boards' line press comes back as `.btn.ghost.outline`**, a hairline round a pill on
+  the card (Download, Sign out, Pause), where §13 retired the bordered word-button. It is
+  a pill now, the boards' own, not the square-cornered word it replaced.
+- **The radii stay the desk's** — 16 for a card, 12 for a field — where the boards draw 14
+  and 10. "The boards are the desk" keeps the radii, and two pixels is not a reason to
+  add steps to the scale.
+- **A card is never in a card**, as §9 always said; the subscriptions' rows and offers
+  were cards inside the tab's card and are hairline rows now. `test_pages_browser.py`
+  measures every desk page for it, and `test_brand.py` holds the rest: one sheet draws
+  each component's look, no tab is underlined, no choice of a few is filled in ink, and
+  no letter tile rests on beige.
+
+What it leaves for the surfaces' own packages: home's rows card and its list (P4), the
+Library's shelves and See all on `.rows` (P5), Your Words' table (P6), the reader's word
+card (P7), the playlist page's columns (P9), a subscription's page (P10), Upload's
+composer (P11), the account and the saved page (P12).
 
 ### The reader's menus are the board's — 2026-10-09
 
@@ -5316,7 +5369,8 @@ library, Your Progress, the account, the Upload page — is the desk the page li
 operated rather than read. Added 2026-09-11; the reasons are in §12. The pages in front of
 the door — sign-in, the holding page and its 404, What's built — stand on the desk too
 since 2026-09-14 (targum-internal#276): the ground, the chrome's face, the door and the
-count as cards, the address in a well, and the call to action still ink (§9).
+count as cards, the address in a well, and the call to action still ink (§9) *(the
+primary since 2026-10-09 — §12, "The desk's controls are one layer")*.
 
 **Surfaces.** The ground of every chrome page is the desk, `#ece7de`;
 things sit on it as cards, `#fffdf9`, raised by their shadow and not by
@@ -5376,7 +5430,9 @@ pointer (§8). Radii are the desk's own scale: 8 controls, 12 rows and fields, 1
 floating panels, 999 pills; the sheet's paper stays at 16 so it still reads as a page.
 Buttons are three kinds and no more: **filled** in the primary, one per view — Send,
 Open, a Follow that is on; **tonal**, tint with the primary's text, the ordinary press;
-**ghost**, no fill, for Hide, Close and dismiss. All are pills. The bordered word-button
+**ghost**, no fill, for Hide, Close and dismiss *(and since 2026-10-09 **text**, the words
+in the primary, and a ghost `.outline` for the boards' line press — §12, "The desk's
+controls are one layer")*. All are pills. The bordered word-button
 is retired.
 The front page is the reader's own highlight (2026-09-11): the sheet across the row at
 a reading height, and nothing else. The shelf that stood under it left the same day: the

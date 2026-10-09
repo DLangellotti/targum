@@ -61,10 +61,10 @@
     {#- Sifting (2026-09-26): drawn by `yours.js` only on a shelf of six or more. -#}
     <div class="sift-shelf" id="sift-shelf" hidden>
       <div class="chips" id="status-chips" role="group" aria-label="{{ t("yours.sift.status", "Show") }}"></div>
-      <input type="search" class="find" id="shelf-find" dir="auto" autocomplete="off" spellcheck="false"
+      <input type="search" class="well find" id="shelf-find" dir="auto" autocomplete="off" spellcheck="false"
         placeholder="{{ t("yours.sift.search", "Search your targums") }}" aria-label="{{ t("yours.sift.search", "Search your targums") }}">
       <label class="pick"><span>{{ t("yours.sift.order", "Order") }}</span>
-        <select id="shelf-order">
+        <select class="well" id="shelf-order">
           <option value="read">{{ t("yours.sift.by-read", "Last read") }}</option>
           <option value="added">{{ t("yours.sift.by-added", "Recently added") }}</option>
           <option value="easy">{{ t("yours.sift.by-easy", "Easiest") }}</option>
@@ -112,7 +112,7 @@
       way to upload. Learn's suggestion, kept when the rest of Learn went (2026-10-08). On
       a phone the upload stands under Continue and the suggestion under the shelf. -#}
   <aside class="home-side" aria-label="{{ t("home.side", "Something new") }}">
-    <section class="try-next" id="try-next" hidden></section>
+    <section class="card try-next" id="try-next" hidden></section>
     <a class="upload-card" href="/add" data-home-link>
       <span class="upload-card-head"><svg class="upload-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg>{{ t("home.upload.head", "Upload something to read") }}</span>
       <span class="upload-card-says">{{ t("home.upload.says", "Paste a link, drop a file, or bring a post") }}</span>
@@ -194,9 +194,9 @@
       {#- Which language the meanings are in. Drawn only for somebody who has meanings in
           more than one, the same way the language switcher is: a control with one answer
           in it is only a question nobody asked. -#}
-      <div class="langs quiet" id="meaning-langs" role="tablist"
+      <div class="tabs meaning-langs" id="meaning-langs" role="tablist"
            aria-label="{{ t("yours.page.translations-in", "Translations in") }}" hidden></div>
-      <input type="search" id="search" dir="auto" placeholder="{{ t("yours.page.search-a-word-or-a-meaning", "Search a word or a meaning") }}" spellcheck="false">
+      <input type="search" class="well" id="search" dir="auto" placeholder="{{ t("yours.page.search-a-word-or-a-meaning", "Search a word or a meaning") }}" spellcheck="false">
       {#- Which stage, as chips (board WordsDesk): to work on — steps 1 to 3 — then each
           step, known, and everything. They were a select. -#}
       <div class="chips stage-chips" id="stage-chips" role="group" aria-label="{{ t("yours.page.filter-by-how-well-you-know-them", "Filter by how well you know them") }}"></div>

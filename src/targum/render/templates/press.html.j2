@@ -41,7 +41,7 @@
     <h1>{{ t("press.page.this-one-is-ready", "This one is ready") }}</h1>
     <p class="said">{{ job.title }}</p>
     <form method="get" action="/reader/{{ job.reader }}">
-      <button class="go" type="submit"><span class="go-says">{{ t("press.page.open-it", "Open it") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
+      <button class="btn filled go" type="submit"><span class="go-says">{{ t("press.page.open-it", "Open it") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
     </form>
 
   {% elif job.stage in ('working', 'reading', 'queued', 'looking up words') %}
@@ -63,7 +63,7 @@
     <p class="said" id="press-doing" role="status">{%- if job.stage == 'looking up words' %}{{ t("press.page.working-out-how-long", "We're working out how long it'll take.") }}{% else %}{{ job.message or t("press.page.getting-started", "We're getting it ready.") }}{% endif %}</p>
     <p class="said" id="press-left" role="status"></p>
     <form method="get" action="/build/{{ job.id }}">
-      <button class="go" type="submit">{{ t("press.page.see-how-it-s-going", "See how it's going") }}</button>
+      <button class="btn filled go" type="submit">{{ t("press.page.see-how-it-s-going", "See how it's going") }}</button>
     </form>
     <p class="aside">{{ t("press.page.close-find-it-in-your-targums", "You can close this page. You'll find it in Your targums.") }}
       <a href="/">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
@@ -107,7 +107,7 @@
     </ul>
     <form method="post" action="/build/{{ job.id }}" id="press" data-job="{{ job.id }}"
           data-usually="{{ job.usually|round|int }}">
-      <button class="go" type="submit"><span class="go-says">{{ t("press.page.read-this", "Read this") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
+      <button class="btn filled go" type="submit"><span class="go-says">{{ t("press.page.read-this", "Read this") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
     </form>
     <p class="said" id="press-doing" role="status" hidden></p>
     <p class="said" id="press-left" role="status" hidden></p>

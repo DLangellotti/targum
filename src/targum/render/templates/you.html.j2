@@ -108,8 +108,8 @@
     <h2>{{ t("you.page.what-we-record", "What we record as you go") }}</h2>
     <p>{{ t("you.page.record-says", "When you look a word up, play a recording, turn a page or finish a section, we keep a note of it on your account — for a look-up, which word it was. It is how Your Progress can say how long you've listened and how much you've read, how a printed sheet of your week can list the words you looked up, and it shows us which lines are hard. We keep it for as long as you keep your account.") }}</p>
     <p class="ending-row">
-      <button type="button" class="go-quiet" id="record-switch" aria-pressed="true"></button>
-      <button type="button" class="go-quiet danger" id="record-erase">{{ t("you.page.record-erase", "Erase what's recorded") }}</button>
+      <button type="button" class="btn ghost outline small" id="record-switch" aria-pressed="true"></button>
+      <button type="button" class="btn ghost outline small danger" id="record-erase">{{ t("you.page.record-erase", "Erase what's recorded") }}</button>
     </p>
     <p class="said" id="record-said" hidden></p>
   </section>
@@ -122,8 +122,8 @@
     <h2>{{ t("you.page.correcting", "Correcting a meaning") }}</h2>
     <p>{{ t("you.page.correcting-says", "If a word's meaning is wrong, you can say so from the word's card and tell us what it should be. Nothing changes until a person looks at it. We keep what you send under the terms in the contribution grant, and you keep every right in it as well. Your name is never stored with it.") }}</p>
     <p class="ending-row">
-      <button type="button" class="go-quiet" id="grant-go"></button>
-      <a class="go-quiet" href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md#correcting-a-meaning-and-what-that-grants">{{ t("you.page.correcting-read", "Read the grant") }}</a>
+      <button type="button" class="btn ghost outline small" id="grant-go"></button>
+      <a class="btn ghost outline small" href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md#correcting-a-meaning-and-what-that-grants">{{ t("you.page.correcting-read", "Read the grant") }}</a>
     </p>
     <p class="said" id="grant-said" hidden></p>
   </section>
@@ -151,7 +151,7 @@
     <p class="note">{{ t("you.telegram.says", "Send our bot a voice note, a video, a picture, a PDF or some text, and we'll add it to Your targums. If you forward a message, we don't keep who it came from.") }}</p>
     <ul class="series" id="telegram-rows"></ul>
     <p class="ending-row">
-      <button type="button" class="tonal" id="telegram-go">{{ t("you.telegram.link", "Link Telegram") }}</button>
+      <button type="button" class="btn tonal" id="telegram-go">{{ t("you.telegram.link", "Link Telegram") }}</button>
     </p>
     <p class="said" id="telegram-said" hidden></p>
   </section>
@@ -176,7 +176,7 @@
       <input type="text" id="prompt-says" maxlength="2000">
     </label>
     <p class="ending-row">
-      <button type="button" class="tonal" id="prompt-save">{{ t("you.page.prompt-save", "Save") }}</button>
+      <button type="button" class="btn tonal" id="prompt-save">{{ t("you.page.prompt-save", "Save") }}</button>
     </p>
     <p class="said" id="prompts-said" hidden></p>
   </section>
@@ -184,14 +184,14 @@
   <section class="panel" id="ending" hidden>
     <h2>{{ t("you.page.your-account", "Your account") }}</h2>
     <div class="row">
-      <a class="go-quiet" id="you-export" href="/account/export">{{ t("you.page.download-your-words", "Download your words") }}</a>
-      <button type="button" class="go-quiet" id="you-out">{{ t("you.page.sign-out", "Sign out") }}</button>
+      <a class="btn ghost outline small" id="you-export" href="/account/export">{{ t("you.page.download-your-words", "Download your words") }}</a>
+      <button type="button" class="btn ghost outline small" id="you-out">{{ t("you.page.sign-out", "Sign out") }}</button>
     </div>
     {#- On a row of its own, in clay (2026-09-14): it stood beside Download and Sign out in
         the same quiet pill, three presses that looked alike and were nothing alike. -#}
     <div class="row ending-row">
-      <button type="button" class="go-quiet danger" id="you-forget">{{ t("you.page.delete-account", "Delete account") }}</button>
-      <button type="button" class="go-quiet" id="you-keep" hidden>{{ t("you.page.keep-my-account", "Keep my account") }}</button>
+      <button type="button" class="btn ghost outline small danger" id="you-forget">{{ t("you.page.delete-account", "Delete account") }}</button>
+      <button type="button" class="btn ghost outline small" id="you-keep" hidden>{{ t("you.page.keep-my-account", "Keep my account") }}</button>
     </div>
     {#- Next to the button it describes, which is the only place anybody looks for it.
         The sentence stands without the link while the documents are shut: seven days is

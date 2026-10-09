@@ -93,7 +93,7 @@
   // §13's three kinds: tonal for the ordinary press, ghost for moving and taking away.
   // A view's one filled press is Confirm on the tab and Continue on a playlist.
   function button(label, onPress, kind) {
-    var press = element("button", kind || "tonal", label);
+    var press = element("button", "btn " + (kind || "tonal"), label);
     press.type = "button";
     press.onclick = onPress;
     return press;
@@ -212,9 +212,9 @@
     if (typeof share !== "number") return null;
     var whole = Math.round(share * 100);
     var box = element("span", "pl-known" + (className ? " " + className : ""));
-    var bar = element("span", "pl-bar");
+    var bar = element("span", "meter pl-bar");
     bar.setAttribute("aria-hidden", "true");
-    var fill = element("span", "pl-fill");
+    var fill = element("span", "");
     fill.style.setProperty("--done", String(Math.max(0, Math.min(1, share))));
     bar.appendChild(fill);
     box.appendChild(bar);
@@ -224,24 +224,23 @@
 
   /* The cover: the first four texts' own pictures in a square (#429, design.md §12,
      "Every text has a picture"). A text still being made has no folder to draw from and
-     rests on its letter; fewer than four leave the rest of the square empty. */
+     rests on its letter, on the colour of its kind; fewer than four share the square. */
   function mosaic(cover, className) {
-    var box = element("span", "pl-mosaic" + (className ? " " + className : ""));
+    var some = (cover || []).slice(0, 4);
+    var box = element(
+      "span",
+      "pl-mosaic n-" + some.length + (className ? " " + className : "")
+    );
     box.setAttribute("aria-hidden", "true");
-    for (var n = 0; n < 4; n++) {
-      var one = (cover || [])[n];
-      if (!one) {
-        box.appendChild(element("span", "pl-cell pl-empty"));
-        continue;
-      }
+    some.forEach(function (one) {
       var tile = covers
         ? covers.picture(
-            { entry: one.name, title: one.title, language: one.language },
+            { entry: one.name, title: one.title, language: one.language, kind: one.kind },
             { keyed: keyed, className: "thumb pl-cell" }
           )
         : element("span", "thumb pl-cell is-letter");
       box.appendChild(tile);
-    }
+    });
     return box;
   }
 
@@ -349,7 +348,7 @@
     holder.textContent = "";
     at("from-targum").hidden = !sets.length;
     sets.forEach(function (one) {
-      var item = element("li", "pl-targum-card");
+      var item = element("li", "card pl-targum-card");
       item.appendChild(mosaic(one.covers, "is-small"));
       var what = element("span", "pl-targum-what");
       var name = element("span", "pl-targum-name");
@@ -415,7 +414,7 @@
   }
 
   function card(one, current) {
-    var box = element("article", "pl-card");
+    var box = element("article", "card pl-card");
     var here = current && String(current.id) === String(one.id);
     if (here) box.classList.add("is-current");
     var picture = element("span", "pl-card-cover");
@@ -655,7 +654,7 @@
      to Delete if nothing is pressed for a few seconds or the focus leaves it. */
   function moreMenu(holder, one) {
     var wrap = element("span", "pl-more-wrap");
-    var press = element("button", "ghost pl-more", "⋯");
+    var press = element("button", "btn ghost pl-more", "⋯");
     press.type = "button";
     press.setAttribute("aria-haspopup", "true");
     press.setAttribute("aria-expanded", "false");
@@ -718,7 +717,7 @@
     field.dir = "auto";
     field.setAttribute("aria-label", t("playlists.rename", "Rename"));
     form.appendChild(field);
-    var save = element("button", "tonal", t("playlists.save", "Save"));
+    var save = element("button", "btn tonal", t("playlists.save", "Save"));
     save.type = "submit";
     form.appendChild(save);
     form.addEventListener("submit", function (event) {
@@ -763,7 +762,7 @@
         return item.open;
       })[0];
     if (start) {
-      var go = element("a", "filled start");
+      var go = element("a", "btn filled start");
       go.href = keyed(listed(start.open, one.id, start.position));
       go.textContent = pickUp
         ? t("playlists.continue-at", "Continue at {at} of {count}", {
@@ -789,7 +788,7 @@
     head.appendChild(said);
     body.appendChild(head);
 
-    var list = element("ol", "pl-items items");
+    var list = element("ol", "card pl-items items");
     list.setAttribute("aria-label", t("playlists.in-order", "Texts in order"));
     one.items.forEach(function (item) {
       drawItem(list, one, item, item.position === current);

@@ -53,7 +53,7 @@ a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 .saved-kind,
 .saved-how { color: var(--ink-soft); font-size: 0.8125rem; }
 .saved-size { color: var(--ink); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
-.saved-row .go-quiet { justify-self: end; }
+.saved-row .btn { justify-self: end; }
 
 .saved-used { margin: 0.5rem 0; color: var(--ink); font-variant-numeric: tabular-nums; }
 .saved-meter {
@@ -82,25 +82,9 @@ a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 .saved-choice-what { display: grid; gap: 0.1rem; }
 .saved-choice-name { color: var(--ink); }
 .saved-choice .note { margin: 0; }
-.saved-segment {
-  display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-}
-.saved-segment button {
-  min-block-size: 2rem;
-  min-inline-size: 2.5rem;
-  padding: 0 0.75rem;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-.saved-segment button[aria-checked="true"] { background: var(--ink); color: var(--paper); }
+/* How many to keep is the shared `.seg` (shared.css): the live one in the teal wash, where
+   it was the one ink-filled control on the desk (2026-10-09). */
+.saved-segment { flex: none; }
 .saved-switch {
   position: relative;
   inline-size: 2.6rem;
@@ -141,14 +125,14 @@ a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   .saved-size { grid-area: size; color: var(--ink-soft); }
   .saved-kind,
   .saved-how { display: none; }
-  .saved-row .go-quiet { grid-area: act; }
+  .saved-row .btn { grid-area: act; }
 }
 
 @media (hover: none) and (pointer: coarse) {
   /* §8: what a thumb presses answers a tap over 44px. */
   .saved-segment button,
   .saved-switch,
-  .saved-row .go-quiet,
+  .saved-row .btn,
   .saved-ask,
   #saved-all { min-block-size: 44px; }
 }
