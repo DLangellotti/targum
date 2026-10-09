@@ -564,9 +564,23 @@
     end.appendChild(card);
   }
 
+  /* The end's frame is drawn the moment it is reached, and what end.json says is put
+     into it when it comes: the words and the next set are worked out on the server and
+     can take seconds on a real shelf, and an end drawn only then was a blank page with
+     the rail beside it until they came (audit 2, 2026-10-09). */
   function drawEnd(end, said) {
     var words = said && said.words;
     var next = said && said.next;
+    var way = end.querySelector(".list-end-way");
+    if (!way) return;
+    var more = document.createDocumentFragment();
+    if (words && words.met) wordsMet(more, words);
+    if (next && next.open) nextSet(more, next);
+    end.insertBefore(more, way);
+    end.classList.add("is-filled");
+  }
+
+  function drawFrame(end) {
     /* Its own screen (board PlaylistEnd): "‹ Mornings · The end" at its head, the way
        back to the playlist's page. */
     var head = document.createElement("div");
@@ -592,8 +606,6 @@
     );
     over.className = "list-end-over";
     end.appendChild(over);
-    if (words && words.met) wordsMet(end, words);
-    if (next && next.open) nextSet(end, next);
     var home = document.createElement("a");
     home.className = "list-end-home";
     home.href = keyed("/playlists");
@@ -607,6 +619,7 @@
   function fillEnd(end) {
     if (ended) return;
     ended = true;
+    drawFrame(end);
     fetch(keyed("/playlists/" + list + "/end.json"), { credentials: "same-origin" })
       .then(function (answer) {
         return answer.ok ? answer.json() : null;

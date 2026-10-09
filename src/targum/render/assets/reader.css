@@ -5282,6 +5282,14 @@ body.list-ended .list-end:not([hidden]) {
 /* The page under it does not scroll while the end stands over it. */
 html:has(body.list-ended),
 body.list-ended { overflow: hidden; }
+/* Nor is it drawn: the end is the last thing in the set and nothing goes back under it,
+   so the picture's column, its divider and the foot's "Finished" box go with the text
+   (audit 2, 2026-10-09: at a desk in Theatre they were all that was left to see). */
+body.list-ended #foot,
+body.list-ended .video,
+body.list-ended .film-split,
+body.list-ended .film-panel-head,
+body.list-ended main:not(:has(#list-end)) { display: none !important; }
 @media (min-width: 64rem) {
   body.has-list-rail.list-ended:not(.list-open) .list-end:not([hidden]) { right: 7rem; }
 }
