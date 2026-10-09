@@ -1592,14 +1592,15 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
     return out
 
 
-def welcome_page(token: str, language: str = "en", connector: bool = False) -> str:
-    """The arrival: what a new reader is asked, one question a screen.
+def welcome_page(token: str, language: str = "en") -> str:
+    """The arrival: three questions a new reader is asked, one a screen.
 
-    It was the top of Learn until 2026-10-08, when Learn was taken apart and home became
-    Your targums (design.md §12, "Home is Your targums, and Continue leads it"). Home
-    sends a reader with nothing of their own here, and `arrival.js` sends anybody it has
-    nothing to ask straight back. Nothing about the reader is baked in: the shelf comes
-    from `/readers` and the answers from the account, so one page serves everybody.
+    Which language they are learning, what they like and how much they read, as the
+    FirstRun boards draw them (design.md §12, "The arrival is three plain questions",
+    2026-10-09). Home sends a reader with nothing of their own here, and `arrival.js`
+    sends anybody it has nothing to ask straight back. Nothing about the reader is baked
+    in: the shelf comes from `/readers` and the answers from the account, so one page
+    serves everybody.
     """
     from ..translate.prompts import INTO
 
@@ -1609,17 +1610,13 @@ def welcome_page(token: str, language: str = "en", connector: bool = False) -> s
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(
-                language, "learn.arrival.", "learn.level.", "learn.connect.", "welcome."
-            ),
+            # The badges are `lang.js`'s, worn here as in the menu.
+            strings=script_strings(language, "learn.arrival.", "welcome.", "lang.status."),
             token=token,
             languages=_language_names(language),
             # Which languages a translation can be in, for the first question
             # (targum-internal#243).
             into=[code for code, _ in INTO],
-            # Whether the last card offers the connector (#80). Read at start-up, which is
-            # what the switch means: the day it opens is a restart.
-            connector=connector,
         )
     )
 

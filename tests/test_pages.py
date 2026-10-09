@@ -863,11 +863,14 @@ def test_nothing_on_home_folds() -> None:
 
 def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
     """The product calls a built text a targum everywhere and had never once said what
-    one is. Home drew a definition from 2026-09-26 until 2026-10-08, when the FirstRun
-    boards gave it to the arrival's welcome, which says what targum is before anything
-    is asked (design.md §12)."""
-    welcome = PAGES["welcome"]
-    assert "with a translation beside every line" in welcome
+    one is. Home drew a definition from 2026-09-26 until 2026-10-08, and the arrival's
+    welcome until 2026-10-09, when the FirstRun boards' three questions replaced it
+    (design.md §12, "The arrival is three plain questions"). Everybody who reaches the
+    arrival came through the front door, and that is where it is said."""
+    from targum.render.builder import front_page
+
+    assert "English beside every line" in front_page()
+    assert "with a translation beside every line" not in PAGES["welcome"]
     assert 'class="defined-example"' not in PAGES["texts"]
 
 

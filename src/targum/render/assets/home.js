@@ -542,7 +542,14 @@
     } catch (e) {
       answered = "";
     }
-    if (answered || (me && me.signedIn && (me.interest || []).length)) return false;
+    // Answered on this browser, whatever the answers were (`arrival.js`): liking nothing
+    // in particular and not being sure are answers too (2026-10-09).
+    try {
+      if (localStorage.getItem("targum:welcomed")) return false;
+    } catch (e) {
+      /* no store: the account's answers below still decide */
+    }
+    if (answered || (me && me.signedIn && ((me.interest || []).length || me.declared))) return false;
     if (Object.keys(stored("targum:opened")).length || places.length) return false;
     return !readers.some(function (reader) {
       return !reader.shared;
