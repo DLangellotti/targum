@@ -1351,6 +1351,31 @@ body .site-footer { max-inline-size: var(--column); }
 .talk-cta { background: var(--ink); color: var(--page-max); }
 .talk-cta:hover { filter: none; background: color-mix(in srgb, var(--ink) 88%, var(--page-max)); }
 
+/* --- the pill's clearance at a desk (audit 2, 2026-10-09) ----------------------------
+   The pill floats at the window's bottom-right corner, and a desk page's column runs to
+   that corner too: it sat on the Library's second "See all →", the Words table and the
+   Upload card. The phone keeps a band at the foot (below); at a desk the room is kept at
+   the end edge instead, where the pill is. The pill says "Talk", as the boards draw it,
+   so at 1440 it stands in the margin outside the column and nothing moves; narrower, the
+   page gives up what the pill reaches (`--talk-room`, measured by talk.js) less the
+   column's own padding, at the end edge only. The bar keeps the whole width. */
+@media (min-width: 40.0625rem) {
+  :root {
+    --talk-clear: max(
+      0px,
+      min(
+        var(--talk-room, 0px) - 0.5rem,
+        2 * (var(--talk-room, 0px) - 0.5rem) - (100vw - var(--column))
+      )
+    );
+  }
+  body { padding-inline-end: var(--talk-clear); }
+  body > .site-head { margin-inline-end: calc(-1 * var(--talk-clear)); }
+}
+@media (min-width: 48.0625rem) {
+  .talk-cta { inset-inline-end: 0.75rem; padding-inline: 1rem; }
+}
+
 /* --- the phone: "Your targums" says its whole name at the foot, as board HomePhone, and
    the page keeps clear of the round pill above the bar ---------------------------------- */
 @media (max-width: 40rem) {
