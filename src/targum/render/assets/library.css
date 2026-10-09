@@ -1753,6 +1753,9 @@ body.is-seeing .page-head { display: none; }
 .see-rows .row-state { grid-column: 2 / -1; }
 .see-rows .row-state:empty { display: none; }
 .row-sub { flex: none; inline-size: 7rem; display: flex; justify-content: flex-end; }
+/* A row with nothing to subscribe to keeps the column, so its figures stand under their
+   heads with the rows that have one. */
+.see-list.has-subs .see-rows > li:not(:has(> .row-sub)) > .row-open { margin-inline-end: 8rem; }
 .see-rows > li > .draw,
 .see-rows > li > .row-go,
 .see-rows > li > .row-not { flex: none; }
@@ -1805,6 +1808,7 @@ body.is-seeing .page-head { display: none; }
   .see-rows .row-meta { display: none; }
   .see-length-kind { display: inline; }
   .row-sub { inline-size: auto; margin-inline-start: 4.75rem; }
+  .see-list.has-subs .see-rows > li:not(:has(> .row-sub)) > .row-open { margin-inline-end: 0; }
   .see-foot { padding: 0.75rem 1rem; justify-content: center; flex-direction: column; }
 }
 @media (hover: none) and (pointer: coarse) {

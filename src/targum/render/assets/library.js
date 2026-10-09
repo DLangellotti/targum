@@ -2824,6 +2824,8 @@
       var kindNamed = kindAddressed();
       if (see !== null) {
         seeAll = true;
+        // See all is the Library's list, never a door's of the Jewish texts.
+        view.where = "library";
         if (see) view.fit = see;
         if (kindNamed) {
           view.fit = "";
@@ -2844,6 +2846,8 @@
       if (into !== null && inHebrew) {
         view.where = "midrash";
         view.door = into;
+        // A door is its own list: a kind chosen on See all does not follow it in.
+        view.kind = "";
       }
       lang.set(code);
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
@@ -2881,6 +2885,7 @@
       if (into === null || chosen !== lang.HOME) return;
       view.where = "midrash";
       view.door = into;
+      view.kind = "";
       redraw();
     }
     window.addEventListener("hashchange", moved);
