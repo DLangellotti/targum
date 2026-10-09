@@ -6041,8 +6041,10 @@ def test_a_book_read_in_russian_says_its_contents_page_in_russian(tmp_path: Path
 
 
 def test_a_readers_next_text_is_offered_in_the_language_it_is_read_in() -> None:
-    """The reason and the scene a reader offers next are said in the page's language; the
-    English `next_after` keeps is what its own tests read (targum-internal#287)."""
+    """The reason a reader offers next is said in the page's language, and the scene
+    number never reaches the page (design.md §12, "A text is named in everyday words",
+    2026-10-09); the English `next_after` keeps is what its own tests read
+    (targum-internal#287)."""
     from targum.render.builder import offers_in
 
     offers = [
@@ -6050,9 +6052,11 @@ def test_a_readers_next_text_is_offered_in_the_language_it_is_read_in() -> None:
         {"id": "x", "because": "Easier than this one.", "scene": ""},
     ]
     russian = offers_in(offers, "ru")
-    assert russian[0]["because"] == "Следующий по порядку." and russian[0]["scene"] == "Сцена 2"
+    assert russian[0]["because"] == "Следующий по порядку." and "scene" not in russian[0]
     assert russian[1]["because"] == "Легче этого."
-    assert offers_in(offers, "en") == offers
+    assert offers_in(offers, "en") == [
+        {key: value for key, value in offer.items() if key != "scene"} for offer in offers
+    ]
 
 
 def test_a_verb_ships_the_other_verbs_built_on_its_root(tmp_path: Path) -> None:

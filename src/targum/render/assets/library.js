@@ -56,17 +56,17 @@
      ordered by how much of the catalogue each one holds, so the next chips a reader
      meets are the ones with fifty texts behind them rather than the ones with two.
      Fixed rather than recomputed: a row of filters that rearranges itself as you use it
-     is a row you have to read every time. "Bible narrative" rather than "Narrative":
-     beside Novels and Stories the bare word said nothing, and what it names is the story
-     books of the Bible. */
+     is a row you have to read every time. "Tanakh" for the Bible's story books, and
+     "Dialogues" and "Videos" rather than the catalogue's "Scenes" and "Talks": the
+     boards' words (design.md §12, "A text is named in everyday words", 2026-10-09). */
   var KINDS = [
-    ["dialogue", t("library.kind.dialogue", "Scenes")],
+    ["dialogue", t("library.kind.dialogue", "Dialogues")],
     ["story", t("library.kind.story", "Stories")],
     ["article", t("library.kind.article", "News")],
     ["novel", t("library.kind.novel", "Novels")],
     ["essay", t("library.kind.essay", "Essays")],
-    ["talk", t("library.kind.talk", "Talks")],
-    ["prose", t("library.kind.prose", "Bible narrative")],
+    ["talk", t("library.kind.talk", "Videos")],
+    ["prose", t("library.kind.prose", "Tanakh")],
     ["poetry", t("library.kind.poetry", "Poetry")],
     ["document", t("library.kind.document", "Documents")],
     ["play", t("library.kind.play", "Plays")],
@@ -83,7 +83,7 @@
     ["novel", t("library.kind-one.novel", "Novel")],
     ["essay", t("library.kind-one.essay", "Essay")],
     ["talk", t("library.kind-one.talk", "Video")],
-    ["prose", t("library.kind-one.prose", "Bible story")],
+    ["prose", t("library.kind-one.prose", "Tanakh")],
     ["poetry", t("library.kind-one.poetry", "Poetry")],
     ["document", t("library.kind-one.document", "Document")],
     ["play", t("library.kind-one.play", "Play")],
@@ -221,9 +221,9 @@
   var NOTES = {
     base: t("library.note.base", "Tap a text to open it."),
     kind: {
-      dialogue: t("library.note.dialogue", "Scenes — numbered conversations with audio. Start at 1."),
-      prose: t("library.note.prose", "Bible narrative — the Bible's story books."),
-      talk: t("library.note.talk", "Talks — lectures and explainers, with the video beside them."),
+      dialogue: t("library.note.dialogue", "Dialogues — short conversations with audio. Start with the first."),
+      prose: t("library.note.prose", "Tanakh — the Bible's story books."),
+      talk: t("library.note.talk", "Videos — talks and explainers, with the picture beside the words."),
       article: t("library.note.article", "News — the Israeli press, in the week it was written."),
       play: t("library.note.play", "Plays — a speaker, then a line."),
       liturgy: t("library.note.liturgy", "Prayer — the siddur and the service, the same words every day."),
@@ -238,7 +238,7 @@
     spoken: t("library.note.spoken", "With audio — a recording, line by line."),
     video: t("library.note.video", "With video — a recording that kept its pictures."),
     sort: {
-      difficulty: t("library.note.difficulty", "Hard words — the share of a text's words that are rare in everyday use."),
+      difficulty: t("library.note.difficulty", "Level — the share of a text's words that are rare in everyday use."),
       known: t("library.note.known", "Words you know — the share of a text's words you have marked as known."),
     },
     unmeasured: t("library.note.unmeasured", "— means we haven't measured it yet."),
@@ -326,7 +326,7 @@
     ["thought", "מחשבה ומוסר", t("library.door.thought", "Thought and ethics")],
     ["liturgy", "תפילה", t("library.door.liturgy", "Liturgy")],
   ];
-  var MIDRASH = ["midrash", t("library.where.midrash", "Beit Midrash")];
+  var MIDRASH = ["midrash", t("library.where.midrash", "Jewish texts")];
   //: The language the tree carries besides Hebrew.
   var BESIDE_HEBREW = "arc";
 
@@ -793,7 +793,7 @@
     if (said) box.title = said;
     box.setAttribute(
       "aria-label",
-      t("library.hard-words-share", "{share}% hard words", { share: share }) + (said ? ": " + said : "")
+      t("library.level-share", "Level: {share}% rare words", { share: share }) + (said ? ": " + said : "")
     );
     return box;
   }
@@ -882,12 +882,11 @@
     open.appendChild(cover);
 
     var what = el("span", "card-what");
+    // No scene number: "Scene 218" is the catalogue's place for it, not the reader's
+    // (design.md §12, "A text is named in everyday words", 2026-10-09). A numbered
+    // dialogue is never new, so it carries no kicker at all.
     var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
-    if (number) {
-      var scene = el("span", "card-scene", t("library.scene", "Scene {n}", { n: number }));
-      scene.setAttribute("lang", saidIn);
-      what.appendChild(scene);
-    } else if (isNew(row)) {
+    if (!number && isNew(row)) {
       // "I want to see what was recently added right away" — answered by the card
       // rather than by a sort, so it is true of the page whatever order it is in.
       // In the scene's place, because a numbered scene is never new.
@@ -928,9 +927,6 @@
     }
 
     var meta = [named(KIND_ONE, row.kind), said(row.minutes)];
-    if (measured(row)) {
-      meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
-    }
     what.appendChild(el("span", "card-meta", meta.filter(Boolean).join(" · ")));
     /* What the text is, in the catalogue's own sentence, in the reader's language where
        the catalogue has one (design.md §12, "See all says what each text is",
@@ -1160,13 +1156,10 @@
     // said in the line under the controls, where a phone can read it.
     if (row.video) what.appendChild(el("span", "row-video", t("library.video", "Video")));
     else if (row.spoken) what.appendChild(el("span", "row-audio", t("library.audio", "Audio")));
-    // On a phone the kind, which Hebrew and the hard words leave their columns, and a
+    // On a phone the kind and which Hebrew leave their columns, and a
     // row that only said a title and a length gave a learner nothing to choose by
     // (2026-09-14). They come back as one line under the title.
     var meta = [named(KIND_ONE, row.kind), named(REGISTERS, row.register)];
-    if (measured(row)) {
-      meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
-    }
     if (row.video) meta.push(t("library.video", "Video"));
     else if (row.spoken) meta.push(t("library.audio", "Audio"));
     var metaLine = meta.filter(Boolean).join(" · ");
@@ -1263,13 +1256,10 @@
     what.appendChild(under);
     if (row.video) what.appendChild(el("span", "row-video", t("library.video", "Video")));
     else if (row.spoken) what.appendChild(el("span", "row-audio", t("library.audio", "Audio")));
-    // On a phone the kind, which Hebrew and the hard words leave their columns, and a
+    // On a phone the kind and which Hebrew leave their columns, and a
     // row that only said a title and a length gave a learner nothing to choose by
     // (2026-09-14). They come back as one line under the title.
     var meta = [named(KIND_ONE, row.kind), named(REGISTERS, row.register)];
-    if (measured(row)) {
-      meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
-    }
     if (row.video) meta.push(t("library.video", "Video"));
     else if (row.spoken) meta.push(t("library.audio", "Audio"));
     var metaLine = meta.filter(Boolean).join(" · ");
@@ -1396,7 +1386,7 @@
     // it. "Looked up" is the measurement's name, not the reader's question — and "New
     // words" was a claim about the reader the number cannot make: it counts words that
     // are rare in the language, not words this reader has not met (2026-09-14).
-    ["difficulty", t("library.column.difficulty", "Hard words")],
+    ["difficulty", t("library.column.difficulty", "Level")],
     // What the reader came to the page to ask. Beside "Hard words" because the two are
     // the same question asked twice — how hard is this in the language, and how hard is
     // it for me — and the second is the one the front door sells.
@@ -1703,10 +1693,9 @@
       cover.appendChild(media);
     }
     open.appendChild(cover);
-    var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
-    var kind = number
-      ? t("library.scene", "Scene {n}", { n: number })
-      : [named(KIND_ONE, row.kind), row.minutes ? said(row.minutes) : ""].filter(Boolean).join(" · ");
+    // The kind and the length, as every tile says them, a dialogue's too: never its
+    // scene number (design.md §12, "A text is named in everyday words", 2026-10-09).
+    var kind = [named(KIND_ONE, row.kind), row.minutes ? said(row.minutes) : ""].filter(Boolean).join(" · ");
     var what = el("span", "band-kind", kind);
     what.setAttribute("lang", saidIn);
     open.appendChild(what);
@@ -2311,7 +2300,7 @@
       // words" over a list not in that order would be a lie.
       var scenes = pair[0] === "difficulty" && view.kind === "dialogue";
       button.appendChild(
-        document.createTextNode(scenes ? t("library.column.scene-number", "Scene number") : pair[1])
+        document.createTextNode(scenes ? t("library.column.in-order", "In order") : pair[1])
       );
       if (pair[0] === "difficulty" || pair[0] === "known") button.className = "drop";
       if (scenes) {

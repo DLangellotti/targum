@@ -182,7 +182,7 @@ def split_sections(segmented: SegmentedDocument) -> list[Section]:
 
     for section in sections:
         if not section.title:
-            section.title = f"Section {section.number}"
+            section.title = f"Part {section.number}"
     return sections
 
 
@@ -400,6 +400,17 @@ def commentary_beside_words(
         "heads": heads,
         "built": builts,
         **({"glosses": glosses} if glosses else {}),
+    }
+
+
+def section_word_counts(sections: list[Section], by_id: Mapping[str, Segment]) -> dict[int, int]:
+    """Running words of the source in each section, by section number: the figure
+    `section_minutes` divides, and the one a contents page says."""
+    return {
+        section.number: sum(
+            len(by_id[sid].text.split()) for sid in section.segment_ids if sid in by_id
+        )
+        for section in sections
     }
 
 
@@ -1565,9 +1576,9 @@ def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
 
 
 def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str]]:
-    """`next_after`'s offers with their reason and scene said in `language`, the
-    language the reader's own words are in (targum-internal#287). `next_after` keeps its
-    English, which is what its tests read."""
+    """`next_after`'s offers with their reason said in `language`, the language the
+    reader's own words are in (targum-internal#287), and their scene number left off.
+    `next_after` keeps its English and the number, which is what its tests read."""
     said = page_words(language)
     reasons = {
         "Next in the sequence.": said("reader.next.sequence", "Next in the sequence."),
@@ -1585,9 +1596,10 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
     for offer in offers:
         worded = dict(offer)
         worded["because"] = str(reasons.get(offer.get("because", ""), offer.get("because", "")))
-        scene = re.fullmatch(r"Scene (\d+)", offer.get("scene", ""))
-        if scene:
-            worded["scene"] = str(said("reader.next.scene", "Scene {n}", n=scene.group(1)))
+        # The scene number orders the offers and never reaches the page: "Up next ·
+        # Scene 14" was the catalogue's place for it (design.md §12, "A text is named in
+        # everyday words", 2026-10-09).
+        worded.pop("scene", None)
         out.append(worded)
     return out
 
@@ -5030,9 +5042,16 @@ def render(
         index = env.get_template("index.html.j2").render(
             **shared,
             t=page_words(chrome),
+            tn=page_counts(chrome),
             page_language=_page_language(chrome),
             strings=script_strings(chrome, "contents."),
-            counts={s.number: len(s.segment_ids) for s in sections},
+            # Words, not sentences, as the boards' contents count a part (design.md §12,
+            # "A text is named in everyday words", 2026-10-09): the count and how it is
+            # written, grouped as the page's language groups a thousand.
+            section_words={
+                number: (n, f"{n:,}".replace(",", "\u00a0" if chrome == "ru" else ","))
+                for number, n in section_word_counts(sections, by_id).items()
+            },
             chapters=chapters,
             groups=portion_groups(sections, chapters, verses, document.source),
             spans=spans,

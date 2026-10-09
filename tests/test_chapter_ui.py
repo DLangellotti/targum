@@ -613,8 +613,8 @@ def test_a_recordings_contents_page_has_no_press_for_a_part(tmp_path: Path) -> N
     )
     assert "contents.transcribe" not in source and "Transcribe" not in source
     assert 't("contents.translate", "Translate")' in source, "a book keeps Translate"
-    assert '"Waiting. We make it when you open it."' in source
-    assert '"Being made."' in source
+    assert '"Ready when you open it."' in source
+    assert '"Getting ready."' in source
 
 
 def test_the_contents_page_starts_a_recording_by_listening_and_a_film_by_watching(

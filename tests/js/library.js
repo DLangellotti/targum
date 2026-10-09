@@ -353,7 +353,7 @@ setTimeout(() => {
       shelvesNote: ((byId["shelves"].children || []).find((c) => String(c.className).indexOf("shelves-note") >= 0) || {}).textContent || "",
       // The heading over the share column, and whether it can be pressed.
       shareHead: (() => {
-        const head = byId["rows-head"].children.find((c) => c.className === "drop" && /Hard words|Scene number/.test(c.textContent));
+        const head = byId["rows-head"].children.find((c) => c.className === "drop" && /^(?:Level|In order)/.test(c.textContent));
         return head ? { text: head.textContent.trim(), disabled: head.getAttribute("aria-disabled") === "true" } : null;
       })(),
       find: byId["find"].value || "",

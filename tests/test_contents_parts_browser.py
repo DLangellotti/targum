@@ -84,8 +84,8 @@ def test_a_waiting_part_says_how_it_stands_and_has_no_press(browser, tmp_path) -
         assert page.locator("#prepare").count() == 0, "and no Prepare all"
         two = rows.nth(1).locator(".get-said")
         three = rows.nth(2).locator(".get-said")
-        assert two.inner_text() == "Being made. 1 of 2 sentences ready."
-        assert three.inner_text() == "Waiting. We make it when you open it."
+        assert two.inner_text() == "Getting ready. 1 of 2 sentences ready."
+        assert three.inner_text() == "Ready when you open it."
         assert two.get_attribute("role") == "status"
         # Inside a Hebrew list, an English sentence ends on its full stop, not starts on it.
         assert two.evaluate("e => getComputedStyle(e).direction") == "ltr"

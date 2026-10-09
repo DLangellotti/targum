@@ -358,6 +358,41 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A text is named in everyday words, and the pipeline keeps its own — 2026-10-09
+
+David, 2026-10-09, on the board-against-build audit: the mockups win; **never put a
+catalogue kind name or a pipeline state in front of a reader**; ladder steps are plain
+words; and an interface string follows the boards' wording wherever it means the same
+thing. The copy pass (P3 of the polish plan) applies that, and "Plain words for kinds and
+ladder steps" in "The boards are the desk" below, to every surface that names a text —
+the Library's shelves and See all, home's rows and Continue, playlists, subscriptions,
+saved, search and the reader's Up next.
+
+- **One kind, in the boards' word, everywhere.** A row or a tile says Dialogue, Video,
+  Tanakh, News, Article, Novel, Book, Story, Play or Poetry, as the boards do; a shelf or
+  a chip says the same words in the plural. "Scenes", "Talks" and "Bible narrative" were
+  the catalogue's ids said aloud, and "Scene" on home was a fourth name for a dialogue.
+- **No scene number.** "Scene 218" is where a dialogue sits in the file, not anything a
+  reader chose by: the Library's tiles, See all's kicker, the column head under the
+  Dialogues chip and the reader's "Up next · Scene 14" all drop it. The dialogues keep
+  their order; only the number leaves the screen.
+- **No level code on a row.** "Vav · C2" goes from Your targums' fact line. This amends
+  "The shelf says what a text is at a glance" (2026-09-24), whose row carried the rung
+  with CEFR beside it: the boards draw a row with its kind, its length and its known
+  share, and nothing else about level. The rung is still measured and still sorts
+  "easiest first"; it is no longer said.
+- **No "hard words".** A row's "0% hard words" read as a claim about the reader and was
+  noise on a twenty-word dialogue. A row and a tile say how much of it the reader knows,
+  as the boards do; the measure that sorts and filters is called **Level**, the board's
+  word for that menu.
+- **"Beit Midrash" is "Jewish texts"**, which says what is behind the pill. The doors
+  inside it keep their own names.
+- **A contents page counts words, not sentences** ("1,830 words · 9 min"), as the boards'
+  contents do, and a part not made yet says "Ready when you open it." A section with no
+  heading of its own is "Part 3", not "Section 3".
+
+`test_strings.BANNED` holds every word this takes off the screen, in both languages.
+
 ### The boards are the desk — 2026-10-09
 
 David, 2026-10-09, ruling on the board-against-build audit (every calmer-surfaces board
@@ -3121,7 +3156,9 @@ no cards, and from ⌘K.
   playlists fold into it.
 - **Length is what the text takes:** minutes to read, or the recording's own length for a
   video or a recording ("4 min video"), read from the manifest.
-- **A text has a level, and it is the text's, never the reader's.** It is the ulpan rung,
+- **A text has a level, and it is the text's, never the reader's.** *(No longer said on the
+  row since 2026-10-09 — §12, "A text is named in everyday words": the rung is measured and
+  sorts, and the fact line drops it.)* It is the ulpan rung,
   with CEFR beside it, whose vocabulary covers 90% of the text's running words, measured
   from word frequency (95%, the research's unassisted threshold, until 2026-09-27: see
   the entry of that date). It is not the tier count the library's Easier/Harder chips use. "Never tell the reader they are at a level" stands:

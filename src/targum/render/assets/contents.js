@@ -337,11 +337,11 @@ function partsOf(row) {
     function say(row, job) {
       var line = row.querySelector(".get-said");
       if (!job) {
-        line.textContent = t("contents.part-waiting", "Waiting. We make it when you open it.");
+        line.textContent = t("contents.part-waiting", "Ready when you open it.");
       } else if (job.stage === "failed" || job.stage === "blocked") {
         line.textContent = job.said || job.blocked || job.error || t("contents.could-not", "We couldn't start that. Try again.");
       } else {
-        var making = t("contents.part-making", "Being made.");
+        var making = t("contents.part-making", "Getting ready.");
         line.textContent = job.said ? making + " " + job.said : making;
       }
     }
