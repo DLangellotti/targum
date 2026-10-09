@@ -486,7 +486,8 @@
   box-shadow: var(--lift, 0 8px 28px rgba(0, 0, 0, 0.16));
   font-family: var(--chrome);
 }
-.row-menu button {
+.row-menu button,
+.row-menu a {
   display: flex;
   align-items: center;
   min-block-size: 2.5rem;
@@ -501,7 +502,10 @@
   white-space: nowrap;
   cursor: pointer;
 }
+.row-menu a { text-decoration: none; }
 .row-menu button:hover,
+.row-menu a:hover,
+.row-menu a:focus-visible,
 .row-menu button:focus-visible { background: var(--teal-wash); outline: none; }
 .row-menu button.bin:hover,
 .row-menu button.bin:focus-visible { background: color-mix(in srgb, var(--clay) 10%, transparent); color: var(--clay); }
@@ -510,7 +514,8 @@
 @media (pointer: coarse) {
   .shelf-rows .add-to-list,
   .shelf-rows .row-more,
-  .row-menu button { min-block-size: 2.75rem; }
+  .row-menu button,
+  .row-menu a { min-block-size: 2.75rem; }
   .shelf-rows .row-more { inline-size: 2.75rem; }
 }
 
