@@ -527,6 +527,9 @@ OPEN_TO_STRANGERS = frozenset(
         # The door out of a series, followed from an email with no account at hand
         # (2026-09-11): its token is the whole of what it needs.
         "/series/stop",
+        # And the one mail a day's, which stops every subscription it carried
+        # (design.md §12, 2026-10-09).
+        "/subscriptions/stop",
         # The front door's form and the two doors its mail carries (2026-09-16). Nobody
         # joining a waitlist has an account, and the point of the list is that they
         # cannot get one yet.
@@ -651,10 +654,6 @@ WAITLIST_POSTS = frozenset({"/waitlist", "/waitlist/confirm", "/waitlist/stop"})
 #: A series id as `series.py` names them: a slug, nothing else.
 SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
 
-#: How often the server looks for an instalment that landed since anyone was told
-#: (2026-09-11): the portion turns weekly and a cycle daily, so an hour is prompt enough
-#: and cheap — a look is one read of what is built and one query per series.
-ANNOUNCE_EVERY = 3600
 
 #: How often the server gets a subscription's new items ready (design.md §12,
 #: 2026-10-09). The poll that finds them runs on a timer every half hour; five minutes
@@ -6256,7 +6255,7 @@ class Handler(BaseHTTPRequestHandler):
             # no session and no account, so the language it was followed in is read off
             # the row rather than off the request (targum-internal#289).
             said = store.following_language(token)
-            name = self._series_named(store.following_series(token), said)
+            name = self._stop_named(token, said)
             page = weekly_note(
                 text("series.stop.ask-named", said, name=name)
                 if name
@@ -6275,11 +6274,13 @@ class Handler(BaseHTTPRequestHandler):
                 description=text("series.stop.description", said),
             )
             return self._send(200, page.encode("utf-8"), HTML)
-        token = form.get("t", "")
+        # A mail client's one-click POST (RFC 8058) carries only `List-Unsubscribe=
+        # One-Click` in its body: the token is in the address it was given.
+        token = form.get("t", "") or parse_qs(urlparse(self.path).query).get("t", [""])[0]
         # Read before it is spent. Stopping does not clear the language, but a token that
         # matches no row answers English, and this is the last moment one certainly does.
         said = store.following_language(token)
-        name = self._series_named(store.following_series(token), said)
+        name = self._stop_named(token, said)
         store.stop_following(token)
         page = weekly_note(
             text("series.stop.done-named", said, name=name)
@@ -6291,6 +6292,74 @@ class Handler(BaseHTTPRequestHandler):
             language=said,
             title=f"{name} — targum" if name else "targum",
             description=text("series.stop.description", said),
+        )
+        return self._send(200, page.encode("utf-8"), HTML)
+
+    def _stop_named(self, token: str, language: str) -> str:
+        """What a stop link stops, named in `language`: a series by the catalogue's name,
+        a topic by its word, anything else by the name it was subscribed under."""
+        from .strings import SOURCE, catalogue
+
+        row = self.store.subscription_by_stop(token) if self.store is not None else None
+        if row is None:
+            return ""
+        if row["kind"] == "series":
+            return self._series_named(str(row["key"]), language)
+        if row["kind"] == "topic":
+            key = f"subs.topic.{row['key']}"
+            code = language.split("-")[0].lower()
+            return catalogue(code).get(key) or catalogue(SOURCE).get(key, "")
+        return str(row["name"] or "")
+
+    def _subscriptions_stop(self, form: dict[str, str] | None) -> None:
+        """The way out of the one mail a day (design.md §12, 2026-10-09): every
+        subscription it carried, stopped at once. RFC 8058's one-click POST stops them
+        with no page between; a person who follows the link gets a page with a button, so
+        a mail client that fetches every link answers for nobody."""
+        from .strings import text
+
+        store = self.store
+        if store is None:
+            return self._send(404, b"not found", "text/plain")
+        query = parse_qs(urlparse(self.path).query)
+        tokens = [one for one in query.get("t", []) if one][:20]
+        rows = [row for row in (store.subscription_by_stop(one) for one in tokens) if row]
+        said = str(rows[0]["said"] or "en") if rows else "en"
+        names = [
+            name for name in (self._stop_named(str(row["stop"]), said) for row in rows) if name
+        ]
+        listed = ", ".join(names)
+        if form is None:
+            page = weekly_note(
+                text("subs.stop.ask-named", said, names=listed)
+                if listed
+                else text("subs.stop.ask", said),
+                address=self.address,
+                done=False,
+                pending={
+                    "action": "/subscriptions/stop?" + "&".join(f"t={one}" for one in tokens),
+                    "token": "",
+                    "button": text("series.stop.button", said),
+                },
+                heading=text("subs.stop.heading", said),
+                home="/library",
+                language=said,
+                title="targum",
+                description=text("subs.stop.description", said),
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+        for one in tokens:
+            store.stop_following(one)
+        page = weekly_note(
+            text("subs.stop.done-named", said, names=listed)
+            if listed
+            else text("subs.stop.done", said),
+            address=self.address,
+            heading=text("subs.stop.heading", said),
+            home="/library",
+            language=said,
+            title="targum",
+            description=text("subs.stop.description", said),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -7012,6 +7081,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/series/stop":
             # Followed out of an email, with no account and no key.
             return self._series_stop(None)
+        if route == "/subscriptions/stop":
+            # The daily mail's way out, followed with no account and no key.
+            return self._subscriptions_stop(None)
         if route == "/account/signin":
             return self._send(
                 200,
@@ -7340,6 +7412,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._try_post(self._form())
         if route == "/series/stop":
             return self._series_stop(self._form())
+        if route == "/subscriptions/stop":
+            return self._subscriptions_stop(self._form())
         # The connector's four (targum-internal#80). Before the account check and before
         # the JSON parse: three of them are spoken by a client rather than a browser, and
         # two of those carry a form body the spec fixes. Approving is a press on a page
@@ -12643,23 +12717,9 @@ def start(
         announce(address)
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(address)).start()
-    # Followers are told by email when a series' instalment lands (2026-09-11): hosted,
-    # with a mailer and an address to put in the link, and never on a laptop, where the
-    # console mailer would print a letter to nobody every hour.
-    if mailer is not None and public_address and require_account:
-        from . import series as series_module
-
-        def keep_telling() -> None:
-            while True:
-                time.sleep(ANNOUNCE_EVERY)
-                try:
-                    report = series_module.announce(keeping, mailer, public_address)
-                    if report.sent or report.failed or report.stopped:
-                        log.info("series: %s", report)
-                except Exception as error:  # noqa: BLE001 - never takes the server down
-                    log.warning("series: announcing failed: %s", error)
-
-        threading.Thread(target=keep_telling, name="series-announce", daemon=True).start()
+    # A subscription's new things are mailed once a day by a timer of their own
+    # (`targum subscriptions mail`, design.md §12, 2026-10-09); the hourly per-series mail
+    # that ran here went with it.
     if keep_subscriptions:
         from . import subscriptions as subscriptions_module
 

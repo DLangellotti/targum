@@ -226,4 +226,7 @@ never builds and never spends. Inside `targum.service`, every five minutes, the 
 gets a channel's or a podcast's new item ready: prepared like a pasted link (through the
 proxy and the token minter), held to the subscription's monthly cap, and claimed through
 `Library.press` like any build. Every deploy installs and enables the timer;
-`journalctl -u targum-subscriptions -n 20` says what each run found.
+`journalctl -u targum-subscriptions -n 20` says what each run found. Once a day, at
+04:30 UTC, `targum-subscriptions-mail.timer` runs `targum subscriptions mail`: one mail a
+reader with everything new, the daily cycles included and the weekly left to its Monday
+mail (`journalctl -u targum-subscriptions-mail -n 20`).

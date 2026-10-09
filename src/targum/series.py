@@ -1,26 +1,18 @@
 """What comes out on its own clock, and where each one is this week.
 
-A series is a thing a reader can follow (2026-09-11): the weekly, the weekly portion, and
-each learning cycle. Following is the browser's business (`follow.js`); this is the
-server's half — the current instalment of each, with the address of its reader, so the
-front page can put a new one in the sheet and the bell can say it landed. Every series is
-read off what is built, never off the network, and one that cannot be read on this box
-simply has no instalment.
+A series is a thing a reader can subscribe to (2026-09-11; on the account since
+2026-10-09): the weekly, the weekly portion, and each learning cycle. This is the current
+instalment of each, with the address of its reader, which the subscriptions' poll writes
+down as an item (`subscriptions.poll`) and the follow switch reads where nobody is signed
+in. Every series is read off what is built, never off the network, and one that cannot
+be read on this box simply has no instalment.
 """
 
 from __future__ import annotations
 
-import contextlib
 import logging
-import time
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from .accounts import Store
-    from .letters import Letter
-    from .mail import Mailer
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -130,7 +122,7 @@ def _daily() -> list[dict[str, Any]]:
             "hebrew": cycle.hebrew,
             "what": cycle.blurb,
             "page": f"/{cycle.slug}",
-            # Daily cycles land on Learn and in the bell and are never mailed (`mailed`).
+            # Daily: in the one mail a day like everything else (2026-10-09).
             "cadence": "daily",
             "instalment": None,
         }
@@ -199,93 +191,9 @@ def current(
     return [said_in(row, language) for row in found]
 
 
-# -- telling followers (2026-09-11) --------------------------------------------------------
+# -- telling subscribers ----------------------------------------------------------------
 #
-# The weekly has a mailout of its own (`weekly.mailout`) and is left to it; this is for
-# the rest. The same one property: running it twice sends nothing the second time.
-
-BATCH = 25
-PAUSE = 2.0
-
-#: The mail's words are `mail.series.*` in the catalogue (targum-internal#289), drawn by
-#: `letters.series_instalment`.
-
-
-@dataclass
-class Report:
-    sent: list[str] = field(default_factory=list)
-    failed: list[tuple[str, str]] = field(default_factory=list)
-    stopped: str = ""
-
-    def __str__(self) -> str:
-        line = f"{len(self.sent)} sent"
-        if self.failed:
-            line += f", {len(self.failed)} failed"
-        if self.stopped:
-            line += f" — stopped: {self.stopped}"
-        return line
-
-
-def letter(one: dict[str, Any], address: str, stop_token: str, language: str = "en") -> Letter:
-    """The mail for one follower, in the language they follow in (`letters.series_instalment`).
-
-    `one` is passed through `said_in` here rather than by the caller, because the series
-    is read once for everybody and the name in it is the name in *somebody's* language —
-    a letter that took it as given would say the Russian name to every English reader as
-    soon as one Russian follower came first.
-    """
-    from .letters import series_instalment
-
-    return series_instalment(said_in(one, language), address, stop_token, language)
-
-
-def mailed(one: dict[str, Any]) -> bool:
-    """Whether a series' instalments are worth a mail: weekly or slower, never daily.
-
-    A daily cycle is a mail every day, which is the ping a reader deletes an app over
-    (2026-09-27). Its instalment still lands on Learn and in the bell; it is only not
-    mailed. A row that does not say its cadence is weekly: every series but the daily
-    cycles is.
-    """
-    return one.get("cadence") != "daily"
-
-
-def announce(
-    store: Store,
-    mailer: Mailer,
-    address: str,
-    found: list[dict[str, Any]] | None = None,
-    *,
-    batch: int = BATCH,
-    pause: float = PAUSE,
-) -> Report:
-    """Mail everyone who follows a series and has not had its current instalment."""
-    from .mail import SmtpMailer
-
-    report = Report()
-    for one in found if found is not None else current():
-        if one["id"] == "weekly" or not one.get("instalment") or not mailed(one):
-            continue
-        inst = one["instalment"]
-        waiting = store.followers(one["id"], not_sent=str(inst["id"]))
-        if not waiting:
-            continue
-        holding = mailer.session() if isinstance(mailer, SmtpMailer) else contextlib.nullcontext()
-        try:
-            with holding:
-                for index, (email, stop_token, language) in enumerate(waiting):
-                    mail = letter(one, address, stop_token, language)
-                    try:
-                        # The headers carry RFC 8058's one-click stop and a List-Id.
-                        mailer.notify(email, mail.subject, mail.text, mail.headers, mail.html)
-                    except Exception as error:  # noqa: BLE001 - one bad address, not the run
-                        report.failed.append((email, str(error)))
-                        continue
-                    store.mark_series_sent(email, one["id"], str(inst["id"]))
-                    report.sent.append(email)
-                    if pause and batch and (index + 1) % batch == 0 and index + 1 < len(waiting):
-                        time.sleep(pause)
-        except Exception as error:  # noqa: BLE001 - the session itself, not one address
-            report.stopped = str(error)
-            break
-    return report
+# Each new instalment had a mail of its own, weekly or slower, and the daily cycles none
+# (2026-09-27). Since 2026-10-09 everything new comes in one mail a day, the cycles
+# included (`subscriptions.daily`; design.md §12, "Everything new comes in one mail a
+# day"), and the weekly keeps its Monday mail (`weekly.mailout`).

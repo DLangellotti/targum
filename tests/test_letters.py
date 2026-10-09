@@ -63,8 +63,22 @@ def every(language: str) -> dict[str, Letter]:
         "invitation": letters.invitation(SITE, language),
         "weekly-confirm": letters.weekly_confirm(f"{SITE}/weekly/confirm?t=abc", language),
         "weekly": letters.weekly_issue(issue(), SITE, "stop1", language),
-        "series": letters.series_instalment(
-            series.said_in(PORTION, language), SITE, "stop2", language
+        "daily": letters.subscriptions_daily(
+            [
+                {
+                    "name": series.said_in(PORTION, language)["name"],
+                    "stop": "stop2",
+                    "rows": [("הַאֲזִינוּ", "he", "Ready", "/parasha/read/haazinu/")],
+                },
+                {
+                    "name": "Sport",
+                    "stop": "stop3",
+                    "rows": [("כתבה", "he", "A link", "/add?source=https%3A%2F%2Fx%2Fa")],
+                },
+            ],
+            SITE,
+            "t=stop2&t=stop3",
+            language,
         ),
         "ready": letters.build_ready(
             "Shakshuka at home", f"{SITE}/reader/x", SITE, language, asked=False, listen=False
@@ -123,7 +137,7 @@ def test_every_mail_is_light_only_and_carries_the_drawn_mark(language: str) -> N
 
 def test_only_the_lists_carry_list_headers() -> None:
     for name, letter in every("en").items():
-        listed = name in ("weekly", "series")
+        listed = name in ("weekly", "daily")
         assert ("List-Unsubscribe" in letter.headers) is listed, name
         if listed:
             assert letter.headers["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
@@ -139,7 +153,7 @@ def test_the_postal_address_is_drawn_only_when_there_is_one(
     assert "Somewhere" not in before["weekly"].text
     monkeypatch.setenv(letters.POSTAL_ENV, "targum, 1 Somewhere St, Tel Aviv")
     after = every("en")
-    for name in ("weekly", "series"):
+    for name in ("weekly", "daily"):
         assert "1 Somewhere St" in after[name].text and "1 Somewhere St" in after[name].html
     for name in ("sign-in", "ready", "invitation"):
         assert "Somewhere" not in after[name].text, f"{name} is not a list"
@@ -194,17 +208,26 @@ def test_a_ready_mail_s_button_says_what_the_subject_does() -> None:
     assert ">Слушать<" in russian.html
 
 
-def test_a_daily_series_is_never_mailed(tmp_path: Any) -> None:
-    """Its instalment lands on Learn and in the bell; a mail every day is the ping a
-    reader deletes an app over (design.md §12, 2026-09-27)."""
+def test_a_daily_cycle_is_in_the_one_mail_a_day(tmp_path: Any) -> None:
+    """Reversed on 2026-10-09 (design.md §12, "Everything new comes in one mail a day"):
+    a daily cycle's instalment is in the mail, with everything else new, once a day."""
+    from targum import subscriptions
+
     store = Store(tmp_path / "words.db")
     store.finish_sign_in(store.start_sign_in("a@example.org"))
     store.follow_series("a@example.org", "tehillim")
     store.follow_series("a@example.org", "parasha")
+    me = store.person_by_email("a@example.org")
+    assert me is not None
+    for row in store.subscriptions(me.id):
+        store.add_sub_items(
+            int(row["id"]),
+            [{"key": "i1", "title": f"{row['key']} today", "reader": "/x/", "state": "ready"}],
+        )
     box = io.StringIO()
-    report = series.announce(store, ConsoleMailer(box), SITE, [TEHILLIM, PORTION], pause=0)
-    assert report.sent == ["a@example.org"], "the portion, once"
-    assert "Daily Tehillim" not in box.getvalue()
+    report = subscriptions.daily(store, ConsoleMailer(box), SITE, pause=0)
+    assert report.sent == ["a@example.org"], "one mail, with both"
+    assert "tehillim today" in box.getvalue() and "parasha today" in box.getvalue()
 
 
 def test_every_daily_cycle_says_it_is_daily() -> None:
@@ -212,5 +235,4 @@ def test_every_daily_cycle_says_it_is_daily() -> None:
 
     ids = {cycle.slug for cycle in CYCLES}
     rows = [row for row in series.current(public=True) if row["id"] in ids]
-    assert rows and all(not series.mailed(row) for row in rows)
-    assert series.mailed(PORTION)
+    assert rows and all(row["cadence"] == "daily" for row in rows)

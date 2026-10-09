@@ -547,6 +547,20 @@
     if (earlier) body.appendChild(earlier);
 
     if (one.builds) body.appendChild(capSection(answer, body, saidLine));
+    // The mail (design.md §12, "Everything new comes in one mail a day"): one a day, with
+    // everything new; the way out of it is the way out of the subscription.
+    var mail = el("section", "sub-cap sub-mail");
+    mail.appendChild(el("h2", "", t("subs.mail.head", "Mail")));
+    mail.appendChild(
+      el(
+        "p",
+        "note",
+        one.key === "weekly" && one.kind === "series"
+          ? t("subs.mail.weekly", "The weekly comes by mail every Monday. To stop it, unsubscribe.")
+          : t("subs.mail.says", "What's new comes in one mail a day, with everything else new. To stop it, unsubscribe.")
+      )
+    );
+    body.appendChild(mail);
     // For whatever draws more onto the page — the cap's choices (`TargumSubs.onOne`).
     hooks.forEach(function (hook) {
       try {

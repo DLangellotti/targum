@@ -825,3 +825,152 @@ def get_ready(library: Any, store: Store, *, most: int = ROUND) -> Readied:
         store.set_sub_item(sub_id, key, state="building", why="")
         report.started.append(key)
     return report
+
+
+# -- the one mail a day (design.md §12, "Everything new comes in one mail a day") --------
+#
+# Run once a day by targum-subscriptions-mail.timer (`targum subscriptions mail`). Every
+# reader with something new gets one mail with all of it, grouped by subscription — the
+# daily cycles included, the weekly left to its Monday mail. An item is stamped as mailed
+# once the mail that carries it went, so a run started twice sends nothing twice.
+
+#: How far back an unmailed item is still news: a day and a half, so a run that missed a
+#: day still carries yesterday's, and the first run after this ships does not mail the
+#: whole of what the poll had found before.
+MAIL_WINDOW_MS = 36 * 3600 * 1000
+
+#: How many items one subscription shows in a mail; more is "and N more" on its page.
+MAIL_A_SUBSCRIPTION = 5
+
+#: Between batches of mail, as the weekly's mailout paces itself.
+MAIL_BATCH = 25
+MAIL_PAUSE = 2.0
+
+
+@dataclass
+class Mailed:
+    sent: list[str] = field(default_factory=list)
+    failed: list[tuple[str, str]] = field(default_factory=list)
+    stopped: str = ""
+
+    def __str__(self) -> str:
+        line = f"{len(self.sent)} sent"
+        if self.failed:
+            line += f", {len(self.failed)} failed"
+        if self.stopped:
+            line += f" — stopped: {self.stopped}"
+        return line
+
+
+def _note(item: Mapping[str, Any], language: str, back: str) -> str:
+    from .strings import text
+
+    if item["state"] == "waiting":
+        return text("mail.daily.waiting", language, date=back)
+    if item["state"] == "listed":
+        return text("mail.daily.link", language)
+    if item["kind"] == "channel":
+        return text("mail.daily.ready-watch", language)
+    if item["kind"] == "podcast":
+        return text("mail.daily.ready-listen", language)
+    return text("mail.daily.ready-read", language)
+
+
+def _named_for_mail(item: Mapping[str, Any], language: str, series_names: Mapping[str, str]) -> str:
+    from .strings import catalogue
+
+    if item["kind"] == "series":
+        return series_names.get(str(item["sub_key"]), str(item["sub_key"]))
+    if item["kind"] == "topic":
+        key = f"subs.topic.{item['sub_key']}"
+        return catalogue(language).get(key) or catalogue("en").get(key) or str(item["sub_key"])
+    return str(item["sub_name"] or item["sub_key"])
+
+
+def daily(
+    store: Store,
+    mailer: Any,
+    address: str,
+    *,
+    now_ms: int = 0,
+    month_from: int = 0,
+    back: Callable[[str], str] | None = None,
+    pause: float = MAIL_PAUSE,
+    batch: int = MAIL_BATCH,
+) -> Mailed:
+    """Send each reader one mail with everything new from their subscriptions."""
+    import contextlib
+    import time
+    from itertools import groupby
+
+    from . import series
+    from .letters import subscriptions_daily
+    from .mail import SmtpMailer
+
+    stamp = now_ms or int(time.time() * 1000)
+    report = Mailed()
+    rows = store.items_to_mail(stamp - MAIL_WINDOW_MS)
+    if not rows:
+        return report
+    by_person = [list(group) for _, group in groupby(rows, key=lambda row: int(row["person"]))]
+    names: dict[str, dict[str, str]] = {}
+    holding = mailer.session() if isinstance(mailer, SmtpMailer) else contextlib.nullcontext()
+    try:
+        with holding:
+            for index, items in enumerate(by_person):
+                said = next((str(item["said"]) for item in items if item["said"]), "en")
+                if said not in names:
+                    names[said] = {
+                        str(row["id"]): str(row["name"])
+                        for row in series.current(public=True, language=said)
+                    }
+                when = back(said) if back is not None else ""
+                groups: list[dict[str, Any]] = []
+                mailed: list[tuple[int, str]] = []
+                for sub_id, in_sub in groupby(items, key=lambda row: int(row["sub"])):
+                    listed = list(in_sub)
+                    waiting = [item for item in listed if item["state"] == "waiting"]
+                    shown = [item for item in listed if item["state"] != "waiting"]
+                    # Told once a month that something waits; what waits with it is not.
+                    if waiting and not store.waiting_mailed(sub_id, month_from):
+                        shown.append(waiting[0])
+                    mailed += [(sub_id, str(item["key"])) for item in listed]
+                    if not shown:
+                        continue
+                    first = listed[0]
+                    rows_shown = [
+                        (
+                            str(item["title"]),
+                            str(item["language"] or "he"),
+                            _note(item, said, when),
+                            f"/subscriptions/{sub_id}#sub-cap"
+                            if item["state"] == "waiting"
+                            else door(item),
+                        )
+                        for item in shown[:MAIL_A_SUBSCRIPTION]
+                    ]
+                    groups.append(
+                        {
+                            "name": _named_for_mail(first, said, names[said]),
+                            "stop": str(first["stop"]),
+                            "rows": rows_shown,
+                        }
+                    )
+                email = str(items[0]["email"])
+                if not groups:
+                    store.mark_mailed(mailed)
+                    continue
+                stops = "&".join(f"t={group['stop']}" for group in groups)
+                letter = subscriptions_daily(groups, address, stops, said)
+                try:
+                    mailer.notify(email, letter.subject, letter.text, letter.headers, letter.html)
+                except Exception as error:  # noqa: BLE001 - one bad address, not the run
+                    report.failed.append((email, str(error)))
+                    continue
+                store.mark_mailed(mailed)
+                report.sent.append(email)
+                if pause and batch and (index + 1) % batch == 0 and index + 1 < len(by_person):
+                    time.sleep(pause)
+    except Exception as error:  # noqa: BLE001 - the session itself, not one address
+        report.stopped = str(error)
+    return report

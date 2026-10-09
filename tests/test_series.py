@@ -131,48 +131,8 @@ QUIET = {
 }
 
 
-def test_followers_are_told_once_about_an_instalment_and_the_weekly_is_left_to_its_own(
-    tmp_path: Any,
-) -> None:
-    import io
-
-    from targum import series
-    from targum.accounts import Store
-    from targum.mail import ConsoleMailer
-
-    store = Store(tmp_path / "words.db")
-    for email in ("a@example.org", "b@example.org", "c@example.org"):
-        account(store, email)
-    store.follow_series("a@example.org", "parasha")
-    store.follow_series("b@example.org", "parasha")
-    store.follow_series("c@example.org", "mishna-yomi")
-    store.follow("d@example.org", True)
-    box = io.StringIO()
-    report = series.announce(
-        store, ConsoleMailer(box), "https://targum.page", [WEEKLY, PORTION, QUIET], pause=0
-    )
-    assert report.sent == ["a@example.org", "b@example.org"], "the portion's followers"
-    told = box.getvalue()
-    assert "The weekly portion: Ki Tavo" in told and "כי תבוא" in told
-    assert "https://targum.page/parasha" in told and "/series/stop?t=" in told
-    assert "d@example.org" not in told, "the weekly has a mailout of its own"
-    again = series.announce(
-        store, ConsoleMailer(io.StringIO()), "https://targum.page", [PORTION], pause=0
-    )
-    assert again.sent == [], "running it twice sends nothing the second time"
-    landed = dict(PORTION, instalment=dict(PORTION["instalment"], id="nitzavim", title="Nitzavim"))
-    later = series.announce(
-        store, ConsoleMailer(io.StringIO()), "https://targum.page", [landed], pause=0
-    )
-    assert later.sent == ["a@example.org", "b@example.org"], "the next instalment is news again"
-
-
 def test_one_click_stops_a_series_and_unfollowing_does_too(tmp_path: Any) -> None:
-    import io
-
-    from targum import series
     from targum.accounts import Store
-    from targum.mail import ConsoleMailer
 
     store = Store(tmp_path / "words.db")
     account(store, "a@example.org")
@@ -185,10 +145,7 @@ def test_one_click_stops_a_series_and_unfollowing_does_too(tmp_path: Any) -> Non
     assert not store.stop_following("nonsense") and not store.stop_following("")
     store.follow_series("a@example.org", "parasha")
     store.follow_series("a@example.org", "parasha", False)
-    report = series.announce(
-        store, ConsoleMailer(io.StringIO()), "https://targum.page", [PORTION], pause=0
-    )
-    assert report.sent == []
+    assert store.followers("parasha") == []
 
 
 # -- a series says its name in the reader's language (targum-internal#289) --------------
@@ -280,33 +237,3 @@ def test_a_follower_is_written_down_with_the_language_they_followed_in(tmp_path:
     # A token matching no row is English rather than an error: it is a link out of a mail
     # client, and the page it opens has to draw either way.
     assert store.following_language("nonsense") == "en" and store.following_language("") == "en"
-
-
-def test_the_letter_is_written_in_the_language_its_reader_follows_in() -> None:
-    """The last thing in this file still English for everybody, on a series whose name and
-    blurb the same reader already had in Russian."""
-    from targum import series
-
-    mail = series.letter(PORTION_RU, "https://targum.page", "tok", "ru")
-    subject, body = mail.subject, mail.text
-    assert "Недельная глава" in subject and "Bereshit" in subject
-    assert "Новый выпуск готов." in body and "https://targum.page/parasha" in body
-    assert "https://targum.page/series/stop?t=tok" in body
-    assert "You're getting this" not in body
-
-    english = series.letter(PORTION_RU, "https://targum.page", "tok").text
-    assert "You're getting this because you follow The weekly portion" in english
-
-
-def test_one_russian_follower_does_not_make_everyone_elses_letter_russian() -> None:
-    """The series is read once for everybody and its name is resolved into *somebody's*
-    language before `announce` loops. A letter that took the row's name as given would say
-    the Russian name to every English reader as soon as a Russian follower sorted first.
-    """
-    from targum import series
-
-    already = series.said_in(PORTION_RU, "ru")
-    assert already["name"] == "Недельная глава"
-    mail = series.letter(already, "https://targum.page", "tok", "en")
-    subject, body = mail.subject, mail.text
-    assert "The weekly portion" in subject and "Недельная глава" not in body
