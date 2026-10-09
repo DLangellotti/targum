@@ -1,8 +1,7 @@
-/* The profile page: who you are, your languages, and the two things that end an account.
- *
- * The corner popover answers "who is signed in" in one line. This is the rest — a name,
- * which languages you are learning and which you read into, and the half of an account
- * that is slow or impossible to undo.
+/* Your account (boards AccountDesk, AccountPhone, ConnYou; design.md §12, "Your account
+ * is the board's sections", 2026-10-09): the languages you are learning and the one you
+ * read into, what is connected, and the half of an account that is slow or impossible to
+ * undo. Credits and the plan are `account.js`'s, which knows the month.
  *
  * The languages live on the account and nowhere else. A preference in the browser is
  * swept on sign-out with everything else `targum:*`, on purpose, and would be forgotten
@@ -40,7 +39,7 @@
     });
   }
 
-  var panels = ["who", "languages", "reading", "ending"];
+  var panels = ["languages", "ending"];
 
   function at(id) {
     return document.getElementById(id);
@@ -74,118 +73,169 @@
 
   /* --- who you are ----------------------------------------------------------- */
 
+  // The address, on the Account card. The name and the Hebrew form of address are no
+  // longer asked here (the board draws neither); the account keeps what was said.
   function drawWho(who) {
-    var avatar = at("you-avatar");
-    avatar.textContent = "";
-    if (who.picture) {
-      var image = new Image();
-      image.alt = "";
-      image.onload = function () {
-        avatar.textContent = "";
-        avatar.appendChild(image);
-      };
-      image.src = who.picture;
-    }
-    avatar.appendChild(document.createTextNode(who.initials || "?"));
     at("you-email").textContent = who.email || "";
-    at("you-name").value = who.name || "";
-    var address = who.address || "";
-    Array.prototype.forEach.call(document.querySelectorAll('input[name="address"]'), function (box) {
-      box.checked = box.value === address;
-    });
-
-    var counts = who.counts || {};
-    // Every language's, said so, and grouped: beside Your Progress's one language this
-    // read as a different number for the same thing (2026-09-14).
-    var words = counts.words || 0;
-    var phrases = counts.phrases || 0;
-    at("you-kept").textContent =
-      t("you.kept", "{words} and {phrases}, across all your languages.", {
-        words: tn("you.kept.words", words, "{n} word", "{n} words", { n: grouped(words) }),
-        phrases: tn("you.kept.phrases", phrases, "{n} phrase", "{n} phrases", { n: grouped(phrases) }),
-      });
-  }
-
-  var saving = null;
-
-  function saveName() {
-    // On the way out of the field, and once: a request per keystroke would be a request
-    // per keystroke.
-    clearTimeout(saving);
-    saving = setTimeout(function () {
-      ask("/account/name", { name: at("you-name").value }).then(function (answer) {
-        // A session that ended while the page was open answers `signedIn: false` with no
-        // error in it, and that is not "Saved."
-        if (answer.error || answer.signedIn === false) {
-          return say("you-said", answer.error || SIGNED_OUT, true);
-        }
-        say("you-said", SAVED);
-        drawWho(answer);
-        // The corner draws from /account/me, so asking sync to look again is what makes
-        // the initials in it agree with the name just typed.
-        if (window.TargumSync) window.TargumSync.start();
-      });
-    }, 400);
-  }
-
-  // How the conversation addresses them in Hebrew. Saved on the press, as a name is.
-  function saveAddress(event) {
-    var box = event && event.target;
-    if (!box || box.name !== "address") return;
-    ask("/account/address", { address: box.value }).then(function (answer) {
-      if (answer.error || answer.signedIn === false) {
-        return say("you-said", answer.error || SIGNED_OUT, true);
-      }
-      say("you-said", SAVED);
-    });
   }
 
   /* --- your languages ---------------------------------------------------------- */
 
-  // Every language targum has, drawn from the lists the page was built with, and ticked
-  // from what the account said. The boxes are kept here rather than found again: the
-  // question is only ever "which of these are ticked", and this is the list.
-  var boxes = { "you-learning": [], "you-reads": [] };
+  /* As the board draws them: a row each language being learned, with Remove where it
+     may go; Start another, from the rest; and the language meanings, translations and
+     the menus are in. What the account said is kept here and sent whole, because the
+     account is told what the set is, not what changed. */
+  var learning = ["he"];
+  var reads = ["en"];
 
-  function ticked(id) {
-    return boxes[id]
-      .filter(function (box) {
-        return box.checked;
-      })
-      .map(function (box) {
-        return box.value;
-      });
+  function named(rows, code) {
+    for (var n = 0; n < rows.length; n++) if (rows[n].code === code) return rows[n].name;
+    return code;
   }
 
-  function drawTicks(id, rows, chosen, required) {
-    var host = at(id);
-    host.textContent = "";
-    boxes[id] = [];
+  function option(value, text, chosen) {
+    var one = document.createElement("option");
+    one.value = value;
+    one.textContent = text;
+    if (chosen) one.selected = true;
+    return one;
+  }
+
+  function drawLearning() {
+    var list = at("you-learning");
+    var rows = window.TARGUM_READING || [];
+    var required = window.TARGUM_REQUIRED || [];
+    list.textContent = "";
     rows.forEach(function (row) {
-      var label = document.createElement("label");
-      label.className = "tick";
-      var box = document.createElement("input");
-      box.type = "checkbox";
-      box.value = row.code;
-      box.checked = chosen.indexOf(row.code) >= 0;
-      // The one that stays on is drawn on and cannot be pressed off. The server holds
-      // the same line, so this is not the only thing keeping it there.
-      box.disabled = required.indexOf(row.code) >= 0;
-      box.addEventListener("change", function () {
-        tickChanged(id, box);
-      });
-      label.appendChild(box);
-      label.appendChild(document.createTextNode(row.name));
-      // And in its own name, where the menu knows it (2026-09-14).
-      var own = window.TargumLang && window.TargumLang.native ? window.TargumLang.native(row.code) : null;
-      if (own && own.textContent !== row.name) {
-        label.appendChild(document.createTextNode(" "));
-        label.appendChild(own);
+      if (learning.indexOf(row.code) < 0) return;
+      var line = document.createElement("li");
+      line.className = "row";
+      line.setAttribute("data-code", row.code);
+      var main = document.createElement("span");
+      main.className = "row-main";
+      var name = document.createElement("span");
+      name.className = "acct-name";
+      name.textContent = row.name;
+      main.appendChild(name);
+      var says = document.createElement("span");
+      says.className = "acct-says";
+      says.textContent = t("you.page.learning", "Learning");
+      main.appendChild(says);
+      line.appendChild(main);
+      // The one that stays on has no Remove: the server holds the same line.
+      if (required.indexOf(row.code) < 0) {
+        var gone = document.createElement("button");
+        gone.type = "button";
+        gone.className = "btn ghost outline";
+        gone.textContent = t("you.remove", "Remove");
+        gone.setAttribute("aria-label", t("you.remove-named", "Remove {language}", { language: row.name }));
+        gone.addEventListener("click", function () {
+          if (learning.length <= 1) return say("you-languages-said", t("you.keep-one-language", "Keep at least one language."));
+          learning = learning.filter(function (code) {
+            return code !== row.code;
+          });
+          saveLanguages();
+        });
+        line.appendChild(gone);
       }
-      // "Experimental" is said once, in the note under the lists, rather than six times
-      // down them (2026-09-14).
-      host.appendChild(label);
-      boxes[id].push(box);
+      list.appendChild(line);
+    });
+
+    var start = at("you-start");
+    start.textContent = "";
+    start.appendChild(option("", t("you.choose", "Choose…"), true));
+    var more = 0;
+    rows.forEach(function (row) {
+      if (learning.indexOf(row.code) >= 0) return;
+      start.appendChild(option(row.code, row.name, false));
+      more += 1;
+    });
+    // Nothing left to start: the row says so by not being there.
+    var startRow = start.parentNode;
+    if (startRow && startRow.tagName === "LI") startRow.hidden = !more;
+  }
+
+  /* One language for meanings, translations and the menus: it is one setting on the
+     account (`strings.reading_language`), so it is one control here. An account that
+     reads into both keeps that answer as a choice of its own. */
+  function drawReads() {
+    var pick = at("you-reads");
+    var rows = window.TARGUM_INTO || [];
+    pick.textContent = "";
+    rows.forEach(function (row) {
+      var own = window.TargumLang && window.TargumLang.native ? window.TargumLang.native(row.code) : null;
+      var text = own && own.textContent ? own.textContent : row.name;
+      pick.appendChild(option(row.code, text, reads.length === 1 && reads[0] === row.code));
+    });
+    if (reads.length > 1) {
+      pick.appendChild(
+        option(
+          reads.join(" "),
+          reads.length === 2
+            ? t("you.reads.both", "{one} and {other}", { one: named(rows, reads[0]), other: named(rows, reads[1]) })
+            : reads
+                .map(function (code) {
+                  return named(rows, code);
+                })
+                .join(", "),
+          true
+        )
+      );
+    }
+  }
+
+  function drawLanguages(who) {
+    learning = (who.learning || ["he"]).slice();
+    reads = (who.reads || ["en"]).slice();
+    drawLearning();
+    drawReads();
+  }
+
+  var savingLanguages = null;
+
+  function saveLanguages() {
+    // Once, a moment after the last change: two presses together are one change.
+    clearTimeout(savingLanguages);
+    savingLanguages = setTimeout(function () {
+      ask("/account/languages", {
+        learning: learning.slice(),
+        reads: reads.slice(),
+      }).then(function (answer) {
+        // Drawn back from the answer either way. What the account kept is what stands,
+        // and a refused change puts its rows back rather than showing what was asked.
+        if (answer.learning || answer.reads) drawLanguages(answer);
+        if (answer.error || answer.signedIn === false) {
+          return say("you-languages-said", answer.error || SIGNED_OUT);
+        }
+        say("you-languages-said", SAVED);
+        // The pages that offer a language read the account's answer through sync, so
+        // asking it to look again is what makes them agree.
+        if (window.TargumSync) window.TargumSync.start();
+        // The menus are in the language read into: a change there is a new page.
+        // `strings.reading_language`: the one language read into other than English, or
+        // English.
+        var before = (window.TargumStrings && window.TargumStrings.language) || "en";
+        var others = (answer.reads || reads).filter(function (code) {
+          return code !== "en";
+        });
+        var now = others.length === 1 ? others[0] : "en";
+        if (now !== before && window.location && window.location.reload) window.location.reload();
+      });
+    }, 400);
+  }
+
+  function wireLanguages() {
+    at("you-start").addEventListener("change", function () {
+      var code = at("you-start").value;
+      if (!code || learning.indexOf(code) >= 0) return;
+      learning.push(code);
+      saveLanguages();
+    });
+    at("you-reads").addEventListener("change", function () {
+      var value = at("you-reads").value;
+      if (!value) return;
+      reads = value.split(" ");
+      saveLanguages();
     });
   }
 
@@ -271,87 +321,183 @@
       }
     }
 
-    /* When it was connected, and when it was last used. Claude registers itself afresh
-       each time it is reconnected, and removing it in Claude does not tell us, so two
-       rows both called "Claude" is ordinary; the dates are what tell them apart. */
-    function whenSaid(one) {
-      if (!one.made) return "";
-      if (one.seen) {
-        return t("you.connections.connected-and-used", "Connected {made}, last used {seen}", {
-          made: day(one.made),
-          seen: day(one.seen)
+    /* One row an app, as board ConnYou draws it. Claude registers itself afresh each
+       time it is reconnected, and removing it in Claude does not tell us, so two grants
+       called "Claude" are one app connected twice: one row, both dates ("Connected 22
+       September, again 6 October"), and Disconnect takes both. */
+    function grouped(connections) {
+      var byName = {};
+      var order = [];
+      (connections || []).forEach(function (one) {
+        var name = one.name || "";
+        var key = name || "client:" + one.client;
+        if (!byName[key]) {
+          byName[key] = { name: name, clients: [], scopes: {}, made: [], seen: 0 };
+          order.push(key);
+        }
+        var app = byName[key];
+        app.clients.push(one.client);
+        String(one.scopes || "")
+          .split(" ")
+          .forEach(function (scope) {
+            if (scope) app.scopes[scope] = true;
+          });
+        if (one.made) app.made.push(one.made);
+        app.seen = Math.max(app.seen, Number(one.seen) || 0);
+      });
+      return order.map(function (key) {
+        var app = byName[key];
+        app.made.sort(function (x, y) {
+          return x - y;
         });
-      }
-      return t("you.connections.connected-on", "Connected {made}", { made: day(one.made) });
+        app.scopes = Object.keys(app.scopes).join(" ");
+        return app;
+      });
+    }
+
+    /* When it was connected (and again, where it was reconnected), and when it was last
+       used. */
+    function whenSaid(app) {
+      if (!app.made.length) return "";
+      var first = day(app.made[0]);
+      var last = app.made.length > 1 ? day(app.made[app.made.length - 1]) : "";
+      var said =
+        last && last !== first
+          ? t("you.connections.connected-again", "Connected {made}, again {again}", { made: first, again: last })
+          : t("you.connections.connected-on", "Connected {made}", { made: first });
+      if (app.seen) said += t("you.connections.last-used", ", last used {seen}", { seen: day(app.seen) });
+      return said;
+    }
+
+    /* A small line drawing before each thing it may do (§7). */
+    var GLYPH = {
+      library: "M7 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM10 10l3.5 3.5",
+      record: "M3 4.5h10M3 8h10M3 11.5h6",
+      chat: "M3 3.5h10v7H7l-3 2.5v-2.5H3z",
+    };
+    function glyph(scope) {
+      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+      var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", GLYPH[scope] || GLYPH.library);
+      svg.appendChild(path);
+      return svg;
     }
 
     function paint(connections, keep) {
       rows.textContent = "";
+      var apps = grouped(connections);
       /* Kept open by a press on it, so the last Disconnect still shows that it worked;
          the next visit, with nothing connected, draws no panel. */
-      panel.hidden = !(connections && connections.length) && !keep;
-      (connections || []).forEach(function (one) {
+      panel.hidden = !apps.length && !keep;
+      apps.forEach(function (app) {
         var row = document.createElement("li");
-        var name = document.createElement("span");
-        name.className = "series-name";
-        name.textContent = one.name || t("you.connections.an-app", "An app");
-        var says = document.createElement("span");
-        says.className = "note";
-        says.textContent = scopesSaid(one.scopes);
+        row.className = "conn-row";
+        var mark = document.createElement("span");
+        mark.className = "conn-mark";
+        mark.setAttribute("aria-hidden", "true");
+        var name = app.name || t("you.connections.an-app", "An app");
+        mark.textContent = Array.from(name)[0] || "·";
+        row.appendChild(mark);
+
+        var main = document.createElement("div");
+        main.className = "conn-main";
+        var head = document.createElement("p");
+        head.className = "conn-head";
+        var title = document.createElement("b");
+        title.className = "conn-name";
+        title.textContent = name;
+        head.appendChild(title);
+        var when = document.createElement("span");
+        when.className = "conn-when";
+        when.textContent = whenSaid(app);
+        head.appendChild(when);
+        main.appendChild(head);
+
+        var lines = mayLines(app.scopes);
+        if (lines.length) {
+          var may = document.createElement("p");
+          may.className = "conn-may";
+          may.textContent = t("you.connections.it-may", "It may:");
+          main.appendChild(may);
+          var list = document.createElement("ul");
+          list.className = "conn-scopes";
+          lines.forEach(function (line) {
+            var item = document.createElement("li");
+            item.appendChild(glyph(line.scope));
+            var words = document.createElement("span");
+            words.textContent = line.says;
+            item.appendChild(words);
+            list.appendChild(item);
+          });
+          main.appendChild(list);
+        }
+        row.appendChild(main);
+
         var press = document.createElement("button");
         press.type = "button";
-        press.className = "btn ghost";
+        press.className = "btn ghost outline conn-off";
         press.textContent = t("you.connections.disconnect", "Disconnect");
+        press.setAttribute("aria-label", t("you.connections.disconnect-named", "Disconnect {app}", { app: name }));
         press.onclick = function () {
           press.disabled = true;
-          ask("/account/disconnect", { client: one.client })
-            .then(function (answer) {
-              paint(answer && answer.connections, true);
-              tell(t("you.connections.disconnected", "Disconnected."));
+          // Every grant the app holds, one after another, and the list as the last
+          // answer left it.
+          var last = null;
+          app.clients
+            .reduce(function (chain, client) {
+              return chain.then(function () {
+                return ask("/account/disconnect", { client: client }).then(function (answer) {
+                  last = answer;
+                });
+              });
+            }, Promise.resolve())
+            .then(function () {
+              paint(last && last.connections, true);
+              tell(t("you.connections.disconnected-app", "Disconnected. {app} can't reach your targum any more.", { app: name }));
             })
             .catch(function () {
               press.disabled = false;
               tell(t("you.connections.could-not", "We couldn't disconnect that. Try again."));
             });
         };
-        var when = document.createElement("span");
-        when.className = "note when";
-        when.textContent = whenSaid(one);
-        row.appendChild(name);
-        row.appendChild(says);
         row.appendChild(press);
-        row.appendChild(when);
         rows.appendChild(row);
       });
     }
 
-    /* The scopes in the reader's words, in the order the approval page listed them.
-       Chatting is said to be included, as the approval page says it (design.md §12,
-       2026-09-24), because this is the page they come to when they want to know what
-       they agreed to. */
-    function scopesSaid(scopes) {
+    /* What each grant lets the app do, in the approval page's own sentences, in the
+       order it listed them. Chatting is said to be included, as the approval page says
+       it (design.md §12, 2026-09-24), because this is the page a reader comes to when
+       they want to know what they agreed to.
+
+       `chat` was `check` until 2026-09-23 (§12, "A cost is credits, and a credit is a
+       minute"). A grant made before then still holds the old word, so this answers to
+       both spellings rather than showing a reader one fewer thing than they agreed to. */
+    function mayLines(scopes) {
       var held = (scopes || "").split(" ");
-      var words = [];
+      var lines = [];
       if (held.indexOf("library") >= 0) {
-        words.push(t("you.connections.library", "the library"));
+        lines.push({ scope: "library", says: t("connect.scope.library", "Search the library and look up what is at a link") });
       }
       if (held.indexOf("record") >= 0) {
-        words.push(t("you.connections.record", "your words and mistakes"));
+        lines.push({ scope: "record", says: t("connect.scope.record", "Read your words, your mistakes and your progress") });
       }
-      /* `chat` was `check` until 2026-09-23 (§12, "A cost is credits, and a credit is a
-         minute"). A grant made before then still holds the old word — `oauth.RENAMED`
-         maps it server-side, and this list is drawn from what the grant stores, so it
-         answers to both spellings rather than showing a reader one fewer scope than
-         they agreed to. */
       if (held.indexOf("chat") >= 0 || held.indexOf("check") >= 0) {
-        words.push(
-          t(
-            "you.connections.chatting",
-            "chatting in the language you're learning, which is included"
-          )
-        );
+        lines.push({
+          scope: "chat",
+          says:
+            t(
+              "connect.scope.chat",
+              "Send us what you write in a language you're learning, for us to correct. Add texts to your playlists, and get new ones ready for you to confirm."
+            ) +
+            " " +
+            t("you.connections.chat-included", "Chatting is included."),
+        });
       }
-      return words.join(", ");
+      return lines;
     }
 
     paint(who && who.connections);
@@ -388,14 +534,14 @@
       (prompts || []).forEach(function (one) {
         var row = document.createElement("li");
         var called = document.createElement("span");
-        called.className = "series-name";
+        called.className = "acct-name";
         called.textContent = one.name;
         var what = document.createElement("span");
         what.className = "note";
         what.textContent = one.says;
         var press = document.createElement("button");
         press.type = "button";
-        press.className = "btn ghost";
+        press.className = "btn ghost outline";
         press.textContent = t("you.prompts.remove", "Remove");
         press.onclick = function () {
           press.disabled = true;
@@ -475,51 +621,6 @@
         said.textContent = t("you.grant.thanks", "Thank you. A word's card now offers a correction.");
       });
     };
-  }
-
-  function drawLanguages(who) {
-    drawTicks(
-      "you-learning",
-      window.TARGUM_READING || [],
-      who.learning || ["he"],
-      window.TARGUM_REQUIRED || []
-    );
-    drawTicks("you-reads", window.TARGUM_INTO || [], who.reads || ["en"], []);
-  }
-
-  function tickChanged(id, box) {
-    if (!box.checked && !ticked(id).length) {
-      // The last one cannot go: a reader with no language to read into has no reader.
-      // Put back here rather than sent, so the box never shows a state the account
-      // would refuse.
-      box.checked = true;
-      return say("you-languages-said", t("you.keep-one", "Keep at least one language ticked."));
-    }
-    saveLanguages();
-  }
-
-  var savingLanguages = null;
-
-  function saveLanguages() {
-    // Once, a moment after the last tick: two boxes pressed together are one change.
-    clearTimeout(savingLanguages);
-    savingLanguages = setTimeout(function () {
-      ask("/account/languages", {
-        learning: ticked("you-learning"),
-        reads: ticked("you-reads"),
-      }).then(function (answer) {
-        // Ticked back from the answer either way. What the account kept is what stands,
-        // and a refused change puts its boxes back rather than showing what was asked.
-        if (answer.learning || answer.reads) drawLanguages(answer);
-        if (answer.error || answer.signedIn === false) {
-          return say("you-languages-said", answer.error || SIGNED_OUT);
-        }
-        say("you-languages-said", SAVED);
-        // The pages that offer a language read the account's answer through sync, so
-        // asking it to look again is what makes them agree with the boxes.
-        if (window.TargumSync) window.TargumSync.start();
-      });
-    }, 400);
   }
 
   /* --- your Hebrew -------------------------------------------------------------- */
@@ -674,14 +775,14 @@
       (chats || []).forEach(function (one) {
         var row = document.createElement("li");
         var name = document.createElement("span");
-        name.className = "series-name";
+        name.className = "acct-name";
         name.textContent = t("you.telegram.chat", "A Telegram chat");
         var when = document.createElement("span");
         when.className = "note when";
         when.textContent = t("you.telegram.linked-on", "Linked {made}", { made: day(one.linked) });
         var press = document.createElement("button");
         press.type = "button";
-        press.className = "btn ghost";
+        press.className = "btn ghost outline";
         press.textContent = t("you.telegram.unlink", "Unlink");
         press.onclick = function () {
           press.disabled = true;
@@ -732,9 +833,7 @@
       drawTelegram(who);
       drawPrompts(who);
       drawGrant(who);
-      at("you-name").addEventListener("input", saveName);
-      var address = at("you-address");
-      if (address) address.addEventListener("change", saveAddress);
+      wireLanguages();
       ending();
       if (window.TargumSync) window.TargumSync.start();
     })

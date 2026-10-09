@@ -21,73 +21,97 @@
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
-<main>
+<main class="saved-page">
   <p class="saved-lede">{{ t("saved.page.lede", "These open, play and show their word cards without a connection.") }}</p>
   {#- Where a page that was not saved was asked for with no connection: the worker sends
       the reader here, and this says why (design.md §12, 2026-10-09). -#}
-  <p class="saved-away" id="saved-away" role="status" hidden>{{ t("saved.page.away", "That isn't on this device, so it opens when you're back online.") }}</p>
-  <p class="saved-none" id="saved-none" hidden>{{ t("saved.page.none", "Nothing is saved on this device yet. Before you go, choose Save for offline in a text's ⋯ menu.") }}</p>
-  <p class="saved-none" id="saved-cannot" hidden>{{ t("saved.page.cannot", "This browser can't keep texts for offline.") }}</p>
+  <p class="saved-away card" id="saved-away" role="status" hidden>{{ t("saved.page.away", "That isn't on this device, so it opens when you're back online.") }}</p>
+  <p class="saved-none card" id="saved-cannot" hidden>{{ t("saved.page.cannot", "This browser can't keep texts for offline.") }}</p>
 
-  <section class="panel saved-group" id="saved-auto" hidden>
-    <h2>{{ t("saved.page.on-their-own", "Saved on their own") }}</h2>
-    <p class="note" id="saved-auto-says"></p>
-    <ul class="saved-rows" id="saved-auto-rows"></ul>
-  </section>
+  {#- The board's two columns (OffSavedDesk): what is kept, as two tables, at the left,
+      and the room, what saves itself and Remove all at the right. On a phone they are
+      one column, the room first (OffSavedPhone). -#}
+  <div class="saved-grid">
+    <div class="saved-main">
+      {#- Nothing saved yet is said inside the card the rows would be in. -#}
+      <section class="card saved-group" id="saved-none" hidden>
+        <h2 class="section-title">{{ t("saved.page.on-their-own", "Saved on their own") }}</h2>
+        <p class="note">{{ t("saved.page.none", "Nothing is saved on this device yet. Before you go, choose Save for offline in a text's ⋯ menu.") }}</p>
+      </section>
 
-  <section class="panel saved-group" id="saved-mine" hidden>
-    <h2>{{ t("saved.page.by-you", "Saved by you") }}</h2>
-    <p class="note">{{ t("saved.page.by-you-says", "They stay until you remove them.") }}</p>
-    <ul class="saved-rows" id="saved-mine-rows"></ul>
-  </section>
+      <section class="card saved-group" id="saved-auto" aria-labelledby="saved-auto-title" hidden>
+        <div class="saved-head">
+          <h2 class="section-title" id="saved-auto-title">{{ t("saved.page.on-their-own", "Saved on their own") }}</h2>
+          <p class="note" id="saved-auto-says"></p>
+        </div>
+        <div class="saved-cols" aria-hidden="true">
+          <span>{{ t("saved.page.col-title", "Title") }}</span><span>{{ t("saved.page.col-kind", "Kind") }}</span><span>{{ t("saved.page.col-size", "Size") }}</span><span>{{ t("saved.page.col-saved", "Saved") }}</span>
+        </div>
+        <ul class="saved-rows" id="saved-auto-rows"></ul>
+      </section>
 
-  <section class="panel saved-room" id="saved-room" hidden>
-    <h2>{{ t("saved.page.room", "Room on this device") }}</h2>
-    <p class="saved-used" id="saved-used"></p>
-    <span class="saved-meter" aria-hidden="true"><span class="saved-meter-fill" id="saved-meter"></span></span>
-    <p class="note">{{ t("saved.page.browser-sets", "This browser sets how much targum can keep.") }}</p>
-    <div class="saved-keep" id="saved-persist" hidden>
-      <p class="note" id="saved-persist-says">{{ t("saved.page.browser-clears", "Your browser clears saved texts when it runs short of space.") }}</p>
-      <button type="button" class="btn ghost outline small saved-ask" id="saved-ask">{{ t("saved.page.ask-to-keep", "Ask it to keep them") }}</button>
+      <section class="card saved-group" id="saved-mine" aria-labelledby="saved-mine-title" hidden>
+        <div class="saved-head">
+          <h2 class="section-title" id="saved-mine-title">{{ t("saved.page.by-you", "Saved by you") }}</h2>
+          <p class="note">{{ t("saved.page.by-you-says", "They stay until you remove them.") }}</p>
+        </div>
+        <div class="saved-cols" aria-hidden="true">
+          <span>{{ t("saved.page.col-title", "Title") }}</span><span>{{ t("saved.page.col-kind", "Kind") }}</span><span>{{ t("saved.page.col-size", "Size") }}</span><span>{{ t("saved.page.col-saved", "Saved") }}</span>
+        </div>
+        <ul class="saved-rows" id="saved-mine-rows"></ul>
+      </section>
     </div>
-  </section>
 
-  <section class="panel saved-choices" id="saved-choices" hidden>
-    <h2>{{ t("saved.page.saving-on-its-own", "Saving on its own") }}</h2>
-    <div class="saved-choice">
-      <span class="saved-choice-what">
-        <span class="saved-choice-name" id="recent-label">{{ t("saved.page.recent", "Recent texts") }}</span>
-        <span class="note">{{ t("saved.page.recent-says", "The ones you opened last") }}</span>
-      </span>
-      <span class="seg saved-segment" role="radiogroup" aria-labelledby="recent-label">
-        {%- for n, said in [(0, t("saved.page.off", "Off")), (3, "3"), (5, "5"), (10, "10")] %}
-        <button type="button" role="radio" aria-checked="false" data-recent="{{ n }}">{{ said }}</button>
-        {%- endfor %}
-      </span>
-    </div>
-    <div class="saved-choice">
-      <span class="saved-choice-what">
-        <span class="saved-choice-name" id="playlist-label">{{ t("saved.page.playlist", "The playlist you're in") }}</span>
-        <span class="note">{{ t("saved.page.playlist-says", "Every text in it") }}</span>
-      </span>
-      <button type="button" class="saved-switch" id="saved-playlist" role="switch" aria-checked="true" aria-labelledby="playlist-label"><span class="sw" aria-hidden="true"></span></button>
-    </div>
-    <div class="saved-choice">
-      <span class="saved-choice-what">
-        <span class="saved-choice-name" id="film-label">{{ t("saved.page.videos", "Videos") }}</span>
-        <span class="note">{{ t("saved.page.videos-says", "The picture takes about six times the room") }}</span>
-      </span>
-      <span class="seg saved-segment" role="radiogroup" aria-labelledby="film-label">
-        <button type="button" role="radio" aria-checked="true" data-film="1">{{ t("saved.page.with-picture", "With the picture") }}</button>
-        <button type="button" role="radio" aria-checked="false" data-film="0">{{ t("saved.page.sound-and-text", "Sound and text") }}</button>
-      </span>
-    </div>
-  </section>
+    <div class="saved-aside">
+      <section class="card saved-room" id="saved-room" aria-labelledby="saved-room-title" hidden>
+        <h2 class="section-title" id="saved-room-title">{{ t("saved.page.room", "Room on this device") }}</h2>
+        <p class="saved-used" id="saved-used"></p>
+        <span class="meter is-building saved-meter" aria-hidden="true"><span id="saved-meter"></span></span>
+        <p class="note">{{ t("saved.page.browser-sets", "This browser sets how much targum can keep.") }}</p>
+        <div class="saved-keep" id="saved-persist" hidden>
+          <p class="note" id="saved-persist-says">{{ t("saved.page.browser-clears", "Your browser clears saved texts when it runs short of space.") }}</p>
+          <button type="button" class="btn ghost outline saved-ask" id="saved-ask">{{ t("saved.page.ask-to-keep", "Ask it to keep them") }}</button>
+        </div>
+      </section>
 
-  <section class="panel saved-end" id="saved-end" hidden>
-    <p class="note">{{ t("saved.page.stays", "Your words, your place in each text and your record stay in your account.") }}</p>
-    <button type="button" class="btn ghost outline small danger" id="saved-all">{{ t("saved.page.remove-all", "Remove all from this device") }}</button>
-  </section>
+      <section class="card saved-choices" id="saved-choices" aria-labelledby="saved-choices-title" hidden>
+        <h2 class="section-title" id="saved-choices-title">{{ t("saved.page.saving-on-its-own", "Saving on its own") }}</h2>
+        <div class="saved-choice">
+          <span class="saved-choice-what">
+            <span class="saved-choice-name" id="recent-label">{{ t("saved.page.recent", "Recent texts") }}</span>
+            <span class="note">{{ t("saved.page.recent-says", "The ones you opened last") }}</span>
+          </span>
+          <span class="seg saved-segment" role="radiogroup" aria-labelledby="recent-label">
+            {%- for n, said in [(0, t("saved.page.off", "Off")), (3, "3"), (5, "5"), (10, "10")] %}
+            <button type="button" role="radio" aria-checked="false" data-recent="{{ n }}">{{ said }}</button>
+            {%- endfor %}
+          </span>
+        </div>
+        <div class="saved-choice saved-choice-row">
+          <span class="saved-choice-what">
+            <span class="saved-choice-name" id="playlist-label">{{ t("saved.page.playlist", "The playlist you're in") }}</span>
+            <span class="note">{{ t("saved.page.playlist-says", "Every text in it") }}</span>
+          </span>
+          <button type="button" class="saved-switch" id="saved-playlist" role="switch" aria-checked="true" aria-labelledby="playlist-label"><span class="sw" aria-hidden="true"></span></button>
+        </div>
+        <div class="saved-choice">
+          <span class="saved-choice-what">
+            <span class="saved-choice-name" id="film-label">{{ t("saved.page.videos", "Videos") }}</span>
+            <span class="note">{{ t("saved.page.videos-says", "The picture takes about six times the room") }}</span>
+          </span>
+          <span class="seg saved-segment" role="radiogroup" aria-labelledby="film-label">
+            <button type="button" role="radio" aria-checked="true" data-film="1">{{ t("saved.page.with-picture", "With the picture") }}</button>
+            <button type="button" role="radio" aria-checked="false" data-film="0">{{ t("saved.page.sound-and-text", "Sound and text") }}</button>
+          </span>
+        </div>
+      </section>
+
+      <section class="card saved-end" id="saved-end" hidden>
+        <p class="note">{{ t("saved.page.stays", "Your words, your place in each text and your record stay in your account.") }}</p>
+        <button type="button" class="btn ghost outline danger saved-all" id="saved-all"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>{{ t("saved.page.remove-all", "Remove all from this device") }}</button>
+      </section>
+    </div>
+  </div>
 </main>
 {% include '_foot.html.j2' %}
 

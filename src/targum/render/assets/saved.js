@@ -85,26 +85,40 @@
     return media;
   }
 
-  // The letter on a colour by kind: the picture every text has when it has no other
-  // (design.md §12, "Every text has a picture"). Drawn, not fetched: this page opens
-  // without a connection, and a picture that needs one would be a broken square.
+  /* The text's picture, by the one tile path every desk page draws through
+     (`TargumCovers.picture`; design.md §12, "The desk's controls are one layer"): its
+     letter on the colour of its kind first, and its own picture only once that has
+     loaded, so with no connection the tile is the letter and never a broken square. A
+     playlist is its letter on the colour of a set. */
   function tile(item) {
-    var kind = item.kind === "playlist"
-      ? "set"
-      : item.film
-        ? "said"
-        : item.kind === "article"
-          ? "news"
-          : item.kind === "liturgy" || item.kind === "dialogue" || item.kind === "portion"
-            ? "set"
-            : "book";
-    var box = element("span", "saved-tile is-" + kind);
+    var covers = window.TargumCovers;
+    var kind = item.kind === "playlist" ? "set" : item.film ? "video" : item.kind;
+    var name = item.name || (/^\/reader\/([^/]+)\//.exec(String(item.id || "")) || [])[1] || "";
+    if (!covers) return element("span", "thumb row-thumb is-letter");
+    var box =
+      item.kind === "playlist" || !name
+        ? covers.tile("", { title: item.title, kind: kind, className: "thumb row-thumb" })
+        : covers.picture({ entry: name, title: item.title, kind: kind }, { className: "thumb row-thumb" });
     box.setAttribute("aria-hidden", "true");
-    var title = String(item.title || "").trim();
-    box.textContent = title ? Array.from(title)[0] : "·";
     return box;
   }
 
+  // A small line drawing (§7): a pin for Keep, a cross for Remove.
+  function glyph(d) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+    return svg;
+  }
+  var PIN = "M6 2.5h4M7 2.5v4L5 9h6L9 6.5v-4M8 9v4.5";
+  var CROSS = "M4.5 4.5l7 7M11.5 4.5l-7 7";
+
+  /* A row, as the board's tables draw it: the picture, the title over what was kept, its
+     kind, its size, how it came to be saved, Keep (for one saved on its own) and Remove, a cross. */
   function row(item, mine) {
     var line = element("li", "saved-row");
     line.appendChild(tile(item));
@@ -116,26 +130,39 @@
     name.appendChild(bdi);
     what.appendChild(name);
     what.appendChild(element("span", "saved-kept", keptWord(item)));
+    // On a phone the kind joins what was kept, and the size goes under them.
+    what.appendChild(element("span", "saved-kept-phone", kindWord(item) + " · " + keptWord(item)));
+    what.appendChild(element("span", "saved-size-phone", offline.size(item.bytes)));
     line.appendChild(what);
     line.appendChild(element("span", "saved-kind", kindWord(item)));
     line.appendChild(element("span", "saved-size", offline.size(item.bytes)));
     line.appendChild(
-      element("span", "saved-how", mine ? t("saved.by-you", "By you") : t("saved.on-its-own", "On its own"))
+      element("span", "saved-how tag" + (mine ? " is-mine" : ""), mine ? t("saved.by-you", "By you") : t("saved.on-its-own", "On its own"))
     );
-    var act = mine
-      ? element("button", "btn ghost outline small saved-remove", t("saved.remove", "Remove"))
-      : element("button", "btn ghost outline small saved-keep-it", t("saved.keep", "Keep"));
-    act.type = "button";
-    act.setAttribute(
-      "aria-label",
-      (mine ? t("saved.remove-named", "Remove {title}", { title: item.title || "" })
-        : t("saved.keep-named", "Keep {title}", { title: item.title || "" }))
-    );
-    act.addEventListener("click", function () {
-      act.disabled = true;
-      (mine ? offline.remove(item.id) : offline.keep(item.id)).then(draw, draw);
+    if (!mine) {
+      var keep = element("button", "btn ghost outline small saved-keep-it");
+      keep.type = "button";
+      keep.appendChild(glyph(PIN));
+      keep.appendChild(element("span", "saved-keep-word", t("saved.keep", "Keep")));
+      keep.setAttribute("aria-label", t("saved.keep-named", "Keep {title}", { title: item.title || "" }));
+      keep.addEventListener("click", function () {
+        keep.disabled = true;
+        offline.keep(item.id).then(draw, draw);
+      });
+      line.appendChild(keep);
+    } else {
+      line.appendChild(element("span", "saved-keep-gap"));
+    }
+    var gone = element("button", "saved-x" + (mine ? " saved-remove" : " saved-let-go"));
+    gone.type = "button";
+    gone.appendChild(glyph(CROSS));
+    gone.setAttribute("aria-label", t("saved.remove-named", "Remove {title}", { title: item.title || "" }));
+    gone.title = t("saved.remove", "Remove");
+    gone.addEventListener("click", function () {
+      gone.disabled = true;
+      offline.remove(item.id).then(draw, draw);
     });
-    line.appendChild(act);
+    line.appendChild(gone);
     return line;
   }
 
@@ -184,11 +211,18 @@
       var used = Number(room.usage || 0);
       var quota = Number(room.quota || 0);
       if (!quota) return;
-      at("saved-used").textContent = t("saved.used", "{used} used of about {quota}", {
-        used: offline.size(used),
+      /* The board's figure: what is used in the serif, and what the browser allows after
+         it. The sentence is one string, so a language can put the two where it says them. */
+      var said = t("saved.used", "{used} used of about {quota}", {
+        used: "\u0000",
         quota: offline.size(quota),
-      });
-      at("saved-meter").style.inlineSize = Math.min(100, Math.max(1, (used / quota) * 100)) + "%";
+      }).split("\u0000");
+      var box = at("saved-used");
+      box.textContent = "";
+      if (said[0]) box.appendChild(element("span", "saved-used-rest", said[0]));
+      box.appendChild(element("span", "saved-used-n", offline.size(used)));
+      box.appendChild(element("span", "saved-used-rest", said.slice(1).join("")));
+      at("saved-meter").parentNode.style.setProperty("--done", String(Math.min(1, Math.max(0.01, used / quota))));
       at("saved-room").hidden = false;
     }, function () {});
     if (!navigator.storage.persisted) return;

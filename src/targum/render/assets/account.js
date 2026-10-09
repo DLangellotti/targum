@@ -167,16 +167,6 @@
   function drawHours(got) {
     var has = got && got.allowed !== null && got.allowed !== undefined;
     var spare = has ? Math.max(0, (Number(got.allowed) || 0) - (Number(got.used) || 0)) : 0;
-    var said = has
-      ? tn(
-          "account.credits.left",
-          credits(spare),
-          "{n} credit left this month",
-          "{n} credits left this month"
-        ) +
-        " — " +
-        t("account.credits.rate", "about {clock} of audio", { clock: spoken(spare) })
-      : "";
     /* The menu says it shorter (design.md §12, "The account menu is who, what is left,
        and three rows", 2026-10-09): what is left and when it comes back on one line, and
        the rate under it, muted — still beside the balance, because the rate goes
@@ -195,12 +185,33 @@
         : "";
       rateLine.hidden = !has;
     }
+    /* Your account's Credits card (board AccountDesk, 2026-10-09): the number alone in
+       the serif, "left this month" beside it in the template, the rate and the day it
+       comes back under it, and a meter of what is left. The Plan card says the month. */
     if (ledgerLine) {
-      ledgerLine.textContent = said
-        ? said + (got.ends ? " · " + t("account.hours.resets", "resets {date}", { date: got.ends }) : "")
-        : "";
+      ledgerLine.textContent = has ? String(credits(spare)) : "";
       ledgerLine.hidden = !has;
     }
+    var rateUnder = document.getElementById("credits-rate");
+    if (rateUnder) {
+      rateUnder.textContent = has
+        ? t("account.credits.rate-line", "About {clock} of audio", { clock: spoken(spare) }) +
+          (got.ends ? " · " + t("account.hours.resets", "resets {date}", { date: got.ends }) : "")
+        : "";
+    }
+    var meter = document.getElementById("credits-meter");
+    if (meter && has) {
+      var allowed = Number(got.allowed) || 0;
+      meter.style.setProperty("--done", allowed > 0 ? String(Math.min(1, spare / allowed)) : "0");
+    }
+    var planLine = document.getElementById("plan-line");
+    if (planLine && has) {
+      planLine.textContent =
+        tn("account.plan.month", credits(Number(got.allowed) || 0), "{n} credit a month while targum is in early access", "{n} credits a month while targum is in early access") +
+        (got.ends ? " · " + t("account.plan.back", "back on {date}", { date: got.ends }) : "");
+    }
+    var planCard = document.getElementById("plan");
+    if (planCard) planCard.hidden = !has;
     if (creditsPanel) creditsPanel.hidden = !has;
   }
 

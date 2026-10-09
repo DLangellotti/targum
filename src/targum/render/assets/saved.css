@@ -1,90 +1,111 @@
 /* Saved on this device (design.md §12, 2026-10-09; boards OffSavedDesk and OffSavedPhone).
-   A page of the account's, on the desk's scale (§13): rows of what is kept, the room it
-   takes, and what saves itself. */
-.saved-lede { margin: 0 0 1.25rem; color: var(--ink-soft); }
-.saved-away {
-  margin: 0 0 1.25rem;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
-  background: var(--paper-raised);
-  color: var(--ink);
-}
-.saved-none { margin: 0 0 1.25rem; color: var(--ink); }
+   The board's two columns: what is kept, as two tables of rows, at the left, and the
+   room it takes, what saves itself and Remove all at the right. On a phone, one column
+   with the room first. Every card is the desk's `.card`, every title a `.section-title`,
+   the meter the desk's `.meter` and the pictures the one tile path. */
+.saved-lede { margin: 0.25rem 0 0.5rem; color: var(--ink); }
+.saved-away { margin: 0; }
 .saved-away[hidden],
 .saved-none[hidden] { display: none; }
 
-.saved-rows { margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.saved-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 23.75rem);
+  gap: 1.75rem;
+  align-items: start;
+}
+.saved-main,
+.saved-aside { display: grid; gap: 1.25rem; min-inline-size: 0; }
+.saved-page .card { padding: 1.5rem; }
+.saved-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; }
+.saved-head .note { margin: 0; font-size: 0.8125rem; }
+
+/* The tables: column heads, then a row a text, a hairline between. */
+.saved-rows { margin: 0; padding: 0; list-style: none; }
+.saved-cols,
 .saved-row {
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr) 7rem 4.5rem 6rem 6.5rem;
+  grid-template-columns: 3.25rem minmax(0, 1fr) 7.5rem 4.5rem 5.5rem 5.25rem 2rem;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.6rem 0;
-  border-block-start: 1px solid var(--rule);
 }
-.saved-row:first-child { border-block-start: 0; }
-.saved-tile {
-  display: grid;
-  place-items: center;
-  inline-size: 2.5rem;
-  block-size: 2.5rem;
-  border-radius: 8px;
-  background: var(--ink-soft);
-  color: var(--paper);
-  font-size: 1.0625rem;
-  font-weight: 600;
-  line-height: 1;
+.saved-cols {
+  margin-block-start: 1rem;
+  padding-block-end: 0.5rem;
+  border-block-end: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
 }
-/* One hue per tile, flat, never on text (§12, "Every text has a picture"). */
-.saved-tile.is-news { background: var(--teal); }
-.saved-tile.is-set { background: var(--iris); }
-.saved-tile.is-said { background: var(--clay); }
-.saved-what { display: grid; gap: 0.1rem; min-inline-size: 0; }
+.saved-cols > :first-child { grid-column: 2; }
+.saved-cols > :nth-child(3) { text-align: end; }
+.saved-row { padding-block: 0.75rem; border-block-end: 1px solid var(--rule); }
+.saved-row:last-child { border-block-end: 0; }
+.saved-row .row-thumb { inline-size: 3.25rem; block-size: 3.25rem; }
+.saved-what { display: grid; gap: 0.15rem; min-inline-size: 0; }
 .saved-name {
   overflow: hidden;
   color: var(--ink);
-  font-weight: 600;
+  font-size: 1.0625rem;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.saved-name bdi:dir(rtl) { font-family: var(--reading-hebrew); }
 a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
-.saved-kept,
-.saved-kind,
-.saved-how { color: var(--ink-soft); font-size: 0.8125rem; }
-.saved-size { color: var(--ink); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
-.saved-row .btn { justify-self: end; }
-
-.saved-used { margin: 0.5rem 0; color: var(--ink); font-variant-numeric: tabular-nums; }
-.saved-meter {
-  display: block;
-  block-size: 6px;
-  margin: 0 0 0.75rem;
+.saved-kept { color: var(--ink-soft); font-size: 0.8125rem; }
+.saved-kept-phone,
+.saved-size-phone { display: none; }
+.saved-kind { color: var(--ink); font-size: 0.875rem; }
+.saved-size { color: var(--ink); font-size: 0.875rem; font-weight: 600; text-align: end; font-variant-numeric: tabular-nums; }
+.saved-how { align-self: center; justify-self: start; }
+.saved-how.is-mine { color: var(--teal); border-color: var(--teal); }
+/* A tile still a letter: the letter in the middle of its colour, at a tile's size. */
+.saved-row .thumb { display: grid; place-items: center; overflow: hidden; color: var(--card); }
+.saved-row .thumb .glyph { font-size: 1.25rem; line-height: 1; }
+.saved-row .thumb img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.saved-keep-it { justify-self: start; }
+.saved-keep-it svg,
+.saved-x svg,
+.saved-all svg { inline-size: 0.875rem; block-size: 0.875rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.saved-x {
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  background: var(--rule);
-  overflow: hidden;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
 }
-.saved-meter-fill { display: block; block-size: 100%; inline-size: 0; background: var(--ink-soft); }
-.saved-keep { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
-.saved-keep[hidden] { display: none; }
-.saved-keep .note { margin: 0; }
+.saved-x:hover:not(:disabled) { background: var(--teal-wash); color: var(--ink); }
+.saved-x:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.saved-x svg { inline-size: 1rem; block-size: 1rem; }
 
+/* Room on this device: what is used in the serif, what the browser allows after it. */
+.saved-used { margin: 0.75rem 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.saved-used-n { margin-inline-end: 0.15rem; font-family: var(--reading); font-size: 1.9375rem; font-weight: 500; line-height: 1.2; }
+.saved-used-rest { font-size: 0.9375rem; }
+.saved-meter { margin-block-end: 0.25rem; }
+.saved-keep { display: grid; justify-items: start; gap: 0.75rem; margin-block-start: 1rem; padding-block-start: 1rem; border-block-start: 1px solid var(--rule); }
+.saved-keep[hidden] { display: none; }
+.saved-keep .note { margin: 0; color: var(--ink); }
+
+/* Saving on its own: a choice a row, a hairline between. */
 .saved-choice {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding: 0.65rem 0;
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 0;
   border-block-start: 1px solid var(--rule);
 }
-.saved-choice:first-of-type { border-block-start: 0; }
+.saved-choices .section-title + .saved-choice { border-block-start: 0; padding-block-start: 0.5rem; }
+.saved-choice-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 .saved-choice-what { display: grid; gap: 0.1rem; }
-.saved-choice-name { color: var(--ink); }
-.saved-choice .note { margin: 0; }
-/* How many to keep is the shared `.seg` (shared.css): the live one in the teal wash, where
-   it was the one ink-filled control on the desk (2026-10-09). */
-.saved-segment { flex: none; }
+.saved-choice-name { color: var(--ink); font-size: 0.9375rem; }
+.saved-choice .note { margin: 0; font-size: 0.8125rem; }
+/* How many to keep is the shared `.seg` (shared.css): the live one in the teal wash. */
+.saved-segment { justify-self: start; }
 .saved-switch {
   position: relative;
   inline-size: 2.6rem;
@@ -105,27 +126,52 @@ a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   background: var(--ink-soft);
   transition: inset-inline-start 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.saved-switch[aria-checked="true"] { border-color: var(--leaf); background: var(--leaf); }
+/* On is the primary, as the board draws it: a switch is a control. */
+.saved-switch[aria-checked="true"] { border-color: var(--teal); background: var(--teal); }
 .saved-switch[aria-checked="true"] .sw { inset-inline-start: calc(100% - 1.5rem + 4px); background: var(--paper); }
+.saved-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .saved-switch .sw { transition: none; }
 }
 
-.saved-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
-.saved-end .note { margin: 0; }
+.saved-end { display: grid; justify-items: start; gap: 0.75rem; }
+.saved-end .note { margin: 0; color: var(--ink); }
+.saved-all { gap: 0.4rem; }
+
+@media (max-width: 60rem) {
+  /* One column, the room first (board OffSavedPhone). */
+  .saved-grid { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .saved-main,
+  .saved-aside { display: contents; }
+  .saved-room { order: 1; }
+  .saved-main > * { order: 2; }
+  .saved-choices { order: 3; }
+  .saved-end { order: 4; }
+}
 
 @media (max-width: 40rem) {
+  .saved-page .card { padding: 1.125rem; }
+  .saved-cols { display: none; }
   .saved-row {
-    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
-    grid-template-areas: "tile what act" "tile size act";
-    row-gap: 0.15rem;
+    grid-template-columns: 3.25rem minmax(0, 1fr) auto auto;
+    grid-template-areas: "tile what keep x";
+    gap: 0.5rem 0.75rem;
   }
-  .saved-tile { grid-area: tile; }
+  .saved-row .row-thumb { grid-area: tile; }
   .saved-what { grid-area: what; }
-  .saved-size { grid-area: size; color: var(--ink-soft); }
+  .saved-kept { display: none; }
+  .saved-kept-phone { display: block; color: var(--ink-soft); font-size: 0.8125rem; }
+  .saved-name { font-size: 0.9375rem; }
   .saved-kind,
-  .saved-how { display: none; }
-  .saved-row .btn { grid-area: act; }
+  .saved-how,
+  .saved-keep-gap { display: none; }
+  /* The size under what was kept, in the board's bold. */
+  .saved-size { display: none; }
+  .saved-size-phone { display: block; color: var(--ink); font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .saved-keep-it { grid-area: keep; padding-inline: 0.5rem; box-shadow: none; background: none; }
+  .saved-keep-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .saved-x { grid-area: x; }
+  .saved-head { display: grid; }
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -133,6 +179,8 @@ a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   .saved-segment button,
   .saved-switch,
   .saved-row .btn,
+  .saved-x,
   .saved-ask,
   #saved-all { min-block-size: 44px; }
+  .saved-x { min-inline-size: 44px; }
 }
