@@ -3667,9 +3667,7 @@ def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
     assert "Rabbi Somebody" in menu, "beside the control that carries the recording off"
 
 
-def test_the_recording_s_rows_each_keep_a_line_of_their_own(
-    browser, tmp_path, monkeypatch
-) -> None:
+def test_the_recording_s_rows_each_keep_a_line_of_their_own(browser, tmp_path, monkeypatch) -> None:
     """targum-internal#397. The recording's row once held four things on one flex line, and
     at 390px each got a quarter of the width: "Close / the / player", a word to a line. Since
     the menus became the board's (design.md §12, 2026-10-09) each is a row of its own —

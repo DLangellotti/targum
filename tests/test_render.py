@@ -3684,9 +3684,8 @@ def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) ->
     assert mark is not None
     assert 'class="sw"' in mark.group(0) and ">Mark<" not in mark.group(0)
     assert "title=" in mark.group(0)
-    assert (
-        '<span class="m-label aa-name">Highlight what you have not learned</span>'
-        in mark.group(0)
+    assert '<span class="m-label aa-name">Highlight what you have not learned</span>' in mark.group(
+        0
     )
 
 
