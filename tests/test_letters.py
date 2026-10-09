@@ -198,6 +198,7 @@ def test_a_daily_series_is_never_mailed(tmp_path: Any) -> None:
     """Its instalment lands on Learn and in the bell; a mail every day is the ping a
     reader deletes an app over (design.md §12, 2026-09-27)."""
     store = Store(tmp_path / "words.db")
+    store.finish_sign_in(store.start_sign_in("a@example.org"))
     store.follow_series("a@example.org", "tehillim")
     store.follow_series("a@example.org", "parasha")
     box = io.StringIO()

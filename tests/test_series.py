@@ -7,6 +7,13 @@ from typing import Any
 import pytest
 
 
+def account(store: Any, email: str) -> None:
+    """An account at this address: a series is subscribed to by an account since
+    2026-10-09 (design.md §12, "A subscription is the account's")."""
+    signed = store.finish_sign_in(store.start_sign_in(email))
+    assert signed is not None
+
+
 def test_every_series_is_named_even_with_nothing_built(monkeypatch: pytest.MonkeyPatch) -> None:
     from targum import series
     from targum.parasha.models import Index
@@ -134,6 +141,8 @@ def test_followers_are_told_once_about_an_instalment_and_the_weekly_is_left_to_i
     from targum.mail import ConsoleMailer
 
     store = Store(tmp_path / "words.db")
+    for email in ("a@example.org", "b@example.org", "c@example.org"):
+        account(store, email)
     store.follow_series("a@example.org", "parasha")
     store.follow_series("b@example.org", "parasha")
     store.follow_series("c@example.org", "mishna-yomi")
@@ -166,6 +175,7 @@ def test_one_click_stops_a_series_and_unfollowing_does_too(tmp_path: Any) -> Non
     from targum.mail import ConsoleMailer
 
     store = Store(tmp_path / "words.db")
+    account(store, "a@example.org")
     store.follow_series("a@example.org", "parasha")
     ((email, stop, said),) = store.followers("parasha")
     assert email == "a@example.org" and store.series_followed("a@example.org") == ["parasha"]
@@ -248,11 +258,13 @@ PORTION_RU = {
 
 
 def test_a_follower_is_written_down_with_the_language_they_followed_in(tmp_path: Any) -> None:
-    """There is no account behind a follow row — it is keyed by address so that stopping
-    never touches one — so the press is the only moment the language can be learnt."""
+    """The press is the moment the language the reader reads in is learnt, and the mail
+    and the stop page are in it (targum-internal#289). On the account's subscription row
+    since 2026-10-09; the stop page still has only the token to go on."""
     from targum.accounts import Store
 
     store = Store(tmp_path / "words.db")
+    account(store, "r@example.org")
     store.follow_series("r@example.org", "parasha", language="ru-RU")
     ((_, stop, said),) = store.followers("parasha")
     assert said == "ru", "a regional tag is the language"

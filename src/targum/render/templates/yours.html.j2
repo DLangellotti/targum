@@ -10,7 +10,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ heading }} — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('yours.css') }}{% if which == 'texts' %}{{ asset('home.css') }}{% endif %}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('yours.css') }}{% if which == 'texts' %}{{ asset('home.css') }}{{ asset('subs.css') }}{% endif %}</style>
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
@@ -82,13 +82,29 @@
     <p class="empty" id="shelf-empty" hidden></p>
   </section>
 
-  {#- Subscriptions (design.md §12, 2026-10-08): the series that come out on their own
-      clock, each with its switch, the ones subscribed to first. Drawn by `follow.js`
-      through `yours.js` when the tab is pressed. -#}
+  {#- Subscriptions (design.md §12, "A subscription is the account's", 2026-10-09; board
+      SubsTab): every subscription as a row, sorted into chips, the month's credits for the
+      ones that build, and the series not yet taken under them. Drawn by `subs.js` when the
+      tab is pressed; signed out, `follow.js` draws the browser's own list as before. -#}
   <section class="panel subs" id="subs-panel" hidden>
-    <p class="note">{{ t("home.subs.note", "Series that come out on a schedule. Each new one goes under Continue when it’s out, and the weekly ones come by mail too.") }}</p>
-    <ul class="series" id="home-series"></ul>
-    <p class="empty" id="subs-empty" hidden>{{ t("home.subs.none", "There’s nothing to subscribe to here yet.") }}</p>
+    <div class="sub-top">
+      <div class="chips" id="subs-chips" role="group" aria-label="{{ t("subs.chips", "Show") }}" hidden></div>
+      <p class="sub-credits" id="subs-credits" hidden></p>
+    </div>
+    <div class="sub-table" role="table" aria-label="{{ t("yours.tabs.subscriptions", "Subscriptions") }}">
+      <div class="sub-head-row" id="subs-head" role="row" hidden>
+        <span role="columnheader">{{ t("subs.col.name", "Subscribed to") }}</span>
+        <span role="columnheader">{{ t("subs.col.latest", "Latest") }}</span>
+        <span role="columnheader">{{ t("subs.col.every", "Comes out") }}</span>
+        <span role="columnheader">{{ t("subs.col.month", "This month") }}</span>
+      </div>
+      <ul class="sub-rows" id="subs-rows"></ul>
+    </div>
+    <ul class="series" id="home-series" hidden></ul>
+    <p class="empty" id="subs-empty" hidden>{{ t("subs.none", "You haven't subscribed to anything yet.") }}</p>
+    <p class="said" id="subs-said" role="status" hidden></p>
+    <div id="subs-offer"></div>
+    <p class="note sub-foot">{{ t("subs.foot", "New ones go under Continue.") }} <a href="/library" data-home-link>{{ t("subs.foot.library", "Find more to subscribe to in the Library") }}</a></p>
   </section>
   </div>
 
@@ -269,6 +285,9 @@ window.TARGUM_LIST = "{{ which }}";
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
 <script>{{ asset('playlist-menu.js') }}</script>
+{%- if which == 'texts' %}
+<script>{{ asset('subs.js') }}</script>
+{%- endif %}
 <script>{{ asset('shelf.js') }}</script>
 {%- if which == 'words' %}
 <script>{{ asset('claim.js') }}</script>

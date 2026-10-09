@@ -1,0 +1,302 @@
+/* Subscriptions (design.md §12, "A subscription is the account's", 2026-10-09; boards
+   SubsTab and SubDetail): home's tab of them, and one subscription's own page.
+
+   The desk's own system (§13), as home and Playlists have it: rows on cards raised by
+   their shadow, teal for what is pressed, leaf for what is new and known, clay only where
+   a cap is spent, the reading face only where a subscription's or an item's own name
+   stands. */
+
+/* --- the tab ------------------------------------------------------------------------- */
+
+.sub-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-block-end: 0.75rem;
+}
+.sub-top .chips[hidden],
+.sub-credits[hidden],
+.sub-head-row[hidden],
+.subs .series[hidden] { display: none; }
+.sub-credits {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.sub-table { display: block; }
+.sub-head-row,
+.sub-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 2.4fr) minmax(0, 1.1fr) minmax(0, 1.2fr);
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+.sub-head-row {
+  padding: 0 1rem 0.5rem;
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.sub-rows,
+.sub-offer,
+.sub-item-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sub-row {
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  border-radius: var(--radius-row);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+}
+.sub-row.is-paused { opacity: 0.8; }
+
+.sub-who {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-inline-size: 0;
+}
+.sub-tile {
+  flex: 0 0 auto;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--card);
+  background: var(--ink-soft);
+}
+/* The colour of its kind, as a drawn picture is (design.md §12, "Every text has a
+   picture"): iris for a series, teal for news, clay for what is said. */
+.sub-tile.is-series { background: var(--iris); }
+.sub-tile.is-news { background: var(--teal); }
+.sub-tile.is-channel,
+.sub-tile.is-podcast { background: var(--clay); }
+.sub-tile .glyph { font-size: 1.25rem; line-height: 1; color: var(--card); }
+.sub-names {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+.sub-name {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.sub-name:hover { color: var(--teal); text-decoration: underline; }
+.sub-hebrew {
+  font-family: var(--reading-hebrew);
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+.sub-meta {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.sub-latest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  min-inline-size: 0;
+}
+.sub-latest-title {
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.sub-latest-title:hover { color: var(--teal); text-decoration: underline; }
+.sub-new {
+  display: inline-block;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 999px;
+  background: var(--leaf);
+  color: var(--card);
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.sub-state,
+.sub-every,
+.sub-used {
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.sub-used.is-full { color: var(--clay); }
+.sub-month {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+.sub-resume,
+.sub-subscribe,
+.sub-pause,
+.sub-stop,
+.sub-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--teal);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.sub-resume:hover,
+.sub-subscribe:hover,
+.sub-pause:hover,
+.sub-act:hover { background: var(--teal-wash); }
+.sub-stop { color: var(--ink-soft); }
+.sub-stop:hover { color: var(--clay); }
+.sub-act.is-quiet { border-color: transparent; background: transparent; }
+button:disabled { opacity: 0.6; cursor: default; }
+
+.sub-offer-head {
+  margin: 1.5rem 0 0.5rem;
+  font-family: var(--chrome);
+  font-size: 1.0625rem;
+}
+.sub-offer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  border-radius: var(--radius-row);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+}
+.sub-foot { margin-block-start: 1.25rem; }
+
+/* --- one subscription ----------------------------------------------------------------- */
+
+body.subs-page main { gap: 1.5rem; }
+.sub-one[hidden] { display: none; }
+.sub-back {
+  display: inline-block;
+  margin-block-end: 1rem;
+  font-family: var(--chrome);
+  color: var(--teal);
+}
+.sub-back::before { content: "← "; }
+.sub-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.25rem;
+  padding: 1.25rem;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+}
+.sub-head .sub-tile {
+  inline-size: 4.5rem;
+  block-size: 4.5rem;
+  border-radius: var(--radius-row);
+}
+.sub-head .sub-tile .glyph { font-size: 1.75rem; }
+.sub-head .sub-names { flex: 1 1 16rem; }
+.sub-title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+.sub-head-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.sub-paused-note {
+  margin: 1rem 0 0;
+  font-family: var(--chrome);
+  color: var(--ink-soft);
+}
+.sub-items,
+.sub-cap { margin-block-start: 1.5rem; }
+.sub-items-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  margin-block-end: 0.5rem;
+}
+.sub-items-head h2,
+.sub-cap h2 {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 1.0625rem;
+}
+.sub-items-head .note { margin: 0; }
+.sub-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  border-radius: var(--radius-row);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+}
+.sub-item-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+  min-inline-size: 0;
+}
+.sub-item-title {
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
+.sub-item-facts {
+  inline-size: 100%;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.sub-cap {
+  padding: 1.25rem;
+  background: var(--card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-rest);
+  font-family: var(--chrome);
+}
+.sub-cap-used { margin: 0.5rem 0 0; color: var(--ink-soft); }
+
+/* --- a phone: one column ---------------------------------------------------------------- */
+
+@media (max-width: 40rem) {
+  .sub-head-row { display: none; }
+  .sub-row { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .sub-every { display: none; }
+  .sub-item { flex-direction: column; align-items: stretch; }
+}

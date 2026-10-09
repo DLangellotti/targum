@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("subs.page.title", "Subscription — targum") }}</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}{{ asset('subs.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+<body class="words you subs-page">
+{#- One subscription (design.md §12, "A subscription is the account's", 2026-10-09; board
+    SubDetail). Your targums' Subscriptions tab, one row opened: the nav lights Your
+    targums and the strip stands at the top with Subscriptions chosen, as Playlists does. -#}
+{% set here = 'texts' %}{% set title = t("yours.page.your-targums", "Your targums") %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+
+<main>
+  {% set tab = 'subscriptions' %}{% include '_yours_tabs.html.j2' %}
+  <section class="panel" id="stranger" hidden>
+    <p class="note">{{ t("subs.page.sign-in", "Sign in to see your subscriptions.") }}</p>
+  </section>
+  <section class="panel" id="gone" hidden>
+    <p class="note">{{ t("subs.page.gone", "We couldn't find that subscription.") }}</p>
+  </section>
+  {#- Drawn by `subs.js` from `/subscriptions/<id>.json`: the head with Pause and
+      Unsubscribe, what it brought newest first, what was out before, and the cap. -#}
+  <section class="sub-one" id="sub-one" hidden aria-labelledby="sub-name">
+    <a class="sub-back" id="sub-back" href="/?show=subscriptions">{{ t("subs.page.back", "Subscriptions") }}</a>
+    <div id="sub-body"></div>
+    <p class="said" id="sub-said" role="status" hidden></p>
+  </section>
+</main>
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('covers.js') }}</script>
+<script>{{ asset('subs.js') }}</script>
+</body>
+</html>
