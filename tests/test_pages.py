@@ -409,7 +409,7 @@ def test_add_no_longer_introduces_the_product() -> None:
     add = PAGES["add"]
     assert "Hebrew, with the translation beside it" not in add
     # "Add", since a recording is as welcome as a text: the page's one word is the act.
-    assert '<h1 class="lede">Upload</h1>' in add
+    assert '<h1 class="page-title">Upload</h1>' in add
 
 
 def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
@@ -418,8 +418,11 @@ def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
     "Library", card "Explore the Library", route /library — so it is Library everywhere
     now, and the route it always was."""
     add = PAGES["add"]
-    said = add[add.index('<h1 class="lede">Upload</h1>') : add.index('id="drop"')]
-    assert "Library" in said and 'href="/library"' in said
+    # The line above the box went with the board (UploadDesk, 2026-10-09); the library
+    # still answers while the box is typed in, before anything is priced (#251).
+    assert 'id="already"' in add
+    source = (ASSETS / "add.js").read_text(encoding="utf-8")
+    assert 'ask("/already"' in source
 
 
 def test_home_is_honest_when_there_is_nothing() -> None:
@@ -961,11 +964,13 @@ def test_the_upload_page_takes_anything_in_one_box() -> None:
 
 def test_a_description_is_said_in_the_conversation_by_the_reader_s_press() -> None:
     """A sentence about what the reader wants is a turn of conversation, not a text to
-    price (2026-09-13, targum-internal#249). Ask targum hands it to the talk drawer, and
-    the framed conversation says it only when it came from its own parent on this origin
-    — the model is never the one who sends it, and no other page can."""
+    price (2026-09-13, targum-internal#249). Ask targum went with the board (UploadDesk,
+    2026-10-09); a description typed anyway is looked for in place by the reader's own
+    press, and the framed conversation says only what came from its own parent on this
+    origin — the model is never the one who sends it, and no other page can."""
     add = (ASSETS / "add.js").read_text(encoding="utf-8")
-    assert "window.TargumTalk.say(read.text)" in add, "Ask targum is the reader's press"
+    assert "TargumTalk.say" not in add and "ask-targum" not in add
+    assert "return look(read.text);" in add, "a description is looked for on the press"
     go = add[add.index("go.onclick") :]
     assert 'read.kind !== "link"' in go, "Continue never prices a description"
 
@@ -1012,14 +1017,10 @@ def test_the_upload_page_offers_only_the_pairs_that_have_been_taken_end_to_end()
     upload has actually been through."""
     add = PAGES["add"]
     said_in_page = html.unescape(add)
-    for said in (
-        "Hebrew (alpha)",
-        "Aramaic (Experimental)",
-        "Yiddish (Experimental)",
-        "French (Experimental)",
-        "Italian (Experimental)",
-    ):
-        assert said in said_in_page, said
+    # The language the text is in is named alone, as board UploadDesk draws it
+    # (2026-10-09); how far along it is is the note under the box.
+    for said in ("Hebrew", "Aramaic", "Yiddish", "French", "Italian"):
+        assert f">{said}</option>" in said_in_page, said
     assert "English (alpha)" in said_in_page
     assert "Russian (Experimental)" in said_in_page
     for gone in ("Spanish", "German", "Latin", "Arabic"):

@@ -6,80 +6,54 @@
    targum-internal#249). Until then this page still wore the reader's language — a
    dashed drop zone, bordered word-buttons and a brown button — which §13 retired. */
 
-/* The header spans the page like it does everywhere else; only the column under it
-   is narrow, and it starts where the header's name starts. */
-body.add {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  min-height: 100svh;
-}
-body.add > .site-head { justify-self: stretch; }
-body.add > .add-main {
-  justify-self: start;
-  margin-inline-start: max(0px, calc((100% - var(--column)) / 2));
-}
-
+/* The board's page (UploadDesk, UploadPhone; design.md §12, 2026-10-09): the title on
+   the desk under the bar, and in the one column two columns of their own: the box and
+   what works on the left, and the card a press is priced on at the right. Every card is
+   the desk's `.card`, every field its `.field`, every press its `.btn`. */
 .add-main {
-  width: min(46rem, 100%);
-  padding: 2rem 1.25rem 3rem;
+  inline-size: 100%;
+  max-inline-size: var(--column);
+  margin-inline: auto;
+  padding: 1.5rem 1.25rem 3rem;
   font-family: var(--chrome);
+}
+.add-grid {
   display: grid;
-  gap: 1rem;
-  align-content: start;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 1.75rem;
+  align-items: start;
 }
-
-.add .lede {
-  margin: 0;
-  font-family: var(--reading);
-  font-size: 1.75rem;
-  font-weight: 400;
-  line-height: 1.1;
-  color: var(--ink);
-}
+.add-left,
+.add-right { display: grid; gap: 1rem; align-content: start; min-inline-size: 0; }
 .hint { margin: 0; color: var(--ink-soft); font-size: 0.875rem; line-height: 1.55; }
-.add .lede + .hint { margin-block-start: -0.5rem; }
-.to-library { color: var(--teal); font-weight: 600; text-decoration: none; }
-.to-library:hover { text-decoration: underline; }
 
-/* Nothing new can be translated, said before anything is chosen. */
-.notice {
-  margin: 0;
-  padding: 0.8rem 1rem;
-  border-radius: var(--radius-row);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
+/* Nothing new can be made, said before anything is chosen. */
+.notice { margin: 0; font-size: 0.875rem; line-height: 1.55; }
+
+/* --- the box: one card, a field, a dashed place to drop, the language and Upload -- */
+.bring { display: grid; gap: 1.25rem; padding: 2.25rem 2.25rem 2rem; }
+.given-field[hidden] { display: none; }
+.given-label {
+  display: block;
+  margin-block-end: 0.5rem;
   color: var(--ink);
-  font-size: 0.875rem;
-  line-height: 1.55;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
-
-/* --- the box: a card, and a well inside it ---------------------------------------- */
-.bring {
-  display: grid;
-  gap: 0.75rem;
-  padding: 0.85rem;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-raised);
-}
-.bring > .drop {
-  display: grid;
-  gap: 0.6rem;
-  align-content: start;
-  min-block-size: 6rem;
-  padding: 0.85rem 1rem;
+/* The well is the desk's field, at the board's height; a refusal outlines it in clay. */
+.given-well {
+  border: 1px solid var(--rule);
   border-radius: var(--radius-row);
-  background: var(--field);
-  transition: box-shadow var(--out) var(--ease);
+  background: var(--card);
+  transition: box-shadow var(--out) var(--ease), border-color var(--out) var(--ease);
 }
-.bring > .drop.over,
-.bring > .drop:focus-within { box-shadow: inset 0 0 0 2px var(--teal); }
+.given-well:focus-within { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
 .bring textarea {
   display: block;
   inline-size: 100%;
-  min-block-size: 3.2rem;
-  padding: 0;
+  min-block-size: 3.6rem;
+  field-sizing: content;
+  padding: 1rem 1.1rem;
   border: 0;
   outline: 0;
   background: transparent;
@@ -91,7 +65,43 @@ body.add > .add-main {
 }
 .bring textarea::placeholder { color: var(--ink-soft); }
 .bring textarea[hidden] { display: none; }
+/* The dashed place a file is dropped: the one dashed line on the desk, because it is
+   the one place that is a target and not a thing. */
+.bring > .drop {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 2.5rem 1.25rem 2.25rem;
+  border: 1px dashed color-mix(in srgb, var(--ink-soft) 45%, transparent);
+  border-radius: var(--radius-row);
+  text-align: center;
+  transition: background var(--out) var(--ease), border-color var(--out) var(--ease);
+}
+.bring > .drop.over { border-color: var(--teal); background: var(--teal-wash); }
+.drop-say { display: grid; justify-items: center; gap: 0.75rem; }
+.drop-say[hidden] { display: none; }
+.drop-icon { inline-size: 2rem; block-size: 2rem; fill: none; stroke: var(--ink-soft); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.drop-icon-phone,
+.drop-line-phone { display: none; }
+.drop-line { margin: 0; color: var(--ink); font-size: 1.0625rem; }
+.drop-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; }
 .understood { margin: 0; color: var(--ink-soft); font-size: 0.875rem; line-height: 1.5; }
+.understood:empty,
+.understood[hidden] { display: none; }
+
+/* The language the text is in, beside Upload. */
+.from-field { display: inline-flex; align-items: center; gap: 0.6rem; color: var(--ink-soft); font-size: 0.9375rem; }
+.from-field select {
+  min-block-size: 2.6rem;
+  padding: 0 2rem 0 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+.from-field select:focus-visible { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
 
 /* What is in the box, one chip a file, with its × on it. */
 .given-files { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
@@ -148,21 +158,13 @@ body.add > .add-main {
   align-items: center;
   gap: 0.25rem 0.75rem;
   padding-block: 0.35rem;
-  padding-inline: 1rem 0.35rem;
-  border-radius: var(--radius-row);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
+  padding-inline: 1.5rem 0.5rem;
 }
+.summary[hidden] { display: none; }
 .summary-line { margin: 0; flex: 1 1 14rem; color: var(--ink); font-size: 0.9375rem; }
 
-.options {
-  display: grid;
-  gap: 1.1rem;
-  padding: 1.1rem 1.25rem;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-raised);
-}
+.options { display: grid; gap: 1.1rem; }
+.options[hidden] { display: none; }
 .option-row { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 0.4rem 1rem; align-items: start; }
 .option-row h2 {
   margin: 0;
@@ -213,18 +215,44 @@ body.add > .add-main {
 /* --- what was priced, refused, or is being built ----------------------------------- */
 .status {
   display: grid;
-  gap: 0.5rem;
-  padding: 1.1rem 1.25rem;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-raised);
-  color: var(--ink);
+  gap: 0.75rem;
+  padding: 1.75rem;
   font-size: 0.9375rem;
   line-height: 1.55;
 }
 .status[hidden] { display: none; }
 .status b { font-weight: 600; }
-.status .cost { display: block; color: var(--ink-soft); font-size: 0.875rem; }
+.status .cost { display: block; margin: 0; color: var(--ink); font-size: 0.9375rem; }
+
+/* The card a press is priced on, as the board's preview: what it is in a quiet line, its
+   title in the reading face, how long it takes, a hairline, what it uses with what is
+   left at the far end, and Confirm across most of the row with Cancel beside it. */
+.quote-head { display: grid; gap: 0.5rem; }
+.quote-meta { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.quote-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.quote-title:is(:lang(he), :lang(yi), :lang(arc)) { font-family: var(--reading-hebrew); }
+.quote-known { margin: 0; color: var(--ink-soft); font-size: 0.875rem; }
+.quote-spend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--rule);
+}
+.quote-spend:empty { display: none; }
+.status .cost.uses { color: var(--ink); font-size: 0.9375rem; }
+.quote-left { color: var(--ink-soft); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.quote-until { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.status .row .confirm { flex: 1 1 auto; }
 .status .hint.plain { margin: 0; }
 .status .bar { height: 4px; background: var(--field); border-radius: 999px; overflow: hidden; }
 .status .bar i {
@@ -259,14 +287,8 @@ body.add > .add-main {
    The box's own card, in the box's place while it is open: a raised card, wells for
    what is typed, labels above them as the manual page has them, and the same row of
    presses at its foot. Handle and name share a row where there is room for two. */
-.post-form {
-  display: grid;
-  gap: 0.9rem;
-  padding: 1rem 1.1rem;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-raised);
-}
+.post-form { display: grid; gap: 0.9rem; }
+.post-form[hidden] { display: none; }
 .post-form-title {
   margin: 0;
   color: var(--ink);
@@ -295,18 +317,59 @@ body.add > .add-main {
 .post-media .hint { flex: 1 1 14rem; font-size: 0.8125rem; }
 .post-form .ghost:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
+/* What works, under the box: two columns of a line drawing and a line at a desk, and
+   one column of lines on a phone, as the boards draw them. */
+.works { display: grid; gap: 0.75rem; padding-inline: 0.125rem; }
+.works-title { margin: 0; color: var(--ink); font-size: 0.9375rem; font-weight: 600; }
+.works-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.works-list li { display: flex; align-items: center; gap: 0.6rem; }
+.works-list svg { flex: none; inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Below the board's desk width the two columns become one, the priced card after the
+   box. */
+@media (max-width: 60rem) {
+  .add-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 40rem) {
-  .add-main { padding-block-start: 1.25rem; }
+  .add-main { padding: 1rem 1rem 2.5rem; }
+  .bring { padding: 1.1rem; gap: 1rem; }
+  .bring textarea { min-block-size: 3rem; padding: 0.7rem 0.9rem; }
+  .bring > .drop { padding: 1.75rem 1rem; }
+  .drop-icon { display: none; }
+  .drop-icon-phone { display: block; inline-size: 1.5rem; block-size: 1.5rem; }
+  .drop-line-desk { display: none; }
+  .drop-line-phone { display: inline; }
+  .drop-line { font-size: 0.9375rem; }
+  /* On a phone the dashed place is the press: the button inside it stays for a
+     keyboard, and a tap anywhere on it chooses. */
+  .drop-row .bring-choose { display: none; }
+  .bring-row { gap: 1rem; }
+  .from-field { flex: 1 1 100%; justify-content: space-between; }
+  .add .go { flex: 1 1 100%; margin-inline-start: 0; }
+  .works-list { grid-template-columns: minmax(0, 1fr); font-size: 0.875rem; }
+  .works-list svg { display: none; }
+  .status { padding: 1.1rem; }
+  .status .row .confirm,
+  .status .row .cancel { flex: 1 1 100%; }
   .option-row { grid-template-columns: minmax(0, 1fr); }
   .option-row h2 { padding-block-start: 0; }
-  .add .go { flex: 1 1 100%; }
 }
 
 /* §8: a control a thumb presses answers a tap over 44px. */
 @media (hover: none) and (pointer: coarse) {
   .add .go,
   .add .bring-choose,
-  .add .bring-ask,
+  .add .bring-post,
   .add .change,
   .add .ghost,
   .add .status button,
@@ -321,18 +384,10 @@ body.add > .add-main {
 @media (prefers-reduced-motion: reduce) {
   .status .bar i,
   .bring > .drop,
+  .given-well,
   .drop.small { transition: none; }
 }
 
-/* The box says what it is for above it, not only in its placeholder, which goes the
-   moment anything is typed (2026-09-14). */
-.given-label {
-  display: block;
-  margin-block-end: 0.35rem;
-  color: var(--ink);
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
 /* Change is a press, and looks like one: the desk's text button. */
 
 /* What targum found at the end of a link, said before the price (targum-internal#250).
@@ -346,12 +401,15 @@ body.add > .add-main {
 /* The library answering while the box is typed in (targum-internal#251). Said before
    Continue, so it is a reading with two ways on and not a refusal: Open is ink because
    it is where the reader was going, and the way past it is a ghost. */
-.already { display: grid; gap: 0.5rem; margin-block-end: 0.75rem; }
+.already { display: grid; gap: 0.5rem; }
+.already[hidden] { display: none; }
 .already-line { margin: 0; color: var(--ink); font-size: 0.9375rem; }
 /* What the box was given can't be used (design.md §12, 2026-10-09): the well outlined in
    clay, over the teal it wears while focused. */
-.bring > .drop.fault-field,
-.bring > .drop.fault-field:focus-within { box-shadow: inset 0 0 0 2px var(--clay); }
+.given-well.fault-field,
+.given-well.fault-field:focus-within { border-color: var(--clay); box-shadow: 0 0 0 1px var(--clay); }
 /* A refusal's panel inside the card under the box draws no second card (design.md §12,
    2026-10-09): the card is already the place. */
 .status > .fault-panel { padding: 0; background: none; box-shadow: none; }
+.drop-say { cursor: pointer; border-radius: var(--radius-row); }
+.drop-say:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }

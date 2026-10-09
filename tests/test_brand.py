@@ -288,11 +288,12 @@ THUMBED = (
     ".voice-go",
     # And the Weekly portion shelf's Diaspora / Israel switch (targum-internal#411).
     "#portion-schedule .segment",
-    # And the Add page's box (2026-09-13, targum-internal#249): Choose files, Ask
-    # targum, Continue, the × on a file in the box, Change, the presses on a priced card,
-    # and Choose file for a translation or a transcript.
+    # And the Add page's box (2026-09-13, targum-internal#249): Choose a file, Bring a
+    # post, Upload, the × on a file in the box, Change, the presses on a priced card,
+    # and Choose file for a translation or a transcript. (Ask targum went with the
+    # board, 2026-10-09.)
     ".bring-choose",
-    ".bring-ask",
+    ".bring-post",
     ".add .go",
     ".given-file-x",
     ".add .change",

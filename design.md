@@ -363,6 +363,61 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Upload is the board's: a field, a place to drop, and the card beside it — 2026-10-09
+
+P11 of the polish plan, after "The boards are the desk" and "The desk's controls are one
+layer" (the same day). Boards UploadDesk and UploadPhone. "Add is one box, for any medium"
+(2026-09-13, below) still holds — one card takes a link, a pasted text or any file, and
+nothing is asked before it is read — but the box is drawn as the board draws it:
+
+- **A field, "Paste a link"**, with the board's examples as its placeholder and, after
+  them, "or some Hebrew" in whichever language is chosen: a pasted text is still taken
+  here, and a field that said only "link" would hide that.
+- **A dashed place to drop**, "Drop a file, a photo of a page, or a post here", with
+  Choose a file. It is the desk's one dashed line, because it is the one place that is a
+  target and not a thing. On a phone it says "Choose a file or take a photo of a page" and
+  is itself the press. The whole card still takes a drop.
+- **"The text is in [Hebrew ▾]" beside Upload**, the board's filled press. The language
+  left Change for the card; it is named alone, and how far along it is goes under the
+  box. Change keeps the language read into, a translation of your own and a transcript of
+  your own.
+- **What works**, the board's list, under the card: articles, videos, podcasts, PDFs,
+  photos of pages, e-books. It replaces the line of what can be read and the line about
+  credits.
+- **The priced card stands at the right** at a desk and under the box on a phone, where
+  it is scrolled into view when it is drawn: what it is in a quiet line, the title in the
+  reading face in its own direction, how long until it opens, a hairline, what it uses
+  with what is left this month at the far end, "That's about 5 hours 54 minutes of audio.
+  Nothing is used until you confirm.", and **Confirm** across most of the row with
+  **Cancel** beside it. Confirm was Open; the press spends, and Confirm is the standard
+  verb for one that does. Cancel puts the card away and leaves the box as it was. What
+  was found at a link stays on the card, under the title.
+- **Every surface is the desk's component**: the cards are `.card` (the notice, the box,
+  the summary, Change's choices, a post brought by hand, what is already in the library,
+  and the priced card), the presses `.btn`, and a refusal is still drawn where #667 put
+  it — under the field (the field's well, outlined in clay), a panel in place of the
+  price, the connection's banner.
+
+What goes, each because the board draws none of it (David's #12, left open; the
+defaults taken, for him to overrule):
+
+- **Record.** A voice note is still brought as a file, and the phone's chooser offers its
+  own recorder; the conversation's Speak is unchanged.
+- **"Say what you want" and Ask targum.** The placeholder no longer offers it, and the
+  button that handed a description to the talk drawer is gone; the drawer is where a
+  reader asks for something to read. A description typed into the box anyway is still
+  looked for in place on Upload, as a turn of the conversation, so it is never met with a
+  refusal.
+- **"It may already be in the Library."** The library still answers while the box is
+  typed in (targum-internal#251), before anything is priced.
+- **The balance line above the box.** The balance is said on the priced card, with its
+  rate ("A cost is credits"); where it is spent, the panel with Top up greyed still stands
+  on the page.
+
+What stays that the board does not draw: **Bring a post**, a text button beside Choose a
+file, because a post typed in by hand (targum-internal#158) is not a thing that can be
+dropped.
+
 ### A playlist is drawn as its boards, to the end — 2026-10-09
 
 P9 of the polish plan, after "The boards are the desk" and "The desk's controls are one
