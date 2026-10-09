@@ -1110,11 +1110,15 @@ on asked "I know this" or "Still learning" instead.
 - **On cards the stage's own name is written under it**: "Getting there", "Known",
   "Ignored: a name or a number" — every card, the reader's phrase cards included. Dense
   rows (the list beside the text, the Words table) carry the control without the name.
+  *(The Words table names it in a column of its own since the same day: "Your Words is
+  one table and a practice card".)*
 - **What to work on asks for the stage**, not "I know this" / "Still learning": known
   takes the word or phrase off the fold, as before; any other step is written as pressed
   and passes it over for the sitting; pressing the step it is already on passes it over
   and writes nothing. "Still learning" stepped a word down one; the reader now says which
   step. A line the conversation corrected keeps its two answers: a sentence has no stage.
+  *(The fold is gone since the same day, its words gone over on the practice card and a
+  corrected line answered on the record: "Your Words is one table and a practice card".)*
 ### Your Words is reached from Your Progress, by stage — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards WordsDesk, WordsPhone and Words{Ru,RuUi,Fr,It,
@@ -1140,7 +1144,59 @@ Your Progress's "Practise these words", one language at a time, the one the menu
 Not built here, and left for later: the board's "Met in" column and "Met often" chip
 (they need the met counts per word, which only Your Progress asks for today), its
 practice card ("One word at a time, in a line you've read"), French's pronunciation and
-false friends on rows, Russian's case notes, and Aramaic's Hebrew counterpart.
+false friends on rows, Russian's case notes, and Aramaic's Hebrew counterpart. *(Built
+the same day, all but the last: "Your Words is one table and a practice card", below.)*
+
+### Your Words is one table and a practice card — 2026-10-09
+
+P6 of the polish plan, after "The boards are the desk" and "The desk's controls are one
+layer" (the same day), on boards WordsDesk, WordsPhone and Words{Ru,RuUi,Fr,It,Yi,Arc}.
+The page drew the words still being learned twice — What to work on over the table
+(targum-internal#103), and the table's own To work on — and none of what the board puts
+beside a word. Now:
+
+- **One card holds the list**: Words and Phrases as tabs with the find field in its
+  head, the stages as tabs (To work on · Just met · Getting there · Nearly there · Known
+  · All), then **Met often**, pressed on and off apart from them, and one table — the
+  word, its meaning, **Met in** (how many texts), its stage by name on the ramp's
+  colour, and the five stages — with "Most met first" and Show more at its foot. On a
+  phone each word is a row: the meaning and the word, the stage and "met in N texts"
+  under them, the stages a thumb tall. The exports are quiet links at the end of the
+  head ("Export as an Anki deck", CSV).
+- **Practise these** stands beside it (first on a phone): the words still being learned
+  that the reader met most, ten at most, each in a line from a section they finished,
+  the word marked, what it means, the line's translation, the five stages with the
+  stage's name, Next word and Coming up. On a phone it asks "What does it mean here?"
+  and shows the meaning on a press, as WordsPhone draws it.
+- **The data is the reader's own and is free.** `/account/words` counts the texts a
+  word was met in the way Your Progress and the card do — inside a section the reader
+  finished (`occurrences.texts_met`) — and finds each line in `meetings.json`, read off
+  the annotation a build already wrote and cached beside it like `occurrences.json`. No
+  model, no fetch, no re-annotation; signed out, the table stands without the column
+  and the card.
+- **What a row says beside its meaning, per language, where the data exists**: French,
+  how the word is said and the English it is a false friend of — each behind the switch
+  the reader's card is behind (`TARGUM_FRENCH_IPA`, `TARGUM_FALSE_FRIENDS`), the false
+  friend only read into English; Russian, the case it is mostly met in ("Often in the
+  instrumental: рукой", at least three meetings, one case at least half of them, never
+  the nominative), and "Here: genitive" on the card. **Aramaic's Hebrew counterpart is
+  not drawn**: no build aligns an Onkelos word with the Hebrew word it renders, and a
+  counterpart guessed from spelling would be a card that lies.
+
+Where this goes past the boards, or departs from them, deliberately:
+
+- **The fold is gone, and with it its door into the conversation** ("Practise these
+  words", which wrote a line for the chat). The practice card is the board's answer to
+  the same question, and two "Practise these" on one page would be the duplicate this
+  removes. Its phrase half goes too: a corrected line still to go over carries its "I
+  know this" on the record under Your Phrases, where every corrected line already
+  stands; a kept phrase is staged on its card, as before.
+- **The table's rows say their stage's name**, where "The five stages are one control"
+  kept dense rows to the control alone: the board draws a Status column.
+- **Kept goes**: the board has no date column. The CSV still carries when a word was
+  kept.
+- **The card has no ▶**: a line read aloud is a voice bought per line, and this page
+  spends nothing.
 
 
 ### The Library stands on the ground — 2026-10-09
