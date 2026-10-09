@@ -7,6 +7,7 @@
  *   TargumFault.line(sentence, act?, onAct?)              a line in a card, as an element
  *   TargumFault.panel(sentence, {act, href, onAct, fact, topUp})   a panel, as an element
  *   TargumFault.refusal(sentence, fact, act)   the panel for a refusal the server sent
+ *   TargumFault.upgrade(sentence, fact?)  the panel where a free reader reaches for the plan
  *   TargumFault.unreachable(retry?)      the connection banner, under the top bar
  *   TargumFault.reached()                and gone again
  *
@@ -159,7 +160,54 @@
     return key ? path + "?k=" + encodeURIComponent(key) : path;
   }
 
+  /* A panel where a free reader reaches for the plan (design.md §12, "A free reader meets
+     the plan where they reach for it", 2026-10-09; board PlanUpgradeMoment): the sentence,
+     Start a plan greyed with "Payments open soon" beside it, See plans at the far end,
+     and under a hairline the quiet line of what still works. Plans are behind a switch;
+     a page only ever draws this because the server said `plan`. */
+  function clockGlyph() {
+    return glyph("fault-clock", ["M8 2.25a5.75 5.75 0 1 0 0 11.5a5.75 5.75 0 1 0 0-11.5z", "M8 5v3.2l2 1.3"]);
+  }
+  function upgrade(sentence, fact) {
+    var box = document.createElement("div");
+    box.className = "fault-panel fault-upgrade";
+    box.setAttribute("role", "status");
+    var p = document.createElement("p");
+    p.className = "fault-panel-said";
+    p.textContent = sentence;
+    box.appendChild(p);
+    var row = document.createElement("div");
+    row.className = "fault-panel-row";
+    var start = document.createElement("button");
+    start.type = "button";
+    start.className = "fault-go";
+    start.disabled = true;
+    start.textContent = t("fault.start-a-plan", "Start a plan");
+    row.appendChild(start);
+    var soon = document.createElement("span");
+    soon.className = "fault-fact fault-soon";
+    var clock = clockGlyph();
+    clock.setAttribute("viewBox", "0 0 16 16");
+    soon.appendChild(clock);
+    soon.appendChild(document.createTextNode(t("fault.payments-soon", "Payments open soon")));
+    row.appendChild(soon);
+    var see = document.createElement("a");
+    see.className = "fault-see";
+    see.href = keyed("/plans");
+    see.textContent = t("fault.see-plans", "See plans");
+    row.appendChild(see);
+    box.appendChild(row);
+    if (fact) {
+      var foot = document.createElement("p");
+      foot.className = "fault-panel-foot";
+      foot.textContent = fact;
+      box.appendChild(foot);
+    }
+    return box;
+  }
+
   function refusal(sentence, fact, act) {
+    if (act === "plan") return upgrade(sentence, fact);
     var options = { fact: fact || "" };
     if (act === "top-up") options.topUp = true;
     else if (act === "library") {
@@ -304,6 +352,7 @@
   window.TargumFault = {
     line: line,
     panel: panel,
+    upgrade: upgrade,
     refusal: refusal,
     field: field,
     clear: clear,

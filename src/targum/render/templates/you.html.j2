@@ -67,6 +67,81 @@
     <p class="acct-soon"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</p>
   </section>
 
+  {#- The plan, with plans on (board PlanAccount; design.md §12, "Free and Plan, behind a
+      switch", 2026-10-09). Drawn by `you.js` from `/account/me`'s `plan` in place of the
+      early-access card above, which is what every account sees while the switch is off.
+      Free: what it holds, what a plan gives, and Start a plan greyed. Plan: the month,
+      when the credits come back, Top up, Switch and Cancel, every one greyed until there
+      is a payment provider. Receipts and a card are not drawn: there are none. -#}
+  <section class="card plan plan-on" id="plan-on" aria-labelledby="plan-on-title" hidden>
+    <div class="acct-head">
+      <h2 class="section-title" id="plan-on-title">{{ t("you.page.plan", "Plan") }}</h2>
+      <a class="acct-link" href="/plans">{{ t("fault.see-plans", "See plans") }}</a>
+    </div>
+    <div id="plan-free" hidden>
+      <ul class="rows acct-rows">
+        <li class="row">
+          <span class="row-main">
+            <b class="acct-name">{{ t("you.page.plan-free", "Free") }}</b>
+            <span class="acct-says" id="plan-free-says"></span>
+          </span>
+        </li>
+        <li class="row" id="plan-words-row" hidden>
+          <span class="row-main">
+            <span class="acct-name">{{ t("you.page.plan-word-list", "Your word list") }}</span>
+            <span class="acct-says" id="plan-words"></span>
+          </span>
+        </li>
+      </ul>
+      <p class="plan-offer" id="plan-offer"></p>
+      <p class="plan-pay-row">
+        <button type="button" class="btn soon" disabled>{{ t("fault.start-a-plan", "Start a plan") }}</button>
+        <span class="acct-soon"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</span>
+      </p>
+    </div>
+    <div id="plan-paid" hidden>
+      <ul class="rows acct-rows">
+        <li class="row">
+          <span class="row-main">
+            <b class="acct-name">{{ t("you.page.plan-monthly", "Monthly plan") }}</b>
+            <span class="acct-says" id="plan-paid-says"></span>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-main">
+            <span class="acct-name" id="plan-back"></span>
+            <span class="acct-says">{{ t("you.page.plan-back-says", "Monthly credits start fresh then, and don't carry over") }}</span>
+          </span>
+        </li>
+        <li class="row acct-wrap">
+          <span class="row-main">
+            <span class="acct-name">{{ t("you.page.top-up", "Top up") }}</span>
+            <span class="acct-says">{{ t("you.page.top-up-stays", "Credits you top up stay until you use them") }}</span>
+          </span>
+          <span class="acct-end">
+            <span class="seg plan-top-ups" id="plan-top-ups"></span>
+            <button type="button" class="btn soon" disabled>{{ t("you.page.top-up", "Top up") }}</button>
+          </span>
+        </li>
+        <li class="row">
+          <span class="row-main">
+            <span class="acct-name">{{ t("you.page.plan-quarterly", "Pay every 3 months instead") }}</span>
+            <span class="acct-says">{{ t("you.page.plan-quarterly-says", "From your next renewal") }}</span>
+          </span>
+          <span class="acct-end"><button type="button" class="btn ghost outline" disabled>{{ t("you.page.plan-switch", "Switch") }}</button></span>
+        </li>
+        <li class="row">
+          <span class="row-main">
+            <span class="acct-name">{{ t("you.page.plan-cancel", "Cancel your plan") }}</span>
+            <span class="acct-says">{{ t("you.page.plan-cancel-says", "You're on Free from the end of the month. Your channel and podcast subscriptions pause, and you can start them again any time.") }}</span>
+          </span>
+          <span class="acct-end"><button type="button" class="btn ghost outline" disabled>{{ t("you.page.plan-cancel-press", "Cancel plan") }}</button></span>
+        </li>
+      </ul>
+      <p class="acct-soon"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</p>
+    </div>
+  </section>
+
   {#- Your languages, as rows (AccountDesk): each one being learned with Remove, Start
       another from the rest, and the language meanings, translations and menus are in.
       Drawn by `you.js` from the lists below; the rung named on arrival is its last row. -#}

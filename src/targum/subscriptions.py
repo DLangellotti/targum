@@ -732,7 +732,11 @@ def get_ready(library: Any, store: Store, *, most: int = ROUND) -> Readied:
         if person is None:
             continue
         if not plans.builds_by_itself(person):
-            store.set_sub_item(sub_id, key, state="waiting", why="plan")
+            # The plan has ended, or plans came on for a free reader: the subscription
+            # pauses, as a cancel pauses it (design.md §12, "Free and Plan, behind a
+            # switch", 2026-10-09). Its items are listed for a press each, as any pause
+            # lists them, and nothing builds until the reader's own Resume.
+            store.set_subscription_state(person.id, sub_id, "paused")
             report.waiting.append((key, "plan"))
             continue
         cap = int(item["cap"] or DEFAULT_CAP)
@@ -808,7 +812,7 @@ def get_ready(library: Any, store: Store, *, most: int = ROUND) -> Readied:
             continue
         refused = library.press(job)
         if refused:
-            allowed = library.upload_seconds
+            allowed = library.allowance(paid_plan=plans.paid(person))
             spent = store.hours_used(person.id, month_from)
             why = (
                 "credits"

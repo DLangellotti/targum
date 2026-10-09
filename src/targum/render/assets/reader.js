@@ -2793,9 +2793,39 @@ var targumReader = function () {
   // `wordEntries`. This session only: it is a receipt, not a state.
   var justSaid = {};
 
+  /* A free word list's cap (design.md §12, "Free and Plan, behind a switch",
+     2026-10-09): the words being learned, stages 1 to 3 across every language, up to
+     `/account/me`'s `plan.words`. Null — no cap — until the server says one, and always
+     with plans off, so nothing here changes anything for a reader who has none. A word
+     already on the list moves freely, and known and ignored are never held. */
+  var planWords = null;
+  var LIST_FULL = "full";
+
+  function listFull(lemma, status) {
+    if (!planWords || !isLearning(status) || isLearning(statusOf(lemma))) return false;
+    return TargumVocab.listed() >= planWords;
+  }
+
+  // The refusal as a panel in place, in the card the press was made on.
+  function sayListFull() {
+    if (!card || card.hidden || !window.TargumFault) return;
+    var was = card.querySelector(".list-full");
+    if (was) was.parentNode.removeChild(was);
+    var full = window.TargumFault.upgrade(
+      t("fault.plan.words", "Your word list holds {n} words on Free, and it's full. A plan keeps every word you meet, however long the list gets.", { n: planWords }),
+      t("fault.plan.words-fact", "Marking a word known still works, and so does everything already on your list.")
+    );
+    full.classList.add("list-full");
+    card.appendChild(full);
+  }
+
   function setStatus(index, surface, band, status) {
     var lemma = lemmas[index];
     if (!lemma) return false;
+    if (listFull(lemma, status)) {
+      sayListFull();
+      return LIST_FULL;
+    }
     recordUndo(index, lemma, surface);
     if (status === null || status === undefined || isLearning(status)) delete justSaid[lemma];
     else justSaid[lemma] = true;
@@ -4795,7 +4825,13 @@ var targumReader = function () {
       // Said, not toggled. The back arrow lands on words already marked, and a level
       // pressed to confirm one took the mark off instead and walked on — silently. From
       // the keyboard a level means what it says; `u` is the way back.
-      setStatus(index, surface, levelOf(word), status);
+      if (setStatus(index, surface, levelOf(word), status) === LIST_FULL) {
+        if (!(lookedUp === word && card && !card.hidden)) {
+          showCard(word);
+          sayListFull();
+        }
+        return true;
+      }
       stopHover();
       var from = place;
       var open = asking();
@@ -4872,7 +4908,7 @@ var targumReader = function () {
       onStatus: function (value) {
         // Held before the redraw, which replaces the span the card stands beside.
         var held = holdWord(lookedUp);
-        setStatus(index, surface, band, value);
+        if (setStatus(index, surface, band, value) === LIST_FULL) return;
         redraw();
         // Rebuilt rather than patched, so every button in the row agrees about which
         // one is now set — and seated against the word's new span, so it stays beside
@@ -5391,6 +5427,8 @@ var targumReader = function () {
       })
       .then(function (me) {
         granted = !!(me && me.granted);
+        var plan = (me && me.plan) || {};
+        planWords = plan.on && plan.words ? Number(plan.words) || null : null;
         if (then) then();
       })
       .catch(function () {
@@ -5631,6 +5669,11 @@ var targumReader = function () {
     // to know what the word was, and that is the whole of the signal the foot reports.
     //
     noteLookUp(index);
+    // Who is reading, once, before a stage is pressed: the plan's word cap rides it. The
+    // card is drawn again only where the answer adds the correction row to it.
+    askGranted(function () {
+      if (granted && lookedUp === word) showCard(word);
+    });
     var askedIn = word.closest ? word.closest("[data-id]") : null;
     // And which word, as the ledger files it — its dictionary form, under the language of
     // the row it stands in — so the week's sheet can list what was looked up
@@ -6883,7 +6926,7 @@ var targumReader = function () {
       });
       placeChip(picked.rect);
       pickLevel = function (status) {
-        setStatus(index, surface, band, toggled(index, status));
+        if (setStatus(index, surface, band, toggled(index, status)) === LIST_FULL) return;
         redraw();
         showPick(picked);
       };
@@ -11136,7 +11179,16 @@ var targumReader = function () {
       if (said) said.classList.toggle("fault-marked", state === "failed" || state === "refused");
       var extra = door && door.querySelector(".film-next-extra");
       if (extra) extra.parentNode.removeChild(extra);
-      if (state === "refused" && job && (job.fact || job.act === "top-up") && said) {
+      if (state === "refused" && job && job.act === "plan" && said && window.TargumFault) {
+        // A free reader out of credits is offered the plan, as a panel of its own in
+        // place of the line (design.md §12, "A free reader meets the plan where they
+        // reach for it", 2026-10-09).
+        said.textContent = "";
+        said.classList.remove("fault-marked");
+        extra = window.TargumFault.upgrade(text || "", job.fact || "");
+        extra.classList.add("film-next-extra");
+        said.parentNode.insertBefore(extra, said.nextSibling);
+      } else if (state === "refused" && job && (job.fact || job.act === "top-up") && said) {
         extra = document.createElement("span");
         extra.className = "film-next-extra fault-panel-row";
         if (job.act === "top-up") {

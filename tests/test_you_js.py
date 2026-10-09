@@ -468,3 +468,38 @@ def test_a_refused_form_of_address_keeps_what_was_marked() -> None:
     )
     assert page["address"]["f"] == "true" and page["address"]["m"] == "false"
     assert page["languagesSaid"]["hidden"] is False
+
+
+def test_off_the_plan_card_is_left_alone() -> None:
+    """With `TARGUM_PLANS` off the server says `{"on": false}`, and the page draws no plan
+    of its own: the early-access card stays the plan, as it was before the switch."""
+    page = run(who={**SIGNED_IN, "plan": {"on": False}})
+    # The stub document starts every element shown; the card is hidden in the template,
+    # and the page never touches it.
+    assert page["plan"]["freeSays"] == "" and page["plan"]["paidSays"] == ""
+    assert page["plan"]["offer"] == "" and page["plan"]["topUps"] == []
+
+
+def test_on_free_says_what_it_holds_and_what_a_plan_gives() -> None:
+    """Board PlanAccount, On Free (design.md §12, "Free and Plan, behind a switch")."""
+    plan = {"on": True, "plan": "free", "credits": 60, "planCredits": 480, "words": 300}
+    page = run(who={**SIGNED_IN, "plan": {**plan, "listed": 120, "topUps": []}})
+    drawn = page["plan"]
+    assert drawn["on"] is False and drawn["free"] is False and drawn["paid"] is True
+    assert drawn["freeSays"] == (
+        "The library, word cards and your text uploads, with 60 credits a month"
+    )
+    assert "A plan gives you 480 credits a month, which is 8 hours" in drawn["offer"]
+    assert drawn["words"].startswith("120 of 300 words") and drawn["wordsHidden"] is False
+
+
+def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
+    """Board PlanAccount, On the plan, and PlanTopUp from Your account: every press greyed."""
+    plan = {"on": True, "plan": "plan", "credits": 480, "planCredits": 480, "words": None}
+    who = {**SIGNED_IN, "hours": {"used": 0, "allowed": 8, "ends": "November 1"}}
+    page = run(who={**who, "plan": {**plan, "listed": 0, "topUps": [60, 180, 300]}})
+    drawn = page["plan"]
+    assert drawn["paid"] is False and drawn["free"] is True
+    assert drawn["paidSays"] == "480 credits a month, which is 8 hours of audio or video"
+    assert drawn["back"] == "Your credits come back on November 1"
+    assert drawn["topUps"] == ["60 credits", "180 credits", "300 credits"]
