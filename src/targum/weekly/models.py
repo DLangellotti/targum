@@ -289,6 +289,11 @@ class Written(BaseModel):
     sections: list[WrittenSection] = Field(default_factory=list)
 
 
+#: The issue's own Hebrew masthead (design.md §12, "Mail is drawn, and fetches nothing":
+#: the public name is Weekly News Digest, and מבט השבוע is what the issue calls itself).
+MASTHEAD = "מבט השבוע"
+
+
 #: Month names as a Hebrew paper writes them, with the prefix a date takes: 24 באוגוסט.
 HEBREW_MONTHS = (
     "בינואר",

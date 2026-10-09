@@ -78,7 +78,7 @@ def test_every_follow_is_carried_to_its_account_with_its_stop_token(tmp_path: Pa
     third = Store(path)
     assert third.db.execute("SELECT COUNT(*) AS n FROM subscription").fetchone()["n"] == count
     version = sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0]
-    assert version == SCHEMA_VERSION == 43
+    assert version == SCHEMA_VERSION >= 43
 
 
 def test_subscribing_pausing_and_stopping(tmp_path: Path) -> None:

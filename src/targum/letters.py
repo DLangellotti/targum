@@ -2,8 +2,9 @@
 
 Every mail a reader can receive is composed here: the sign-in link, the two double
 opt-ins (the waitlist's and the Weekly News Digest's), the invitation off the waitlist,
-the digest itself, a followed series' instalment, and a build that finished while the
-reader was away. `mail.py` delivers; this decides the words and the shape.
+the digest itself, the one mail a day with everything new from somebody's subscriptions,
+a build that finished while the reader was away, and the last mail an account gets, when
+it is deleted. `mail.py` delivers; this decides the words and the shape.
 
 Each is a `Letter`: a subject, a plain-text body, the same body as HTML, and the headers
 it needs. The two bodies are made from one list of blocks, so they cannot say different
@@ -12,10 +13,14 @@ things. The mail goes as multipart/alternative, plain text first.
 **The HTML fetches nothing** (design.md §12, "Mail is drawn, and fetches nothing").
 There are no images, no remote stylesheets or fonts, no tracking pixel and no redirecting
 links. The logo is drawn rather than loaded: the mark's two columns are table cells with
-a background colour, and the wordmark is live text in the reading face. That survives a
-client that blocks images, because there is no image to block. The colours are §13's
-desk, card, ink and teal, and the scheme is declared light only, because there is one
-look (§12, 2026-09-19).
+a background colour, and the wordmark is live text in the reading face. A text's picture
+is drawn the same way, as a tile with its first letter on it. That survives a client that
+blocks images, because there is no image to block. The colours are the app's — desk, card,
+ink, teal and the mark's gold (§12, "Every mail is the board's", 2026-10-09) — and the
+scheme is declared light only, because there is one look (§12, 2026-09-19).
+
+`targum mails --out DIR` draws every one of them from sample data (`mail_samples.py`),
+for comparing with the boards; it sends nothing.
 
 The words come from the strings catalogue in the reader's language. English is the
 fallback.
@@ -27,11 +32,11 @@ import html
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
-from .strings import counted, said_date, text
+from .strings import counted, said_date, said_day, text
 
 if TYPE_CHECKING:
     from .weekly.models import Issue
@@ -40,7 +45,8 @@ if TYPE_CHECKING:
 #: until one is given, and an empty one draws nothing.
 POSTAL_ENV = "TARGUM_POSTAL_ADDRESS"
 
-# §4 and §13, written out because a mail cannot read `reader.css`.
+# §4 and §13, written out because a mail cannot read `reader.css`. The mark is the app's
+# ink and gold (boards MailsDesk and SubMailDesk, 2026-10-09).
 DESK = "#ece7de"
 CARD = "#fffdf9"
 RAISED = "#f3efe7"
@@ -49,17 +55,22 @@ MUTED = "#6b645c"
 RULE = "#e2dcd1"
 TEAL = "#1f6f6b"
 PAPER = "#fbf9f5"
-MARK_INK = "#201e1b"
-MARK_ACCENT = "#a5824f"
+GOLD = "#b8935e"
+MARK_INK = INK
+MARK_ACCENT = GOLD
 
 SANS = "'Source Sans 3','Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif"
 SERIF = "'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif"
-HEBREW = "'Taamey Frank CLM','Frank Ruehl CLM','Times New Roman',David,serif"
+#: Named, never fetched: a client that has none of them shows its own serif.
+HEBREW = "'Frank Ruhl Libre','Taamey Frank CLM','Frank Ruehl CLM','Times New Roman',David,serif"
 MONO = "ui-monospace,Menlo,Consolas,monospace"
 
 #: RFC 8058. The URL in `List-Unsubscribe` must stop the mail on a POST with this body,
 #: with no page in between.
 ONE_CLICK = "List-Unsubscribe=One-Click"
+
+#: The languages whose titles are drawn right to left in the Hebrew face.
+RIGHT_TO_LEFT = ("he", "yi", "arc")
 
 
 @dataclass(frozen=True)
@@ -108,21 +119,29 @@ class Heading:
 
     def as_html(self) -> str:
         return (
-            f'<h1 class="h1" style="margin:0 0 12px 0;font-family:{SANS};font-size:22px;'
-            f'line-height:28px;font-weight:700;color:{INK};">{_e(self.words)}</h1>'
+            f'<h1 class="h1" style="margin:0 0 12px 0;font-family:{SERIF};font-size:26px;'
+            f'line-height:32px;font-weight:500;color:{INK};">{_e(self.words)}</h1>'
         )
 
 
 @dataclass(frozen=True)
 class Title:
-    """A text's own name, in the reading face (§13: the serif is for a text's words)."""
+    """A text's own name, in the reading face (§13: the serif is for a text's words), and
+    in the Hebrew face, right to left, where its language reads that way."""
 
     words: str
+    language: str = ""
 
     def as_text(self) -> str:
         return isolate(self.words)
 
     def as_html(self) -> str:
+        if self.language in RIGHT_TO_LEFT:
+            return (
+                f'<p dir="rtl" lang="{_e(self.language)}" style="margin:0 0 16px 0;'
+                f"text-align:right;font-family:{HEBREW};font-size:26px;line-height:36px;"
+                f'font-weight:500;color:{INK};">{_e(self.words)}</p>'
+            )
         return (
             f'<p dir="auto" style="margin:0 0 16px 0;font-family:{SERIF};font-size:24px;'
             f'line-height:32px;font-weight:600;color:{INK};">{_e(self.words)}</p>'
@@ -139,7 +158,7 @@ class Hebrew:
     def as_html(self) -> str:
         return (
             f'<p dir="rtl" lang="he" style="margin:0 0 16px 0;text-align:right;'
-            f"font-family:{HEBREW};font-size:26px;line-height:40px;font-weight:600;"
+            f"font-family:{HEBREW};font-size:28px;line-height:40px;font-weight:500;"
             f'color:{INK};">{_e(self.words)}</p>'
         )
 
@@ -173,6 +192,79 @@ class Para:
     def as_html(self) -> str:
         colour = MUTED if self.muted else INK
         return f'<p dir="auto" style="margin:0 0 16px 0;color:{colour};">{_e(self.words)}</p>'
+
+
+@dataclass(frozen=True)
+class Meta:
+    """One quiet line under a title: who brought it, what it is, how long it is."""
+
+    words: str
+
+    def as_text(self) -> str:
+        return self.words
+
+    def as_html(self) -> str:
+        return (
+            f'<p dir="auto" style="margin:-8px 0 16px 0;font-size:14px;line-height:20px;'
+            f'color:{MUTED};">{_e(self.words)}</p>'
+        )
+
+
+def initial(title: str) -> str:
+    """The letter a tile carries: the title's first letter, whatever its script."""
+    for char in title:
+        if char.isalpha():
+            return char.upper()
+    return "·"
+
+
+def _badge(size: int) -> str:
+    """The play badge on a video's tile: a paper disc with a triangle in it, as text (the
+    variation selector keeps a phone from drawing the triangle as an emoji)."""
+    return (
+        f'<span style="display:inline-block;width:{size}px;height:{size}px;'
+        f"border-radius:50%;background:{PAPER};color:{INK};font-family:{SANS};"
+        f"font-size:{size * 2 // 5}px;line-height:{size}px;text-align:center;"
+        f'">&#9654;&#65038;</span>'
+    )
+
+
+@dataclass(frozen=True)
+class Tile:
+    """A text's picture, drawn: its first letter, paper on ink, and a play badge on a
+    video (boards MailsDesk and SubMailDesk). Table cells with a background colour, so
+    there is nothing to load and nothing for a client to block."""
+
+    title: str
+    language: str = ""
+    video: bool = False
+    height: int = 200
+
+    def as_text(self) -> str:
+        return ""
+
+    def as_html(self) -> str:
+        face = HEBREW if self.language in RIGHT_TO_LEFT else SERIF
+        size = self.height * 9 // 25
+        badge = (
+            '<tr><td align="right" valign="bottom" height="48" '
+            f'style="height:48px;padding:0 12px 12px 0;">{_badge(36)}</td></tr>'
+            if self.video
+            else ""
+        )
+        letter_height = self.height - (48 if self.video else 0)
+        return (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'border="0" style="margin:0 0 20px 0;border-collapse:separate;"><tr>'
+            f'<td bgcolor="{INK}" style="background:{INK};border-radius:10px;padding:0;">'
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'border="0">'
+            f'<tr><td align="center" valign="middle" height="{letter_height}" '
+            f'style="height:{letter_height}px;padding:0;font-family:{face};'
+            f"font-size:{size}px;line-height:{size}px;font-weight:500;color:{CARD};"
+            f'"><span lang="{_e(self.language or "und")}">{_e(initial(self.title))}</span>'
+            f"</td></tr>{badge}</table></td></tr></table>"
+        )
 
 
 @dataclass(frozen=True)
@@ -262,9 +354,10 @@ class Rule:
 
 @dataclass(frozen=True)
 class Listed:
-    """What one subscription brought, a row each: its title in its own direction and the
-    face its language reads in, and a note under it — the daily mail's (design.md §12,
-    "Everything new comes in one mail a day", 2026-10-09)."""
+    """What one subscription brought, a row each: its tile, its title in its own direction
+    and the face its language reads in, and a note under it — the daily mail's (design.md
+    §12, "Everything new comes in one mail a day", 2026-10-09), drawn as board SubMailDesk
+    draws one thing (§12, "Every mail is the board's", 2026-10-09)."""
 
     rows: Sequence[tuple[str, str, str, str]]
     #: (title, its language, a note, where it opens)
@@ -276,14 +369,23 @@ class Listed:
 
     def as_html(self) -> str:
         cells = "".join(
-            '<tr><td style="padding:0 0 8px 0;">'
-            f'<a href="{_e(href)}" style="display:block;background:{RAISED};border-radius:12px;'
-            'padding:12px 16px;text-decoration:none;">'
-            f'<span dir="auto" lang="{_e(language)}" style="display:block;'
-            f"font-family:{HEBREW if language in ('he', 'yi', 'arc') else SERIF};"
-            f'font-size:17px;line-height:24px;font-weight:600;color:{INK};">{_e(title)}</span>'
+            '<tr><td style="padding:0 0 10px 0;">'
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'border="0" bgcolor="{RAISED}" style="background:{RAISED};border-radius:12px;">'
+            '<tr><td width="56" valign="top" style="width:56px;padding:12px 0 12px 12px;">'
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
+            f'<td width="56" height="56" align="center" valign="middle" bgcolor="{INK}" '
+            f'style="width:56px;height:56px;background:{INK};border-radius:8px;'
+            f"font-family:{HEBREW if language in RIGHT_TO_LEFT else SERIF};font-size:26px;"
+            f'line-height:26px;font-weight:500;color:{CARD};">{_e(initial(title))}</td>'
+            "</tr></table></td>"
+            '<td valign="middle" style="padding:12px 16px 12px 14px;">'
+            f'<a href="{_e(href)}" dir="auto" lang="{_e(language)}" style="display:block;'
+            f"font-family:{HEBREW if language in RIGHT_TO_LEFT else SERIF};"
+            f"font-size:19px;line-height:26px;font-weight:500;color:{INK};"
+            f'text-decoration:none;">{_e(title)}</a>'
             f'<span style="display:block;font-family:{SANS};font-size:14px;line-height:20px;'
-            f'color:{TEAL};">{_e(note)}</span></a></td></tr>'
+            f'color:{TEAL};">{_e(note)}</span></td></tr></table></td></tr>'
             for title, language, note, href in self.rows
         )
         return (
@@ -318,6 +420,8 @@ Block = (
     | Hebrew
     | HebrewLine
     | Para
+    | Meta
+    | Tile
     | Button
     | Fallback
     | Rows
@@ -329,23 +433,30 @@ Block = (
 
 @dataclass(frozen=True)
 class Foot:
-    """A line under the card, with an optional link at its end (a stop link)."""
+    """A line under the card, with an optional link at its end (a stop link), and any
+    more after it, a middle dot between (board SubMailDesk: "Unsubscribe · Your
+    subscriptions")."""
 
     words: str
     link: str = ""
     href: str = ""
+    more: tuple[tuple[str, str], ...] = ()
+
+    def _links(self) -> list[tuple[str, str]]:
+        return ([(self.link, self.href)] if self.href else []) + list(self.more)
 
     def as_text(self) -> str:
-        return f"{self.words} {self.link}: {self.href}" if self.href else self.words
+        said = [self.words] if self.words else []
+        said += [f"{link}: {href}" for link, href in self._links()]
+        return "\n".join(said)
 
     def as_html(self) -> str:
-        tail = (
-            f' <a href="{_e(self.href)}" style="color:{MUTED};text-decoration:underline;">'
-            f"{_e(self.link)}</a>"
-            if self.href
-            else ""
+        tail = " · ".join(
+            f'<a href="{_e(href)}" style="color:{MUTED};text-decoration:underline;">{_e(link)}</a>'
+            for link, href in self._links()
         )
-        return f'<p style="margin:0 0 8px 0;">{_e(self.words)}{tail}</p>'
+        joined = " ".join(part for part in (_e(self.words), tail) if part)
+        return f'<p style="margin:0 0 8px 0;">{joined}</p>'
 
 
 # -- the frame ---------------------------------------------------------------------------
@@ -376,7 +487,7 @@ LOCKUP = (
 
 _TABLE = 'role="presentation" cellpadding="0" cellspacing="0" border="0"'
 _CARD_STYLE = (
-    f"background:{CARD};border-radius:16px;padding:32px;font-family:{SANS};"
+    f"background:{CARD};border-radius:14px;padding:32px;font-family:{SANS};"
     f"font-size:16px;line-height:24px;color:{INK};"
 )
 _FOOT_STYLE = (
@@ -546,6 +657,7 @@ def invitation(address: str, language: str = "en", connector: bool | None = None
     said: list[Any] = [
         Heading(text("mail.invitation.heading", code)),
         Para(text("mail.invitation.lead", code)),
+        Para(text("mail.invitation.once", code)),
         Para(text("mail.invitation.free", code)),
         Button(text("mail.invitation.button", code), link),
     ]
@@ -598,7 +710,7 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
     built into links to its own edition (`?lang=`); the stop link carries it too, because
     the stop page must not read it off the token.
     """
-    from .weekly.models import LEVELS, Level
+    from .weekly.models import LEVELS, MASTHEAD, Level, dated_title
 
     code = _code(language)
     base = address.rstrip("/")
@@ -616,7 +728,10 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
         for level in Level
         if issue.edition(level) is not None
     ]
-    blocks: list[Block] = [Label(dated), Hebrew(issue.title)]
+    # The masthead is מבט השבוע and the week's date, in Hebrew, as the reader's own title
+    # is (design.md §12, "Every mail is the board's", 2026-10-09). The subject keeps the
+    # public name.
+    blocks: list[Block] = [Label(dated), Hebrew(dated_title(MASTHEAD, issue.dated))]
     if issue.blurb:
         blocks.append(HebrewLine(issue.blurb))
     blocks.append(Button(text("mail.weekly.button", code), where + asked))
@@ -687,13 +802,15 @@ def subscriptions_daily(
         subject,
         text("mail.daily.preheader", code),
         blocks,
+        # One line, as board SubMailDesk draws it: why, then the way out of all of it and
+        # the page where each can be changed.
         [
             Foot(
                 text("mail.daily.why", code),
-                text("mail.daily.yours", code),
-                f"{base}/?show=subscriptions",
+                text("mail.daily.stop", code),
+                stop,
+                ((text("mail.daily.yours", code), f"{base}/?show=subscriptions"),),
             ),
-            Foot("", text("mail.daily.stop", code), stop),
         ],
         address=address,
         headers=listed(stop, list_id("subscriptions", "daily.subscriptions", address)),
@@ -710,24 +827,90 @@ def build_ready(
     asked: bool,
     listen: bool,
     watch: bool = False,
+    title_language: str = "",
+    parts: int = 0,
+    seconds: float = 0.0,
 ) -> Letter:
     """A build finished while its reader was away. `asked` is whether they put the strip
     away and were promised this; otherwise the build simply took long enough. A film is
-    watched before it is listened to, so `watch` wins over `listen`."""
+    watched before it is listened to, so `watch` wins over `listen`.
+
+    Drawn as board MailsDesk draws it (design.md §12, "Every mail is the board's",
+    2026-10-09): the text's tile, what it is ready for, its title in its own face, a quiet
+    line saying what it is, and Open. No vocabulary strip: the words are met in the text.
+    """
     code = _code(language)
     verb = "watch" if watch else "listen" if listen else "read"
+    facts = [text("mail.ready.uploaded", code), text(f"mail.ready.kind.{verb}", code)]
+    if parts > 1:
+        facts.append(
+            counted(
+                "mail.ready.parts", parts, code, {"one": "{n} part", "other": "{n} parts"}
+            ).format(n=parts)
+        )
+    if seconds >= 60:
+        facts.append(text("mail.ready.minutes", code, n=str(round(seconds / 60))))
     return compose(
         code,
         text(f"mail.ready.subject.{verb}", code, title=isolate(title)),
         text("mail.ready.preheader", code),
         [
+            Tile(title, title_language, video=watch),
             Label(text(f"mail.ready.label.{verb}", code)),
-            Title(title),
+            Title(title, title_language),
+            Meta(" · ".join(facts)),
             Para(text("mail.ready.lead", code)),
-            # Its verb, chosen as the subject's is (§6; copy audit, 2026-09-28): "Open"
-            # under "Ready to watch" named no action.
-            Button(text(f"mail.ready.button.{verb}", code), link),
+            Button(text("mail.ready.open", code), link),
         ],
         [Foot(text("mail.ready.asked" if asked else "mail.ready.why", code))],
+        address=address,
+    )
+
+
+def _long_day(when: date, language: str) -> str:
+    """A date in a sentence: "October 15, 2026", «15 октября 2026»."""
+    if language == "en":
+        return when.strftime("%B %-d, %Y")
+    return said_day(when, language, year=True)
+
+
+def account_deleted(
+    address: str,
+    asked: date,
+    language: str = "en",
+    *,
+    grace_days: int,
+    backups_kept: int,
+) -> Letter:
+    """The last mail an account gets: it is gone (design.md §12, "Every mail is the
+    board's", 2026-10-09).
+
+    Sent when the grace period ends and the rows go, to the address that is about to stop
+    meaning anything to targum. When they asked, when it went, what went, that nothing of
+    it remains here, and the day the last nightly backup that held it rolls off. No list
+    headers: it is not a list, and there will be no second one to stop.
+    """
+    code = _code(language)
+    gone = asked + timedelta(days=grace_days)
+    rolled = gone + timedelta(days=backups_kept)
+    said_asked, said_gone, said_rolled = (
+        _long_day(asked, code),
+        _long_day(gone, code),
+        _long_day(rolled, code),
+    )
+    return compose(
+        code,
+        text("mail.deleted.subject", code),
+        text("mail.deleted.preheader", code, gone=said_gone),
+        [
+            Heading(text("mail.deleted.heading", code)),
+            Para(text("mail.deleted.when", code, asked=said_asked, gone=said_gone)),
+            Para(text("mail.deleted.what", code)),
+            Para(text("mail.deleted.nothing", code, days=str(backups_kept), rolled=said_rolled)),
+            Para(text("mail.deleted.no-copy", code)),
+            Rule(),
+            Para(text("mail.deleted.last", code), muted=True),
+        ],
+        [Foot(text("mail.deleted.why", code))],
         address=address,
     )

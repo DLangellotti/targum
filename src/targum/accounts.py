@@ -264,10 +264,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    (`INSERT OR IGNORE`, so running it again on every open changes nothing). `follow` is
 #    no longer written.
 #
+# 43→44: person.said — the language the page was in when somebody asked to be forgotten,
+#    so the mail that says their account is gone is written in it (design.md §12, "Every
+#    mail is the board's", 2026-10-09). A column on a table every box has, so it is in
+#    MIGRATIONS; empty, which is English, for every account before it.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 43
+SCHEMA_VERSION = 44
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -457,6 +462,8 @@ CREATE TABLE IF NOT EXISTS chosen (
 
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
+    # The language a deletion was asked for in (schema 44): the last mail's.
+    "ALTER TABLE person ADD COLUMN said TEXT NOT NULL DEFAULT ''",
     # Which surface a mistake came from: '' is targum's own chat and is every row
     # written before 2026-09-22; 'connector' is a line checked through Claude or ChatGPT
     # (targum-internal#80). Not a quality mark — one judge writes both.
@@ -629,6 +636,9 @@ CREATE TABLE IF NOT EXISTS person (
   -- until then they are signed out and the account is unusable, so the only thing the
   -- delay buys is the chance to undo a mistake.
   leaving  INTEGER,
+  -- The language the page was in when they asked, so the mail that says it is done is
+  -- in it (design.md §12, "Every mail is the board's", 2026-10-09). Empty for English.
+  said     TEXT    NOT NULL DEFAULT '',
   -- When they accepted the contribution grant (targum-internal#164, door 3), or 0.
   -- CONTRIBUTING.md holds the sentence; this holds that they read it.
   granted  INTEGER NOT NULL DEFAULT 0
@@ -3475,15 +3485,20 @@ class Store:
         with self.write() as db:
             db.execute("DELETE FROM session WHERE hash = ?", (digest(session),))
 
-    def forget(self, person: Person) -> None:
+    def forget(self, person: Person, language: str = "") -> None:
         """Start forgetting someone. The other half of being allowed to keep it.
 
         Nothing is deleted yet. They are signed out of everywhere, the account stops
         working, and the data goes at the end of the grace period. Deleting an account
         is one click on a bad day, and the only thing that makes that safe is time.
+        `language` is the page's, kept so the mail that says it is done is in it.
         """
+        said = _language_code(language) if language else ""
         with self.write() as db:
-            db.execute("UPDATE person SET leaving = ? WHERE id = ?", (now(), person.id))
+            db.execute(
+                "UPDATE person SET leaving = ?, said = ? WHERE id = ?",
+                (now(), said, person.id),
+            )
             db.execute("DELETE FROM session WHERE person = ?", (person.id,))
             db.execute("DELETE FROM link WHERE person = ?", (person.id,))
             # And every Telegram chat, for the same reason: a bound chat is a way to
@@ -3523,6 +3538,16 @@ class Store:
         """Change their mind, while there is still something to change it about."""
         with self.write() as db:
             db.execute("UPDATE person SET leaving = NULL WHERE id = ?", (person.id,))
+
+    def leaving_due(self, days: int = GRACE_DAYS) -> list[dict[str, Any]]:
+        """Whoever `purge` is about to delete: their id, address, when they asked and in
+        which language — what the last mail needs, read while it still exists."""
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        rows = self.db.execute(
+            "SELECT id, email, leaving, said FROM person WHERE leaving IS NOT NULL AND leaving < ?",
+            (cutoff,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def purge(self, days: int = GRACE_DAYS) -> list[int]:
         """Delete everyone whose grace period is up, and say whose files still stand.

@@ -366,6 +366,51 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Every mail is the board's, and the last one says the account is gone — 2026-10-09
+
+P18 of the polish plan. Boards MailsDesk, MailsPhone, MailsRu, SubMailDesk and
+SubMailPhone, with David's calls of 2026-10-09. "Mail is drawn, and fetches nothing"
+(2026-09-27) still holds whole; this is what changed inside it.
+
+- **The app's palette, the mark's too.** The mark's columns are ink `#1c1a17` and gold
+  `#b8935e`, the app's own, where they were the paper values (`#201e1b`, `#a5824f`). A
+  heading is the reading serif at 500, 26px (20px on a phone), as the boards draw every
+  mail's; it was the sans at 700. The card's corner is 14px.
+- **A picture is a tile drawn in CSS.** "Your text is ready" and each thing in the daily
+  mail carry their text's first letter, paper on ink, in a cell with a background colour,
+  and a play badge on a video's. Nothing is loaded, so a client that blocks images loses
+  nothing. A Hebrew title is in the Hebrew face at 500, right to left.
+- **"Your text is ready" is a tile, the title and Open**, with one quiet line under the
+  title (uploaded by you, what it is, its parts, its length) and "It's at the top of Your
+  targums now, under Continue". Open is the one press whatever the medium, as the board
+  draws it: the label over the title already says Ready to watch, listen or read, which is
+  what the verb on the button was for (copy audit, 2026-09-28). **No vocabulary strip**:
+  the mail says the text is there, and its words are met in it.
+- **The digest's masthead is מבט השבוע** with the week's date in Hebrew, as the reader's
+  own title is. The subject keeps the public name, Weekly News Digest.
+- **The daily mail keeps what it says** ("Everything new comes in one mail a day") and is
+  drawn as SubMail draws one thing: each item a row with its tile, its title in its own
+  face and a line under it. The foot is one line, why and then Unsubscribe from all of
+  these · Your subscriptions. The one-click header and the List-Id are unchanged.
+- **The account-deleted mail.** Sent once, when the grace period is over and the rows are
+  gone (`Library.purge_departed`), to the address that is about to mean nothing to targum.
+  It says when they asked, when it went (`GRACE_DAYS`, seven days later), what went, that
+  nothing of it remains, and the day the last nightly backup that held it rolls off
+  (`backup.KEEP`, fourteen nights). It says we kept no copy and cannot restore one, and
+  that it is the last mail to the address. Transactional, so no list headers. It is in the
+  language the page was in when they pressed Delete (`person.said`, schema 44), English
+  where that is not known. **There is no export mail**: an export is a download, and it is
+  instant.
+- **Drawn on the boards, not built:** the series' own mail (The weekly portion: Noach) and
+  SubMail's mail a video and its capped twin. Everything new comes in the one daily mail,
+  and an item waiting on its cap is a row in it.
+- **A render harness.** `targum mails --out DIR` writes every mail in every language the
+  catalogue has, as HTML and as text, from sample data (`mail_samples.py`), and sends
+  nothing. It is how a mail is put next to its board.
+
+What it does not overturn: nothing fetched, light only, a plain-text half beside every
+HTML one, and every list mail's one-click unsubscribe and List-Id.
+
 ### Free and Plan, behind a switch — 2026-10-09
 
 P15 of the polish plan (David, 2026-10-08 and 2026-10-09; boards PlanPricing,
@@ -451,6 +496,7 @@ places:
 A reader on Plan who runs out is offered Top up instead (PlanTopUp): 60, 180 or 300
 credits, greyed, with Prices beside it. Nothing changes with the switch off: the refusal
 is the `top-up` one it was, and there is no word cap to meet.
+
 ### The connector's pages are the boards' — 2026-10-09
 
 P14 of the polish plan, after "The boards are the desk" and "The desk's controls are one
@@ -3553,6 +3599,8 @@ chose HTML for all seven.
   paper values (`#201e1b`, `#a5824f`). The wordmark beside them is live text in the
   reading face at 600, lowercase. Gmail and Outlook strip inline SVG. A CID-attached
   image would fetch nothing, but many clients show it as an attachment, so it is left out.
+  *(The columns are the app's ink and gold since 2026-10-09 — see "Every mail is the
+  board's".)*
 - **It fetches nothing.** There are no images, no remote stylesheets or fonts, no
   tracking pixel and no redirecting links. That is the readers' rule (§13, "What stays
   the reader's") applied to mail. The provider's open and click tracking stays off,
