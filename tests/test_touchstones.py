@@ -65,9 +65,11 @@ def test_aramaic_and_an_empty_library_have_no_ladder() -> None:
     assert touchstones.ladder(shelf(), "yi") == []
 
 
-def test_italian_stories_are_its_picture_books() -> None:
+def test_italian_stories_are_its_childrens_books() -> None:
+    """StoryWeaver's children's books, said in everyday words: "what is a picture book?"
+    (David, 2026-10-09). The rung still opens the story shelf."""
     rungs = touchstones.ladder([Entry("i1", "it", "story", 13)], "it")
-    assert [(rung.kind, rung.name) for rung in rungs] == [("story", "picture-book")]
+    assert [(rung.kind, rung.name) for rung in rungs] == [("story", "children-book")]
 
 
 @pytest.mark.parametrize(

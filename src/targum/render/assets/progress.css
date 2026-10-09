@@ -61,6 +61,9 @@
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
 .panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
+/* The board's room inside each part of the story: 28 by 32 at the desk's rem, 18 on a
+   phone (below). */
+.progress .panel.story { padding: 1.6rem 1.85rem; }
 
 /* --- time and words (targum-internal#339) ------------------------------------------
    The ledger's own treatment on paper: the figure in the reading face with tabular
@@ -197,11 +200,16 @@
   text-decoration: none;
 }
 .progress a.next-link:hover .next-term { text-decoration: underline; }
-.progress .next-term { font-size: 1.0625rem; }
+/* The title or the word in the reading face, the board's way of saying "this is the
+   text itself" against the chrome's sans around it. */
+.progress .next-term { flex: 0 1 auto; min-inline-size: 0; font-family: var(--reading); font-size: 1.0625rem; }
 .progress .next-term:lang(he),
 .progress .next-term:lang(yi),
 .progress .next-term:lang(arc) { font-family: var(--reading-hebrew); font-size: 1.25rem; }
 .progress .next-aside {
+  /* The English gives way before the title wraps. */
+  flex: 0 1000 auto;
+  min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -216,6 +224,14 @@
   .progress .ledger { padding: 1.1rem 1rem; }
   .progress .ledger .counts { gap: 1rem 0.75rem; }
   .progress .story-head { font-size: 1.25rem; }
+  .progress .panel.story { padding: 1.125rem; }
   .progress .touch a { min-block-size: 2.75rem; padding: 0 0.85rem; }
+  /* On a phone the rungs wrap, and a chevron left at the start of a line points at
+     nothing: the board's phone drops them and spaces the rungs instead. */
+  .progress .touchstones { gap: 0.5rem; }
+  .progress .touch-gap { display: none; }
+  /* A text's title and how much of it you know; the English beside it is what the
+     desk has room for (board ProgressPhone). */
+  .progress #level-rows .next-aside { display: none; }
   .progress .next-halves { grid-template-columns: minmax(0, 1fr); }
 }

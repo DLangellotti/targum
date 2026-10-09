@@ -48,8 +48,7 @@
         fall, said as a count in ten and never a percentage (§6, §12 2026-09-27). Read from
         the account, so absent signed out. Drawn by `progress.js`. -#}
     <div class="reading" id="reading" hidden>
-      <h3 class="story-sub">{{ t("progress.reading.title", "What you knew of what you read") }}</h3>
-      <p class="note">{{ t("progress.reading.note", "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}</p>
+      <h3 class="story-sub" title="{{ t("progress.reading.note", "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}">{{ t("progress.reading.title", "How much of what you read you knew, month by month") }}</h3>
       <div id="reading-line"></div>
       <div class="reading-words" id="reading-said"></div>
     </div>
@@ -68,7 +67,6 @@
     </div>
     <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "Time and words aren't shown because recording is stopped. You can start it again on your account page.") }}</p>
     <h3 class="story-sub">{{ t("progress.weeks.title", "The words you took up, week by week") }}</h3>
-    <p class="note">{{ t("progress.weeks.note", "Each week's words, coloured by where they are now.") }}</p>
     <div id="weeks"></div>
   </section>
 
