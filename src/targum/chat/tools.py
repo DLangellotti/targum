@@ -1739,7 +1739,9 @@ def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     Named `my_hours` because hosts already connected call it by that name; what it says
     is credits (design.md §12, 2026-09-23), and its title says so too.
     """
-    allowed = ctx.library.upload_seconds
+    from .. import plans
+
+    allowed = ctx.library.allowance(paid_plan=plans.paid(ctx.person))
     used = (
         ctx.store.hours_used(ctx.person_id, ctx.library._month_from())
         if ctx.store is not None

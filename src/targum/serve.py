@@ -19,6 +19,7 @@ import functools
 import gzip
 import json
 import logging
+import math
 import os
 import queue
 import re
@@ -39,13 +40,14 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
-from . import mcp_http, oauth
+from . import mcp_http, oauth, plans
 from . import telegram as telegram_module
 from .accounts import (
     CHAT_RESTARTED,
     MOST_IN_PLAYLIST,
     MOST_PLAYLISTS,
     MOST_PROMPTS,
+    SUB_BUILDS,
     Person,
     Store,
     digest,
@@ -1962,6 +1964,64 @@ class Library:
             if self.store.committed(day, job.owner) >= self.account_budget:
                 return self._out_of("account", job.ui)
         return ""
+
+    def allowance(self, *, paid_plan: bool = False) -> float | None:
+        """The month's allowance for a reader, in seconds: the library's whole one, or
+        Free's hour where plans are on and the reader is not on Plan (`plans`). None
+        where nobody here is held to a month."""
+        return plans.month_seconds(self.upload_seconds, paid_plan=paid_plan)
+
+    @staticmethod
+    def _held_to_free(job: Job) -> bool:
+        """Whether this job's owner is held to Free: plans on, and not the operator."""
+        return plans.on() and not job.admin and not job.gift
+
+    def _plan_refusal(self, job: Job, ui: str = "", need: float | None = None) -> Refusal:
+        """A free reader out of credits, offered the plan rather than Top up (design.md
+        §12, "A free reader meets the plan where they reach for it", 2026-10-09). Says
+        what the press needs against what is left, where any is left, and what a plan
+        gives — in credits; the price is on `/plans` and nowhere else."""
+        ui = ui or job.ui
+        allowed = self.allowance() or 0.0
+        used = (
+            self.store.hours_used(job.owner, self._month_from())
+            if self.store is not None and job.owner is not None
+            else allowed
+        )
+        left = max(0, int((allowed - used) // SECONDS_A_CREDIT))
+        needed = max(1, math.ceil((job.seconds if need is None else need) / SECONDS_A_CREDIT))
+        hours = f"{plans.PLAN_CREDITS / 60:g}"
+        if left > 0:
+            said = said_in(
+                ui,
+                "job.plan.needs",
+                "It needs {need} credits and you have {left} left this month. A plan gives "
+                "you {plan} a month, which is {hours} hours of audio or video.",
+                need=needed,
+                left=left,
+                plan=plans.PLAN_CREDITS,
+                hours=hours,
+            )
+        else:
+            said = said_in(
+                ui,
+                "job.plan.used",
+                "You've used this month's {credits} credits. A plan gives you {plan} credits "
+                "a month, which is {hours} hours of audio or video.",
+                credits=f"{allowed / SECONDS_A_CREDIT:g}",
+                plan=plans.PLAN_CREDITS,
+                hours=hours,
+            )
+        return Refusal(
+            said,
+            said_in(
+                ui,
+                "job.plan.fact",
+                "Uploading text uses none, and your credits come back on {date}.",
+                date=self._month_ends(ui),
+            ),
+            "plan",
+        )
 
     def _out_of(self, whose: str, ui: str = "en") -> str:
         """Which ceiling stopped this, and when it lifts, in the language `ui` names.
@@ -3885,10 +3945,12 @@ class Library:
                 # costs no clock time, so it is not charged against them. Nor is a
                 # gift: targum pays for it, and their eight hours are theirs (#399).
                 length=job.seconds if job.audio and not job.gift else 0.0,
-                per_month_length=None if admin else self.upload_seconds,
+                per_month_length=None if admin else self.allowance(),
             )
             if not refused:
                 return ""
+            if refused == "hours" and self._held_to_free(job):
+                return self._plan_refusal(job)
             return self._out_of(refused, job.ui)
         with self.lock:
             blocked = self.why_blocked(job.estimate, job.ui)
@@ -3923,8 +3985,11 @@ class Library:
                 owner=owner,
                 per_account=None if admin else self.account_budget,
                 month_from=self._month_from(),
-                per_month_length=None if admin else self.upload_seconds,
+                per_month_length=None if admin else self.allowance(),
             )
+            if refused == "hours" and not admin and plans.on():
+                need = sum(job.seconds for job in jobs)
+                return self._plan_refusal(jobs[0], ui=ui, need=need), room, refused
             return (self._out_of(refused, ui) if refused else ""), room, refused
         total = sum(job.estimate for job in jobs)
         with self.lock:
@@ -4042,10 +4107,15 @@ class Library:
             # the same way.
             month_from=self._month_from(),
             length=0.0 if job.gift else job.seconds,
-            per_month_length=None if admin else self.upload_seconds,
+            # Chatting stays included on Free (design.md §12, "Free and Plan, behind a
+            # switch"): held by the daily rail above, not by the month's 60. Its seconds
+            # still land in the one ledger. A voice is audio, and is held like any.
+            per_month_length=None if admin or (kind == "chat" and plans.on()) else self.allowance(),
         )
         if not refused:
             return ""
+        if refused == "hours" and self._held_to_free(job):
+            return self._plan_refusal(job)
         if refused == "hours":
             return self._out_of("talk-hours", job.ui)
         return self._out_of("chat" if refused == "account" else refused, job.ui)
@@ -7543,6 +7613,8 @@ class Handler(BaseHTTPRequestHandler):
         # (design.md §12, "A monthly cap is the second press that lasts", 2026-10-09).
         if route == "/subscribe" and not self._needs_account(route):
             return self._subscribe_page()
+        if route == "/plans":
+            return self._plans_page()
         if route.startswith("/set/") and not self._needs_account(route):
             return self._set_page(route[len("/set/") :])
         # There is no server-initiated stream here — every call is answered out of a
@@ -9216,7 +9288,8 @@ class Handler(BaseHTTPRequestHandler):
         place for the two answers that carry it: the conversation list, and who is
         signed in — which every page asks, so Your Progress and the account panel can
         say the count without a request of their own (targum-internal#237)."""
-        allowed = self.library.upload_seconds
+        person = self.store.person_by_id(person_id) if self.store and person_id else None
+        allowed = self.library.allowance(paid_plan=plans.paid(person))
         # `self.store` rather than the chat's: the same store, and this answer is owed
         # whether or not a conversation is configured at all.
         used = self.store.hours_used(person_id, self.library._month_from()) if self.store else 0.0
@@ -9273,6 +9346,12 @@ class Handler(BaseHTTPRequestHandler):
             # And what they wrote for those connectors to offer (note 17). Listed here so
             # the page that writes them is the page that shows them.
             "prompts": self.store.prompts(person.id),
+            # Which plan this is, where plans are on (design.md §12, "Free and Plan, behind
+            # a switch", 2026-10-09): `{"on": false}` and nothing else while they are off,
+            # so every page draws exactly what it drew before the switch existed.
+            "plan": plans.summary(
+                person, listed=self.store.listed_words(person.id) if plans.on() else 0
+            ),
         }
         # The chats bound to Telegram (targum-internal#328), only where there is a bot:
         # the page draws the row from this key being here, so a dark deployment shows
@@ -9378,7 +9457,7 @@ class Handler(BaseHTTPRequestHandler):
     def _sub_credits(self, person: Person) -> dict[str, Any]:
         """The month's credits beside a subscription: what is left of the plan's, and
         when they come back. None where the reader is held to no monthly allowance."""
-        allowed = self.library.upload_seconds
+        allowed = self.library.allowance(paid_plan=plans.paid(person))
         if allowed is None or person.admin:
             return {
                 "credits": {"left": None, "back": self.library._month_ends(self._ui_language())}
@@ -9419,6 +9498,23 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(
                 {"error": self._say("serve.subscription-what", "We couldn't tell what to change.")},
                 400,
+            )
+        if (
+            action == "resume"
+            and found["kind"] in SUB_BUILDS
+            and not plans.builds_by_itself(person)
+        ):
+            # A channel or a podcast paused when the plan ended starts again with a plan
+            # (design.md §12, "Free and Plan, behind a switch", 2026-10-09).
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.subscribe-plan",
+                        "Channels and podcasts come with a plan. Series and news are free.",
+                    ),
+                    "plan": True,
+                },
+                403,
             )
         self.store.set_subscription_state(person.id, sub_id, states[action])
         if found["kind"] == "series" and found["key"] == "weekly":
@@ -9461,7 +9557,6 @@ class Handler(BaseHTTPRequestHandler):
         """The confirm page: what it is, what a new one uses, the cap for a channel or a
         podcast, and one press. A model or a page elsewhere hands over the link; the press
         is the reader's, here (design.md §12, 2026-10-09)."""
-        from . import plans
         from .render.builder import subscribe_page
 
         person = self._person()
@@ -9488,10 +9583,24 @@ class Handler(BaseHTTPRequestHandler):
         )
         self._send(200, page.encode("utf-8"), HTML)
 
+    def _plans_page(self) -> None:
+        """`/plans` (design.md §12, "The plans page is the one place money shows",
+        2026-10-09): signed in only, and nothing at all while plans are off."""
+        from .render.builder import plans_page
+
+        if not plans.on():
+            return self._not_found()
+        person = self._person()
+        if person is None:
+            return self._go("/account/signin")
+        page = plans_page(
+            plans.summary(person), language=self._page_language(), token=self._key_if_given()
+        )
+        self._send(200, page.encode("utf-8"), HTML)
+
     def _subscribe_post(self, form: dict[str, str]) -> None:
         """The press: read the source again, check the plan, write the subscription with
         the cap the reader chose, and open its page."""
-        from . import plans
         from . import subscriptions as subs
         from .accounts import CAPS, DEFAULT_CAP
 
@@ -11350,7 +11459,7 @@ class Handler(BaseHTTPRequestHandler):
         # Asked before the push, when a section with no row is one being finished now.
         fresh = self.store.unmeasured(person, changes.get("sections", []))
         if changes:
-            self.store.push(person, changes)
+            self.store.push(person, changes, word_cap=plans.word_cap(person))
         # After it, so a word marked known on the last page of the section counts.
         if fresh:
             self._measure_finished(person, fresh, changes["sections"])

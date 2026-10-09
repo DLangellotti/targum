@@ -1,0 +1,152 @@
+/* The plans page (design.md §12, "The plans page is the one place money shows",
+   2026-10-09; boards PlanPricing and PlanPricingPhone): the lede under the title, Free
+   and Plan side by side with Plan drawn in the primary's outline, the line about
+   dollars, then How far the credits go beside the questions. One column on a phone,
+   Plan first. */
+
+body.plans .page-head,
+body.plans main.plans-main { max-inline-size: calc(65rem + 2.5rem); }
+.plans-lede {
+  margin: -0.25rem 0 0.75rem;
+  max-inline-size: 44rem;
+  color: var(--ink);
+  font-size: 1.25rem;
+  line-height: 1.55;
+}
+
+.plans-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
+}
+.plan-card { position: relative; padding: 2rem 2.125rem; }
+.plan-paid { box-shadow: inset 0 0 0 2px var(--teal), var(--shadow-rest); }
+.plan-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.plan-name {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+.plan-yours {
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.plan-paid .plan-yours { margin-inline-end: auto; }
+.plan-price { margin: 1.25rem 0 0; display: flex; align-items: baseline; gap: 0.5rem; }
+.plan-figure { font-family: var(--reading); font-size: 2.75rem; line-height: 1; color: var(--ink); }
+.plan-per { color: var(--ink-soft); font-size: 0.9375rem; }
+.plan-or { margin: 0.5rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.plan-says { margin: 1.25rem 0 0; font-size: 1.0625rem; color: var(--ink); }
+.plan-lines { margin: 1.25rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.875rem; }
+.plan-lines li {
+  position: relative;
+  padding-inline-start: 1.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.plan-lines b { font-weight: 600; }
+.plan-lines li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0.125rem;
+  inset-block-start: 0.4rem;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  background: currentColor;
+}
+/* §7's strokes, as masks so they take the colour: a tick for Free, a plus for Plan. */
+.plan-lines.is-checks li::before {
+  color: var(--leaf);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6.5l3 3 6-7' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M1.5 6.5l3 3 6-7' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.plan-lines.is-pluses li::before {
+  color: var(--teal);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1v10M1 6h10' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 1v10M1 6h10' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* Monthly or every three months: two radios, the price following them with no script. */
+.plan-every { position: absolute; opacity: 0; pointer-events: none; }
+.plan-seg { margin-inline-start: auto; }
+.plan-seg label { cursor: pointer; }
+.plan-paid:has(#every-month:checked) .plan-seg-month,
+.plan-paid:has(#every-quarter:checked) .plan-seg-quarter { background: var(--teal); color: var(--teal-ink); font-weight: 600; }
+.plan-paid:has(#every-month:focus-visible) .plan-seg-month,
+.plan-paid:has(#every-quarter:focus-visible) .plan-seg-quarter { outline: 2px solid var(--focus); outline-offset: -2px; }
+.plan-price-quarter { display: none; }
+.plan-paid:has(#every-quarter:checked) .plan-price-quarter { display: block; }
+.plan-paid:has(#every-quarter:checked) .plan-price-month { display: none; }
+
+.plan-pay {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-block-start: 1.5rem;
+  padding-block-start: 1.25rem;
+  border-block-start: 1px solid var(--rule);
+}
+.plan-cancel-any { margin-inline-start: auto; color: var(--ink-soft); font-size: 0.875rem; }
+
+.plans-small { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
+
+.plans-more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
+  margin-block-start: 1.25rem;
+}
+.plans-far { padding: 2rem 2.125rem; }
+.plans-far-rate { margin: 0.25rem 0 1rem; color: var(--ink-soft); font-size: 0.875rem; }
+.plans-far-rows { margin: 0; }
+.plans-far-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.875rem;
+  border-block-start: 1px solid var(--rule);
+  font-size: 0.9375rem;
+}
+.plans-far-rows dt { color: var(--ink); }
+.plans-far-rows dd { margin: 0; font-weight: 600; white-space: nowrap; }
+.plans-far-rows dd.is-none { font-weight: 400; color: var(--ink-soft); }
+.plans-faq { padding: 1rem 0.25rem 0; }
+.plans-faq .section-title { padding-block-end: 0.75rem; border-block-end: 1px solid var(--rule); }
+.plans-faq h3 { margin: 1.25rem 0 0.5rem; font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
+.plans-faq p {
+  margin: 0;
+  padding-block-end: 1.25rem;
+  border-block-end: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.plans-faq p:last-child { border-block-end: 0; }
+
+@media (max-width: 52rem) {
+  .plans-pair,
+  .plans-more { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+  .plan-paid { order: -1; }
+  .plan-card,
+  .plans-far { padding: 1.5rem 1.25rem; }
+  .plan-seg { margin-inline-start: 0; }
+  .plan-pay .btn { flex: 1 0 100%; }
+  .plan-cancel-any { margin-inline-start: auto; }
+  .plans-lede { font-size: 1.0625rem; }
+}

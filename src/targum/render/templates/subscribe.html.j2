@@ -61,7 +61,26 @@
     </div>
     {%- if refused %}<p class="said" role="alert">{{ refused }}</p>{% endif %}
 
-    {%- if already %}
+    {%- if offer.builds and not allowed and not already %}
+    {#- A free reader, with plans on: the plan, in place of the press (design.md §12, "A
+        free reader meets the plan where they reach for it", 2026-10-09; board
+        PlanUpgradeMoment, 1). The cap and the facts are the plan's to offer, so they wait
+        for it; Subscribe stays, greyed. -#}
+    {%- if offer.kind == 'channel' %}
+    {%- set upgrade_said = t("subscribe.page.plan-channel", "Subscribing to a YouTube channel comes with a plan. Each new video from {name} would get ready by itself, up to a cap you set of {cap} credits a month.", name=name, cap=chosen) %}
+    {%- else %}
+    {%- set upgrade_said = t("subscribe.page.plan-podcast", "Subscribing to a podcast comes with a plan. Each new episode of {name} would get ready by itself, up to a cap you set of {cap} credits a month.", name=name, cap=chosen) %}
+    {%- endif %}
+    {%- if credits.left is defined and credits.left is not none and credits.left > 0 %}
+    {%- set upgrade_fact = tn("subscribe.page.plan-left", credits.left, "You can still open any of its videos one at a time, with the {n} credit you have left this month.", "You can still open any of its videos one at a time, with the {n} credits you have left this month.") %}
+    {%- elif credits.back is defined and credits.back %}
+    {%- set upgrade_fact = t("subscribe.page.plan-left-none", "You can still open any of its videos one at a time once your credits come back on {date}.", date=credits.back) %}
+    {%- else %}
+    {%- set upgrade_fact = "" %}
+    {%- endif %}
+    {% include '_upgrade.html.j2' %}
+    <button class="btn filled sub-confirm-go" type="button" disabled>{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
+    {%- elif already %}
     <p class="said">{{ t("subscribe.page.already", "You're subscribed to this already.") }}</p>
     <form method="get" action="/subscriptions/{{ already.id }}">
       <button class="btn filled sub-confirm-go" type="submit">{{ t("subscribe.page.manage", "Manage") }}</button>
@@ -123,7 +142,6 @@
         </div>
       </dl>
       {%- if offer.builds and not allowed %}
-      <p class="said">{{ t("subscribe.page.plan", "Channels and podcasts come with a plan. Series and news are free.") }}</p>
       <button class="btn filled sub-confirm-go" type="submit" disabled>{{ t("subscribe.page.subscribe", "Subscribe") }}</button>
       {%- else %}
       <button class="btn filled sub-confirm-go" type="submit">{{ t("subscribe.page.subscribe", "Subscribe") }}</button>

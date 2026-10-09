@@ -132,7 +132,7 @@
     address.className = "whom-email";
     address.textContent = who.email;
     whom.appendChild(address);
-    drawHours(who.hours);
+    drawHours(who.hours, who.plan);
   }
 
   // The month's credits, in the panel and — where the page has the line — on the
@@ -164,7 +164,7 @@
   function credits(hours) {
     return Math.round((Number(hours) || 0) * 60);
   }
-  function drawHours(got) {
+  function drawHours(got, plan) {
     var has = got && got.allowed !== null && got.allowed !== undefined;
     var spare = has ? Math.max(0, (Number(got.allowed) || 0) - (Number(got.used) || 0)) : 0;
     /* The menu says it shorter (design.md §12, "The account menu is who, what is left,
@@ -211,7 +211,9 @@
         (got.ends ? " · " + t("account.plan.back", "back on {date}", { date: got.ends }) : "");
     }
     var planCard = document.getElementById("plan");
-    if (planCard) planCard.hidden = !has;
+    // With plans on the account draws its own plan instead (`you.js`, design.md §12,
+    // "Free and Plan, behind a switch", 2026-10-09); off, this card is the plan.
+    if (planCard) planCard.hidden = !has || !!(plan && plan.on);
     if (creditsPanel) creditsPanel.hidden = !has;
   }
 

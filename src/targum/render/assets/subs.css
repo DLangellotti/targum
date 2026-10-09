@@ -160,7 +160,8 @@ a.sub-latest-title:hover { color: var(--teal); text-decoration: underline; }
 /* Pause, Resume, Unsubscribe, Subscribe and a row's own press are the desk's `.btn`
    (chrome.css): Pause and Resume outlined, Unsubscribe a ghost in clay, Subscribe
    tonal, a row's press its words in the primary. */
-button:disabled { opacity: 0.6; cursor: default; }
+button:disabled:not(.fault-go) { opacity: 0.6; cursor: default; }
+.sub-confirm .fault-upgrade { margin-block: 1.25rem; }
 
 .sub-offer-head {
   margin: 1.5rem 0 0.5rem;

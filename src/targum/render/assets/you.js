@@ -853,6 +853,59 @@
     };
   }
 
+  /* --- the plan, with plans on ------------------------------------------------- */
+
+  /* Board PlanAccount (design.md §12, "Free and Plan, behind a switch", 2026-10-09).
+     Nothing at all while plans are off: the early-access card `account.js` fills is the
+     plan then, as it was before the switch existed. */
+  function drawPlan(who) {
+    var plan = who.plan || {};
+    var card = document.getElementById("plan-on");
+    if (!card || !plan.on) return;
+    var free = plan.plan !== "plan";
+    var back = (who.hours && who.hours.ends) || "";
+    var hours = Math.round((plan.planCredits || 0) / 60);
+    document.getElementById("plan-free").hidden = !free;
+    document.getElementById("plan-paid").hidden = free;
+    if (free) {
+      document.getElementById("plan-free-says").textContent = t(
+        "you.plan.free-says",
+        "The library, word cards and your text uploads, with {n} credits a month",
+        { n: plan.credits }
+      );
+      document.getElementById("plan-offer").textContent = t(
+        "you.plan.offer",
+        "A plan gives you {n} credits a month, which is {hours} hours of audio or video, and lets you subscribe to YouTube channels and podcasts.",
+        { n: plan.planCredits, hours: hours }
+      );
+      if (plan.words) {
+        document.getElementById("plan-words").textContent = t(
+          "you.plan.words",
+          "{n} of {cap} words being learned. Known words don't count.",
+          { n: plan.listed || 0, cap: plan.words }
+        );
+        document.getElementById("plan-words-row").hidden = false;
+      }
+    } else {
+      document.getElementById("plan-paid-says").textContent = t(
+        "you.plan.paid-says",
+        "{n} credits a month, which is {hours} hours of audio or video",
+        { n: plan.credits, hours: hours }
+      );
+      document.getElementById("plan-back").textContent = back
+        ? t("you.plan.back", "Your credits come back on {date}", { date: back })
+        : "";
+      var ups = document.getElementById("plan-top-ups");
+      ups.textContent = "";
+      (plan.topUps || []).forEach(function (n) {
+        var one = document.createElement("span");
+        one.textContent = t("you.plan.top-up-credits", "{n} credits", { n: n });
+        ups.appendChild(one);
+      });
+    }
+    card.hidden = false;
+  }
+
   /* --- putting it together ---------------------------------------------------- */
 
   ask("/account/me")
@@ -868,6 +921,7 @@
       drawTelegram(who);
       drawPrompts(who);
       drawGrant(who);
+      drawPlan(who);
       wireLanguages();
       wireAddress();
       ending();

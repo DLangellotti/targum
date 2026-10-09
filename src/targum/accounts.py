@@ -1529,6 +1529,10 @@ class Kind:
     fields: tuple[str, ...]
 
 
+#: The word stages that put a word on the list: being learned. Known (9) and ignored (0)
+#: are not on it (`plans.LISTED` says the same for the pages).
+LISTED = (1, 2, 3)
+
 KINDS: dict[str, Kind] = {
     "words": Kind(
         table="word",
@@ -3613,12 +3617,24 @@ class Store:
             return None
         return (int(row["made"]), int(row["revision"]), int(row["ledger"]))
 
-    def push(self, person: Person, changes: dict[str, list[dict[str, Any]]]) -> int:
+    def push(
+        self,
+        person: Person,
+        changes: dict[str, list[dict[str, Any]]],
+        *,
+        word_cap: int | None = None,
+    ) -> int:
         """Take a browser's changes, keeping whichever version of each record is newer.
 
         Everything lands in one transaction and under one revision number, so a client
         pulling at the same moment sees either all of a push or none of it. Half a
         push is how a phrase arrives without the document it belongs to.
+
+        `word_cap` is a free word list's (design.md §12, "Free and Plan, behind a switch",
+        2026-10-09): a word that would go on the list — into stages 1 to 3 from anywhere
+        else — once it already holds that many is not taken. A word already on it moves
+        between stages freely, and known or ignored are never held. None, as it is with
+        plans off, takes everything as it always did.
         """
         with self.write() as db:
             stamp = self._next_revision(db, person)
@@ -3627,8 +3643,44 @@ class Store:
                 if kind is None:
                     continue
                 for item in items:
+                    if (
+                        word_cap is not None
+                        and name == "words"
+                        and self._over_cap(db, person, item, word_cap)
+                    ):
+                        continue
                     self._merge(db, person, kind, item, stamp)
             return stamp
+
+    @staticmethod
+    def _over_cap(db: sqlite3.Connection, person: Person, item: dict[str, Any], cap: int) -> bool:
+        """Whether this word would go on a list already holding `cap` words."""
+        try:
+            status = int(item.get("status"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return False
+        if item.get("gone") or status not in LISTED:
+            return False
+        was = db.execute(
+            "SELECT status, gone FROM word WHERE person = ? AND language = ? AND lemma = ?",
+            (person.id, str(item.get("language") or ""), str(item.get("lemma") or "")),
+        ).fetchone()
+        if was is not None and not was["gone"] and was["status"] in LISTED:
+            return False
+        held = db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status IN (1, 2, 3)",
+            (person.id,),
+        ).fetchone()
+        return int(held["n"]) >= cap
+
+    def listed_words(self, person_id: int) -> int:
+        """How many words this reader is learning (stages 1 to 3), across every language:
+        what a free word list's cap counts."""
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status IN (1, 2, 3)",
+            (person_id,),
+        ).fetchone()
+        return int(row["n"])
 
     def _merge(
         self,

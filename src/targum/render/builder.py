@@ -445,6 +445,12 @@ SOCIAL: tuple[tuple[str, str], ...] = (
 )
 
 
+def _plans_are_on() -> bool:
+    from .. import plans
+
+    return plans.on()
+
+
 def _environment() -> Environment:
     env = Environment(
         loader=FileSystemLoader(TEMPLATES),
@@ -470,6 +476,9 @@ def _environment() -> Environment:
     # The foot offers the waitlist only while it takes an address, read at call time
     # for the reason `connector_is_open` is (design.md §12, 2026-09-28).
     env.globals["front_door_is_open"] = _front_door_is_open
+    # The foot inside the app links the plans page only while plans are on (design.md
+    # §12, "The plans page is the one place money shows", 2026-10-09).
+    env.globals["plans_are_on"] = _plans_are_on
     # The English, for any template that says a catalogued sentence and is not told
     # another language; a reader's render passes its own (`page_words`).
     env.globals["t"] = page_words("en")
@@ -3937,6 +3946,37 @@ def subscribe_page(
             languages=dict(_language_names(language)),
             # The app's bar since 2026-10-09 (design.md §12, "The boards are the desk").
             names=_language_names(language),
+            strings=script_strings(language),
+            token=token,
+        )
+    )
+
+
+def plans_page(plan: dict[str, Any], *, language: str = "en", token: str = "") -> str:
+    """The plans page (design.md §12, "The plans page is the one place money shows",
+    2026-10-09; boards PlanPricing and PlanPricingPhone): Free and Plan side by side, what
+    the credits buy, and the questions. `plan` is `plans.summary` for the reader looking,
+    which says whose plan is whose. The figures come from `plans`, the one place they
+    are kept."""
+    from .. import plans
+
+    return (
+        _environment()
+        .get_template("plans.html.j2")
+        .render(
+            t=page_words(language),
+            tn=page_counts(language),
+            page_language=_page_language(language),
+            plan=plan,
+            free_credits=plans.FREE_CREDITS,
+            free_words=plans.FREE_WORDS,
+            plan_credits=plans.PLAN_CREDITS,
+            plan_hours=f"{plans.PLAN_CREDITS / 60:g}",
+            price_month=plans.PRICE_MONTH,
+            price_quarter=plans.PRICE_QUARTER,
+            quarter_each=f"{plans.PRICE_QUARTER / 3:g}",
+            top_up_hour=plans.TOP_UP_HOUR,
+            languages=_language_names(language),
             strings=script_strings(language),
             token=token,
         )

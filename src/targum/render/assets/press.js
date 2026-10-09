@@ -229,6 +229,12 @@
           return answer.json();
         })
         .then(function (state) {
+          // The plan, for a free reader out of credits: the page draws it, so it is
+          // drawn again (design.md §12, "A free reader meets the plan", 2026-10-09).
+          if (state.blocked && state.act === "plan" && !state.error) {
+            window.location.reload();
+            return;
+          }
           if (state.error || state.blocked) return stop(state.error || state.blocked);
           if (state.reader) return open(state.reader);
           say(left, howLong(state));

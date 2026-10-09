@@ -366,6 +366,92 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Free and Plan, behind a switch — 2026-10-09
+
+P15 of the polish plan (David, 2026-10-08 and 2026-10-09; boards PlanPricing,
+PlanPricingPhone, PlanUpgradeMoment, PlanTopUp and PlanAccount). **Everything here sits
+behind `TARGUM_PLANS`, which is off.** With it off nothing changes for anybody: every
+account keeps 480 credits a month and a word list of any length, and Your account keeps
+its one early-access plan. What the switch turns on:
+
+- **Two plans: Free and Plan.** The paid one is called just "Plan". Free gets **60
+  credits a month** (an hour); Plan gets **480** (eight hours), at $16 a month or $39 every
+  three months. Reading, the library, word cards and text uploads are unmetered on both.
+  Until there is a payment provider nobody is on Plan, so on means the operator alone
+  (`Person.admin`), which is how a box can be tried with plans on before anybody can buy
+  one (`plans.paid`).
+- **The free word list holds 300 words.** A word counts while it is being learned (stages
+  1 to 3, across every language). A word marked known or ignored does not, so reading
+  goes on marking as it always did. A reader already past 300 when the switch goes on keeps
+  every word; only a new one is refused. It is refused at the card, where the press is,
+  as a panel in place, and again by the server when the word arrives by sync, so a second
+  device cannot go round it.
+- **Monthly credits start fresh on the 1st, and topped-up credits stay until they are
+  used.** The first is what the ledger already did (`SUM(length)` since the 1st). The
+  second waits for a provider: nothing can buy a credit yet, so nothing stores one.
+- **No top-up on Free.** A free reader out of credits is offered the plan; a reader on
+  Plan is offered Top up. Both are greyed.
+- **Chatting stays included on Free**, held by the daily rail and not by the month's 60.
+  A turn's seconds still go into the one ledger, as they always have ("A cost is
+  credits"), so a great deal of talking uses some of the month; a message is about five
+  seconds, and 60 credits is some seven hundred of them. A voice made for a text is not a
+  turn and comes out of the 60 like any other audio.
+- **When a plan ends, its channel and podcast subscriptions pause.** The next round of the
+  poller finds the owner may no longer subscribe to something that builds by itself and
+  pauses the subscription, rather than leaving its items to wait. Resume is refused on
+  Free with the same panel; the series and the news stay on, because they are free.
+  Nothing cancels a plan yet, because nothing starts one; the operator's switch going on
+  for a free reader is the case that exists, and it is the same case.
+
+What it does not overturn: a build is still quoted and pressed, `Library.claim` is still
+the one gate and the job rows the one ledger, and a cost is still credits.
+
+
+### The plans page is the one place money shows — 2026-10-09
+
+"A cost is credits" (2026-09-23) says there is no money anywhere inside the product. It
+keeps holding everywhere but one page: **`/plans`**, which says what Free and Plan are and
+what Plan costs, in US dollars, because a price nobody may read is not a price.
+
+- **Signed in only, and only while plans are on.** It is linked from three places and no
+  others: the Plan card on Your account, the panels a free reader meets when they reach
+  for the plan, and the foot inside the app. The front door stays a waitlist, with no
+  figures (2026-09-16), and a stranger asking for `/plans` is sent to sign in.
+- **Every pay button is drawn and greyed**, with "Payments open soon" beside it: Start the
+  plan, Start a plan, Top up, Switch and Cancel plan. There is no payment provider and none
+  is chosen.
+- **A cost is still credits everywhere else.** The panels name the plan by its credits
+  ("A plan gives you 480 credits a month, which is 8 hours of audio or video") and send
+  the reader here for the price; no panel, card or mail carries a figure in money.
+- **What the board drew and is not here:** the tax line (no checkout exists to add it),
+  the example of hearing a chapter read aloud (its figure was a placeholder), "Hear any
+  text read aloud" among Plan's lines (a free reader hears text too, inside their 60),
+  and receipts and a payment method on Your account (there are none). The library's size
+  is said without a count, because a count baked into a page is out of date by the next
+  catalogue change.
+
+
+### A free reader meets the plan where they reach for it — 2026-10-09
+
+The fifth surface's panel in place ("A refusal is drawn on one of five surfaces") gets one
+more way on: **the plan.** Where a free reader reaches for something Plan has, the panel
+says what they reached for and what a plan gives, with Start a plan greyed, "Payments open
+soon", and See plans, and its quiet line says what still works. It is drawn in four
+places:
+
+- **Subscribing to a YouTube channel or a podcast**, on the confirm page: Subscribe stays
+  greyed, and the panel says the cap it would have had and how many credits are left for
+  opening its videos one at a time.
+- **Out of credits on a video's next part**, under the picture, and on any other press
+  the month's credits refuse: the refusal's `act` is `plan` rather than `top-up`.
+- **A recording uploaded that needs more credits than are left**, on Upload's card:
+  "It needs 45 credits and you have 12 left this month", then the plan.
+- **The word list at 300**, on the word's card.
+
+A reader on Plan who runs out is offered Top up instead (PlanTopUp): 60, 180 or 300
+credits, greyed, with Prices beside it. Nothing changes with the switch off: the refusal
+is the `top-up` one it was, and there is no word cap to meet.
+
 ### Your account is the board's sections, and Saved on this device its two columns — 2026-10-09
 
 P12 of the polish plan, after "The boards are the desk" and "The desk's controls are one

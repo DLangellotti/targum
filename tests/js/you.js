@@ -159,6 +159,20 @@ setTimeout(() => {
           text: at("connections-said").textContent,
           hidden: at("connections-said").hidden,
         },
+        /* The plan with plans on (design.md §12, "Free and Plan, behind a switch"): which
+           card is drawn and what it says. Off, none of it is touched. */
+        plan: {
+          on: at("plan-on").hidden,
+          free: at("plan-free").hidden,
+          paid: at("plan-paid").hidden,
+          freeSays: at("plan-free-says").textContent,
+          offer: at("plan-offer").textContent,
+          words: at("plan-words").textContent,
+          wordsHidden: at("plan-words-row").hidden,
+          paidSays: at("plan-paid-says").textContent,
+          back: at("plan-back").textContent,
+          topUps: at("plan-top-ups").children.map((one) => one.textContent),
+        },
         posted,
         restarted,
       })
