@@ -3317,6 +3317,49 @@ def playlists_page(token: str, language: str = "en") -> str:
     )
 
 
+def subscribe_page(
+    offer: dict[str, Any] | None,
+    *,
+    language: str = "en",
+    refused: str = "",
+    credits: dict[str, Any] | None = None,
+    already: dict[str, Any] | None = None,
+    allowed: bool = True,
+    via: str = "",
+    cap: int = 0,
+) -> str:
+    """Where a subscription is confirmed (design.md §12, "A monthly cap is the second press
+    that lasts", 2026-10-09; boards SubConfirm and ConnConfirm). What it is, what a new one
+    uses and — for a channel or a podcast — the month's cap, chosen here and nowhere else,
+    then one press. No script: the cap is a radio and the press a form post, so the page
+    is the same with script off, as the set's is."""
+    from ..accounts import CAPS, DEFAULT_CAP
+
+    each = int((offer or {}).get("creditsEach") or 0)
+    chosen = cap if cap in CAPS else DEFAULT_CAP
+    weekly = float((offer or {}).get("perWeek") or 0)
+    return (
+        _environment()
+        .get_template("subscribe.html.j2")
+        .render(
+            t=page_words(language),
+            tn=page_counts(language),
+            page_language=_page_language(language),
+            offer=offer,
+            refused=refused,
+            credits=credits or {},
+            already=already,
+            allowed=allowed,
+            via=via,
+            caps=[{"cap": one, "about": (one // each) if each else 0} for one in CAPS],
+            chosen=chosen,
+            per_week=round(weekly) if weekly >= 1 else 0,
+            per_month=max(1, round(weekly * 30 / 7)) if 0 < weekly < 1 else 0,
+            languages=dict(_language_names(language)),
+        )
+    )
+
+
 def subscription_page(token: str, language: str = "en") -> str:
     """One subscription's own page (design.md §12, "A subscription is the account's",
     2026-10-09): what it brought, newest first, its cap, Pause and Unsubscribe. Built like

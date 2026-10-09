@@ -331,3 +331,37 @@ def test_one_subscription_lists_what_it_brought_and_pauses(browser) -> None:
     assert ("/subscriptions/2", {"action": "pause"}) in posted
     assert note and note.startswith("Paused.")
     assert not thrown, thrown
+
+
+def test_the_cap_is_changed_on_the_subscriptions_own_page(browser) -> None:
+    """design.md §12, "A monthly cap is the second press that lasts": the four caps the
+    confirm page offers, the one chosen marked, and Save."""
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    posted: list[tuple[str, Any]] = []
+    one = dict(ROWS[1], caps=[30, 60, 120, 240], items=[])
+    answer = {"signedIn": True, "subscription": one, "credits": {"left": 354, "back": "November 1"}}
+    serve(
+        page,
+        {
+            "/subscriptions/2": subscription_page(""),
+            "/subscriptions/2.json": answer,
+            ("POST", "/subscriptions/2"): {**answer, "subscription": dict(one, cap=120)},
+        },
+        posted,
+    )
+    page.goto(f"{SITE}/subscriptions/2")
+    page.wait_for_selector("#sub-cap .cap-choice")
+    chosen = page.eval_on_selector("#sub-cap input:checked", "radio => radio.value")
+    page.click("#sub-cap .cap-choice:has-text('120')")
+    page.click("#sub-cap button[type=submit]")
+    page.wait_for_selector("#sub-said:not([hidden])")
+    said = page.text_content("#sub-said")
+    now = page.eval_on_selector("#sub-cap input:checked", "radio => radio.value")
+    context.close()
+    assert chosen == "60"
+    assert ("/subscriptions/2", {"action": "cap", "cap": 120}) in posted
+    assert said == "Saved. The cap is 120 credits a month." and now == "120"
+    assert not thrown, thrown

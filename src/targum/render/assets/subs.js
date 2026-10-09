@@ -418,7 +418,10 @@
     li.appendChild(what);
 
     var act;
-    if (item.reader) {
+    if (item.state === "waiting" && item.why === "cap") {
+      act = el("a", "sub-act", t("subs.act.raise-cap", "Raise the cap"));
+      act.href = "#sub-cap";
+    } else if (item.reader) {
       act = el("a", "sub-act", verb(one));
       act.href = keyed(door);
     } else if (item.link && item.state !== "building" && item.state !== "due") {
@@ -543,19 +546,66 @@
     var earlier = section(t("subs.before.head", "Out before you subscribed"), t("subs.not-by-itself", "Not got ready unless you choose"), before, one, back);
     if (earlier) body.appendChild(earlier);
 
-    if (one.builds) {
-      var cap = el("section", "sub-cap");
-      cap.id = "sub-cap";
-      cap.appendChild(el("h2", "", t("subs.cap.head", "Monthly cap")));
-      cap.appendChild(el("p", "sub-cap-used", t("subs.cap.used", "{used} of {cap} credits used this month", { used: one.used, cap: one.cap })));
-      body.appendChild(cap);
-    }
+    if (one.builds) body.appendChild(capSection(answer, body, saidLine));
     // For whatever draws more onto the page — the cap's choices (`TargumSubs.onOne`).
     hooks.forEach(function (hook) {
       try {
         hook(answer, body, saidLine);
       } catch (e) {}
     });
+  }
+
+  /* The month's cap, changed here and nowhere else (design.md §12, "A monthly cap is the
+     second press that lasts", 2026-10-09): the four the confirm page offers, the one
+     chosen marked, and Save. */
+  function capSection(answer, body, saidLine) {
+    var one = answer.subscription;
+    var cap = el("section", "sub-cap");
+    cap.id = "sub-cap";
+    cap.appendChild(el("h2", "", t("subs.cap.head", "Monthly cap")));
+    cap.appendChild(el("p", "sub-cap-used", t("subs.cap.used", "{used} of {cap} credits used this month", { used: one.used, cap: one.cap })));
+    var form = el("form", "sub-cap-form");
+    var group = el("div", "cap-choices");
+    group.setAttribute("role", "radiogroup");
+    group.setAttribute("aria-label", t("subs.cap.head", "Monthly cap"));
+    (one.caps || [30, 60, 120, 240]).forEach(function (value) {
+      var label = el("label", "cap-choice");
+      var radio = el("input");
+      radio.type = "radio";
+      radio.name = "cap";
+      radio.value = String(value);
+      radio.checked = Number(value) === Number(one.cap);
+      label.appendChild(radio);
+      label.appendChild(el("span", "cap-number", String(value)));
+      group.appendChild(label);
+    });
+    form.appendChild(group);
+    form.appendChild(el("p", "note", t("subs.cap.says", "New ones get ready by themselves until the cap is reached. Then the next one waits until the 1st, or until you raise the cap.")));
+    if (answer.credits && answer.credits.left !== null && answer.credits.left !== undefined) {
+      form.appendChild(el("p", "note", tn("subs.cap.left", answer.credits.left, "{n} credit left in your plan this month.", "{n} credits left in your plan this month.")));
+    }
+    var save = el("button", "sub-pause", t("subs.cap.save", "Save"));
+    save.type = "submit";
+    form.appendChild(save);
+    form.onsubmit = function (event) {
+      event.preventDefault();
+      var picked = form.querySelector("input[name=cap]:checked");
+      if (!picked) return;
+      save.disabled = true;
+      ask("/subscriptions/" + one.id, { action: "cap", cap: Number(picked.value) }).then(function (got) {
+        if (got.status === 200 && got.subscription) {
+          drawOne(got, body, saidLine);
+          saidLine.textContent = t("subs.cap.saved", "Saved. The cap is {cap} credits a month.", { cap: got.subscription.cap });
+          saidLine.hidden = false;
+          return;
+        }
+        save.disabled = false;
+        saidLine.textContent = got.status === 0 ? UNREACHED : FAILED;
+        saidLine.hidden = false;
+      });
+    };
+    cap.appendChild(form);
+    return cap;
   }
 
   var hooks = [];

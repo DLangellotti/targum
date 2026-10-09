@@ -4941,6 +4941,9 @@ class Handler(BaseHTTPRequestHandler):
             "/jobs",
             "/account/export",
             "/account/follows",
+            # A subscription's confirm page (design.md §12, 2026-10-09): a link a
+            # connector or a series page hands over, met signed out as a page.
+            "/subscribe",
             # The arrival's own page since Learn was taken apart (2026-10-08), and the
             # address Learn never had but somebody may have typed: it opens home.
             "/welcome",
@@ -6840,6 +6843,10 @@ class Handler(BaseHTTPRequestHandler):
         # account like any other page that shows somebody their own build.
         if route.startswith("/build/") and not self._needs_account(route):
             return self._press_page(route[len("/build/") :])
+        # Where a subscription is confirmed, and a channel's or a podcast's cap chosen
+        # (design.md §12, "A monthly cap is the second press that lasts", 2026-10-09).
+        if route == "/subscribe" and not self._needs_account(route):
+            return self._subscribe_page()
         if route.startswith("/set/") and not self._needs_account(route):
             return self._set_page(route[len("/set/") :])
         # There is no server-initiated stream here — every call is answered out of a
@@ -7357,6 +7364,9 @@ class Handler(BaseHTTPRequestHandler):
         # refuse it. Which job it is, is in the path; who may press it, `_own_job`.
         if route.startswith("/build/"):
             return self._press(route[len("/build/") :])
+        # The press on a subscription's confirm page: a plain form, like the build's.
+        if route == "/subscribe":
+            return self._subscribe_post(self._form())
         # The press on a whole set (#365): a form post too, carrying the ticked items.
         if route.startswith("/set/"):
             return self._set_press(route[len("/set/") :])
@@ -8661,6 +8671,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         action = str(payload.get("action") or "")
         states = {"pause": "paused", "resume": "on", "unsubscribe": "off"}
+        if action == "cap":
+            # The reader's own change, on their own page: one of the caps it offers.
+            try:
+                cap = int(payload.get("cap") or 0)
+            except (TypeError, ValueError):
+                cap = 0
+            if not self.store.set_subscription_cap(person.id, sub_id, cap):
+                return self._json(
+                    {"error": self._say("serve.subscription-cap", "Choose one of the caps.")},
+                    400,
+                )
+            return self._subscriptions_get(str(sub_id))
         if action not in states:
             return self._json(
                 {"error": self._say("serve.subscription-what", "We couldn't tell what to change.")},
@@ -8671,6 +8693,96 @@ class Handler(BaseHTTPRequestHandler):
             # The weekly's mail is `subscriber`'s: kept in step, as `/account/follows` keeps it.
             self.store.follow(person.email, states[action] == "on", self._page_language())
         return self._subscriptions_get(str(sub_id))
+
+    #: What a subscription's confirm page is asked with: `kind` and the thing itself —
+    #: `source` (an address) or `key` (a series, a topic, an outlet) — and where it was
+    #: asked for, which the page says ("Asked for in a conversation").
+    SUBSCRIBE_VIA = frozenset({"chat", "connector", "library", "series"})
+
+    def _subscribe_offer(self, asked: Mapping[str, str]) -> tuple[dict[str, Any] | None, str]:
+        """What the confirm page offers, read afresh from the source, or the sentence that
+        says why it cannot be offered."""
+        from . import subscriptions as subs
+
+        kind = str(asked.get("kind") or "")
+        given = str(asked.get("source") or asked.get("key") or "")
+        learning = str(asked.get("language") or "") or self._learning_language()
+        try:
+            offer = subs.describe(kind, given, language=learning, ui=self._ui_language())
+        except TargumError as refusal:
+            return None, told(self._ui_language(), refusal, hosted=self.require_account)
+        except Exception as error:  # noqa: BLE001 - a source that would not answer
+            log.warning("subscribe: describing %s %s failed: %s", kind, given, error)
+            return None, self._say(
+                "serve.subscribe-unreachable",
+                "We couldn't reach it just now. Try again in a moment.",
+            )
+        return offer, ""
+
+    def _learning_language(self) -> str:
+        """The language the reader is learning here, for a topic: its outlets are theirs."""
+        person = self._person()
+        learning = sorted(self.store.learning(person.id)) if person is not None else []
+        return learning[0] if learning else "he"
+
+    def _subscribe_page(self, refused: str = "", asked: Mapping[str, str] | None = None) -> None:
+        """The confirm page: what it is, what a new one uses, the cap for a channel or a
+        podcast, and one press. A model or a page elsewhere hands over the link; the press
+        is the reader's, here (design.md §12, 2026-10-09)."""
+        from . import plans
+        from .render.builder import subscribe_page
+
+        person = self._person()
+        query = asked or {
+            key: values[0] for key, values in parse_qs(urlparse(self.path).query).items()
+        }
+        offer, why = self._subscribe_offer(query)
+        already = None
+        if offer is not None and person is not None:
+            already = self.store.subscription_for(person.id, offer["kind"], offer["key"])
+            if already is not None and already["state"] == "off":
+                already = None
+        via = str(query.get("via") or "")
+        page = subscribe_page(
+            offer,
+            language=self._page_language(),
+            refused=refused or why,
+            credits=self._sub_credits(person)["credits"] if person is not None else {},
+            already=already,
+            allowed=plans.builds_by_itself(person),
+            via=via if via in self.SUBSCRIBE_VIA else "",
+            cap=int(query.get("cap") or 0) if str(query.get("cap") or "").isdigit() else 0,
+        )
+        self._send(200, page.encode("utf-8"), HTML)
+
+    def _subscribe_post(self, form: dict[str, str]) -> None:
+        """The press: read the source again, check the plan, write the subscription with
+        the cap the reader chose, and open its page."""
+        from . import plans
+        from . import subscriptions as subs
+        from .accounts import CAPS, DEFAULT_CAP
+
+        person = self._person()
+        if person is None:
+            return self._not_found()
+        offer, why = self._subscribe_offer(form)
+        if offer is None:
+            return self._subscribe_page(why, form)
+        if offer["builds"] and not plans.builds_by_itself(person):
+            return self._subscribe_page(
+                self._say(
+                    "serve.subscribe-plan",
+                    "Channels and podcasts come with a plan. Series and news are free.",
+                ),
+                form,
+            )
+        raw = str(form.get("cap") or "")
+        cap = int(raw) if raw.isdigit() and int(raw) in CAPS else DEFAULT_CAP
+        row = subs.subscribe(self.store, person.id, offer, cap=cap, said=self._page_language())
+        if row["kind"] == "series" and row["key"] == "weekly":
+            # The weekly's mail is `subscriber`'s, as `/account/follows` keeps it.
+            self.store.follow(person.email, True, self._page_language())
+        return self._go(f"/subscriptions/{int(row['id'])}")
 
     def _subscription_seen(self, payload: dict[str, Any]) -> None:
         """An item opened from home is no longer New."""

@@ -261,6 +261,25 @@ def parse(xml: bytes) -> list[Item]:
     return items
 
 
+def title(xml: bytes) -> str:
+    """What a feed calls itself: RSS's `<channel><title>`, Atom's `<feed><title>`. "" for
+    a feed that says nothing, or for anything that is not one. A podcast subscribed to is
+    named by it (design.md §12, 2026-10-09)."""
+    try:
+        root = ElementTree.fromstring(xml)
+    except ElementTree.ParseError:
+        return ""
+    holder = root
+    for element in root:
+        if _name(element.tag) == "channel":
+            holder = element
+            break
+    for element in holder:
+        if _name(element.tag) == "title":
+            return _plain(_text(element))
+    return ""
+
+
 def pull(url: str, *, limit: int = 30) -> list[Item]:
     """One feed, through the only outbound door there is."""
     from ..ingest.url import fetch
