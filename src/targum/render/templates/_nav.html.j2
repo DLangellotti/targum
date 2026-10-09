@@ -147,7 +147,12 @@
   </nav>
   {%- endif %}
   {%- if title %}
-  <h1 class="page-title">{{ title }}</h1>
+  <h1 class="page-title">{{ title }}{% if title_he %} <bdi class="page-title-he" lang="he" dir="rtl">{{ title_he }}</bdi>{% endif %}</h1>
+  {%- endif %}
+  {#- What stands at the far end of the title's row, where a board puts it: the Tanakh's
+      Map and List of books (board LibraryTanakh). A template's name. -#}
+  {%- if title_aside %}
+  <div class="page-head-aside">{% include title_aside %}</div>
   {%- endif %}
   {%- if here in ('texts', 'library', 'progress') %}
   <p class="beta-note" id="beta-note" hidden></p>

@@ -1143,6 +1143,55 @@ practice card ("One word at a time, in a line you've read"), French's pronunciat
 false friends on rows, Russian's case notes, and Aramaic's Hebrew counterpart.
 
 
+### The Library stands on the ground — 2026-10-09
+
+P5 of the polish plan, after "The boards are the desk" and "The desk's controls are one
+layer" (the same day), on boards Library, LibraryPhone, SeeAllDesk, SeeAllPhone,
+LibraryTanakh and SubFromLibrary. The Library drew everything inside one panel — tabs,
+search, filters, the Tanakh's door and the shelves — and See all was every text on one
+page (31,354px of desk), under a sentence, eighteen subject chips, a fold of filters and a
+Rows/Table switch.
+
+- **The search, the doors and the shelves are on the ground.** The search is its own field
+  under the title; under it "Browse by kind:" and a pill a door — Tanakh (the map), News,
+  Video, Books, Weekly portion, Mishnah — each the address of a place the page already
+  answers (`#see/kind/<kind>`, `#bm/<door>`). **Jewish texts** closes the row: the All
+  texts / Jewish texts tabs are gone, and the door is how the rest of the tree is reached.
+  Books is the novels and the stories together.
+- **A shelf is five cards** on the ground, each on the card's paper with its picture, its
+  kind and length, its title and how much of it the reader knows — always, saying "Not
+  measured yet" where nothing is — under the shelf's serif head and See all. A phone draws
+  two of them side by side.
+- **See all is one card holding a table** (board SeeAllDesk): the way back, the list's
+  name in the serif with its count ("All Hebrew texts 720", or "A stretch" with its range),
+  the search and three menus — Kind, Level, Language — then heads that sort it (Text,
+  Length, % known), a row a text, and at the foot "50 of 720 · % known, high to low" and
+  Show more. **Fifty rows a page.** A row is the picture, the Hebrew title with its English
+  beside it, its kind and whose it is, the catalogue's sentence, its length **in words**
+  (a recording in minutes), and how much is known over a bar. Before any word is marked,
+  "% known" sorts by the texts' own words and the foot says "easiest first".
+- **The menus are the desk's own**, a pill and a short list, never a native `select`.
+- **What the boards do not draw is gone**: the subjects, which Hebrew, the media, the
+  length and the level-by-rare-words filters, the Rows/Table switch, the explainer line,
+  the Newest sort, and the Level and Kind columns. A view that kept one of those filters
+  lets it go rather than narrowing the list with nothing on the page saying so.
+- **Subscribe is on a Library row** where the catalogue can name what it would be: a
+  weekly portion is the weekly portion, and a collection whose file names a YouTube
+  channel (`"channel"`) is that channel, through `TargumSubscribe.button`. Once a list:
+  on a collection's row and not its members', and in the portions' trail rather than on
+  fifty-four rows. Only for an account (`/readers` says `signedIn`).
+- **The Tanakh map's head is the board's**: תנ״ך beside the title, Map and List of books
+  at the end of its row, this week's portion and its chapters at the end of the year's
+  strip, and the sentence the shading adds up to under the legend rather than over the map.
+
+This amends "The Library is shelved by how much you'd follow" (See all kept "every filter,
+sort and shape it had"; it keeps kind, level and language) and "See all says what each
+text is" (the two shapes are one table now).
+
+What it does not overturn: nothing on a shelf or a row spends; the band is still the
+reader's own known share; a text that is not built is still a press that asks first; and
+the search is the one search, as "One search, everywhere" has it.
+
 ### See all says what each text is — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards SeeAllDesk and SeeAllPhone): "Library See all =
@@ -1159,6 +1208,7 @@ between two Hebrew titles they cannot yet read was choosing blind.
   between rows and §8's row wash under the pointer, inside the panel, rather than raised
   cards on it.
 - **The two shapes are called what they are**: Rows and Table (they were Cards and List).
+  *(One table since "The Library stands on the ground", the same day.)*
   The table is unchanged and still sorts by its headings; the stored choice keeps its
   old values.
 - A collection is a row with its caret in the picture's column; the Beit Midrash's doors
@@ -1217,7 +1267,8 @@ is browsed, not looked up" (2026-09-17).
   built on the shared shelf, each the first four of them as one picture. Pressing one is
   Open on Your targums' Playlists tab: a copy of the set in the reader's playlists, and its
   first text. Nothing is built and nothing spends.
-- **See all is the one list, under that band**, with every filter, sort and shape it had,
+- **See all is the one list, under that band**, with every filter, sort and shape it had
+  *(kind, level and language since "The Library stands on the ground", the same day)*,
   and "← Library" back to the shelves. A band there is exactly itself: "a step up" no
   longer includes what can be read now, which has its own shelf. A search typed over the
   shelves opens the whole list, unbanded *(until 2026-10-09: it opens the one search now)*. `#see` and `#see/<band>` are addresses; a text's

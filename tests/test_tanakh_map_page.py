@@ -117,7 +117,7 @@ def test_it_stands_in_the_library_and_fetches_nothing_but_its_own_answer() -> No
     the trail says Library › The Tanakh, and the other way in is the list of books."""
     page = tanakh_map_page("k")
     assert re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', page) == ["library"]
-    assert '<h1 class="page-title">The Tanakh</h1>' in page
+    assert '<h1 class="page-title">The Tanakh <bdi class="page-title-he"' in page
     trail = page[page.index('class="site-crumbs"') :]
     trail = trail[: trail.index("</nav>")]
     assert 'href="/library"' in trail and '<span aria-current="page">The Tanakh</span>' in trail
@@ -137,7 +137,7 @@ def test_the_corner_knows_a_reader_is_signed_in() -> None:
 
 def test_it_speaks_russian() -> None:
     page = tanakh_map_page("k", language="ru")
-    assert '<h1 class="page-title">Танах</h1>' in page and "Писания" in page
+    assert '<h1 class="page-title">Танах <bdi' in page and "Писания" in page
     assert '"tanakh.card.share"' in page, "the card's words ride to the script"
 
 

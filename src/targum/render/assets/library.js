@@ -90,38 +90,6 @@
     ["liturgy", t("library.kind-one.liturgy", "Prayer")],
   ];
 
-  /* What a text is *about*, called what a person calls it when they say what they feel
-     like reading. The catalogue's `Tag` vocabulary runs well past what is filed — the
-     arrival draws its doors before the texts are tagged into them, on purpose — so this
-     names every value and the page draws only the ones with rows behind them
-     (design.md §12, 2026-09-17). An entry missing here is a subject nobody has named yet
-     and is simply not offered.
-
-     "Hebrew itself" rather than "Language": on a page about learning Hebrew, a chip
-     saying "Language" reads as the language switcher. "News" matches what the kinds
-     already call an article. */
-  var SUBJECTS = [
-    ["tanakh", t("library.subject.tanakh", "Tanakh")],
-    ["judaica", t("library.subject.judaica", "Judaica")],
-    ["stories", t("library.subject.stories", "Stories")],
-    ["journalism", t("library.subject.journalism", "News")],
-    ["sport", t("library.subject.sport", "Sport")],
-    ["science", t("library.subject.science", "Science")],
-    ["history", t("library.subject.history", "History")],
-    ["philosophy", t("library.subject.philosophy", "Philosophy")],
-    ["technology", t("library.subject.technology", "Technology")],
-    ["language", t("library.subject.language", "Hebrew itself")],
-    ["art", t("library.subject.art", "Art")],
-    ["business", t("library.subject.business", "Business")],
-    ["health", t("library.subject.health", "Health")],
-    ["archaeology", t("library.subject.archaeology", "Archaeology")],
-    ["food", t("library.subject.food", "Food")],
-    ["travel", t("library.subject.travel", "Travel")],
-    ["music", t("library.subject.music", "Music")],
-    ["politics", t("library.subject.politics", "Politics")],
-    ["israel", t("library.subject.israel", "Life in Israel")],
-  ];
-
   /* How much of a text this reader already knows, in three bands. The measure is the
      share of *this text's* words they have marked as known — a fact about the pair of
      them — and not `difficulty`, which is a fact about the text alone. A reader asking
@@ -157,117 +125,12 @@
     return null;
   }
 
-  /* Which Hebrew a text is in, oldest first. Chronological rather than alphabetical, and
-     never sorted: the five of them are a ramp a learner climbs, and putting Modern above
-     Rabbinic because M precedes R would throw that away. */
-  var REGISTERS = [
-    ["biblical", t("library.register.biblical", "Biblical")],
-    ["rabbinic", t("library.register.rabbinic", "Rabbinic")],
-    ["medieval", t("library.register.medieval", "Medieval")],
-    ["revival", t("library.register.revival", "Revival")],
-    ["modern", t("library.register.modern", "Modern")],
-  ];
-
-  /* Where each of them sits in that ramp, for sorting the column. Sorting on the label
-     would run Biblical, Medieval, Modern, Rabbinic, Revival — five words in an order
-     that means nothing about Hebrew. */
-  var REGISTER_ORDER = {};
-  REGISTERS.forEach(function (pair, index) {
-    REGISTER_ORDER[pair[0]] = index;
-  });
-
-  //: Only one direction is worth offering. "Without audio" is not a thing anybody looks
-  //: for — the question is always whether there is something to listen to. The same
-  //: holds for video: a lecture with its slides and a podcast were one row saying
-  //: "audio", and the reader who imported the lecture could not find it again.
-  var SPOKEN = [
-    ["", t("library.filter.any", "Any")],
-    ["yes", t("library.spoken.audio", "With audio")],
-    ["video", t("library.spoken.video", "With video")],
-  ];
-
-  var LENGTHS = [
-    ["", t("library.filter.any", "Any")],
-    ["short", t("library.length.short", "Under 20 min")],
-    ["hour", t("library.length.hour", "20 min – 2 hr")],
-    ["long", t("library.length.long", "Over 2 hr")],
-  ];
-
-  // The share of running words a reader would have to look up, in three steps. The
-  // numbers behind them are measured off each text: see scripts/measure_difficulty.py.
-  // Said in words as well as tiers, because the cutoffs were never stated anywhere:
-  // "Beginners cannot understand library listings", said the first alpha reader.
-  var LEVELS = [
-    ["", t("library.filter.any", "Any")],
-    ["easy", t("library.level.easy", "Easier — up to 1 word in 5 hard")],
-    ["mid", t("library.level.mid", "Middling — about 1 in 4")],
-    ["hard", t("library.level.hard", "Harder — more than 1 in 4")],
-  ];
-
-  // The same number as a sentence: 17% is "about 1 word in 6 is hard". "Hard" because
-  // it is the reader's own word — the band the count starts at is the one every tapped
-  // word calls "hard", and the highlight menu offers "hard and up". Not "new to you":
-  // the share is a fact about the text — how much of its vocabulary is rare — and a
-  // reader who knows no words looks up all twenty-two of a text that says 0%.
-  function inWords(share) {
-    if (!share) return "";
-    return t("library.hard-share", "about 1 word in {n} is hard", { n: Math.max(2, Math.round(100 / share)) });
-  }
-
-  /* One line under the controls that says what the active one means — for the reader
-     who cannot yet read a title on the page, the most important sentence on it. Stated,
-     never justified. At most two clauses; the first is the one that changes what the
-     list is. "—" is explained only while one is on screen. */
-  var NOTES = {
-    base: t("library.note.base", "Tap a text to open it."),
-    kind: {
-      dialogue: t("library.note.dialogue", "Dialogues — short conversations with audio. Start with the first."),
-      prose: t("library.note.prose", "Tanakh — the Bible's story books."),
-      talk: t("library.note.talk", "Videos — talks and explainers, with the picture beside the words."),
-      article: t("library.note.article", "News — the Israeli press, in the week it was written."),
-      play: t("library.note.play", "Plays — a speaker, then a line."),
-      liturgy: t("library.note.liturgy", "Prayer — the siddur and the service, the same words every day."),
-    },
-    register: {
-      biblical: t("library.note.biblical", "Biblical — the Hebrew of the Bible."),
-      rabbinic: t("library.note.rabbinic", "Rabbinic — the Hebrew of the Mishnah, the codes and the prayer book."),
-      medieval: t("library.note.medieval", "Medieval — philosophy, in the Hebrew built to carry Arabic argument."),
-      revival: t("library.note.revival", "Revival — literary Hebrew from 1850 to 1930, before the language settled."),
-      modern: t("library.note.modern", "Modern — Hebrew as it is written today."),
-    },
-    spoken: t("library.note.spoken", "With audio — a recording, line by line."),
-    video: t("library.note.video", "With video — a recording that kept its pictures."),
-    sort: {
-      difficulty: t("library.note.difficulty", "Level — the share of a text's words that are rare in everyday use."),
-      known: t("library.note.known", "Words you know — the share of a text's words you have marked as known."),
-    },
-    unmeasured: t("library.note.unmeasured", "— means we haven't measured it yet."),
-  };
-
   /* Whether the shelf on show is Hebrew's (2026-09-14). "Which Hebrew" — the register, its
      chips, its column and its note — is a question about Hebrew texts, and under another
      language it is not asked: a register picked while reading Hebrew went on filtering a
      Russian shelf down to nothing, under a note about the Hebrew of the Bible. The choice
      is kept for when the reader comes back to Hebrew. */
   var inHebrew = true;
-
-  function noteFor(showing) {
-    var clauses = [];
-    if (view.kind && NOTES.kind[view.kind]) clauses.push(NOTES.kind[view.kind]);
-    if (inHebrew && view.register && NOTES.register[view.register]) {
-      clauses.push(NOTES.register[view.register]);
-    }
-    if (view.spoken === "yes") clauses.push(NOTES.spoken);
-    if (view.spoken === "video") clauses.push(NOTES.video);
-    if (NOTES.sort[view.sort]) clauses.push(NOTES.sort[view.sort]);
-    if (!clauses.length) clauses.push(NOTES.base);
-    clauses = clauses.slice(0, 2);
-    var dashed = showing.some(function (row) {
-      return !measured(row);
-    });
-    if (dashed) clauses[Math.min(1, clauses.length)] = NOTES.unmeasured;
-    return clauses.join(" · ");
-  }
 
   /* The line under the controls. It led the page once, on a first visit that opened on
      the Scenes; the Library opens on its shelves since 2026-10-09, and the next scene is
@@ -277,18 +140,6 @@
     note.hidden = false;
     note.textContent = text;
   }
-
-  /* The page is the catalogue, which is everybody's (design.md §12, "Yours and
-     everyone's", 2026-09-25). It had a second tab, Your uploads, for the texts that are
-     yours alone, and Your targums listed the same texts again in another shape, so a
-     reader had two places for one thing and no way to tell which was meant. Yours are
-     on Your targums now, builds included. A text you built from here is still marked
-     here, and opens your copy.
-     So there is one tab, drawn only when the Beit Midrash stands beside it: a single tab
-     over a list is a heading that looks pressable. */
-  // "All texts", not "Library": under a page headed Library a first tab of the same name
-  // said nothing (2026-09-14). Sentence case, like every other label on the page.
-  var WHERE = [["library", t("library.where.library", "All texts")]];
 
   /* --- the Beit Midrash (targum-internal#340, 2026-09-19) ---------------------------
    *
@@ -334,11 +185,6 @@
     for (var n = 0; n < DOORS.length; n++) if (DOORS[n][0] === id) return DOORS[n];
     return null;
   }
-
-  // Where the gauge starts and stops. Nothing in Hebrew comes in under a tenth or over
-  // two fifths, so a bar drawn from zero would be four identical bars.
-  var FLOOR = 12;
-  var CEILING = 40;
 
   function ask(path, body) {
     return fetch(keyed(path), {
@@ -400,11 +246,6 @@
     var share = row.difficulty || 0;
     if (share <= 20) return "easy";
     return share <= 28 ? "mid" : "hard";
-  }
-
-  function lengthOf(minutes) {
-    if (minutes < 20) return "short";
-    return minutes <= 120 ? "hour" : "long";
   }
 
   /* Whether a row is within reach, and how far. Two answers to one question, because the
@@ -478,25 +319,32 @@
     return since >= -1 && since <= LATELY_DAYS;
   }
 
-  /* Whether a row is filed under one subject. A list, not a value: a match report is
-     journalism and sport at once and belongs under both. */
-  function holdsSubject(row, tag) {
-    return subjectsOf(row).indexOf(tag) >= 0;
+  /* The day a row arrived, from whichever side knows. A catalogue row carries the
+     catalogue's date; a text of the reader's own carries the day they built it, which is
+     when it arrived for them and is the more honest answer for a text only they have. */
+  function dateOf(row) {
+    if (row.entry && row.entry.added) return row.entry.added;
+    if (row.built && row.built.built) return dayOf(row.built.built);
+    return "";
   }
 
-  /* The kinds that are stories, for the one subject the catalogue files by form rather
-     than by topic. The arrival's "Stories and novels" door already answers from these
-     kinds (`learn.js` INTERESTS); this page offered no such chip, and the revival-era
-     fiction, most of what carries no tag, could not be browsed to (targum-internal#311,
-     2026-09-27). Read from the kind rather than tagged by hand: `Kind` already says it,
-     and a tag would be a second copy of it to keep in step. */
-  var STORY_KINDS = ["story", "novel", "play"];
-
-  /* A row's subjects: its tags, and "stories" where its kind is one. */
-  function subjectsOf(row) {
-    var all = (row.tags || []).slice();
-    if (STORY_KINDS.indexOf(row.kind) >= 0 && all.indexOf("stories") < 0) all.push("stories");
-    return all;
+  /* A day from the seconds a built reader records, in the reader's own timezone, which
+     is the one they would name the day by. */
+  function dayOf(seconds) {
+    try {
+      var when = new Date(seconds * 1000);
+      var month = String(when.getMonth() + 1);
+      var day = String(when.getDate());
+      return (
+        when.getFullYear() +
+        "-" +
+        (month.length < 2 ? "0" + month : month) +
+        "-" +
+        (day.length < 2 ? "0" + day : day)
+      );
+    } catch (e) {
+      return "";
+    }
   }
 
   /* A band is exactly itself (2026-10-09). It used to be that "a step up" meant now *and*
@@ -524,6 +372,19 @@
   // What a row's "you know" is, whichever side it came from. A built copy's own
   // measurement wins: that is the text this reader actually has, annotation and all.
   function knownOf(row) {
+    // A collection knows what its texts know, the middle of them: a mean is dragged by
+    // the one hard thing in it.
+    if (row.rows) {
+      var shares = row.rows
+        .map(knownOf)
+        .filter(function (share) {
+          return typeof share === "number";
+        })
+        .sort(function (a, b) {
+          return a - b;
+        });
+      return shares.length ? shares[Math.floor(shares.length / 2)] : null;
+    }
     if (row.built && typeof row.built.known === "number") return row.built.known;
     var measured = row.entry && catalogueKnown[row.entry.id];
     return measured && typeof measured.known === "number" ? measured.known : null;
@@ -775,48 +636,6 @@
 
   /* --- drawing one ----------------------------------------------------------- */
 
-  function gauge(row) {
-    var box = el("span", "gauge");
-    if (!measured(row)) {
-      box.appendChild(el("span", "col count", "—"));
-      return box;
-    }
-    var share = row.difficulty || 0;
-    var track = el("span", "track");
-    var fill = el("span", "fill");
-    var reach = Math.max(6, Math.min(100, ((share - FLOOR) / (CEILING - FLOOR)) * 100));
-    fill.style.inlineSize = reach + "%";
-    track.appendChild(fill);
-    box.appendChild(track);
-    box.appendChild(el("span", "col count", share + "%"));
-    var said = inWords(share);
-    if (said) box.title = said;
-    box.setAttribute(
-      "aria-label",
-      t("library.level-share", "Level: {share}% rare words", { share: share }) + (said ? ": " + said : "")
-    );
-    return box;
-  }
-
-  /* How much of this text the reader already knows, as a share of its dictionary forms.
-     A column rather than only a line in the title cell, because the front door sells the
-     shelf as sorted by it and a sort wants a heading to press.
-
-     An em dash where nothing is measured. Never 0%: "not measured" and "you know none of
-     this" are different claims, and the second one is the one this number must never make
-     about a book nobody has counted. */
-  function yours(row) {
-    var share = knownOf(row);
-    if (typeof share !== "number") return el("span", "col count", "—");
-    var shown = Math.round(share * 100);
-    var box = el("span", "col count", shown + "%");
-    box.setAttribute(
-      "aria-label",
-      t("library.you-know", "you know {share}% of its words", { share: shown })
-    );
-    return box;
-  }
-
   function named(list, value) {
     for (var i = 0; i < list.length; i++) if (list[i][0] === value) return list[i][1];
     return "";
@@ -824,7 +643,7 @@
 
   // A title's trailing English part, where a Hebrew title has one: the weekly's level.
   function splitLevel(text) {
-    var found = /^(.*[\u0590-\u05FF].*?) · ([A-Za-z][^\u0590-\u05FF]*)$/.exec(String(text || ""));
+    var found = /^(.*[֐-׿].*?) · ([A-Za-z][^֐-׿]*)$/.exec(String(text || ""));
     return found ? { title: found[1], level: found[2] } : { title: text, level: "" };
   }
 
@@ -836,194 +655,6 @@
     if (row.opens) return row.opens;
     if (row.built) return "/reader/" + encodeURIComponent(row.built.name) + "/reader/index.html";
     return "";
-  }
-
-  /* One text as a card: the shape the page is browsed in (design.md §12, 2026-09-17).
-   *
-   * The same facts the row carries, laid out to be scanned rather than compared — the
-   * cover first, because a picture is what a browsing eye lands on, then the title in its
-   * own face, then one line of facts, then how much of it the reader knows. What the card
-   * adds over the row is the media mark, which sits on the cover: "without playing with
-   * checkboxes or dropdowns I want to see immediately what media is available" is
-   * answered by the layout and not by a control.
-   *
-   * A built text is a link and an unbuilt one is a button, exactly as in the table: what
-   * pressing an unbuilt row does is start spending, and a card must not quietly become a
-   * cheaper way to do that.
-   */
-  function card(row) {
-    var item = el("li", "card-item");
-    item.setAttribute("data-row", row.id);
-
-    var reading = readerFor(row);
-    var open = el(reading ? "a" : "button", "card");
-    if (reading) {
-      open.href = keyed(reading);
-    } else {
-      open.type = "button";
-      open.setAttribute("data-build", row.id);
-    }
-
-    var cover = el("span", "card-cover");
-    cover.setAttribute("aria-hidden", "true");
-    cover.appendChild(pictureOf(row, "thumb"));
-    // One mark, never two: a video can be listened to as well, and a card saying both
-    // says less than one saying "video" does. The word is on the label rather than on
-    // the page, so the mark stays a mark.
-    if (row.video || row.spoken) {
-      var mark = el("span", "card-media");
-      mark.appendChild(glyph(row.video ? "video" : "audio"));
-      mark.setAttribute(
-        "aria-label",
-        row.video ? t("library.video", "Video") : t("library.audio", "Audio")
-      );
-      cover.appendChild(mark);
-    }
-    open.appendChild(cover);
-
-    var what = el("span", "card-what");
-    // No scene number: "Scene 218" is the catalogue's place for it, not the reader's
-    // (design.md §12, "A text is named in everyday words", 2026-10-09). A numbered
-    // dialogue is never new, so it carries no kicker at all.
-    var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
-    if (!number && isNew(row)) {
-      // "I want to see what was recently added right away" — answered by the card
-      // rather than by a sort, so it is true of the page whatever order it is in.
-      // In the scene's place, because a numbered scene is never new.
-      var fresh = el("span", "card-scene card-new", t("library.new", "New"));
-      fresh.setAttribute("lang", saidIn);
-      what.appendChild(fresh);
-    }
-    // Its own direction and its own clip, so a long Hebrew title loses its end and never
-    // its start — the edge Hebrew begins at.
-    /* The title and its English on one line where there is room (board SeeAllDesk): a
-       row of See all is scanned down, and two lines for what one can say is a list half
-       as long on a screen. */
-    var split = splitLevel(row.title);
-    var head = el("span", "card-head");
-    var title = el("bdi", "card-title", split.title);
-    title.setAttribute("lang", row.language);
-    title.setAttribute("dir", "auto");
-    head.appendChild(title);
-    what.appendChild(head);
-    // Where the beginner's path is, as the row carries it: "Start here" before anything
-    // has been read, "Next" after. A card that dropped this would take the one line on
-    // the page that says where to begin.
-    if (nextRow && row.id === nextRow.entry) {
-      var next = el(
-        "span",
-        "row-next",
-        anyFinished ? t("library.next", "Next") : t("library.start-here", "Start here")
-      );
-      next.setAttribute("role", "status");
-      next.setAttribute("lang", saidIn);
-      what.appendChild(next);
-    }
-    if (row.english) {
-      var english = el("span", "card-english", row.english);
-      english.setAttribute("lang", row.englishLang || "en");
-      english.setAttribute("dir", "ltr");
-      head.appendChild(english);
-    }
-
-    var meta = [named(KIND_ONE, row.kind), said(row.minutes)];
-    what.appendChild(el("span", "card-meta", meta.filter(Boolean).join(" · ")));
-    /* What the text is, in the catalogue's own sentence, in the reader's language where
-       the catalogue has one (design.md §12, "See all says what each text is",
-       2026-10-09). Two lines at most: enough to choose by, and the list stays a list. */
-    var blurb = blurbIn(row.entry);
-    if (blurb) {
-      var about = el("span", "card-blurb", blurb);
-      about.setAttribute("lang", row.entry.blurbs && row.entry.blurbs[uiLanguage] ? uiLanguage : "en");
-      what.appendChild(about);
-    }
-
-    // The last line is the reader's own: how much of this text they already know. A text
-    // nobody has counted says so in words rather than claiming a nought.
-    var share = knownOf(row);
-    var mine = el("span", "card-known");
-    if (typeof share === "number") {
-      // Rounded down, as the shelves are: a row under A stretch never says 90%.
-      var shown = Math.floor(share * 100);
-      if (fitOf(row) === "now") mine.className = "card-known near";
-      mine.appendChild(el("span", "card-known-say", t("library.known-share", "{share}% known", { share: shown })));
-      mine.setAttribute("aria-label", t("library.you-know", "you know {share}% of its words", { share: shown }));
-      var track = el("span", "card-known-track");
-      var fill = el("span");
-      fill.style.inlineSize = Math.max(2, Math.min(100, shown)) + "%";
-      track.appendChild(fill);
-      mine.appendChild(track);
-    } else {
-      mine.appendChild(el("span", "card-known-say", t("library.known.none", "New to you")));
-    }
-    what.appendChild(mine);
-    // The cell a build narrates itself in, as the table's row has. Inside the pressed
-    // element and not beside it: `build()` finds it with `open.querySelector`, so a
-    // state cell hung on the list item is a state cell it throws on.
-    what.appendChild(el("span", "row-state"));
-
-    open.appendChild(what);
-    item.appendChild(open);
-    return item;
-  }
-
-  /* A collection, as a card among the cards.
-   *
-   * It is a shelf rather than a text: no cover of its own, and the press on it opens
-   * rather than reads. Drawn here rather than reusing the table's row, which was the
-   * first attempt and looked exactly like what it was — a row of grid cells with no grid
-   * around them, stacked vertically in the middle of a grid of cards.
-   *
-   * Its facts are its members' added up, the same ones `fold()` computes: how many texts,
-   * how long altogether, and whether any of them can be heard. */
-  function groupCard(row) {
-    var group = row.group;
-    var item = el("li", "card-item");
-    item.setAttribute("data-row", row.id);
-
-    var open = el("button", "card card-group" + (isOpen(group) ? " open" : ""));
-    open.type = "button";
-    open.setAttribute("aria-expanded", isOpen(group) ? "true" : "false");
-    open.setAttribute("data-group", group.id);
-
-    var caret = el("span", "card-fold");
-    caret.setAttribute("aria-hidden", "true");
-    open.appendChild(caret);
-
-    var what = el("span", "card-what");
-    var title = el("bdi", "card-title", row.title);
-    title.setAttribute("lang", row.language);
-    title.setAttribute("dir", "auto");
-    what.appendChild(title);
-    // Where the beginner's path is while the shelf holding it is shut. Once it is open
-    // the chip is on the scene itself; closed, a hundred scenes behind one card would
-    // otherwise take the only line on the page that says where to start.
-    if (nextRow && !isOpen(group) && group.members.indexOf(nextRow.entry) >= 0) {
-      var chip = el(
-        "span",
-        "row-next",
-        anyFinished ? t("library.next", "Next") : t("library.start-here", "Start here")
-      );
-      chip.setAttribute("role", "status");
-      chip.setAttribute("lang", saidIn);
-      what.appendChild(chip);
-    }
-    if (row.english) {
-      var english = el("span", "card-english", row.english);
-      english.setAttribute("lang", "en");
-      english.setAttribute("dir", "ltr");
-      what.appendChild(english);
-    }
-    var meta = [
-      tn("library.group-texts", row.rows.length, "{n} text", "{n} texts"),
-      said(row.minutes),
-    ];
-    if (row.video) meta.push(t("library.video", "Video"));
-    else if (row.spoken) meta.push(t("library.audio", "Audio"));
-    what.appendChild(el("span", "card-meta", meta.filter(Boolean).join(" · ")));
-    open.appendChild(what);
-    item.appendChild(open);
-    return item;
   }
 
   /* A text's picture, the way home draws one (design.md §12, "Every text has a picture",
@@ -1056,9 +687,125 @@
     return svg;
   }
 
+  /* How long a text is, the way the boards count it (SeeAllDesk): in words, "1,129
+     words", because a reader chooses a text by how much there is to read. A recording is
+     its time ("9 min", board SubFromLibrary): its words are what was said, not what
+     there is to sit through. */
+  function wordsOf(row) {
+    if (row.rows) {
+      return row.rows.reduce(function (total, one) {
+        return total + wordsOf(one);
+      }, 0);
+    }
+    return (row.entry && row.entry.words) || 0;
+  }
+
+  function lengthSaid(row) {
+    var words = wordsOf(row);
+    if (row.video || row.kind === "talk" || !words) return row.minutes ? said(row.minutes) : "";
+    var shown;
+    try {
+      shown = words.toLocaleString(saidIn);
+    } catch (e) {
+      shown = String(words);
+    }
+    return tn("library.see.words", words, "{n} word", "{n} words", { n: shown });
+  }
+
+  /* The length's cell. On a phone the kind goes in front of it, "Dialogue · 21 words",
+     where the line under the title is not drawn (board SeeAllPhone). */
+  function lengthCell(row) {
+    var cell = el("span", "col see-length");
+    var kind = row.group ? "" : named(KIND_ONE, row.kind);
+    if (kind) cell.appendChild(el("span", "see-length-kind", kind + " · "));
+    cell.appendChild(el("span", "see-length-said", lengthSaid(row)));
+    return cell;
+  }
+
+  /* How much of it the reader knows, at the row's end: "95% known" over a bar, in leaf
+     where it is read now (board SeeAllDesk). Rounded down, as the shelves round: a row
+     under A stretch never says 90%. Unmeasured says so, and never claims a nought. */
+  function knownCell(row) {
+    var share = knownOf(row);
+    var cell = el("span", "see-known");
+    if (typeof share !== "number") {
+      cell.className = "see-known unmeasured";
+      cell.appendChild(el("span", "see-known-say", t("library.known.unmeasured", "Not measured yet")));
+      return cell;
+    }
+    var shown = Math.floor(share * 100);
+    if (fitOf(row) === "now") cell.className = "see-known near";
+    cell.appendChild(el("span", "see-known-say", t("library.known-share", "{share}% known", { share: shown })));
+    cell.setAttribute("aria-label", t("library.you-know", "you know {share}% of its words", { share: shown }));
+    var meter = el("span", "meter");
+    meter.setAttribute("aria-hidden", "true");
+    var fill = el("span");
+    if (fill.style.setProperty) fill.style.setProperty("--done", String(Math.max(0.02, Math.min(1, share))));
+    meter.appendChild(fill);
+    cell.appendChild(meter);
+    return cell;
+  }
+
+  //: Whether somebody is signed in, which Subscribe needs: `/readers` says.
+  var signedIn = false;
+
+  /* What a row can be subscribed to, where the catalogue can name it (design.md §12, "A
+     subscription is the account's", 2026-10-09: "Subscribing happens … on a Library row"):
+     a portion is the weekly portion, and a text from a channel the catalogue names is
+     that channel. Null for everything else, which is most rows. */
+  function subscribable(row) {
+    if (row.group) {
+      if (row.group.channel) return ["channel", row.group.channel];
+      if (row.group.door === "portions") return ["series", "parasha"];
+      return null;
+    }
+    if (row.opens) return ["series", "parasha"];
+    var group = GROUP_OF[row.id];
+    if (group && group.channel) return ["channel", group.channel];
+    return null;
+  }
+
+  /* The row's Subscribe, from the hook a series page uses (`subscribe.js`): one press for
+     a series, and for a channel the confirm page, where the cap is chosen. Beside the
+     row's own press rather than inside it, since a press cannot hold a press. */
+  function subscribeCell(row, member) {
+    var hook = window.TargumSubscribe;
+    var what = signedIn && hook && hook.button ? subscribable(row) : null;
+    if (!what) return null;
+    // Once a list, not once a row: a collection's texts are under its own row's
+    // Subscribe, and the portions' door has its one in the trail above them.
+    if (member && !row.group) return null;
+    if (view.where === "midrash" && view.door === "portions" && what[0] === "series") return null;
+    return subscribePress(what, row);
+  }
+
+  function subscribePress(what, row) {
+    var hook = window.TargumSubscribe;
+    var cell = el("span", "row-sub");
+    var press = hook.button(what[0], what[1], {
+      subscribe: t("library.subscribe", "Subscribe"),
+      subscribed: t("library.subscribed", "Subscribed"),
+    });
+    press.className = (press.className ? press.className + " " : "") + "btn ghost outline small";
+    press.setAttribute(
+      "title",
+      t("library.subscribe-to", "Subscribe to {name}", {
+        name: what[0] === "series" ? t("library.door.portion", "Weekly portion") : (row && (row.author || row.english || row.title)) || "",
+      })
+    );
+    cell.appendChild(press);
+    return cell;
+  }
+
+  /* One text as a row of See all (board SeeAllDesk; design.md §12, "The Library stands on the
+   * ground", 2026-10-09): its picture, its title with the English beside it, what
+   * it is and whose, one line of what it is about, how long, and how much of it the
+   * reader knows. A built text is a link and an unbuilt one is a button: what pressing
+   * an unbuilt row does is start spending, after a press of its own (`confirmBuild`).
+   */
   function draw(row, member) {
     if (row.group) return drawGroup(row);
-    var item = el("li", member ? "member" : null);
+    var item = el("li", "row see-row" + (member ? " member" : ""));
     item.setAttribute("data-row", row.id);
 
     var reading = readerFor(row);
@@ -1070,18 +817,26 @@
       open.setAttribute("data-build", row.id);
     }
 
-    open.appendChild(pictureOf(row, "thumb"));
+    var picture = el("span", "see-pic");
+    var tile = pictureOf(row, "thumb");
+    if (tile.setAttribute) tile.setAttribute("aria-hidden", "true");
+    picture.appendChild(tile);
+    // One mark, never two: a video can be listened to as well. Said, since it is drawn.
+    if (row.video || row.spoken) {
+      var media = el("span", "card-media");
+      media.setAttribute("role", "img");
+      media.setAttribute("aria-label", row.video ? t("library.video", "Video") : t("library.audio", "Audio"));
+      media.appendChild(glyph(row.video ? "video" : "audio"));
+      picture.appendChild(media);
+    }
+    open.appendChild(picture);
 
     var what = el("span", "what");
     var title = el("span", "row-title");
     title.setAttribute("lang", row.language);
     // No scene number before the title: "Scene 218" is the catalogue's id, and the row's
-    // kind already says it is a dialogue (design review, 2026-10-09).
-    // Its own direction, and its own clip: an ellipsis on the LTR cell around it cut
-    // the *start* of a long Hebrew title, which is the edge Hebrew begins at (2026-09-14).
-    // A weekly edition's title carries its level in English at its end ("מבט השבוע · …
-    // · Easy · 1,000 words"), and one isolate for both put the English inside the
-    // Hebrew's direction; the level is drawn beside the title instead.
+    // kind already says it is a dialogue (design review, 2026-10-09). Its own direction,
+    // and its own clip, so a long Hebrew title loses its end and never its start.
     var parts = splitLevel(row.title);
     var bdi = el("bdi", "row-name", parts.title);
     bdi.setAttribute("dir", "auto");
@@ -1091,10 +846,7 @@
       level.setAttribute("lang", "en");
       title.appendChild(level);
     }
-    // The one row to open next: the first scene not yet finished. "Start here" until
-    // something has been, "Next" after. Ink, not accent — `.pointed` already spends the
-    // page's accent on the row somebody was sent to — and a status, so what is read out
-    // is what is seen.
+    // The one row to open next: the first scene not yet finished.
     if (nextRow && row.id === nextRow.entry) {
       var chip = el(
         "span",
@@ -1105,111 +857,77 @@
       chip.setAttribute("lang", saidIn);
       title.appendChild(chip);
     }
+    // Arrived lately (targum-internal#315): a tag, not a badge to clear.
+    if (isNew(row) && !(window.TargumScenes && window.TargumScenes.numberOf(row.id))) {
+      var fresh = el("span", "tag is-new row-new", t("library.new", "New"));
+      fresh.setAttribute("lang", saidIn);
+      title.appendChild(fresh);
+    }
     what.appendChild(title);
-    // The English under the Hebrew, in ink, with the byline after it: for a reader who
-    // cannot yet read the line above, this is the title. Its own element, so the two
-    // directions never share a string. An upload has no English and keeps its byline
-    // line as it was.
+    // The English beside the Hebrew, on one line where there is room (board SeeAllDesk):
+    // for a reader who cannot yet read the line before it, this is the title.
     if (row.english) {
       var english = el("span", "row-english", row.english);
-      // The language it is actually in, so a screen reader and the font stack both get
-      // it right: this used to be `en` whatever the row said, which was true until a
-      // row could say something else (targum-internal#289).
       english.setAttribute("lang", row.englishLang || "en");
       english.setAttribute("dir", "ltr");
-      if (row.author) {
-        // A byline is often half Hebrew ("Omid Memarian, תרגום Gallia Hoz"): isolated, so
-        // its words never trade places with the title's.
-        var after = el("span", "row-by-after", " · ");
-        var who = el("bdi", null, row.author);
-        who.setAttribute("dir", "auto");
-        after.appendChild(who);
-        english.appendChild(after);
-      }
       what.appendChild(english);
-    } else if (row.author) {
-      var by = el("span", "row-by", row.author);
-      by.setAttribute("dir", "auto");
-      what.appendChild(by);
     }
-    // Personal, where it can be: a text on the shelf is measured against the reader's
-    // own words. Absent for one never built, for one built without word-level
-    // annotation — "not measured" and "you know none of this" are different claims —
-    // and at zero: "you know 0% of its words" is true and unkind, and the line starts
-    // once there is something to say (as Learn's does).
-    var share = knownOf(row);
-    if (typeof share === "number" && share > 0) {
-      what.appendChild(
-        el(
-          "span",
-          "row-fit",
-          t("library.you-know", "you know {share}% of its words", {
-            share: Math.round(share * 100),
-          })
-        )
-      );
+    // What it is and whose: "Dialogue · targum", "Novel · אברהם מאפו, 1853".
+    // Spans rather than bare text, so the row can be searched by its attributes.
+    var meta = el("span", "row-meta");
+    meta.appendChild(el("span", null, named(KIND_ONE, row.kind)));
+    if (row.author) {
+      meta.appendChild(el("span", null, named(KIND_ONE, row.kind) ? " · " : ""));
+      var who = el("bdi", "row-by", row.author);
+      who.setAttribute("dir", "auto");
+      meta.appendChild(who);
     }
-    // The one thing on a row that is not a column: a text either can be listened to or
-    // cannot, and a column of blanks down the page to say "no audio" would be noise.
-    // One word, not two: a video can be listened to as well, and a row saying
-    // "audio video" says less than "video" does. No tooltip: what the word means is
-    // said in the line under the controls, where a phone can read it.
-    if (row.video) what.appendChild(el("span", "row-video", t("library.video", "Video")));
-    else if (row.spoken) what.appendChild(el("span", "row-audio", t("library.audio", "Audio")));
-    // On a phone the kind and which Hebrew leave their columns, and a
-    // row that only said a title and a length gave a learner nothing to choose by
-    // (2026-09-14). They come back as one line under the title.
-    var meta = [named(KIND_ONE, row.kind), named(REGISTERS, row.register)];
-    if (row.video) meta.push(t("library.video", "Video"));
-    else if (row.spoken) meta.push(t("library.audio", "Audio"));
-    var metaLine = meta.filter(Boolean).join(" · ");
-    if (metaLine) what.appendChild(el("span", "row-meta", metaLine));
+    what.appendChild(meta);
+    /* What the text is, in the catalogue's own sentence, in the reader's language where
+       the catalogue has one (design.md §12, "See all says what each text is"). One line
+       at a desk, two on a phone. */
+    var blurb = blurbIn(row.entry);
+    if (blurb) {
+      var about = el("span", "row-blurb", blurb);
+      about.setAttribute("lang", row.entry.blurbs && row.entry.blurbs[uiLanguage] ? uiLanguage : "en");
+      what.appendChild(about);
+    }
     open.appendChild(what);
 
-    open.appendChild(el("span", "col label drop", named(KIND_ONE, row.kind)));
-    open.appendChild(el("span", "col label drop", named(REGISTERS, row.register)));
-    open.appendChild(el("span", "col count", said(row.minutes)));
-    var hard = gauge(row);
-    hard.className = "gauge drop";
-    open.appendChild(hard);
-    var mine = yours(row);
-    mine.className = "col count drop";
-    open.appendChild(mine);
+    open.appendChild(lengthCell(row));
+    open.appendChild(knownCell(row));
 
     /* Where a build narrates itself — and, on a text this reader has finished, the one
-       word that says so, in leaf: a real state, not a score, and the only leaf on the
-       page. It used to say Public or Private, which the two
-       tabs say once at the top now — but it is also what `build()` writes into, and a
-       row with nothing to write into threw the moment anybody pressed one. Empty until
-       there is something to say, and its column collapses to nothing while it is. */
+       word that says so, in leaf. Empty until there is something to say; `build()`
+       writes into it, so every row has one. */
     var state = el("span", "row-state");
     if (row.built && finishedDocs[row.built.document] && finishedDocs[row.built.document].done) {
       state.className = "row-state finished";
       state.textContent = t("library.finished", "finished");
     }
     open.appendChild(state);
-
     item.appendChild(open);
 
-    // Only where there is something to draw: a text on the shelf, from the library's own
-    // catalogue — a cover is drawn from what the catalogue says a text is — and with no
-    // cover yet. And only where this deployment has a key to draw with.
+    var sub = subscribeCell(row, member);
+    if (sub) item.appendChild(sub);
+
+    // Only where there is something to draw: a text on the shelf, from the catalogue,
+    // with no cover yet, and only where this deployment has a key to draw with.
     if (canDraw && row.built && !row.built.shared && row.entry && !row.drawn) {
-      var draw = el("button", "draw", t("library.cover.draw", "Draw cover"));
-      draw.type = "button";
-      draw.setAttribute("data-draw", row.built.name);
-      item.appendChild(draw);
+      var drawing = el("button", "draw btn ghost outline small", t("library.cover.draw", "Draw cover"));
+      drawing.type = "button";
+      drawing.setAttribute("data-draw", row.built.name);
+      item.appendChild(drawing);
     }
     return item;
   }
 
-  /* A collection, as one row on the same grid as every other. Same columns in the same
-     places, because a row that lines up with the ones under it is read as one of them —
-     and a disclosure where the cover would be, because a collection has no cover and a
-     triangle in a column of its own would push every other row out of true. */
+  /* A collection, as one row among the rows: a caret where the picture would be, its
+     name and English, how many texts, and its members' length and known share added up.
+     Pressed, it opens where it stands. */
   function drawGroup(row) {
     var group = row.group;
-    var item = el("li", "group" + (isOpen(group) ? " open" : ""));
+    var item = el("li", "row see-row group" + (isOpen(group) ? " open" : ""));
     item.setAttribute("data-row", row.id);
 
     var open = el("button", "row-open row-group");
@@ -1217,7 +935,7 @@
     open.setAttribute("aria-expanded", isOpen(group) ? "true" : "false");
     open.setAttribute("data-group", group.id);
 
-    var caret = el("span", "row-fold");
+    var caret = el("span", "see-pic row-fold");
     caret.setAttribute("aria-hidden", "true");
     open.appendChild(caret);
 
@@ -1227,9 +945,6 @@
     var name = el("bdi", "row-name", row.title);
     name.setAttribute("dir", "auto");
     title.appendChild(name);
-    // Where the beginner's path is, when the shelf holding it is shut. The chip is on
-    // the scene itself once this is open; closed, a hundred scenes behind one row would
-    // otherwise take the only line on the page that says where to start.
     if (nextRow && !isOpen(group) && group.members.indexOf(nextRow.entry) >= 0) {
       var chip = el(
         "span",
@@ -1241,159 +956,92 @@
       title.appendChild(chip);
     }
     what.appendChild(title);
-    // The English and the count on one line, the way a text carries its English and its
-    // byline: what this is, then how much of it there is.
-    var under = el("span", "row-english", row.english || "");
-    under.setAttribute("lang", "en");
-    under.setAttribute("dir", "ltr");
-    var count = el(
-      "span",
-      "row-by-after",
-      (row.english ? " · " : "") + tn("library.group-texts", row.rows.length, "{n} text", "{n} texts")
-    );
-    if (saidIn !== "en") count.setAttribute("lang", saidIn);
-    under.appendChild(count);
-    what.appendChild(under);
-    if (row.video) what.appendChild(el("span", "row-video", t("library.video", "Video")));
-    else if (row.spoken) what.appendChild(el("span", "row-audio", t("library.audio", "Audio")));
-    // On a phone the kind and which Hebrew leave their columns, and a
-    // row that only said a title and a length gave a learner nothing to choose by
-    // (2026-09-14). They come back as one line under the title.
-    var meta = [named(KIND_ONE, row.kind), named(REGISTERS, row.register)];
-    if (row.video) meta.push(t("library.video", "Video"));
-    else if (row.spoken) meta.push(t("library.audio", "Audio"));
-    var metaLine = meta.filter(Boolean).join(" · ");
-    if (metaLine) what.appendChild(el("span", "row-meta", metaLine));
+    if (row.english) {
+      var english = el("span", "row-english", row.english);
+      english.setAttribute("lang", row.englishLang || "en");
+      english.setAttribute("dir", "ltr");
+      what.appendChild(english);
+    }
+    var count = tn("library.group-texts", row.rows.length, "{n} text", "{n} texts");
+    var kind = named(KIND_ONE, row.kind);
+    var meta = el("span", "row-meta", kind ? kind + " · " + count : count);
+    if (saidIn !== "en") meta.setAttribute("lang", saidIn);
+    what.appendChild(meta);
+    var blurb = blurbIn(group);
+    if (blurb) {
+      var about = el("span", "row-blurb", blurb);
+      about.setAttribute("lang", group.blurbs && group.blurbs[uiLanguage] ? uiLanguage : "en");
+      what.appendChild(about);
+    }
     open.appendChild(what);
-
-    open.appendChild(el("span", "col label drop", named(KIND_ONE, row.kind)));
-    open.appendChild(el("span", "col label drop", named(REGISTERS, row.register)));
-    open.appendChild(el("span", "col count", said(row.minutes)));
-    var hard = gauge(row);
-    hard.className = "gauge drop";
-    open.appendChild(hard);
-    var groupMine = yours(row);
-    groupMine.className = "col count drop";
-    open.appendChild(groupMine);
+    open.appendChild(lengthCell(row));
+    open.appendChild(knownCell(row));
     open.appendChild(el("span", "row-state"));
-
     item.appendChild(open);
+    var sub = subscribeCell(row);
+    if (sub) item.appendChild(sub);
     return item;
   }
 
   /* --- sorting and sifting ---------------------------------------------------- */
 
+  /* The orders See all is read in, one for each column head that can be pressed (board
+     SeeAllDesk: Text · Length · % known). */
   var SORTS = {
     // By the English where there is one: for the reader this page is sorted for, the
     // Hebrew titles are not yet in an order.
     title: function (row) {
       return row.english || row.title || "";
     },
-    kind: function (row) {
-      return named(KIND_ONE, row.kind);
-    },
-    // By age, not by label. See REGISTER_ORDER.
-    register: function (row) {
-      var place = REGISTER_ORDER[row.register];
-      return typeof place === "number" ? place : REGISTERS.length;
-    },
     minutes: function (row) {
       return row.minutes || 0;
     },
-    // Null where nothing was measured: last in either direction, because it is not 0%
-    // hard and not 100% either (2026-09-27).
-    difficulty: function (row) {
-      return measured(row) ? row.difficulty || 0 : null;
-    },
-    // Most of it known first, which is the way somebody choosing what to read wants it
-    // — so this column alone sorts descending by default (`DESCENDING` below). A row
-    // with nothing measured sorts as -1 and lands at the far end either way: it is not
-    // 0% known, and putting it among the texts that really are would be the one claim
-    // this number must never make.
+    // Most of it known first, which is the way somebody choosing what to read wants it.
+    // A row with nothing measured is not 0% known: it goes after every row that was,
+    // whichever way the column reads (see `sorted`).
     known: function (row) {
       var share = knownOf(row);
-      return typeof share === "number" ? share : -1;
-    },
-    /* When it arrived: the catalogue's own date for a catalogue row, and the day it was
-       built for a text of the reader's own, which is when it arrived *for them*
-       (targum-internal#315).
-
-       A row nobody dated sorts last under Newest rather than first. Nine hundred rows
-       predate the field and were dated from the file's history where it has one and from
-       a floor where it has none (`scripts/backfill_added.py`); a row that fell through
-       even that is "we do not know", and "we do not know" must never read as "just
-       arrived". Compared as text because `YYYY-MM-DD` sorts correctly as text and a date
-       parsed in the browser is a date in the browser's timezone. */
-    added: function (row) {
-      var when = dateOf(row);
-      // Any dated row outranks every undated one, whatever their positions. The offset
-      // is well past any day count this century, so the two scales never meet.
-      if (when) return 1e6 + daysSince(when);
-      /* And among the undated, where it sits in the catalogue file. Nine hundred rows
-         predate the field and nothing can date them (`scripts/backfill_added.py`), so
-         without this "Newest" would be alphabetical among them, which is no order at
-         all. Rows are appended as they are added, so a later position is a later
-         arrival — evidence of *order*, never of date, which is why it can never put an
-         undated row above a dated one and why no row is ever marked New by it. */
-      return row.place || 0;
+      return typeof share === "number" ? share : null;
     },
   };
 
-  /* The day a row arrived, from whichever side knows. A catalogue row carries the
-     catalogue's date; a text of the reader's own carries the day they built it, which is
-     when it arrived for them and is the more honest answer for a text only they have. */
-  function dateOf(row) {
-    if (row.entry && row.entry.added) return row.entry.added;
-    if (row.built && row.built.built) return dayOf(row.built.built);
-    return "";
-  }
-
-  function daysSince(day) {
-    var then = Date.parse(day + "T00:00:00Z");
-    return isNaN(then) ? 0 : Math.round(then / 86400000);
-  }
-
-  /* A day from the seconds a built reader records, in the reader's own timezone, which
-     is the one they would name the day by. */
-  function dayOf(seconds) {
-    try {
-      var when = new Date(seconds * 1000);
-      var month = String(when.getMonth() + 1);
-      var day = String(when.getDate());
-      return (
-        when.getFullYear() +
-        "-" +
-        (month.length < 2 ? "0" + month : month) +
-        "-" +
-        (day.length < 2 ? "0" + day : day)
-      );
-    } catch (e) {
-      return "";
-    }
-  }
-
   //: Columns a reader means "most first" by. Every other column reads smallest first.
-  //: Newest is the whole of what "added" is for, so it never reads oldest first.
-  var DESCENDING = { known: true, added: true };
+  var DESCENDING = { known: true };
 
+  /* The heads over the rows (board SeeAllDesk): the picture's column, then Text, Length
+     and % known, and the cell a build narrates itself in. The Kind, Which Hebrew and Level
+     columns went with the filters that were their questions (design.md §12, "See all is
+     a table, a page at a time", 2026-10-09): a row says its kind under its title. */
   var COLUMNS = [
     ["", ""],
     ["title", t("library.column.title", "Text")],
-    ["kind", t("library.column.kind", "Kind")],
-    ["register", t("library.column.register", "Which Hebrew")],
     ["minutes", t("library.column.minutes", "Length")],
-    // What the number under it means, said the way somebody choosing a text would ask
-    // it. "Looked up" is the measurement's name, not the reader's question — and "New
-    // words" was a claim about the reader the number cannot make: it counts words that
-    // are rare in the language, not words this reader has not met (2026-09-14).
-    ["difficulty", t("library.column.difficulty", "Level")],
-    // What the reader came to the page to ask. Beside "Hard words" because the two are
-    // the same question asked twice — how hard is this in the language, and how hard is
-    // it for me — and the second is the one the front door sells.
-    ["known", t("library.column.known", "Words you know")],
-    // Unlabelled: the column a build narrates itself in, empty the rest of the time.
+    ["known", t("library.column.known-share", "% known")],
     ["", ""],
   ];
+
+  /* What the foot of the list says the order is: "% known, high to low". */
+  //: Whether the list on show is one work read front to back, which keeps its order.
+  var inItsOrder = false;
+
+  function orderSaid() {
+    if (inItsOrder || (view.kind === "dialogue" && window.TargumScenes)) {
+      return t("library.order.in-order", "in order");
+    }
+    if (view.sort === "title") {
+      return view.dir > 0 ? t("library.order.title-up", "title, A to Z") : t("library.order.title-down", "title, Z to A");
+    }
+    if (view.sort === "minutes") {
+      return view.dir > 0
+        ? t("library.order.length-up", "shortest first")
+        : t("library.order.length-down", "longest first");
+    }
+    // Before anything is marked, "known" is the texts' own words standing in.
+    if (!anyKnown) return view.dir < 0 ? t("library.order.easiest", "easiest first") : t("library.order.hardest", "hardest first");
+    return view.dir < 0
+      ? t("library.order.known-down", "% known, high to low")
+      : t("library.order.known-up", "% known, low to high");
+  }
 
   // Whether the server can draw at all, answered by the server. A deployment with no
   // image key offers nothing rather than offering and failing.
@@ -1419,12 +1067,9 @@
     "spoken",
     "where",
     "find",
-    // Since 2026-09-17: what a text is about, how far into reach it has to be, and
-    // whether the list is drawn as cards or as the table.
     "subject",
     "fit",
     "shape",
-    // Since 2026-09-19: which door of the Beit Midrash is open, "" for the doors themselves.
     "door",
   ];
   var views = stored("targum:library");
@@ -1436,32 +1081,37 @@
     views = { he: views };
   }
 
+  //: The kinds a door may name that are more than one of the catalogue's: Books is the
+  //: novels and the stories (board Library, "Browse by kind").
+  var KIND_SETS = { books: ["novel", "story"] };
+
   function viewFor(code) {
     var one = views[code];
     if (!one || typeof one !== "object") one = views[code] = {};
-    // Easiest first. The default was by access, which sorted the catalogue into public
-    // and private — a fact about who may read a text rather than about whether this
-    // reader can. Somebody arriving at forty texts in a language they are learning is
-    // asking which of them they can read now, and that is what the list answers.
-    if (!one.sort) one.sort = "difficulty";
-    // The direction the sort itself means, not 1 by default: Newest reads newest first
-    // and "Words you know" reads most first, and a view that carried a sort without a
-    // direction — a stored one from before either existed — showed them backwards.
-    if (!one.dir) one.dir = DESCENDING[one.sort] ? -1 : 1;
+    /* Most of it known first (board SeeAllDesk: "% known ↓"), which before anything is
+       marked is easiest first: `sorted` breaks a tie on the texts' own words. A sort from
+       before 2026-10-09 — Level, Kind, Which Hebrew, Newest — has no column to undo it
+       any more, so it is read as this one. */
+    if (!SORTS[one.sort]) {
+      one.sort = "known";
+      one.dir = -1;
+    }
+    if (one.dir !== 1 && one.dir !== -1) one.dir = DESCENDING[one.sort] ? -1 : 1;
     if (!one.kind) one.kind = "";
-    if (!one.register) one.register = "";
+    if (one.kind && !named(KINDS, one.kind) && !KIND_SETS[one.kind]) one.kind = "";
     // "mine" was the Your uploads tab until 2026-09-25; a view stored on it is on All texts.
     if (!one.where || one.where === "mine") one.where = "library";
-    if (!one.subject) one.subject = "";
     if (!one.door) one.door = "";
     // The Library's box is the one search now (design.md §12, "One search, everywhere",
     // 2026-10-09): it opens over the page rather than narrowing it, so a search stored
     // from before must not go on narrowing the shelf with nothing on the page saying so.
     one.find = "";
-    // `fit` is deliberately left unset here. What it defaults to depends on whether this
-    // reader has marked any words, which is not known until `/readers` answers — see
-    // `fitWanted`. Once they choose, the choice is stored and outranks both defaults.
-    if (!one.shape) one.shape = "cards";
+    /* The filters that are no longer on the page (design.md §12, "The Library stands on the
+       ground", 2026-10-09): the subjects, which Hebrew, the media, the length
+       and the level. Kept, they would go on narrowing the list with nothing on it saying
+       so, so a view that carried one lets it go. */
+    one.subject = one.register = one.spoken = one.length = one.level = "";
+    // `fit` is left unset: See all is under the band its shelf was, or none.
     return one;
   }
 
@@ -1534,6 +1184,10 @@
     here.appendChild(document.createTextNode(" · " + door[2]));
     here.setAttribute("aria-current", "page");
     host.appendChild(here);
+    // The weekly portion is a series: its door says Subscribe once, here.
+    if (door[0] === "portions" && signedIn && window.TargumSubscribe) {
+      host.appendChild(subscribePress(["series", "parasha"], null));
+    }
     // The Tanakh door leads on to the whole of it, one square a chapter (#144).
     if (door[0] === "tanakh") {
       var map = el("a", "crumb crumb-map", t("library.door.tanakh-map", "Every chapter on one map"));
@@ -1591,8 +1245,12 @@
    * Midrash) opens what it always opened.
    */
   var SEE = "see";
-  //: How many texts a shelf stands before its See all.
-  var SHELF_MOST = 10;
+  //: How many texts a shelf stands before its See all: one row of five, as the board
+  //: draws it (a phone shows the first two, in its two columns).
+  var SHELF_MOST = 5;
+  //: How many rows See all draws before its Show more (board SeeAllDesk).
+  var PAGE = 50;
+  var page = PAGE;
   //: Whether the list is up rather than the shelves.
   var seeAll = false;
   //: targum's own playlists, as the catalogue file lists them; only the ones with
@@ -1617,7 +1275,7 @@
     if (now.indexOf(lead) !== 0) return null;
     var kind = now.slice(lead.length);
     for (var n = 0; n < KINDS.length; n++) if (KINDS[n][0] === kind) return kind;
-    return null;
+    return KIND_SETS[kind] ? kind : null;
   }
 
   /* A step the Back button can undo: from the shelves into a list is going somewhere. */
@@ -1717,17 +1375,19 @@
       next.setAttribute("lang", saidIn);
       open.appendChild(next);
     }
+    // How much of it the reader knows, always (board Library: "[93%] known"); a text
+    // nobody has measured says so rather than claiming a nought.
     var share = knownOf(row);
-    if (typeof share === "number" && share > 0) {
-      open.appendChild(
-        el(
-          "span",
-          "band-known" + (band === "now" ? " near" : ""),
-          // Rounded down, as the Tanakh map rounds: a card on A stretch never says 90%.
-          t("library.known-share", "{share}% known", { share: Math.floor(share * 100) })
-        )
-      );
-    }
+    open.appendChild(
+      typeof share === "number"
+        ? el(
+            "span",
+            "band-known" + (band === "now" ? " near" : ""),
+            // Rounded down, as the Tanakh map rounds: a card on A stretch never says 90%.
+            t("library.known-share", "{share}% known", { share: Math.floor(share * 100) })
+          )
+        : el("span", "band-known unmeasured", t("library.known.unmeasured", "Not measured yet"))
+    );
     open.appendChild(el("span", "row-state"));
     item.appendChild(open);
     return item;
@@ -1878,22 +1538,6 @@
         }
       }
     });
-    /* The Tanakh, a door of the Library (design.md §12, "The Tanakh map is a door in the
-       Library", 2026-10-09; board LibraryTanakh): every chapter on one map, shaded by how
-       much of it the reader would follow. Hebrew's alone, at the head of the shelves. */
-    if (code === lang.HOME) {
-      var door = el("a", "band-door");
-      door.href = keyed("/tanakh-map");
-      var hebrew = el("bdi", "band-door-name", "תנ״ך");
-      hebrew.setAttribute("lang", "he");
-      door.appendChild(hebrew);
-      door.appendChild(el("span", "band-door-english", t("library.door.tanakh", "Tanakh")));
-      door.appendChild(el("span", "band-door-says", t("library.door.tanakh-map", "Every chapter on one map")));
-      var doors = el("nav", "band-doors");
-      doors.setAttribute("aria-label", t("library.doors", "Browse by kind"));
-      doors.appendChild(door);
-      host.appendChild(doors);
-    }
     // Before anything is marked the bands are the texts' own hard words, and the page
     // says so once rather than under every shelf.
     if (drawn.length && !anyKnown) {
@@ -1930,16 +1574,10 @@
     if (!inLanguage(row, code) && !(tree && code === lang.HOME && inLanguage(row, BESIDE_HEBREW))) {
       return false;
     }
-    if (state.kind && row.kind !== state.kind) return false;
-    if (code === lang.HOME && state.register && row.register !== state.register) return false;
-    if (state.length && lengthOf(row.minutes) !== state.length) return false;
-    if (state.spoken === "yes" && !row.spoken) return false;
-    if (state.spoken === "video" && !row.video) return false;
-    if (state.level && level(row) !== state.level) return false;
-    // What it is about. A row's tags are a list, so this asks whether the chosen one is
-    // among them rather than whether it is the value — a match report is journalism and
-    // sport at once, and belongs under both chips.
-    if (state.subject && !holdsSubject(row, state.subject)) return false;
+    if (state.kind) {
+      var kinds = KIND_SETS[state.kind] || [state.kind];
+      if (kinds.indexOf(row.kind) < 0) return false;
+    }
     /* The band is for choosing from the catalogue. It is not for the Beit Midrash: a tree that hid the Writings from a beginner because
        they are hard would be a tree with branches missing, and the reader came to see
        where things stand. Each row still says how much of it they know. */
@@ -2000,7 +1638,20 @@
       var order;
       if ((left === null) !== (right === null)) return left === null ? 1 : -1;
       if (typeof left === "number") order = left - right;
-      else order = String(left).localeCompare(String(right));
+      else if (left !== null) order = String(left).localeCompare(String(right));
+      else order = 0;
+      /* Known ties — and before anything is marked every row ties at nothing measured —
+         are broken by the texts' own words, fewer hard ones counting as more known, so
+         "% known, high to low" is easiest first until the reader's words can say. */
+      if (!order && view.sort === "known") {
+        var hardA = measured(a) ? a.difficulty || 0 : 1000;
+        var hardB = measured(b) ? b.difficulty || 0 : 1000;
+        if (hardA !== hardB) {
+          // Unmeasured goes last whichever way the column reads.
+          if (hardA === 1000 || hardB === 1000) return hardA === 1000 ? 1 : -1;
+          order = hardB - hardA;
+        }
+      }
       // A tie falls back to the title, so the list never shuffles under a reader who
       // sorted by something half of it shares.
       if (!order) order = String(a.title).localeCompare(String(b.title));
@@ -2026,287 +1677,155 @@
     return seen;
   }
 
-  /* How many rows each subject would leave standing, asked with the subject filter
-     itself lifted — the rule the kinds already follow, so choosing one never removes the
-     others from the row it lives in.
+  /* --- the menus (board SeeAllDesk: "Kind: All ▾", "Level: Any ▾", "Language: Hebrew ▾")
+   *
+   * A pill that says what it is set to, and under it a short list to choose from. Not a
+   * native `select` (design.md §12, "The Library stands on the ground"): the desk's
+   * controls are one layer, and the platform's list came up in the system's face and
+   * colours beside everything else drawn in the desk's. A button and a list of
+   * `menuitemradio`, as the language menu in the bar is; Escape and a press anywhere else
+   * close it, and the arrows walk it.
+   */
+  var openMenu = null;
 
-     Counted rather than merely seen, because the count goes on the chip. Tanakh and
-     Judaica are the two biggest Hebrew subjects; a bare row of subject names tells a
-     modern-Hebrew learner this is a religious library, and the numbers tell them what is
-     really there (design.md §12, 2026-09-17). */
-  /* The kind is lifted with it, because the kind is no longer a peer of the subject —
-     it is a refinement under it, and it lives in the fold with the other refinements.
-     Left standing it takes the whole row away: the page opens a new reader on the
-     Scenes, no scene is filed under any subject, and the one row this page is browsed
-     by would vanish on the first visit of every reader who has it. So pressing a
-     subject clears the kind (see `subjects`), and these counts are what pressing it
-     actually leaves. */
-  function unsubjected() {
-    var pretend = {};
-    for (var key in view) pretend[key] = view[key];
-    pretend.subject = "";
-    pretend.kind = "";
-    return pretend;
+  function closeMenu(focusBack) {
+    if (!openMenu) return;
+    var was = openMenu;
+    openMenu = null;
+    was.list.hidden = true;
+    was.press.setAttribute("aria-expanded", "false");
+    if (focusBack && was.press.focus) was.press.focus();
   }
 
-  function subjectTally(rows, code) {
-    var tally = {};
-    var pretend = unsubjected();
-    rows.forEach(function (row) {
-      if (!matches(row, code, pretend)) return;
-      subjectsOf(row).forEach(function (tag) {
-        tally[tag] = (tally[tag] || 0) + 1;
+  function menu(id, label, options, current, onPick) {
+    var box = el("div", "see-menu");
+    box.setAttribute("data-menu", id);
+    var press = el("button", "see-menu-press");
+    press.type = "button";
+    press.id = "menu-" + id;
+    press.setAttribute("aria-haspopup", "menu");
+    press.setAttribute("aria-expanded", "false");
+    press.appendChild(el("span", "see-menu-label", label + ":"));
+    press.appendChild(document.createTextNode(" "));
+    press.appendChild(el("span", "see-menu-value", named(options, current) || (options[0] || ["", ""])[1]));
+    box.appendChild(press);
+    var list = el("div", "see-menu-list");
+    list.setAttribute("role", "menu");
+    list.setAttribute("aria-label", label);
+    list.hidden = true;
+    var items = [];
+    options.forEach(function (pair) {
+      var item = el("button", "see-menu-item", pair[1]);
+      item.type = "button";
+      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("aria-checked", pair[0] === current ? "true" : "false");
+      item.setAttribute("data-value", pair[0]);
+      item.addEventListener("click", function () {
+        closeMenu(true);
+        if (pair[0] !== current) onPick(pair[0]);
       });
+      items.push(item);
+      list.appendChild(item);
     });
-    return tally;
+    list.addEventListener("keydown", function (event) {
+      var at = items.indexOf(event.target);
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        var next = items[(at + (event.key === "ArrowDown" ? 1 : items.length - 1)) % items.length];
+        if (next && next.focus) next.focus();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        closeMenu(true);
+      } else if (event.key === "Tab") {
+        closeMenu(false);
+      }
+    });
+    box.appendChild(list);
+    press.addEventListener("click", function () {
+      var was = openMenu && openMenu.press === press;
+      closeMenu(false);
+      if (was) return;
+      openMenu = { press: press, list: list };
+      list.hidden = false;
+      press.setAttribute("aria-expanded", "true");
+      var on = items.filter(function (item) {
+        return item.getAttribute("aria-checked") === "true";
+      })[0] || items[0];
+      if (on && on.focus) on.focus();
+    });
+    return box;
   }
 
-  /* The subjects, as chips that carry their counts.
-   *
-   * Drawn from the rows that exist and never from `Tag`, which runs well past what is
-   * filed: the arrival draws a door before anything is tagged into it, on purpose, and
-   * on this page that same door is a dead end. Hebrew carries eight subjects with
-   * anything behind them, not seventeen.
-   *
-   * "All" leads and is the default. Nearly half the Hebrew shelf carries no subject at
-   * all, so a subject can only ever narrow — as the page's one division it would hide
-   * them (design.md §12, 2026-09-17). */
-  function subjects(host, rows, code, redraw) {
+  if (document.addEventListener) {
+    document.addEventListener("click", function (event) {
+      if (!openMenu) return;
+      var inside = event.target && event.target.closest ? event.target.closest(".see-menu") : null;
+      if (!inside || !inside.contains(openMenu.press)) closeMenu(false);
+    });
+    document.addEventListener("keydown", function (event) {
+      if (openMenu && event.key === "Escape") closeMenu(true);
+    });
+  }
+
+  /* The levels, as the Level menu says them: the three shelves, and any. */
+  var LEVEL_MENU = [["", t("library.filter.any", "Any")]].concat(BANDS);
+
+  /* Kind, Level and Language, beside the search on See all. Kind offers the kinds in
+     front of this reader, as the chips did; Level is the band, the shelf the list was
+     opened from; Language is the one the bar's menu also sets. */
+  function drawMenus(host, everything, code, codes, redraw, pickLanguage) {
     if (!host) return;
     host.textContent = "";
-    // The row and the word over it are one thing: a heading above nothing is a heading
-    // that says the page is broken.
-    var label = document.getElementById("subject-label");
-    var tally = subjectTally(rows, code);
-    var offered = SUBJECTS.filter(function (pair) {
-      return tally[pair[0]];
-    });
-    // One subject over a shelf divides nothing; the row is left empty rather than
-    // offering "All" and one word, which is the rule `chips()` already applies.
-    if (offered.length < 2) {
-      host.hidden = true;
-      if (label) label.hidden = true;
-      return;
-    }
-    host.hidden = false;
-    if (label) label.hidden = false;
-    var here = rows.filter(function (row) {
-      return matches(row, code, unsubjected());
-    }).length;
-    var all = [["", t("library.filter.all", "All"), here]].concat(
-      offered.map(function (pair) {
-        return [pair[0], pair[1], tally[pair[0]]];
+    var seen = present(everything, "kind", code);
+    var kinds = [["", t("library.filter.all", "All")]].concat(
+      KINDS.filter(function (pair) {
+        return seen[pair[0]] || view.kind === pair[0];
       })
     );
-    all.forEach(function (one) {
-      var chip = el("button", "chip subject");
-      chip.type = "button";
-      chip.appendChild(document.createTextNode(one[1]));
-      // Its own element, so the number can be quieted and given tabular figures without
-      // the name inheriting either.
-      chip.appendChild(el("span", "chip-n", String(one[2])));
-      chip.setAttribute("aria-pressed", view.subject === one[0] ? "true" : "false");
-      // The count is part of what the chip says, so a screen reader gets the sentence
-      // rather than "News 40" run together.
-      chip.setAttribute(
-        "aria-label",
-        tn("library.subject.count", one[2], "{name}, {n} text", "{name}, {n} texts", { name: one[1] })
-      );
-      chip.addEventListener("click", function () {
-        view.subject = one[0];
-        // Picking a subject is going somewhere, not narrowing where you are. The kind is
-        // a refinement inside the place you were, and carrying it along is how a reader
-        // opened on the Scenes presses "Science" and is shown nothing at all.
-        view.kind = "";
-        redraw();
-      });
-      host.appendChild(chip);
-    });
-  }
-
-  function chips(host, options, field, redraw, shape, seen) {
-    host.textContent = "";
-    var offered = seen
-      ? options.filter(function (pair) {
-          return seen[pair[0]];
-        })
-      : options;
-    // Nothing to choose between is not a choice: one kind left, or none, and the row of
-    // chips is the word "All" on its own.
-    if (seen && offered.length < 2) offered = [];
-    var all = offered.length ? [["", t("library.filter.all", "All")]].concat(offered) : [];
-    all.forEach(function (pair) {
-      var chip = el("button", shape || "chip", pair[1]);
-      chip.type = "button";
-      chip.setAttribute("aria-pressed", view[field] === pair[0] ? "true" : "false");
-      chip.addEventListener("click", function () {
-        view[field] = pair[0];
-        redraw();
-      });
-      host.appendChild(chip);
-    });
-  }
-
-  /* The line above the list, which says how many texts there are and how far the list
-     has been narrowed to fit the reader — with the narrowing itself as the control.
-     A sentence with one word in it you can press, rather than a filter to be found
-     (design.md §12, 2026-09-17).
-   *
-   * It is a `select` and not a menu of our own: three options, and the platform's own
-   * control is reachable by keyboard and by a thumb on every device without any of it
-   * being written here. */
-  function fitLine(host, count, redraw) {
-    if (!host) return;
-    host.textContent = "";
-    // The number in its own element: ink and tabular, where the sentence around it is
-    // the quieter voice the page uses for what it is doing.
+    if (KIND_SETS[view.kind]) kinds.push([view.kind, t("library.kind.books", "Books")]);
     host.appendChild(
-      el("span", "count", tn("library.tally.all", count, "{n} text", "{n} texts", { n: count }))
+      menu("kind", t("library.menu.kind", "Kind"), kinds, view.kind || "", function (value) {
+        view.kind = value;
+        page = PAGE;
+        redraw();
+      })
     );
-    host.appendChild(document.createTextNode(" · "));
-    var lead = el("label", "fit");
-    lead.appendChild(
-      document.createTextNode(t("library.fit.showing", "showing") + " ")
+    host.appendChild(
+      menu("level", t("library.menu.level", "Level"), LEVEL_MENU, fitWanted(), function (value) {
+        view.fit = value;
+        page = PAGE;
+        mark(SEE + (value ? "/" + value : ""));
+        redraw();
+      })
     );
-    var pick = el("select", "fit-pick");
-    pick.id = "fit";
-    FITS.forEach(function (pair) {
-      var option = el("option", null, pair[1]);
-      option.value = pair[0];
-      if (fitWanted() === pair[0]) option.selected = true;
-      pick.appendChild(option);
+    var languages = (codes || [code]).map(function (one) {
+      return [one, names[one] || one];
     });
-    pick.onchange = function () {
-      view.fit = pick.value;
-      redraw();
-    };
-    pick.setAttribute("aria-label", t("library.fit.how-much", "How much of the library to show"));
-    lead.appendChild(pick);
-    host.appendChild(lead);
-  }
-
-  /* Cards or the table, remembered. The table is the older shape and it is kept rather
-     than replaced: the complaint that retired the last card grid was that a card cannot
-     be sorted, and it was a fair one — so the sortable thing stays one press away
-     (design.md §12, 2026-09-17). */
-  /* Since 2026-10-09 the browsing shape is a list of short rows, each with what the text
-     is (design.md §12, "See all says what each text is"), and the sortable shape is the
-     table; the words say so. The stored values keep their old names. */
-  var SHAPES = [
-    ["cards", t("library.shape.rows", "Rows")],
-    ["list", t("library.shape.table", "Table")],
-  ];
-
-  /* Sorting, for the shape that has no columns to press.
-   *
-   * The table sorts by its headings and always did; a grid of cards has no headings, so
-   * a browse view with no way to reorder itself would be a browse view you can only
-   * scroll. These are the three orders somebody browsing actually asks for — what is
-   * new, what is easy, what I nearly know — and they write the same `view.sort` the
-   * headings do, because they are the same state shown two ways.
-   *
-   * Only three. "A to Z" is not one of them: the shelf is in Hebrew, a reader who wants
-   * one text by name has the search field, and a fourth word here would be a fourth
-   * thing to read before choosing. The table keeps every column it had.
-   */
-  var SORTS_OFFERED = [
-    ["added", t("library.sort.added", "Newest")],
-    ["difficulty", t("library.sort.difficulty", "Easiest")],
-    ["known", t("library.sort.known", "Words you know")],
-  ];
-
-  function sorts(host, redraw) {
-    if (!host) return;
-    host.textContent = "";
-    // The table says this with its headings, and one state wearing two controls at once
-    // is two things to keep in step and one of them always wrong.
-    host.hidden = view.shape === "list";
-    if (host.hidden) return;
-    SORTS_OFFERED.forEach(function (pair) {
-      var press = el("button", "shape", pair[1]);
-      press.type = "button";
-      press.setAttribute("aria-pressed", view.sort === pair[0] ? "true" : "false");
-      press.addEventListener("click", function () {
-        view.sort = pair[0];
-        view.dir = DESCENDING[pair[0]] ? -1 : 1;
-        redraw();
-      });
-      host.appendChild(press);
-    });
-  }
-
-  function shapes(host, redraw) {
-    if (!host) return;
-    host.textContent = "";
-    SHAPES.forEach(function (pair) {
-      var press = el("button", "shape", pair[1]);
-      press.type = "button";
-      press.setAttribute("aria-pressed", view.shape === pair[0] ? "true" : "false");
-      press.addEventListener("click", function () {
-        view.shape = pair[0];
-        redraw();
-      });
-      host.appendChild(press);
-    });
-  }
-
-  /* The one control that changes which list you are looking at rather than what it is
-     narrowed to. Underlined rather than pilled: the page already has pills for the
-     language above it and chips for the filters below, and a third row of the same shape
-     would be a third thing to tell apart. */
-  function tabs(host, options, field, redraw) {
-    if (!host) return;
-    host.textContent = "";
-    options.forEach(function (pair) {
-      var tab = el("button", "tab", pair[1]);
-      tab.type = "button";
-      tab.setAttribute("role", "tab");
-      var on = (view[field] || options[0][0]) === pair[0];
-      tab.setAttribute("aria-selected", on ? "true" : "false");
-      tab.addEventListener("click", function () {
-        view[field] = pair[0];
-        // All texts is the shelves again: a tab is where you are, not a list in it.
-        if (field === "where") seeAll = false;
-        redraw();
-      });
-      host.appendChild(tab);
-    });
-  }
-
-  function choices(select, options, field, redraw) {
-    select.textContent = "";
-    options.forEach(function (pair) {
-      var option = el("option", null, pair[1]);
-      option.value = pair[0];
-      if ((view[field] || "") === pair[0]) option.selected = true;
-      select.appendChild(option);
-    });
-    select.onchange = function () {
-      view[field] = select.value;
-      redraw();
-    };
+    host.appendChild(
+      menu("language", t("library.menu.language", "Language"), languages, code, function (value) {
+        page = PAGE;
+        pickLanguage(value);
+      })
+    );
   }
 
   function heading(redraw) {
     var host = document.getElementById("rows-head");
     host.textContent = "";
-    COLUMNS.forEach(function (pair) {
-      // The register's column says nothing under another language: kept as an empty cell
-      // so the row still lines up with the heading.
-      if (!pair[0] || (pair[0] === "register" && !inHebrew)) {
-        host.appendChild(el("span"));
+    COLUMNS.forEach(function (pair, at) {
+      // The picture's column has no head; the build's cell at the end takes no column.
+      if (!pair[0]) {
+        if (!at) host.appendChild(el("span", "see-head-pic"));
         return;
       }
-      var button = el("button", pair[0] === "kind" || pair[0] === "register" ? "drop" : null);
+      var button = el("button", "see-head-" + pair[0]);
       button.type = "button";
-      // Under the Scenes chip the list is in scene order whatever this column says, so
-      // the column says that instead, and cannot be pressed: a heading reading "New
-      // words" over a list not in that order would be a lie.
-      var scenes = pair[0] === "difficulty" && view.kind === "dialogue";
+      // Under the Dialogues the list is in scene order whatever this column says, so the
+      // column says that instead, and cannot be pressed.
+      var scenes = pair[0] === "known" && view.kind === "dialogue";
       button.appendChild(
         document.createTextNode(scenes ? t("library.column.in-order", "In order") : pair[1])
       );
-      if (pair[0] === "difficulty" || pair[0] === "known") button.className = "drop";
       if (scenes) {
         button.disabled = true;
         button.setAttribute("aria-disabled", "true");
@@ -2321,6 +1840,7 @@
           view.sort = pair[0];
           view.dir = DESCENDING[pair[0]] ? -1 : 1;
         }
+        page = PAGE;
         redraw();
       });
       host.appendChild(button);
@@ -2757,6 +2277,7 @@
       seeded = window.TargumCharts.seed(ledger && ledger.words, lang.HOME);
     }
     canDraw = !!data.covers;
+    signedIn = !!data.signedIn;
     var opened = stored("targum:opened");
     readers.concat(shared).forEach(function (reader) {
       reader.opened = opened[reader.document] || 0;
@@ -2771,11 +2292,14 @@
     var everything = rows(readers, shared);
     var host = document.getElementById("catalogue");
     var cards = document.getElementById("cards");
+    var picked = document.getElementById("picked");
     var empty = document.getElementById("picked-empty");
     var tally = document.getElementById("tally");
+    var more = document.getElementById("see-more");
     var find = document.getElementById("find");
-    var clear = document.getElementById("clear");
     var chosen;
+    // Every language this reader has, for the Language menu; set below, before the first draw.
+    var codes = [];
 
     /* What an empty page says. An empty list and an empty filter are different things to
        be told. A language with no catalogue yet says so, and points at what the reader
@@ -2801,13 +2325,14 @@
             });
     }
 
-    /* See all: the one list, under the band its shelf is, with every filter it had. */
+    /* See all: the one list, under the band its shelf is, a page at a time. */
     function seeBand(band) {
       view.fit = band || "";
       view.find = "";
       find.value = "";
       view.where = "library";
       seeAll = true;
+      page = PAGE;
       mark(SEE + (band ? "/" + band : ""));
       redraw();
       if (window.scrollTo) window.scrollTo(0, 0);
@@ -2819,105 +2344,184 @@
       view.find = "";
       find.value = "";
       view.where = "library";
+      view.door = "";
       mark("");
       redraw();
     }
 
+    /* The kind doors (board Library, "Browse by kind"): the Tanakh's map, then News,
+       Video, Books, the Weekly portion, the Mishnah and the rest of the Jewish texts. Each
+       is an address the page already answers — `#see/kind/<kind>`, `#bm/<door>` — so a
+       door is a link, and only a door with something behind it in this language is
+       drawn. */
+    function drawDoors(doorsHost, code) {
+      if (!doorsHost) return;
+      doorsHost.textContent = "";
+      var here = everything.filter(function (row) {
+        return inLanguage(row, code) && row.entry;
+      });
+      function holds(test) {
+        return here.some(test);
+      }
+      function behind(door) {
+        return everything.some(function (row) {
+          return doorOf(row) === door;
+        });
+      }
+      var hebrew = code === lang.HOME;
+      var offered = [];
+      if (hebrew) offered.push(["tanakh", keyed("/tanakh-map"), t("library.door.tanakh", "Tanakh"), "תנ״ך"]);
+      [
+        ["article", t("library.door.news", "News")],
+        ["talk", t("library.door.video", "Video")],
+        ["books", t("library.door.books", "Books")],
+      ].forEach(function (pair) {
+        var kinds = KIND_SETS[pair[0]] || [pair[0]];
+        var found = holds(function (row) {
+          return kinds.indexOf(row.kind) >= 0;
+        });
+        if (found) offered.push([pair[0], "#" + SEE + "/kind/" + pair[0], pair[1], ""]);
+      });
+      if (hebrew && behind("portions")) {
+        offered.push(["portions", "#" + TREE_HASH + "/portions", t("library.door.portion", "Weekly portion"), ""]);
+      }
+      if (hebrew && behind("mishnah")) {
+        offered.push(["mishnah", "#" + TREE_HASH + "/mishnah", t("library.door.mishnah", "Mishnah"), ""]);
+      }
+      if (hebrew && everything.some(function (row) { return !!doorOf(row); })) {
+        offered.push(["midrash", "#" + TREE_HASH, MIDRASH[1], ""]);
+      }
+      doorsHost.hidden = !offered.length;
+      if (!offered.length) return;
+      var label = el("span", "lib-doors-label", t("library.doors-label", "Browse by kind:"));
+      doorsHost.appendChild(label);
+      var list = el("div", "lib-doors-row");
+      offered.forEach(function (one) {
+        var door = el("a", "lib-door");
+        door.href = one[1];
+        door.setAttribute("data-door", one[0]);
+        if (one[3]) {
+          var name = el("bdi", "lib-door-hebrew", one[3]);
+          name.setAttribute("lang", "he");
+          door.appendChild(name);
+        }
+        door.appendChild(el("span", "lib-door-name", one[2]));
+        // A door within the page goes there now, and the Back button comes back.
+        if (one[1].charAt(0) === "#") {
+          door.addEventListener("click", function (event) {
+            if (event && event.preventDefault) event.preventDefault();
+            mark(one[1].slice(1));
+            moved();
+            if (window.scrollTo) window.scrollTo(0, 0);
+          });
+        }
+        list.appendChild(door);
+      });
+      doorsHost.appendChild(list);
+    }
+
+    /* See all's head: "All Hebrew texts 720", or the band it was opened from with what
+       the band means ("A stretch [75–90%] known", board SubFromLibrary). */
+    var BAND_RANGES = {
+      now: t("library.band.now-range", "90% known and up"),
+      stretch: t("library.band.stretch-range", "75–90% known"),
+      hard: t("library.band.hard-range", "under 75% known"),
+    };
+    function seeTitle(titleHost, count) {
+      if (!titleHost) return;
+      titleHost.textContent = "";
+      var band = bandNamed(fitWanted());
+      var kind = view.kind ? named(KINDS, view.kind) || (KIND_SETS[view.kind] ? t("library.kind.books", "Books") : "") : "";
+      var name = band
+        ? band[1]
+        : kind
+          ? t("library.see.title-kind", "{kind} in {language}", { kind: kind, language: names[chosen] || chosen })
+          : t("library.see.title-all", "All {language} texts", { language: names[chosen] || chosen });
+      titleHost.appendChild(el("span", "see-title-name", name));
+      titleHost.appendChild(
+        el("span", "see-title-count", band && anyKnown ? BAND_RANGES[band[0]] + " · " + count : String(count))
+      );
+    }
+
+    /* Where a row the address names falls in the list, so the page reaches it. */
+    function placeOf(showing, wanted) {
+      for (var n = 0; n < showing.length; n++) {
+        if (showing[n].id === wanted) return n;
+        if (showing[n].rows) {
+          for (var m = 0; m < showing[n].rows.length; m++) if (showing[n].rows[m].id === wanted) return n;
+        }
+      }
+      return -1;
+    }
+
     function redraw() {
       remember("targum:library", views);
-      // "Which Hebrew" asks nothing of another language (2026-09-13).
-      var registerSet = document.getElementById("register-chips");
-      if (registerSet && registerSet.parentNode) registerSet.parentNode.hidden = chosen !== lang.HOME;
-      // Only the registers actually in front of this reader, the same way the kinds are.
-      // Two values could always both be offered; five cannot — a shelf of Hebrew
-      // journalism would otherwise carry four chips that find nothing.
-      chips(
-        document.getElementById("register-chips"),
-        REGISTERS,
-        "register",
-        redraw,
-        "segment",
-        present(everything, "register", chosen)
-      );
-      // Only the kinds that are actually in front of this reader. A row of seven chips
-      // where three of them find nothing — and one of them is "Documents" — is seven
-      // things to read and four dead ends.
-      chips(
-        document.getElementById("kind-chips"),
-        KINDS,
-        "kind",
-        redraw,
-        "chip",
-        present(everything, "kind", chosen)
-      );
-      // What it is about, above the list and always visible: the row a reader browses by
-      // (design.md §12, 2026-09-17).
-      subjects(document.getElementById("subject-chips"), everything, chosen, redraw);
-      sorts(document.getElementById("sorts"), redraw);
-      shapes(document.getElementById("shape"), redraw);
-      choices(document.getElementById("audio"), SPOKEN, "spoken", redraw);
-      choices(document.getElementById("length"), LENGTHS, "length", redraw);
-      choices(document.getElementById("difficulty"), LEVELS, "level", redraw);
-      /* The Beit Midrash is Hebrew's, and is drawn only where the catalogue says which
-         door anything stands behind: a tab over an empty tree is a dead end. Under another
-         language, or a file with no doors, a view left on it goes back to All texts. */
+      closeMenu(false);
+      /* The Jewish texts are Hebrew's, and are drawn only where the catalogue says which
+         door anything stands behind: a door onto an empty tree is a dead end. Under
+         another language, or a file with no doors, a view left in it goes back to the
+         Library. */
       var treed =
         chosen === lang.HOME &&
         everything.some(function (row) {
           return !!doorOf(row);
         });
       if (view.where === "midrash" && !treed) view.where = "library";
-      // One tab alone is not drawn (see `WHERE`).
-      var strip = document.getElementById("where");
-      if (strip) strip.hidden = !treed;
-      tabs(strip, treed ? WHERE.concat([MIDRASH]) : [], "where", redraw);
-      heading(redraw);
       var tree = view.where === "midrash";
       if (!tree) view.door = "";
-      // At the doors themselves there is no list yet, so nothing that narrows one: the
-      // subjects (every row here is Tanakh or Judaica), the band, the sorts.
+      // At the doors themselves there is no list yet.
       var atDoors = tree && !view.door && !view.find;
-      ["subject-label", "subject-chips", "said"].forEach(function (id) {
-        var part = document.getElementById(id);
-        if (part) part.hidden = tree;
-      });
-      ["sorts", "shape"].forEach(function (id) {
-        var part = document.getElementById(id);
-        if (part) part.hidden = atDoors;
-      });
       crumbs(document.getElementById("crumbs"), tree, redraw);
       address(tree);
 
-      /* The shelves, where the page lands (design.md §12, 2026-10-09): everything the
-         filters leave, whatever band a See all was last opened on, and no search — a
-         search is a list. */
+      /* The shelves, where the page lands (design.md §12, 2026-10-09). See all is the
+         list under a band; the Jewish texts are their doors, then a door's list. */
       var shelving = !tree && !seeAll;
-      var shelvesHost = document.getElementById("shelves");
+      var seeing = !tree && seeAll;
+      if (document.body && document.body.classList) {
+        document.body.classList.toggle("is-seeing", seeing);
+      }
       var back = document.getElementById("see-back");
-      if (back) back.hidden = !(!tree && seeAll);
+      if (back) back.hidden = shelving;
+      var titleHost = document.getElementById("see-title");
+      if (titleHost) titleHost.hidden = !seeing;
+      var menus = document.getElementById("see-menus");
+      if (menus) {
+        menus.hidden = !seeing;
+        if (seeing) drawMenus(menus, everything, chosen, codes, redraw, show);
+        else menus.textContent = "";
+      }
+      var doorsHost = document.getElementById("lib-doors");
+      if (doorsHost) {
+        if (shelving) drawDoors(doorsHost, chosen);
+        else doorsHost.hidden = true;
+      }
+      var note = document.getElementById("picked-note");
+      if (note) note.hidden = !atDoors;
       placePortions(chosen, shelving);
-      tally.hidden = shelving;
+      var shelvesHost = document.getElementById("shelves");
       if (shelvesHost) shelvesHost.hidden = !shelving;
+      cards.hidden = !atDoors;
+      host.textContent = "";
+      cards.textContent = "";
+      more.hidden = true;
+      var head = document.getElementById("rows-head");
+
       if (shelving) {
-        ["said", "subject-label", "subject-chips", "sorts", "shape", "picked-note", "rows-head"].forEach(
-          function (id) {
-            var part = document.getElementById(id);
-            if (part) part.hidden = true;
-          }
-        );
-        host.textContent = "";
-        cards.textContent = "";
-        host.hidden = true;
-        cards.hidden = true;
         var unbanded = {};
         for (var field in view) unbanded[field] = view[field];
         unbanded.fit = "";
         unbanded.find = "";
+        unbanded.kind = "";
         var pool = everything.filter(function (row) {
           return matches(row, chosen, unbanded);
         });
         var standing = shelvesHost ? drawShelves(shelvesHost, pool, sharedNow, chosen, seeBand) : 0;
+        // Nothing to shelve is said in the list's card, which is otherwise down.
+        picked.hidden = standing > 0;
         empty.hidden = standing > 0;
+        if (head) head.hidden = true;
+        tally.textContent = "";
         if (!standing) {
           empty.textContent = emptySaid(
             everything.filter(function (row) {
@@ -2925,7 +2529,6 @@
             }).length
           );
         }
-        clear.hidden = !(view.kind || view.register || view.length || view.level || view.subject);
         return;
       }
 
@@ -2933,45 +2536,28 @@
         return matches(row, chosen);
       });
       if (atDoors) {
-        host.textContent = "";
-        cards.textContent = "";
-        host.hidden = true;
-        cards.hidden = false;
-        var rowsHead = document.getElementById("rows-head");
-        if (rowsHead) rowsHead.hidden = true;
+        picked.hidden = true;
         doors(cards, surviving, redraw);
         placeNote(t("library.note.doors", "Pick a section. Every text here is also under All texts."));
-        empty.hidden = true;
-        tally.textContent = tn("library.tally.all", surviving.length, "{n} text", "{n} texts");
         return;
       }
+      picked.hidden = false;
       var top = folded(surviving);
-      /* A list that is one collection is that collection. Picking the Scenes chip and
-         being shown a single row saying "Scenes · 100 texts" is the filter answering a
-         question with the question. */
-      if (top.length === 1 && top[0].group) top = top[0].rows;
-      var showing = sorted(top);
-      host.textContent = "";
-      cards.textContent = "";
-      /* Two shapes over one list. Whichever is on is filled and the other is emptied,
-         so nothing is drawn twice and a build narrating itself has exactly one cell to
-         write into. A collection folds the same way in both: one row, or one card, over
-         its texts, and opening it lays its members out beside it. */
-      var browsing = view.shape !== "list";
-      host.hidden = browsing;
-      cards.hidden = !browsing;
-      showing.forEach(function (row) {
-        if (browsing) {
-          // A collection is a card of its own shape: a shelf rather than a text, with no
-          // cover and a press that opens rather than reads.
-          cards.appendChild(row.group ? groupCard(row) : card(row));
-          if (row.group && isOpen(row.group)) {
-            within(row.group, row.rows).forEach(function (member) {
-              cards.appendChild(card(member));
-            });
-          }
-          return;
-        }
+      /* A list that is one collection is that collection. */
+      // And an ordered one — the portions, the Torah — keeps its own order.
+      var showing;
+      inItsOrder = top.length === 1 && !!top[0].group && !!top[0].group.ordered;
+      if (top.length === 1 && top[0].group) showing = within(top[0].group, top[0].rows);
+      else showing = sorted(top);
+      if (seeing) seeTitle(titleHost, surviving.length);
+
+      /* A page at a time (board SeeAllDesk: "13 of 720 · Show more"): fifty rows, and
+         Show more for the next fifty. A row the address names is always on the page. */
+      var wanted = decodeURIComponent((location.hash || "").slice(1)).replace(/^build:/, "");
+      var at = wanted ? placeOf(showing, wanted) : -1;
+      if (at >= page) page = Math.ceil((at + 1) / PAGE) * PAGE;
+      var shown = showing.slice(0, page);
+      shown.forEach(function (row) {
         host.appendChild(draw(row));
         if (row.group && isOpen(row.group)) {
           within(row.group, row.rows).forEach(function (member) {
@@ -2979,44 +2565,45 @@
           });
         }
       });
-      // The table's heading belongs to the table; over a grid of cards it is a row of
-      // sort buttons pointing at columns nobody can see.
-      var head = document.getElementById("rows-head");
-      if (head) head.hidden = browsing;
-      placeNote(noteFor(showing));
+      heading(redraw);
+      var subs = host.children.some
+        ? host.children.some(function (item) {
+            return item.querySelector && !!item.querySelector(".row-sub");
+          })
+        : !!host.querySelector(".row-sub");
+      if (picked.classList) picked.classList.toggle("has-subs", subs);
+      if (subs && head) head.appendChild(el("span", "see-head-sub", t("library.column.subscribe", "Subscribe")));
+      if (head) head.hidden = !showing.length;
       pointAt();
-      var here = everything.filter(function (row) {
-        // Behind a door, counted against that door: "5 of 499" under the Torah would be
-        // counting five books against the whole library.
-        if (tree) return doorOf(row) && (!view.door || view.find || doorOf(row) === view.door);
-        return inLanguage(row, chosen) && row.entry;
-      });
       empty.hidden = showing.length > 0;
       if (!showing.length) {
+        var here = everything.filter(function (row) {
+          // Behind a door, counted against that door.
+          if (tree) return doorOf(row) && (!view.door || view.find || doorOf(row) === view.door);
+          return inLanguage(row, chosen) && row.entry;
+        });
         empty.textContent = emptySaid(here.length);
       }
-      var total = here.length;
-      // Texts, not rows. A folded list is thirty-six rows over three hundred and
-      // fifty-two texts, and counting the rows would say "36 of 352" — two different
-      // things, in one sentence, both of them true.
-      var found = surviving.length;
-      tally.textContent =
-        found === total
-          ? tn("library.tally.all", total, "{n} text", "{n} texts")
-          : t("library.tally.found", "{found} of {total}", { found: found, total: total });
-      // The sentence above the list: how many there are in this language, and how much
-      // of it is being shown. The count is every text on this shelf, not the surviving
-      // ones — it is the thing the narrowing is measured against.
-      fitLine(document.getElementById("said"), total, redraw);
-      clear.hidden = !(
-        view.find ||
-        view.kind ||
-        view.register ||
-        view.length ||
-        view.level ||
-        view.subject
-      );
+      more.hidden = shown.length >= showing.length;
+      // Texts, not rows: a collection is one row over many, and "13 of 720" counts texts.
+      var textsShown = shown.reduce(function (total, row) {
+        return total + (row.rows ? row.rows.length : 1);
+      }, 0);
+      tally.textContent = !showing.length
+        ? ""
+        : shown.length < showing.length
+          ? t("library.tally.page", "{shown} of {total} · {order}", {
+              shown: textsShown,
+              total: surviving.length,
+              order: orderSaid(),
+            })
+          : tn("library.tally.all", surviving.length, "{n} text", "{n} texts") + " · " + orderSaid();
     }
+
+    more.addEventListener("click", function () {
+      page += PAGE;
+      redraw();
+    });
 
     /* Learn suggests something to read and links here with the id in the hash. Finding it
        is the reader's problem otherwise: this catalogue is forty rows and the thing they
@@ -3160,13 +2747,6 @@
     find.addEventListener("focus", search);
     find.addEventListener("click", search);
     find.addEventListener("input", search);
-    clear.addEventListener("click", function () {
-      // Not `where`: Clear empties the filters, and which of the two lists you are
-      // looking at is not one of them.
-      view.find = view.kind = view.register = view.length = view.level = view.subject = "";
-      find.value = "";
-      redraw();
-    });
 
     /* One handler over both shapes. A card and a row carry the same three things that
        can be pressed — draw a cover, fold a collection, start a build — so the listener
@@ -3226,7 +2806,7 @@
         if (code && all.indexOf(code) < 0) all.push(code);
       });
     });
-    var codes = lang.order(all, names);
+    codes = lang.order(all, names);
     chosen = lang.current(codes);
     view = viewFor(chosen);
     var betaNote = document.getElementById("beta-note");
@@ -3234,6 +2814,7 @@
     function show(code) {
       chosen = code;
       view = viewFor(code);
+      page = PAGE;
       /* Where the page stands: the shelves where the address names nothing, the list under
          `#see` and wherever a text was named, the tree under `#bm`. Landing on the
          shelves leaves a search behind, and the Beit Midrash too: the Library opens on
@@ -3275,6 +2856,7 @@
 
     // A link followed, or the address edited, while the page is open.
     function moved() {
+      page = PAGE;
       var see = seeAddressed();
       if (see !== null) {
         seeAll = true;

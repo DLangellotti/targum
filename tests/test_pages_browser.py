@@ -389,14 +389,10 @@ def test_a_description_is_never_priced(browser) -> None:
 
 
 def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -> None:
-    """A text carries a scene label, a chip, a Hebrew title and an English one. At 390px
-    the chip takes a line of its own under the Hebrew, and the Hebrew title never breaks
-    across lines — a title in two pieces reads as two titles.
-
-    Measured on the card, which is what the page opens in since 2026-09-17 (design.md
-    §12) and so what a phone actually shows. It measured the table's row until then, and
-    the row is still there behind List view; what this is really pinning is the phone,
-    and the phone gets cards.
+    """A text carries a chip, a Hebrew title and an English one. At 390px the Hebrew
+    title never breaks across lines — a title in two pieces reads as two titles — and the
+    row of See all keeps its picture, its title and how much is known inside the phone
+    (board SeeAllPhone; design.md §12, "The Library stands on the ground", 2026-10-09).
     """
     page_file = tmp_path / "library.html"
     page_file.write_text(library_page(TOKEN), encoding="utf-8")
@@ -452,15 +448,17 @@ def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -
         """() => {
           const row = document.querySelector('[data-row="scene-01-nice-to-meet-you"]');
           if (!row) return { missing: true };
-          const bdi = row.querySelector('.card-title');
+          const bdi = row.querySelector('.row-name');
           const chip = row.querySelector('.row-next');
+          const known = row.querySelector('.see-known');
           if (!bdi) return { missing: true };
           const b = bdi.getBoundingClientRect();
-          const c = chip ? chip.getBoundingClientRect() : null;
+          const k = known.getBoundingClientRect();
           return {
             titleLines: bdi.getClientRects().length,
-            chipBelow: c ? c.top >= b.bottom - 1 : null,
             chipText: chip ? chip.textContent : "",
+            knownInside: k.right <= 390 && k.width > 0,
+            titleInside: b.right <= 390,
             width: document.documentElement.scrollWidth,
           };
         }"""
@@ -470,7 +468,7 @@ def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -
     assert not measured.get("missing"), "the shared scene has a card"
     assert measured["titleLines"] == 1, "the Hebrew title never breaks"
     assert measured["chipText"] == "Start here"
-    assert measured["chipBelow"] is True, "the chip sits on its own line under the title"
+    assert measured["knownInside"] and measured["titleInside"], measured
     assert measured["width"] <= 390, "and the page does not scroll sideways"
 
 
@@ -1598,23 +1596,22 @@ def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
             .map((d) => Math.round(d.getBoundingClientRect().top));
           return {
             doors: [...document.querySelectorAll('.door-card')].map((d) => d.dataset.door),
-            controls: ['subject-chips', 'subject-label', 'said', 'sorts', 'shape', 'crumbs']
-              .filter(shown),
-            texts: document.querySelectorAll('#cards .card-item').length,
+            controls: ['see-menus', 'lib-doors', 'picked', 'crumbs', 'shelves'].filter(shown),
+            texts: document.querySelectorAll('#catalogue > li').length,
             sameRow: tops.length > 1 && tops[0] === tops[1],
-            on: document.querySelector('#where [aria-selected="true"]').textContent,
+            back: shown('see-back'),
             sideways: document.documentElement.scrollWidth > window.innerWidth,
           };
         }"""
     )
     page.locator('.door-card[data-door="tanakh"]').click()
-    page.wait_for_selector("#cards .card-item")
+    page.wait_for_selector("#catalogue > li")
     inside = page.evaluate(
         """() => ({
           hash: location.hash,
           crumbs: document.getElementById('crumbs').innerText,
-          titles: [...document.querySelectorAll('#cards .card-title')].map((t) => t.textContent),
-          sorts: getComputedStyle(document.getElementById('sorts')).display !== 'none',
+          titles: [...document.querySelectorAll('#catalogue .row-name')].map((t) => t.textContent),
+          sorts: getComputedStyle(document.getElementById('rows-head')).display !== 'none',
           map: (document.querySelector('#crumbs a.crumb-map') || {}).href || '',
           sideways: document.documentElement.scrollWidth > window.innerWidth,
         })"""
@@ -1624,12 +1621,12 @@ def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
     back = page.evaluate("() => location.hash")
     context.close()
 
-    assert at_doors["on"] == "Jewish texts" and at_doors["doors"] == ["tanakh", "targum"]
+    assert at_doors["back"] and at_doors["doors"] == ["tanakh", "targum"]
     assert at_doors["controls"] == [], f"nothing that narrows a list there is not: {at_doors}"
     assert at_doors["texts"] == 0 and at_doors["sameRow"] and not at_doors["sideways"], at_doors
     assert inside["hash"] == "#bm/tanakh" and "Tanakh" in inside["crumbs"], inside
-    assert "רות" in inside["titles"], "the tab, then Tanakh, and Ruth is on the page"
-    assert inside["sorts"], "and inside a door the list has its sorts back"
+    assert "רות" in inside["titles"], "the door, then Tanakh, and Ruth is on the page"
+    assert inside["sorts"], "and inside a door the list has its heads"
     assert "/tanakh-map" in inside["map"], "the Tanakh door leads on to its map (#144)"
     assert not inside["sideways"], inside
     assert back == "#bm"

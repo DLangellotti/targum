@@ -358,7 +358,11 @@ THUMBED = (
     # Your targums' find field (P4, 2026-10-09); its chips and order are gone.
     ".yours-card > .find",
     ".series-back",
-    ".filters > summary",
+    # The Library's kind doors and See all's menus (design.md §12, "The Library stands on
+    # the ground", 2026-10-09); its Filters fold is gone.
+    ".lib-door",
+    ".see-menu-press",
+    ".see-menu-item",
     ".claim-table label",
     ".chat-claim label",
     # A post's one way home (design.md §12, "A post keeps its shape", 2026-09-27).

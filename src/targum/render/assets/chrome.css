@@ -92,6 +92,18 @@ body {
   color: var(--ink);
 }
 
+/* A title's Hebrew name beside it (board LibraryTanakh: "The Tanakh תנ״ך"), and what a
+   board stands at the far end of the title's row. */
+.page-title-he { margin-inline-start: 0.35rem; font-family: var(--reading-hebrew); font-weight: 400; color: var(--ink-soft); }
+.page-head:has(> .page-head-aside) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 1rem;
+  align-items: end;
+}
+.page-head:has(> .page-head-aside) > :not(.page-head-aside) { grid-column: 1; }
+.page-head-aside { grid-column: 2; grid-row: 1 / span 3; align-self: end; }
+
 /* The trail above a heading, where a page stands inside a place (Library › The Tanakh).
    Quiet, and the way back is the place's own name in the working teal. */
 .page-head .site-crumbs {

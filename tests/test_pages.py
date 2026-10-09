@@ -532,7 +532,7 @@ def test_the_library_is_one_list() -> None:
     which room a text was in before they could find it, which is backwards for the one
     page whose whole job is finding something."""
     library = PAGES["library"]
-    assert 'id="where"' in library
+    assert 'id="where"' not in library, "no tabs: the Jewish texts are a door"
     # The shelves by level (design.md §12, 2026-10-09) are not rooms: each is the one
     # list under one band, and its See all is that list. What stays gone is the switch.
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
@@ -544,7 +544,7 @@ def test_the_library_is_one_list() -> None:
     # address of its own for a text, and `test_library_js.py` holds it to every row being
     # a row under All texts too.
     assert "/beit-midrash/" not in library and "/beit-midrash/" not in source
-    assert source.count("function card(row)") == 1 and source.count("function draw(row") == 1
+    assert "function card(row)" not in source and source.count("function draw(row") == 1
 
 
 def test_a_row_says_what_the_text_is() -> None:
@@ -552,31 +552,29 @@ def test_a_row_says_what_the_text_is() -> None:
     news in one list, the reader who cares which is which needs the row to say so — and
     it has to be the same vocabulary the catalogue is written in, so the two cannot
     drift."""
-    from targum.catalogue import Kind, Register
+    from targum.catalogue import Kind
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     for kind in Kind:
         assert f'["{kind.value}", ' in source, f"the library cannot name a {kind.value}"
-    for register in Register:
-        if register.value:
-            assert f'["{register.value}", ' in source
-    # And filters by both, which is the point of naming them. `state` is whichever set of
+    # And filters by it, which is the point of naming it. `state` is whichever set of
     # filters is being asked about — the live ones, or the same minus one, which is how
-    # the page works out which chips are worth offering.
-    assert "state.kind && row.kind !== state.kind" in source
-    assert "state.register && row.register !== state.register" in source
+    # the page works out which kinds are worth offering. Which Hebrew is no longer one
+    # (design.md §12, "The Library stands on the ground", 2026-10-09).
+    assert "var kinds = KIND_SETS[state.kind] || [state.kind];" in source
 
 
 def test_the_library_has_one_heading() -> None:
     """ "Picked for you" was a panel title on a page that also held the reader's shelf
     and their trash. With nothing else on the page it only repeated the h1.
 
-    The one h2 is the Weekly portion shelf's (targum-internal#411): a shelf of its own
-    above the list, which says something the h1 does not."""
+    The h2s are the Weekly portion shelf's (targum-internal#411), a shelf of its own,
+    and See all's name, which stands in for the h1 while the list is up (design.md §12,
+    "The Library stands on the ground", 2026-10-09)."""
     library = PAGES["library"]
     assert "Picked for you" not in library
-    assert re.findall(r"<h2\b[^>]*\bid=\"([^\"]+)\"", library) == ["portions-head"]
-    assert len(re.findall(r"<h2\b", library)) == 1
+    assert re.findall(r"<h2\b[^>]*\bid=\"([^\"]+)\"", library) == ["see-title", "portions-head"]
+    assert len(re.findall(r"<h2\b", library)) == 2
 
 
 # -- the header every page wears --------------------------------------------------
@@ -715,25 +713,16 @@ def test_the_chart_kit_is_bound_before_it_is_used(page: str) -> None:
     assert bound < first.start(), f"{page}.js reads {first.group(0)} before binding charts"
 
 
-def test_the_library_is_browsed_as_cards_and_sifted_as_a_list() -> None:
-    """Both shapes, over one list (design.md §12, 2026-09-17).
-
-    This asserted for months that "the card grid is gone", and it was right: a card
-    cannot be sorted, and the grid it replaced could not answer "which of these can I
-    read". The page is browsed now, so the grid is back — and the complaint that retired
-    it is answered rather than forgotten, because the sortable table is still here and is
-    one press away.
-    """
+def test_see_all_is_a_table_with_three_menus() -> None:
+    """Board SeeAllDesk (design.md §12, "The Library stands on the ground", 2026-10-09):
+    the search, then Kind, Level and Language as menus, a table whose heads sort it, and
+    Show more under fifty rows. What the boards do not draw is not on the page."""
     library = PAGES["library"]
-    for control in ("find", "register-chips", "kind-chips", "length", "difficulty"):
-        assert f'id="{control}"' in library, f"the library cannot filter by {control}"
-    assert 'id="rows-head"' in library, "the columns still sort"
-    assert 'id="catalogue"' in library, "and the table is still a table"
-    assert 'id="cards"' in library, "and the grid is what it opens in"
-    assert 'id="shape"' in library, "with one control to change between them"
-    # What it is browsed by, and how much of it is shown: the two the browse view adds.
-    assert 'id="subject-chips"' in library, "the subjects are the row it browses by"
-    assert 'id="said"' in library, "and the line that says how far it is narrowed"
+    for part in ("find", "see-menus", "rows-head", "catalogue", "see-more", "lib-doors"):
+        assert f'id="{part}"' in library, part
+    for gone in ("register-chips", "kind-chips", "subject-chips", "said", "shape", "sorts"):
+        assert f'id="{gone}"' not in library, gone
+    assert "<select" not in library, "the menus are the desk's own"
 
 
 def test_the_library_is_everyone_s_and_your_targums_is_yours() -> None:
@@ -741,11 +730,9 @@ def test_the_library_is_everyone_s_and_your_targums_is_yours() -> None:
     uploads tab, which listed what Your targums already listed. It is gone; the tab strip
     stays for the Beit Midrash."""
     library = PAGES["library"]
-    assert 'id="where"' in library and 'role="tablist"' in library
     assert 'id="access"' not in library, "the Access filter stays gone too"
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert '["library", t("library.where.library", "All texts")]' in source
     assert "library.where.mine" not in source
     assert '"row-state", row.entry ? "Public" : "Private"' not in source
 
@@ -949,19 +936,6 @@ def test_the_suggestion_points_at_a_row_without_pressing_it() -> None:
     for asking in ("ask(", "fetch(", "build("):
         assert asking not in pointing, f"pointAt must not call {asking}"
     assert "focus(" in pointing, "it does put the press under their hand"
-
-
-def test_which_hebrew_is_a_switch_rather_than_two_more_filter_pills() -> None:
-    """Biblical and modern Hebrew are close to two languages, and which one somebody is
-    learning is the first question this page asks. As pills it sat beside the kind filter
-    with a second chip also saying "All", and the two rows read as one row of ten."""
-    library = PAGES["library"]
-    assert 'class="seg" id="register-chips"' in library
-    assert '<span class="switch-label">Which Hebrew</span>' in library, "and it says what it is"
-    assert 'class="chips" id="register-chips"' not in library
-
-    source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert '"register",\n        redraw,\n        "segment",' in source, "segments, not chips"
 
 
 # -- bringing your own text ------------------------------------------------------

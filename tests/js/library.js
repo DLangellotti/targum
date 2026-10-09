@@ -93,6 +93,22 @@ var shelfAnswer = {
   // built (targum-internal#293). It is what "at my level" is measured with, so a
   // test of that has to be able to set it.
   catalogue: payload.catalogueKnown || {},
+  // Whether somebody is signed in: a row's Subscribe is the account's.
+  signedIn: !!payload.signedIn,
+};
+
+/* The hook `subscribe.js` hands a Library row (design.md §12, "A subscription is the
+   account's"): what it is asked for is what a test reads. Its own switch is tested with
+   the page that owns it (`test_subscribe_connector.py`). */
+global.TargumSubscribe = global.window.TargumSubscribe = {
+  button: (kind, given, words) => {
+    const press = global.document.createElement(kind === "series" ? "button" : "a");
+    press.textContent = words.subscribe;
+    press.setAttribute("data-kind", kind);
+    press.setAttribute("data-given", given);
+    if (kind !== "series") press.href = "/subscribe?kind=" + kind + "&source=" + given;
+    return press;
+  },
 };
 
 global.fetch = (address) =>
@@ -134,9 +150,27 @@ setTimeout(() => {
   const doorItems = () =>
     byId["cards"].children.filter((c) => String(c.className).indexOf("door-item") >= 0);
   (payload.do || []).forEach((step) => {
-    if (step.tab) {
-      const tab = byId["where"].children.find((c) => c.textContent === step.tab);
-      if (tab) tab.fire("click", {});
+    /* A kind door on the shelves (board Library): `{kindDoor: "midrash"}` is the Jewish
+       texts, `{kindDoor: "article"}` News. `{tab: …}` is the old name for the first. */
+    const kindDoor = step.kindDoor || (step.tab ? "midrash" : "");
+    if (kindDoor) {
+      const row = (byId["lib-doors"].children || []).find((c) => String(c.className) === "lib-doors-row");
+      const door = row && row.children.find((c) => c.getAttribute("data-door") === kindDoor);
+      if (door) door.fire("click", {});
+    }
+    /* A See all menu: `{menu: "kind", pick: "story"}`. */
+    if (step.menu) {
+      const box = byId["see-menus"].children.find((c) => c.getAttribute("data-menu") === step.menu);
+      const list = box && box.children[1];
+      const item = list && list.children.find((c) => c.getAttribute("data-value") === step.pick);
+      if (box) box.children[0].fire("click", {});
+      if (item) item.fire("click", {});
+    }
+    /* Show more, `{more: true}`, and a column head, `{sort: "title"}`. */
+    if (step.more) byId["see-more"].fire("click", {});
+    if (step.sort) {
+      const head = byId["rows-head"].children.find((c) => String(c.className) === "see-head-" + step.sort);
+      if (head) head.fire("click", {});
     }
     if (step.door) {
       const item = doorItems().find((c) => c.children[0].getAttribute("data-door") === step.door);
@@ -168,106 +202,65 @@ setTimeout(() => {
     id: item.children[0].getAttribute("data-door"),
     says: item.children[0].children.map((c) => c.textContent),
   }));
-  const textCards = byId["cards"].children.filter(
-    (c) => String(c.className).indexOf("door-item") < 0
-  );
-  const browsing = byId["catalogue"].children.length === 0 && textCards.length > 0;
-  const rows = browsing ? textCards : byId["catalogue"].children;
-  const readCard = (item) => {
-    const open = item.children[0];
-    const what = open.children[1] || { children: [] };
-    /* By word, not by whole string: the lately-arrived mark shares the scene label's
-       element and its class, and an exact match came back empty for both. */
-    const wearing = (c, name) => String(c.className || "").split(" ").indexOf(name) >= 0;
-    // Anywhere under the card's words: the title and its English share a line since
-    // 2026-10-09, inside `.card-head`.
-    const below = (node, name) => {
-      for (const c of node.children || []) {
-        if (wearing(c, name)) return c;
-        const deeper = below(c, name);
-        if (deeper) return deeper;
-      }
-      return null;
-    };
-    const find = (name) => below(what, name) || {};
-    return {
-      id: item.getAttribute("data-row") || "",
-      title: find("card-title").textContent || "",
-      blurb: find("card-blurb").textContent || "",
-      blurbLang: (find("card-blurb").attrs || {})["lang"] || "",
-      near: String(find("card-known").className || "").indexOf("near") >= 0,
-      fit: "",
-      media: (open.children[0].children.find((c) => c.className === "card-media") || {}).attrs
-        ? open.children[0].children.find((c) => c.className === "card-media").attrs["aria-label"] || ""
-        : "",
-      english: find("card-english").textContent || "",
-      englishLang: (find("card-english").attrs || {})["lang"] || "",
-      after: "",
-      scene: find("card-scene").textContent || "",
-      // Arrived lately (targum-internal#315). Its own field: it stands where the scene
-      // label does, and a test asking "is this marked new" should not have to know that.
-      fresh: find("card-new").textContent || "",
-      chip: find("row-next").textContent || "",
-      state: find("row-state").textContent || "",
-      // A build in progress, drawn as a card that is not a press (design.md §12,
-      // 2026-09-17): the word over the title, and the sentence saying where it has got.
-      making: find("card-making").textContent || "",
-      meta: find("card-meta").textContent || "",
-      known: (find("card-known").children || []).map((c) => c.textContent).join(""),
-      group: open.getAttribute("data-group") || "",
-      expanded: open.getAttribute("aria-expanded") || "",
-      member: false,
-      cells: [],
-      draws: "",
-      opens: open.tagName,
-      href: open.href || "",
-    };
-  };
-  const read = (row) => {
-    // A collection stays a row even among cards, so the shape is read off the element
-    // rather than off the mode: `.card` is a card and anything else is a row.
-    if (browsing && String(row.children[0].className || "").indexOf("card") === 0) {
-      return readCard(row);
+  const rows = byId["catalogue"].children;
+  const wearing = (c, name) => String(c.className || "").split(" ").indexOf(name) >= 0;
+  const below = (node, name) => {
+    for (const c of node.children || []) {
+      if (wearing(c, name)) return c;
+      const deeper = below(c, name);
+      if (deeper) return deeper;
     }
+    return null;
+  };
+  /* One row of See all (board SeeAllDesk): the picture, the title and its English, what it
+     is and whose, the blurb, its length, how much is known, and the build's cell. */
+  const read = (row) => {
     const open = row.children[0];
+    const find = (name) => below(open, name) || { textContent: "", attrs: {}, children: [] };
+    const sub = row.children.find((c) => wearing(c, "row-sub"));
+    const press = sub && sub.children[0];
     return {
       id: row.getAttribute("data-row") || "",
-      // The title cell holds a scene label and a chip beside the Hebrew; the bdi is it.
-      title: (open.children[1].children[0].children.find((c) => c.tagName === "bdi") || open.children[1].children[0]).textContent,
-      fit: (open.children[1].children.find((c) => c.className === "row-fit") || {}).textContent || "",
-      // The one word beside the title that says what can be played: "audio", "video",
-      // or nothing. One word, never two — a video row does not also say audio.
-      media: (open.children[1].children.find((c) => c.className === "row-audio" || c.className === "row-video") || {}).textContent || "",
-      english: (open.children[1].children.find((c) => c.className === "row-english") || {}).textContent || "",
-      // The language that cell claims to be in (targum-internal#289): `en` until the
-      // catalogue had a title in anything else.
-      englishLang: (() => {
-        const line = open.children[1].children.find((c) => c.className === "row-english");
-        return line ? line.attrs["lang"] || "" : "";
-      })(),
-      // What follows the English on the same line: a byline on a text, "· 6 texts" on a
-      // collection. Its own child, so the stub's textContent does not carry it.
-      after: (() => {
-        const line = open.children[1].children.find((c) => c.className === "row-english");
-        const tail = line && line.children.find((c) => c.className === "row-by-after");
-        return tail ? tail.textContent : "";
-      })(),
-      scene: (open.children[1].children[0].children.find((c) => c.className === "row-scene") || {}).textContent || "",
-      chip: (open.children[1].children[0].children.find((c) => c.className === "row-next") || {}).textContent || "",
+      title: find("row-name").textContent,
+      english: find("row-english").textContent,
+      englishLang: find("row-english").attrs["lang"] || "",
+      meta: find("row-meta").textContent,
+      by: find("row-by").textContent,
+      blurb: find("row-blurb").textContent,
+      blurbLang: find("row-blurb").attrs["lang"] || "",
+      level: find("row-level").textContent,
+      chip: find("row-next").textContent,
+      fresh: find("row-new").textContent,
+      media: (below(open, "card-media") || { attrs: {} }).attrs["aria-label"] || "",
+      length: find("see-length-said").textContent,
+      kind: find("see-length-kind").textContent.replace(/ · $/, ""),
+      known: find("see-known-say").textContent,
+      near: wearing(find("see-known"), "near"),
+      meter: !!below(find("see-known"), "meter"),
       state: open.children[open.children.length - 1].textContent,
-      // A collection, and whether it is open; and whether this row is one of its
-      // members. Empty on an ordinary row, which is most of them.
       group: open.getAttribute("data-group") || "",
       expanded: open.getAttribute("aria-expanded") || "",
-      // Off the className, not the classList: the stub's list keeps its own set and a
-      // class given at construction never reaches it.
-      member: String(row.className || "").split(" ").indexOf("member") >= 0,
-      cells: open.children.slice(2).map((cell) => cell.textContent.trim()),
-      draws: row.children.length > 1 ? row.children[1].textContent : "",
+      member: wearing(row, "member"),
+      cells: [find("see-length-said").textContent, find("see-known-say").textContent],
+      draws: (row.children.find((c) => wearing(c, "draw")) || {}).textContent || "",
+      subscribe: press
+        ? { kind: press.getAttribute("data-kind"), given: press.getAttribute("data-given"), text: press.textContent }
+        : null,
       opens: open.tagName,
       href: open.href || "",
     };
   };
+  const menus = (byId["see-menus"].children || []).map((box) => {
+    const press = box.children[0];
+    const list = box.children[1];
+    return {
+      id: box.getAttribute("data-menu"),
+      value: (press.children.find((c) => wearing(c, "see-menu-value")) || {}).textContent || "",
+      options: list.children.map((c) => c.textContent),
+      on: (list.children.find((c) => c.getAttribute("aria-checked") === "true") || {}).textContent || "",
+    };
+  });
+  const menu = (id) => menus.find((m) => m.id === id) || { options: [], on: "", value: "" };
   /* Written, then done. The page polls while anything is building (design.md §12,
      2026-09-17) and an interval keeps node alive for ever; this is a reporter, so it
      says what it drew and stops rather than waiting for a build that will never
@@ -279,39 +272,16 @@ setTimeout(() => {
       pointed: rows.filter((row) => row.classList.contains("pointed")).map((row) => read(row).title),
       columns: byId["rows-head"].children.map((c) => c.textContent.trim()).filter(Boolean),
       tally: byId["tally"].textContent,
-      kinds: byId["kind-chips"].children.map((c) => c.textContent),
-      registers: byId["register-chips"].children.map((c) => c.textContent),
-      /* What the page is browsed by since 2026-09-17: the subjects with rows behind
-         them, each with its count, and the sentence above the list saying how far it has
-         been narrowed to fit the reader. A subject chip's name and number are separate
-         children, so the name alone is the first of them. */
-      subjects: byId["subject-chips"].hidden
-        ? []
-        : byId["subject-chips"].children.map((c) => (c.children[0] || {}).textContent || c.textContent),
-      subjectCounts: byId["subject-chips"].hidden
-        ? []
-        : byId["subject-chips"].children.map((c) =>
-            Number((c.children.find((k) => k.className === "chip-n") || {}).textContent || 0)
-          ),
-      subjectOn: (byId["subject-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {
-        children: [],
-      }).children[0]
-        ? byId["subject-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true").children[0].textContent
-        : "",
-      said: byId["said"].textContent,
-      /* Which band the list is narrowed to. Read off the selected option rather than off
-         the line's text: a stub's textContent walks every child, so the sentence comes
-         back with all three options run together. */
-      fitOn: (() => {
-        const pick = byId["said"].children
-          .map((c) => (c.children || []).find((k) => k.tagName === "select"))
-          .find(Boolean);
-        const chosen = pick && (pick.children || []).find((o) => o.selected);
-        return chosen ? chosen.textContent : "";
-      })(),
-      shape: browsing ? "cards" : "list",
-      shapeOn:
-        (byId["shape"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
+      more: !byId["see-more"].hidden,
+      listShown: !byId["picked"].hidden,
+      kinds: menu("kind").options,
+      kindOn: menu("kind").on,
+      fitOn: menu("level").on,
+      languageOn: menu("language").on,
+      menus: menus.map((m) => m.id),
+      menusShown: !byId["see-menus"].hidden,
+      seeTitle: byId["see-title"].hidden ? "" : byId["see-title"].textContent,
+      seeing: !!(global.document.body.classList && global.document.body.classList.contains("is-seeing")),
       empty: byId["picked-empty"].textContent,
       // The one line that says what the list is.
       note: byId["picked-note"].textContent,
@@ -320,11 +290,12 @@ setTimeout(() => {
       pictures: asked,
       shelving: !byId["shelves"].hidden,
       /* The Tanakh's door at the head of the shelves (design.md §12, 2026-10-09). */
-      tanakhDoor: (() => {
-        const row = (byId["shelves"].children || []).find((c) => String(c.className) === "band-doors");
-        const door = row && row.children[0];
-        return door ? { href: door.href || "", says: door.children.map((c) => c.textContent) } : null;
-      })(),
+      /* The kind doors on the shelves (board Library). */
+      kindDoors: byId["lib-doors"].hidden
+        ? []
+        : ((byId["lib-doors"].children || []).find((c) => String(c.className) === "lib-doors-row") || { children: [] }).children.map(
+            (door) => ({ id: door.getAttribute("data-door"), href: door.href || "", says: door.children.map((c) => c.textContent) })
+          ),
       backShown: !!byId["see-back"] && !byId["see-back"].hidden,
       shelves: (byId["shelves"].children || [])
         .filter((c) => c.getAttribute && c.getAttribute("data-band"))
@@ -359,14 +330,9 @@ setTimeout(() => {
         }),
       shelvesNote: ((byId["shelves"].children || []).find((c) => String(c.className).indexOf("shelves-note") >= 0) || {}).textContent || "",
       // The heading over the share column, and whether it can be pressed.
-      shareHead: (() => {
-        const head = byId["rows-head"].children.find((c) => c.className === "drop" && /^(?:Level|In order)/.test(c.textContent));
-        return head ? { text: head.textContent.trim(), disabled: head.getAttribute("aria-disabled") === "true" } : null;
-      })(),
       find: byId["find"].value || "",
       searched,
       // The Beit Midrash: the tabs on offer, the doors drawn, the trail, and the address.
-      tabs: byId["where"].children.map((c) => c.textContent),
       doors,
       crumbs: byId["crumbs"].hidden ? "" : byId["crumbs"].textContent,
       hash: global.location.hash || "",
@@ -397,14 +363,6 @@ setTimeout(() => {
         kept: global.localStorage.getItem("targum:schedule") || "",
       },
       views: JSON.parse(global.localStorage.getItem("targum:library") || "{}"),
-      kindOn: (byId["kind-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
-      // The hard-words gauge is a column, so it exists on a row and not on a card.
-      gauges: rows.map(
-        (row) =>
-          (row.children[0].children.find((c) => String(c.className).includes("gauge")) || {
-            getAttribute: () => "",
-          }).getAttribute("aria-label") || ""
-      ),
     })
   );
   process.exit(0);
