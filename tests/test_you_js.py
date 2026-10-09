@@ -61,8 +61,8 @@ def test_a_stranger_is_told_rather_than_shown_an_empty_form() -> None:
 
 
 def test_the_page_fills_itself_in_for_whoever_is_signed_in() -> None:
-    """Board AccountDesk (2026-10-09): the address on the Account card. The name and the
-    Hebrew form of address are no longer asked here."""
+    """Board AccountDesk (2026-10-09): the address on the Account card. The name is no
+    longer asked here."""
     page = run()
     assert page["stranger"] is True
     assert not any(page["panels"].values())
@@ -435,3 +435,36 @@ def test_not_said_takes_the_browsers_copy_back_too() -> None:
         answers={"/account/level": {"signedIn": True, "declared": ""}},
     )
     assert page["declaredHere"] is None
+
+
+def test_the_hebrew_form_of_address_is_a_row_while_hebrew_is_learned() -> None:
+    """#695 took the setting off the page while the conversation went on reading it. It is
+    back as a row of Your languages, marked from what the account keeps, and only where
+    Hebrew is being learned."""
+    page = run(who={**SIGNED_IN, "address": "f"})
+    assert page["address"] == {"hidden": False, "m": "false", "f": "true"}
+    unsaid = run(who={**SIGNED_IN, "address": ""})
+    assert unsaid["address"] == {"hidden": False, "m": "false", "f": "false"}
+    elsewhere = run(who={**SIGNED_IN, "learning": ["yi"]})
+    assert elsewhere["address"]["hidden"] is True
+
+
+def test_pressing_a_form_of_address_saves_it_where_it_was_always_kept() -> None:
+    page = run(
+        do=[{"type": "press", "id": "address-m"}],
+        answers={"/account/address": {"signedIn": True, "address": "m"}},
+    )
+    asked = [post["body"] for post in page["posted"] if post["path"] == "/account/address"]
+    assert asked == [{"address": "m"}]
+    assert page["address"] == {"hidden": False, "m": "true", "f": "false"}
+    assert page["languagesSaid"] == {"text": "Saved.", "hidden": False}
+
+
+def test_a_refused_form_of_address_keeps_what_was_marked() -> None:
+    page = run(
+        who={**SIGNED_IN, "address": "f"},
+        do=[{"type": "press", "id": "address-m"}],
+        answers={"/account/address": {"signedIn": False}},
+    )
+    assert page["address"]["f"] == "true" and page["address"]["m"] == "false"
+    assert page["languagesSaid"]["hidden"] is False
