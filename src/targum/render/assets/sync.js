@@ -943,6 +943,42 @@
         });
     },
 
+    /* How many changes this browser holds that the account has not had: what the
+       connection's banner counts while there is none (design.md §12, 2026-10-09). The
+       same rows a push would send, counted rather than sent. Nothing for somebody who
+       has never signed in here, whose browser is the whole of the record. */
+    owed: function () {
+      var was = state();
+      if (!was.email) return 0;
+      var since = Number(was.pushed || 0);
+      var dead = tombstones(since);
+      return (
+        localWords(since).length +
+        localMeanings(since).length +
+        localPhrases(since).length +
+        localDocs(since).length +
+        localDays(since).length +
+        localSections(since).length +
+        localPlaces(since).length +
+        dead.words.length +
+        dead.meanings.length +
+        dead.phrases.length +
+        dead.sections.length
+      );
+    },
+
+    /* Everything owed, now: what the connection coming back asks for. A page that was
+       opened with no connection never heard who is signed in, so it asks first, and
+       the first exchange after that sends whatever was kept meanwhile. Resolves once
+       the push has been answered, or has failed. */
+    flush: function () {
+      if (!api.who) return api.start();
+      clearTimeout(pending);
+      // Even with one in flight: the merge keeps the newer of the two either way, and
+      // the band that waits on this should not wait on a push it did not start.
+      return exchange(false);
+    },
+
     // After any local change. Batched, because marking five words in a sentence is
     // five calls to this and should be one request.
     touched: function () {

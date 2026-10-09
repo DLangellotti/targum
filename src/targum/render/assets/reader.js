@@ -221,6 +221,12 @@ var targumReader = function () {
     if (window.TargumFault && canAsk()) window.TargumFault.unreachable(retry);
   }
 
+  // With no connection (design.md §12, 2026-10-09): `offline.js` says so, and a page
+  // opened off a disk is never "away" — it never had anywhere to be.
+  function away() {
+    return !!(window.TargumOffline && window.TargumOffline.away && window.TargumOffline.away());
+  }
+
   var translationData = data.translations || {};
   var wordData = data.words || {};
   var lemmas = data.lemmas || [];
@@ -1743,6 +1749,43 @@ var targumReader = function () {
       if (glosses[index] !== before) onChanged();
     });
   }
+
+  // A look-up as `lookUp` would make it, kept for when there is a connection.
+  function laterAsk(index, word) {
+    return {
+      term: lemmas[index],
+      body: {
+        lemma: glossedAs(index),
+        source: wordLanguage(index),
+        target: targetLanguage || "en",
+        document: documentId,
+        sentence: sentenceOf(word) || "",
+      },
+    };
+  }
+
+  // A word asked about with no connection, answered now that there is one: kept as the
+  // tap's answer is (`lookUp`), wherever the request was made from.
+  window.addEventListener("targum:looked-up", function (event) {
+    var told = (event && event.detail) || {};
+    var body = told.body || {};
+    var answer = told.answer || {};
+    if (body.document !== documentId || !told.term) return;
+    var into = body.target || "en";
+    if (answer.meaning) {
+      keepMeaning(told.term, answer.meaning, into);
+      lemmas.forEach(function (lemma, index) {
+        if (lemma !== told.term) return;
+        if (into === targetLanguage) glosses[index] = answer.meaning;
+        if (answer.citation) citations[index] = String(answer.citation);
+        if (answer.plural) plurals[index] = String(answer.plural);
+      });
+      delete lookup[body.lemma];
+    } else {
+      lookup[body.lemma] = answer.error ? String(answer.error) : "none";
+    }
+    if (lookedUp) showCard(lookedUp);
+  });
 
   function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
@@ -5358,6 +5401,8 @@ var targumReader = function () {
     var lemma = lemmas[index];
     if (!showsOccurrences()) return null;
     if (Object.prototype.hasOwnProperty.call(comesRound, lemma)) return comesRound[lemma];
+    // Not asked with no connection, so that it is asked once there is one.
+    if (away()) return null;
     comesRound[lemma] = null;
     var query =
       "?lemma=" + encodeURIComponent(lemma) +
@@ -5426,6 +5471,15 @@ var targumReader = function () {
   // How often here and in the Tanakh, and where the reader met it. Null for nothing.
   function roundLines(index, root, redraw) {
     var said = roundOf(index, root, redraw);
+    if (!said && away() && showsOccurrences()) {
+      var later = document.createElement("span");
+      later.className = "card-round card-later";
+      later.textContent = t(
+        "reader.card.met-when-back",
+        "Where else you've met it shows when you're back online."
+      );
+      return later;
+    }
     if (!said) return null;
     var box = document.createElement("span");
     box.className = "card-round";
@@ -5541,6 +5595,27 @@ var targumReader = function () {
         // Asked and answered: there is nothing to find. Offering the button again
         // would only buy the same silence twice.
         meaning.textContent = t("reader.card.found-nothing", "we found nothing — write your own");
+      } else if (away()) {
+        // No connection: the press is kept and made when there is one (design.md §12,
+        // 2026-10-09), the same request a tap makes, so the same cost and no other.
+        var later = laterAsk(index, word);
+        if (window.TargumOffline && window.TargumOffline.askedLater(later.body.lemma, later.body.target)) {
+          var waiting = document.createElement("span");
+          waiting.className = "caveat card-later";
+          waiting.textContent = t("reader.card.looking-later", "We'll look it up when you're back.");
+          card.appendChild(waiting);
+        } else if (window.TargumOffline && window.TargumFault) {
+          card.appendChild(
+            window.TargumFault.line(
+              t("reader.card.needs-connection", "Looking this word up needs the connection."),
+              t("reader.card.look-up-later", "Look it up when I'm back"),
+              function () {
+                window.TargumOffline.askLater(later);
+                if (lookedUp === word) showCard(word);
+              }
+            )
+          );
+        }
       } else {
         if (!peeked[glossedAs(index)]) {
           peeked[glossedAs(index)] = true;
@@ -5875,6 +5950,13 @@ var targumReader = function () {
     // for either is `i`. Everything else keeps the editor exactly as it was.
     var level = levelOf(word);
     if (!(row && isName(row))) card.appendChild(statusRow(index, surface, level));
+    // A stage pressed with no connection is kept here and goes when there is one.
+    if (away() && !(row && isName(row))) {
+      var held = document.createElement("span");
+      held.className = "card-held";
+      held.textContent = t("offline.held", "Saved here, sent when you're back");
+      card.appendChild(held);
+    }
 
     // A meaning can only be called wrong where there is one to call wrong.
     if (sense && !own) {

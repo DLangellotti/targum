@@ -237,6 +237,9 @@
     band.id = "fault-banner";
     band.className = "fault-banner";
     band.setAttribute("role", "status");
+    // Its words are the interface's, not the text's: in a Hebrew reader the band stood
+    // right to left, with its full stop at the start of the sentence.
+    band.setAttribute("dir", "auto");
     band.hidden = true;
     var bar = document.querySelector("body > header.bar, .site-head");
     if (bar && bar.classList.contains("bar")) {
@@ -271,6 +274,11 @@
       });
     });
     band.appendChild(again);
+    // With no connection, the way to what is saved and what is waiting to go (`offline.js`,
+    // design.md §12, 2026-10-09): added each time the band is drawn, by whichever page.
+    if (window.TargumOffline && typeof window.TargumOffline.inBanner === "function") {
+      window.TargumOffline.inBanner(band);
+    }
     if (band.classList.contains("is-under-bar")) {
       var bar = band.previousElementSibling;
       band.style.insetBlockStart = (bar ? bar.offsetHeight : 0) + "px";

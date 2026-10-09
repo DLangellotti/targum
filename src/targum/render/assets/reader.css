@@ -6196,6 +6196,74 @@ body.film-theatre .film-end + .film-next { justify-content: flex-start; }
   z-index: 15;
 }
 
+/* With no connection (design.md §12, "With no connection, a page says what still works",
+   2026-10-09). The band carries the way to what is saved and what is waiting to go; a
+   text not on this device is dimmed with its reason; what needs the connection is
+   greyed with its own. Words carry every one of these, never colour alone (§4). */
+.fault-banner .offline-to-saved {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.fault-banner .offline-owed {
+  flex: 1 0 100%;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.fault-banner .offline-owed[hidden] { display: none; }
+.offline-why,
+.offline-back {
+  margin: 0;
+  padding: 0.45rem 1.25rem;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+}
+.offline-why { background: var(--paper-raised); color: var(--ink); }
+/* Back: the one moment that is good news, in leaf's wash (§4: progress, success). */
+.offline-back { background: rgb(90 115 64 / 0.14); color: var(--ink); }
+.offline-back.is-under-bar { position: sticky; z-index: 15; }
+.offline-why[hidden],
+.offline-back[hidden] { display: none; }
+.offline-away { opacity: 0.55; }
+.offline-away a[aria-disabled="true"] { cursor: default; }
+.offline-tag {
+  display: inline-block;
+  margin-inline-start: 0.5rem;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+.offline-tag.is-here { color: var(--leaf); }
+.offline-off,
+.offline-off:hover { opacity: 0.5; cursor: not-allowed; }
+/* Talk's reason stands over its pill, the way the board draws it. */
+.talk-cta.offline-off::before {
+  content: attr(data-why);
+  position: absolute;
+  inset-block-end: calc(100% + 0.4rem);
+  inset-inline-end: 0;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.bar-more .talk-cta.offline-off,
+.bar-more .talk-cta.offline-off::before { position: static; }
+.bar-more .talk-cta.offline-off::before { content: none; }
+.card-held,
+.card-later {
+  display: block;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+}
+
 /* 5 · A whole page: the top bar stays, a heading, one sentence, one button. */
 .fault-page {
   display: grid;

@@ -3237,5 +3237,19 @@
   "saved.not-kept": "Your browser didn't agree. It still keeps them while it has room.",
   "offline.see-saved": "Saved on this device",
   "you.page.saved-on-this-device": "Texts saved on this device",
-  "you.page.open-without-a-connection": "open without a connection."
+  "you.page.open-without-a-connection": "open without a connection.",
+  "offline.saved-texts": "Saved texts",
+  "offline.owed.one": "{n} change saved here, sent when you're back",
+  "offline.owed.other": "{n} changes saved here, sent when you're back",
+  "offline.held": "Saved here, sent when you're back",
+  "offline.back": "We're back. Sending what you did offline.",
+  "offline.here": "On this device",
+  "offline.not-here": "Not on this device",
+  "offline.not-here-why": "This text isn't on this device, so it opens when you're back online.",
+  "offline.talk-needs": "Talk needs the connection.",
+  "offline.upload-needs": "Uploading needs the connection.",
+  "reader.card.met-when-back": "Where else you've met it shows when you're back online.",
+  "reader.card.looking-later": "We'll look it up when you're back.",
+  "reader.card.needs-connection": "Looking this word up needs the connection.",
+  "reader.card.look-up-later": "Look it up when I'm back"
 }

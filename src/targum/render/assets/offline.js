@@ -1068,6 +1068,378 @@
     return true;
   }
 
+  /* --- with no connection (design.md §12, "With no connection, a page says what still
+   * works", 2026-10-09; boards OffOfflineDesk, OffOfflineHomePhone, OffOfflineReaderPhone,
+   * OffOfflineUnsavedPhone, OffOfflineLookupPhone and OffBackPhone) ----------------------
+   *
+   * Said by the connection's banner (`TargumFault.unreachable`, the error surface of the
+   * same day), which this file adds two things to: the way to what is saved, and how many
+   * changes are waiting to go. Under it, the page says what it can and cannot do: a text
+   * not on this device is dimmed and says so, Talk and Upload are greyed with the reason,
+   * and a word with no meaning in the page can be asked about later. When the connection
+   * comes back, what was done offline goes at once, and a band says so until it has gone.
+   *
+   * Never a word about how long a browser keeps what is saved, and never an offer to add
+   * targum to a home screen (David, 2026-10-08).
+   */
+
+  var ASKS = "targum:offline:asks";
+
+  function away() {
+    return served && typeof navigator !== "undefined" && navigator.onLine === false;
+  }
+
+  // How many changes are waiting to go up: the sync layer counts them.
+  function owed() {
+    var sync = window.TargumSync;
+    try {
+      return sync && typeof sync.owed === "function" ? sync.owed() : 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function tn(name, count, one, other, fill) {
+    var strings = window.TargumStrings;
+    if (strings && strings.tn) return strings.tn(name, count, one, other, fill);
+    return (count === 1 ? one : other).replace("{n}", String(count));
+  }
+
+  /* What the banner carries besides its sentence: asked for by `fault.js` every time it
+     draws the banner, so a page's own "we couldn't reach targum" says the same. */
+  function inBanner(band) {
+    if (!away() && !document.documentElement.classList.contains("is-away")) return;
+    var saved = element("a", "offline-to-saved", t("offline.saved-texts", "Saved texts"));
+    saved.href = keyed(SAVED);
+    band.appendChild(saved);
+    var waiting = element("span", "offline-owed");
+    band.appendChild(waiting);
+    countOwed(waiting);
+  }
+
+  function countOwed(node) {
+    var spot = node || document.querySelector("#fault-banner .offline-owed");
+    if (!spot) return;
+    var n = owed();
+    spot.textContent = n
+      ? tn(
+          "offline.owed",
+          n,
+          "{n} change saved here, sent when you're back",
+          "{n} changes saved here, sent when you're back"
+        )
+      : "";
+    spot.hidden = !n;
+  }
+
+  // Containers a text's link stands in, where the dimming and its reason go.
+  function holderOf(link) {
+    return link.closest("li, article, tr, .row, .card") || link;
+  }
+
+  /* Every link to a text on the page: dimmed with its reason where the text is not on
+     this device, and said to be here where it is. Nothing is fetched to find out: the
+     index this page already read is the whole of the answer. */
+  function markLinks() {
+    if (!known) return;
+    var links = document.querySelectorAll("main a[href], .site-main a[href], #continue a[href]");
+    Array.prototype.forEach.call(links, function (link) {
+      var id = "";
+      try {
+        id = textOf(new URL(link.getAttribute("href"), location.href).href);
+      } catch (e) {
+        id = "";
+      }
+      // The page of what is saved says so of every row already.
+      if (!id || id === textOf(location.href) || link.closest(".saved-row")) return;
+      var holder = holderOf(link);
+      if (holder.getAttribute("data-offline")) return;
+      var here = !!known.items[id];
+      holder.setAttribute("data-offline", here ? "here" : "away");
+      if (!here) holder.classList.add("offline-away");
+      var tag = element(
+        "span",
+        "offline-tag" + (here ? " is-here" : ""),
+        here ? t("offline.here", "On this device") : t("offline.not-here", "Not on this device")
+      );
+      tag.setAttribute("data-offline-tag", "");
+      (holder === link ? link.parentNode : holder).insertBefore(
+        tag,
+        holder === link ? link.nextSibling : null
+      );
+      if (!here) {
+        link.setAttribute("aria-disabled", "true");
+        link.setAttribute(
+          "data-offline-why",
+          t("offline.not-here-why", "This text isn't on this device, so it opens when you're back online.")
+        );
+      }
+    });
+  }
+
+  function unmarkLinks() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-offline]"), function (holder) {
+      holder.removeAttribute("data-offline");
+      holder.classList.remove("offline-away");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-offline-tag]"), function (tag) {
+      tag.remove();
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-offline-why]"), function (link) {
+      link.removeAttribute("aria-disabled");
+      link.removeAttribute("data-offline-why");
+    });
+  }
+
+  // What needs the connection, greyed, with the reason beside it.
+  var NEEDS = [
+    {
+      // The pill, the conversation's Send, and Ask on a word's card, which asks it.
+      find: "#talk-open, .talk-cta, .chat-send, .gloss-card .ask-go",
+      why: function () {
+        return t("offline.talk-needs", "Talk needs the connection.");
+      },
+    },
+    {
+      find: 'a[href="/add"], a[href^="/add?"], .site-nav a[href*="/add"]',
+      why: function () {
+        return t("offline.upload-needs", "Uploading needs the connection.");
+      },
+    },
+  ];
+
+  function greyNeeds() {
+    NEEDS.forEach(function (need) {
+      Array.prototype.forEach.call(document.querySelectorAll(need.find), function (node) {
+        if (node.getAttribute("data-offline-off")) return;
+        node.setAttribute("data-offline-off", "1");
+        node.classList.add("offline-off");
+        node.setAttribute("aria-disabled", "true");
+        node.setAttribute("data-why", need.why());
+        if (!node.getAttribute("title")) {
+          node.setAttribute("title", need.why());
+          node.setAttribute("data-offline-titled", "1");
+        }
+      });
+    });
+  }
+
+  function ungreyNeeds() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-offline-off]"), function (node) {
+      node.removeAttribute("data-offline-off");
+      node.classList.remove("offline-off");
+      node.removeAttribute("aria-disabled");
+      node.removeAttribute("data-why");
+      if (node.getAttribute("data-offline-titled")) {
+        node.removeAttribute("title");
+        node.removeAttribute("data-offline-titled");
+      }
+    });
+  }
+
+  // A press on something that needs the connection, or on a text that is not here, says
+  // why instead of failing: a link left to fail opens the browser's own offline page.
+  document.addEventListener(
+    "click",
+    function (event) {
+      if (!away()) return;
+      var target =
+        event.target && event.target.closest
+          ? event.target.closest("[data-offline-off], [data-offline-why]")
+          : null;
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      var why = target.getAttribute("data-why") || target.getAttribute("data-offline-why");
+      say(target, why);
+    },
+    true
+  );
+
+  // One short line, under the band, for the press that was just refused.
+  function say(near, why) {
+    var line = document.getElementById("offline-why");
+    if (!line) {
+      line = element("p", "offline-why");
+      line.id = "offline-why";
+      line.setAttribute("role", "status");
+      var band = document.getElementById("fault-banner");
+      if (band && band.parentNode) band.parentNode.insertBefore(line, band.nextSibling);
+      else document.body.appendChild(line);
+    }
+    line.textContent = why || "";
+    line.hidden = !why;
+  }
+
+  var watching = null;
+  var counting = null;
+
+  function enterAway() {
+    document.documentElement.classList.add("is-away");
+    if (window.TargumFault && window.TargumFault.unreachable) window.TargumFault.unreachable();
+    readIndex().then(function () {
+      markLinks();
+      greyNeeds();
+    });
+    // Home and the shelves draw their rows after they load: marked as they arrive.
+    if (!watching && typeof MutationObserver === "function" && document.body) {
+      var soon = null;
+      watching = new MutationObserver(function () {
+        if (soon) return;
+        soon = setTimeout(function () {
+          soon = null;
+          if (away()) {
+            markLinks();
+            greyNeeds();
+          }
+        }, 150);
+      });
+      watching.observe(document.body, { childList: true, subtree: true });
+    }
+    // What is waiting to go grows as the reader reads.
+    if (!counting) {
+      counting = setInterval(function () {
+        countOwed();
+      }, 2000);
+    }
+  }
+
+  function back() {
+    var band = document.getElementById("offline-back");
+    if (!band) {
+      band = element("p", "offline-back");
+      band.id = "offline-back";
+      band.setAttribute("role", "status");
+      var fault = document.getElementById("fault-banner");
+      if (fault && fault.parentNode) {
+        fault.parentNode.insertBefore(band, fault.nextSibling);
+        if (fault.classList.contains("is-under-bar")) band.classList.add("is-under-bar");
+      } else {
+        document.body.insertBefore(band, document.body.firstChild);
+      }
+    }
+    return band;
+  }
+
+  /* Back: everything done offline goes at once — the words and the places, then the
+     words asked about — and the band says so until it has gone. */
+  function leaveAway() {
+    document.documentElement.classList.remove("is-away");
+    if (watching) {
+      watching.disconnect();
+      watching = null;
+    }
+    if (counting) {
+      clearInterval(counting);
+      counting = null;
+    }
+    unmarkLinks();
+    ungreyNeeds();
+    say(null, "");
+    var band = back();
+    band.textContent = t("offline.back", "We're back. Sending what you did offline.");
+    band.hidden = false;
+    var sync = window.TargumSync;
+    var sent = sync && typeof sync.flush === "function" ? sync.flush() : Promise.resolve(true);
+    Promise.all([sent, askNow()]).then(
+      function () {
+        band.hidden = true;
+      },
+      function () {
+        band.hidden = true;
+      }
+    );
+  }
+
+  /* --- a word asked about with no connection ------------------------------------------
+     "Look it up when I'm back": the reader's own press, kept until there is a connection
+     and then made exactly as the tap would have made it — the same request, so the same
+     cost and no other. Kept in this browser, so it goes from whatever page is open. */
+
+  function asks() {
+    try {
+      var held = JSON.parse(localStorage.getItem(ASKS) || "[]");
+      return Array.isArray(held) ? held : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writeAsks(held) {
+    try {
+      if (held.length) localStorage.setItem(ASKS, JSON.stringify(held));
+      else localStorage.removeItem(ASKS);
+    } catch (e) {}
+  }
+
+  // `ask` is { term, body }: the word as the page keeps it, and the request a tap makes.
+  function askLater(ask) {
+    if (!ask || !ask.body) return;
+    var held = asks().filter(function (one) {
+      return !(one.body.lemma === ask.body.lemma && one.body.target === ask.body.target);
+    });
+    held.push({ term: ask.term || ask.body.lemma, body: ask.body, at: Date.now() });
+    writeAsks(held);
+  }
+
+  function askedLater(lemma, target) {
+    return asks().some(function (one) {
+      return one.body.lemma === lemma && one.body.target === target;
+    });
+  }
+
+  var asking = null;
+  function askNow() {
+    if (asking) return asking;
+    var held = asks();
+    if (!held.length || away()) return Promise.resolve();
+    asking = held
+      .reduce(function (before, one) {
+        return before.then(function () {
+          return fetch(keyed("/gloss"), {
+            method: "POST",
+            headers: headers({ "Content-Type": "application/json" }),
+            credentials: "same-origin",
+            body: JSON.stringify(one.body),
+          })
+            .then(function (answer) {
+              return answer.json();
+            })
+            .then(function (answer) {
+              writeAsks(
+                asks().filter(function (other) {
+                  return !(other.body.lemma === one.body.lemma && other.body.target === one.body.target);
+                })
+              );
+              // The reader that holds the word keeps the meaning as a tap would have.
+              try {
+                window.dispatchEvent(
+                  new CustomEvent("targum:looked-up", {
+                    detail: { term: one.term, body: one.body, answer: answer || {} },
+                  })
+                );
+              } catch (e) {}
+            });
+        });
+      }, Promise.resolve())
+      .catch(function () {})
+      .then(function () {
+        asking = null;
+      });
+    return asking;
+  }
+
+  if (served) {
+    window.addEventListener("offline", enterAway);
+    window.addEventListener("online", leaveAway);
+    var settle = function () {
+      if (away()) enterAway();
+      else askNow();
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", settle);
+    else settle();
+  }
+
   function onChange(listener) {
     listeners.push(listener);
   }
@@ -1121,6 +1493,12 @@
       return known.items[id] || false;
     },
     playlist: onPlaylist,
+    // With no connection (design.md §12, 2026-10-09).
+    away: away,
+    inBanner: inBanner,
+    askLater: askLater,
+    askedLater: askedLater,
+    askNow: askNow,
     onChange: onChange,
     ready: readIndex,
   };
