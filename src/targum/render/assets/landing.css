@@ -98,12 +98,13 @@
   --card-shadow: 0 1px 2px rgb(28 26 23 / 0.06);
   --page-shadow: 2px 3px 0 rgb(28 26 23 / 0.08), 0 12px 28px rgb(28 26 23 / 0.10);
   --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
-  /* The face a control is drawn in, wherever it is drawn. §5 gives the reader
-     system-ui, because a reader fetches nothing; §13 gives the desk its own face, and
-     `chrome.css` points this at it. A rule that draws chrome says `var(--ui)` and never
-     a face by name, so the same card is the reader's on the reader and the desk's on the
-     desk — and no stylesheet's place in the cascade decides it (2026-10-09). */
-  --ui: system-ui, sans-serif;
+  /* The face a control is drawn in, wherever it is drawn: the chrome's, on the desk and
+     on the reader alike since 2026-10-09 (design.md §12, "The reader's chrome is the
+     desk's"). §5 gave the reader system-ui because a reader fetches nothing; it carries
+     the face in the page now (`chrome_face`), and where it did not the stack falls back
+     to the platform's. A rule that draws chrome says `var(--ui)` and never a face by
+     name. */
+  --ui: var(--chrome);
   /* The desk grown up (§13, 2026-09-11, "it's from 2016 not 2026"): corners on a scale
      of their own, depth in three tiers rather than a line around every box, a hairline
      only where two same-tone surfaces meet, tint for the ordinary press, glass for the

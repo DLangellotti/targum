@@ -2831,20 +2831,10 @@ var targumReader = function () {
       // has one answer per language: keeping a word while reading in Russian overwrote
       // the English meaning of every text that word appears in.
       keepMeaning(lemma, glosses[index]);
-      // Where the word went, the first time you keep one — but never in the middle of a
-      // walk. Opening a panel over the translation while somebody is stepping the
-      // chapter a word at a time takes away the thing they are grading against, at the
-      // one moment they are not looking for it. `s` opens it when it is wanted.
-      //
-      // Nor under a card on a phone. The band holds one thing, and a sheet arriving
-      // there put the card away — the card being typed into, four hundred milliseconds
-      // after the first letter of a meaning, because writing a meaning is what keeps a
-      // word for the first time (targum-internal#155). The tab in the corner says where
-      // the word went; the sheet can wait until the card has been let go of.
-      var carded = card && !card.hidden && !roomy.matches;
-      if (isLearning(status) && !standing && !carded && listBox && listBox.hidden) {
-        showList(true);
-      }
+      // The list used to open here the first time a word was kept. Not since 2026-10-09
+      // (design.md §12, "The reader's chrome is the desk's"): the list starts closed, and
+      // opening it under the card a word was just kept from cut the pages again and put
+      // the card away. The tab's count says where the word went; `s` opens the list.
     }
     remember();
     var now = statusOf(lemma);
@@ -3725,7 +3715,10 @@ var targumReader = function () {
     fill(phraseItems, phrases);
     renderEmpty();
     // A sheet grows when a word is kept, and the controls standing on it go up with it.
-    if (seatFoot()) relayout();
+    // On a wide window there is no sheet, only the list's tab, whose count changing is
+    // no reason to cut the pages again under a card the reader is answering (the list
+    // starts closed since 2026-10-09, so the tab is what most readers have there).
+    if (seatFoot() && !roomy.matches) relayout();
   }
 
   function showList(open, remembered) {
@@ -6703,7 +6696,6 @@ var targumReader = function () {
       // The span is the phrase and belongs to the source sentence; what it says is a
       // fact about the pair and goes where the words' meanings go.
       keepMeaning(phraseTerm(pick), reading);
-      if (listBox && listBox.hidden) showList(true);
       return pick;
     }
 
@@ -6942,7 +6934,6 @@ var targumReader = function () {
             note: "",
             at: nextOrder(),
           }));
-          if (listBox && listBox.hidden) showList(true);
         }
         remember();
         if (window.getSelection) window.getSelection().removeAllRanges();
@@ -8615,11 +8606,16 @@ var targumReader = function () {
       return;
     }
     if (!paging || !paged()) return;
-    var held = pages.length ? pairs[pages[current][0]] : null;
+    // A line the caller says the reader is on — the picture put away, then the strip
+    // coming up under it — is the place, before the page's first line: the strip makes
+    // every page shorter, and the line under the picture can go to the next one
+    // (2026-10-09, when the lines grew to the boards' size and it did).
+    var given = held && held.parentNode ? held : null;
+    held = given || (pages.length ? pairs[pages[current][0]] : null);
     // How far down a cut verse the page was, so a relayout keeps the reader on the piece
     // of the commentary they were reading rather than sending them back to the verse.
-    var down = held && carriesOn(current) ? pages[current].from : 0;
-    var here = anchor();
+    var down = held && !given && carriesOn(current) ? pages[current].from : 0;
+    var here = given ? null : anchor();
     // A word the reader stood on, and nothing weaker. `anchor` otherwise falls back to
     // whatever line the middle of the window lands on, which in page mode is a line they
     // have not chosen — and holding that turns the page under them.
@@ -10585,12 +10581,11 @@ var targumReader = function () {
   applyType();
   applyMode();
   applyMarking();
-  // Open by default on a wide window, where it is a column beside the text — except
-  // beside a video, which takes that room itself (#422); one press opens it there.
-  showList(
-    prefs.list === null ? roomy.matches && !videoPanel : prefs.list,
-    prefs.list === null ? false : true
-  );
+  // Closed until a reader opens it (design.md §12, "The reader's chrome is the desk's",
+  // 2026-10-09): the boards draw the page with no column beside it, and ⋯ → Word list or
+  // `s` puts it there. It was open by default on a wide window. A reader who opened or
+  // closed it has that kept.
+  showList(prefs.list === null ? false : prefs.list, prefs.list === null ? false : true);
   // A remembered preference for vowels is worth nothing on a text that has none, and
   // leaving it set would hide every sentence on the page. `sourceMarked` means "the
   // source carries its own phonetic layer, so open in the form this text was published
@@ -11826,6 +11821,11 @@ var targumReader = function () {
   // Said to by the picture's own code further down, once it has been set up.
   var filmPaint = null;
 
+  // The bar's pill says the length before anything has played (2026-10-09).
+  audio.addEventListener("loadedmetadata", function () {
+    paint();
+  });
+
   function span() {
     var length = audio.duration;
     return length && isFinite(length) ? length : 0;
@@ -11842,7 +11842,9 @@ var targumReader = function () {
     if (clock) clock.textContent = clocked(now) + " / " + clocked(length);
     // The bar's player (#421): the same line, thinner, and only where the voice is.
     if (barFill) barFill.style.inlineSize = (now / length) * 100 + "%";
-    if (barClock) barClock.textContent = clocked(now);
+    // At the start the pill says how long it is, and from the first second where it is
+    // (board ReaderBeside: "▶ 14:01" before, "Ⅱ 0:31" playing).
+    if (barClock) barClock.textContent = clocked(now > 0 ? now : length);
     trackEls.forEach(function (trackEl) {
       trackEl.setAttribute("aria-valuemax", String(Math.floor(length)));
       trackEl.setAttribute("aria-valuenow", String(Math.floor(now)));

@@ -91,7 +91,7 @@ field, never text below the ratios shown.**
 **One accent hue, and it is rationed.** Reserved for the single primary action in a view and
 for what the reader has kept. Selection is quiet ink (`#6b645c` with paper text), never
 accent. *(On the desk a chosen tab or filter is a pill filled in the primary since
-2026-10-09 — §12, "The boards are the desk", 2026-10-09. On the reader's page, selection is still quiet ink.)* The accent is never body text and never a large field.
+2026-10-09 — §12, "The boards are the desk", 2026-10-09. On the reader's page, selection is still quiet ink; its bar's live view and marks switch are the teal wash since 2026-10-09 — §12, "The reader's chrome is the desk's".)* The accent is never body text and never a large field.
 
 ### Functional colour
 
@@ -144,7 +144,8 @@ is the page.
   Roman → serif.
 - **Reading (Hebrew):** its own stack, not appended to the Latin one, and **carried in the
   page rather than named** — see §12.
-- **UI:** `system-ui`. **Details:** `ui-monospace` for keys, hexes and counts (tabular
+- **UI:** `system-ui` *(the chrome's face, Source Sans 3, carried in the page, on the reader as on the desk since
+  2026-10-09 — §12, "The reader's chrome is the desk's")*. **Details:** `ui-monospace` for keys, hexes and counts (tabular
   numerals).
 - **Scale:** display 1.75rem/600 · headings 1.5em/600 · reading 1.0625rem (17px) · gloss
   0.9375rem · UI 0.8125rem · labels 0.6875rem uppercase at 0.06em.
@@ -154,7 +155,9 @@ is the page.
 - **Measure:** one reading column is 34rem; the source–translation gutter is 2.5rem.
 
 **Bilingual parity:** Hebrew and Latin share every screen at the same font-size — **never
-scale Hebrew down**. Parity comes from leading: **1.75 Latin, 1.95 Hebrew**.
+scale Hebrew down**. Parity comes from leading: **1.75 Latin, 1.95 Hebrew**. *(On the reader
+the line read stands a size above its translation since 2026-10-09, in every language —
+§12, "The reader's chrome is the desk's"; Hebrew is still never scaled down.)*
 
 ## 6 · Voice
 
@@ -928,6 +931,51 @@ goes past those calls:
 What it does not overturn: nothing on home spends, no streaks and no counts to beat, and
 a brand-new reader still sees the one line, the one to start with and the upload.
 
+### The reader's chrome is the desk's — 2026-10-09
+
+P7 of the polish plan, carrying out the ruling in "The boards are the desk" (the same
+day) on everything of the reader's that "The reader's menus are the board's" left
+waiting. Boards ReaderBeside, ReaderPhone, ReaderTheatreEnd, WordCardDesk, WordCardPhone
+and the language readers.
+
+- **The chrome's face, everywhere on the reader.** `--ui` is `var(--chrome)` in
+  `tokens.css` for every page, the reader's included: its bar, its card, its foot and its
+  panels speak in Source Sans 3, which a reader carries in the page (the upright cut,
+  since the menus). §5's "UI: system-ui" and §13's "the reader keeps system-ui for its
+  bar" are retired. Where a page carries no face of its own the stack still falls back
+  to the platform's, so nothing is fetched.
+- **Teal for what is pressed.** The bar's play, a link out of the card, Up next, the
+  pager's arrows, the practice step, the card's Ask and its fix, a live view or marks
+  switch (the teal wash, as `.seg`) — every action on the reader is the primary, as on the
+  desk. The brown stays where §4 gives it to what the reader has kept and to a highlight:
+  a word's wash under the pointer and while marking, a row in the word list. The line of
+  where the voice is is ink, as the boards draw it.
+- **The line read at about 21px.** A source line is 1.25em of the reader's own size
+  (21px at the default 17), at 1.85 in Hebrew and 1.6 in a Latin or Cyrillic text; the
+  translation stays at the page's size, at 1.6, a step under ink (ink mixed 70% with the
+  muted, standing for the boards' `#3d3a35`, so no new hex enters the palette). Against
+  §5's "Hebrew and Latin share every screen at the same font-size": the line read is now
+  a size above its English, in every language, which is how every reader board draws it.
+  A+ and A- still move both. Modern Hebrew keeps Noto Sans Hebrew and scripture its
+  faces, as "The boards are the desk" said.
+- **No rule beside the English.** Under the line, on a phone or in the under view, the
+  translation stands at the same edge with no 2px rule before it; the size and the ink
+  say which is which.
+- **Play in the bar, with its time.** On a voiced text, at a desk, the bar's first press
+  is a teal pill with the drawing and the clock (the length before it plays, where it is
+  after), then the speed. The video's reader has it too, over Beside and Theatre alike,
+  and the row under the picture keeps its line, its clock, the speed and the loop, but
+  not a second play. On a phone the foot bar is the player, as before.
+- **The word list starts closed.** It was a column beside the text on every wide window
+  until closed; the boards draw no column, and ⋯ → Word list or `s` opens it. A reader
+  who opened or closed it keeps that choice.
+- **No stamp of the cover over a chapter.** The small picture at the top of every chapter
+  page (2026-08) is gone; the picture is the contents page's and the Library's.
+
+What it does not change: the page tone, the reading serif, the hairlines between lines,
+§7's glyphs, the per-line controls, pages as the default, and the rule that a reader
+fetches nothing.
+
 ### The reader's menus are the board's — 2026-10-09
 
 David, 2026-10-09, on the live ⋯ menu: "these menus do not look nicely organized as they
@@ -938,7 +986,8 @@ His ruling the same day: where the calmer-surfaces boards and this document disa
 **the mockups win**, and **the reader joins the new system**: teal actions, Source Sans 3
 for its chrome, menus as sheets. This entry applies that to **Aa and ⋯ only** (boards
 ReaderMenus and OffSaving, with ReaderBeside and ReaderPhone; the design review's §3.8).
-The rest of the reader's chrome waits for its own entry.
+The rest of the reader's chrome waits for its own entry *(written the same day: "The
+reader's chrome is the desk's", above)*.
 
 - **Groups under quiet heads, in the board's order.** ⋯: *This text* (Save for offline,
   the word list, Add to a playlist, Talk to targum about it, the original, the picture),

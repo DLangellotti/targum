@@ -70,7 +70,7 @@
 /* A link, but never a decorated one: §2 says the mark is flat and unadorned wherever it
    appears, so going home is signalled by the cursor and the title, not by an underline. */
 a.bar-brand { text-decoration: none; border: 0; }
-a.bar-brand:hover { color: var(--accent); }
+a.bar-brand:hover { color: var(--teal); }
 
 .bar-title { display: flex; gap: 0.75rem; align-items: baseline; color: var(--ink-soft); }
 /* The English beside the Hebrew in the bar, and gone where the bar has no room for two
@@ -286,7 +286,7 @@ a.bar-brand:hover { color: var(--accent); }
 }
 
 .w:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
-.player-play:active { background: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
+.player-play:active { background: color-mix(in srgb, var(--teal) 85%, var(--ink)); }
 
 
 /* --- reading surface ---------------------------------------------------- */
@@ -360,7 +360,7 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
   white-space: nowrap;
 }
 .pair.verse .verse-number:hover,
-.pair.verse .verse-number:focus-visible { color: var(--accent); text-decoration: underline; }
+.pair.verse .verse-number:focus-visible { color: var(--teal); text-decoration: underline; }
 .pair.verse .verse-number:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .pair:target { background: var(--paper-raised); }
 /* Under 60rem the page has no margin to hang a number in, so the row makes room for it
@@ -401,6 +401,20 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 .pair p { margin: 0; }
 .src { max-width: var(--measure); }
 .tr { max-width: var(--measure); color: var(--ink-soft); }
+/* The boards' sizes (design.md §12, "The reader's chrome is the desk's", 2026-10-09): the
+   line read at about 21px over the English at the page's own size, Hebrew at 1.85 and a
+   Latin or Cyrillic line at 1.6, and the English a step under ink rather than muted, so
+   a pair reads as the line and its gloss rather than as text and a caption. The step is
+   a share of the reader's own size, so A+ and A- still move both together. */
+#reader .pair > .src { font-size: 1.25em; line-height: 1.6; }
+#reader .pair > .src[dir="rtl"] { line-height: 1.85; }
+#reader .pair > .tr {
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--ink) 70%, var(--ink-soft));
+}
+#reader .pair:hover > .tr, #reader .pair:focus-visible > .tr, #reader .pair.here > .tr { color: var(--ink); }
+#reader .pair.head > .src, #reader .pair.head > .tr { font-size: 1.5em; line-height: 1.3; }
+#reader .pair.byline > .tr { color: var(--ink-soft); }
 /* A verse of commentary is several comments, joined with a newline and each opening with
    the words it comments on (targum-internal#200). Without this they run together and read
    as one comment, which is not Rashi being terse — it is three comments pretending to be
@@ -598,20 +612,7 @@ html[dir="rtl"] #reader > .english { text-align: end; }
   background: var(--paper-raised);
 }
 
-/* On a chapter page it is a stamp rather than a picture — enough to say which book this
-   is, small enough that the eye goes to the first line instead. */
-.plate {
-  margin: 0 0 1.6rem;
-  inline-size: 3.25rem;
-  aspect-ratio: 2 / 3;
-  overflow: hidden;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  background: var(--paper-raised);
-}
-
-.cover img,
-.plate img {
+.cover img {
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
@@ -679,7 +680,7 @@ html[dir="rtl"] #reader > .english { text-align: end; }
 .post-home {
   margin-inline-start: auto;
   flex: none;
-  color: var(--accent);
+  color: var(--teal);
   font-size: 0.8125rem;
   text-decoration: none;
 }
@@ -927,10 +928,10 @@ body[data-case="Loc"] .w.case-Loc {
 .pick-card button {
   margin-block-start: 0.5rem;
   padding: 0.2rem 0.6rem;
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--teal);
+  border-color: color-mix(in srgb, var(--teal) 45%, transparent);
 }
-.pick-card button:hover { color: var(--paper); background: var(--accent); }
+.pick-card button:hover { color: var(--paper); background: var(--teal); }
 
 /* --- the list in the margin ----------------------------------------------- */
 
@@ -1219,11 +1220,9 @@ body[data-case="Loc"] .w.case-Loc {
 /* The translation sits under the line it translates rather than across a gap from it,
    which is the whole difference from parallel: on a long line your eye does not have to
    travel to find the English, and the pair reads as one block. */
-.mode-inter .tr {
-  margin-block-start: 0.35rem;
-  padding-inline-start: 0.9rem;
-  border-inline-start: 2px solid var(--rule);
-}
+/* No rule beside it since 2026-10-09 (the boards draw the English straight under the
+   line, at the same edge): the size and the ink already say which is which. */
+.mode-inter .tr { margin-block-start: 0.25rem; }
 .mode-inter .pair { margin-block-end: 1.6rem; }
 
 /* Switching modes moves every line on the page. Fading the text back in over the
@@ -1258,11 +1257,7 @@ body[data-case="Loc"] .w.case-Loc {
   /* One column, so "beside" and "under" are the same page: parallel is not offered, and
      a parallel choice brought here is read as interlinear (`foldParallel`). */
   .modes [data-mode="parallel"] { display: none; }
-  .mode-parallel .tr {
-    margin-block-start: 0.4rem;
-    padding-inline-start: 0.9rem;
-    border-inline-start: 2px solid var(--rule);
-  }
+  .mode-parallel .tr { margin-block-start: 0.25rem; }
   .src, .tr { max-width: none; }
 }
 
@@ -1271,7 +1266,7 @@ body[data-case="Loc"] .w.case-Loc {
 .toc { list-style: decimal; padding-inline-start: 2rem; }
 .toc li { margin-block-end: 0.6rem; }
 .toc a { color: var(--ink); text-decoration: none; border-block-end: 1px solid var(--rule); }
-.toc a:hover { border-color: var(--accent); }
+.toc a:hover { border-color: var(--teal); }
 /* An English label on an RTL page. Without an isolate the bidi algorithm reordered
    "23 sentences" to "sentences 23", which is what every chapter row read before the
    count was told which direction it runs in. */
@@ -1384,12 +1379,12 @@ body.paged:not(.last-page) .foot { display: none; }
   background: var(--paper-raised, var(--paper));
   box-shadow: var(--lift);
   /* An action, coloured as one. */
-  color: var(--accent);
+  color: var(--teal);
   font: inherit;
   font-size: 1.0625rem;
   cursor: pointer;
 }
-.turn button:hover { background: color-mix(in srgb, var(--accent) 10%, var(--paper)); }
+.turn button:hover { background: color-mix(in srgb, var(--teal) 10%, var(--paper)); }
 /* On the first page there is nothing behind you, and the back arrow says so instead
    of sitting there looking pressable. */
 body.first-page .turn button[data-turn="-1"] { opacity: 0.35; cursor: default; }
@@ -1664,7 +1659,7 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .foot-words { d
 
 .next-up-link {
   font-size: 0.9375rem;
-  color: var(--accent);
+  color: var(--teal);
   text-decoration: none;
 }
 .next-up-link:hover { text-decoration: underline; }
@@ -1684,7 +1679,7 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .foot-words { d
    count; the link the reader's working accent, since it is a thing to press. */
 .next-up-connect { flex: 1 0 100%; color: var(--ink); }
 .next-up-connect[hidden] { display: none; }
-.next-up-connect a { color: var(--accent); font-weight: 600; }
+.next-up-connect a { color: var(--teal); font-weight: 600; }
 
 /* A way to disagree with the offer, and it is meant to be quieter than the offer: the
    reader who wants this one takes it, and the one who does not should find the door
@@ -1787,7 +1782,7 @@ body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
   display: inline-block;
   padding: 0.45rem 1.1rem;
   border-radius: 4px;
-  background: var(--accent);
+  background: var(--teal);
   color: var(--paper);
   text-decoration: none;
   font-family: var(--ui);
@@ -1983,15 +1978,15 @@ body.practice-hebrew .src { max-width: none; }
 .practice-row button,
 .practice-step button {
   padding: 0.3rem 0.8rem;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--teal);
   border-radius: 4px;
   background: var(--paper);
-  color: var(--accent);
+  color: var(--teal);
   font: inherit;
   cursor: pointer;
 }
 .practice-row button:hover,
-.practice-step button:hover { background: color-mix(in srgb, var(--accent) 10%, var(--paper)); }
+.practice-step button:hover { background: color-mix(in srgb, var(--teal) 10%, var(--paper)); }
 .practice-step button.again { border-color: var(--rule); color: var(--ink); }
 /* A section kept by the practice is finished once the practice has read it through —
    the third reading of the aliyah, or the last verse — unless it is finished already,
@@ -2085,7 +2080,7 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .foot-press {
 
 /* Speaking. The one place a dialogue spends the accent, because it is the thing the
    reader just asked for and the only moving part on the page. */
-.pair.voiced .say.saying { color: var(--accent); opacity: 1; }
+.pair.voiced .say.saying { color: var(--teal); opacity: 1; }
 .pair.voiced .say.saying .play { display: none; }
 .pair.voiced .say.saying .stop { display: block; }
 
@@ -2272,7 +2267,7 @@ body.voicing .pair:hover:not(.now):not(.here):not(.practising):not(:focus-visibl
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--teal);
   color: var(--paper);
   cursor: pointer;
 }
@@ -2411,7 +2406,7 @@ body.voicing .pair:hover:not(.now):not(.here):not(.practising):not(:focus-visibl
 .player.placed .player-track { display: block; }
 .player-track:focus-visible { box-shadow: 0 0 0 1px var(--focus); border-radius: 4px; }
 
-.player-fill { display: block; block-size: 100%; inline-size: 0; background: var(--accent); }
+.player-fill { display: block; block-size: 100%; inline-size: 0; background: var(--ink); }
 
 .player-clock {
   font-size: 0.6875rem;
@@ -4095,7 +4090,7 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   font-size: 1.0625rem;
   border: 0;
 }
-.bar-title .up:hover { color: var(--accent); }
+.bar-title .up:hover { color: var(--teal); }
 .bar-title .bar-english { color: var(--ink-soft); font-family: var(--reading); font-size: 0.9375rem; }
 .bar-title .bar-english::before { content: "\00b7"; margin-inline-end: 0.6rem; color: var(--rule); }
 /* The count, behind a hairline: a figure, not a title. */
@@ -4163,7 +4158,7 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
   color: var(--ink);
   font-size: 0.875rem;
 }
-.bar .listen-play:hover { color: var(--accent); }
+.bar .listen-play:hover { color: var(--teal); }
 .bar .listen-play svg {
   inline-size: 13px;
   block-size: 13px;
@@ -5388,3 +5383,60 @@ body.list-ended .list-end .list-end-over {
   .list-end-back,
   .list-up-next { min-block-size: 44px; }
 }
+
+
+/* --- the reader on the new system (design.md §12, 2026-10-09) ------------------------
+   "The reader's chrome is the desk's": the board's bar (ReaderBeside, ReaderTheatreEnd)
+   puts play in a teal pill with the time beside it, then the speed, then the marks and
+   the views, a live choice in the teal wash as every `.seg` on the desk is. Written last
+   so it has the word over the older drawings above. */
+@media (min-width: 40.01rem) {
+  .bar .listen {
+    block-size: 2.25rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: var(--teal);
+    color: var(--teal-ink);
+  }
+  .bar .listen .listen-play,
+  .bar .listen.placed .listen-play {
+    block-size: 2.25rem;
+    padding: 0 0.85rem;
+    border-radius: var(--radius-control);
+    color: var(--teal-ink);
+    font-weight: 600;
+  }
+  .bar .listen .listen-play:hover { color: var(--teal-ink); background: color-mix(in srgb, var(--ink) 14%, transparent); }
+  .bar .listen .listen-play svg { inline-size: 11px; block-size: 11px; }
+  /* The time sits in the press, after the drawing; the line of where it is stands under
+     the picture and in the strip, not in the pill. */
+  .bar .listen .listen-play { order: 0; }
+  .bar .listen .listen-clock,
+  .bar .listen.placed .listen-clock {
+    display: block;
+    order: 1;
+    margin-inline: -0.55rem 0.85rem;
+    color: var(--teal-ink);
+    font-size: 0.875rem;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  .bar .listen .listen-clock:empty { display: none; }
+  .bar .listen .listen-track,
+  .bar .listen.placed .listen-track { display: none; }
+  .bar .listen .listen-voice { order: 2; color: var(--teal-ink); }
+  .bar .listen .listen-voice:hover,
+  .bar .listen .listen-voice[aria-expanded="true"] { color: var(--teal-ink); }
+  .bar .listen .listen-voice::before { background: color-mix(in srgb, var(--teal-ink) 40%, transparent); }
+  .bar.quiet .listen { border-color: transparent; }
+  /* The picture's reader keeps play in the bar too (the board draws the pill over Beside
+     and Theatre alike); the row under the picture keeps its line, its clock, the speed
+     and the loop. */
+  body.film .bar .listen { display: flex; }
+  body.film .film-ctl .film-play { display: none; }
+}
+/* A live view, rendering or picture's stand is the teal wash with teal ink, as `.seg` is. */
+.bar .bar-tools > .modes button.on,
+.bar .film-view[aria-pressed="true"] { color: var(--teal); background: var(--teal-wash); }
+.bar .bar-tool.marks[aria-pressed="true"] { color: var(--teal); background: var(--teal-wash); }

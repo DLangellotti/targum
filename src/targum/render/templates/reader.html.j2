@@ -668,10 +668,9 @@
      aria-label="{{ t("reader.film.split", "Video and transcript") }}" title="{{ t("reader.film.split-title", "Drag to give the video or the transcript more room. Double-click to put it back.") }}" hidden><span class="film-split-line" aria-hidden="true"></span></div>
 {% endif %}
 <main id="reader">
-{#- Small on purpose. A chapter page is for reading, and an image that competed with the
-    text would be a decoration; this is a mark, the size of a stamp, that says which book
-    you are in. Its own cover where the chapter has one, the book's where it has not. -#}
-{% if plate %}<figure class="plate"><img src="{{ plate }}" alt=""></figure>{% endif %}
+{#- No stamp of the cover over a chapter since 2026-10-09 (design.md §12, "The reader's
+    chrome is the desk's"): the boards draw the page with its text alone, and the picture
+    is the contents page's and the Library's. -#}
 {#- A post read as a post (design.md §12, "A post keeps its shape", 2026-09-27;
     targum-internal#159). Its head takes the title's place: the author's own picture in a
     disc, or their first letter where the post gave none; their name and handle; the day.

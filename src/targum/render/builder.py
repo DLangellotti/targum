@@ -4221,36 +4221,6 @@ def post_card(
     return card, covered
 
 
-def plate_uri(covers: Path | None, name: str) -> str:
-    """The same cover, small enough to sit on every page of a book.
-
-    Kept beside the original once made, so a book of a hundred and fifty chapters shrinks
-    one image rather than a hundred and fifty. Without Pillow there is no small one to
-    make, and a chapter page simply goes without — the contents page still has the whole
-    thing, and nothing looks broken.
-    """
-    if covers is None or not name:
-        return ""
-    small = covers / "small" / f"{name}.webp"
-    if not small.is_file():
-        raw = cover_bytes(covers, name)
-        if raw is None:
-            return ""
-        try:
-            from ..covers import shrink
-        except ImportError:  # pragma: no cover - covers is a package, not an extra
-            return ""
-        try:
-            made = shrink(raw, width=PLATE_WIDTH)
-        except Exception:
-            # Pillow missing, or an image it cannot read. A reader without a plate is a
-            # reader; a build that died over a decoration is not.
-            return ""
-        small.parent.mkdir(parents=True, exist_ok=True)
-        small.write_bytes(made)
-    return f"data:image/webp;base64,{base64.b64encode(small.read_bytes()).decode('ascii')}"
-
-
 def cover_name(document: Document) -> str:
     """Which cover belongs to this text.
 
@@ -5117,10 +5087,6 @@ def render(
         # is consent to every part and took every part's credits, so the page says it is
         # already paid for (design.md §12, "One press gets the whole video, a part at a
         # time").
-        # A chapter's own cover where one was drawn for it, and the book's where it was
-        # not — which is most of them, since a numbered chapter is not a subject anything
-        # could draw.
-        chapter_cover = f"{drawn}-c{section.number:03d}" if drawn else ""
         # Whether this chapter has been translated at all. A book is bought a chapter
         # at a time and every chapter's page is written regardless, so one nobody has
         # paid for used to render as the source beside a column of empty paragraphs —
@@ -5185,7 +5151,6 @@ def render(
             # (2026-09-23).
             tn=page_counts(chrome),
             page_language=_page_language(chrome),
-            plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,
             translated=translated,
             audio_waiting=audio_waiting,

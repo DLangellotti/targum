@@ -3938,7 +3938,9 @@ def test_the_contents_page_carries_the_cover(tmp_path: Path) -> None:
     assert 'src="data:image/webp;base64,' in contents
 
     chapter = pages[1].read_text(encoding="utf-8")
-    assert '<figure class="plate">' in chapter, "and a stamp on the chapter"
+    # No stamp on the chapter since 2026-10-09 (design.md §12, "The reader's chrome is
+    # the desk's"): the boards draw a chapter with its text alone.
+    assert 'class="plate"' not in chapter, "a chapter carries no stamp"
     assert '<figure class="cover">' not in chapter, "the big one belongs to the contents"
 
 
@@ -3958,34 +3960,6 @@ def test_a_cover_is_never_something_the_page_goes_and_gets(tmp_path: Path) -> No
         html = page.read_text(encoding="utf-8")
         for position in (r'src\s*=\s*["\']', r"url\(", r'<link[^>]+href\s*=\s*["\']'):
             assert not re.search(position + r"(https?:)?//", html, re.I)
-
-
-def test_a_chapter_carries_a_smaller_one_than_the_contents_page(tmp_path: Path) -> None:
-    """A book of a hundred and fifty chapters would otherwise put three megabytes of the
-    same picture into one reader."""
-    from targum.render.builder import cover_uri, plate_uri
-
-    covers = tmp_path / "thumbs"
-    cover_at(covers, "psalms")
-
-    whole = cover_uri(covers, "psalms")
-    plate = plate_uri(covers, "psalms")
-
-    assert whole.startswith("data:image/webp;base64,")
-    assert plate.startswith("data:image/webp;base64,")
-    assert len(plate) < len(whole) / 2, "the stamp is a fraction of the cover"
-    assert (covers / "small" / "psalms.webp").is_file(), "and is shrunk once, not per page"
-
-
-def test_a_chapter_falls_back_to_its_book(tmp_path: Path) -> None:
-    """Most chapters are numbered rather than titled and have no cover of their own."""
-    from targum.render.builder import plate_uri
-
-    covers = tmp_path / "thumbs"
-    cover_at(covers, "psalms")
-
-    assert plate_uri(covers, "psalms-c007") == "", "nothing drawn for this chapter"
-    assert plate_uri(covers, "psalms") != "", "so the page uses the book's"
 
 
 # -- the word queue the arrows walk -----------------------------------------------
@@ -4287,19 +4261,17 @@ def test_a_key_is_the_letter_on_it_whatever_the_shift_was() -> None:
     assert "markLookedUp(key)" in script
 
 
-def test_the_word_list_does_not_open_itself_over_a_walk(tmp_path: Path) -> None:
-    """The panel covers the translation column. Opening it in the middle of somebody
-    stepping the chapter a word at a time takes away the thing they are grading against,
-    at the one moment they are not looking for it."""
+def test_the_word_list_does_not_open_itself(tmp_path: Path) -> None:
+    """The panel covered the translation column when it opened over a walk, and put the
+    card being typed into away on a phone (targum-internal#155). Since 2026-10-09 it never
+    opens itself: it starts closed (design.md §12, "The reader's chrome is the desk's"),
+    and keeping a word or a phrase leaves it where it is. Only a press opens it."""
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert (
-        "if (isLearning(status) && !standing && !carded && listBox && listBox.hidden) {" in script
-    )
-    # Nor under a card on a phone: the band holds one thing, and a sheet arriving there
-    # put away the card being typed into (targum-internal#155).
-    assert "var carded = card && !card.hidden && !roomy.matches;" in script
+    assert "showList(prefs.list === null ? false : prefs.list" in script
+    assert "if (listBox && listBox.hidden) showList(true);" not in script
+    assert "isLearning(status) && !standing" not in script
 
 
 def test_the_keyboard_card_is_in_the_page_before_the_script_that_finds_it(
