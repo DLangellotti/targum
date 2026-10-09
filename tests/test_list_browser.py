@@ -139,6 +139,9 @@ def test_a_swipe_up_moves_on_and_a_swipe_down_goes_back(browser, tmp_path) -> No
     try:
         page.goto(at(one, 0))
         page.wait_for_selector("#list-nav", state="attached")
+        # The swipe on is made at the end of the text, where the card of what comes next
+        # stands (P9): read down to it first.
+        page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
         page.evaluate(swipe, -200)
         page.wait_for_url("**/two/**go=1")
         page.wait_for_selector("#list-nav", state="attached")

@@ -1079,10 +1079,40 @@
       onChange(drawCard);
       return true;
     }
+    // The page's press is a pill with its drawing at the start, the arrow down or the
+    // tick, as the reader's menu rows are (board PlaylistDetail).
+    slot.setAttribute("data-glyphs", "");
     function draw() {
       drawRow(slot, what);
     }
-    readIndex().then(draw);
+    readIndex().then(function () {
+      draw();
+      // What it will take, said before it is pressed (board PlaylistDetail: "Save for
+      // offline [64 MB]"): each text's own plan, added up. Asked only while nothing is
+      // kept or running, which is the only time the press shows a size.
+      if (known && known.items[id]) return;
+      var texts = (one.items || []).filter(function (item) {
+        return item && item.open && !item.failed;
+      });
+      if (!texts.length) return;
+      Promise.all(
+        texts.map(function (item) {
+          return plan(new URL(item.open, location.origin).href).then(
+            function (planned) {
+              return planned.bytes || 0;
+            },
+            function () {
+              return 0;
+            }
+          );
+        })
+      ).then(function (sizes) {
+        what.bytes = sizes.reduce(function (sum, n) {
+          return sum + n;
+        }, 0);
+        if (!running[id] && !(known && known.items[id])) draw();
+      });
+    });
     onChange(function () {
       if (!running[id] || !running[id].handle) draw();
     });
@@ -1512,6 +1542,12 @@
     saved: function (id) {
       if (!known) return null;
       return known.items[id] || false;
+    },
+    // The same, asked by a reader's address, as a playlist's rows carry it.
+    savedText: function (address) {
+      if (!known) return null;
+      var id = textOf(address);
+      return (id && known.items[id]) || false;
     },
     playlist: onPlaylist,
     // With no connection (design.md §12, 2026-10-09).

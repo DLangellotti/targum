@@ -163,6 +163,78 @@
     return node;
   }
 
+  /* One word for what an item is, and its length and how much of it is known, as the
+     playlist's page says them: "Dialogue · 3 min · 91% known". */
+  function kindOf(facts) {
+    if (!facts) return "";
+    if (facts.video) return t("reader.list.kind.video", "Video");
+    var words = {
+      article: t("reader.list.kind.article", "Article"),
+      talk: t("reader.list.kind.video", "Video"),
+      dialogue: t("reader.list.kind.dialogue", "Dialogue"),
+      story: t("reader.list.kind.story", "Story"),
+      novel: t("reader.list.kind.book", "Book"),
+      essay: t("reader.list.kind.essay", "Essay"),
+      prose: t("reader.list.kind.tanakh", "Tanakh"),
+      poetry: t("reader.list.kind.poetry", "Poetry"),
+      play: t("reader.list.kind.play", "Play"),
+      liturgy: t("reader.list.kind.prayer", "Prayer"),
+      document: t("reader.list.kind.document", "Document"),
+    };
+    return words[facts.kind] || "";
+  }
+  function factsOf(item) {
+    var facts = (item && item.facts) || null;
+    var said = [];
+    var kind = kindOf(facts);
+    if (kind) said.push(kind);
+    var seconds = facts ? Number(facts.seconds || 0) || Number(facts.minutes || 0) * 60 : 0;
+    if (seconds > 0) said.push(minutesOf(Math.max(1, Math.round(seconds / 60))));
+    if (facts && typeof facts.known === "number") {
+      said.push(t("reader.list.known", "{share}% known", { share: Math.round(facts.known * 100) }));
+    }
+    return said.join(" · ");
+  }
+  // An item's picture at a thumb's size, resting on its letter until it has loaded.
+  function thumbOf(item, className) {
+    var box = document.createElement("span");
+    box.className = className;
+    box.setAttribute("aria-hidden", "true");
+    var letter = document.createElement("span");
+    letter.className = "list-thumb-letter";
+    letter.textContent = String((item && item.title) || "?").replace(/^[^\wא-תЀ-ӿ]+/, "").charAt(0);
+    box.appendChild(letter);
+    var src = pictureOf(item);
+    if (src) {
+      var picture = new Image();
+      picture.alt = "";
+      picture.onload = function () {
+        letter.remove();
+        box.appendChild(picture);
+      };
+      picture.src = src;
+    }
+    return box;
+  }
+  // A line drawing from 16×16 strokes, at the size of the words beside it.
+  function glyph(paths, className) {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.setAttribute("class", "list-glyph" + (className ? " " + className : ""));
+    paths.forEach(function (d) {
+      var path = document.createElementNS(ns, "path");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
+    });
+    return svg;
+  }
+  var DOWN = ["M8 3v10", "M4 9l4 4 4-4"];
+  var UP = ["M4 10l4-4 4 4"];
+  var PLAYING = ["M4 6v4", "M8 4v8", "M12 6.5v3"];
+
   var items = [];
   var setName = "";
   var near = { next: null, back: null, waiting: 0, last: true };
@@ -263,6 +335,9 @@
     var chips = document.createElement("ul");
     chips.className = "list-end-list";
     shown.forEach(function (one) {
+      chips.appendChild(chip(one));
+    });
+    function chip(one) {
       var row = document.createElement("li");
       if (one.new) row.className = "new";
       var word = document.createElement("bdi");
@@ -277,9 +352,30 @@
         gloss.textContent = String(one.gloss).split(/[;,]/)[0].trim();
         row.appendChild(gloss);
       }
-      chips.appendChild(row);
-    });
+      return row;
+    }
     end.appendChild(chips);
+    // "All 41 new words" (board PlaylistEnd): the rest of the new ones open out in place,
+    // with what each means, and the press goes. Nothing is fetched for it.
+    var more = Array.isArray(words.more) ? words.more : [];
+    if (more.length && words.new > 0) {
+      var all = document.createElement("button");
+      all.type = "button";
+      all.className = "list-end-all";
+      all.textContent = tn("reader.list.all-new", words.new, "All {n} new word", "All {n} new words");
+      all.addEventListener("click", function () {
+        more.forEach(function (one) {
+          chips.appendChild(chip(one));
+        });
+        all.remove();
+        var first = chips.children[shown.length];
+        if (first && first.focus) {
+          first.tabIndex = -1;
+          first.focus();
+        }
+      });
+      chips.appendChild(all);
+    }
   }
 
   function minutesOf(n) {
@@ -350,13 +446,28 @@
     var card = document.createElement("section");
     card.className = "list-end-set";
     card.appendChild(line("list-end-lead", t("reader.list.end-next", "Next playlist")));
+    // Its cover beside its name (board PlaylistEnd): the first four texts' pictures.
+    var top = document.createElement("div");
+    top.className = "list-end-set-top";
+    var mosaic = document.createElement("span");
+    var some = (next.items || []).slice(0, 4);
+    mosaic.className = "list-end-mosaic n-" + some.length;
+    mosaic.setAttribute("aria-hidden", "true");
+    some.forEach(function (item) {
+      mosaic.appendChild(thumbOf({ title: item.title, reader: item.entry || item.reader }, "list-end-cell"));
+    });
+    top.appendChild(mosaic);
+    var heading = document.createElement("div");
+    heading.className = "list-end-set-what";
     var name = document.createElement("h3");
     name.className = "list-end-name";
     var bdi = document.createElement("bdi");
     bdi.setAttribute("dir", "auto");
     bdi.textContent = String(next.name || "");
     name.appendChild(bdi);
-    card.appendChild(name);
+    heading.appendChild(name);
+    top.appendChild(heading);
+    card.appendChild(top);
     var facts = [
       next.made_by === "connector"
         ? t("reader.list.by-assistant", "From an assistant")
@@ -365,23 +476,55 @@
     ];
     if (next.seconds) facts.push(minutesOf(Math.round(next.seconds / 60)));
     facts.push(t("reader.list.picked", "picked for the words you just met"));
-    card.appendChild(line("list-end-facts", facts.join(" · ")));
+    heading.appendChild(line("list-end-facts", facts.join(" · ")));
     var rows = document.createElement("ul");
     rows.className = "list-end-items";
+    // A row a text (board PlaylistEnd): its picture, its title, what it is, how long,
+    // how much of it is known as a meter, and its credits.
     (next.items || []).forEach(function (item) {
       var row = document.createElement("li");
+      row.appendChild(thumbOf({ title: item.title, reader: item.entry || item.reader }, "list-end-thumb"));
       var title = document.createElement("bdi");
       title.setAttribute("dir", "auto");
       title.className = "list-end-item";
       title.textContent = String(item.title || "");
       row.appendChild(title);
-      var said = [];
-      if (item.minutes) said.push(minutesOf(item.minutes));
+      var kind = kindOf({ kind: item.kind, video: item.video });
+      row.appendChild(line("list-end-item-kind", kind));
+      row.appendChild(line("list-end-item-length", item.minutes ? minutesOf(item.minutes) : ""));
+      var known = line("list-end-item-facts", "");
       if (typeof item.known === "number") {
-        said.push(t("reader.list.known", "{share}% known", { share: Math.round(item.known * 100) }));
+        var meter = document.createElement("span");
+        meter.className = "list-end-meter";
+        meter.setAttribute("aria-hidden", "true");
+        var fill = document.createElement("span");
+        fill.style.inlineSize = Math.round(Math.max(0, Math.min(1, item.known)) * 100) + "%";
+        meter.appendChild(fill);
+        known.appendChild(meter);
+        known.appendChild(
+          document.createTextNode(
+            t("reader.list.share", "{share}%", { share: Math.round(item.known * 100) })
+          )
+        );
       }
-      row.appendChild(line("list-end-item-facts", said.join(" · ")));
-      if (item.credits) row.appendChild(line("list-end-item-credits", creditsOf(item.credits)));
+      row.appendChild(known);
+      // On a phone the columns fold under the title: "Dialogue · 2 min · 95%".
+      var folded = [kind];
+      if (item.minutes) folded.push(minutesOf(item.minutes));
+      if (typeof item.known === "number") {
+        folded.push(t("reader.list.share", "{share}%", { share: Math.round(item.known * 100) }));
+      }
+      row.appendChild(
+        line(
+          "list-end-item-folded",
+          folded
+            .filter(function (one) {
+              return !!one;
+            })
+            .join(" · ")
+        )
+      );
+      row.appendChild(line("list-end-item-credits", item.credits ? creditsOf(item.credits) : ""));
       rows.appendChild(row);
     });
     card.appendChild(rows);
@@ -424,6 +567,23 @@
   function drawEnd(end, said) {
     var words = said && said.words;
     var next = said && said.next;
+    /* Its own screen (board PlaylistEnd): "‹ Mornings · The end" at its head, the way
+       back to the playlist's page. */
+    var head = document.createElement("div");
+    head.className = "list-end-top";
+    var back = document.createElement("a");
+    back.className = "list-end-back";
+    back.href = keyed("/playlists/" + list);
+    back.setAttribute("aria-label", t("reader.list.end-back", "Back to {name}", { name: setName }));
+    back.appendChild(glyph(["M10 3.5 5.5 8l4.5 4.5"], "list-end-back-glyph"));
+    var called = document.createElement("bdi");
+    called.setAttribute("dir", "auto");
+    called.className = "list-end-set-name";
+    called.textContent = setName;
+    back.appendChild(called);
+    head.appendChild(back);
+    head.appendChild(line("list-end-the-end", t("reader.list.the-end", "The end")));
+    end.appendChild(head);
     var over = withTitle(
       document.createElement("h2"),
       t("reader.list.end-of", "That's the end of {name}."),
@@ -438,7 +598,10 @@
     home.className = "list-end-home";
     home.href = keyed("/playlists");
     home.textContent = t("reader.list.your-playlists", "Your playlists");
-    end.appendChild(home);
+    var way = document.createElement("p");
+    way.className = "list-end-way";
+    way.appendChild(home);
+    end.appendChild(way);
   }
   var ended = false;
   function fillEnd(end) {
@@ -467,6 +630,20 @@
       if (window.TargumVideo && window.TargumVideo.transcript) window.TargumVideo.transcript(true);
       if (end.scrollIntoView) end.scrollIntoView({ block: "start" });
       tellHere(items.length);
+      // The rail says where the reader is now: at its End.
+      var rail = document.getElementById("list-rail");
+      if (rail) {
+        var was = rail.querySelector(".list-rail-tile.is-here");
+        if (was) {
+          was.classList.remove("is-here");
+          was.removeAttribute("aria-current");
+        }
+        var last = rail.querySelector(".list-rail-end");
+        if (last) {
+          last.classList.add("is-here");
+          last.setAttribute("aria-current", "true");
+        }
+      }
       fillEnd(end);
       document.dispatchEvent(new CustomEvent("targum:list-end", { detail: { list: list } }));
     }
@@ -544,13 +721,45 @@
     ahead.className = "list-ahead";
     ahead.setAttribute("dir", uiDir);
     if (near.next !== null) {
-      var upNext = withTitle(
-        document.createElement("p"),
-        t("reader.list.up-next", "Up next: {title}"),
-        "title",
-        String(items[near.next].title || "")
-      );
+      /* What comes next, as a card (boards PlaylistSwipePhone and ReaderPhone): its
+         picture, "Next · 3 of 6", its title, and what it is, how long and how much is
+         known. A press like Next: it goes on without marking, as a swipe does. */
+      var coming = items[near.next];
+      var upNext = document.createElement("button");
+      upNext.type = "button";
       upNext.className = "list-up-next";
+      upNext.appendChild(thumbOf(coming, "list-up-thumb"));
+      var said = document.createElement("span");
+      said.className = "list-up-what";
+      said.appendChild(
+        withTitle(
+          document.createElement("span"),
+          t("reader.list.next-of", "Next · {at} of {count}", { at: near.next + 1, count: items.length }),
+          "title",
+          ""
+        )
+      ).className = "list-up-lead";
+      var named = document.createElement("bdi");
+      named.setAttribute("dir", "auto");
+      named.className = "list-up-title";
+      named.textContent = String(coming.title || "");
+      said.appendChild(named);
+      var about = factsOf(coming);
+      if (about) {
+        var line = document.createElement("span");
+        line.className = "list-up-facts";
+        line.textContent = about;
+        said.appendChild(line);
+      }
+      upNext.appendChild(said);
+      upNext.appendChild(glyph(UP, "list-up-go"));
+      upNext.setAttribute(
+        "aria-label",
+        t("reader.list.up-next", "Up next: {title}", { title: String(coming.title || "") })
+      );
+      upNext.addEventListener("click", function () {
+        forward("list-up-next");
+      });
       ahead.appendChild(upNext);
     }
     if (near.waiting) {
@@ -611,11 +820,30 @@
           })
         );
       }
-      keys.appendChild(
-        control("list-next video-list-next", nextLabel, function () {
-          forward("list-next");
-        })
-      );
+      /* "Next [picture] באוטובוס ↓" (board PlaylistSwipeDesk): the press says where it
+         goes. At the last item it is Finish, and says only that. */
+      var onward = control("list-next video-list-next", "", function () {
+        forward("list-next");
+      });
+      var word = document.createElement("span");
+      word.className = "video-list-word";
+      word.textContent = nextLabel;
+      onward.appendChild(word);
+      if (near.next !== null) {
+        onward.classList.add("has-next");
+        onward.appendChild(thumbOf(items[near.next], "video-list-thumb"));
+        var whose = document.createElement("bdi");
+        whose.setAttribute("dir", "auto");
+        whose.className = "video-list-title";
+        whose.textContent = String(items[near.next].title || "");
+        onward.appendChild(whose);
+        onward.appendChild(glyph(DOWN, "video-list-go"));
+        onward.setAttribute(
+          "aria-label",
+          t("reader.list.up-next", "Up next: {title}", { title: String(items[near.next].title || "") })
+        );
+      }
+      keys.appendChild(onward);
       if (voiced()) {
         var onKey = playOnSwitch();
         onKey.classList.add("list-key", "video-list-on");
@@ -977,6 +1205,7 @@
         };
         picture.src = src;
       }
+      if (here) tile.appendChild(glyph(PLAYING, "list-rail-playing"));
       row.appendChild(tile);
       strip.appendChild(row);
     });

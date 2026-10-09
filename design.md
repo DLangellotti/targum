@@ -363,6 +363,60 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A playlist is drawn as its boards, to the end — 2026-10-09
+
+P9 of the polish plan, after "The boards are the desk" and "The desk's controls are one
+layer" (the same day), on boards PlaylistsTab, PlaylistDetail, PlaylistSwipeDesk and
+PlaylistSwipePhone, PlaylistEnd and PlaylistMake, and their phones. The rulings it keeps
+as they stand: the swipe is the press while reading, listening plays on by itself, one
+press takes a set and it is made on the end card, and a byline says "By you", "From an
+assistant" or "From targum" — now in search too, which said "made by you". Where it
+goes past them:
+
+- **A playlist's page is a table with heads** — Title · Length · Known · Offline — and
+  the Offline column ticks each text this device keeps (`offline.js`'s index; nothing is
+  asked of the server). The known share in a row is the number alone, the head saying
+  what it is. Move up and Move down come into view on the row the pointer or the focus
+  is on; the drag by the grip is the move for the eye, as the board draws only the ×.
+- **The playlist's name is the page's title.** "Your targums" over "‹ Playlists" goes on
+  a playlist's own page; the tab keeps it.
+- **"Save for offline" says its size before it is pressed**, as a pill beside Continue:
+  each text's own plan (`/offline.json`, which spends nothing), added up when the page
+  is drawn and only while nothing is kept.
+- **The row you are on says where you stopped**: "You're here · Part 4 of 4 · stopped at
+  0:31", from the account's own place for that text (`Store.places`), the part only
+  where the text has more than one, the time only where a recording was playing.
+- **A playlist wears its cover everywhere it is a row**: the tab, search, the add menu
+  and the next set on the end card. The add menu and the end card are drawn inside a
+  reader, which carries no `covers.js`, so they draw the same four squares from
+  `/thumb/` themselves.
+- **The end is a screen of its own**, over the reader and beside the rail, with its own
+  head ("‹ Mornings · The end") in place of the reader's bar; the rail's End is marked
+  where the reader now is. **"All 41 new words" opens out in place**: the server sends
+  the rest of the new words (up to 200) with their meanings from the texts' own
+  glossaries, so nothing more is fetched and no model is asked. The next set's rows say
+  what each text is, how long, how much is known as a meter, and its credits.
+- **What comes next is a card at the foot of the text**, on a phone and a desk alike —
+  its picture, "Next · 3 of 6", its title and what it is — and a press like Next that
+  marks nothing, as a swipe. **The board draws it as a sheet fixed over the foot of a
+  phone; it is drawn in the flow instead**, at the end of the text where the swipe that
+  leaves the text is made: a fixed sheet would cover the lines the band at the foot
+  keeps clear (the reader's `room()`), and a second thing in that band is the collision
+  the band exists to prevent. Under a large picture at a desk, Next is the board's pill:
+  "Next [picture] באוטובוס ↓"; on a phone that row is narrow and the pill says Next.
+- **Add to playlist is the board's**: "Add רות to", a row a playlist with its cover, its
+  count, "you're in it" on the one the reader is in, and "✓ In it" where the text
+  already is — still a press, because a playlist may hold a text twice. At a desk New
+  playlist opens a small window on the dim (Name, what it starts with, Cancel, Confirm);
+  on a phone the menu is a sheet from the foot on `.scrim` with its `.sheet-grab`, the
+  name field in it, and the reader's own ⋯ sheet steps out of the way while it stands.
+  The playlists page's own sheet is the same window, its refusal under its field.
+
+Left for the reader's package (P7), because it moves the Theatre layout in `reader.css`:
+the board's transcript in a right column beside the picture. The rail's ticks on texts
+finished are not drawn, because the playlist does not yet know which of its texts were
+finished rather than passed.
+
 ### A series is one page of the desk, for everyone — 2026-10-09
 
 David, 2026-10-09, on the audit's question 10 ("strangers keep the marketing landing while

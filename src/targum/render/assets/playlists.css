@@ -89,7 +89,7 @@ body.playlists main { gap: 1.75rem; }
 .pl-mosaic .pl-cell .glyph { font-size: 1.75rem; }
 .pl-mosaic.is-small { inline-size: 6rem; flex: 0 0 auto; border-radius: var(--radius-control); }
 .pl-mosaic.is-small .glyph { font-size: 0.875rem; }
-.pl-mosaic.is-large { inline-size: 15rem; flex: 0 0 auto; }
+.pl-mosaic.is-large { inline-size: 15rem; flex: 0 0 auto; align-self: center; }
 
 /* --- how much is known, in leaf (§4) ---------------------------------------------- */
 
@@ -257,11 +257,16 @@ body.playlists main { gap: 1.75rem; }
 }
 .pl-back:dir(rtl) .pl-glyph { transform: scaleX(-1); }
 .pl-head {
-  display: flex;
-  align-items: flex-end;
-  gap: 2.25rem;
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  align-items: end;
+  column-gap: 2.25rem;
   margin-block-end: 2rem;
 }
+.pl-head > .pl-mosaic { grid-row: 1 / span 2; }
+.pl-head > .pl-presses { grid-column: 2; }
+.pl-chevron { display: none; }
 .pl-head-what {
   display: flex;
   flex-direction: column;
@@ -321,23 +326,53 @@ body.playlists main { gap: 1.75rem; }
 /* The texts in order: number or where you are, the grip, the picture, the title and its
    kind, how long, how much is known, and the keys. A table at a desk; a list of two
    lines on a phone, where the columns fold under the title. */
+/* The table's card, and its column heads (board PlaylistDetail: Title · Length · Known
+   · Offline), in the small capitals a table's heads wear on the desk. */
+.pl-table { padding-block: 0.25rem; padding-inline: 1.25rem; }
+.pl-table[hidden] { display: none; }
+.pl-cols,
+.pl-items .item {
+  display: grid;
+  grid-template-columns: 2rem 2.75rem 4rem minmax(0, 1fr) 5.5rem 10rem 4rem 7rem;
+  align-items: center;
+  column-gap: 1rem;
+}
+.pl-cols {
+  padding-block: 0.9rem 0.6rem;
+  border-block-end: 1px solid var(--hairline);
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.pl-col-title { grid-column: 4; }
+.pl-col-length { grid-column: 5; }
+.pl-col-known { grid-column: 6; }
+.pl-col-offline { grid-column: 7; justify-self: center; }
 .pl-items {
   list-style: none;
   margin: 0;
-  padding-block: 0.25rem;
-  padding-inline: 1.25rem;
+  padding: 0;
   font-family: var(--chrome);
 }
 .pl-items:empty { display: none; }
 .pl-items .item {
-  display: grid;
-  grid-template-columns: 2rem 2.75rem 4rem minmax(0, 1fr) 5.5rem 10rem auto;
-  align-items: center;
-  column-gap: 1rem;
   padding-block: 0.6rem;
   border-block-start: 1px solid var(--hairline);
 }
 .pl-items .item:first-child { border-block-start: 0; }
+.item-offline { justify-self: center; display: inline-flex; color: var(--ink); }
+.item-offline .pl-glyph { inline-size: 1.05rem; block-size: 1.05rem; }
+.pl-items .visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .pl-items .item.is-here {
   margin-inline: -1.25rem;
   padding-inline: 1.25rem;
@@ -404,7 +439,18 @@ a.item-title:hover { text-decoration: underline; }
 .item.failed .item-title { color: var(--ink-soft); }
 .item-length { font-size: 0.875rem; color: var(--ink-soft); white-space: nowrap; }
 .item-known .pl-bar { inline-size: 4.5rem; }
-.item-keys { display: flex; gap: 0.15rem; }
+.item-keys { display: flex; justify-content: flex-end; gap: 0.15rem; }
+/* Move up and Move down are there for a keyboard and a screen reader, and come into
+   view on the row the pointer or the focus is on (board PlaylistDetail draws only the
+   ×). The drag by the grip is the move for the eye. */
+@media (min-width: 40.0625rem) {
+  .item-keys .up,
+  .item-keys .down { opacity: 0; }
+  .item:hover .item-keys .up,
+  .item:hover .item-keys .down,
+  .item:focus-within .item-keys .up,
+  .item:focus-within .item-keys .down { opacity: 1; }
+}
 .playlists .item-keys .ghost { min-inline-size: 2.25rem; padding: 0 0.5rem; }
 .item-keys .pl-glyph { inline-size: 0.9rem; block-size: 0.9rem; }
 
@@ -501,30 +547,50 @@ a.item-title:hover { text-decoration: underline; }
 @media (max-width: 40rem) {
   .pl-new-press { display: none; }
   /* A card is a row: the cover beside the name, its facts under it. */
+  /* The rows are one card (board PlaylistsTabPhone): each row carries the card's paper,
+     the first and last its corners, and New playlist stands under it on the ground. */
   .pl-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
-    background: var(--card);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-rest);
-    padding-inline: 1rem;
   }
   .pl-card {
     display: grid;
-    grid-template-columns: 4.75rem minmax(0, 1fr);
+    grid-template-columns: 4.75rem minmax(0, 1fr) 1rem;
     align-content: center;
     column-gap: 1rem;
     row-gap: 0.2rem;
-    padding: 0.9rem 0;
+    padding: 0.9rem 1rem;
     border-radius: 0;
     box-shadow: none;
-    background: transparent;
+    background: var(--card);
+    background-clip: padding-box;
+  }
+  .pl-card + .pl-card:not(.pl-new-card)::before {
+    content: "";
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 1rem;
     border-block-start: 1px solid var(--hairline);
   }
-  .pl-card:first-child { border-block-start: 0; }
+  .pl-card:first-child { border-start-start-radius: var(--radius-card); border-start-end-radius: var(--radius-card); }
+  .pl-card:nth-last-child(2) { border-end-start-radius: var(--radius-card); border-end-end-radius: var(--radius-card); }
+  .pl-grid > .pl-card:not(.pl-new-card) { box-shadow: var(--shadow-rest); clip-path: inset(0 -1rem); }
+  .pl-grid > .pl-card:first-child { clip-path: inset(-1rem -1rem 0); }
+  .pl-grid > .pl-card:nth-last-child(2) { clip-path: inset(0 -1rem -1rem); }
+  .pl-grid > .pl-card:first-child:nth-last-child(2) { clip-path: none; }
+  .pl-chevron {
+    display: block;
+    grid-column: 3;
+    grid-row: 1 / span 5;
+    align-self: center;
+    inline-size: 1rem;
+    block-size: 1rem;
+    color: var(--ink-soft);
+  }
+  .pl-chevron:dir(rtl) { transform: scaleX(-1); }
   .pl-card.is-current { box-shadow: none; }
   .pl-card.is-current .pl-mosaic { box-shadow: 0 0 0 2px var(--teal); }
-  .pl-card > :not(.pl-card-cover) { grid-column: 2; }
+  .pl-card > :not(.pl-card-cover, .pl-chevron) { grid-column: 2; }
   .pl-card-cover { display: contents; }
   .pl-card-cover .pl-mosaic { grid-column: 1; grid-row: 1 / span 5; align-self: start; }
   .pl-mosaic { border-radius: var(--radius-control); }
@@ -539,26 +605,45 @@ a.item-title:hover { text-decoration: underline; }
     flex-direction: row;
     gap: 0.5rem;
     min-block-size: 3.5rem;
-    margin: 1rem -1rem 0;
-    border-radius: var(--radius-row);
+    margin-block-start: 1rem;
+    padding: 0;
+    background: transparent;
+    border-radius: var(--radius-card);
   }
   .pl-targum { grid-template-columns: minmax(0, 1fr); }
   .pl-mosaic.is-small { inline-size: 4rem; }
 
-  .pl-head { flex-wrap: wrap; align-items: center; gap: 1rem; margin-block-end: 1.25rem; }
+  .pl-head {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 1rem;
+    margin-block-end: 1.25rem;
+  }
+  .pl-head > .pl-mosaic { grid-row: 1; }
+  .pl-head > .pl-presses { grid-column: 1 / -1; margin: 0; }
   .pl-mosaic.is-large { inline-size: 7.5rem; }
-  .pl-head-what { flex: 1 1 10rem; }
+  .pl-head .pl-facts { gap: 0.25rem 0.75rem; }
   .pl-name { font-size: 1.75rem; }
-  .pl-items { padding-inline: 0.75rem; }
+  /* Continue across the page, and the offline row a card of its own under it. */
+  .pl-presses .start { flex: 1 0 100%; justify-content: center; }
+  .pl-presses .pl-offline { flex: 1 1 0; min-inline-size: 0; }
+  .pl-presses .pl-offline.offline-idle,
+  .pl-presses .pl-offline.offline-saved { border-radius: var(--radius-row); }
+  .pl-table { padding-inline: 0.75rem; }
+  .pl-cols { display: none; }
   .pl-items .item {
-    grid-template-columns: 2.75rem 3.5rem minmax(0, 1fr) auto;
+    grid-template-columns: 2.75rem 3.5rem minmax(0, 1fr) auto auto;
     column-gap: 0.6rem;
   }
+  /* One line a title on a phone, cut short, as the board draws it. */
+  .item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pl-items .item.is-here { margin-inline: -0.75rem; padding-inline: 0.75rem; }
   .item-mark,
   .item-length,
   .item-known { display: none; }
   .item-folded { display: inline; }
+  .item-kind.is-here .item-folded { display: none; }
   .pl-thumb { inline-size: 3.5rem; block-size: 3.5rem; }
   /* Move up and Move down stay for a screen reader, which cannot drag, and step out of
      a thumb's way: the grip is the move under a finger. */
@@ -593,4 +678,97 @@ a.item-title:hover { text-decoration: underline; }
    own page (design.md §12, 2026-10-09). */
 .pl-card .pl-offline { margin: 0.35rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
 .pl-card .pl-offline[hidden] { display: none; }
-.pl-presses .pl-offline { flex: 1 1 16rem; max-inline-size: 24rem; }
+/* On a playlist's own page the offline row is a pill beside Continue (board
+   PlaylistDetail: "Saved for offline [64 MB]" with its tick): its drawing, its words, and its size
+   in a quieter cut, the size said before it is pressed as well as after. */
+.pl-presses .pl-offline { flex: 0 1 auto; }
+.pl-presses .pl-offline.offline-idle,
+.pl-presses .pl-offline.offline-saved {
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+}
+.pl-presses .pl-offline .offline-go,
+.pl-presses .pl-offline .offline-what {
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.pl-presses .pl-offline .offline-go { min-block-size: 2.75rem; }
+.pl-presses .pl-offline .offline-label { color: var(--ink); }
+.pl-presses .pl-offline .offline-size { font-weight: 400; }
+.pl-presses .pl-offline .offline-glyph { display: inline-flex; color: var(--ink); }
+.pl-presses .pl-offline .offline-glyph svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pl-presses .pl-offline.offline-saving,
+.pl-presses .pl-offline.offline-failed,
+.pl-presses .pl-offline.offline-full { flex: 1 1 16rem; max-inline-size: 24rem; }
+.pl-presses .pl-offline .offline-remove { font-size: 0.8125rem; }
+
+/* A playlist's own page has its name for a title (board PlaylistDetail): "Your
+   targums" over "‹ Playlists" goes, and the name is the page's heading. */
+body.pl-one-open .page-title { display: none; }
+
+/* The sheet a shelf row's "Add to playlist", New playlist and the page's own address
+   open (board PlaylistMake): a small window on the dim at a desk, a sheet from the foot
+   on a phone. `.scrim` is the shared dim; this is only its place in the stack. */
+.pl-scrim { z-index: 70; }
+.pl-sheet {
+  position: fixed;
+  z-index: 71;
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+  inline-size: min(28rem, calc(100vw - 2rem));
+  max-block-size: calc(100svh - 2rem);
+  overflow-y: auto;
+  box-shadow: var(--shadow-floating);
+}
+.pl-sheet[hidden] { display: none; }
+.pl-sheet-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-block-end: 0.75rem; }
+.pl-sheet-top h2 { margin: 0; font-family: var(--chrome); font-size: 1.0625rem; font-weight: 600; }
+.pl-sheet-shut {
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+.pl-sheet-shut:hover { background: var(--teal-wash); color: var(--ink); }
+.pl-sheet-shut:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pl-sheet .choose { flex-direction: column; flex-wrap: nowrap; }
+.pl-sheet .choose .named { inline-size: 100%; justify-content: space-between; }
+.pl-sheet .new-list { flex-direction: column; align-items: stretch; }
+.pl-sheet .new-list .field { flex: none; display: flex; flex-direction: column; gap: 0.35rem; }
+.playlists .pl-sheet .new-list .field input { flex: none; inline-size: 100%; }
+.pl-sheet .new-list .btn { align-self: flex-end; }
+.pl-sheet .said { margin: 0.5rem 0 0; }
+@media (max-width: 40rem) {
+  .pl-sheet {
+    inset: auto 0 0 0;
+    translate: none;
+    inline-size: auto;
+    max-block-size: 85svh;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding-block-end: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+  .pl-sheet .new-list .btn { align-self: stretch; }
+}

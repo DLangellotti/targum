@@ -118,6 +118,7 @@
   var PLUS = ["M8 3.5v9", "M3.5 8h9"];
   var CROSS = ["M4.5 4.5l7 7", "M11.5 4.5l-7 7"];
   var PLAYING = ["M4 6v4", "M8 4v8", "M12 6.5v3"];
+  var TICK = ["M3 8.5 6.5 12 13 4.5"];
   var BACK = ["M10 3.5L5.5 8l4.5 4.5"];
 
   // A name the reader typed, isolated in its own direction, so a Hebrew name's
@@ -200,6 +201,34 @@
     return kinds[facts.kind] || t("home.kind.text", "Text");
   }
 
+  // A place in a recording the way a player's clock says it: "0:31", "1:04:09".
+  function clock(seconds) {
+    var whole = Math.max(0, Math.round(Number(seconds) || 0));
+    var h = Math.floor(whole / 3600);
+    var m = Math.floor((whole % 3600) / 60);
+    var s = whole % 60;
+    var two = function (n) {
+      return (n < 10 ? "0" : "") + n;
+    };
+    return h ? h + ":" + two(m) + ":" + two(s) : m + ":" + two(s);
+  }
+
+  /* Where the reader is in the one they are on (board PlaylistDetail): "You're here ·
+     Part 4 of 4 · stopped at 0:31". The part only where the text has more than one, the
+     time only where a recording was playing; the server reads both off the account's
+     own place for that text. */
+  function hereLine(item) {
+    var said = [t("playlists.you-are-here", "You're here")];
+    var place = item && item.place;
+    if (place && place.parts > 1 && place.part > 0) {
+      said.push(t("playlists.part-of", "Part {at} of {count}", { at: place.part, count: place.parts }));
+    }
+    if (place && place.seconds > 0) {
+      said.push(t("playlists.stopped-at", "stopped at {time}", { time: clock(place.seconds) }));
+    }
+    return said.join(" · ");
+  }
+
   function itemSeconds(facts) {
     if (!facts) return 0;
     return Number(facts.seconds || 0) || Number(facts.minutes || 0) * 60;
@@ -218,7 +247,16 @@
     fill.style.setProperty("--done", String(Math.max(0, Math.min(1, share))));
     bar.appendChild(fill);
     box.appendChild(bar);
-    box.appendChild(element("span", "pl-share", t("playlists.known", "{share}% known", { share: whole })));
+    // In a row the column's head says Known, so the share is the number alone.
+    box.appendChild(
+      element(
+        "span",
+        "pl-share",
+        className === "is-row"
+          ? t("playlists.share", "{share}%", { share: whole })
+          : t("playlists.known", "{share}% known", { share: whole })
+      )
+    );
     return box;
   }
 
@@ -259,9 +297,30 @@
 
   /* --- the sheet -------------------------------------------------------------- */
 
+  /* The sheet stands on the dim (board PlaylistMake): shown with it, put away with it by
+     its ×, a press on the dim or Escape, none of which adds anything. */
+  function showSheet(on) {
+    at("adding").hidden = !on;
+    at("adding-scrim").hidden = !on;
+  }
+  function putAway() {
+    showSheet(false);
+    say("adding-said", "");
+    if (adding) {
+      adding = "";
+      history.replaceState(null, "", location.pathname + (key ? "?k=" + encodeURIComponent(key) : ""));
+    }
+  }
+  at("adding-shut").addEventListener("click", putAway);
+  at("adding-scrim").addEventListener("click", putAway);
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && !at("adding").hidden) putAway();
+  });
+
   function drawSheet(playlists) {
     if (!adding) return;
-    at("adding").hidden = false;
+    showSheet(true);
+    at("new-label").textContent = t("playlists.new", "New playlist");
     var head = at("adding-head");
     head.textContent = "";
     withName(head, t("playlists.add-to", "Add {title} to a playlist"), "title", addingTitle);
@@ -306,11 +365,12 @@
       body.title = addingTitle;
     }
     ask("/playlists", body).then(function (answer) {
-      if (answer.error) return say(adding ? "adding-said" : "lists-said", plainly(answer), true);
+      // Under the field it was about, whichever door opened the sheet.
+      if (answer.error) return say("adding-said", plainly(answer), true);
       say("lists-said", "");
       at("new-name").value = "";
       if (adding) return added(answer.name);
-      at("adding").hidden = true;
+      showSheet(false);
       load();
     });
   });
@@ -318,8 +378,11 @@
   /* New playlist, from the tab's strip or its last card: the name field, in the sheet's
      panel, with the heading saying what it is for. */
   function startNew() {
-    at("adding").hidden = false;
-    at("adding-head").textContent = t("playlists.new-heading", "Name your playlist");
+    showSheet(true);
+    say("adding-said", "");
+    // A small window of its own (board PlaylistMake): "New playlist", and its field "Name".
+    at("adding-head").textContent = t("playlists.new", "New playlist");
+    at("new-label").textContent = t("playlists.name", "Name");
     at("choose").textContent = "";
     at("new-list").hidden = false;
     at("new-name").focus();
@@ -446,6 +509,9 @@
     if (known) box.appendChild(known);
     var foot = waitingLine(one) || offlineSlot(one, "card");
     if (foot) box.appendChild(foot);
+    // A row on a phone ends in its chevron (board PlaylistsTabPhone); the desk's card
+    // has none.
+    box.appendChild(drawing(["M6 3.5 10.5 8 6 12.5"], "pl-chevron"));
     return box;
   }
 
@@ -598,7 +664,7 @@
     var under = element("span", "item-kind");
     if (here) {
       under.classList.add("is-here");
-      under.textContent = t("playlists.you-are-here", "You're here");
+      under.textContent = hereLine(item);
     } else if (!item.open) {
       under.textContent = item.failed
         ? t("playlists.could-not", "We couldn't get this text ready.")
@@ -624,6 +690,12 @@
     var known = knownBar(facts && facts.known, "is-row");
     if (known) cell.appendChild(known);
     row.appendChild(cell);
+
+    // Whether this text is on this device (board PlaylistDetail's Offline column): a
+    // tick where it is, nothing where it is not, filled in once the index is read.
+    var kept = element("span", "item-offline");
+    kept.setAttribute("data-open", item.open || "");
+    row.appendChild(kept);
 
     var keys = element("span", "item-keys");
     var up = button("↑", function () {
@@ -732,6 +804,37 @@
     field.select();
   }
 
+  /* The Offline column's ticks, from what this device keeps (`offline.js`), drawn again
+     whenever that changes. */
+  var offlineHeard = false;
+  function markOffline(list) {
+    var offline = window.TargumOffline;
+    if (!offline || !offline.savedText) return;
+    function mark() {
+      Array.prototype.forEach.call(list.querySelectorAll(".item-offline"), function (cell) {
+        var open = cell.getAttribute("data-open");
+        var kept = !!open && !!offline.savedText(open);
+        cell.textContent = "";
+        if (kept) {
+          cell.appendChild(drawing(TICK));
+          cell.setAttribute("title", t("playlists.on-device", "On this device"));
+          cell.appendChild(element("span", "visually-hidden", t("playlists.on-device", "On this device")));
+        } else {
+          cell.removeAttribute("title");
+        }
+      });
+    }
+    if (offline.ready) offline.ready().then(mark);
+    else mark();
+    if (!offlineHeard && offline.onChange) {
+      offlineHeard = true;
+      offline.onChange(function () {
+        var shown = document.querySelector(".pl-items");
+        if (shown) markOffline(shown);
+      });
+    }
+  }
+
   function drawOne(one) {
     at("one").hidden = false;
     var body = at("one-body");
@@ -742,7 +845,8 @@
     head.appendChild(mosaic(one.covers, "is-large"));
     var said = element("div", "pl-head-what");
     said.appendChild(element("p", "pl-byline", byline(one.made_by)));
-    var name = element("h2", "pl-name");
+    // The page's own title: the playlist's name stands where "Your targums" stood.
+    var name = element("h1", "pl-name");
     name.id = "one-name";
     name.appendChild(isolated(one.name));
     said.appendChild(name);
@@ -784,11 +888,25 @@
     var offline = offlineSlot(one, "page");
     if (offline) presses.appendChild(offline);
     presses.appendChild(moreMenu(head, one));
-    said.appendChild(presses);
     head.appendChild(said);
+    // Beside the facts at a desk, across the page under the cover on a phone (boards
+    // PlaylistDetail and PlaylistDetailPhone): the head is a grid that places them.
+    head.appendChild(presses);
     body.appendChild(head);
 
-    var list = element("ol", "card pl-items items");
+    // The table (board PlaylistDetail): its column heads, then the texts in order. The
+    // heads are for the eye; each row's cells say what they are to a screen reader.
+    var table = element("div", "card pl-table");
+    if (one.items.length) {
+      var heads = element("div", "pl-cols");
+      heads.setAttribute("aria-hidden", "true");
+      heads.appendChild(element("span", "pl-col-title", t("playlists.col-title", "Title")));
+      heads.appendChild(element("span", "pl-col-length", t("playlists.col-length", "Length")));
+      heads.appendChild(element("span", "pl-col-known", t("playlists.col-known", "Known")));
+      heads.appendChild(element("span", "pl-col-offline", t("playlists.col-offline", "Offline")));
+      table.appendChild(heads);
+    }
+    var list = element("ol", "pl-items items");
     list.setAttribute("aria-label", t("playlists.in-order", "Texts in order"));
     one.items.forEach(function (item) {
       drawItem(list, one, item, item.position === current);
@@ -802,7 +920,10 @@
       var position = Number(row.getAttribute("data-position"));
       move(one, position, position + (event.key === "ArrowUp" ? -1 : 1), ".grip");
     });
-    body.appendChild(list);
+    table.appendChild(list);
+    body.appendChild(table);
+    table.hidden = !one.items.length;
+    markOffline(list);
     if (!one.items.length) {
       body.appendChild(element("p", "note", t("playlists.empty", "Nothing in it yet.")));
     }

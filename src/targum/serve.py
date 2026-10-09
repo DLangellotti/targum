@@ -520,6 +520,9 @@ UPLOAD_CREDITS = UPLOAD_SECONDS // SECONDS_A_CREDIT
 #: How many of the words met a playlist's end card names (#367): enough to be the words,
 #: few enough to read at a glance. The count beside them is still the whole of it.
 END_WORDS = 12
+#: And how many of the new ones "All 41 new words" opens out to under them (board
+#: PlaylistEnd): every new word in a playlist of twenty, as far as a page should carry.
+END_WORDS_ALL = 200
 #: A text finished this recently is not offered again in a next set.
 RECENT_DAYS = 30
 
@@ -7040,6 +7043,8 @@ class Handler(BaseHTTPRequestHandler):
                         "count": int(row.get("count") or 0),
                         "by": row.get("made_by") or "",
                         "href": f"/playlists/{int(row['id'])}",
+                        # Its cover, as the tab draws it: the first four texts' pictures.
+                        "covers": self._search_covers(person.id, int(row["id"])),
                     }
                     for row in playlists[: self.SEARCH_MOST]
                 ],
@@ -9563,6 +9568,15 @@ class Handler(BaseHTTPRequestHandler):
         done = bool(sub_id and key) and self.store.saw_sub_item(person.id, sub_id, key)
         return self._json({"seen": done})
 
+    def _search_covers(self, person_id: int, playlist_id: int) -> list[dict[str, str]]:
+        """A playlist's first four texts as search draws its cover: each one's name for
+        `/thumb/`, its title for the letter a text still being made rests on."""
+        found = self.store.playlist(person_id, playlist_id) or {}
+        return [
+            {"name": str(item.get("reader") or ""), "title": str(item.get("title") or "")}
+            for item in (found.get("items") or [])[:4]
+        ]
+
     def _playlists_get(self, which: str | None) -> None:
         """The reader's playlists, or one of them with its texts (targum-internal#364).
 
@@ -9583,6 +9597,13 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 shown = self._playlist_facts(person, found, vocabulary)
                 summary = {key: value for key, value in shown.items() if key != "items"}
+                # The texts it holds, by name, so "Add to playlist" can say "In it" on the
+                # playlists a text is already in (board PlaylistMake).
+                summary["holds"] = [
+                    str(item.get("reader"))
+                    for item in found.get("items") or []
+                    if item.get("reader")
+                ]
                 mine.append({**one, **summary})
             targum = []
             for collection, built in self.library.targum_sets():
@@ -9695,11 +9716,34 @@ class Handler(BaseHTTPRequestHandler):
                 )
             }
             item["facts"]["chapters"] = len(row.get("chapters") or [])
+            item["facts"]["document"] = row.get("document") or ""
+        # Where the reader stopped in the one they are on (board PlaylistDetail: "You're
+        # here · Part 4 of 4 · stopped at 0:31"), from the account's own place for that
+        # text. Asked for that one row only: a page of playlists never needs it.
+        at = found.get("at")
+        if isinstance(at, int) and 0 <= at < len(answer["items"]):
+            here = answer["items"][at]
+            document = str((here.get("facts") or {}).get("document") or "")
+            places = self.store.places(person.id, limit=1, document=document) if document else []
+            if places:
+                stopped = places[0]
+                parts = int((here.get("facts") or {}).get("sections") or 0)
+                section = str(stopped.get("section") or "")
+                # A section is numbered from 1, as the contents page counts parts.
+                part = int(section) if section.isdigit() else 0
+                here["place"] = {
+                    "part": part if parts > 1 and 0 < part <= parts else 0,
+                    "parts": parts if parts > 1 else 0,
+                    "seconds": round(float(stopped.get("seconds") or 0)),
+                }
         covers = [
             {
                 "name": (item["facts"] or {}).get("entry") or item.get("reader") or "",
                 "title": item.get("title") or "",
                 "language": (item["facts"] or {}).get("language") or "",
+                "kind": "video"
+                if (item["facts"] or {}).get("video")
+                else (item["facts"] or {}).get("kind") or "",
             }
             for item in answer["items"][:4]
         ]
@@ -9820,20 +9864,22 @@ class Handler(BaseHTTPRequestHandler):
         listed = [{**one, "new": True} for one in fresh[:END_WORDS]] + [
             {**one, "new": False} for one in known[: max(0, END_WORDS - len(fresh))]
         ]
+        # The rest of the new ones, for "All 41 new words" to open out in place.
+        more = [{**one, "new": True} for one in fresh[END_WORDS:END_WORDS_ALL]]
         # What each means, from the texts' own glossaries, in the reader's language where
         # one was built and in English otherwise (#435). Nothing is asked of a model.
         from .models import glossaries_in
 
         wanted = self._page_language().split("-")[0]
         books = [glossaries_in(folder) for folder, _ in folders]
-        for one in listed:
+        for one in listed + more:
             for shelf in books:
                 book = shelf.get(wanted) or shelf.get("en")
                 said = book.entries.get(str(one["word"]), "") if book is not None else ""
                 if said:
                     one["gloss"] = said
                     break
-        return {"met": len(met), "new": len(fresh), "list": listed}
+        return {"met": len(met), "new": len(fresh), "list": listed, "more": more}
 
     def _not_again(self, person: Person, found: dict[str, Any]) -> list[str]:
         """The catalogue ids a next set must not offer: every text in the playlist just
@@ -10001,6 +10047,21 @@ class Handler(BaseHTTPRequestHandler):
         for item in found.get("items") or []:
             job = self._own_job(str(item["job"])) if item.get("job") else None
             entry = by_source.get(catalogue_module._key(job.source)) if job is not None else None
+            # A text already built, with no job of the reader's behind it (a shared one),
+            # is found by its folder, so its row still says what it is.
+            if entry is None and item.get("reader") and "/" not in str(item["reader"]):
+                for root in (self._home(), self.library.shared):
+                    built = self.library.reader_row(root / str(item["reader"]))
+                    if built is not None:
+                        entry = next(
+                            (
+                                one
+                                for one in catalogue_module.CATALOGUE
+                                if one.id == built.get("entry")
+                            ),
+                            None,
+                        )
+                        break
             credits = credits_of(job.seconds) if job is not None and job.audio else 0
             if item.get("failed"):
                 state = "failed"
@@ -10033,6 +10094,12 @@ class Handler(BaseHTTPRequestHandler):
                     "known": known,
                     "credits": credits,
                     "video": bool(entry is not None and spoken.is_video(entry.source)),
+                    # What it is and its picture, for the card's rows and its cover (board
+                    # PlaylistEnd): the catalogue's kind, and its id for `/thumb/`.
+                    "kind": entry.kind.value if entry is not None else "",
+                    "entry": entry.id if entry is not None else "",
+                    # Built already, its own folder names its picture as well.
+                    "reader": str(item.get("reader") or ""),
                     "state": state,
                 }
             )
