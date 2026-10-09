@@ -264,10 +264,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    (`INSERT OR IGNORE`, so running it again on every open changes nothing). `follow` is
 #    no longer written.
 #
+# 43→44: job.audio, job.seconds, job.parts, job.transcription and job.reading — what a
+#    quote was priced at (targum-internal#436). They lived only on the job in memory, so
+#    a recording quoted before a restart and pressed after it came back with no length:
+#    `claim` held it to no hours, the reader was charged no credits, and it built anyway.
+#    On a table every box has, so they are in MIGRATIONS; zero for every row before
+#    them, which is the truth about every text that is not a recording.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 43
+SCHEMA_VERSION = 44
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -594,6 +601,15 @@ MIGRATIONS: tuple[str, ...] = (
     # visited last is the one they are in, until they have gone through it.
     "ALTER TABLE playlist ADD COLUMN at INTEGER",
     "ALTER TABLE playlist ADD COLUMN visited INTEGER",
+    # What a quote was priced at (schema 44, targum-internal#436): whether it is a
+    # recording, its length, how it divides, what hearing it costs, and what reading
+    # its pages already cost. `length` is not it: that is what a claim took, zero until
+    # the press, so a job read back between quote and press had nothing to be charged.
+    "ALTER TABLE job ADD COLUMN audio INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN seconds REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN parts INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN transcription REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN reading REAL NOT NULL DEFAULT 0",
     # Every follow, carried to its account (schema 43, design.md §12, 2026-10-09) with
     # its stop token, so a link in a mail already sent still stops it, and with what it
     # last sent, so nothing is mailed twice. A follow whose address has no account has
@@ -874,6 +890,12 @@ CREATE TABLE IF NOT EXISTS job (
   cache_read  INTEGER NOT NULL DEFAULT 0,
   cache_write INTEGER NOT NULL DEFAULT 0,
   cache_cost  REAL    NOT NULL DEFAULT 0,
+  -- What the quote was priced at: see schema 44. `length` is what the claim took.
+  audio         INTEGER NOT NULL DEFAULT 0,
+  seconds       REAL    NOT NULL DEFAULT 0,
+  parts         INTEGER NOT NULL DEFAULT 0,
+  transcription REAL    NOT NULL DEFAULT 0,
+  reading       REAL    NOT NULL DEFAULT 0,
   -- When it stopped, however it stopped. Zero while it is still running, and zero for
   -- every row written before this column existed.
   finished    INTEGER NOT NULL DEFAULT 0

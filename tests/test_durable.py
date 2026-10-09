@@ -536,3 +536,59 @@ def test_a_done_build_still_finishing_is_not_let_go(tmp_path: Path) -> None:
     assert late.finished > now() - DAY_MS, "stamped as it settled, just now"
     assert lib.jobs.sweep(now() - lib.jobs.HELD_MS) == 0
     assert lib.jobs.get("late") is late, "the worker's own object, not a second one"
+
+
+def test_a_quote_pressed_after_a_restart_is_charged_what_it_was_priced_at(
+    tmp_path: Path,
+) -> None:
+    """A recording quoted before a restart and pressed after it was charged no credits
+    and built anyway: `audio` and `seconds` lived only in memory, so the job read back
+    came with neither, `claim` held it to no hours, and the model was paid for a build
+    nobody was charged for (2026-10-09)."""
+    first, _ = library(tmp_path)
+    quoted = job(
+        first,
+        0.5,
+        stage="ready",
+        audio=True,
+        seconds=1800.0,
+        parts=3,
+        transcription=0.18,
+        reading=0.02,
+    )
+    first.remember(quoted)
+
+    # The deploy restarts the box between the quote and the press.
+    after, store = library(tmp_path)
+    recovered = after.jobs[quoted.id]
+    assert (recovered.audio, recovered.seconds) == (True, 1800.0)
+    assert (recovered.parts, recovered.transcription, recovered.reading) == (3, 0.18, 0.02)
+    assert after.press(recovered) == ""
+    assert store.hours_used(None, 0) == 1800.0, "a quote pressed after a restart was free"
+
+    # A job no longer held, read back by id as a press from an old card reads it, is
+    # priced the same way.
+    from_disk = after._job_from_store(quoted.id)
+    assert from_disk is not None and (from_disk.audio, from_disk.seconds) == (True, 1800.0)
+
+
+def test_a_database_from_before_the_price_columns_gains_them(tmp_path: Path) -> None:
+    import sqlite3
+
+    from targum.accounts import SCHEMA_VERSION
+
+    path = tmp_path / "old.db"
+    Store(path).save_job({"id": "old", "owner": None, "home": "/tmp", "source": "x"})
+    raw = sqlite3.connect(path)
+    raw.executescript(
+        "ALTER TABLE job DROP COLUMN audio; ALTER TABLE job DROP COLUMN seconds;"
+        "ALTER TABLE job DROP COLUMN parts; ALTER TABLE job DROP COLUMN transcription;"
+        "ALTER TABLE job DROP COLUMN reading; PRAGMA user_version = 43;"
+    )
+    raw.close()
+    store = Store(path)
+    columns = {row["name"] for row in store.db.execute("PRAGMA table_info(job)")}
+    assert {"audio", "seconds", "parts", "transcription", "reading"} <= columns
+    assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    old = store.job("old")
+    assert old is not None and (old["audio"], old["seconds"]) == (0, 0.0)
