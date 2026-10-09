@@ -2744,6 +2744,46 @@ class Store:
             ).rowcount
         return bool(done)
 
+    def items_to_mail(self, since: int) -> list[dict[str, Any]]:
+        """Everything new that has not been mailed, found since `since`, with whose it is
+        and where its subscription stops: the one mail a day (design.md §12, "Everything
+        new comes in one mail a day", 2026-10-09). A paused or stopped subscription is
+        left out, and so is the weekly, which keeps its own Monday mail. What waits on its
+        cap is in it, so the reader hears once; what is still being made is not yet."""
+        rows = self.db.execute(
+            "SELECT i.*, s.id AS sub, s.kind AS kind, s.key AS sub_key, s.name AS sub_name,"
+            " s.language AS language, s.said AS said, s.stop AS stop, s.since AS sub_since,"
+            " p.id AS person, p.email AS email"
+            " FROM sub_item i JOIN subscription s ON s.id = i.subscription"
+            " JOIN person p ON p.id = s.person"
+            " WHERE s.state = 'on' AND p.leaving IS NULL AND i.mailed = 0 AND i.came = ''"
+            " AND i.found >= ? AND NOT (s.kind = 'series' AND s.key = 'weekly')"
+            " AND (i.state IN ('ready', 'listed') OR (i.state = 'waiting' AND i.why = 'cap'))"
+            " ORDER BY p.id, s.since, s.id, i.published DESC, i.found DESC",
+            (since,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_mailed(self, items: Iterable[tuple[int, str]]) -> None:
+        """Stamp items as mailed, so a run that is started again sends none of them."""
+        stamp = now()
+        with self.write() as db:
+            for sub_id, key in items:
+                db.execute(
+                    "UPDATE sub_item SET mailed = ? WHERE subscription = ? AND key = ?",
+                    (stamp, sub_id, key),
+                )
+
+    def waiting_mailed(self, sub_id: int, since: int) -> bool:
+        """Whether this subscription has told its reader this month that something waits:
+        they hear once, and what waits with it is not mailed again."""
+        row = self.db.execute(
+            "SELECT 1 FROM sub_item WHERE subscription = ? AND state = 'waiting'"
+            " AND why = 'cap' AND mailed >= ? LIMIT 1",
+            (sub_id, since),
+        ).fetchone()
+        return row is not None
+
     def subscription_by_stop(self, token: str) -> dict[str, Any] | None:
         """The subscription a stop link names, for the page it opens."""
         if not token:
@@ -2842,15 +2882,6 @@ class Store:
         if found is None or found["kind"] != "series":
             return ""
         return str(found["key"])
-
-    def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
-        with self.write() as db:
-            db.execute(
-                "UPDATE subscription SET sent = ?, instalment = ?"
-                " WHERE kind = 'series' AND key = ?"
-                " AND person = (SELECT id FROM person WHERE email = ?)",
-                (now(), instalment, series, tidy(email)),
-            )
 
     def stop_following(self, token: str) -> bool:
         """One click, from an email, with no account and no JavaScript: stops the one

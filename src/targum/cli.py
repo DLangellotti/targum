@@ -1119,6 +1119,46 @@ def subscriptions_poll(
         console.print(f"[yellow]  {sub_id}: {why}[/yellow]")
 
 
+@subscriptions_app.command("mail")
+def subscriptions_mail(
+    store: Annotated[
+        Path | None, typer.Option("--store", help="The store the subscriptions are in.")
+    ] = None,
+) -> None:
+    """Send each reader one mail with everything new from their subscriptions.
+
+    Run once a day by targum-subscriptions-mail.timer on the box (design.md §12,
+    "Everything new comes in one mail a day", 2026-10-09). The daily cycles are in it; the
+    weekly keeps its own Monday mail. An item is stamped as mailed once its mail went, so
+    running it twice sends nothing twice. Needs TARGUM_PUBLIC_ADDRESS and the SMTP
+    settings; without SMTP the letters are printed here.
+    """
+    from . import subscriptions as subscriptions_module
+    from .accounts import Store
+    from .mail import from_environment
+    from .serve import Library, default_store
+
+    where = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip().rstrip("/")
+    if not where:
+        fail(
+            TargumError(
+                "No address to put in the mail.",
+                "Set TARGUM_PUBLIC_ADDRESS=https://targum.page, and run this on the box.",
+            )
+        )
+    keeping = Store(store or default_store())
+    sent = subscriptions_module.daily(
+        keeping,
+        from_environment(),
+        where,
+        month_from=Library._month_from(),
+        back=Library._month_ends,
+    )
+    console.print(f"subscriptions mail: {sent}")
+    for email, why in sent.failed:
+        console.print(f"[yellow]  {email}: {why}[/yellow]")
+
+
 @app.command("roll-visits")
 def roll_visits(
     store: Annotated[

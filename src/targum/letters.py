@@ -31,7 +31,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
-from .strings import said_date, text
+from .strings import counted, said_date, text
 
 if TYPE_CHECKING:
     from .weekly.models import Issue
@@ -260,7 +260,71 @@ class Rule:
         )
 
 
-Block = Label | Heading | Title | Hebrew | HebrewLine | Para | Button | Fallback | Rows | Rule
+@dataclass(frozen=True)
+class Listed:
+    """What one subscription brought, a row each: its title in its own direction and the
+    face its language reads in, and a note under it — the daily mail's (design.md §12,
+    "Everything new comes in one mail a day", 2026-10-09)."""
+
+    rows: Sequence[tuple[str, str, str, str]]
+    #: (title, its language, a note, where it opens)
+
+    def as_text(self) -> str:
+        return "\n".join(
+            f"  {isolate(title)} ({note}):\n  {href}" for title, _, note, href in self.rows
+        )
+
+    def as_html(self) -> str:
+        cells = "".join(
+            '<tr><td style="padding:0 0 8px 0;">'
+            f'<a href="{_e(href)}" style="display:block;background:{RAISED};border-radius:12px;'
+            'padding:12px 16px;text-decoration:none;">'
+            f'<span dir="auto" lang="{_e(language)}" style="display:block;'
+            f"font-family:{HEBREW if language in ('he', 'yi', 'arc') else SERIF};"
+            f'font-size:17px;line-height:24px;font-weight:600;color:{INK};">{_e(title)}</span>'
+            f'<span style="display:block;font-family:{SANS};font-size:14px;line-height:20px;'
+            f'color:{TEAL};">{_e(note)}</span></a></td></tr>'
+            for title, language, note, href in self.rows
+        )
+        return (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            f'border="0" style="margin:0 0 8px 0;">{cells}</table>'
+        )
+
+
+@dataclass(frozen=True)
+class Small:
+    """A quiet line inside the card with a link at its end: a subscription's own way out."""
+
+    words: str
+    link: str
+    href: str
+
+    def as_text(self) -> str:
+        return f"{self.words} {self.link}: {self.href}".strip()
+
+    def as_html(self) -> str:
+        return (
+            f'<p style="margin:0 0 20px 0;font-size:13px;line-height:20px;color:{MUTED};">'
+            f'{_e(self.words)} <a href="{_e(self.href)}" style="color:{MUTED};'
+            f'text-decoration:underline;">{_e(self.link)}</a></p>'
+        )
+
+
+Block = (
+    Label
+    | Heading
+    | Title
+    | Hebrew
+    | HebrewLine
+    | Para
+    | Button
+    | Fallback
+    | Rows
+    | Rule
+    | Listed
+    | Small
+)
 
 
 @dataclass(frozen=True)
@@ -574,36 +638,65 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
     )
 
 
-def series_instalment(
-    one: Mapping[str, Any], address: str, stop_token: str, language: str = "en"
+def subscriptions_daily(
+    groups: Sequence[Mapping[str, Any]], address: str, stop_all: str, language: str = "en"
 ) -> Letter:
-    """A followed series' new instalment. `one` is the series' row in `language`."""
+    """Everything new from somebody's subscriptions, in one mail (design.md §12,
+    "Everything new comes in one mail a day", 2026-10-09).
+
+    `groups` is one subscription each: its `name`, its `stop` token and its `rows` —
+    (title, language, note, where it opens). `stop_all` is the token list the one-click
+    unsubscribe carries, every subscription this mail does.
+    """
     code = _code(language)
     base = address.rstrip("/")
-    inst = one["instalment"]
-    where = f"{base}{one['page']}"
-    stop = f"{base}/series/stop?t={stop_token}"
-    blocks: list[Block] = [Label(one["name"]), Title(inst["title"])]
-    if inst.get("hebrew"):
-        blocks.append(Hebrew(inst["hebrew"]))
-    blocks += [
-        Para(text("mail.series.lead", code)),
-        Button(text("mail.series.button", code), where),
-    ]
+    count = sum(len(group["rows"]) for group in groups)
+    first = groups[0]
+    if count == 1:
+        subject = text(
+            "mail.daily.subject-one", code, name=first["name"], title=isolate(first["rows"][0][0])
+        )
+    else:
+        subject = counted(
+            "mail.daily.subject",
+            count,
+            code,
+            {"one": "{n} new from your subscriptions", "other": "{n} new from your subscriptions"},
+        ).format(n=count)
+    blocks: list[Block] = [Heading(text("mail.daily.heading", code))]
+    for group in groups:
+        blocks.append(Label(group["name"]))
+        blocks.append(
+            Listed(
+                [
+                    (title, lang, note, href if href.startswith("http") else f"{base}{href}")
+                    for title, lang, note, href in group["rows"]
+                ]
+            )
+        )
+        blocks.append(
+            Small(
+                "",
+                text("mail.daily.stop-one", code, name=group["name"]),
+                f"{base}/series/stop?t={group['stop']}",
+            )
+        )
+    stop = f"{base}/subscriptions/stop?{stop_all}"
     return compose(
         code,
-        text("mail.series.subject", code, name=one["name"], title=inst["title"]),
-        text("mail.series.preheader", code),
+        subject,
+        text("mail.daily.preheader", code),
         blocks,
         [
             Foot(
-                text("mail.series.why", code, name=one["name"]),
-                text("mail.series.stop", code),
-                stop,
-            )
+                text("mail.daily.why", code),
+                text("mail.daily.yours", code),
+                f"{base}/?show=subscriptions",
+            ),
+            Foot("", text("mail.daily.stop", code), stop),
         ],
         address=address,
-        headers=listed(stop, list_id(str(one["id"]), f"{one['id']}.series", address)),
+        headers=listed(stop, list_id("subscriptions", "daily.subscriptions", address)),
         postal=True,
     )
 

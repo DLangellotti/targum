@@ -1,0 +1,29 @@
+# /etc/systemd/system/targum-subscriptions-mail.service — installed by deploy.sh, started
+# once a day by targum-subscriptions-mail.timer (design.md §12, "Everything new comes in
+# one mail a day", 2026-10-09).
+#
+# Sends each reader one mail with everything new from their subscriptions — the daily
+# cycles included, the weekly left to its Monday mail — with a one-click unsubscribe
+# (RFC 8058) and a List-Id. An item is stamped as mailed once its mail went, so a run
+# started twice sends nothing twice.
+#
+#   journalctl -u targum-subscriptions-mail -n 20
+
+[Unit]
+Description=targum subscriptions mail
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum subscriptions mail --store /var/lib/targum/targum.db
+TimeoutStartSec=20min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum
