@@ -657,6 +657,27 @@ BANNED = {
 }
 
 
+#: What the boards retired on 2026-10-09 (design.md §12, "The boards are the desk": plain
+#: words for kinds and ladder steps). Still said today, by the Library, See all and the
+#: shelf's rung names; the copy pass (P3 of the polish plan) takes them off the screen and
+#: then folds these into `BANNED`, which the strict xfail below forces: the day none is
+#: said, it passes, and a strict xfail that passes fails the run.
+BANNED_BY_THE_BOARDS = {
+    "en": [
+        r"\bScene \{n\}",
+        r"(?i)\bhard words\b",
+        r"(?i)\bBeit Midrash\b",
+        r"^(?:Aleph|Bet|Gimel|Dalet|Hey|Vav)\+?$",
+        r"·\s*C[12]\b",
+    ],
+    "ru": [
+        r"\bСцена \{n\}",
+        r"(?i)трудных слов",
+        r"(?i)Бейт-мидраш",
+    ],
+}
+
+
 def _interface_english() -> list[tuple[str, str]]:
     """Every English line a template or a script says through `t()`, with where."""
     root = Path(__file__).parents[1] / "src" / "targum" / "render"
@@ -684,3 +705,35 @@ def test_no_word_from_the_data_layer_reaches_the_screen() -> None:
         for where, text in said:
             for pattern in patterns:
                 assert not re.search(pattern, text), f"{code} {where}: {text!r}"
+
+
+def _said_anywhere(patterns: dict[str, list[str]]) -> list[str]:
+    from targum.strings import catalogue
+
+    found = []
+    for code, each in patterns.items():
+        said = list(catalogue(code).items())
+        if code == "en":
+            said += _interface_english()
+        for where, text in said:
+            for pattern in each:
+                if re.search(pattern, text):
+                    found.append(f"{code} {where}: {text!r}")
+    return found
+
+
+@pytest.mark.xfail(strict=True, reason="P3's copy pass takes these off the screen")
+def test_no_word_the_boards_retired_reaches_the_screen() -> None:
+    """Kind ids, rung names, CEFR codes on cards, "Scene n", "hard words" and "Beit
+    Midrash" (design.md §12, 2026-10-09). Expected to fail until the copy pass lands;
+    when it does, move these into `BANNED` and delete this test."""
+    found = _said_anywhere(BANNED_BY_THE_BOARDS)
+    assert not found, found[:10]
+
+
+def test_the_boards_retired_words_are_still_found_where_they_are_said() -> None:
+    """The xfail above must fail for the right reason: the scan still sees each retired
+    word where it is said today, so a broken scan cannot pass for a finished copy pass."""
+    found = "\n".join(_said_anywhere(BANNED_BY_THE_BOARDS))
+    for still in ("library.scene", "library.hard-words-share", "library.where.midrash"):
+        assert still in found, still

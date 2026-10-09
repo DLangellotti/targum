@@ -110,8 +110,9 @@ RADIUS_TOKENS = {
 SIZES = {
     "2.75rem",
     "2.25rem",
-    # §12, 2026-10-09 ("The mockups win on Your Progress"): the boards' page title and big
-    # figures, 34px at a 1440 window.
+    # §12, 2026-10-09 ("The boards are the desk"): every desk page's title, on the desk under
+    # the bar, and the boards' big figures — 34px at a 1440 window. A section's title is the
+    # serif at 1.5rem (24px), already on the scale.
     "1.9375rem",
     "1.75rem",
     "1.5rem",
@@ -903,3 +904,46 @@ def test_a_press_in_the_primary_is_flat_everywhere() -> None:
         for selector, prop, value in _declarations(sheet.read_text(encoding="utf-8")):
             if prop.startswith("background") and "var(--teal)" in value:
                 assert "gradient(" not in value, f"{sheet.name}: {selector} draws {value}"
+
+
+def test_modern_hebrew_stays_a_sans_where_the_boards_draw_a_serif() -> None:
+    """design.md §12, "The boards are the desk" (2026-10-09): the boards win over this
+    file everywhere but here. They set modern Hebrew in Frank Ruhl; David kept it in Noto
+    Sans Hebrew ("The modern shelf reads in a sans", 2026-09-17), and the Tanakh keeps
+    its accented face."""
+    from targum.render.builder import BIBLICAL_FACE, MODERN_FACE
+
+    assert MODERN_FACE[0] == "Noto Sans Hebrew"
+    assert BIBLICAL_FACE[0] == "Taamey Frank CLM"
+
+
+def test_the_boards_rulings_are_recorded_and_the_rules_they_retire_say_so() -> None:
+    """The rulings are in §12 once, as the global rule, and each rule they overturn is
+    marked where it stands, so nobody follows it back (design.md §12, 2026-10-09)."""
+    text = DESIGN.read_text(encoding="utf-8")
+    assert text.count("### The boards are the desk — 2026-10-09") == 1
+    entry = text.split("### The boards are the desk — 2026-10-09", 1)[1].split("\n### ", 1)[0]
+    for ruling in (
+        "1248px",
+        "34px",
+        "Talk pill is ink",
+        "tinted pills",
+        "always shown",
+        "No flags",
+        "new system",
+        "Noto Sans Hebrew",
+        "Plain words",
+        "Continue and Your targums",
+        "bell and the foot stay",
+        "one in-app page",
+    ):
+        assert ruling in entry, ruling
+    # §13's own lines, each marked where it stands.
+    desk = text.split("## 13 · The desk", 1)[1]
+    for retired in (
+        "A 62rem column *(superseded 2026-10-09",
+        "Section titles 1.25rem/700 *(superseded 2026-10-09",
+        "one pill in the primary *(in ink since 2026-10-09",
+        "more than one language. *(Superseded 2026-10-09",
+    ):
+        assert retired in desk, retired

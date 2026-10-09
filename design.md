@@ -90,7 +90,8 @@ field, never text below the ratios shown.**
 
 **One accent hue, and it is rationed.** Reserved for the single primary action in a view and
 for what the reader has kept. Selection is quiet ink (`#6b645c` with paper text), never
-accent. The accent is never body text and never a large field.
+accent. *(On the desk a chosen tab or filter is a pill filled in the primary since
+2026-10-09 — §12, "The boards are the desk", 2026-10-09. On the reader's page, selection is still quiet ink.)* The accent is never body text and never a large field.
 
 ### Functional colour
 
@@ -356,6 +357,66 @@ the reader and the desk both draw — the word's card, the thumb's reach, a refu
 Each entry below was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
+
+### The boards are the desk — 2026-10-09
+
+David, 2026-10-09, ruling on the board-against-build audit (every calmer-surfaces board
+next to what the build draws): **where the boards and this document disagree, the boards
+win** — on every page, not only Your Progress, where the same day's entry below first said
+so. Each rule this overturns is marked where it stands, so nobody follows it back. On the
+seven places the two disagreed:
+
+- **The column is 1248px** at a 1440 window, one token for every desk page (`--column`),
+  against §13's `62rem`. The bar's row, the title, the page and the foot stand in it.
+- **A page's title stands on the desk, under the bar**, in the reading serif at 34px
+  (`1.9375rem`), weight 500 — never inside the bar. **Section titles are the serif at
+  24px** (`1.5rem`), weight 500, against §13's "Section titles 1.25rem/700". Card and panel
+  titles, body, meta and labels keep §13's sans.
+- **The Talk pill is ink**, paper text on `#1c1a17`: the call to action's treatment (§9,
+  "Calls to action are ink"), against §13's "one pill in the primary". Teal still marks
+  every other control.
+- **Tabs are tinted pills**: each a pill on the wash, the chosen one filled in the primary
+  with paper text. The underlined tabs (Your targums 2026-09-26, the Library's) and §4's
+  "selection is quiet ink" give way wherever a row of tabs or filters is drawn.
+- **The language menu is always shown, with its badge** (Alpha, Beta, as "A language
+  wears how far along it is" gives them), for a reader of one language as well as of six,
+  against §13's "drawn only when the reader learns more than one language". **No flags**
+  unless a board draws one, and none does: "The language menu carries flags" (2026-09-14)
+  is retired, and §1's and §10's "no flags" hold everywhere again.
+- **The reader is on the new system**: teal actions, the chrome's face for its own chrome,
+  Hebrew at about 21px, the board's word card, the end of a part as a card, and its menus
+  as sheets. Against §13's "What stays the reader's" and §12's "the reader keeps system-ui
+  for its bar" (2026-09-11). The page's lines keep §8, and **a reader still fetches
+  nothing**: whatever face its chrome wears is carried in the page or falls back, as the
+  Hebrew faces are. "The reader's menus are the board's", below, is the first part of it
+  built: Aa and ⋯.
+- **Except modern Hebrew, which stays Noto Sans Hebrew** ("The modern shelf reads in a
+  sans", 2026-09-17), wherever a board sets it in Frank Ruhl. The Tanakh keeps its face.
+
+And four calls on what the boards left open:
+
+- **Plain words for kinds and ladder steps.** A tile or a row says what a text is in
+  everyday words, one each — Dialogue, Video, Tanakh, News, Podcast, Book, Mishnah — and a
+  ladder step says what a reader could follow, never its rung or CEFR code ("Vav · C2"),
+  a kind id, "Scene 218", "hard words" or "Beit Midrash". Your Progress already said its
+  rungs so ("The rungs are said in everyday words", the same day); this makes it the rule
+  for every card. `test_strings.BANNED` holds the words as they leave the screen.
+- **Home is Continue and Your targums, and nothing else from the Library.** The language
+  boards (RuHome, ItHome, ArcHome and the rest) draw a library shelf on home ("You can
+  read these now", "The Aramaic shelf"); Main does not, and Main wins. The one text to
+  try next and the upload stay beside them ("Home is Your targums", 2026-10-08).
+- **The bell and the foot stay** on a signed-in desk page, though no board draws either:
+  the bell is where a build says it is ready, and the foot is the one way to About,
+  Install MCP and the licence ("One foot", 2026-09-28).
+- **A series page is one in-app page for everyone**, the weekly, the parasha and the
+  daily cycles alike: the app's bar and the board's page, signed in or not, in place of
+  the public landing a signed-in reader still gets. (Built in its own package; until
+  then the landing stands.)
+
+What it does not overturn: the palette, the radii, the reader's page and its fetch-nothing
+rule, the voice, and every spend rule. A board that shows a price, a streak or a score
+is still wrong on that point; the boards win on how the desk looks, not on what it may
+say or spend.
 
 ### The reader's menus are the board's — 2026-10-09
 
@@ -772,7 +833,8 @@ plainly and never in clay, and nothing names a current run of days.
 David, 2026-10-09, on the deployed page after targum#671 ("does not match the mockup"):
 where the calmer-surfaces boards and this document disagree, **the boards win**. On Your
 Progress (boards Progress and ProgressPhone) that means, and this page only until the
-shared shell follows:
+shared shell follows *(it followed the same day: §12, "The boards are the desk", 2026-10-09, makes the column, the
+title and the tinted pills every desk page's)*:
 
 - **The column is the board's 1248px** at a 1440 window: `73.75rem` with its gutters at
   the desk's clamped rem, against the desk's `62rem`. The bar's row, the title and the
@@ -2828,7 +2890,8 @@ each of the following.
   Library's Your uploads tab: the Library is still everyone's, and this is a view of
   yours. Playlists is a link to /playlists, which carries the same three tabs with
   Playlists chosen and lights Your targums in the nav, so the three read as one place.
-  Underlined tabs, as the Library's are.
+  Underlined tabs, as the Library's are. *(Superseded 2026-10-09: tabs are tinted pills —
+  §12, "The boards are the desk", 2026-10-09.)*
 - **A targum is shown, not only said.** The line "an interactive bilingual text,
   optimised for language learning" gives way to one sentence and a drawn example: a
   Hebrew line, its translation under it, and one word tapped, with its card. Drawn in
@@ -4323,6 +4386,10 @@ stranger was actually looking for is not a help page; it is the first ten minute
 
 ### The language menu carries flags, and the date follows the language — 2026-09-14
 
+*Its flags are retired (2026-10-09): no board draws one, and the boards win — §12, "The boards are the desk", 2026-10-09.
+The menu carries no flag, and §1's and §10's rule stands everywhere. The date and the
+greeting below still hold.*
+
 §1 says "no flags" and §10 lists "flag imagery — texts, not countries" among the things
 targum never does. David asked for a small flag beside each language in the menu, and
 this is the one place that rule now gives way: the language menu, and nothing else. The
@@ -4410,7 +4477,8 @@ https://claude.ai/code/artifact/088d173b-b539-4003-bbdb-268823c30219.
 What it does not overturn: everything about the reader. §1's page, §4's hues and
 their finish, §5's reading faces and bilingual parity, §7's glyphs, §8's reach, and every
 reader entry above stand as they are. The reader fetches nothing, so it keeps
-system-ui for its bar and never loads the chrome's face. `test_brand.py` widens its
+system-ui for its bar and never loads the chrome's face. *(The reader's chrome moves onto the new system on
+2026-10-09 — §12, "The boards are the desk"; it still fetches nothing.)* `test_brand.py` widens its
 palette, its type scale and its face allowlist by exactly what §13 names, and nothing
 else; where a chrome page still carries a reader rule, the chrome rule wins.
 
@@ -5179,7 +5247,7 @@ morning): sticky, no rule under it, the places as tint pills with the current on
 primary, the bell and the account as round buttons; the reader keeps its own bar. On a
 phone (under 40rem) the four places — Your targums, Library, Your Progress, Upload (2026-10-08, §12) — are a bar at
 the foot of the window on glass, a glyph over each word, and at a desk only Upload keeps its
-glyph, a `+` before the word; the top bar keeps the mark, the language (its flag alone), the
+glyph, a `+` before the word; the top bar keeps the mark, the language (its name and badge; no flag since 2026-10-09), the
 bell and the account, with find as a row in the account's sheet; the pill
 that opens the conversation is a round button above the bar, and every panel comes up
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
@@ -5205,7 +5273,8 @@ teal at 9%.
 
 **Type.** The chrome speaks in Source Sans 3, self-hosted under its licence (OFL), Latin
 subset, on chrome pages only; the fallback is `"Segoe UI", system-ui, sans-serif`.
-Section titles 1.25rem/700, card and panel titles 1.0625rem/600, body and controls
+Section titles 1.25rem/700 *(superseded 2026-10-09: a page's title is the serif at 34px/500 on
+the desk under the bar, and a section's the serif at 24px/500 — §12, "The boards are the desk", 2026-10-09)*, card and panel titles 1.0625rem/600, body and controls
 0.9375rem, meta 0.875rem, labels 0.6875rem uppercase at 0.08em. The reading serif appears
 on the desk only where a text's own words or title appear — the sheet, a card's Hebrew
 title, a row in Your Words — and in the wordmark. Hebrew keeps its own faces and leading
@@ -5213,7 +5282,7 @@ and is never scaled (§5). Counts keep tabular figures.
 
 **Layout.** The rem itself scales with the screen on chrome pages — `clamp(16px, 0.35vw +
 12.5px, 22px)`: 16 on a phone, about 17 on a laptop, 21 on a television — so one layout
-serves a hand and a wall; the reader sets its own type. A 62rem column, cards on a
+serves a hand and a wall; the reader sets its own type. A 62rem column *(superseded 2026-10-09: 1248px, the `--column` token — §12, "The boards are the desk", 2026-10-09)*, cards on a
 12-column grid, 8px base, sections 48px apart
 with no rule between them, cards padded 20px, controls 40px tall and 44px under a coarse
 pointer (§8). Radii are the desk's own scale: 8 controls, 12 rows and fields, 16 cards, 24 sheets and
@@ -5228,7 +5297,7 @@ texts read lately are a menu in the row of doors, Recently read — the last few
 way to the whole list at its foot — and a text read through carries a check in leaf in
 that menu and in the subscriptions menu beside it, since green is progress (§4). The lists of words and phrases are a
 page behind the account, and so are the series to follow. The conversation lives on no
-page: one pill in the primary, fixed at the foot of every page, opens it as a drawer —
+page: one pill in the primary *(in ink since 2026-10-09 — §12, "The boards are the desk", 2026-10-09)*, fixed at the foot of every page, opens it as a drawer —
 from the edge on a laptop, up from the foot on a phone — holding the conversation page
 framed without its bar (`/chat?embed=1`), loaded when first opened and left open across
 pages. What is typed there is answered there; a text it offers opens in the sheet on
@@ -5244,7 +5313,8 @@ it, headed "You're learning", each in its own name after English's (§12, 2026-0
 "Your languages" last, where
 the list itself is chosen (decided 2026-09-13; it replaced a row of tabs under the
 heading that only three pages drew). The button is the bar's own kind, its panel the
-bell's. Drawn only when the reader learns more than one language. The choice is kept on
+bell's. Drawn only when the reader learns more than one language. *(Superseded 2026-10-09: always
+drawn, with the language's badge, and without flags — §12, "The boards are the desk", 2026-10-09.)* The choice is kept on
 the account, so another device opens in it; opening a text never moves it, because a
 reader and its drawer follow their own text. Everything on the desk follows it — the
 shelf, the counts and the level, what is suggested, what is added, and the conversation,
@@ -5260,7 +5330,9 @@ already knows.
 160ms for a thing settling or leaving, a press giving to 0.98; none under
 `prefers-reduced-motion` (§8).
 
-**What stays the reader's.** The page tone, the serif, the hairlines between lines, the
+**What stays the reader's.** *(The reader's own chrome moves onto the new system — teal actions,
+the chrome's face, the board's word card, menus as sheets — since 2026-10-09: §12, "The boards are the desk", 2026-10-09. What
+follows still holds for the page's lines, and a reader still fetches nothing.)* The page tone, the serif, the hairlines between lines, the
 brown, the glyphs in §7, the per-line controls, and the rule that a reader fetches
 nothing — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
 phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
