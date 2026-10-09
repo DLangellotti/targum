@@ -178,7 +178,9 @@ def test_the_block_says_no_percentage_no_level_and_no_score() -> None:
     for code in ("en", "ru"):
         said = json.loads((root / "strings" / f"{code}.json").read_text(encoding="utf-8"))
         block = {k: v for k, v in said.items() if k.startswith("progress.reading.")}
-        assert len(block) >= 14, code
+        # Twelve since 2026-10-09: the two "we'll draw this" sentences went with the
+        # waiting state, which is now no part at all.
+        assert len(block) >= 12, code
         for key, text in block.items():
             lowered = text.lower()
             assert "%" not in text and "!" not in text, f"{code}: {key}"
