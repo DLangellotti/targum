@@ -42,6 +42,36 @@
     return (code || "").split("-")[0].toLowerCase() !== HOME;
   }
 
+  /* How far along each language is, as the menu badges it (David, 2026-10-08; design.md
+     §12, "A language wears how far along it is"). A badge and nothing else: no note says
+     what Beta means. A language not named here wears none. */
+  var STATUS = {
+    he: "beta",
+    ru: "alpha",
+    it: "alpha",
+    fr: "alpha",
+    arc: "experimental",
+    yi: "experimental",
+  };
+
+  function status(code) {
+    return STATUS[String(code || "").split("-")[0].toLowerCase()] || "";
+  }
+
+  function badge(code) {
+    var which = status(code);
+    if (!which) return null;
+    var mark = document.createElement("span");
+    mark.className = "lang-status is-" + which;
+    mark.textContent =
+      which === "beta"
+        ? t("lang.status.beta", "Beta")
+        : which === "alpha"
+          ? t("lang.status.alpha", "Alpha")
+          : t("lang.status.experimental", "Experimental");
+    return mark;
+  }
+
   function stored(name) {
     try {
       return localStorage.getItem(name) || "";
@@ -352,8 +382,6 @@
    * list itself is chosen.
    */
   function menu(host, codes, names, chosen, onPick, options) {
-    var settings = options || {};
-    var tag = settings.tag || beta;
     var all = order(
       learning().concat(codes).filter(function (code, at, list) {
         return list.indexOf(code) === at;
@@ -376,6 +404,8 @@
     label.textContent = names[chosen] || String(chosen || "").toUpperCase();
     open.appendChild(flag(chosen));
     open.appendChild(label);
+    var worn = badge(chosen);
+    if (worn) open.appendChild(worn);
     host.appendChild(open);
 
     var panel = document.createElement("div");
@@ -399,15 +429,13 @@
       named.className = "lang-item";
       named.appendChild(flag(code));
       named.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
-      var own = native(code);
-      if (own && own.textContent !== (names[code] || "")) named.appendChild(own);
+      // Each language's own badge, beside its name, in place of "experimental" on all but
+      // Hebrew.
+      var mark = badge(code);
+      if (mark) named.appendChild(mark);
       item.appendChild(named);
-      if (tag(code)) {
-        var mark = document.createElement("span");
-        mark.className = "beta";
-        mark.textContent = t("lang.experimental", "experimental");
-        item.appendChild(mark);
-      }
+      var own = native(code);
+      if (own && own.textContent !== (names[code] || "")) item.appendChild(own);
       item.addEventListener("click", function () {
         close();
         if (code === chosen) return;
@@ -466,6 +494,10 @@
         var button = host.querySelector && host.querySelector(".lang-open");
         var shown = button && button.querySelector && button.querySelector(".lang-flag");
         if (button && shown && code) button.replaceChild(flag(code), shown);
+        var was = button && button.querySelector && button.querySelector(".lang-status");
+        var now = code ? badge(code) : null;
+        if (button && was) button.removeChild(was);
+        if (button && now) button.appendChild(now);
       });
     }
   }
@@ -509,6 +541,7 @@
   window.TargumLang = {
     HOME: HOME,
     beta: beta,
+    status: status,
     offered: offered,
     set: set,
     remember: remember,

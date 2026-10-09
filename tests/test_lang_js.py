@@ -42,6 +42,24 @@ def test_the_menu_lists_every_language_the_reader_learns() -> None:
     assert drawn["before"]["panelHidden"] and drawn["openedPanel"], "opened by its button"
 
 
+def test_every_language_wears_how_far_along_it_is() -> None:
+    """design.md §12, 2026-10-09: Hebrew Beta; Russian, Italian, French Alpha; Aramaic and
+    Yiddish Experimental. A badge, on the menu's button and on every row, and nothing
+    more."""
+    learning = ["he", "ru", "it", "fr", "arc", "yi"]
+    drawn = menu(stored={"targum:learning": json.dumps(learning)}, pageCodes=["he"])
+    said = dict(zip(drawn["before"]["items"], drawn["before"]["badges"], strict=True))
+    assert said == {
+        "he": "Beta",
+        "ru": "Alpha",
+        "it": "Alpha",
+        "fr": "Alpha",
+        "arc": "Experimental",
+        "yi": "Experimental",
+    }
+    assert drawn["before"]["badge"] == "Beta", "the button wears the one it is showing"
+
+
 def test_a_press_is_kept_on_the_page_and_on_the_account() -> None:
     drawn = menu(stored={"targum:learning": json.dumps(["he", "yi"])}, press="yi")
     assert drawn["picked"] == ["yi"], "the page is told"
