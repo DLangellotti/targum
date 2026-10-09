@@ -1014,16 +1014,15 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     assert got["width"] <= 30 * got["rem"] + 1, "held to a reading width on the desk"
 
 
-def test_progress_says_what_would_draw_the_line_under_three_months(browser) -> None:
+def test_progress_hides_the_line_under_three_months(browser) -> None:
+    """No line and no paragraph about one (David, 2026-10-09): the part is absent until
+    three months can be drawn."""
     context, page = _progress_with(
         browser, {}, reading={"he": {"line": [], "months": 1, "sections": 2}}
     )
     got = page.evaluate(READING)
     context.close()
-    assert got["shown"] and got["points"] == 0, got
-    assert got["said"] == [
-        "We'll draw this once you've finished sections in three different months. Months so far: 1."
-    ]
+    assert not got["shown"] and got["points"] == 0, got
 
 
 def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(

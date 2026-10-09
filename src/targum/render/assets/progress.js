@@ -47,18 +47,18 @@
      slot would be wrong in two of the three. */
   var RUNGS = {
     dialogue: {
-      chip: t("progress.touch.dialogue", "A dialogue"),
-      follow: t("progress.where.follow.dialogue", "You'd follow a dialogue"),
-      nearly: t("progress.where.nearly.dialogue", "You'd follow nearly all of a dialogue"),
-      most: t("progress.where.most.dialogue", "You'd follow most of a dialogue"),
-      start: t("progress.where.start.dialogue", "A dialogue is the place to start"),
+      chip: t("progress.touch.dialogue", "A conversation"),
+      follow: t("progress.where.follow.dialogue", "You'd follow a conversation"),
+      nearly: t("progress.where.nearly.dialogue", "You'd follow nearly all of a conversation"),
+      most: t("progress.where.most.dialogue", "You'd follow most of a conversation"),
+      start: t("progress.where.start.dialogue", "A conversation is the place to start"),
     },
     talk: {
-      chip: t("progress.touch.talk", "A video talk"),
-      follow: t("progress.where.follow.talk", "You'd follow a video talk"),
-      nearly: t("progress.where.nearly.talk", "You'd follow nearly all of a video talk"),
-      most: t("progress.where.most.talk", "You'd follow most of a video talk"),
-      start: t("progress.where.start.talk", "A video talk is the place to start"),
+      chip: t("progress.touch.talk", "A video"),
+      follow: t("progress.where.follow.talk", "You'd follow a video"),
+      nearly: t("progress.where.nearly.talk", "You'd follow nearly all of a video"),
+      most: t("progress.where.most.talk", "You'd follow most of a video"),
+      start: t("progress.where.start.talk", "A video is the place to start"),
     },
     article: {
       chip: t("progress.touch.article", "A news article"),
@@ -74,12 +74,12 @@
       most: t("progress.where.most.story", "You'd follow most of a short story"),
       start: t("progress.where.start.story", "A short story is the place to start"),
     },
-    "picture-book": {
-      chip: t("progress.touch.picture-book", "A picture book"),
-      follow: t("progress.where.follow.picture-book", "You'd follow a picture book"),
-      nearly: t("progress.where.nearly.picture-book", "You'd follow nearly all of a picture book"),
-      most: t("progress.where.most.picture-book", "You'd follow most of a picture book"),
-      start: t("progress.where.start.picture-book", "A picture book is the place to start"),
+    "children-book": {
+      chip: t("progress.touch.children-book", "A children's book"),
+      follow: t("progress.where.follow.children-book", "You'd follow a children's book"),
+      nearly: t("progress.where.nearly.children-book", "You'd follow nearly all of a children's book"),
+      most: t("progress.where.most.children-book", "You'd follow most of a children's book"),
+      start: t("progress.where.start.children-book", "A children's book is the place to start"),
     },
     novel: {
       chip: t("progress.touch.novel", "A novel"),
@@ -89,11 +89,11 @@
       start: t("progress.where.start.novel", "A novel is the place to start"),
     },
     poetry: {
-      chip: t("progress.touch.poetry", "Poetry"),
+      chip: t("progress.touch.poetry", "A poem"),
       follow: t("progress.where.follow.poetry", "You'd follow a poem"),
       nearly: t("progress.where.nearly.poetry", "You'd follow nearly all of a poem"),
       most: t("progress.where.most.poetry", "You'd follow most of a poem"),
-      start: t("progress.where.start.poetry", "Poetry is the place to start"),
+      start: t("progress.where.start.poetry", "A poem is the place to start"),
     },
   };
 
@@ -623,8 +623,8 @@
    * graded dialogue to Agnon is a drop, and that is the truthful picture. When the latest
    * month is lower, one sentence says why — harder text, not lost ground — and nothing
    * else: no apology, no encouragement. Said as a count in ten, never as a percentage, a
-   * level or a score (§6). Under three months there is no line, and the page says what
-   * would draw one. Absent signed out.
+   * level or a score (§6). Under three months there is no line and no part: nothing is
+   * said about a chart that is not there. Absent signed out.
    */
   var readingSeries = null;
 
@@ -669,27 +669,15 @@
     var host = document.getElementById("reading-line");
     var said = document.getElementById("reading-said");
     if (!panel || !host || !said) return;
-    panel.hidden = false;
     host.textContent = "";
     said.textContent = "";
     var mine = readingSeries[code] || { line: [], months: 0, sections: 0 };
     var points = mine.line || [];
-    if (points.length < 3) {
-      said.appendChild(
-        el(
-          "p",
-          "reading-waiting",
-          mine.months
-            ? t(
-                "progress.reading.so-far",
-                "We'll draw this once you've finished sections in three different months. Months so far: {n}.",
-                { n: mine.months }
-              )
-            : t("progress.reading.waiting", "We'll draw this once you've finished sections in three different months.")
-        )
-      );
-      return;
-    }
+    // Under three months there is nothing to draw, and the part is not there at all
+    // rather than a paragraph promising it (David, 2026-10-09: the board has no waiting
+    // state, and §6 keeps what has not happened quiet).
+    panel.hidden = points.length < 3;
+    if (panel.hidden) return;
 
     var thisYear = new Date().getUTCFullYear();
     var last = points[points.length - 1];

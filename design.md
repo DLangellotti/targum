@@ -478,8 +478,9 @@ menu's language, as everywhere):
   page**: the month's credits moved to the account page, its first panel ("Credits").
   **No "sections finished"**: it means nothing to a learner (David).
 - **1 · Where you are: touchstones.** A short ladder of real kinds of text from the
-  language's own library — a dialogue, a video talk, a news article, a short story, a
-  novel, poetry (Italian's stories are its picture books, and are called so) — ordered by
+  language's own library — a conversation, a video, a news article, a short story, a
+  novel, a poem (Italian's stories are StoryWeaver's children's books, and are called
+  "a children's book") — ordered by
   the catalogue's median measured `difficulty` for each kind; a kind with nothing measured
   in that language is not a rung. The headline names the hardest kind the reader would
   follow, worded by the share of its **running words** whose dictionary form they have
@@ -489,9 +490,15 @@ menu's language, as everywhere):
   claimed and the first rung is the place to start. Passed rungs carry a tick, the one
   you are on and the next carry their percentage, and **every rung is a link that opens
   that kind's shelf in the Library** (`/library#see/kind/<kind>`: the See all list, every
-  band, that kind). Not a placement (§6): each rung is texts you can open. Under it, what
-  you knew of what you read, month by month (2026-09-27), unchanged and still said as a
-  count in ten.
+  band, that kind). Not a placement (§6): each rung is texts you can open. Under it, how
+  much of what you read you knew, month by month (2026-09-27), still said as a count in
+  ten — and **absent until there are three months to draw**: no waiting paragraph.
+- **The rungs are said in everyday words** (David, 2026-10-09, on the live Italian page:
+  "what is a picture book?", "what is a video talk? makes no sense"). The catalogue's
+  kind names — dialogue, talk, picture book — are its own; a reader sees "a
+  conversation", "a video", "a short story" ("a children's book" for Italian), "a news
+  article", "a novel", "a poem", and each headline is written whole per kind so Russian
+  takes its case. A rung built on few texts stays a rung.
 - **Aramaic gets no ladder** (David, 2026-10-08): wordfreq has no Aramaic list, so every
   Aramaic text measures 0, which is false. Its part 1 says how many Aramaic words are known
   and why there is no ladder. **Yiddish has no library**, so no ladder either, and its

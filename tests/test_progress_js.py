@@ -426,22 +426,19 @@ def test_a_line_that_falls_says_why_and_nothing_else() -> None:
     assert len(level["said"]) == 1
 
 
-def test_two_months_draw_no_line_and_say_what_would() -> None:
-    """Under three points the line is not drawn, the way `known_share` says "not
-    measured" rather than a zero; the page says what would have to happen."""
+def test_under_three_months_the_part_is_not_there() -> None:
+    """Under three points there is no line, and no paragraph promising one: the board
+    has no waiting state (David, 2026-10-09, "a wall of text"), so the part is hidden
+    until there is something to draw."""
     drawn = draw(
         {"targum:vocab:he": vocab(known=3)},
         reading={"he": {"line": [], "months": 2, "sections": 5}},
     )["reading"]
-    assert drawn["shown"] and not drawn["drawn"]
-    assert drawn["said"] == [
-        "We'll draw this once you've finished sections in three different months. Months so far: 2."
-    ]
+    assert not drawn["shown"] and not drawn["drawn"]
+    assert drawn["said"] == []
 
     nothing = draw({"targum:vocab:he": vocab(known=3)}, reading={})["reading"]
-    assert nothing["said"] == [
-        "We'll draw this once you've finished sections in three different months."
-    ]
+    assert not nothing["shown"] and nothing["said"] == []
 
     signed_out = draw({"targum:vocab:he": vocab(known=3)})["reading"]
     assert not signed_out["shown"], "absent signed out, not nought"
@@ -496,12 +493,12 @@ def test_where_you_are_names_the_hardest_kind_you_would_follow() -> None:
     ]
     # The share is on the rung you are on and the next one, and nowhere else.
     assert [rung["text"] for rung in drawn["rungs"]] == [
-        "A dialogue",
-        "A video talk",
+        "A conversation",
+        "A video",
         "A news article93%",
         "A short story86%",
         "A novel",
-        "Poetry",
+        "A poem",
     ]
     assert [rung["ticked"] for rung in drawn["rungs"]] == [True, True, False, False, False, False]
     assert drawn["rungs"][2]["current"] == "step"
@@ -528,13 +525,14 @@ def test_with_no_rung_reached_the_first_is_where_to_start() -> None:
     ladder = [dict(rung, state="ahead") for rung in LADDER["ladder"]]
     ladder[0]["state"] = "next"
     drawn = story(ladder=ladder, here=None, said="")["where"]
-    assert drawn["head"] == "A dialogue is the place to start"
+    assert drawn["head"] == "A conversation is the place to start"
 
 
-def test_italian_picture_books_are_called_so() -> None:
-    ladder = [{"kind": "story", "name": "picture-book", "share": 97, "state": "here", "texts": 19}]
+def test_italian_childrens_books_are_called_so() -> None:
+    ladder = [{"kind": "story", "name": "children-book", "share": 97, "state": "here", "texts": 19}]
     drawn = story(ladder=ladder, here=0, said="follow")["where"]
-    assert drawn["head"] == "You'd follow a picture book"
+    assert drawn["head"] == "You'd follow a children's book"
+    assert drawn["rungs"][0]["text"] == "A children's book97%"
     assert drawn["rungs"][0]["href"].endswith("#see/kind/story")
 
 
