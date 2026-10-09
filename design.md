@@ -433,7 +433,8 @@ SubMailPhone, with David's calls of 2026-10-09. "Mail is drawn, and fetches noth
   that it is the last mail to the address. Transactional, so no list headers. It is in the
   language the page was in when they pressed Delete (`person.said`, schema 44), English
   where that is not known. **There is no export mail**: an export is a download, and it is
-  instant.
+  instant. The purge runs every night at 03:00 UTC inside the server, as well as at
+  start-up, so the mail goes the night the seven days end, not on the next restart.
 - **Drawn on the boards, not built:** the series' own mail (The weekly portion: Noach) and
   SubMail's mail a video and its capped twin. Everything new comes in the one daily mail,
   and an item waiting on its cap is a row in it.

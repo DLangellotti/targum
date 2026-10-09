@@ -216,6 +216,7 @@ def serve(
             require_account=hosted,
             keep_feeds=hosted,
             keep_subscriptions=hosted,
+            keep_purging_nightly=hosted,
             public_address=public,
         )
     except TargumError as error:

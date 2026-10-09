@@ -702,6 +702,48 @@ SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
 #: query.
 SUBSCRIPTIONS_EVERY = 300
 
+#: The hour, UTC, at which a hosted server deletes the accounts whose grace period ended
+#: and mails them the last letter (`Library.purge_departed`, design.md §12, "Every mail is
+#: the board's", 2026-10-09). An hour before targum-backup.timer, so the night's backup is
+#: the first one without them. Start-up still purges too.
+PURGE_AT_HOUR = 3
+
+
+def until_next(hour: int, moment: datetime) -> float:
+    """Seconds from `moment` (aware, any zone) to the next `hour`:00 UTC, never zero."""
+    moment = moment.astimezone(UTC)
+    target = moment.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if target <= moment:
+        target = datetime.fromtimestamp(target.timestamp() + 24 * 60 * 60, UTC)
+    return target.timestamp() - moment.timestamp()
+
+
+def keep_purging(
+    library: Library,
+    *,
+    wait: Callable[[float], None] = time.sleep,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    nights: int | None = None,
+) -> None:
+    """Purge the departed once a night, at `PURGE_AT_HOUR`, for as long as the server runs.
+
+    Until 2026-10-09 the purge ran only at start-up, so an account was deleted, and told
+    so, on whichever restart came next. A run twice in one night deletes and mails nothing
+    twice: the rows are gone after the first, and only what a purge deleted is mailed.
+    `nights` bounds the loop for a test; the server leaves it unbounded.
+    """
+    done = 0
+    while nights is None or done < nights:
+        wait(until_next(PURGE_AT_HOUR, clock()))
+        done += 1
+        try:
+            gone = library.purge_departed()
+            if gone:
+                log.info("purge: %d account(s) deleted", len(gone))
+        except Exception as error:  # noqa: BLE001 - never takes the server down
+            log.warning("purge: deleting the departed failed: %s", error)
+
+
 #: A file inside a published edition's built reader.
 #:
 #: The path mirrors the folder on disk — `<edition>/reader/<file>` — so the level
@@ -13916,6 +13958,7 @@ def start(
     public_address: str = "",
     keep_feeds: bool = False,
     keep_subscriptions: bool = False,
+    keep_purging_nightly: bool = False,
 ) -> str:
     """Run until interrupted. Returns the address it is listening on.
 
@@ -13928,6 +13971,10 @@ def start(
     inside its cap, every few minutes (`subscriptions.get_ready`, design.md §12,
     2026-10-09). Its own switch for the same reason: it prepares through yt-dlp and the
     proxy, which no test server may do.
+
+    `keep_purging_nightly` deletes the accounts whose grace period ended, and mails them,
+    every night at `PURGE_AT_HOUR` UTC as well as at start-up (`keep_purging`). Its own
+    switch because it mails, which no test server may.
     """
     from .chat.session import Chats
     from .mail import from_environment
@@ -14077,6 +14124,8 @@ def start(
                     log.warning("subscriptions: getting ready failed: %s", error)
 
         threading.Thread(target=keep_getting_ready, name="subscriptions", daemon=True).start()
+    if keep_purging_nightly:
+        threading.Thread(target=keep_purging, args=(library,), name="purge", daemon=True).start()
     if keep_feeds:
         from .chat import sources as sources_module
         from .chat import tools as tools_module
