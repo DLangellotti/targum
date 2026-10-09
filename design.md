@@ -474,6 +474,7 @@ own origin, and only a picture of ours**:
 
 It still fetches no script, style or font, and nothing from anybody else. The connect
 page's example card is drawn from the same door.
+
 ### Talk is a sheet over a dimmed page — 2026-10-09
 
 P19 of the polish plan, after "The boards are the desk" and "The desk's controls are one
