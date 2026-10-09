@@ -62,7 +62,7 @@ def test_the_line_under_the_box_says_what_continue_will_do() -> None:
     look: a look is a chat turn, and chatting is included (design.md §12, 2026-09-24;
     COPY_QUESTIONS 14, David 2026-09-28)."""
     said = run(typed="something funny about food", answers=FOUND)
-    assert "Press Continue and we'll look for it" in said["under"]
+    assert "Press Upload and we'll look for it" in said["under"]
     assert "credits" not in said["under"]
 
 

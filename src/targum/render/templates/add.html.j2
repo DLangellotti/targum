@@ -16,56 +16,70 @@
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="add">
-{% set here = 'add' %}
+{% set here = 'add' %}{% set title = t("add.page.upload", "Upload") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 <main class="add-main">
-  {#- This page used to be the front door and opened by saying what targum is. Reached
-      from the nav by somebody who already has an account and a shelf, that reads as a
-      stranger's greeting to a regular. It says what it is for instead. -#}
-  <h1 class="lede">{{ t("add.page.upload", "Upload") }}</h1>
-  {#- Worth a look before waiting for a build, and no more than that: the catalogue is a
-      few hundred texts, not most of what anybody wants. -#}
-  <p class="hint"><a class="to-library" href="/library">{{ t("add.page.it-may-already-be-in-the-library", "It may already be in the Library.") }}</a></p>
+  {#- The board's two columns (UploadDesk; design.md §12, "Upload is the board's", 2026-10-09):
+      the box and what works on the left, and on the right the card a link or a file is
+      priced on. On a phone they are one column and the card comes after the box. -#}
+  <div class="add-grid">
+  <div class="add-left">
 
   {% if no_key %}
-  <p class="notice" role="status">{{ no_key }}</p>
+  <p class="notice card" role="status">{{ no_key }}</p>
   {% endif %}
 
-  {#- One box, for any medium (design.md §12, 2026-09-13, targum-internal#249). It was
-      three boxes to choose between — a file, a link, the text — with a Translation and a
-      Transcript toggle and two language pickers asked before anything had been read. The
-      box takes whatever it is given and a line under it says what targum thinks that
-      was; every choice the form had is behind Change. -#}
+  {#- One box, for any medium (design.md §12, 2026-09-13, targum-internal#249), drawn as
+      the board draws it (2026-10-09): a field for a link or a text, a dashed place to drop
+      a file, the language the text is in, and Upload. The line under it says what targum
+      thinks it was given; every other choice is behind Change. -#}
   {% include '_glyphs.html.j2' %}
-  <section class="bring" id="bring-box" aria-label="{{ t("add.page.what-to-add", "What to add") }}">
+  <section class="card bring" id="bring-box" aria-label="{{ t("add.page.what-to-add", "What to add") }}">
+    <div class="given-field" id="given-field">
+      <label class="given-label" for="given">{{ t("add.page.paste-a-link", "Paste a link") }}</label>
+      <div class="given-well" id="given-well">
+        <textarea id="given" rows="1" dir="auto" spellcheck="false" aria-describedby="understood"
+                  placeholder="{{ t("add.page.link-placeholder", "An article, a video, a podcast, a post") }}"></textarea>
+      </div>
+    </div>
+    {#- The whole card takes a dropped file; this is where it says so, and where what was
+        dropped is held, one chip a file. -#}
     <div class="drop" id="drop">
       <ul class="given-files" id="given-files" hidden></ul>
-      <label class="given-label" for="given">{{ t("add.page.what-would-you-like-to-read", "What would you like to learn from?") }}</label>
-      <textarea id="given" rows="2" dir="auto" spellcheck="false" aria-describedby="understood"
-                placeholder="{{ t("add.page.paste-a-link-or-some-hebrew-drop", "Paste a link or some Hebrew, drop a file, or say what you want") }}"></textarea>
-      <p class="understood" id="understood" aria-live="polite">{{ t("add.page.we-can-read-books-articles-podcasts-videos", "We can read books, articles, podcasts, videos, voice notes, subtitles and photos of pages.") }}</p>
+      <div class="drop-say" id="drop-say" role="button" tabindex="0" aria-controls="file">
+        <svg class="drop-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4.5 14.5v4.5h15v-4.5"/></svg>
+        <svg class="drop-icon drop-icon-phone" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8h3l1.5-2h7L17 8h3v10.5H4z"/><circle cx="12" cy="13" r="3.2"/></svg>
+        <p class="drop-line">
+          <span class="drop-line-desk">{{ t("add.page.drop-here", "Drop a file, a photo of a page, or a post here") }}</span>
+          <span class="drop-line-phone">{{ t("add.page.choose-or-photo", "Choose a file or take a photo of a page") }}</span>
+        </p>
+      </div>
+      <div class="drop-row">
+        <button type="button" id="choose" class="btn ghost outline bring-choose">{{ t("add.page.choose-a-file", "Choose a file") }}</button>
+        {#- A post from a platform targum does not fetch from, or will not today: the
+            reader brings it by hand (targum-internal#158). The board draws a post as a
+            thing dropped here; a post typed in by hand stays a press of its own. -#}
+        <button type="button" id="post-open" class="btn text small bring-post" aria-expanded="false" aria-controls="post-form">{{ t("add.page.bring-a-post", "Bring a post") }}</button>
+      </div>
     </div>
     <input type="file" id="file" multiple
            accept=".txt,.md,.markdown,.epub,.pdf,.srt,.vtt,.png,.jpg,.jpeg,.webp,.heic,.heif,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv" hidden>
+    <p class="understood" id="understood" aria-live="polite"></p>
     <div class="bring-row">
-      <button type="button" id="choose" class="btn tonal bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>{{ t("add.page.choose-files", "Choose files") }}</span></button>
-      {#- Only for a description, and only where the talk drawer is there to say it in:
-          looking for a text by describing it is a turn of conversation, metered like one,
-          and the reader's own press sends it. -#}
-      {#- Something the reader recorded themselves (targum-internal#254). Hidden until
-          the script says this browser can record, so the page never offers what it
-          cannot do — the same rule the composer's Speak follows. -#}
-      <button type="button" id="record" class="btn tonal bring-choose" hidden
-              aria-pressed="false" aria-label="{{ t("add.page.record", "Record") }}" title="{{ t("add.page.record", "Record") }}"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg><span id="record-word">{{ t("add.page.record", "Record") }}</span></button>
-      {#- A post from a platform targum does not fetch from, or will not today: the reader
-          brings it by hand (targum-internal#158). -#}
-      <button type="button" id="post-open" class="btn tonal bring-choose" aria-expanded="false" aria-controls="post-form">{{ t("add.page.bring-a-post", "Bring a post") }}</button>
-      <button type="button" id="ask-targum" class="btn tonal bring-ask" hidden>{{ t("add.page.ask-targum", "Ask targum") }}</button>
+      {#- Which language the text is in: the nav's language menu is the same choice
+          (2026-09-13), and the board puts it here, beside Upload. -#}
+      <label class="from-field" for="from">
+        <span>{{ t("add.page.the-text-is-in", "The text is in") }}</span>
+        <select id="from">
+          {% for one in reading %}<option value="{{ one.code }}"{% if loop.first %} selected{% endif %}>{{ one.name }}</option>{% endfor %}
+        </select>
+      </label>
       {#- Paused where nothing new can be made (2026-09-14): the notice above said so and
           the button went on offering, and a press only repeated the notice. -#}
-      <button type="button" id="go" class="btn filled go"{% if no_key %} disabled{% endif %}>{{ t("add.page.continue", "Continue") }}</button>
+      <button type="button" id="go" class="btn filled go"{% if no_key %} disabled{% endif %}>{{ t("add.page.upload", "Upload") }}</button>
     </div>
+    <p class="hint" id="from-beta" hidden></p>
   </section>
 
   {#- A post, brought by hand (targum-internal#158; design.md §12, "A post keeps its
@@ -75,7 +89,7 @@
       ones do: its head, its pictures in their order, its words the text. It takes the
       box's place while it is open, so the page still has one filled button. Nothing is
       fetched, and the pictures' words are read only if the reader presses for it. -#}
-  <section class="post-form" id="post-form" aria-labelledby="post-form-title" hidden>
+  <section class="card post-form" id="post-form" aria-labelledby="post-form-title" hidden>
     <h2 class="post-form-title" id="post-form-title">{{ t("add.page.bring-a-post", "Bring a post") }}</h2>
     <p class="hint">{{ t("add.page.post-what", "Type in a post we can't fetch, and upload its pictures or video. Only you will see it.") }}</p>
     <div class="post-where">
@@ -120,7 +134,7 @@
   </section>
 
   {#- What the box understood, and every choice on one line. -#}
-  <div class="summary" id="summary" hidden>
+  <div class="card summary" id="summary" hidden>
     <p class="summary-line" id="summary-line"></p>
     <button type="button" id="change" class="btn text change" aria-expanded="false" aria-controls="options">{{ t("add.page.change", "Change") }}</button>
   </div>
@@ -128,20 +142,14 @@
   {#- The manual page: the controls the form had, with the ids they had, so a reader who
       knows exactly what they brought is never asked to trust a guess. Rows that do not
       apply to what is in the box are hidden. -#}
-  <section class="options" id="options" aria-label="{{ t("add.page.choices", "Choices") }}" hidden>
+  <section class="card options" id="options" aria-label="{{ t("add.page.choices", "Choices") }}" hidden>
     <div class="option-row">
-      <h2>{{ t("add.page.languages", "Languages") }}</h2>
+      <h2>{{ t("add.page.translations-in", "Translations in") }}</h2>
       <div class="option-body">
         <div class="pickers">
           {#- Three in and two out, each one saying how far along it is. Narrower than
               what the rest of the app can show: these are the pairs an upload has been
               taken end to end in. -#}
-          <label class="field short">
-            <span>{{ t("add.page.i-am-reading", "I'm learning") }}</span>
-            <select id="from">
-              {% for one in reading %}<option value="{{ one.code }}"{% if loop.first %} selected{% endif %}>{{ one.name }} ({{ one.label }})</option>{% endfor %}
-            </select>
-          </label>
           <label class="field short">
             <span>{{ t("add.page.translations-in", "Translations in") }}</span>
             {# No `selected` here: which language you read into is a choice you have
@@ -153,7 +161,6 @@
             </select>
           </label>
         </div>
-        <p class="hint" id="from-beta" hidden></p>
       </div>
     </div>
 
@@ -211,30 +218,36 @@
   {#- The library answering while the box is typed in (targum-internal#251): a text
       already here is said before Continue, not after a price for making a second copy
       of it. Drawn by `add.js`; empty and out of the way until it has something. -#}
-  <div class="already" id="already" hidden></div>
+  <div class="card already" id="already" hidden></div>
 
-  <div class="status" id="status" hidden></div>
-
-  {#- What the hours are, before any of them are spent (targum-internal#299). The reader
-      was told "a recording or a video uses some of your hours" and never what they had,
-      so the first time anybody met the number was the month they ran out of it. Filled
-      by `add.js` from `/account/me`, and absent where this install has no allowance to
-      quote — an admin, or a machine somebody runs themselves. Time and not price, and
-      the library named as costing none of it (§6, and the voice of 2026-09-13). -#}
+  {#- Where a month's credits are spent, the panel that says so stands here: Top up,
+      greyed until there is somewhere to pay, and what still works (design.md §12,
+      2026-10-09). Otherwise the balance is said on the card a press is priced on, with
+      its rate, and nowhere else on the page. -#}
   <p class="hint hours" id="hours" hidden></p>
 
-  {#- The paragraph of refusals named in advance is gone (targum-internal#252, finished
-      2026-09-22). Each of the four is said where it happens now, with the way on:
+  {#- What works, as the board lists it, in place of the paragraph of refusals named in
+      advance (gone since targum-internal#252): each refusal is said where it happens,
+      with the way on. -#}
+  <section class="works" aria-labelledby="works-title">
+    <h2 class="works-title" id="works-title">{{ t("add.page.what-works", "What works") }}</h2>
+    <ul class="works-list">
+      <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 2.5h8v11H4zM6 5.5h4M6 8h4M6 10.5h2.5"/></svg>{{ t("add.page.works-articles", "Articles from any news site or blog") }}</li>
+      <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><path d="M7 6.3v3.4L9.8 8z"/></svg>{{ t("add.page.works-videos", "YouTube, Instagram and TikTok videos") }}</li>
+      <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="6" y="1.5" width="4" height="8" rx="2"/><path d="M4 7.5a4 4 0 0 0 8 0M8 11.5v2.5M5.5 14h5"/></svg>{{ t("add.page.works-podcasts", "Podcast episodes") }}</li>
+      <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 2.5h5l3 3v8H4zM9 2.5v3h3"/></svg>{{ t("add.page.works-pdfs", "PDFs") }}</li>
+      <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 5h2.5l1.2-1.5h3.6L11 5h2.5v7.5h-11z"/><circle cx="8" cy="8.7" r="2.2"/></svg>{{ t("add.page.works-photos", "Photos of a page, up to 30 pages") }}</li>
+      <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 2.5h8.5v11H3.5zM5.5 2.5v11"/></svg>{{ t("add.page.works-ebooks", "An e-book") }}</li>
+    </ul>
+  </section>
+  </div>
 
-      - a scanned PDF is refused once and offers the button that reads its pages;
-      - Spotify names Apple Podcasts, the RSS feed, or describing the episode here;
-      - a protected audiobook names the ordinary file, or describing the book here;
-      - a page behind a login says to paste the text instead.
-
-      Naming them in advance was always the weaker half — a reader met the list before
-      they had a thing to add, and then met silence at the moment it mattered. The one
-      sentence worth keeping is the one about hours, which is not a refusal at all. -#}
-  <p class="hint limits">{{ t("add.page.a-recording-or-a-video-uses-some", "A recording or a video uses some of your credits — one credit a minute.") }}</p>
+  {#- The card a link or a file is priced on, refused on, or built from: the board's
+      preview, beside the box at a desk and under it on a phone. -#}
+  <div class="add-right">
+    <div class="card status" id="status" hidden></div>
+  </div>
+  </div>
 
 </main>
 {% include '_foot.html.j2' %}
@@ -252,10 +265,6 @@ window.TARGUM_INTO = {{ into|tojson }};
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
-{#- The recorder the composer's Speak uses, so a voice note can be made here rather than
-    only brought (targum-internal#254). Before `add.js`, which asks it whether this
-    browser can record before drawing the button. -#}
-<script>{{ asset('speak.js') }}</script>
 <script>{{ asset('add.js') }}</script>
 </body>
 </html>

@@ -366,25 +366,23 @@ def test_the_wrong_script_names_the_language_chosen(browser) -> None:
 
     assert said == (
         "You're adding Russian, and this isn't in Cyrillic letters. "
-        "Choose its language under Change."
+        "Choose the language it's in beside Upload."
     ), said
 
 
 def test_a_description_is_never_priced(browser) -> None:
     """A sentence about what the reader wants is a request, not a text: Continue sends
-    nothing to `/prepare`, and Ask targum — a turn of conversation, the reader's own
-    press — is offered where the talk drawer is on the page."""
+    nothing to `/prepare`. Ask targum is gone with the board (2026-10-09); a description
+    typed anyway is still looked for in place."""
     asked: list[dict] = []
     context, open_page = _add_served(browser, asked)
     open_page.fill("#given", "a short podcast about why flats in Tel Aviv cost so much")
     said = open_page.text_content("#understood")
-    offered = open_page.is_visible("#ask-targum")
     open_page.click("#go")
     open_page.wait_for_timeout(400)
     context.close()
 
     assert said and "what you want to read" in said, said
-    assert offered, "Ask targum is offered for a description"
     assert asked == [], "a description never reaches /prepare"
 
 
@@ -1952,10 +1950,10 @@ def test_progress_without_a_total_says_no_percentage(browser, tmp_path: Path) ->
 
 
 def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> None:
-    """The card's title is isolated, so a Hebrew title keeps its facts after it rather
-    than in front of it. And Open: one press while `/build` is answering, and the
-    server's own sentence when the build was lost to a restart — it used to poll a job
-    that no longer existed."""
+    """The card's title is a line of its own in its own direction (board UploadDesk,
+    2026-10-09), so a Hebrew title never takes its facts into its run. And Confirm: one
+    press while `/build` is answering, and the server's own sentence when the build was
+    lost to a restart — it used to poll a job that no longer existed."""
     html = add_page(TOKEN)
     built: list[object] = []
     priced = dict(PRICED, title="זו מדינת אויב?")
@@ -1981,7 +1979,10 @@ def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> 
     open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
     open_page.click("#go")
     open_page.wait_for_selector("#status button.filled", timeout=4000)
-    isolated = open_page.evaluate("() => !!document.querySelector('#status bdi > b')")
+    isolated = open_page.evaluate(
+        "() => { const t = document.querySelector('#status .quote-title');"
+        " return !!t && t.getAttribute('dir') === 'auto' && !t.querySelector('.clock'); }"
+    )
     open_page.evaluate(
         "() => { const b = document.querySelector('#status button.filled'); b.click(); b.click(); }"
     )
@@ -1991,7 +1992,7 @@ def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> 
     )
     context.close()
 
-    assert isolated, "the title in a <bdi>"
+    assert isolated, "the title on a line of its own, in its own direction"
     assert len(built) == 1, "two presses, one build"
 
 
@@ -2138,93 +2139,65 @@ def test_a_box_the_library_does_not_know_says_nothing(browser, tmp_path: Path) -
     assert not drawn
 
 
-def test_add_records_a_voice_note_and_prices_it_like_a_dropped_file(
-    browser, tmp_path: Path
-) -> None:
-    """targum-internal#254. The recorder is `speak.js`'s, the same one the composer's
-    Speak uses; what a clip is for is the caller's, and here it is a file like any
-    dropped one — up the chunked door, priced as a recording."""
+def test_the_upload_page_is_the_boards_box_and_card(browser, tmp_path: Path) -> None:
+    """Boards UploadDesk and UploadPhone (design.md §12, "Upload is the board's",
+    2026-10-09): a field for a link, a dashed place to drop that is itself the press for
+    choosing, the language beside Upload, What works, and the priced card at the right
+    with Confirm and Cancel. Record and Ask targum are not drawn: the board draws
+    neither."""
     html = add_page(TOKEN)
-    sent: list[dict] = []
 
     def answer(route, request):
-        if "/upload/begin" in request.url:
-            route.fulfill(
-                status=200,
-                content_type="application/json",
-                body=json.dumps({"upload": "u1", "chunk": 1024 * 1024}),
-            )
-        elif "/upload/" in request.url:
-            route.fulfill(
-                status=200, content_type="application/json", body=json.dumps({"upload": "u1"})
-            )
-        elif "/prepare" in request.url:
-            sent.append(request.post_data_json or {})
+        if "/prepare" in request.url:
             route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
         elif request.url.endswith(("/add", "/add.html")):
             route.fulfill(status=200, content_type="text/html", body=html)
         else:
             route.fulfill(status=200, content_type="application/json", body="{}")
 
-    context = browser.new_context(
-        viewport={"width": 1280, "height": 900}, permissions=["microphone"]
-    )
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
     open_page = context.new_page()
     open_page.route("http://add.test/**", answer)
-    # A recorder that answers without a microphone: what is under test is the page's
-    # half — that a clip becomes a held file and goes up as a recording.
-    open_page.add_init_script(
-        """
-        navigator.mediaDevices = navigator.mediaDevices || {};
-        navigator.mediaDevices.getUserMedia = () =>
-          Promise.resolve({ getTracks: () => [{ stop() {} }] });
-        window.MediaRecorder = class {
-          constructor() { this.mimeType = "audio/webm"; }
-          start() { setTimeout(() => this.ondataavailable(
-            { data: new Blob([new Uint8Array(2048)], { type: "audio/webm" }) }), 0); }
-          stop() { setTimeout(() => this.onstop(), 0); }
-        };
-        """
-    )
     open_page.goto("http://add.test/add")
-    open_page.wait_for_selector("#record:not([hidden])", timeout=4000)
-    open_page.click("#record")
-    open_page.wait_for_timeout(200)
-    while_recording = open_page.inner_text("#record-word")
-    open_page.click("#record")
-    open_page.wait_for_selector(".given-file", timeout=4000)
-    chip = open_page.inner_text("#given-files")
+    drawn = open_page.evaluate(
+        """() => ({
+          record: !!document.getElementById('record'),
+          ask: !!document.getElementById('ask-targum'),
+          works: document.querySelectorAll('.works-list li').length,
+          go: document.getElementById('go').textContent.trim(),
+          label: document.querySelector('.from-field span').textContent.trim(),
+        })"""
+    )
+    with open_page.expect_file_chooser() as chooser:
+        open_page.click("#drop-say")
+    opened = chooser.value is not None
+    open_page.fill("#given", "https://www.kan.org.il/content/kan/podcasts/p-1/12345/")
     open_page.click("#go")
-    open_page.wait_for_timeout(600)
+    open_page.wait_for_selector("#status .confirm")
+    card = open_page.evaluate(
+        """() => {
+          const box = document.getElementById('bring-box').getBoundingClientRect();
+          const card = document.getElementById('status').getBoundingClientRect();
+          return {
+            beside: card.left > box.right,
+            confirm: document.querySelector('#status .confirm').textContent,
+            cancel: !!document.querySelector('#status .cancel'),
+            until: document.querySelector('#status .quote-until').textContent,
+          };
+        }"""
+    )
+    open_page.click("#status .cancel")
+    put_away = open_page.evaluate("() => document.getElementById('status').hidden")
     context.close()
 
-    assert while_recording == "Stop", "the word follows the press"
-    assert "Recorded just now" in chip, f"the chip says what it is: {chip!r}"
-    assert sent, "Continue sent nothing"
-    assert sent[0].get("upload") == "u1", "up the chunked door, like any recording"
-
-
-def test_a_browser_that_cannot_record_is_not_offered_the_button(browser, tmp_path: Path) -> None:
-    """The page never offers what it cannot do — the same rule the composer's Speak
-    follows. Nothing here defines `MediaRecorder`."""
-    html = add_page(TOKEN)
-
-    def answer(route, request):
-        if request.url.endswith(("/add", "/add.html")):
-            route.fulfill(status=200, content_type="text/html", body=html)
-        else:
-            route.fulfill(status=200, content_type="application/json", body="{}")
-
-    context = browser.new_context(viewport={"width": 1280, "height": 900})
-    open_page = context.new_page()
-    open_page.route("http://add.test/**", answer)
-    open_page.add_init_script("delete window.MediaRecorder;")
-    open_page.goto("http://add.test/add")
-    open_page.wait_for_timeout(400)
-    drawn = open_page.is_visible("#record")
-    context.close()
-
-    assert not drawn
+    assert not drawn["record"] and not drawn["ask"], drawn
+    assert drawn["works"] == 6 and drawn["go"] == "Upload", drawn
+    assert drawn["label"] == "The text is in", drawn
+    assert opened, "the dashed place opens the file chooser"
+    assert card["beside"], "the priced card stands to the right of the box at a desk"
+    assert card["confirm"] == "Confirm" and card["cancel"], card
+    assert "Nothing is used until you confirm." in card["until"], card
+    assert put_away, "Cancel puts the card away"
 
 
 def test_an_english_phone_is_shown_no_russian(browser) -> None:

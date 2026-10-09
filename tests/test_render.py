@@ -2114,7 +2114,9 @@ def test_every_page_shares_one_language_choice() -> None:
     said = unescape(start)
     assert "(Experimental)" in said
     assert ">Hebrew (Experimental)<" not in said
-    assert ">Hebrew (alpha)<" in start
+    # The language the text is in is named alone, as board UploadDesk draws it
+    # (2026-10-09); how far along it is is said under the box.
+    assert '<option value="he" selected>Hebrew</option>' in start
     # One word in the picker, two behind it: the note says which kind of experimental.
     from targum.translate.prompts import stage_label
 
@@ -5943,7 +5945,7 @@ def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
         ("welcome_page", "welcome.learning.asks", "Which language are you learning?"),
         ("library_page", "nav.library", "Library"),
         ("you_page", "nav.your-account", "Your account"),
-        ("add_page", "add.page.what-would-you-like-to-read", "What would you like to learn from?"),
+        ("add_page", "add.page.paste-a-link", "Paste a link"),
     ],
 )
 def test_every_desk_page_is_said_in_the_language_asked(

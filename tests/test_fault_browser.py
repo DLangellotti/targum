@@ -110,7 +110,7 @@ def test_what_the_box_was_given_is_refused_under_the_box(browser) -> None:
     assert not thrown, thrown
     assert under["said"] == refusal
     assert under["ink"] == INK and under["mark"] == CLAY
-    assert under["outlined"] == "drop" and under["focused"] == "given"
+    assert under["outlined"] == "given-well" and under["focused"] == "given"
     assert under["invalid"] == "true" and under["underId"] in under["described"]
     assert "understood" in under["described"], "the box keeps what already described it"
     assert card_hidden, "the card under the box steps aside"
@@ -300,7 +300,7 @@ def test_a_refusal_from_a_rail_is_a_panel_in_place_of_the_price(browser) -> None
             said: box.querySelector('.fault-panel-said').textContent,
             go: [go.textContent, go.getAttribute('href')],
             fact: box.querySelector('.fault-fact').textContent,
-            title: document.querySelector('#status b').textContent,
+            title: document.querySelector('#status .quote-title').textContent,
           };
         }"""
     )
