@@ -17,7 +17,9 @@
   // The conversation is Hebrew whatever they are.
   var t = window.TargumStrings.t;
   var tn = window.TargumStrings.tn;
-  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer right now. Your texts and the library still open.");
+  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer right now.");
+  // Beside it, in the panel (design.md §12, 2026-10-09).
+  var STILL_OPEN = t("chat.cannot-answer.fact", "Your texts and the library still open");
 
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
@@ -118,7 +120,7 @@
   /* A turn that failed: the sentence as a line in the turn, with Try again where there
      is something to try again (design.md §12, 2026-10-09). It was the sentence in clay
      with "Try again" inside it. */
-  function failed(li, message, again) {
+  function failed(li, message, again, fact, act) {
     li.className = li.className.replace(/\s*\b(working|bad)\b/g, "") + " bad";
     var line = li.querySelector(".chat-line");
     if (!window.TargumFault) {
@@ -126,9 +128,15 @@
       return;
     }
     if (line) line.hidden = true;
-    var old = li.querySelector(".fault-line");
+    var old = li.querySelector(".fault-line, .fault-panel");
     if (old) old.parentNode.removeChild(old);
-    li.appendChild(window.TargumFault.line(message, again || null));
+    // A refusal with what still works is a panel, and nothing to try again: the rail
+    // that stopped it says when it lifts.
+    li.appendChild(
+      fact || act
+        ? window.TargumFault.refusal(message, fact, act)
+        : window.TargumFault.line(message, again || null)
+    );
   }
 
   function ask(path, body) {
@@ -185,10 +193,21 @@
     return /\p{L}/u.test(text);
   }
 
-  function tell(text) {
+  // What the page says back. A refusal is a line with the clay mark, or, where the server
+  // sent what still works, a panel (`fault.js`, design.md §12, 2026-10-09); it was a
+  // sentence in clay.
+  function tell(text, fact, act) {
     if (!said) return;
-    said.textContent = text || "";
+    said.textContent = "";
     said.hidden = !text;
+    if (!text) return;
+    if (!window.TargumFault) {
+      said.textContent = text;
+      return;
+    }
+    said.appendChild(
+      fact || act ? window.TargumFault.refusal(text, fact, act) : window.TargumFault.line(text)
+    );
   }
 
   /* --- the record ------------------------------------------------------------
@@ -1152,7 +1171,7 @@
       drawChips(answer.chips || []);
       usable = answer.usable !== false;
       drawHours(answer.hours);
-      if (!usable) tell(CANNOT_ANSWER);
+      if (!usable) tell(CANNOT_ANSWER, STILL_OPEN, "yours");
       drawList();
       showFresh();
       // Arrived from the front door with a conversation named in the hash: that one,
@@ -1337,7 +1356,7 @@
 
   function suggest() {
     if (busy) return;
-    if (!usable) return tell(CANNOT_ANSWER);
+    if (!usable) return tell(CANNOT_ANSWER, STILL_OPEN, "yours");
     busy = true;
     send.disabled = true;
     tell("");
@@ -1438,7 +1457,7 @@
 
   function say(text, brought) {
     if (busy || !text) return;
-    if (!usable) return tell(CANNOT_ANSWER);
+    if (!usable) return tell(CANNOT_ANSWER, STILL_OPEN, "yours");
     busy = true;
     send.disabled = true;
     var asked = turn("user", text);
@@ -1467,7 +1486,7 @@
         if (window.TargumFault) window.TargumFault.unreachable(again);
         return;
       }
-      if (got.error) return failed(answer, got.error, again);
+      if (got.error) return failed(answer, got.error, got.fact || got.act ? null : again, got.fact, got.act);
       busy = true;
       send.disabled = true;
       var wasNew = !current;
@@ -1564,7 +1583,7 @@
       }
       var was = atBottom();
       li.className = "chat-turn them";
-      if (kind === "error") failed(li, payload.message, again);
+      if (kind === "error") failed(li, payload.message, payload.fact || payload.act ? null : again, payload.fact, payload.act);
       else render(line, payload.text || text, words);
       keepBottom(was);
       if (kind !== "error") playButton(li, chat, n);

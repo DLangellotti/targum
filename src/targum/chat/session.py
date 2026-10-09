@@ -1106,7 +1106,16 @@ class Chats:
             job.blocked = refused
             self.library.remember(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=refused)
-            feed.put("error", {"message": refused})
+            # With what its panel draws beside it, where the refusal carries that
+            # (`serve.Refusal`, design.md §12, 2026-10-09).
+            feed.put(
+                "error",
+                {
+                    "message": refused,
+                    "fact": getattr(refused, "fact", ""),
+                    "act": getattr(refused, "act", ""),
+                },
+            )
             feed.close()
             return
         # The whole conversation so far, as the API needs to see it again: the reader's

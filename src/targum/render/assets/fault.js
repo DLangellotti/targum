@@ -6,6 +6,7 @@
  *   TargumFault.clear(input)             and gone again
  *   TargumFault.line(sentence, act?, onAct?)              a line in a card, as an element
  *   TargumFault.panel(sentence, {act, href, onAct, fact, topUp})   a panel, as an element
+ *   TargumFault.refusal(sentence, fact, act)   the panel for a refusal the server sent
  *   TargumFault.unreachable(retry?)      the connection banner, under the top bar
  *   TargumFault.reached()                and gone again
  *
@@ -142,6 +143,35 @@
     return box;
   }
 
+  /* A refusal the server sent with what its panel draws beside it (`serve.Refusal`):
+     `fact`, the quiet line of what still works, and `act`, the one way on — Top up
+     (greyed), the library, or the reader's own targums. Any of the three may be absent;
+     the sentence alone is still a panel. */
+  function keyed(path) {
+    var key = window.TARGUM_KEY || "";
+    if (!key) {
+      try {
+        key = new URLSearchParams(location.search).get("k") || "";
+      } catch (e) {
+        key = "";
+      }
+    }
+    return key ? path + "?k=" + encodeURIComponent(key) : path;
+  }
+
+  function refusal(sentence, fact, act) {
+    var options = { fact: fact || "" };
+    if (act === "top-up") options.topUp = true;
+    else if (act === "library") {
+      options.act = t("fault.open-library", "Open the library");
+      options.href = keyed("/library");
+    } else if (act === "yours") {
+      options.act = t("fault.open-yours", "Open your targums");
+      options.href = keyed("/");
+    }
+    return panel(sentence, options);
+  }
+
   /* 1 · Under a field. The line is the field's description while it stands, and the
      next thing typed into it takes the outline and the line away. `frame` is what is
      drawn as the field where that is not the input itself: the Upload page's well, which
@@ -266,6 +296,7 @@
   window.TargumFault = {
     line: line,
     panel: panel,
+    refusal: refusal,
     field: field,
     clear: clear,
     unreachable: unreachable,

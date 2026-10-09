@@ -167,7 +167,7 @@ MAX_FILE_MB = int(MAX_UPLOAD / 1.37 / (1024 * 1024))
 # Said once, in the page, rather than as a stack trace after the wait. Without a key the
 # builder can still open everything already built, so this blocks a text rather than
 # stopping the server.
-NO_KEY = "We can't get anything new ready right now. Everything you have still opens."
+NO_KEY = "We can't get anything new ready right now."
 
 
 def tried_for(job: Any, ui: str) -> dict[str, Any]:
@@ -244,6 +244,36 @@ def tried_for(job: Any, ui: str) -> dict[str, Any]:
         # "globes.co.il" for a link into Globes, as the Add box says it (`bring.js`).
         "site": (urlparse(job.source).hostname or "").removeprefix("www."),
     }
+
+
+class Refusal(str):
+    """A refusal's sentence, carrying what its panel draws beside it (design.md §12, "A
+    refusal is drawn on one of five surfaces", 2026-10-09): `fact`, the quiet line of what
+    still works, and `act`, the one way on — `top-up` (drawn greyed until there is
+    somewhere to pay), `library` or `yours`.
+
+    A `str` everywhere else, so every place that stores, joins or sends a refusal goes on
+    working; only `Job.state` asks for the two, and a refusal read back from the store
+    after a restart is the sentence alone, which still says what to do.
+    """
+
+    fact: str
+    act: str
+
+    def __new__(cls, said: str, fact: str = "", act: str = "") -> Refusal:
+        made = super().__new__(cls, said)
+        made.fact = fact
+        made.act = act
+        return made
+
+
+def no_key(ui: str) -> Refusal:
+    """Nothing new can be made on this box: what still works, and the way to it."""
+    return Refusal(
+        said_in(ui, "job.no-key", NO_KEY),
+        said_in(ui, "job.no-key.fact", "Everything you have still opens"),
+        "yours",
+    )
 
 
 def said_in(ui: str, key: str, english: str, **fill: object) -> str:
@@ -1122,6 +1152,10 @@ class Job:
         entry = catalogue_module.matching(self.source) if self.source else None
         return {
             "blocked": self.blocked,
+            # What a refusal's panel draws beside its sentence (`Refusal`, design.md §12,
+            # 2026-10-09): the quiet line of what still works, and the one way on.
+            "fact": getattr(self.blocked, "fact", ""),
+            "act": getattr(self.blocked, "act", ""),
             "id": self.id,
             "made": self.made,
             "title": self.title,
@@ -1940,53 +1974,75 @@ class Library:
             # sentence that is only true at one configuration is the bug this refusal was
             # already fixed for once.
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
-            return said_in(
-                ui,
-                "job.out-of.credits",
-                "You've used this month's credits. Top up, or they come back on {date}. "
-                "Text uploads still work, and the library still opens.",
-                credits=f"{allowed / SECONDS_A_CREDIT:g}",
-                date=self._month_ends(ui),
+            return Refusal(
+                said_in(
+                    ui,
+                    "job.out-of.credits",
+                    "You've used this month's credits. Top up, or they come back on {date}.",
+                    credits=f"{allowed / SECONDS_A_CREDIT:g}",
+                    date=self._month_ends(ui),
+                ),
+                said_in(
+                    ui,
+                    "job.out-of.credits.fact",
+                    "Uploading text uses none, and the library still opens",
+                ),
+                "top-up",
             )
         if whose == "account":
             # Never "you have read your fill". Nothing here is a limit on reading — text
             # is unlimited and the library is free — so a refusal must not imply that a
             # reader has used something up. This one is a rate limit and says so.
-            return said_in(
-                ui,
-                "job.out-of.account",
-                "That's a lot to get ready in one day. Try again in {hours} hours. The "
-                "library still opens.",
-                hours=BUDGET_HOURS,
+            return Refusal(
+                said_in(
+                    ui,
+                    "job.out-of.account",
+                    "That's a lot to get ready in one day. Try again in {hours} hours.",
+                    hours=BUDGET_HOURS,
+                ),
+                said_in(ui, "job.out-of.library-opens", "The library still opens"),
+                "library",
             )
         if whose == "talk-hours":
             # The allowance, reached by talking rather than by uploading. The same number
             # the pricing page names, and the same promise that reading carries on.
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
-            return said_in(
-                ui,
-                "job.out-of.talk-credits",
-                "You've used this month's credits for audio and talk. Top up, or they come "
-                "back on {date}. Your texts and the library still open.",
-                credits=f"{allowed / SECONDS_A_CREDIT:g}",
-                date=self._month_ends(ui),
+            return Refusal(
+                said_in(
+                    ui,
+                    "job.out-of.talk-credits",
+                    "You've used this month's credits for audio and talk. Top up, or they "
+                    "come back on {date}.",
+                    credits=f"{allowed / SECONDS_A_CREDIT:g}",
+                    date=self._month_ends(ui),
+                ),
+                said_in(
+                    ui, "job.out-of.texts-and-library", "Your texts and the library still open"
+                ),
+                "top-up",
             )
         if whose == "chat":
             # The same rule for the conversation's own rail: a lot of talking is not a
             # lot of reading, and the shelf is still open.
-            return said_in(
-                ui,
-                "job.out-of.chat",
-                "That's a lot of talking for one day. Try again in {hours} hours. The "
-                "library still opens.",
-                hours=BUDGET_HOURS,
+            return Refusal(
+                said_in(
+                    ui,
+                    "job.out-of.chat",
+                    "That's a lot of talking for one day. Try again in {hours} hours.",
+                    hours=BUDGET_HOURS,
+                ),
+                said_in(ui, "job.out-of.library-opens", "The library still opens"),
+                "library",
             )
-        return said_in(
-            ui,
-            "job.out-of.everyone",
-            "We've hit our limit for today. Try again in {hours} hours, or open something from "
-            "the library.",
-            hours=BUDGET_HOURS,
+        return Refusal(
+            said_in(
+                ui,
+                "job.out-of.everyone",
+                "We've hit our limit for today. Try again in {hours} hours.",
+                hours=BUDGET_HOURS,
+            ),
+            said_in(ui, "job.out-of.texts-open", "Your texts still open"),
+            "library",
         )
 
     def _how_long(self, job: Job) -> float:
@@ -2915,7 +2971,7 @@ class Library:
                 # written with the scene and a curated video's was bought before it
                 # shipped, so neither needs a key — and a box that has lost its key
                 # should still hand a reader the whole shelf that costs nothing.
-                job.blocked = said_in(job.ui, "job.no-key", NO_KEY)
+                job.blocked = no_key(job.ui)
             else:
                 job.usually = self._how_long(job)
                 job.blocked = self.why_blocked(job.estimate, job.ui)
@@ -3182,7 +3238,7 @@ class Library:
         job.pages = len(paths)
         usable, _ = vision.can_read()
         if not usable:
-            return said_in(job.ui, "job.no-key", NO_KEY)
+            return no_key(job.ui)
         waiting = vision.unread(paths, GLOSS_MODEL)
         usage = Usage()
         if waiting:
@@ -7886,7 +7942,7 @@ class Handler(BaseHTTPRequestHandler):
                     "error": (
                         self._say(
                             "serve.cannot-read-aloud-now",
-                            "We can't read aloud right now. Try again later.",
+                            "We can't read aloud right now.",
                         )
                         if self._keeps_why(why)
                         else self._say(
@@ -7936,7 +7992,7 @@ class Handler(BaseHTTPRequestHandler):
             job.stage = "blocked"
             job.blocked = refused
             self.library.remember(job)
-            return self._json({"error": refused}, 402)
+            return self._json(self._refusal(refused), 402)
         try:
             clip = speech.render(text, where / f"{chat_id}-{n}", language=spoken_in)
         except Exception as error:
@@ -8020,7 +8076,7 @@ class Handler(BaseHTTPRequestHandler):
                         "error": (
                             self._say(
                                 "serve.cannot-read-aloud-now",
-                                "We can't read aloud right now. Try again later.",
+                                "We can't read aloud right now.",
                             )
                             if self._keeps_why(why)
                             else self._say(
@@ -8055,7 +8111,7 @@ class Handler(BaseHTTPRequestHandler):
                 job.stage = "blocked"
                 job.blocked = refused
                 self.library.remember(job)
-                return self._json({"error": refused}, 402)
+                return self._json(self._refusal(refused), 402)
             try:
                 clip = speech.render(text, into, language=language)
             except Exception as error:
@@ -8109,7 +8165,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.chats is None or self.chats.store is None:
             return self._json({"error": "not found"}, 404)
         if not self.chats.usable:
-            return self._json({"error": self._say("job.no-key", NO_KEY)}, 402)
+            return self._json(self._no_key(), 402)
         person = self._person()
         person_id = person.id if person else None
         chat_id = query.get("chat", [""])[0]
@@ -8222,7 +8278,7 @@ class Handler(BaseHTTPRequestHandler):
             job.blocked = refused
             self.library.remember(job)
             clip.unlink(missing_ok=True)
-            return self._json({"error": refused}, 402)
+            return self._json(self._refusal(refused), 402)
         try:
             transcript = transcriber.transcribe(clip, hear_as)
         except TargumError as error:
@@ -8265,7 +8321,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.chats is None or self.chats.store is None:
             return self._json({"error": "not found"}, 404)
         if not self.chats.usable:
-            return self._json({"error": self._say("job.no-key", NO_KEY)}, 402)
+            return self._json(self._no_key(), 402)
         text = str(payload.get("text") or "").strip()
         if not text:
             return self._json(
@@ -8355,7 +8411,7 @@ class Handler(BaseHTTPRequestHandler):
                     "error": (
                         self._say(
                             "serve.cannot-read-aloud-now",
-                            "We can't read aloud right now. Try again later.",
+                            "We can't read aloud right now.",
                         )
                         if self._keeps_why(why)
                         else self._say(
@@ -8436,7 +8492,7 @@ class Handler(BaseHTTPRequestHandler):
             job.stage = "blocked"
             job.blocked = refused
             self.library.remember(job)
-            return self._json({"error": refused}, 402)
+            return self._json(self._refusal(refused), 402)
         self.library.enqueue(job)
         self._json(job.state())
 
@@ -9859,6 +9915,25 @@ class Handler(BaseHTTPRequestHandler):
                 "email you when it's your turn.",
             )
         return self._say("serve.not-open", "Thanks for asking. targum isn't open yet.")
+
+    @staticmethod
+    def _refusal(refused: str) -> dict[str, str]:
+        """A rail's refusal as an answer, with what its panel draws beside it where the
+        refusal carries that (`Refusal`, design.md §12, 2026-10-09)."""
+        return {
+            "error": refused,
+            "fact": getattr(refused, "fact", ""),
+            "act": getattr(refused, "act", ""),
+        }
+
+    def _no_key(self) -> dict[str, str]:
+        """Nothing new can be made here, as an answer: the sentence, and what its panel
+        draws beside it (design.md §12, 2026-10-09)."""
+        return {
+            "error": self._say("job.no-key", NO_KEY),
+            "fact": self._say("job.no-key.fact", "Everything you have still opens"),
+            "act": "yours",
+        }
 
     def _closing(self) -> str:
         """What an account inside its deletion grace period is told at every door: why
@@ -11639,7 +11714,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         usable, _ = provider.available()
         if not usable:
-            return self._json({"error": self._say("job.no-key", NO_KEY)}, 402)
+            return self._json(self._no_key(), 402)
         try:
             sense = gloss_one(
                 lemma,
@@ -11719,7 +11794,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         usable, _ = provider.available()
         if not usable:
-            return self._json({"error": self._say("job.no-key", NO_KEY)}, 402)
+            return self._json(self._no_key(), 402)
         try:
             answer = phrase_one(phrase, sentence, translation, source, target, provider)
         except TargumError as error:

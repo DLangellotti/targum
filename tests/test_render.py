@@ -2484,7 +2484,12 @@ def test_the_way_back_goes_home(tmp_path: Path) -> None:
         assert '<a class="bar-brand" id="home" href="/"' in html
         assert 'title="Your targums"' in html
         assert ">Your targums</a>" not in html, "the word beside it said it twice"
-        assert '"/library"' not in html, "the way out is not the catalogue any more"
+        # A refusal's panel may offer the library as its way on (`fault.js`, design.md
+        # §12, 2026-10-09); that is not the way back, so it is left out of the look.
+        from targum.render.builder import _asset
+
+        outside = html.replace(str(_asset("fault.js")), "")
+        assert '"/library"' not in outside, "the way out is not the catalogue any more"
 
 
 ASSETS = Path(__file__).resolve().parents[1] / "src/targum/render/assets"
