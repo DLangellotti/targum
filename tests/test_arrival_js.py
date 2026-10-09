@@ -179,33 +179,31 @@ def test_the_third_question_is_plain_words_with_no_letter() -> None:
     assert page["levelUp"] and page["step"] == "3 of 3"
     assert page["levelAsks"] == "How much Hebrew can you read?"
     assert page["levels"] == [
-        "I’m learning the letters",
-        "I can read short, simple sentences",
-        "I read the news with a dictionary nearby",
-        "I read most things without help",
+        "I’m just starting",
+        "I can read simple things",
+        "I read the news with help",
+        "I read almost anything",
     ]
     assert not any(any("\u05d0" <= c <= "\u05ea" for c in row) for row in page["levels"])
     assert page["done"] is False, "nothing said yet"
     picked = draw(
-        [], shared=seeded(), do=[*HEBREW, {"press": "arrival-done"}, {"rung": "I can read short"}]
+        [], shared=seeded(), do=[*HEBREW, {"press": "arrival-done"}, {"rung": "I can read simple"}]
     )
     assert picked["done"] is True and picked["levelUp"], "a press marks it; Continue goes on"
 
 
-def test_the_level_is_asked_in_the_language_chosen() -> None:
-    page = draw(
-        [],
-        shared=seeded(),
-        do=[{"learn": "Russian"}, {"press": "arrival-done"}, {"press": "arrival-done"}],
-    )
-    assert page["levelAsks"] == "How much Russian can you read?"
-    assert page["levels"][1] == "I can read a short story (Chekhov)"
-    french = draw(
-        [],
-        shared=seeded(),
-        do=[{"learn": "French"}, {"press": "arrival-done"}, {"press": "arrival-done"}],
-    )
-    assert french["levels"] == ["I’m just starting", "I can read a short story"]
+def test_the_level_is_the_same_four_in_every_language() -> None:
+    """David, 2026-10-09: one set of plain levels for every language; only the question
+    names the language."""
+    hebrew = draw([], shared=seeded(), do=[*HEBREW, {"press": "arrival-done"}])["levels"]
+    for name in ("Russian", "French", "Yiddish"):
+        page = draw(
+            [],
+            shared=seeded(),
+            do=[{"learn": name}, {"press": "arrival-done"}, {"press": "arrival-done"}],
+        )
+        assert page["levelAsks"] == f"How much {name} can you read?"
+        assert page["levels"] == hebrew, name
 
 
 def test_a_language_is_turned_on_without_dropping_hebrew() -> None:
@@ -228,7 +226,7 @@ def test_the_last_answer_opens_the_text_it_chose() -> None:
     after = draw(
         [],
         shared=seeded(),
-        do=[*LIKES_NEWS, {"rung": "I can read short"}, {"press": "arrival-done"}],
+        do=[*LIKES_NEWS, {"rung": "I can read simple"}, {"press": "arrival-done"}],
     )
     assert "/reader/holon" in after["went"], after["went"]
     assert after["kept"].get("targum:welcomed") == "1", "answered, and not asked again"
@@ -274,7 +272,7 @@ def test_another_language_opens_a_text_in_it_placed_by_what_they_read() -> None:
     novel = draw(
         [],
         shared=russian_shelf(),
-        do=[*pick, {"rung": "I can read a novel"}, {"press": "arrival-done"}],
+        do=[*pick, {"rung": "I read almost anything"}, {"press": "arrival-done"}],
     )
     assert "/reader/sergius" in novel["went"], novel["went"]
     assert not [c for c in novel["sent"] if "/account/level" in c["path"]], "kept nowhere"
@@ -578,7 +576,7 @@ def test_the_arrival_opens_a_book_at_its_first_chapter_not_its_contents() -> Non
             *HEBREW,
             {"subject": "Torah and Judaism"},
             {"press": "arrival-done"},
-            {"rung": "I’m learning the letters"},
+            {"rung": "I’m just starting"},
             {"press": "arrival-done"},
         ],
     )["went"]

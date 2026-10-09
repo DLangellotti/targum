@@ -74,4 +74,4 @@ def test_a_new_language_asks_its_own_level_after_going_back() -> None:
         ],
     )
     assert page["levelAsks"] == "How much Italian can you read?"
-    assert page["levels"][0] == "I can read a picture book"
+    assert page["levels"][0] == "I’m just starting"

@@ -151,7 +151,7 @@ def test_the_first_text_is_one_with_their_language_under_it() -> None:
         *HEBREW,
         {"subject": "News"},
         {"press": "arrival-done"},
-        {"rung": "I’m learning the letters"},
+        {"rung": "I’m just starting"},
         {"press": "arrival-done"},
     ]
     ordinary = draw([], shared=shelf(""), into=BOTH, held="en", do=answers)["went"]

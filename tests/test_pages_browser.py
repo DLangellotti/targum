@@ -731,7 +731,7 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
     )
     assert second["step"] == "3 of 3" and len(second["rungs"]) == 4, second
     assert second["asked"] and second["asleep"], second
-    page.locator(".arrival-rung", has_text="I’m learning the letters").tap()
+    page.locator(".arrival-rung", has_text="I’m just starting").tap()
     page.locator("#arrival-done").tap()
     page.wait_for_timeout(300)
     context.close()

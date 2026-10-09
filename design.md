@@ -401,18 +401,19 @@ a screen each**, and nothing else:
    arrival is two questions" below); three was a quota, and a quota on a list of eight
    is most of it. `accounts.Store.INTERESTS` still holds all twenty, so an answer given
    before reads as it did.
-3. **How much <language> can you read?** In plain sentences, in that language's own
-   texts, as the Onboard boards word them ("I can read a short story (Chekhov)"), and
-   "I'm not sure, show me a page". **No letter and no code** — the kitah letter beside
-   each rung is gone, which amends "The arrival is two questions" in that one respect.
-   Hebrew's four sentences stand for four of the ladder's rungs (aleph, bet, gimel,
-   dalet), kept on the account as `declared` exactly as before: still a seed, still
-   outvoted by the first measurement, still never shown back. "Not sure" keeps none and
-   takes an earlier one back. Your account still offers all eight in its own words, for
-   a reader who wants the finer step. **Every other language's answer is kept nowhere**:
-   nothing reads a level for Russian, French, Italian, Aramaic or Yiddish yet, so the
-   answer places the first text along that shelf by difficulty and is gone. When one of
-   them has a Library band to seed, it gets a column then.
+3. **How much <language> can you read?** The same four plain sentences in every
+   language — "I'm just starting", "I can read simple things", "I read the news with
+   help", "I read almost anything" (David, 2026-10-09, over the Onboard boards' per-
+   language wording) — and "I'm not sure, show me a page". **No letter and no code** —
+   the kitah letter beside each rung is gone, which amends "The arrival is two
+   questions" in that one respect. In Hebrew the four stand for four of the ladder's
+   rungs (aleph, bet, gimel, hey), kept on the account as `declared` exactly as before:
+   still a seed, still outvoted by the first measurement, still never shown back. "Not
+   sure" keeps none and takes an earlier one back. Your account still offers all eight
+   in its own words, for a reader who wants the finer step. **Every other language's
+   answer is kept nowhere**: nothing reads a level for Russian, French, Italian, Aramaic
+   or Yiddish yet, so the answer places the first text along that shelf by difficulty
+   and is gone. When one of them has a Library band to seed, it gets a column then.
 
 Then the text the answers chose opens, in the language chosen; where that shelf has
 nothing to open (Yiddish), home opens in that language (`/?learning=`), which is

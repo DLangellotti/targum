@@ -225,15 +225,14 @@
 
   /* --- 3. how much they read ---------------------------------------------------- */
 
-  /* In plain words, and in each language's own texts: what a person can read, never a
-     letter or a code (the review's "level codes leak", 2026-10-09). The wording is the
-     Onboard boards'.
+  /* In plain words, the same four in every language: what a person can read, never a
+     letter or a code (the review's "level codes leak"; David, 2026-10-09).
 
      **Hebrew's answer is kept**, as the rung it always was (design.md §12, "The arrival is
      two questions…", 2026-09-19): each sentence stands for one of the ulpan ladder's ids
      `accounts.Store.DECLARED` keeps, so the Library's first band, the first text and how
      hard the conversation writes read it exactly as before, and the first measurement
-     still outvotes it. Four sentences cover the ladder at aleph, bet, gimel and dalet;
+     still outvotes it. Four sentences cover the ladder at aleph, bet, gimel and hey;
      the You page still offers all eight to a reader who wants the finer step.
 
      **Every other language's answer picks the first text and is kept nowhere.** Nothing
@@ -241,51 +240,18 @@
      Hebrew's — and a column for an answer nothing reads would be storage for its own
      sake. The answer places the first text along that shelf by difficulty: the first
      sentence the easiest, the last the hardest. */
+  // The same four in every language (David, 2026-10-09). `code` decides only whether
+  // the answer is kept: Hebrew's stand for four rungs of the ulpan ladder.
   function levelsOf(code) {
+    var hebrew = code === "he" || !code;
     var L = function (id, say, rung) {
-      return { id: id, say: say, rung: rung || "" };
+      return { id: id, say: say, rung: hebrew ? rung : "" };
     };
-    if (code === "ru") {
-      return [
-        L("talk", t("welcome.level.ru.talk", "I can follow a short video")),
-        L("story", t("welcome.level.ru.story", "I can read a short story (Chekhov)")),
-        L("news", t("welcome.level.ru.news", "I can read a news article (РБК)")),
-        L("novel", t("welcome.level.ru.novel", "I can read a novel (Tolstoy)")),
-      ];
-    }
-    if (code === "it") {
-      return [
-        L("picture", t("welcome.level.it.picture", "I can read a picture book")),
-        L("talk", t("welcome.level.it.talk", "I can follow a short video")),
-        L("story", t("welcome.level.it.story", "I can read a short story")),
-        L("news", t("welcome.level.it.news", "I can read a news article")),
-      ];
-    }
-    if (code === "fr") {
-      return [
-        L("starting", t("welcome.level.fr.starting", "I’m just starting")),
-        L("story", t("welcome.level.fr.story", "I can read a short story")),
-      ];
-    }
-    if (code === "arc") {
-      return [
-        L("new", t("welcome.level.arc.new", "I’m new to Aramaic")),
-        L("onkelos", t("welcome.level.arc.onkelos", "I can read Onkelos")),
-        L("jonathan", t("welcome.level.arc.jonathan", "I can read Jonathan on the Prophets")),
-      ];
-    }
-    if (code === "yi") {
-      return [
-        L("starting", t("welcome.level.yi.starting", "I’m just starting")),
-        L("sentences", t("welcome.level.yi.sentences", "I can read short, simple sentences")),
-        L("most", t("welcome.level.yi.most", "I read most things without help")),
-      ];
-    }
     return [
-      L("letters", t("welcome.level.he.letters", "I’m learning the letters"), "aleph"),
-      L("sentences", t("welcome.level.he.sentences", "I can read short, simple sentences"), "bet"),
-      L("news", t("welcome.level.he.news", "I read the news with a dictionary nearby"), "gimel"),
-      L("most", t("welcome.level.he.most", "I read most things without help"), "dalet"),
+      L("starting", t("welcome.level.starting", "I’m just starting"), "aleph"),
+      L("simple", t("welcome.level.simple", "I can read simple things"), "bet"),
+      L("news", t("welcome.level.news", "I read the news with help"), "gimel"),
+      L("anything", t("welcome.level.anything", "I read almost anything"), "hey"),
     ];
   }
 
