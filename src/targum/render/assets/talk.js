@@ -5,7 +5,8 @@
  * the conversation page framed without its bar (`/chat?embed=1`). Loaded the first time
  * it is opened and never before; closed by its own button, the scrim or Escape; left open
  * across pages once opened (`targum:talk`), since somebody mid-conversation who follows a
- * link has not finished talking.
+ * link has not finished talking. Only a press dims the page under it: a drawer a page
+ * brings back because it was left open comes back beside the page, undimmed.
  *
  * A text the conversation offers opens the reader itself, from whatever page holds the
  * drawer (Learn's sheet, which held it in place, went with Learn on 2026-10-08). Nothing
@@ -120,7 +121,12 @@
   }
 
   var leaving = null;
-  function show(on) {
+  /* `restored` is the drawer brought back by a page because it was left open on the one
+     before, rather than pressed open on this one. It comes back as a panel beside the
+     page and does not dim it: the scrim says "this is what you are doing now", and a
+     reader who followed a link out of a conversation is reading the page they came to
+     (audit 2, 2026-10-09; design.md §12, "A drawer left open comes back undimmed"). */
+  function show(on, restored) {
     if (on) {
       if (!reading && window.TargumReader && window.TargumReader.where) reading = window.TargumReader.where();
       load();
@@ -139,7 +145,14 @@
         drawer.hidden = true;
       }, 160);
     }
-    if (scrim) scrim.hidden = !on;
+    if (scrim) scrim.hidden = !on || !!restored;
+    drawer.classList.toggle("talk-aside", on && !!restored);
+    if (on && restored) {
+      // Beside the page, under its bar, so the bar's own buttons stay pressable.
+      var head = document.querySelector(".site-head, body > .bar");
+      var foot = head ? Math.max(0, Math.round(head.getBoundingClientRect().bottom)) : 0;
+      drawer.style.setProperty("--talk-top", foot + "px");
+    }
     pill.setAttribute("aria-expanded", on ? "true" : "false");
     document.body.classList.toggle("talking", on);
     try {
@@ -192,7 +205,7 @@
   } catch (e) {
     wasOpen = false;
   }
-  if (wasOpen) show(true);
+  if (wasOpen) show(true, true);
 
   // A conversation by id, from the palette: open the drawer and name it in the frame's
   // address, which the conversation's own script answers.

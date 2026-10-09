@@ -1747,3 +1747,11 @@ textarea.well { min-block-size: 5rem; resize: vertical; }
 @media (hover: none) and (pointer: coarse) {
   .talk-close { min-block-size: 44px; min-inline-size: 44px; }
 }
+
+/* A drawer left open on the page before comes back beside this one, undimmed and under
+   its bar, without moving in (audit 2, 2026-10-09; design.md §12, "A drawer left open
+   comes back undimmed"). Only a press on this page dims the page under it. */
+.talk-drawer.talk-aside { animation: none; }
+@media (min-width: 48.01rem) {
+  .talk-drawer.talk-aside { inset-block-start: var(--talk-top, 0px); }
+}
