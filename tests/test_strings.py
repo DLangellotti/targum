@@ -649,10 +649,36 @@ BANNED = {
         r"(?i)\byour hours\b",
         r"(?i)\bpicture-book\b",
         r"(?i)\bvideo talk\b",
+        # The copy pass (design.md §12, "A text is named in everyday words", 2026-10-09):
+        # a scene's number, the catalogue's plural kinds, the rung and its CEFR code on a
+        # row, the hard-words measure, the Beit Midrash, and the contents page's states.
+        r"\bScene \{n\}",
+        r"^Scenes?$",
+        r"^Scene number$",
+        r"^Talks$",
+        r"(?i)\bbible narrative\b",
+        r"^Bible story$",
+        r"^(?:Aleph|Bet|Gimel|Dalet|Hey|Vav)\+?$",
+        r"·\s*C[12]\b",
+        r"(?i)\bhard words\b",
+        r"(?i)\bBeit Midrash\b",
+        r"Waiting\. We make it",
+        r"^Being made\.$",
     ],
     "ru": [
         r"из \{total\} переведено",
         r"(?i)ваших час",
+        r"\bСцена \{n\}",
+        r"^Сцен(?:ы|ка)$",
+        r"^Номер сцены$",
+        r"^Лекции$",
+        r"(?i)библейская проза",
+        r"^Из Библии$",
+        r"^(?:Алеф|Бет|Гимель|Далет|Хей|Вав)\+?$",
+        r"(?i)трудных слов",
+        r"(?i)^трудные слова",
+        r"(?i)бейт-мидраш",
+        r"Ждёт\. Мы подготовим",
     ],
 }
 

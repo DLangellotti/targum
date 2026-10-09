@@ -1623,7 +1623,7 @@ def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
     back = page.evaluate("() => location.hash")
     context.close()
 
-    assert at_doors["on"] == "Beit Midrash" and at_doors["doors"] == ["tanakh", "targum"]
+    assert at_doors["on"] == "Jewish texts" and at_doors["doors"] == ["tanakh", "targum"]
     assert at_doors["controls"] == [], f"nothing that narrows a list there is not: {at_doors}"
     assert at_doors["texts"] == 0 and at_doors["sameRow"] and not at_doors["sideways"], at_doors
     assert inside["hash"] == "#bm/tanakh" and "Tanakh" in inside["crumbs"], inside

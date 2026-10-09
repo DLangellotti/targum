@@ -135,7 +135,9 @@ def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> Non
     statuses = page.locator("#library-list .row-status").all_inner_texts()
     context.close()
     assert "10 min video" in facts
-    assert "Bet · A2" in facts
+    # No rung and no CEFR code on a row (design.md §12, "A text is named in everyday
+    # words", 2026-10-09).
+    assert "Bet" not in facts and "A2" not in facts
     assert "You know 72%" in facts
     assert "Uploaded 7 hours ago" in facts
     assert "In Morning" in facts

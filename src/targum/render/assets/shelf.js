@@ -243,7 +243,7 @@
 
   /* --- one row: what a text is at a glance (design.md §12, 2026-09-24) ----------------
    *
-   * The picture; the title with its English under it; one line of facts (length, level,
+   * The picture; the title with its English under it; one line of facts (length,
    * how much of it the reader knows, when it came, the playlists it is in); its status;
    * and Add to playlist with a ⋯ for the rest. A phone keeps the picture and the title,
    * wraps the facts under them, folds the status into the facts and keeps two keys. */
@@ -412,8 +412,9 @@
     var said = [];
     var length = lengthOf(reader);
     if (length) said.push(length);
-    var level = levelOf(reader.level);
-    if (level) said.push(level);
+    // No level code ("Vav · C2"): the boards draw a row's kind, length and known share and
+    // nothing else about level (design.md §12, "A text is named in everyday words",
+    // 2026-10-09). The rung still sorts Easiest first; it is no longer said.
     if (typeof reader.known === "number" && reader.words) {
       said.push(t("shelf.known", "You know {share}%", { share: Math.round(reader.known * 100) }));
     }
@@ -458,26 +459,6 @@
         : t("shelf.length.audio", "{n} min audio", { n: minutes });
     }
     return reader.minutes ? t("shelf.length.read", "{n} min read", { n: reader.minutes }) : "";
-  }
-
-  var RUNGS = {
-    aleph: "Aleph",
-    "aleph plus": "Aleph+",
-    bet: "Bet",
-    "bet plus": "Bet+",
-    gimel: "Gimel",
-    dalet: "Dalet",
-    hey: "Hey",
-    vav: "Vav",
-  };
-
-  // The rung the text needs, never the reader's (design.md §12, 2026-09-24).
-  function levelOf(level) {
-    if (!level || !level.name) return "";
-    var english = RUNGS[level.name];
-    if (!english) return level.cefr || level.name;
-    var name = t("shelf.rung." + level.name.replace(/ /g, "-"), english);
-    return level.cefr ? name + " · " + level.cefr : name;
   }
 
   /* New, a part count while reading, or Finished: read off what the reader's own pages

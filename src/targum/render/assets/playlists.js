@@ -187,7 +187,7 @@
     var kinds = {
       article: t("home.kind.article", "Article"),
       talk: t("home.kind.talk", "Video"),
-      dialogue: t("home.kind.dialogue", "Scene"),
+      dialogue: t("home.kind.dialogue", "Dialogue"),
       story: t("home.kind.story", "Story"),
       novel: t("home.kind.novel", "Book"),
       essay: t("home.kind.essay", "Essay"),

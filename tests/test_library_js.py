@@ -433,11 +433,13 @@ def test_the_list_opens_on_what_a_learner_can_read_now(tmp_path: Path) -> None:
 
 
 def test_the_hardest_column_says_what_it_counts(tmp_path: Path) -> None:
-    """ "Looked up" is what the measurement is called. "Hard words" is what the number
-    counts: words rare in the language, not words new to this reader (2026-09-14)."""
+    """ "Looked up" is what the measurement is called, and "Hard words" was what it was
+    called until the boards named it Level (design.md §12, "A text is named in everyday
+    words", 2026-10-09): words rare in the language, not words new to this reader."""
     columns = draw(tmp_path)["columns"]
     # The sorted column carries its arrow, so this is a prefix rather than an equality.
-    assert any(name.startswith("Hard words") for name in columns), columns
+    assert any(name.startswith("Level") for name in columns), columns
+    assert not any(name.startswith("Hard words") for name in columns), columns
     assert not any(name.startswith("Looked up") for name in columns), columns
 
 
@@ -447,13 +449,13 @@ def test_only_the_kinds_that_are_actually_there_are_offered(tmp_path: Path) -> N
     offered is what the rest of the filters leave standing."""
     assert draw(tmp_path, view={"register": "biblical"})["kinds"] == [
         "All",
-        "Bible narrative",
+        "Tanakh",
         "Poetry",
     ]
     modern = draw(tmp_path, view={"register": "modern"})["kinds"]
-    assert "Bible narrative" not in modern and "Poetry" not in modern
-    # Scenes first — where a reader with no words starts — then the biggest ones.
-    assert modern[:4] == ["All", "Scenes", "Stories", "News"]
+    assert "Tanakh" not in modern and "Poetry" not in modern
+    # Dialogues first — where a reader with no words starts — then the biggest ones.
+    assert modern[:4] == ["All", "Dialogues", "Stories", "News"]
 
 
 def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
@@ -463,10 +465,19 @@ def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
     "Talks · 1 min" read as the catalogue's id (design review, 2026-10-09)."""
     rows = draw(tmp_path, unfolded=True)["rows"]
     genesis = next(row for row in rows if row["title"] == "בראשית")
-    assert genesis["cells"][0] == "Bible story", "not bare Narrative beside Novels and Stories"
+    # The boards' word, not the catalogue's (design.md §12, 2026-10-09).
+    assert genesis["cells"][0] == "Tanakh", "not bare Narrative beside Novels and Stories"
     kinds = {row["cells"][0] for row in rows}
     assert "News" in kinds and "Dialogue" in kinds
-    assert not kinds & {"Prose", "Articles", "Scenes", "Talks", "Documents", "Bible narrative"}
+    assert not kinds & {
+        "Prose",
+        "Articles",
+        "Scenes",
+        "Talks",
+        "Documents",
+        "Bible narrative",
+        "Bible story",
+    }
 
 
 def test_choosing_a_kind_does_not_hide_the_other_kinds(tmp_path: Path) -> None:
@@ -549,12 +560,12 @@ def test_the_line_under_the_controls_says_what_the_active_one_means(tmp_path: Pa
     It used to live in tooltips, which is nowhere on a phone."""
     assert (
         draw(tmp_path)["note"]
-        == "Hard words — the share of a text's words that are rare in everyday use."
+        == "Level — the share of a text's words that are rare in everyday use."
     )
     assert draw(tmp_path, view={"kind": "dialogue"})["note"].startswith(
-        "Scenes — numbered conversations with audio. Start at 1."
+        "Dialogues — short conversations with audio. Start with the first."
     )
-    assert draw(tmp_path, view={"kind": "prose"})["note"].startswith("Bible narrative —")
+    assert draw(tmp_path, view={"kind": "prose"})["note"].startswith("Tanakh —")
     assert draw(tmp_path, view={"register": "biblical"})["note"].startswith(
         "Biblical — the Hebrew of the Bible."
     )
@@ -568,9 +579,7 @@ def test_the_line_under_the_controls_says_what_the_active_one_means(tmp_path: Pa
         three == "Modern — Hebrew as it is written today. · With audio — a recording, line by line."
     )
     four = draw(tmp_path, view={"kind": "prose", "register": "biblical", "spoken": "yes"})["note"]
-    assert (
-        four == "Bible narrative — the Bible's story books. · Biblical — the Hebrew of the Bible."
-    )
+    assert four == "Tanakh — the Bible's story books. · Biblical — the Hebrew of the Bible."
 
 
 def test_a_dash_is_explained_only_while_one_is_on_screen(tmp_path: Path) -> None:
@@ -626,7 +635,8 @@ def test_a_first_visit_lands_on_the_shelves_with_the_first_scene_first(tmp_path:
     assert now["band"] == "now"
     assert now["cards"][0]["title"] == "נעים מאוד"
     assert now["cards"][0]["chip"] == "Start here"
-    assert now["cards"][0]["kind"] == "Scene 1"
+    # Its kind and length, never its scene number (design.md §12, 2026-10-09).
+    assert now["cards"][0]["kind"] == "Dialogue · 1 min"
     scenes = [card for card in now["cards"] if card["id"].startswith("scene-")]
     assert len(scenes) == 1
 
@@ -657,7 +667,9 @@ def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> Non
         "איפה הרחוב",
         "שני קפה",
     ]
-    assert drawn["shareHead"]["text"] == "Scene number"
+    # The column says the list is in order, never "Scene number" (design.md §12,
+    # "A text is named in everyday words", 2026-10-09).
+    assert drawn["shareHead"]["text"] == "In order"
 
 
 def test_every_catalogue_row_carries_its_title_in_english(tmp_path: Path) -> None:
@@ -1279,7 +1291,9 @@ def test_a_card_carries_the_facts_a_reader_chooses_by(tmp_path: Path) -> None:
     known = {"story-one": {"known": 0.72}}
     rows = browse(tmp_path, catalogueKnown=known)["rows"]
     one = next(row for row in rows if row["title"] == "סיפור")
-    assert one["meta"] == "Essay · 7 min · 18% hard words"
+    # Its kind and length; how much of it the reader knows is the line under it, and
+    # "18% hard words" is gone (design.md §12, 2026-10-09).
+    assert one["meta"] == "Essay · 7 min"
     assert "72%" in one["known"]
     two = next(row for row in rows if row["title"] == "סיפור שני")
     assert two["known"] == "New to you", "never 0%, which is a claim about the reader"
@@ -1305,7 +1319,7 @@ def test_a_row_of_see_all_says_what_the_text_is(tmp_path: Path) -> None:
         for row in browse(tmp_path, catalogue=shelf_, catalogueKnown=known)["rows"]
     }
     assert rows["סיפור"]["blurb"] == "A woman, and a whole life implied around her."
-    assert rows["סיפור"]["meta"] == "Story · 7 min · 18% hard words"
+    assert rows["סיפור"]["meta"] == "Story · 7 min"
     assert rows["סיפור"]["known"] == "93% known" and rows["סיפור"]["near"] is True
     assert rows["סיפור שני"]["known"] == "80% known" and rows["סיפור שני"]["near"] is False
     assert rows["סיפור שלישי"]["blurb"] == "", "nothing is invented where the file says nothing"
@@ -1580,7 +1594,7 @@ TREE = {"he": {"where": "midrash", "shape": "cards"}}
 
 def test_the_beit_midrash_is_a_second_tab_and_hebrew_s_alone(tmp_path: Path) -> None:
     drawn = draw(tmp_path)
-    assert drawn["tabs"] == ["All texts", "Beit Midrash"]
+    assert drawn["tabs"] == ["All texts", "Jewish texts"]
 
     # No catalogue says which door anything stands behind: no tab over an empty tree,
     # and one tab alone is not drawn (2026-09-25).
@@ -1608,11 +1622,11 @@ def test_a_biblical_student_is_two_presses_from_ruth(tmp_path: Path) -> None:
     """The tab, then Tanakh — and the books are there, open under their shelf, because a
     student looking for Ruth should not have to guess which shut row it is in."""
     drawn = draw(
-        tmp_path, do=[{"tab": "Beit Midrash"}, {"door": "tanakh"}], view={"shape": "cards"}
+        tmp_path, do=[{"tab": "Jewish texts"}, {"door": "tanakh"}], view={"shape": "cards"}
     )
     titles = [row["title"] for row in drawn["rows"]]
     assert "רות" in titles, titles
-    assert drawn["crumbs"].startswith("Beit Midrash") and "Tanakh" in drawn["crumbs"]
+    assert drawn["crumbs"].startswith("Jewish texts") and "Tanakh" in drawn["crumbs"]
     assert drawn["hash"] == "#bm/tanakh"
     assert drawn["tally"] == "6 texts", "counted against the door, not against the library"
 
