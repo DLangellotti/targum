@@ -665,3 +665,165 @@ def test_with_no_connection_an_unsaved_page_opens_the_saved_one(
         assert "/reader/kept-he/" in page.url
     finally:
         context.close()
+
+
+# -- with no connection (design.md §12, 2026-10-09) --------------------------------------
+
+
+@pytest.fixture
+def words_served(saved_served: Served) -> Served:
+    """The Saved page's server, with a reader that has words to tap and the posts it is
+    sent written down too."""
+    from test_reader_browser import chapter
+
+    chapter(saved_served.out / "local" / "words-he" / "reader")
+    handler = saved_served.server.RequestHandlerClass
+    asked = saved_served.asked
+
+    def _post(self: Any) -> None:
+        asked.append("POST " + self.path)
+        Handler._post(self)
+
+    handler._post = _post  # type: ignore[attr-defined]
+    return saved_served
+
+
+def test_with_no_connection_the_band_says_what_still_works(browser, words_served: Served) -> None:  # noqa: F811
+    served = words_served
+    book(served.out / "local" / "other-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/words-he/reader/index.html"))
+        kept(page, "/reader/words-he/reader/")
+        page.goto(served.url("/you/saved"))
+        kept(page, "page:/you/saved")
+        # A shelf of two texts, one of them on this device.
+        page.evaluate(
+            """() => {
+                 const list = document.createElement('ul');
+                 list.id = 'shelf';
+                 list.innerHTML = '<li><a href="/reader/words-he/reader/index.html">Here</a></li>'
+                   + '<li><a href="/reader/other-he/reader/index.html">Away</a></li>';
+                 document.querySelector('main').appendChild(list);
+               }"""
+        )
+        context.set_offline(True)
+        band = page.locator("#fault-banner")
+        band.wait_for()
+        assert "We can't reach targum. This page stays open." in band.inner_text()
+        assert band.locator(".offline-to-saved").get_attribute("href").startswith("/you/saved")
+        page.wait_for_selector('#shelf li[data-offline="away"]')
+        away = page.locator('#shelf li[data-offline="away"]')
+        assert "Not on this device" in away.inner_text()
+        assert "offline-away" in away.get_attribute("class")
+        assert "On this device" in page.locator('#shelf li[data-offline="here"]').inner_text()
+        talk = page.locator("#talk-open")
+        assert talk.get_attribute("aria-disabled") == "true"
+        assert talk.get_attribute("data-why") == "Talk needs the connection."
+        upload = page.locator('.site-nav a[href*="/add"]').first
+        assert upload.get_attribute("data-why") == "Uploading needs the connection."
+
+        # A press on the text that is not here says why, and goes nowhere.
+        away.locator("a").click(force=True)
+        assert page.locator("#offline-why").inner_text() == (
+            "This text isn't on this device, so it opens when you're back online."
+        )
+        assert page.url.split("?")[0].endswith("/you/saved")
+
+        # Back: the band goes, the marks go, and the back band says it is sending until
+        # the push has been answered.
+        page.evaluate(
+            "() => { window.TargumSync.flush = () =>"
+            " new Promise((done) => setTimeout(() => done(true), 600)); }"
+        )
+        context.set_offline(False)
+        page.wait_for_selector("#offline-back:not([hidden])")
+        assert page.locator("#offline-back").inner_text() == (
+            "We're back. Sending what you did offline."
+        )
+        page.wait_for_selector("#fault-banner", state="hidden")
+        assert page.locator("[data-offline]").count() == 0
+        assert talk.get_attribute("aria-disabled") is None
+        page.wait_for_selector("#offline-back", state="hidden")
+    finally:
+        context.close()
+
+
+def test_a_word_with_no_meaning_is_looked_up_when_the_reader_is_back(
+    browser,  # noqa: F811
+    words_served: Served,
+) -> None:
+    served = words_served
+    context = browser.new_context(service_workers="allow", reduced_motion="reduce")
+    # Every look-up the page sends, with what it asked.
+    context.add_init_script(
+        """(() => {
+             const real = window.fetch;
+             window.LOOKED = [];
+             window.fetch = (url, options) => {
+               if (String(url).includes('/gloss')) window.LOOKED.push(JSON.parse(options.body));
+               return real(url, options);
+             };
+           })();"""
+    )
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/words-he/reader/index.html"))
+        kept(page, "/reader/words-he/reader/")
+        context.set_offline(True)
+        page.wait_for_selector("#fault-banner:not([hidden])")
+        page.click(".w[data-lemma]")
+        card = page.locator(".gloss-card")
+        card.locator(".fault-act").wait_for()
+        assert "Looking this word up needs the connection." in card.inner_text()
+        assert "Saved here, sent when you're back" in card.inner_text()
+        card.locator(".fault-act").click()
+        page.wait_for_function(
+            "() => /We'll look it up when you're back/.test("
+            "document.querySelector('.gloss-card').textContent)"
+        )
+        held = page.evaluate("() => JSON.parse(localStorage.getItem('targum:offline:asks'))")
+        assert len(held) == 1 and held[0]["body"]["document"]
+        lemma = held[0]["body"]["lemma"]
+
+        page.evaluate("() => { window.LOOKED = []; }")
+        context.set_offline(False)
+        page.wait_for_function("() => !localStorage.getItem('targum:offline:asks')")
+        asked = [one for one in page.evaluate("() => window.LOOKED") if not one.get("free")]
+        assert asked == [held[0]["body"]], "the press, made once, as a tap makes it"
+        assert lemma
+    finally:
+        context.close()
+
+
+#: Somebody signed in on this browser, with changes the account has not had.
+OWING = """
+try {
+  localStorage.setItem('targum:sync',
+    JSON.stringify({ email: 'r@example.com', revision: 1, pushed: 1 }));
+  localStorage.setItem('targum:days', JSON.stringify({ '2026-10-07': 1, '2026-10-08': 1 }));
+  localStorage.setItem('targum:vocab:he',
+    JSON.stringify({ 'מילה': { status: 'known', at: 5 } }));
+} catch (e) {}
+"""
+
+
+def test_what_is_owed_is_counted_in_the_band(browser, words_served: Served) -> None:  # noqa: F811
+    served = words_served
+    context = browser.new_context(service_workers="allow")
+    # Somebody signed in on this browser, with three changes the account has not had.
+    context.add_init_script(OWING)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/you/saved"))
+        page.wait_for_function("() => window.TargumSync && window.TargumSync.owed() > 0")
+        owed = page.evaluate("() => window.TargumSync.owed()")
+        context.set_offline(True)
+        page.wait_for_selector("#fault-banner .offline-owed:not([hidden])")
+        changes = "change" if owed == 1 else "changes"
+        assert page.locator("#fault-banner .offline-owed").inner_text() == (
+            f"{owed} {changes} saved here, sent when you're back"
+        )
+    finally:
+        context.close()

@@ -417,6 +417,41 @@ What it does not overturn: offline. "You're offline" and the saved-for-offline l
 their own slice and are not drawn here; the banner says only that targum is out of reach.
 
 
+### With no connection, a page says what still works — 2026-10-09
+
+David, 2026-10-08 (boards OffOfflineDesk, OffOfflineHomePhone, OffOfflineReaderPhone,
+OffOfflineUnsavedPhone, OffOfflineLookupPhone and OffBackPhone). When the browser says the
+connection has gone, every page with the bar and every served reader says so, and what it
+can still do.
+
+- **The connection banner is the error surface's** ("We can't reach targum. This page
+  stays open.", `TargumFault.unreachable`), with two things added each time it is drawn:
+  **Saved texts**, which leads to Saved on this device, and how many changes are waiting,
+  "3 changes saved here, sent when you're back". The count is `TargumSync.owed()`, the
+  same rows a push would send. The band now takes its direction from its own words, so in
+  a Hebrew reader it no longer reads right to left with its full stop first.
+- **A text not on this device is dimmed and says so.** Every link to a text on the page
+  is marked: "Not on this device", at half strength, and pressing it says "This text isn't
+  on this device, so it opens when you're back online." instead of opening the browser's
+  own offline page. A text that is saved says "On this device" in leaf. The index this
+  page already read is the whole answer; nothing is fetched to find out.
+- **Talk and Upload are greyed with their reason**: "Talk needs the connection." over the
+  pill, on the conversation's Send and on Ask in a word's card; "Uploading needs the
+  connection." on Upload. Each is still in its place, so nothing on the page moves.
+- **A word's card says what waits.** A stage pressed with no connection is "Saved here,
+  sent when you're back". Where else the word was met is "Where else you've met it shows
+  when you're back online.", and it is asked once there is a connection. A word with no
+  meaning in the page offers **Look it up when I'm back**. That press is kept in this
+  browser and made when the connection returns, from whichever page is open, as the same
+  request a tap makes: the same cost, and no new spend. The answer lands in the reader
+  that asked, as a tap's would.
+- **Back.** On the browser's `online`, everything owed is pushed at once. A page opened
+  with no connection first asks who is signed in. A band, "We're back. Sending what you did
+  offline.", stands in leaf's wash until the push is answered, then goes. Kept look-ups go
+  out in the same moment.
+- **Never a word about how long a browser keeps what it saved, and no offer to add targum
+  to a home screen** (David, 2026-10-08).
+
 ### What is saved is a page of the account's, and it opens with no connection — 2026-10-09
 
 David, 2026-10-08: 'a "Saved on this device" list removes them' (boards OffSavedDesk and
