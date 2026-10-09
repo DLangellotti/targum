@@ -136,3 +136,27 @@ def test_a_place_synced_on_one_device_is_read_back_on_another(
 
     status, answer, _ = call(port, "GET", f"/account/places?k={token}&limit=x", cookie=cookie)
     assert status == 200 and len(answer["places"]) == 1, "a limit that is not a number is 5"
+
+
+def test_words_due_a_look_are_the_ones_still_learned_and_untouched_since(tmp_path: Path) -> None:
+    """Home's welcome back (design.md §12, 2026-10-09): not a schedule, a count of words at
+    steps 1 to 3 not marked since the reader was last in a text."""
+    store = Store(tmp_path / "words.db")
+    signed = store.finish_sign_in(store.start_sign_in("a@example.org"))
+    assert signed is not None
+    person = signed[0]
+    with store.write() as db:
+        for lemma, status, seen, language in (
+            ("old", 1, 100, "he"),
+            ("older", 3, 50, "he"),
+            ("known", 5, 50, "he"),
+            ("marked-since", 2, 900, "he"),
+            ("russian", 1, 50, "ru"),
+        ):
+            db.execute(
+                "INSERT INTO word (person, language, lemma, status, seen) VALUES (?, ?, ?, ?, ?)",
+                (person.id, language, lemma, status, seen),
+            )
+    assert store.due_a_look(person.id, "he", since=500) == 2
+    assert store.due_a_look(person.id, "he") == 3
+    assert store.due_a_look(person.id, "ru", since=500) == 1

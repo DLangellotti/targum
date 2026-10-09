@@ -22,7 +22,8 @@ body.yours main { gap: 2.25rem; }
    title's size and in its face (design.md §12, "The boards are the desk", 2026-10-09).
    "Your targums" stays in the page for a screen reader, and shows again whenever there
    is nothing to continue. */
-body.yours:not(.is-subscribing):has(#continue:not([hidden])) .page-head .page-title {
+body.yours:not(.is-subscribing):has(#continue:not([hidden])) .page-head .page-title,
+body.yours:not(.is-subscribing):has(#welcome-back:not([hidden])) .page-head .page-title {
   position: absolute;
   inline-size: 1px;
   block-size: 1px;
@@ -31,7 +32,8 @@ body.yours:not(.is-subscribing):has(#continue:not([hidden])) .page-head .page-ti
   clip-path: inset(50%);
   white-space: nowrap;
 }
-body.yours:not(.is-subscribing):has(#continue:not([hidden])) main { padding-block-start: 2.25rem; }
+body.yours:not(.is-subscribing):has(#continue:not([hidden])) main,
+body.yours:not(.is-subscribing):has(#welcome-back:not([hidden])) main { padding-block-start: 2.25rem; }
 .continue-top h2 {
   margin: 0;
   font-family: var(--reading);
@@ -147,6 +149,121 @@ body.yours:not(.is-subscribing):has(#continue:not([hidden])) main { padding-bloc
 /* --- a build's picture: its letter, until it has a folder for the server to draw from --- */
 /* Its letter rests on the colour of its kind, as every tile's does (chrome.css). */
 .home-thumb.is-letter .glyph { font-size: 2.75rem; }
+
+/* --- welcome back (design.md §12, "Home says welcome back after a week away") ---------
+   Boards WelcomeBackDesk and WelcomeBackPhone: a line, the text they stopped in as one
+   large card — the picture beside what it is, seven to five — and the words due a look.
+   Nothing here counts the days. */
+
+.welcome-back { display: flex; flex-direction: column; gap: 1.75rem; }
+.welcome-back[hidden] { display: none; }
+body.is-subscribing #welcome-back { display: none; }
+.welcome-back-line {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.welcome-back-line bdi:lang(he),
+.welcome-back-line bdi:lang(yi),
+.welcome-back-line bdi:lang(arc) { font-family: var(--reading-hebrew); font-size: 1.1em; }
+.welcome-pick {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--chrome);
+}
+.welcome-pick .home-thumb {
+  inline-size: 100%;
+  block-size: 23.75rem;
+  border: 0;
+  border-radius: 0;
+}
+.welcome-pick .home-thumb.is-letter .glyph { font-size: 2.75rem; }
+/* Where it stopped, along the picture's foot: the time in a recording, the part in a text. */
+.welcome-where {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: 4px;
+  background: color-mix(in srgb, var(--paper) 60%, transparent);
+}
+.welcome-where > span {
+  display: block;
+  block-size: 100%;
+  inline-size: calc(var(--done, 0) * 100%);
+  background: var(--teal);
+}
+.welcome-media { position: relative; min-inline-size: 0; }
+.welcome-what {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.875rem;
+  padding: 2.25rem 2.5rem;
+  min-inline-size: 0;
+}
+.welcome-what .tag { align-self: flex-start; }
+.welcome-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.welcome-title:lang(he),
+.welcome-title:lang(yi),
+.welcome-title:lang(arc) { font-family: var(--reading-hebrew); }
+.welcome-facts { font-size: 0.9375rem; color: var(--ink-soft); }
+.welcome-facts strong { color: var(--leaf); font-weight: 600; }
+.welcome-go {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-block-start: 0.625rem;
+  padding: 0.875rem 1.75rem;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 160ms var(--ease);
+}
+.welcome-go:active { transform: scale(0.98); }
+.welcome-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.welcome-go svg { inline-size: 0.875rem; block-size: 0.875rem; fill: currentColor; }
+.welcome-due {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  padding-inline: 0.25rem;
+  font-family: var(--chrome);
+  font-size: 1.0625rem;
+  color: var(--ink);
+}
+.welcome-due[hidden] { display: none; }
+.welcome-due strong { font-weight: 600; }
+.welcome-practise { font-size: 1.0625rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+.welcome-practise:hover { text-decoration: underline; }
+.welcome-practise:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+
+@media (max-width: 64rem) {
+  .welcome-pick { grid-template-columns: minmax(0, 1fr); }
+  .welcome-pick .home-thumb { block-size: 12.5rem; }
+  .welcome-what { padding: 1.25rem 1.125rem 1.5rem; gap: 0.75rem; }
+  .welcome-title { font-size: 1.25rem; }
+  .welcome-go { align-self: stretch; justify-content: center; }
+  .welcome-due { justify-content: space-between; }
+}
 
 /* --- nothing yet ------------------------------------------------------------------------ */
 
@@ -393,12 +510,15 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
      the next one's Open and the upload are drawn at that height. */
   .home-card-open::after { min-block-size: 44px; }
   .try-open { min-block-size: 44px; display: inline-flex; align-items: center; }
+  .welcome-practise { min-block-size: 44px; display: inline-flex; align-items: center; }
   .upload-card { min-block-size: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .home-card,
+  .welcome-go,
   .upload-card { transition: none; }
+  .welcome-go:active { transform: none; }
   .home-card:not(.is-building):active,
   .upload-card:active { transform: none; }
 }

@@ -366,6 +366,39 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Home says welcome back after a week away — 2026-10-09
+
+P16 of the polish plan. Boards WelcomeBackDesk and WelcomeBackPhone: home, for a reader
+who comes back after a gap.
+
+- **The trigger is seven days.** Home is in its welcome-back form when the newest place
+  the reader has in any text (`Store.places`, merged with this browser's own
+  `targum:places`, so it works signed out too) is seven or more days old. Any language
+  counts for the gap, so reading Russian yesterday means no welcome on the Hebrew home.
+  Reading anything ends it, because reading moves the place. Nothing is stored for it and
+  nothing is counted: it is read off places that already exist.
+- **What it shows is the board.** A line, "Welcome back. You stopped at part 2 of … on 24
+  September." (chapter where the text has chapters, nothing where it has one part), the
+  newest place in the menu's language as one large card, and under it "18 of your words
+  are due a look · Practise". The large card has the picture on the left (on top on a
+  phone), what it is and which part, the title in its own face, where it stopped and how
+  much of it is known, the bar, and "Pick up where you stopped" in teal. Continue follows
+  without that text. What came out while they were away is in Continue already, marked
+  New, as on any day.
+- **"Due a look" is not a schedule.** targum has no spaced repetition, and the practice
+  card says nothing is due ("Your Words is one table and a practice card"). The count is
+  the words still being learned (steps 1 to 3) in that language that have not been marked
+  since the reader left (`/account/due`). Practise opens Your Words, where the practice
+  card is. The line is left out when the count is nought or the reader is signed out.
+- **No streak guilt.** The page never says how long they were away, never says a run was
+  broken, and has nothing to clear. The gap decides the form of the page and is never
+  shown, which keeps "The streak is the longest one, and the current one is refused"
+  whole.
+
+What it does not overturn: nothing on home spends, a brand-new reader still sees the
+arrival or the one line, and Continue, the shelf, the suggestion and the upload are where
+they were.
+
 ### Every mail is the board's, and the last one says the account is gone — 2026-10-09
 
 P18 of the polish plan. Boards MailsDesk, MailsPhone, MailsRu, SubMailDesk and

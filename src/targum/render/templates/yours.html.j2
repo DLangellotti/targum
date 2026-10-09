@@ -45,6 +45,16 @@
       rows, as board Main draws them. `yours.js` moves the one strip between the two. -#}
   <div class="yours-top" id="yours-top" hidden></div>
 
+  {#- Welcome back (design.md §12, "Home says welcome back after a week away", 2026-10-09;
+      boards WelcomeBackDesk and WelcomeBackPhone): after seven days or more with no place
+      moved, the line, the text they stopped in as one large card, and the words due a
+      look. `home.js` decides and draws it. -#}
+  <section class="welcome-back" id="welcome-back" aria-labelledby="welcome-back-line" hidden>
+    <p class="welcome-back-line" id="welcome-back-line"></p>
+    <article class="card welcome-pick" id="welcome-pick"></article>
+    <p class="welcome-due" id="welcome-due" hidden><span id="welcome-due-says"></span> <a class="welcome-practise" href="/words" data-home-link>{{ t("home.back.practise", "Practise") }}</a></p>
+  </section>
+
   <section class="continue" id="continue" aria-labelledby="continue-head" hidden>
     <div class="continue-top">
       <h2 id="continue-head">{{ t("home.continue.head", "Continue") }}</h2>
