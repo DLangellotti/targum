@@ -273,7 +273,10 @@ def test_listen_keeps_the_verse_being_chanted_on_screen(
         )
         page.wait_for_timeout(400)
         at: dict[str, Any] = page.evaluate(SAYING)
-        assert at["tall"] > viewport["height"] * 0.6, "the fixture's verses are tall"
+        # Over half the window: on pages the piece shown is the page's height, which the
+        # word list's tab at the foot takes a strip of since the list starts closed
+        # (2026-10-09).
+        assert at["tall"] > viewport["height"] * 0.55, "the fixture's verses are tall"
         assert at["shown"], f"1:{verse} is on a page nobody can see"
         assert at["top"] >= at["bar"] - 1, f"1:{verse} is behind the bar: {at}"
         assert at["bottom"] <= at["floor"] + 1, f"1:{verse} is under the foot: {at}"

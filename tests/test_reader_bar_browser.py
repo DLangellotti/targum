@@ -406,10 +406,12 @@ def test_listening_steps_the_bar_back_and_a_pause_brings_it(browser, tmp_path, m
     player = page.evaluate(
         """() => ({
           play: getComputedStyle(document.querySelector('.listen-play')).opacity,
-          line: document.querySelector('.listen-track').getClientRects().length > 0,
+          clock: document.querySelector('.listen-clock').getClientRects().length > 0,
         })"""
     )
-    assert player["play"] == "1" and player["line"], "the player stays, with its line"
+    # The pill keeps its drawing and its time (design.md §12, 2026-10-09, "The reader's
+    # chrome is the desk's"); the line of where it is is the strip's.
+    assert player["play"] == "1" and player["clock"], "the player stays, with its time"
     page.keyboard.press("Space")
     page.wait_for_function("() => !document.getElementById('listen').classList.contains('playing')")
     assert not page.evaluate(QUIET), "a pause brings the bar back"

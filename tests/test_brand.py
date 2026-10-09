@@ -1161,3 +1161,51 @@ def test_every_tile_is_drawn_by_one_path() -> None:
         assert "TargumCovers.tile(" not in code and "covers.tile(" not in code, name
     covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
     assert '"tone-" + tone(' in covers
+
+
+# -- the reader on the new system (design.md §12, "The reader's chrome is the desk's",
+#    2026-10-09) ------------------------------------------------------------------------
+
+
+def _bare(sheet: Path) -> str:
+    """A stylesheet without its comments."""
+    return re.sub(r"/\*.*?\*/", " ", sheet.read_text(encoding="utf-8"), flags=re.S)
+
+
+def test_the_reader_speaks_in_the_chrome_face_and_carries_it() -> None:
+    """`--ui` is the chrome's face on every page, the reader's included, and the reader
+    carries that face in the page, so naming it fetches nothing."""
+    tokens = _bare(ASSETS / "tokens.css")
+    root = tokens[tokens.index(":root {") : tokens.index("}", tokens.index(":root {"))]
+    assert re.findall(r"--ui:\s*([^;]+);", root) == ["var(--chrome)"]
+    assert "system-ui" not in re.sub(r"--chrome:[^;]+;", "", tokens), "only --chrome falls back"
+    reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
+    assert "chrome_face(" in reader, "a reader carries the chrome's face"
+
+
+def test_the_line_read_is_a_size_above_its_english_with_no_rule_beside_it() -> None:
+    """The boards' reading sizes: the source at 1.25em of the reader's own size, about
+    21px, and the translation under it with no rule before it."""
+    css = _bare(ASSETS / "reader.css")
+    rule = re.search(r"#reader \.pair > \.src\s*\{([^}]*)\}", css)
+    assert rule is not None and "font-size: 1.25em" in rule.group(1)
+    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        if ".mode-inter .tr" in selector or ".mode-parallel .tr" in selector:
+            assert "border-inline-start" not in body, selector.strip()
+
+
+def test_the_readers_presses_are_teal() -> None:
+    """Teal for what is pressed: the bar's play, Up next, the pager, the card's Ask. The
+    brown is left to what is kept and to a highlight."""
+    css = _bare(ASSETS / "reader.css")
+    shared = _bare(ASSETS / "shared.css")
+    for sheet, selector in (
+        (css, ".player-play"),
+        (css, ".next-up-link"),
+        (css, ".turn button"),
+        (shared, ".gloss-card .ask-go"),
+    ):
+        bodies = [b for s, b in re.findall(r"([^{}]+)\{([^{}]*)\}", sheet) if s.strip() == selector]
+        assert bodies, selector
+        assert any("var(--teal)" in b for b in bodies), f"{selector} is not teal"
+        assert not any("var(--accent)" in b for b in bodies), f"{selector} is still brown"

@@ -119,7 +119,10 @@ def test_a_video_text_opens_beside_its_transcript(browser, tmp_path) -> None:  #
         assert seen["film"] and seen["beside"] and not seen["theatre"], seen
         assert seen["pressed"] == ["beside"], seen
         assert seen["paused"], "nothing plays until pressed"
-        assert not page.locator(".bar .listen").is_visible(), "Listen stands down for the row"
+        # Play is the bar's teal pill over the picture too (design.md §12, 2026-10-09,
+        # "The reader's chrome is the desk's"), and the row under it keeps its line.
+        assert page.locator(".bar .listen").is_visible(), "play stands in the bar"
+        assert not page.locator(".film-ctl .film-play").is_visible(), "and not twice"
         assert not page.locator("#player").is_visible(), "and no strip floats at the foot"
         at = page.evaluate(
             BOXES,

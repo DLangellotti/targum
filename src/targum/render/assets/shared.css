@@ -6,9 +6,8 @@
    carries this file after `tokens.css`; a reader adds `reader.css` after it, so the
    reader's own rules still have the last word on its page.
 
-   The faces here are `--ui`, never a face by name: §5's system-ui on the reader, which
-   fetches nothing, and the chrome's own face on the desk (§13), where `chrome.css`
-   points `--ui` at it. */
+   The faces here are `--ui`, never a face by name: the chrome's own face (§13), on the
+   desk and, since 2026-10-09, on the reader, which carries it in the page. */
 
 /* --- the word's card ------------------------------------------------------ */
 
@@ -226,23 +225,23 @@
 .gloss-card .verb .root { letter-spacing: 0.02em; font-weight: 600; }
 .gloss-card .verb .pealim {
   margin-inline-start: 0.5rem;
-  color: var(--accent);
+  color: var(--teal);
   text-decoration: none;
-  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-block-end: 1px solid color-mix(in srgb, var(--teal) 35%, transparent);
 }
-.gloss-card .verb .pealim:hover { border-block-end-color: var(--accent); }
+.gloss-card .verb .pealim:hover { border-block-end-color: var(--teal); }
 /* A partner verb used in the same text: a way there, drawn like the conjugations link. */
 .gloss-card .verb .here {
   margin-inline-start: 0.5rem;
   padding: 0;
   background: none;
   border: 0;
-  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
-  color: var(--accent);
+  border-block-end: 1px solid color-mix(in srgb, var(--teal) 35%, transparent);
+  color: var(--teal);
   font: inherit;
   cursor: pointer;
 }
-.gloss-card .verb .here:hover { border-block-end-color: var(--accent); }
+.gloss-card .verb .here:hover { border-block-end-color: var(--teal); }
 /* The root as a way in to the words of it the reader has met (targum-internal#96), on
    a box that shows where words come round (`TARGUM_OCCURRENCES`). Drawn as the other
    ways on this line are — accent, a hairline under it — and still set as a root. */
@@ -250,13 +249,13 @@
   padding: 0;
   background: none;
   border: 0;
-  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-block-end: 1px solid color-mix(in srgb, var(--teal) 35%, transparent);
   border-radius: 0;
-  color: var(--accent);
+  color: var(--teal);
   font: inherit;
   cursor: pointer;
 }
-.gloss-card .verb .root-open:hover { border-block-end-color: var(--accent); }
+.gloss-card .verb .root-open:hover { border-block-end-color: var(--teal); }
 .gloss-card .verb .root-open bdi { color: inherit; }
 /* Where the word comes round, and where the reader met it (targum-internal#95, #96).
    Metadata, set as the register line is: muted, a line each. */
@@ -342,12 +341,12 @@
   padding: 0.4rem 0.8rem;
   border: 0;
   border-radius: 4px;
-  background: var(--accent);
+  background: var(--teal);
   color: var(--paper);
   cursor: pointer;
 }
 .gloss-card .ask-go:disabled { opacity: 0.5; cursor: default; }
-.gloss-card .ask-on { align-self: start; font-size: 0.8125rem; color: var(--accent); }
+.gloss-card .ask-on { align-self: start; font-size: 0.8125rem; color: var(--teal); }
 /* §8: a control a thumb presses answers a tap over 44px. */
 @media (hover: none) and (pointer: coarse) {
   .gloss-card .ask-go,
@@ -393,7 +392,7 @@
   padding: 0.4rem 0.8rem;
   border: 0;
   border-radius: 4px;
-  background: var(--accent);
+  background: var(--teal);
   color: var(--paper);
   cursor: pointer;
 }
@@ -906,7 +905,7 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   cursor: pointer;
 }
 .offline-row .offline-go:hover .offline-label,
-.offline-row .offline-go:focus-visible .offline-label { color: var(--accent); }
+.offline-row .offline-go:focus-visible .offline-label { color: var(--teal); }
 .offline-row .offline-size {
   color: var(--ink-soft);
   font-size: 0.8125rem;
@@ -1138,7 +1137,7 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
    text not on this device is dimmed with its reason; what needs the connection is
    greyed with its own. Words carry every one of these, never colour alone (§4). */
 .fault-banner .offline-to-saved {
-  color: var(--accent);
+  color: var(--teal);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 0.2em;
