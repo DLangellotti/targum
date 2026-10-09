@@ -172,10 +172,23 @@ setTimeout(() => {
     /* By word, not by whole string: the lately-arrived mark shares the scene label's
        element and its class, and an exact match came back empty for both. */
     const wearing = (c, name) => String(c.className || "").split(" ").indexOf(name) >= 0;
-    const find = (name) => what.children.find((c) => wearing(c, name)) || {};
+    // Anywhere under the card's words: the title and its English share a line since
+    // 2026-10-09, inside `.card-head`.
+    const below = (node, name) => {
+      for (const c of node.children || []) {
+        if (wearing(c, name)) return c;
+        const deeper = below(c, name);
+        if (deeper) return deeper;
+      }
+      return null;
+    };
+    const find = (name) => below(what, name) || {};
     return {
       id: item.getAttribute("data-row") || "",
-      title: (what.children.find((c) => c.className === "card-title") || {}).textContent || "",
+      title: find("card-title").textContent || "",
+      blurb: find("card-blurb").textContent || "",
+      blurbLang: (find("card-blurb").attrs || {})["lang"] || "",
+      near: String(find("card-known").className || "").indexOf("near") >= 0,
       fit: "",
       media: (open.children[0].children.find((c) => c.className === "card-media") || {}).attrs
         ? open.children[0].children.find((c) => c.className === "card-media").attrs["aria-label"] || ""

@@ -1791,3 +1791,60 @@
 .band-door-says { font-size: 0.8125rem; color: var(--ink-soft); }
 @media (max-width: 40rem) { .band-door-says { display: none; } }
 @media (hover: none) and (pointer: coarse) { .band-door { min-block-size: 44px; align-items: center; } }
+
+/* --- See all, in short rows (design.md §12, "See all says what each text is",
+   2026-10-09; boards SeeAllDesk and SeeAllPhone). One text a line, scanned down rather
+   than across: the picture, the title with its English, what it is and how long, the
+   catalogue's own sentence about it in two lines at most, and at the end how much of it
+   the reader would follow. The rows sit in the panel as rows do, hairlines between them,
+   and a hovered one takes the row wash (§8). The doors keep their grid. */
+.cards:not(:has(> .door-item)) { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.cards:not(:has(> .door-item)) > li + li { border-block-start: 1px solid var(--hairline); }
+.cards .card {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr) 7.5rem;
+  column-gap: 1rem;
+  row-gap: 0.1rem;
+  align-items: start;
+  padding: 0.7rem 0.5rem;
+  border-radius: var(--radius-row);
+  background: none;
+  box-shadow: none;
+}
+.cards .card:hover { box-shadow: none; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.cards .card-cover { grid-column: 1; grid-row: 1 / span 4; }
+.cards .card-what { display: contents; }
+.cards .card-what > * { grid-column: 2; min-inline-size: 0; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.6rem; min-inline-size: 0; }
+.card-head .card-title { max-inline-size: 100%; }
+.card-head .card-english { flex: 1 1 8rem; min-inline-size: 0; font-size: 0.9375rem; }
+.card-blurb {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+/* How much of it the reader would follow, at the row's end: the figure over its bar. */
+.cards .card-what > .card-known {
+  grid-column: 3;
+  grid-row: 1 / span 3;
+  margin: 0;
+  padding: 0.2rem 0 0;
+  align-items: end;
+  text-align: end;
+}
+.cards .card-known-say { font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft); }
+.cards .card-known.near .card-known-say { color: var(--leaf); }
+.cards .card-known-track { inline-size: 5.5rem; }
+.cards .card-known:not(.near) .card-known-track > span { background: var(--ink-soft); }
+/* A collection is a row too, its caret in the picture's column. */
+.cards .card-group { grid-template-columns: 3.4rem minmax(0, 1fr); }
+.cards .card-group .card-fold { grid-column: 1; justify-self: center; }
+@media (max-width: 40rem) {
+  .cards .card { grid-template-columns: 3rem minmax(0, 1fr); column-gap: 0.75rem; padding-inline: 0.25rem; }
+  .cards .card-cover .thumb { inline-size: 3rem; block-size: 4rem; }
+  .cards .card-what > .card-known { grid-column: 2; grid-row: auto; align-items: start; text-align: start; }
+}

@@ -880,11 +880,16 @@
     }
     // Its own direction and its own clip, so a long Hebrew title loses its end and never
     // its start — the edge Hebrew begins at.
+    /* The title and its English on one line where there is room (board SeeAllDesk): a
+       row of See all is scanned down, and two lines for what one can say is a list half
+       as long on a screen. */
     var split = splitLevel(row.title);
+    var head = el("span", "card-head");
     var title = el("bdi", "card-title", split.title);
     title.setAttribute("lang", row.language);
     title.setAttribute("dir", "auto");
-    what.appendChild(title);
+    head.appendChild(title);
+    what.appendChild(head);
     // Where the beginner's path is, as the row carries it: "Start here" before anything
     // has been read, "Next" after. A card that dropped this would take the one line on
     // the page that says where to begin.
@@ -902,7 +907,7 @@
       var english = el("span", "card-english", row.english);
       english.setAttribute("lang", row.englishLang || "en");
       english.setAttribute("dir", "ltr");
-      what.appendChild(english);
+      head.appendChild(english);
     }
 
     var meta = [named(KINDS, row.kind), said(row.minutes)];
@@ -910,21 +915,31 @@
       meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
     }
     what.appendChild(el("span", "card-meta", meta.filter(Boolean).join(" · ")));
+    /* What the text is, in the catalogue's own sentence, in the reader's language where
+       the catalogue has one (design.md §12, "See all says what each text is",
+       2026-10-09). Two lines at most: enough to choose by, and the list stays a list. */
+    var blurb = blurbIn(row.entry);
+    if (blurb) {
+      var about = el("span", "card-blurb", blurb);
+      about.setAttribute("lang", row.entry.blurbs && row.entry.blurbs[uiLanguage] ? uiLanguage : "en");
+      what.appendChild(about);
+    }
 
     // The last line is the reader's own: how much of this text they already know. A text
     // nobody has counted says so in words rather than claiming a nought.
     var share = knownOf(row);
     var mine = el("span", "card-known");
     if (typeof share === "number") {
-      var shown = Math.round(share * 100);
+      // Rounded down, as the shelves are: a row under A stretch never says 90%.
+      var shown = Math.floor(share * 100);
+      if (fitOf(row) === "now") mine.className = "card-known near";
+      mine.appendChild(el("span", "card-known-say", t("library.known-share", "{share}% known", { share: shown })));
+      mine.setAttribute("aria-label", t("library.you-know", "you know {share}% of its words", { share: shown }));
       var track = el("span", "card-known-track");
       var fill = el("span");
       fill.style.inlineSize = Math.max(2, Math.min(100, shown)) + "%";
       track.appendChild(fill);
       mine.appendChild(track);
-      mine.appendChild(
-        el("span", "card-known-say", t("library.you-know", "you know {share}% of its words", { share: shown }))
-      );
     } else {
       mine.appendChild(el("span", "card-known-say", t("library.known.none", "New to you")));
     }
@@ -2157,9 +2172,12 @@
      than replaced: the complaint that retired the last card grid was that a card cannot
      be sorted, and it was a fair one — so the sortable thing stays one press away
      (design.md §12, 2026-09-17). */
+  /* Since 2026-10-09 the browsing shape is a list of short rows, each with what the text
+     is (design.md §12, "See all says what each text is"), and the sortable shape is the
+     table; the words say so. The stored values keep their old names. */
   var SHAPES = [
-    ["cards", t("library.shape.cards", "Cards")],
-    ["list", t("library.shape.list", "List")],
+    ["cards", t("library.shape.rows", "Rows")],
+    ["list", t("library.shape.table", "Table")],
   ];
 
   /* Sorting, for the shape that has no columns to press.

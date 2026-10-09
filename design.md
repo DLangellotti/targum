@@ -354,6 +354,31 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### See all says what each text is — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards SeeAllDesk and SeeAllPhone): "Library See all =
+compact rows", each with the text's description. The list behind a shelf's See all was a
+grid of cards (2026-09-17) that said a title, its English, its kind, length and hard words,
+and how much of it the reader knew, and nothing about what it was. A learner choosing
+between two Hebrew titles they cannot yet read was choosing blind.
+
+- **The browsing shape is short rows, one text a line**: the picture, the title with its
+  English beside it, the kind, length and hard words, **the catalogue's own sentence about
+  the text** (its blurb, in the reader's language where the catalogue has one, English
+  otherwise and marked so), clamped to two lines, and at the end how much of it they would
+  follow ("82% known", over its bar), in leaf only where it is Read it now. Hairlines
+  between rows and §8's row wash under the pointer, inside the panel, rather than raised
+  cards on it.
+- **The two shapes are called what they are**: Rows and Table (they were Cards and List).
+  The table is unchanged and still sorts by its headings; the stored choice keeps its
+  old values.
+- A collection is a row with its caret in the picture's column; the Beit Midrash's doors
+  keep their grid.
+
+What it does not overturn: "Cards for browsing, the table one press away" (2026-09-17) in
+everything but the drawing — browsing is still the default and the table still one press
+away; and nothing is invented where the catalogue has no blurb.
+
 ### The Tanakh map is a door in the Library — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards LibraryTanakh and PartsTanakh): "Tanakh map
