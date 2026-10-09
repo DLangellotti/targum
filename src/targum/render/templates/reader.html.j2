@@ -1165,6 +1165,9 @@
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('vocab.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
+{#- Saving for offline and the worker that answers it (design.md §12, 2026-10-09). Nothing
+    runs off a disk: there is no origin there to keep anything for. -#}
+<script>{{ asset('offline.js') }}</script>
 <script>{{ asset('events.js') }}</script>
 <script>{{ asset('playlist-menu.js') }}</script>
 <script>{{ asset('fault.js') }}</script>

@@ -416,6 +416,10 @@ POLICY = (
     # the same bug, headed off this time (design.md §12).
     "media-src 'self' data:; "
     "connect-src 'self'; "
+    # targum's worker, `/sw.js`, which answers a saved text when the network is not there
+    # (design.md §12, 2026-10-09). A worker is named by address, never inline, so the
+    # hashes below cannot cover it; `'self'` is that one file and nothing from elsewhere.
+    "worker-src 'self'; "
     "base-uri 'none'; "
     # 'self', not 'none'. The sign-in landing page posts a real form back to targum —
     # it has to work with no JavaScript, because it arrives from an email in whatever
@@ -4798,6 +4802,21 @@ _ENDING = threading.Lock()
 #: One playlist's own page (#434), `/playlists/<id>`: the same page as the tab.
 PLAYLIST_PAGE = re.compile(r"/playlists/\d+")
 
+#: Where targum's worker is served from: the root, so that its scope is every page
+#: (design.md §12, "A worker keeps what the reader saved", 2026-10-09).
+WORKER_ROUTE = "/sw.js"
+#: The worker's own policy. It fetches nothing of its own accord, and when it does fetch —
+#: a page being opened, passed on — it is this origin it asks.
+WORKER_POLICY = "default-src 'none'; connect-src 'self'"
+#: A reader's files, by the address its page was opened at: a reader's own or the shared
+#: shelf's, a Torah portion's, and a day of a daily cycle's. The first group is the folder
+#: whose `reader/` holds the files, as the address spells it.
+OFFLINE_READER = re.compile(r"^/reader/([^/]+)/reader/")
+OFFLINE_PORTION = re.compile(r"^/parasha/read/([a-z0-9-]{1,64})/reader/")
+OFFLINE_DAY = re.compile(r"^/([a-z-]{1,32})/read/(\d{4}-\d{2}-\d{2})/reader/")
+#: The kinds of file a saved text is made of: its pages, and the sidecars beside them.
+FILM_KINDS = frozenset({".mp4", ".m4v", ".webm"})
+
 #: One subscription's own page (design.md §12, "A subscription is the account's",
 #: 2026-10-09), `/subscriptions/<id>`.
 SUBSCRIPTION_PAGE = re.compile(r"/subscriptions/(\d+)")
@@ -6902,6 +6921,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _icon(), "image/png")
         if route == "/robots.txt":
             return self._send(200, self._robots().encode("utf-8"), "text/plain; charset=utf-8")
+        # The worker that keeps what a reader saved for offline (design.md §12, 2026-10-09).
+        # Before the account check: the browser asks for it again on its own, now and then,
+        # to see whether it changed, and it holds nothing that is anybody's.
+        if route == WORKER_ROUTE:
+            return self._worker()
         # A text card's recording, played from a host's frame on another origin, where
         # the session cookie never arrives (design.md §12, 2026-10-06). Before the account
         # check, because the token is the whole of the permission: it opens one file for
@@ -7050,6 +7074,7 @@ class Handler(BaseHTTPRequestHandler):
                     "/playlists/",
                     "/tanakh-map.json",
                     "/portions",
+                    "/offline.json",
                 )
             ):
                 return self._json(
@@ -7153,6 +7178,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._open_entry(route[len("/open/") :])
         if route.startswith("/thumb/"):
             return self._serve_thumb(route[len("/thumb/") :])
+        if route == "/offline.json":
+            return self._offline_files()
         if route == "/":
             # Home is Your targums since 2026-10-08 (design.md §12, "Home is Your targums,
             # and Continue leads it"): Continue at the top, the shelf under it. Learn,
@@ -12380,6 +12407,123 @@ class Handler(BaseHTTPRequestHandler):
         # `#build:` rather than `#<id>`: the library opens the row's offer on this one
         # instead of only marking it, so the press that spends is still a press.
         return sent("/library", "#build:" + quote(entry.id))
+
+    def _worker(self) -> None:
+        """targum's worker, from the root (design.md §12, 2026-10-09).
+
+        `no-cache`, so the browser's own check for a new one always reaches the server: a
+        worker kept for a day after it changed is a day of pages answered by the old one.
+        On our own name only, like every door here.
+        """
+        from .render.builder import worker_script
+
+        if not self._host_is_ours():
+            return self._send(404, b"not found", "text/plain")
+        body = worker_script().encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/javascript; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Content-Security-Policy", WORKER_POLICY)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _offline_files(self) -> None:
+        """What saving a text for offline would keep: every page of it and every sidecar
+        beside them, with their sizes, so the menu can say how much room it takes before
+        anything is fetched (design.md §12, 2026-10-09).
+
+        `?page=` is the address of any page of the text. It is looked for under the same
+        roots, behind the same guards, as the files themselves are served from — this
+        says what a reader could already open, one file at a time, and nothing more.
+        """
+        page = urlparse(parse_qs(urlparse(self.path).query).get("page", [""])[0]).path
+        found = self._offline_folder(page)
+        if found is None:
+            return self._json({"error": "not found"}, 404)
+        prefix, bases, title = found
+        files: list[dict[str, Any]] = []
+        for under, base, deep in bases:
+            try:
+                listed = sorted(base.rglob("*") if deep else base.iterdir())
+            except OSError:
+                continue
+            for target in listed:
+                suffix = target.suffix.lower()
+                if suffix != ".html" and suffix not in self.MEDIA_KINDS:
+                    continue
+                if not target.is_file() or base not in target.resolve().parents:
+                    continue
+                relative = target.relative_to(base).as_posix()
+                files.append(
+                    {
+                        "url": prefix + under + quote(relative),
+                        "bytes": target.stat().st_size,
+                        "film": suffix in FILM_KINDS,
+                    }
+                )
+        if not files:
+            return self._json({"error": "not found"}, 404)
+        return self._json(
+            {
+                "title": title,
+                "base": prefix,
+                "files": files,
+                "bytes": sum(int(file["bytes"]) for file in files),
+            }
+        )
+
+    def _offline_folder(self, page: str) -> tuple[str, list[tuple[str, Path, bool]], str] | None:
+        """Where the text a page belongs to keeps its files: the address its files are
+        served under, each folder they are read from (with the part of the address it
+        adds, and whether its sub-folders count), and its title where it keeps one."""
+        mine = OFFLINE_READER.match(page)
+        if mine is not None:
+            name = unquote(mine.group(1))
+            for root in (
+                self._home().resolve(),
+                self.library.shared.resolve(),
+                self.library.weekly.resolve(),
+            ):
+                folder = (root / name).resolve()
+                base = folder / "reader"
+                if root not in folder.parents or not base.is_dir():
+                    continue
+                title = ""
+                try:
+                    told = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+                    title = str(told.get("title") or "") if isinstance(told, dict) else ""
+                except (OSError, ValueError):
+                    pass
+                return mine.group(0), [("", base, True)], title
+            return None
+        portion = OFFLINE_PORTION.match(page)
+        if portion is not None:
+            from .parasha import build as portions
+
+            readable = portions.readable()
+            slug, language = portions.read_as(portion.group(1), readable)
+            if slug not in readable:
+                return None
+            pages = portions.reader_dir(slug, language).resolve()
+            sound = (portions.reader_dir(slug) / "audio").resolve()
+            # The pages, and the recordings every language's pages share (`_serve_parasha_reader`).
+            return portion.group(0), [("", pages, False), ("audio/", sound, False)], ""
+        day = OFFLINE_DAY.match(page)
+        if day is not None:
+            from .daily import build as days
+
+            try:
+                when = date.fromisoformat(day.group(2))
+            except ValueError:
+                return None
+            if not days.readable(day.group(1), when):
+                return None
+            base = (days.folder_for(day.group(1), when) / "reader").resolve()
+            return day.group(0), [("", base, False)], ""
+        return None
 
     def _serve_thumb(self, name: str) -> None:
         """The cover drawn for one text, where somebody has made one.

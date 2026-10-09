@@ -758,6 +758,10 @@
       return;
     }
     doomed.forEach(drop);
+    // And the texts saved for offline: they are the reader's own as much as the words are.
+    try {
+      if (window.TargumOffline) window.TargumOffline.removeAll();
+    } catch (e) {}
   }
 
   /* How often a place goes up while somebody reads: at most once every half minute,

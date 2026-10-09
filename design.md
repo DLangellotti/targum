@@ -411,6 +411,50 @@ What it does not overturn: offline. "You're offline" and the saved-for-offline l
 their own slice and are not drawn here; the banner says only that targum is out of reach.
 
 
+### A worker keeps what the reader saved, and fetches nothing else — 2026-10-09
+
+David, 2026-10-08 ("Offline is automatic plus manual"; boards OffSaving, OffSaved and
+OffOffline): the usage is fifteen to thirty minutes a day, sometimes on a bus or a plane,
+and a reader on a plane with no copy of their text has nothing. A reader page already
+needs nothing once it is loaded, but the browser had no way to open one again without a
+network. targum now has a service worker, `/sw.js`.
+
+- **It is one file at the root, and the one script that is not inline.** A worker is
+  named by an address and cannot be baked into a page, so the page policy gains
+  `worker-src 'self'`: that one file from this origin, and nothing from anywhere else. The
+  hashes still cover every page's own blocks. The worker's own policy is
+  `default-src 'none'; connect-src 'self'`.
+- **It fetches nothing by itself.** It caches nothing when it installs, fetches nothing
+  ahead and refreshes nothing in the background. What is kept is what the page saved: the
+  reader's press, or a text they opened that is kept automatically (the next slice). The
+  page saves while it is open and stops when it is closed. The worker only answers out of
+  what the page saved.
+- **It answers three ways, and leaves the rest alone.** Opening a page goes to the network
+  first, and the saved copy answers only when the network is not there. The saved copy
+  keeps the headers it was served with, so its own policy and hashes come with it, and a
+  saved page that opens online is saved again as it is now. A film or a recording beside a
+  saved reader answers from the cache in slices, as a 206 for each range asked, because
+  Safari opens every film with `bytes=0-1` and will not play otherwise. Anything else is
+  never answered by the worker.
+- **A file is kept under its address without the key.** A reader's own files lose their
+  whole query, which the page reads and the server ignores (`?k=`, `?list=`). Every other
+  address loses `k` only, because it is the start-up key, a bearer token, and has no place
+  in a cache's index.
+- **What a text takes is asked before anything is fetched.** `/offline.json?page=` lists
+  every page of the text and every sidecar beside them, with their sizes, under the same
+  roots and guards as the files themselves. The size can then be shown before anything is
+  saved.
+- **Signing out takes the saved texts with the words.** `sync.js`'s `clearLocal` removes
+  them, for the reason it removes the rest: the next person at this browser is shown
+  nothing.
+- **No manifest and no "Add to home screen"** (David, 2026-10-08). iOS drops a site's
+  storage after seven days without a visit, and that is accepted and never mentioned.
+
+What it does not overturn: *readers must fetch nothing*. A reader opened off a disk
+registers nothing and fetches nothing, and `test_render.py` holds it to that unchanged. A
+served reader asks for the worker from its own origin, as it already asked for a word's
+meaning behind `canAsk()`.
+
 ### Your Progress is a story in three parts — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards Progress, ProgressPhone and Progress{Ru,RuUi,Fr,
