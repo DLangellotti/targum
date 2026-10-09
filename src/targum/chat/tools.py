@@ -1749,6 +1749,90 @@ def _playlist_link(ctx: Ctx, playlist_id: int, items: list[dict[str, Any]]) -> s
     return f"{at}?list={playlist_id}&at={int(first.get('position') or 0)}"
 
 
+def quote_subscription(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """What subscribing to something would be, and the link to targum's page where the
+    reader confirms it (design.md §12, "A monthly cap is the second press that lasts" and
+    "A third card, the offer", 2026-10-09).
+
+    A series, a news topic, one outlet, a YouTube channel or a podcast. It reads the
+    source — a channel through the Data API, a podcast through its feed — and writes
+    nothing: no row, no cap, no job. The cap is chosen on the confirm page by the reader,
+    and the model cannot choose it, press it, raise it or resume anything.
+    """
+    from urllib.parse import urlencode
+
+    from .. import plans
+    from .. import subscriptions as subscriptions_module
+    from ..accounts import SUB_BUILDS, SUB_KINDS
+    from ..errors import TargumError
+
+    if ctx.person is None or ctx.store is None:
+        return {"error": "Subscribing needs an account."}
+    kind = str(args.get("kind") or "").strip()
+    given = str(args.get("source") or args.get("key") or "").strip()
+    if kind not in SUB_KINDS or not given:
+        return {
+            "error": "Say what to subscribe to: kind, and a source (a channel's or a "
+            "podcast's address) or a key (a series' id, a topic or an outlet)."
+        }
+    language = (
+        language_code(str(args.get("language") or ""))
+        or (ctx.level.language or "he").split("-")[0].lower()
+    )
+    try:
+        offer = subscriptions_module.describe(
+            kind, given, language=language, ui=ctx.language or "en"
+        )
+    except TargumError as refusal:
+        return {"error": refusal.message}
+    except Exception:  # noqa: BLE001 - a source that would not answer
+        return {"error": "We couldn't reach it just now. Try again in a moment."}
+    held = ctx.store.subscription_for(ctx.person.id, offer["kind"], offer["key"])
+    if held is not None and held["state"] != "off":
+        return {
+            "subscribed": True,
+            "open": f"{ctx.press_at}/subscriptions/{int(held['id'])}",
+            "note": "The reader is subscribed already. Give them the link in `open`, on a "
+            "line of its own; it is where they change it.",
+        }
+    if offer["kind"] in SUB_BUILDS and not plans.builds_by_itself(ctx.person):
+        return {"error": "Channels and podcasts come with a plan. Series and news are free."}
+    field = "source" if offer["kind"] in SUB_BUILDS else "key"
+    query = {
+        "kind": offer["kind"],
+        field: offer["source"] if field == "source" else offer["key"],
+        "via": "connector" if ctx.press_at else "chat",
+    }
+    if offer["kind"] == "topic":
+        query["language"] = offer["language"]
+    shown = {
+        "kind": offer["kind"],
+        "name": offer["name"] or offer["key"],
+        "language": offer["language"],
+        "per_week": offer["perWeek"],
+        "credits_each": offer["creditsEach"],
+        "builds": offer["builds"],
+        "free": not offer["builds"],
+    }
+    if offer["kind"] == "topic":
+        shown["outlets"] = offer["outlets"]
+    return {
+        "subscription": shown,
+        "open": f"{ctx.press_at}/subscribe?{urlencode(query)}",
+        "note": (
+            "Give the reader the link in `open`, on a line of its own, and say in ONE "
+            "sentence what it is and how often something new comes out. "
+            + (
+                "If `credits_each` is more than 0, say a new one usually uses about that many "
+                "credits and that they choose a monthly cap; never say money. "
+                if offer["builds"]
+                else "It is free. "
+            )
+            + "They confirm it on targum's own page, and you cannot."
+        ),
+    }
+
+
 def my_playlists(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """The reader's playlists, and what is in each, in order, each with its own link."""
     if ctx.store is None or ctx.person is None:
@@ -2805,6 +2889,11 @@ BUILD_CARD = "ui://targum/build-card.html"
 #: post of pictures) have nothing a card could draw.
 TEXT_CARD = "ui://targum/text-card.html"
 
+#: The offer card's (design.md §12, "A third card, the offer", 2026-10-09): a set
+#: `quote_set` made, or a subscription `quote_subscription` described — what it is, what
+#: it uses, and one door to targum's page where the reader confirms it. It never presses.
+OFFER_CARD = "ui://targum/offer-card.html"
+
 #: The longest `check_job` holds a request open, in seconds. Under the half minute a
 #: host's own request usually gives up at, and one held request is one thread of the
 #: threaded server asleep, never a lock: everybody else is answered while it waits.
@@ -3653,6 +3742,42 @@ REGISTRY: tuple[Tool, ...] = (
         title="Get a playlist ready",
         writes=True,
         open_world=True,
+        # The offer card (design.md §12, "A third card, the offer", 2026-10-09).
+        card=OFFER_CARD,
+    ),
+    Tool(
+        "quote_subscription",
+        "For new things from one source, as they come out: one of targum's series "
+        "(weekly, parasha, or a daily cycle's id), a news topic or one outlet from "
+        "search_sources, a YouTube channel's address, or a podcast's address or feed. "
+        "Free. Returns how often it comes out, what a new one usually uses, and a link "
+        "the reader opens to confirm and, for a channel or a podcast, to choose a monthly "
+        "cap; you cannot confirm it. Series and news are free; a channel's or podcast's "
+        "new items get ready by themselves inside the cap the reader chooses.",
+        _schema(
+            {
+                "kind": {
+                    "type": "string",
+                    "enum": ["series", "topic", "outlet", "channel", "podcast"],
+                },
+                "source": {
+                    "type": "string",
+                    "description": "A channel's or a podcast's address.",
+                },
+                "key": {
+                    "type": "string",
+                    "description": "A series' id, a topic, or an outlet's key.",
+                },
+                "language": _LANGUAGE_FILTER,
+            },
+            ("kind",),
+        ),
+        quote_subscription,
+        needs_account=True,
+        scope="chat",
+        title="Subscribe to new ones",
+        open_world=True,
+        card=OFFER_CARD,
     ),
     Tool(
         "my_playlists",

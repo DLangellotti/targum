@@ -1,0 +1,60 @@
+{#- The offer card, as a host draws it beside `quote_set` or `quote_subscription`
+    (design.md §12, "A third card, the offer", 2026-10-09; board ConnCards).
+
+    One document with its style and script inline, handed over whole as the resource
+    `ui://targum/offer-card.html`, on the cards' one bridge (`card-bridge.js`). It starts
+    with its labels and nothing else; what it offers comes in from the tool result
+    (`card-offer.js`): a set's texts and what they use, or a subscription's name, how
+    often it comes out and what a new one uses.
+
+    It fetches nothing and asks for no tool. Its one door opens targum's own page where
+    the reader confirms — the set's, or the subscription's with its cap — and nothing
+    here confirms, chooses a cap or spends (§12, "A card never presses"). -#}
+<!doctype html>
+<html lang="{{ page_language }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{ t("card.offer.title", "Something to confirm on targum") }}</title>
+<style>{{ asset('card.css') }}</style>
+</head>
+<body>
+<main class="cards" id="offer" aria-live="polite"
+  data-confirm="{{ t("card.offer.confirm", "Confirm on targum") }}"
+  data-manage="{{ t("card.offer.manage", "Open on targum") }}"
+  data-subscribed="{{ t("card.offer.subscribed", "You're subscribed already.") }}"
+  data-credits='{{ forms.credits|tojson }}'
+  data-total='{{ forms.total|tojson }}'
+  data-each='{{ forms.each|tojson }}'
+  data-week='{{ forms.week|tojson }}'
+  data-cap="{{ t("card.offer.cap", "You choose a monthly cap on targum") }}"
+  data-free="{{ t("card.offer.free", "Free") }}"
+  data-minutes="{{ t("library.minutes", "{n} min") }}"
+  data-kind-series="{{ t("subs.kind.series", "Series") }}"
+  data-kind-topic="{{ t("subs.kind.topic", "News topic") }}"
+  data-kind-outlet="{{ t("subs.kind.outlet", "Outlet") }}"
+  data-kind-channel="{{ t("card.offer.channel", "YouTube channel") }}"
+  data-kind-podcast="{{ t("subs.kind.podcast", "Podcast") }}"
+  data-kind-set="{{ t("card.offer.set", "Playlist") }}">
+  <p class="card-said card-none" id="none" hidden></p>
+</main>
+<template id="one">
+  <article class="card card-offer">
+    <p class="card-label"></p>
+    <h2 class="card-title" dir="auto"></h2>
+    <p class="card-facts" hidden></p>
+    <ul class="card-items" hidden></ul>
+    <p class="card-said card-sum" hidden></p>
+    <div class="card-actions">
+      <a class="card-door" target="_blank" rel="noopener" hidden></a>
+    </div>
+  </article>
+</template>
+<template id="item">
+  <li class="card-item"><span class="card-item-title" dir="auto"></span><span class="card-item-facts"></span></li>
+</template>
+<script>{{ asset('card-bridge.js') }}</script>
+<script>{{ asset('card-offer.js') }}</script>
+</body>
+</html>

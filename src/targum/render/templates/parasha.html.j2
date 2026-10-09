@@ -67,6 +67,9 @@
       <p class="actions">
         <a class="btn {{ 'cta' if signed_in else 'tonal' }}" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="{{ page_language }}" dir="ltr"{% endif %}>{{ portion.hebrew or portion_named }}</bdi></a>
       </p>
+      {%- if signed_in %}
+      {%- with series_id = 'parasha', says = t("subs.series.portion-says", "Each week's portion shows on Your targums and comes in your daily mail.") %}{% include '_series_subscribe.html.j2' %}{% endwith %}
+      {%- endif %}
       {#- The week's sheet on paper (targum-internal#415), set on the box when pressed. A
           stranger here has no reader open to say how they read, so the few choices that
           change the paper are asked beside the button, each as the reader opens: their
