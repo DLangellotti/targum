@@ -1795,6 +1795,9 @@ class Library:
                 asked=bool(job.options.get("mail")),
                 listen=job.audio,
                 watch=self._is_film(job, person),
+                title_language=job.language,
+                parts=max(job.parts, job.chapters),
+                seconds=job.seconds,
             )
             self.mailer.notify(
                 person.email, letter.subject, letter.text, letter.headers or None, letter.html
@@ -2271,12 +2274,46 @@ class Library:
         """
         if self.store is None:
             return []
+        # Who is about to go, read before the rows do: the last mail needs the address
+        # and the day they asked (design.md §12, "Every mail is the board's", 2026-10-09).
+        leaving = self.store.leaving_due()
         gone = self.store.purge()
         for person_id in gone:
             home = self.out / f"p{person_id}"
             self._forget_in_ledger(home)
             shutil.rmtree(home, ignore_errors=True)
+        self._mail_the_departed([row for row in leaving if row["id"] in gone])
         return gone
+
+    def _mail_the_departed(self, rows: list[dict[str, Any]]) -> None:
+        """Tell each account that went that it is gone, once, when it is.
+
+        Best effort, like every mail here: the deletion has happened whether or not the
+        message about it arrives, and one address that bounces is not a reason to skip the
+        next. Nothing is sent where no mailer or no address is configured, which is every
+        local install.
+        """
+        if self.mailer is None or not self.address or not rows:
+            return
+        from datetime import UTC, datetime
+
+        from . import backup as backup_module
+        from .accounts import GRACE_DAYS
+        from .letters import account_deleted
+
+        for row in rows:
+            asked = datetime.fromtimestamp(int(row["leaving"]) / 1000, UTC).date()
+            letter = account_deleted(
+                self.address,
+                asked,
+                str(row["said"] or "en"),
+                grace_days=GRACE_DAYS,
+                backups_kept=backup_module.KEEP,
+            )
+            with contextlib.suppress(Exception):
+                self.mailer.notify(
+                    str(row["email"]), letter.subject, letter.text, None, letter.html
+                )
 
     def _forget_in_ledger(self, home: Path) -> None:
         """Take a departed reader's texts out of the corpus ledger (targum-internal#162).
@@ -11460,7 +11497,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(
                 {"error": self._say("serve.you-re-not-signed-in", "You're not signed in.")}, 401
             )
-        self.store.forget(person)
+        # The page's language, so the last mail is written in it.
+        self.store.forget(person, self._ui_language())
         self._sign_out()
 
     def _places(self, query: dict[str, list[str]]) -> None:
