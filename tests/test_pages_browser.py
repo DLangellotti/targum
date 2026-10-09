@@ -42,6 +42,7 @@ from targum.render.builder import (
     not_found_page,
     playlists_page,
     progress_page,
+    saved_page,
     signin_page,
     subscription_page,
     tanakh_map_page,
@@ -68,6 +69,7 @@ def pages() -> dict[str, str]:
         "progress": progress_page(TOKEN),
         "tanakh": tanakh_map_page(TOKEN),
         "you": you_page(TOKEN),
+        "saved": saved_page(TOKEN),
         # The 404 is a desk page with the top bar since 2026-10-09 (design.md §12).
         "missing": not_found_page(TOKEN),
     }

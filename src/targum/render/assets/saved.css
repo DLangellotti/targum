@@ -1,0 +1,154 @@
+/* Saved on this device (design.md §12, 2026-10-09; boards OffSavedDesk and OffSavedPhone).
+   A page of the account's, on the desk's scale (§13): rows of what is kept, the room it
+   takes, and what saves itself. */
+.saved-lede { margin: 0 0 1.25rem; color: var(--ink-soft); }
+.saved-away {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+.saved-none { margin: 0 0 1.25rem; color: var(--ink); }
+.saved-away[hidden],
+.saved-none[hidden] { display: none; }
+
+.saved-rows { margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.saved-row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) 7rem 4.5rem 6rem 6.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-block-start: 1px solid var(--rule);
+}
+.saved-row:first-child { border-block-start: 0; }
+.saved-tile {
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: 8px;
+  background: var(--ink-soft);
+  color: var(--paper);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1;
+}
+/* One hue per tile, flat, never on text (§12, "Every text has a picture"). */
+.saved-tile.is-news { background: var(--teal); }
+.saved-tile.is-set { background: var(--iris); }
+.saved-tile.is-said { background: var(--clay); }
+.saved-what { display: grid; gap: 0.1rem; min-inline-size: 0; }
+.saved-name {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+.saved-kept,
+.saved-kind,
+.saved-how { color: var(--ink-soft); font-size: 0.8125rem; }
+.saved-size { color: var(--ink); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.saved-row .go-quiet { justify-self: end; }
+
+.saved-used { margin: 0.5rem 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.saved-meter {
+  display: block;
+  block-size: 6px;
+  margin: 0 0 0.75rem;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.saved-meter-fill { display: block; block-size: 100%; inline-size: 0; background: var(--ink-soft); }
+.saved-keep { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.saved-keep[hidden] { display: none; }
+.saved-keep .note { margin: 0; }
+
+.saved-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.65rem 0;
+  border-block-start: 1px solid var(--rule);
+}
+.saved-choice:first-of-type { border-block-start: 0; }
+.saved-choice-what { display: grid; gap: 0.1rem; }
+.saved-choice-name { color: var(--ink); }
+.saved-choice .note { margin: 0; }
+.saved-segment {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.saved-segment button {
+  min-block-size: 2rem;
+  min-inline-size: 2.5rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.saved-segment button[aria-checked="true"] { background: var(--ink); color: var(--paper); }
+.saved-switch {
+  position: relative;
+  inline-size: 2.6rem;
+  block-size: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: var(--paper);
+  cursor: pointer;
+}
+.saved-switch .sw {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  inline-size: calc(1.5rem - 6px);
+  block-size: calc(1.5rem - 6px);
+  border-radius: 999px;
+  background: var(--ink-soft);
+  transition: inset-inline-start 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.saved-switch[aria-checked="true"] { border-color: var(--leaf); background: var(--leaf); }
+.saved-switch[aria-checked="true"] .sw { inset-inline-start: calc(100% - 1.5rem + 4px); background: var(--paper); }
+@media (prefers-reduced-motion: reduce) {
+  .saved-switch .sw { transition: none; }
+}
+
+.saved-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.saved-end .note { margin: 0; }
+
+@media (max-width: 40rem) {
+  .saved-row {
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+    grid-template-areas: "tile what act" "tile size act";
+    row-gap: 0.15rem;
+  }
+  .saved-tile { grid-area: tile; }
+  .saved-what { grid-area: what; }
+  .saved-size { grid-area: size; color: var(--ink-soft); }
+  .saved-kind,
+  .saved-how { display: none; }
+  .saved-row .go-quiet { grid-area: act; }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  /* §8: what a thumb presses answers a tap over 44px. */
+  .saved-segment button,
+  .saved-switch,
+  .saved-row .go-quiet,
+  .saved-ask,
+  #saved-all { min-block-size: 44px; }
+}

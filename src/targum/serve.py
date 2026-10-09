@@ -4861,6 +4861,9 @@ PLAYLIST_PAGE = re.compile(r"/playlists/\d+")
 #: Where targum's worker is served from: the root, so that its scope is every page
 #: (design.md §12, "A worker keeps what the reader saved", 2026-10-09).
 WORKER_ROUTE = "/sw.js"
+#: Saved on this device, under the account's page (design.md §12, 2026-10-09). `sw.js`
+#: and `offline.js` name it too, as `SAVED`.
+SAVED_ROUTE = "/you/saved"
 #: The worker's own policy. It fetches nothing of its own accord, and when it does fetch —
 #: a page being opened, passed on — it is this origin it asks.
 WORKER_POLICY = "default-src 'none'; connect-src 'self'"
@@ -4918,6 +4921,9 @@ class Handler(BaseHTTPRequestHandler):
     subscription_html: str = ""
     catalogue: str
     you: str
+    #: Saved on this device (design.md §12, 2026-10-09). Empty on a handler built by hand
+    #: that serves none.
+    saved_html: str = ""
     #: The conversation page, and the workers that answer it. Empty and None on a
     #: handler built by hand, which is how the tests build one that has no chat.
     chatting: str = ""
@@ -5024,6 +5030,7 @@ class Handler(BaseHTTPRequestHandler):
             "/tanakh-map.json",
             "/library",
             "/you",
+            "/you/saved",
             "/playlists",
             "/readers",
             "/suggest",
@@ -7294,6 +7301,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
             )
+        if route == SAVED_ROUTE:
+            if not self.saved_html:
+                return self._not_found()
+            page = self._desk("saved", self.saved_html)
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if SUBSCRIPTION_PAGE.fullmatch(route):
             # One subscription's page; the script reads which from the address.
             page = self._desk("subscription", self.subscription_html)
@@ -12918,6 +12930,7 @@ def start(
         list_page,
         playlists_page,
         progress_page,
+        saved_page,
         subscription_page,
         tanakh_map_page,
         welcome_page,
@@ -12982,6 +12995,7 @@ def start(
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
             "welcome": welcome_page(token, connector=connector_is_open()),
             "you": you_page(token),
+            "saved_html": saved_page(token),
             "playlists": playlists_page(token),
             "subscription_html": subscription_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
@@ -13001,6 +13015,7 @@ def start(
                     "tanakh": tanakh_map_page(token, language=code),
                     "welcome": welcome_page(token, language=code, connector=connector_is_open()),
                     "you": you_page(token, language=code),
+                    "saved": saved_page(token, language=code),
                     "playlists": playlists_page(token, language=code),
                     "subscription": subscription_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),

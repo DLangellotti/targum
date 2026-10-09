@@ -503,3 +503,165 @@ def test_a_playlist_opened_is_kept_whole_and_its_page_saves_and_removes_it(
         assert card.startswith("Saved for offline · ") and card.endswith("MB")
     finally:
         context.close()
+
+
+# -- Saved on this device (design.md §12, 2026-10-09) ------------------------------------
+
+PERSIST = """
+(() => {
+  window.PERSIST_ASKED = 0;
+  if (navigator.storage) {
+    navigator.storage.persisted = () => Promise.resolve(false);
+    navigator.storage.persist = () => { window.PERSIST_ASKED += 1; return Promise.resolve(true); };
+  }
+})();
+"""
+
+
+@pytest.fixture
+def saved_served(tmp_path: Path) -> Iterator[Served]:
+    """The fixture server with the Saved page drawn, as `start()` draws it."""
+    from targum.render.builder import saved_page
+
+    out = tmp_path / "targum-out"
+    out.mkdir()
+    asked: list[str] = []
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+
+    def _get(self: Any) -> None:
+        asked.append(self.path)
+        Handler._get(self)
+
+    server.RequestHandlerClass = type(
+        "TestHandler",
+        (Handler,),
+        {
+            "library": Library(out),
+            "token": TOKEN,
+            "store": Store(tmp_path / "words.db"),
+            "address": f"http://127.0.0.1:{port}",
+            "translated": {},
+            "saved_html": saved_page(TOKEN),
+            "_get": _get,
+        },
+    )
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    holder = Served(out, port, server, asked)
+    try:
+        yield holder
+    finally:
+        try:
+            holder.gone()
+        except Exception:
+            pass
+
+
+def test_the_saved_page_lists_both_groups_and_moves_one_with_keep(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    served = saved_served
+    book(served.out / "local" / "mine-he")
+    book(served.out / "local" / "recent-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(PERSIST)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/mine-he/reader/sec-0001.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.evaluate("(p) => window.TargumOffline.save(p, { how: 'you' }).done", page.url)
+        page.goto(served.url("/reader/recent-he/reader/index.html"))
+        kept(page, "/reader/recent-he/reader/")
+
+        page.goto(served.url("/you/saved"))
+        page.wait_for_selector("#saved-mine:not([hidden]) .saved-row")
+        assert page.locator("h1").inner_text() == "Saved on this device"
+        assert page.locator("#saved-mine .saved-row").count() == 1
+        assert page.locator("#saved-auto .saved-row").count() == 1
+        assert (
+            "Your last 5 texts and the playlist you're in."
+            in page.locator("#saved-auto-says").inner_text()
+        )
+        mine = page.locator("#saved-mine .saved-row").inner_text()
+        assert "A Book" in mine and "By you" in mine and "MB" in mine
+        page.wait_for_selector("#saved-room:not([hidden])")
+        assert " used of about " in page.locator("#saved-used").inner_text()
+        assert page.evaluate("() => window.PERSIST_ASKED") == 0, "asked only from its button"
+        page.click("#saved-ask")
+        page.wait_for_function("() => window.PERSIST_ASKED === 1")
+        assert page.locator("#saved-persist-says").inner_text() == "Your browser will keep them."
+
+        page.locator("#saved-auto .saved-keep-it").click()
+        page.wait_for_function(
+            "() => document.querySelectorAll('#saved-mine .saved-row').length === 2"
+        )
+        assert page.locator("#saved-auto").is_hidden()
+
+        page.locator("#saved-mine .saved-remove").first.click()
+        page.wait_for_function(
+            "() => document.querySelectorAll('#saved-mine .saved-row').length === 1"
+        )
+        page.click("#saved-all")
+        page.wait_for_selector("#saved-none:not([hidden])")
+        texts = [item for item in page.evaluate(LIST) if item["kind"] != "page"]
+        assert texts == [], "and the line that the account keeps the rest stood beside it"
+    finally:
+        context.close()
+
+
+def test_the_saved_page_s_choices_are_this_device_s(browser, saved_served: Served) -> None:  # noqa: F811
+    served = saved_served
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+    try:
+        page.goto(served.url("/you/saved"))
+        page.wait_for_selector("#saved-choices:not([hidden])")
+        assert page.locator('[data-recent="5"]').get_attribute("aria-checked") == "true"
+        page.click('[data-recent="10"]')
+        page.click("#saved-playlist")
+        page.click('[data-film="0"]')
+        page.wait_for_function(
+            "() => document.querySelector('[data-film=\"0\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        assert page.evaluate("() => JSON.parse(localStorage.getItem('targum:offline'))") == {
+            "recent": 10,
+            "playlist": False,
+            "film": False,
+        }
+        assert page.locator("#saved-playlist").get_attribute("aria-checked") == "false"
+        assert page.locator("#saved-auto-says").inner_text() == (
+            "Your last 10 texts. Newer ones take their place."
+        )
+    finally:
+        context.close()
+
+
+def test_with_no_connection_an_unsaved_page_opens_the_saved_one(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    served = saved_served
+    book(served.out / "local" / "kept-he", chapters=1)
+    book(served.out / "local" / "away-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/kept-he/reader/index.html"))
+        kept(page, "/reader/kept-he/reader/")
+        page.goto(served.url("/you/saved"))
+        kept(page, "page:/you/saved")
+
+        served.gone()
+        context.set_offline(True)
+        page.goto(served.url("/reader/away-he/reader/index.html"))
+        page.wait_for_selector("#saved-away:not([hidden])")
+        assert page.url.split("?")[0].endswith("/you/saved")
+        assert "isn't on this device" in page.locator("#saved-away").inner_text()
+        assert page.locator("#saved-auto .saved-row").count() == 1
+        page.locator("#saved-auto .saved-name").click()
+        page.wait_for_selector(".pair, .toc", state="attached")
+        assert "/reader/kept-he/" in page.url
+    finally:
+        context.close()

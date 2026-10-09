@@ -37,6 +37,9 @@
   var BUSY = "targum:offline:busy";
   var RECENT_CHOICES = [0, 3, 5, 10];
 
+  /* The page that lists what is saved, kept so that it opens with no connection; its
+     query (`?away=`) is for the page to read, so it is one page whatever it says. */
+  var SAVED = "/you/saved";
   var served = /^https?:$/.test(location.protocol);
   var able =
     served &&
@@ -59,7 +62,7 @@
   function keyOf(address) {
     var url = new URL(address, location.origin);
     url.hash = "";
-    if (READER.test(url.pathname)) {
+    if (READER.test(url.pathname) || url.pathname === SAVED) {
       url.search = "";
     } else {
       url.searchParams.delete("k");
@@ -606,6 +609,41 @@
     });
   }
 
+  /* One desk page kept so it opens with no connection: the Saved page, which the banner
+     sends a reader to. Fetched once, the first time it is opened — the worker keeps it
+     as it is each time after that, the way it keeps a saved text's pages. */
+  function keepPage(address) {
+    if (!able) return Promise.resolve();
+    var url = new URL(address, location.origin);
+    var id = "page:" + url.pathname;
+    var at = keyOf(address);
+    return caches
+      .open(STORE)
+      .then(function (cache) {
+        return cache.match(at).then(function (had) {
+          if (had) return null;
+          return fetch(keyed(url.pathname), {
+            headers: headers({ "X-Targum-Save": "1" }),
+            credentials: "same-origin",
+          }).then(function (answer) {
+            if (!answer.ok) return null;
+            return cache.put(at, keep(answer, function () {}));
+          });
+        });
+      })
+      .then(function () {
+        return readIndex();
+      })
+      .then(function (index) {
+        if (index.items[id]) return null;
+        return change(function (fresh) {
+          fresh.items[id] = { id: id, kind: "page", how: "page", files: [at], bytes: 0, at: Date.now() };
+          return fresh;
+        });
+      })
+      .catch(function () {});
+  }
+
   // Everything off this device: the files and the index both.
   function removeAll() {
     if (!able) return Promise.resolve();
@@ -788,7 +826,14 @@
         begin();
       };
       var fault = window.TargumFault;
-      if (fault && fault.line) {
+      if (full && fault && fault.line) {
+        // Room is made on the page of what is saved, so that is where it goes.
+        var room = fault.line(sentence, t("offline.see-saved", "Saved on this device"), function () {
+          location.assign(keyed(SAVED));
+        });
+        room.classList.add("offline-said");
+        row.appendChild(room);
+      } else if (fault && fault.line) {
         var said = fault.line(sentence, t("offline.try-again", "Try again"), again);
         said.classList.add("offline-said");
         row.appendChild(said);
@@ -1057,6 +1102,7 @@
     remove: remove,
     removeAll: removeAll,
     keep: keepIt,
+    keepPage: keepPage,
     trim: trim,
     choices: choices,
     choose: choose,

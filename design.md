@@ -417,6 +417,37 @@ What it does not overturn: offline. "You're offline" and the saved-for-offline l
 their own slice and are not drawn here; the banner says only that targum is out of reach.
 
 
+### What is saved is a page of the account's, and it opens with no connection — 2026-10-09
+
+David, 2026-10-08: 'a "Saved on this device" list removes them' (boards OffSavedDesk and
+OffSavedPhone). Saved on this device is `/you/saved`, under Your account, and the
+connection banner's Saved texts leads to it.
+
+- **Everything on it belongs to this browser.** It lists what is kept, how much room that
+  takes and what saves itself. The server is asked nothing, and no person's data is baked
+  into the page. It shows two groups as the board draws them. **Saved on their own** lists
+  the recent texts and the playlist the reader is in, each with Keep, which moves it to the
+  other group. **Saved by you** lists each with Remove. A text that a playlist holds
+  appears under that playlist's row, not as a row of its own. The picture is the drawn
+  letter, because a picture fetched for this page would be a broken square with no
+  connection.
+- **Room is the browser's figure**: `storage.estimate()`, "3.5 MB used of about 2.2 GB",
+  and the line that the browser sets it. **Ask it to keep them** calls `persist()` only
+  when it is pressed, because a browser may answer with a prompt, and a prompt nobody
+  pressed for is in the wrong place. It is shown only while there is something to keep and
+  the browser has not already agreed.
+- **Saving on its own is set here**: recent texts Off, 3, 5 or 10; the playlist you're in;
+  and videos With the picture or Sound and text. All three belong to this device.
+- **Remove all from this device** stands beside the line "Your words, your place in each
+  text and your record stay in your account." Removing a copy loses nothing that was not
+  a copy.
+- **It is the one desk page that keeps itself.** It is fetched once into the cache the
+  first time it is opened, and the worker keeps it current after that. Its query does not
+  name a different page. With no connection, a page that was not saved opens this one with
+  "That isn't on this device, so it opens when you're back online." The reader can then
+  open what they do have. A full device's line in a reader's ⋯ points here, because this
+  is where room is made.
+
 ### A text is kept for offline by a press, or by being opened — 2026-10-09
 
 David, 2026-10-08: "Offline is automatic plus manual", and in the night's calls, "Offline

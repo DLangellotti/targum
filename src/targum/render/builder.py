@@ -3486,6 +3486,24 @@ def you_page(token: str, language: str = "en") -> str:
     )
 
 
+def saved_page(token: str, language: str = "en") -> str:
+    """Saved on this device (design.md §12, 2026-10-09): what this browser keeps for
+    offline, the room it takes, and what saves itself. Nothing about a person is in it —
+    every line is read from the browser — so one page serves everyone, and it keeps
+    itself so that it opens with no connection."""
+    return (
+        _environment()
+        .get_template("saved.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            strings=script_strings(language, "saved.", "home.kind."),
+            token=token,
+            languages=_language_names(language),
+        )
+    )
+
+
 def library_page(token: str, language: str = "en") -> str:
     """Texts worth reading, and the ones you have already built.
 
