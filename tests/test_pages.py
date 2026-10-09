@@ -206,14 +206,17 @@ def test_every_desk_page_wears_the_chrome_s_face() -> None:
     assert "--chrome:" in tokens and "--ground:" in tokens and "--teal:" in tokens
 
 
-def test_the_command_palette_is_on_every_page() -> None:
-    """2026-09-11: ⌘K, or the search in the bar, finds a place, a text, a series or a
-    conversation and goes there. Its markup and script ride in the bar's partial."""
+def test_the_one_search_is_on_every_page() -> None:
+    """2026-09-11, and one search since 2026-10-09 (design.md §12, "One search,
+    everywhere"): the bar's search, ⌘K and / open it on every page with the bar. Its
+    markup, its script and the tile path its rows draw with ride in the bar's partial."""
     for name, page in PAGES.items():
         if 'class="site-head"' not in page:
             continue
         assert 'id="palette"' in page and 'id="palette-find"' in page, name
         assert 'id="palette-open"' in page and "TargumPalette" in page, name
+        assert 'id="palette-filters"' in page and 'id="palette-lang"' in page, name
+        assert "TargumCovers" in page, name
 
 
 def test_talk_to_targum_is_a_pill_on_every_page_that_opens_the_conversation() -> None:

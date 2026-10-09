@@ -249,18 +249,6 @@ def test_a_list_that_is_one_collection_is_that_collection(tmp_path: Path) -> Non
     assert len(drawn["rows"]) == 4
 
 
-def test_a_search_opens_what_it_found(tmp_path: Path) -> None:
-    """A reader who types a title and is shown one shut row has been told it failed."""
-    drawn = draw(tmp_path, view={"find": "אסתר"})
-    assert [row["title"] for row in drawn["rows"]] == ["אסתר"]
-
-
-def test_a_search_reaches_a_text_through_the_work_it_is_part_of(tmp_path: Path) -> None:
-    """ "The Hebrew Bible" appears in none of its books."""
-    titles = {row["title"] for row in draw(tmp_path, view={"find": "hebrew bible"})["rows"]}
-    assert "רות" in titles
-
-
 def test_being_sent_to_a_text_opens_the_collection_holding_it(tmp_path: Path) -> None:
     """Opening one shelf is a smaller thing to do to a reader's page than lifting every
     filter they set, so it is tried first."""
@@ -310,17 +298,8 @@ def test_a_filter_narrows_to_what_it_says(
     assert {row["title"] for row in drawn["rows"]} == expected
 
 
-def test_search_reaches_a_hebrew_title_through_its_english(tmp_path: Path) -> None:
-    """The bug this harness was written to catch. Every title and byline in the catalogue
-    is in Hebrew, so a reader typing "herzl" — or any Latin name — found nothing at all
-    until the describing sentence and the entry's own id joined the haystack."""
-    for typed, wanted in (("herzl", "תל־אביב"), ("mendele", "ספר הקבצנים")):
-        titles = {row["title"] for row in draw(tmp_path, view={"find": typed})["rows"]}
-        assert wanted in titles, f"searching {typed!r} should reach {wanted}"
-
-
 def test_nothing_matching_says_so(tmp_path: Path) -> None:
-    drawn = draw(tmp_path, view={"find": "אין כזה דבר"})
+    drawn = draw(tmp_path, view={"kind": "play", "register": "biblical"})
     assert drawn["rows"] == []
     assert drawn["empty"] == "Nothing here matches that. Try another search or fewer filters."
 
@@ -379,7 +358,7 @@ def test_a_text_you_have_opens_and_one_you_do_not_is_a_button(tmp_path: Path) ->
 
 
 def test_an_empty_filter_says_so(tmp_path: Path) -> None:
-    filtered = draw(tmp_path, view={"find": "zzzzz"})
+    filtered = draw(tmp_path, view={"kind": "play", "register": "biblical"})
     assert filtered["empty"] == "Nothing here matches that. Try another search or fewer filters."
 
 
@@ -684,11 +663,6 @@ def test_every_catalogue_row_carries_its_title_in_english(tmp_path: Path) -> Non
     assert all(row["english"] for row in drawn["rows"]), "every catalogue row"
 
 
-def test_search_reaches_a_text_through_its_english_title(tmp_path: Path) -> None:
-    titles = {row["title"] for row in draw(tmp_path, view={"find": "meet"})["rows"]}
-    assert "נעים מאוד" in titles
-
-
 def test_sorting_by_title_sorts_by_the_english_where_there_is_one(tmp_path: Path) -> None:
     """For the reader this page is sorted for, the Hebrew titles are not yet in an order."""
     drawn = draw(tmp_path, view={"sort": "title", "dir": 1, "kind": "dialogue"})
@@ -801,29 +775,31 @@ def test_with_video_finds_the_video_and_with_audio_still_finds_both(tmp_path: Pa
 
 def test_filters_set_on_one_language_stay_with_it(tmp_path: Path) -> None:
     """David, 2026-09-14: "If you set filters for one language in the library, those
-    filters should not remain in another." Poetry and a search typed on the Hebrew shelf
-    are a question about Hebrew texts; switching to Russian opens Russian's own view, and
-    switching back finds Hebrew's where it was left."""
+    filters should not remain in another." Poetry chosen on the Hebrew shelf is a question
+    about Hebrew texts; switching to Russian opens Russian's own view, and switching back
+    finds Hebrew's where it was left."""
     russian = shelf("", "otets-sergiy-ru", language="ru", languages=["ru"], kind="story")
-    hebrew = {"kind": "poetry", "find": "שיר", "level": "easy"}
+    hebrew = {"kind": "poetry", "level": "easy"}
 
     there = draw(tmp_path, readers=[russian], view=hebrew, switchTo="ru")
     assert there["kindOn"] != "Poetry", "the Hebrew chip did not follow"
-    assert there["find"] == ""
     # And the Hebrew view is still in the store under its own language.
     assert there["views"]["he"]["kind"] == "poetry"
-    assert there["views"]["he"]["find"] == "שיר"
     assert there["views"]["ru"]["kind"] == ""
 
-    views = {"he": {"kind": "poetry"}, "ru": {"kind": "story", "find": "сергий"}}
+    views = {"he": {"kind": "poetry"}, "ru": {"kind": "story"}}
     back = draw(tmp_path, readers=[russian], views=views, language="ru", switchTo="he")
     assert back["kindOn"] == "Poetry"
-    assert back["find"] == ""
-    searched = {"he": {"find": "שיר"}, "ru": {}}
-    assert (
-        draw(tmp_path, readers=[russian], views=searched, language="ru", switchTo="he")["find"]
-        == "שיר"
-    )
+
+
+def test_a_search_stored_from_before_narrows_nothing(tmp_path: Path) -> None:
+    """The box is the one search since 2026-10-09 (design.md §12, "One search,
+    everywhere"): a search a view kept from before it would narrow the list with nothing
+    on the page saying so, so it is dropped."""
+    drawn = draw(tmp_path, view={"find": "אסתר"})
+    assert drawn["find"] == ""
+    assert len(drawn["rows"]) > 1
+    assert drawn["views"]["he"]["find"] == ""
 
 
 def test_a_view_from_before_languages_had_their_own_is_hebrews(tmp_path: Path) -> None:
@@ -1185,12 +1161,14 @@ def test_a_touchstone_address_opens_that_kind_in_every_band(tmp_path: Path) -> N
     assert unknown["kindOn"] in ("", "All"), "a kind the Library has no word for is not chosen"
 
 
-def test_a_search_over_the_shelves_is_the_whole_list(tmp_path: Path) -> None:
-    """A text looked for by name is not narrowed away by a level."""
+def test_the_librarys_box_opens_the_one_search_held_to_the_library(tmp_path: Path) -> None:
+    """design.md §12, "One search, everywhere" (2026-10-09): typing over the shelves opens
+    the search, held to the Library and carrying what was typed. It narrowed the list in
+    place until then, and the shelves stay as they were under it."""
     drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED, do=[{"type": "ליגה"}])
-    assert drawn["shelving"] is False
-    assert drawn["fitOn"] == "everything"
-    assert [row["title"] for row in drawn["rows"]] == ["ליגה"]
+    assert drawn["searched"] == [{"on": True, "scope": "library", "q": "ליגה"}]
+    assert drawn["find"] == "", "the box hands the line over"
+    assert drawn["shelving"] is True, "and the Library is still its shelves"
 
 
 def test_a_reader_who_has_marked_nothing_is_shelved_by_the_texts_own_words(

@@ -1454,6 +1454,10 @@
     if (!one.where || one.where === "mine") one.where = "library";
     if (!one.subject) one.subject = "";
     if (!one.door) one.door = "";
+    // The Library's box is the one search now (design.md §12, "One search, everywhere",
+    // 2026-10-09): it opens over the page rather than narrowing it, so a search stored
+    // from before must not go on narrowing the shelf with nothing on the page saying so.
+    one.find = "";
     // `fit` is deliberately left unset here. What it defaults to depends on whether this
     // reader has marked any words, which is not known until `/readers` answers — see
     // `fitWanted`. Once they choose, the choice is stored and outranks both defaults.
@@ -3139,18 +3143,23 @@
     }
     follow();
 
-    find.value = view.find || "";
-    find.addEventListener("input", function () {
-      view.find = find.value.trim();
-      // A search is a list. Typed over the shelves, it opens the whole of it, unbanded:
-      // the text somebody is looking for by name is not narrowed away by a level.
-      if (view.find && !seeAll && view.where !== "midrash") {
-        seeAll = true;
-        view.fit = "";
-        mark(SEE);
-      }
-      redraw();
-    });
+    /* The box is the one search, opened already held to the Library (design.md §12,
+       "One search, everywhere", 2026-10-09). It narrowed this list in place until then,
+       by title alone and in one spelling; the search folds spelling, reads a
+       transliteration and finds words too. What was typed before it opened goes with it. */
+    find.value = "";
+    function search(event) {
+      var palette = window.TargumPalette;
+      if (!palette || !palette.show) return;
+      if (event && event.preventDefault) event.preventDefault();
+      var typed = find.value;
+      find.value = "";
+      if (find.blur) find.blur();
+      palette.show(true, { scope: "library", q: typed });
+    }
+    find.addEventListener("focus", search);
+    find.addEventListener("click", search);
+    find.addEventListener("input", search);
     clear.addEventListener("click", function () {
       // Not `where`: Clear empties the filters, and which of the two lists you are
       // looking at is not one of them.
@@ -3260,13 +3269,6 @@
       if (betaNote) {
         betaNote.hidden = !lang.beta(code);
         if (lang.beta(code)) betaNote.textContent = lang.betaNote(code, names);
-      }
-      // The search names the language the shelf is in.
-      var box = document.getElementById("find");
-      if (box) {
-        box.placeholder = t("library.search", "Search titles in {language} or English", {
-          language: names[code] || t("library.search-the-text", "the original"),
-        });
       }
       redraw();
     }

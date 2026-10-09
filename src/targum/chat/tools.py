@@ -47,12 +47,13 @@ import secrets
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from functools import partial
+from itertools import islice
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, unquote, urlparse
@@ -715,29 +716,21 @@ def _pointed(text: str, pointed: object, most: int = SENTENCE_CHARS) -> str:
     return "".join(out)
 
 
-def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    """Sentences from the reader's own shelf, and the shared one, where a word appears.
+def sentences_in(
+    shelves: Iterable[tuple[Path, list[dict[str, Any]]]], lemma: str, language: str = ""
+) -> Iterator[dict[str, Any]]:
+    """Every sentence on `shelves` — (home, rows) pairs — where a dictionary form comes
+    round, in shelf order, each with the forms it takes there, its text's title and
+    folder name, its id and its pointing where there is one.
 
-    For the contrast a Russian aspect question wants (targum-internal#259): aspect is
-    decided by context far more often than by rule, so the useful answer to "why сказал
-    and not говорил?" sets a sentence with one beside a sentence with the other — from
-    texts the reader has, which the model cannot otherwise see into. Read off each text's
-    own annotation, by dictionary form, so every inflected form is found. Spends nothing.
-    """
+    Read off each text's own annotation, by dictionary form, so every inflected form is
+    found. A generator, so a caller that wants five stops at five and one that counts
+    (search's "texts with this word", design.md §12, 2026-10-09) reads on."""
     from ..vocalize.base import supports as vocalize_supports
 
-    lemma = str(args.get("lemma") or "").strip().lower().replace("\u0301", "")
-    language = str(args.get("language") or "")
-    if not lemma:
-        return {"error": "Name the word by its dictionary form."}
-    # Unmeasured: nothing here says how much of a text the reader knows (2026-10-06).
-    mine, shared = _shelf(ctx, measured=False)
-    found: list[dict[str, str]] = []
-    for home, rows in ((ctx.home, mine), (ctx.library.shared, shared)):
+    for home, rows in shelves:
         for row in rows:
-            if len(found) >= SENTENCES_WITH:
-                break
-            if language and str(row.get("language") or "") != language:
+            if language and str(row.get("language") or "").split("-")[0] != language:
                 continue
             folder = home / str(row.get("name") or "")
             tokens = _json(folder / "annotation.json").get("tokens") or {}
@@ -758,28 +751,60 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 pointing = vocalized.get("segments") or {}
             guessed = set(vocalized.get("machine") or [])
             for segment in segments:
-                if len(found) >= SENTENCES_WITH:
-                    break
                 sid = str(segment.get("id") or "")
                 if sid not in wanted:
                     continue
                 text = str(segment.get("text") or "")
-                one = {
+                one: dict[str, Any] = {
                     "sentence": text[:SENTENCE_CHARS],
-                    "as": " ".join(form for form in wanted[sid] if form),
+                    "forms": [form for form in wanted[sid] if form],
                     "title": str(row.get("title") or ""),
-                    "reader": str(row.get("reader") or ""),
+                    "name": str(row.get("name") or ""),
+                    "segment": sid,
+                    "row": row,
                 }
-                # Beside `sentence` rather than in its place: `as` is spelled the way
-                # `sentence` is, and a host that never learned the new field still
-                # reads exactly what it read before.
                 pointed = _pointed(text, pointing.get(sid))
                 if pointed:
                     one["pointed"] = pointed
                     # A diacritizer's vowels are 55-73% right on classical Hebrew; the
                     # reader marks them, and a host is told the same.
                     one["pointed_by"] = "machine" if sid in guessed else "edition"
-                found.append(one)
+                yield one
+
+
+def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Sentences from the reader's own shelf, and the shared one, where a word appears.
+
+    For the contrast a Russian aspect question wants (targum-internal#259): aspect is
+    decided by context far more often than by rule, so the useful answer to "why сказал
+    and not говорил?" sets a sentence with one beside a sentence with the other — from
+    texts the reader has, which the model cannot otherwise see into. Read off each text's
+    own annotation, by dictionary form, so every inflected form is found. Spends nothing.
+    """
+    lemma = str(args.get("lemma") or "").strip().lower().replace("\u0301", "")
+    language = str(args.get("language") or "")
+    if not lemma:
+        return {"error": "Name the word by its dictionary form."}
+    # Unmeasured: nothing here says how much of a text the reader knows (2026-10-06).
+    mine, shared = _shelf(ctx, measured=False)
+    found: list[dict[str, str]] = []
+    for hit in islice(
+        sentences_in(((ctx.home, mine), (ctx.library.shared, shared)), lemma, language),
+        SENTENCES_WITH,
+    ):
+        one = {
+            "sentence": hit["sentence"],
+            "as": " ".join(hit["forms"]),
+            "title": hit["title"],
+            "reader": str(hit["row"].get("reader") or ""),
+        }
+        # Beside `sentence` rather than in its place: `as` is spelled the way `sentence`
+        # is, and a host that never learned the new field still reads exactly what it
+        # read before.
+        if "pointed" in hit:
+            one["pointed"] = hit["pointed"]
+            one["pointed_by"] = hit["pointed_by"]
+        found.append(one)
     return {"lemma": lemma, "count": len(found), "sentences": found}
 
 

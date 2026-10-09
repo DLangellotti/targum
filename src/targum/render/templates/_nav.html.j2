@@ -63,8 +63,9 @@
         count; the panel lists them, newest first, each with its own × and Clear all
         above them; the panel stays open while you put lines away. It replaced the
         pill that stood fixed at the foot of the window. Drawn by `building.js`. -#}
-    {#- The command palette's own door (2026-09-11), beside the bell; ⌘K is the other. -#}
-    <button type="button" class="palette-open" id="palette-open" aria-expanded="false" aria-controls="palette" aria-label="{{ t("nav.find-anything", "Find anything") }}" title="{{ t("nav.find-anything-k", "Find anything (⌘K)") }}">
+    {#- Search's own door (2026-09-11; one search since 2026-10-09, design.md §12, "One
+        search, everywhere"), beside the bell; ⌘K and / are the others. -#}
+    <button type="button" class="palette-open" id="palette-open" aria-expanded="false" aria-controls="palette" aria-label="{{ t("nav.search", "Search") }}" data-tip="/" title="{{ t("nav.search-key", "Search (/)") }}">
       <svg class="bell" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5"/></svg>
     </button>
     <div class="notices" id="notices">
@@ -96,7 +97,7 @@
         {#- On a phone the top bar keeps the mark, the language, the bell and the account
             (design.md §13), so find is here (2026-09-14). -#}
         <p class="account-phone">
-          <button type="button" class="btn tonal small account-find" data-palette-open>{{ t("nav.find-anything", "Find anything") }}</button>
+          <button type="button" class="btn tonal small account-find" data-palette-open>{{ t("nav.search", "Search") }}</button>
         </p>
         <div class="signed-out">
           <p>{{ t("nav.your-words-follow-you-no-password-we", "Your words follow you. No password. We'll email you a link.") }}</p>
@@ -176,12 +177,29 @@
   <iframe class="talk-frame" id="talk-frame" title="{{ t("nav.talk-to-targum", "Talk to targum") }}" allow="microphone" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
 </aside>
 <script>{{ asset('talk.js') }}</script>
-{#- The command palette (2026-09-11): one field that finds a place, a text, a series or
-    a conversation, and one press that goes there. Drawn by `palette.js`. -#}
+{#- One search, everywhere (design.md §12, "One search, everywhere", 2026-10-09): the
+    bar's door, ⌘K and / open it, and the Library's own box opens it held to the Library.
+    The field, the language it searches in, the filters, and what it found, grouped.
+    Drawn by `palette.js`, from `/search.json`. Every row's picture is `covers.js`'s,
+    which every page with this bar carries from here. -#}
+<script>{{ asset('covers.js') }}</script>
 <div class="scrim palette-scrim" id="palette-scrim" hidden></div>
-<div class="palette" id="palette" role="dialog" aria-label="{{ t("nav.find-anything", "Find anything") }}" hidden>
-  <input type="search" id="palette-find" class="well palette-find" dir="auto" placeholder="{{ t("nav.find-a-text-a-page-a-conversation", "Find a text, a page, a chat") }}" autocomplete="off" spellcheck="false">
-  <ul class="palette-list" id="palette-list" role="listbox"></ul>
+<div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="{{ t("nav.search-targum", "Search targum") }}" hidden>
+  <div class="palette-top">
+    <button type="button" class="palette-back" id="palette-back" aria-label="{{ t("nav.close", "Close") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg></button>
+    <label class="palette-field">
+      <svg class="palette-lens" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5"/></svg>
+      <input type="search" id="palette-find" class="palette-find" dir="auto" placeholder="{{ t("nav.search-placeholder", "Titles, authors, topics or a word") }}" aria-label="{{ t("nav.search-targum", "Search targum") }}" autocomplete="off" spellcheck="false" enterkeyhint="search">
+      <button type="button" class="palette-clear" id="palette-clear" aria-label="{{ t("nav.clear-search", "Clear the search") }}" hidden>×</button>
+      <kbd class="palette-esc">Esc</kbd>
+    </label>
+    <div class="palette-scope">
+      <button type="button" class="palette-lang" id="palette-lang" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-langs"></button>
+      <div class="palette-langs" id="palette-langs" role="menu" hidden></div>
+    </div>
+  </div>
+  <div class="tabs palette-filters" id="palette-filters" role="tablist" aria-label="{{ t("nav.search-where", "Where to look") }}"></div>
+  <div class="palette-body" id="palette-body" aria-live="polite"></div>
 </div>
 <script>{{ asset('palette.js') }}</script>
 {#- Saving for offline, and the worker that answers what was saved when the network is

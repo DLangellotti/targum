@@ -361,6 +361,62 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### One search, everywhere — 2026-10-09
+
+David, 2026-10-08 (calmer surfaces, boards FindDesk and FindPhone): **one search
+everywhere.** The bar's search, ⌘K and `/` open it, and **the Library's box is the same
+search, opened already held to the Library**. There were three: the command palette
+(2026-09-11), which found pages, texts and conversations by their titles in one spelling;
+the Library's box, which narrowed the list under it by title; and the connector's
+`find_text`. A reader who typed "tehillim" or ירושלם into either of the first two found
+nothing, and the same question had two answers depending on the page it was asked on.
+
+- **What it finds, grouped and counted**: Your targums (each marked Recent or Uploads),
+  Playlists, Subscriptions, the Library and Words, with a filter for each above them and
+  how many each holds. A row is the desk's row: its picture (`TargumCovers.picture`, the
+  one tile path), what it is in the boards' one word, its band in the Library's words
+  (Read it now, A stretch, Hard for now) and how much of it is known, over its meter. A
+  band is said only where the reader has words to measure against; a Level menu narrows
+  to one. A Library text already among the reader's targums is theirs, not listed twice.
+- **It folds spelling and reads a transliteration.** Points, cantillation, stress marks,
+  geresh and quotation marks come off, final letters meet their ordinary form, and the
+  vowel letters full spelling adds are let go inside a word, so ירושלים finds ירושלם. A
+  short table names what people ask for in Latin letters or by another shelf's name —
+  "tehillim" is Psalms, "Chekhov" is צ׳כוב and Чехов (`search.py`). **Local and free**:
+  no model, and the table is a file somebody edits.
+- **It searches in the language the menu is set to**, says so under what it found
+  ("Searched in Hebrew."), and offers **Search all languages**, with how many each
+  language holds in its scope menu. Held to one language and finding little there, it
+  shows a few of what another language has, with that language's badge.
+- **Words.** A line in the language's own letters finds the dictionary form, on the
+  shelf or on the reader's list; **an English line finds a word only on the reader's own
+  list** — a meaning they kept — never the dictionary, because a word they have never met
+  is not one they are looking for (David, 2026-10-08). "Texts with this word" is a page of
+  its own inside the search: the forms it was found as, and the sentences on the reader's
+  shelf and on the shared one that hold it, counted, one shown from each of a few texts,
+  each opening its text at that sentence (`/sentence/`). It reads each text's own
+  annotation through the same code as the connector's `sentences_with`
+  (`tools.sentences_in`).
+- **Nothing found offers what to do next**: Paste a link, or Upload it from a file, both
+  onto the Upload page, which shows the credits before anything is made.
+- **Recent searches are kept on the device**, in the browser's own storage, and nowhere
+  else: no account holds what somebody looked for. With nothing typed, they stand beside
+  the texts opened last.
+
+What it retires: the command palette's pages and conversations. The nav holds the four
+places and the pill holds the conversation, and the boards draw neither among the
+results. And "The Library is shelved by how much you'd follow" (2026-10-09) kept the
+Library's box and its fold "until search has its own slice": this is that slice, and **a
+search typed over the shelves no longer opens the list unbanded** — it opens the search,
+held to the Library. A search stored with a Library view from before is dropped, so it
+cannot go on narrowing a shelf with nothing on the page saying so.
+
+What it does not overturn: nothing in it spends — a Library row opens its door
+(`/open/`), never a build; a reader still fetches nothing, and the sentence it opens at
+is found by the server; "the library is browsed, not looked up" (2026-09-17) still holds
+for the shelves, and search is the looking up. On a phone the bar keeps its corners, and
+search is the account sheet's row (§13), as find was.
+
 ### A contents page is a page of its own, not a small reader — 2026-10-09
 
 David, 2026-10-08 (boards PartsBookA, PartsBookPhone, PartsVideoA, PartsVideoPhone and
@@ -1164,10 +1220,11 @@ is browsed, not looked up" (2026-09-17).
 - **See all is the one list, under that band**, with every filter, sort and shape it had,
   and "← Library" back to the shelves. A band there is exactly itself: "a step up" no
   longer includes what can be read now, which has its own shelf. A search typed over the
-  shelves opens the whole list, unbanded. `#see` and `#see/<band>` are addresses; a text's
+  shelves opens the whole list, unbanded *(until 2026-10-09: it opens the one search now)*. `#see` and `#see/<band>` are addresses; a text's
   own and `#bm` open what they always opened.
 - **The search box and its fold stay as they were** until search has its own slice; what
-  the fold narrows, the shelves narrow too. The Weekly portion stands among the shelves,
+  the fold narrows, the shelves narrow too. *(The box is the one search since
+  2026-10-09, opened held to the Library — "One search, everywhere".)* The Weekly portion stands among the shelves,
   not over a See all list.
 - **Every picture in the Library comes through `?drawn=1`** ("Every text has a picture",
   2026-10-08), on the shelves, the cards and the table: the Library draws no letter of its
