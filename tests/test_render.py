@@ -1212,7 +1212,9 @@ def test_the_progress_page_stands_on_its_own() -> None:
     # The page's own heading, not the nav's. `assert "Your words" in html` used to stand
     # here and passed on "Your words follow you" in the account panel, which every page
     # carries — so it would have gone on passing with every heading stripped out.
-    assert "<h1>Your Progress</h1>" in html
+    # On the desk under the bar, the board's way (§12, "The mockups win on Your
+    # Progress", 2026-10-09).
+    assert '<h1 class="page-title">Your Progress</h1>' in html
     # A story in three parts (§12, 2026-10-09): where you are, how you got here, what next.
     assert 'id="touchstones"' in html  # where you are
     assert 'id="weeks"' in html  # the words taken up, week by week

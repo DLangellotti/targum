@@ -432,8 +432,8 @@ def section_reading(folder: Path, number: int, marked: dict[str, int]) -> Readin
 
 
 #: Under this many points the line is not drawn, and the page says what would draw it:
-#: two months make a slope out of anything.
-POINTS = 3
+#: one month is a dot, not a line (two since 2026-10-09: the board draws from two).
+POINTS = 2
 
 #: Under this many running words a month is a guess and not a point — the same floor
 #: `level.known_share` keeps (its `MEASURABLE`), for the same reason.

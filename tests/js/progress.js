@@ -110,9 +110,14 @@ function reading() {
         .children.filter((node) => node.tagName === "text")
         .map((node) => node.textContent)
     : [];
+  const months = picture
+    ? (picture.children.find((node) => node.getAttribute && node.getAttribute("class") === "axis") || { children: [] })
+        .children.map((node) => node.textContent)
+    : [];
   return {
     shown: panel.hidden === false,
     drawn: Boolean(picture),
+    months: months,
     said: at("reading-said").children.map((node) => node.textContent),
     points: points.map((node) => node.getAttribute("aria-label")),
     ticks: ticks,
@@ -155,14 +160,15 @@ setImmediate(() => setImmediate(() => process.stdout.write(
     weeks: (function () {
       const bars = at("weeks").children[0];
       if (!bars || bars.tagName !== "ol") {
-        return { columns: 0, said: (bars || { textContent: "" }).textContent, label: "", parts: [] };
+        return { columns: 0, said: (bars || { textContent: "" }).textContent, label: "", shades: [] };
       }
       return {
         columns: bars.children.length,
         label: bars.getAttribute("aria-label"),
         said: "",
-        parts: bars.children.map((bar) => bar.children[0].children.length),
+        shades: bars.children.map((bar) => (bar.children[0] ? bar.children[0].style.background : "")),
         titles: bars.children.map((bar) => bar.title),
+        legend: at("weeks").children.length > 1,
       };
     })(),
     next: {

@@ -5,6 +5,33 @@
  * What is here is only the part that is new — and most of it is one block.
  */
 
+/* --- the board's column (design.md §12, "The mockups win on Your Progress") --------
+   1248px at a 1440 window, against the desk's 62rem: 71.25rem of content inside the
+   1.25rem gutters, at the desk's clamped rem. The bar's row, the title and the foot stand
+   in the same column, so the page's left edge is one line from the name down. This page
+   only, until the shared shell takes the board's width. */
+body.progress { --progress-column: 73.75rem; }
+body.progress main,
+body.progress .site-head-row,
+body.progress .site-head .beta-note,
+body.progress .page-title { max-width: var(--progress-column); }
+body.progress .site-footer { max-inline-size: var(--progress-column); }
+body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
+/* The bar is the nav row alone, ruled off from the desk; the title stands on the desk. */
+body.progress .site-head { border-block-end: 1px solid var(--rule); }
+body.progress .page-title {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 2rem auto 0;
+  padding-inline: 1.25rem;
+  font-family: var(--reading);
+  font-size: 1.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
 /* --- the ledger ------------------------------------------------------------
  *
  * §9's wake-up move, spent once. The max-contrast pair rather than plain ink-on-paper,
@@ -14,16 +41,20 @@
  */
 
 .progress .ledger {
-  padding: 1.5rem 1.25rem;
+  padding: 1.35rem 1.6rem;
   border-radius: var(--radius-card);
   background: var(--ink-max);
   color: var(--page-max);
 }
 
+/* The board's seven in a row on the desk; they wrap on a narrower window. */
 .progress .ledger .counts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
   gap: 1.25rem 0.75rem;
+}
+@media (min-width: 64rem) {
+  .progress .ledger .counts { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
 
 /* A real count of a real thing: the reading face with tabular figures, which is the
@@ -31,8 +62,8 @@
 .progress .ledger .counts b {
   display: block;
   font-family: var(--reading);
-  font-size: 1.75rem;
-  font-weight: 600;
+  font-size: 1.9375rem;
+  font-weight: 400;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -55,8 +86,11 @@
    missed: each figure is its own moment, and a ledger that named only one of them would
    be picking a favourite among facts. A count of nought takes no hue at all — see
    progress.js — so the strip is only ever as loud as the reader's actual reading. */
-.progress .ledger .lit.leaf b { color: var(--leaf-bright); }
-.progress .ledger .lit.iris b { color: var(--iris-bright); }
+/* The board's hues (§12, "The mockups win on Your Progress", 2026-10-09): known and
+   finished in the stage ramp's sage, the second step mixed on the panel; phrases in a
+   lilac mixed from iris-bright; learned in sun. */
+.progress .ledger .lit.leaf b { color: color-mix(in srgb, var(--leaf) 55%, var(--page-max)); }
+.progress .ledger .lit.iris b { color: color-mix(in srgb, var(--iris-bright) 65%, var(--page-max)); }
 .progress .ledger .lit.sun b { color: var(--sun); }
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
@@ -69,12 +103,29 @@
    The ledger's own treatment on paper: the figure in the reading face with tabular
    numbers, its word under it in the chrome's, no fill and no hue — these are counts of
    what was done, not achievements, so leaf is not theirs. */
-.spent-figures { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; }
-.spent-figure { display: grid; gap: 0.1rem; }
-.spent-amount { font-family: var(--reading); font-size: 1.75rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+/* The board's three figures in three equal columns, at the title's size. */
+.spent-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem 1.5rem; }
+.spent-figure { display: grid; gap: 0.1rem; align-content: start; }
+.spent-amount { font-family: var(--reading); font-size: 1.9375rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .spent-label { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
 .spent .note { margin-block-start: 1rem; }
-.spent .chips { margin-block-end: 1rem; }
+/* The period as three tinted pills, the chosen one filled teal (the board's, over §4's
+   quiet ink for a chosen filter, on this page). */
+.progress .spent .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-end: 1rem; }
+.progress .spent .chip {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.8125rem;
+}
+.progress .spent .chip:hover { border-color: var(--well); }
+.progress .spent .chip[aria-pressed="true"] { background: var(--teal); border-color: var(--teal); color: var(--page-max); }
+.progress .spent .chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) {
+  .progress .spent .chip { min-block-size: 44px; }
+}
 
 
 /* --- what you knew of what you read (targum-internal#291) ---------------------------
@@ -82,9 +133,15 @@
    width on the desk — about the growth line's own, in its half of the row — where a
    full-width viewBox would stand as tall as the page and its labels at twice their size. The
    sentence under it is ink: it is the figure, said in words, and not a caption. */
-.reading .chart { max-inline-size: 30rem; }
+/* The board draws it the panel's full width and 120px tall: a baseline, the line, a dot
+   a month and each month's name under its dot — no grid and no scale, the sentence under
+   it is the scale. */
+.reading .chart { position: relative; }
+.reading .chart svg { display: block; inline-size: 100%; block-size: 7.5rem; overflow: visible; }
+.reading .reading-base { stroke: var(--rule); stroke-width: 1; }
+.reading .reading-month { font-family: var(--chrome); font-size: 0.6875rem; fill: var(--ink-soft); }
 .reading .reading-point { cursor: default; }
-.reading-words p { margin: 0.75rem 0 0; max-inline-size: 40rem; color: var(--ink); }
+.reading-words p { margin: 0.5rem 0 0; max-inline-size: 40rem; font-size: 0.875rem; color: var(--ink-soft); }
 
 
 /* --- the story (design.md §12, 2026-10-09) -------------------------------------------
@@ -99,6 +156,7 @@
 }
 .progress .story-head {
   margin: 0.35rem 0 1.1rem;
+  color: var(--ink);
   font-family: var(--reading);
   font-size: 1.5rem;
   font-weight: 500;
@@ -153,8 +211,8 @@
 .progress .touch-gap { display: flex; align-items: center; color: var(--well); }
 .progress .touch-gap svg { inline-size: 0.875rem; block-size: 0.875rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-/* The words taken up, a column a week: each column a stack on the knowledge ramp, known
-   at its foot. */
+/* The words taken up, a column a week, each one shade of the stage ramp chosen by its
+   height — lighter for fewer, leaf for the most — and no legend, as the board draws it. */
 .progress .weeks {
   list-style: none;
   margin: 0.5rem 0 0;
@@ -162,18 +220,15 @@
   display: flex;
   align-items: flex-end;
   gap: 0.6rem;
-  block-size: 5.5rem;
+  block-size: 5.25rem;
 }
 .progress .week { flex: 1; block-size: 100%; display: flex; align-items: flex-end; }
-.progress .week-stack {
-  display: flex;
-  flex-direction: column-reverse;
+.progress .week-bar {
+  display: block;
   inline-size: 100%;
   min-block-size: 2px;
-  border-radius: var(--radius-control) var(--radius-control) 0 0;
-  overflow: hidden;
+  border-radius: 4px 4px 0 0;
 }
-.progress .week-part { display: block; flex-basis: 0; min-block-size: 1px; }
 
 /* What next: two halves, a hairline under each row, the figure at the end of it. */
 .progress .next-halves {
@@ -206,6 +261,7 @@
 .progress .next-term:lang(he),
 .progress .next-term:lang(yi),
 .progress .next-term:lang(arc) { font-family: var(--reading-hebrew); font-size: 1.25rem; }
+.progress .next-row { padding-block: 0.35rem; }
 .progress .next-aside {
   /* The English gives way before the title wraps. */
   flex: 0 1000 auto;
@@ -218,6 +274,8 @@
 }
 .progress .next-end { flex: none; font-size: 0.875rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .progress .next-end.leaf { color: var(--leaf); font-weight: 600; }
+/* With no word met twice, one quiet line in place of the rows. */
+.progress .next-half .quiet-line { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--ink-soft); }
 .progress .next-more { display: inline-block; margin-block-start: 0.9rem; font-weight: 600; color: var(--teal); }
 
 @media (max-width: 40rem) {
@@ -230,8 +288,10 @@
      nothing: the board's phone drops them and spaces the rungs instead. */
   .progress .touchstones { gap: 0.5rem; }
   .progress .touch-gap { display: none; }
-  /* A text's title and how much of it you know; the English beside it is what the
-     desk has room for (board ProgressPhone). */
-  .progress #level-rows .next-aside { display: none; }
   .progress .next-halves { grid-template-columns: minmax(0, 1fr); }
+  .progress .page-title { margin-block-start: 1.25rem; padding-inline: 1rem; font-size: 1.75rem; }
+  /* The phone board's three: on your list, known, finished; the rest are the desk's. */
+  .progress .ledger .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .progress .ledger .counts > :not(.count-saved, .count-known, .count-finished) { display: none; }
+  .progress .spent-amount, .progress .ledger .counts b { font-size: 1.5rem; }
 }

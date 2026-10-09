@@ -9705,13 +9705,16 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
-        showing = keeps_events() and self.store.collects(person.id)
+        # Read wherever a record exists, not only while the box keeps new events: a
+        # reader's own figures from the weeks it was on are still theirs (design.md §12,
+        # "The mockups win on Your Progress", 2026-10-09). Stopped by the reader, nothing.
+        on = self.store.collects(person.id)
         self._json(
             {
                 "signedIn": True,
                 "kept": keeps_events(),
-                "on": self.store.collects(person.id),
-                "totals": self.store.totals(person.id) if showing else [],
+                "on": on,
+                "totals": self.store.totals(person.id) if on else [],
             }
         )
 
@@ -11038,7 +11041,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _reading(self) -> None:
         """What the reader knew of what they read, a point a month, per language
-        (targum-internal#291). `line` is empty under three points, and `months` says how
+        (targum-internal#291). `line` is empty under two points, and `months` says how
         many there are so far, so the page can say what would draw it."""
         from . import coverage as coverage_module
 

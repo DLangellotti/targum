@@ -617,7 +617,8 @@ menu's language, as everywhere):
   that kind's shelf in the Library** (`/library#see/kind/<kind>`: the See all list, every
   band, that kind). Not a placement (§6): each rung is texts you can open. Under it, how
   much of what you read you knew, month by month (2026-09-27), still said as a count in
-  ten — and **absent until there are three months to draw**: no waiting paragraph.
+  ten — and **absent until there are two months to draw** (three until 2026-10-09; the
+  board draws its line from the first two points): no waiting paragraph.
 - **The rungs are said in everyday words** (David, 2026-10-09, on the live Italian page:
   "what is a picture book?", "what is a video talk? makes no sense"). The catalogue's
   kind names — dialogue, talk, picture book — are its own; a reader sees "a
@@ -630,10 +631,12 @@ menu's language, as everywhere):
   part 3 offers Upload and the reader's own texts instead of the Library's.
 - **2 · How you got here.** Time and words (2026-09-20), filtered by period only — Last 30
   days, Last 7 days, All time; the medium chips are gone, the three figures say the
-  medium. Under it, **the words you took up, week by week, coloured by where each is
-  now**. The board says "Words you came to know, week by week", and nothing records the
-  day a word reached known — only the day it was saved — so the chart says what it can
-  truthfully say rather than drawing a date nobody kept.
+  medium. Under it, **the words you took up, week by week**. The board says "Words you
+  came to know, week by week", and nothing records the day a word reached known — only
+  the day it was saved — so the chart says what it can truthfully say rather than drawing
+  a date nobody kept. Since 2026-10-09 each column is one shade of the stage ramp chosen
+  by its height, lighter for fewer and leaf for the most, with no legend row, as the
+  board draws it; it starts at the first week with anything in it.
 - **3 · What next.** The words still at steps 1 to 3 that the reader keeps meeting — met
   as the card means it, inside a section they finished, in two texts or more — with
   "Practise these words" to the Words page; and texts at their level now, 90% of their
@@ -646,6 +649,33 @@ rung ("A language with CEFR levels shows them", 2026-09-13 — the ladders stay 
 the stages bar, the commonness bars and the words-saved line. What it keeps: every figure a
 real count (§6), nothing on the page spends, a fall in the reading line is still said
 plainly and never in clay, and nothing names a current run of days.
+
+### The mockups win on Your Progress — 2026-10-09
+
+David, 2026-10-09, on the deployed page after targum#671 ("does not match the mockup"):
+where the calmer-surfaces boards and this document disagree, **the boards win**. On Your
+Progress (boards Progress and ProgressPhone) that means, and this page only until the
+shared shell follows:
+
+- **The column is the board's 1248px** at a 1440 window: `73.75rem` with its gutters at
+  the desk's clamped rem, against the desk's `62rem`. The bar's row, the title and the
+  foot stand in the same column.
+- **The title stands on the desk**, under the bar rather than inside it, in the reading
+  face at **34px (`1.9375rem`, a step added to the scale for page titles and the board's
+  big figures)**, weight 500. Section titles stay `1.5rem` serif.
+- **The totals are the board's seven**, labelled as it labels them — "words known",
+  "learned on targum" — with known and finished in the stage ramp's sage
+  (`--step-2` mixed on ink), learned in sun and phrases in a lilac mixed from
+  `--iris-bright`. A figure of nought is still drawn, and still takes no hue.
+- **The period filter is three tinted pills**, the chosen one filled teal. §4 keeps a
+  chosen filter in quiet ink everywhere else; here the board's teal wins.
+- **Time and words are three serif figures** at the title's size, all three drawn
+  whenever the account holds any record in that language, a nought said as "0 min".
+  The record is read wherever it exists: a box that has stopped keeping new events
+  (`TARGUM_EVENTS` off) still shows a reader what was kept while it was on.
+- **What next is the word, its meaning and "met in N texts"**, and a text's title alone
+  with its share known. With no word met twice the half says so in one quiet line.
+
 ### The five stages are one control, on every card — 2026-10-09
 
 David, 2026-10-08: "why don't the word cards show the stages of learning?" A word is never
