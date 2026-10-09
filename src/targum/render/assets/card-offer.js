@@ -21,6 +21,7 @@
   var none = document.getElementById("none");
   var one = document.getElementById("one");
   var item = document.getElementById("item");
+  var arrow = document.getElementById("arrow");
   var HEBREW = /[֐-׿]/;
   var bridge = null;
   var shown = [];
@@ -64,6 +65,7 @@
     if (!url) return;
     link.setAttribute("href", url);
     link.textContent = words;
+    link.appendChild(arrow.content.firstElementChild.cloneNode(true));
     link.hidden = false;
     link.addEventListener("click", function (event) {
       event.preventDefault();
@@ -71,11 +73,41 @@
     });
   }
 
+  // A tile: the first letter of a name on the colour of its kind, as on the desk.
+  function tile(name, tone) {
+    var one = document.createElement("span");
+    var letter = (String(name || "").match(/[^\s"'«»“”„()[\]]/) || ["?"])[0].toUpperCase();
+    one.className = "card-tile tone-" + tone;
+    one.textContent = letter;
+    if (HEBREW.test(letter)) one.setAttribute("lang", "he");
+    return one;
+  }
+
+  function mosaic(card, names, tone) {
+    var square = card.querySelector(".card-mosaic");
+    names.slice(0, 4).forEach(function (name) {
+      square.appendChild(tile(name, tone));
+    });
+    square.classList.toggle("is-one", square.children.length < 2);
+  }
+
+  function waits(card, kind) {
+    card.querySelector(".card-waits").textContent = said("waits", { kind: kind });
+  }
+
   function drawSet(rows) {
     var set = rows.set || {};
     var card = one.content.firstElementChild.cloneNode(true);
     card.querySelector(".card-label").textContent = said("kind-set");
     titled(card.querySelector(".card-title"), String(set.name || ""));
+    mosaic(
+      card,
+      (set.items || []).map(function (text) {
+        return String(text.title || "");
+      }),
+      "set"
+    );
+    waits(card, said("kind-set"));
     var items = card.querySelector(".card-items");
     (set.items || []).forEach(function (text) {
       var row = item.content.firstElementChild.cloneNode(true);
@@ -100,8 +132,12 @@
   function drawSubscription(rows) {
     var offer = rows.subscription || {};
     var card = one.content.firstElementChild.cloneNode(true);
-    card.querySelector(".card-label").textContent = said("kind-" + String(offer.kind || "series"));
+    var kind = said("kind-" + String(offer.kind || "series"));
+    card.querySelector(".card-label").textContent = kind;
     titled(card.querySelector(".card-title"), String(offer.name || ""));
+    var tones = { channel: "spoken", podcast: "spoken", topic: "news", outlet: "news" };
+    mosaic(card, [String(offer.hebrew || offer.name || "")], tones[offer.kind] || "book");
+    waits(card, kind);
     var facts = [];
     var week = Math.round(Number(offer.per_week) || 0);
     if (week > 0) facts.push(counted("week", week));
@@ -121,6 +157,7 @@
   function drawHeld(rows) {
     var card = one.content.firstElementChild.cloneNode(true);
     card.querySelector(".card-title").textContent = said("subscribed");
+    card.querySelector(".card-offer-top .card-mosaic").remove();
     door(card, String(rows.open || ""), said("manage"));
     return card;
   }

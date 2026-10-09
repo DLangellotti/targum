@@ -287,8 +287,10 @@ def _text_script() -> str:
 
 
 def test_the_text_card_fetches_nothing_but_a_recording() -> None:
-    """No address of anybody's in the page, ours included: the recording's comes in with
-    the result. One element may load, the `<audio>`, and only by the script's own hand."""
+    """No address of anybody's in the page, ours included: the recording's and the cover's
+    come in with the result. Two elements may load, the `<audio>` and a cover's `<img>`
+    (design.md §12, "A card's picture comes from targum.page", 2026-10-09), and only by
+    the script's own hand."""
     page = build_text_card()
     assert not re.search(r"https?://", page), "no address of anybody's in the card"
     without_script = re.sub(r"<script>.*?</script>", " ", page, flags=re.S)
@@ -298,9 +300,10 @@ def test_the_text_card_fetches_nothing_but_a_recording() -> None:
     for stray in ("fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "sendBeacon"):
         assert stray not in page, stray
     script = re.sub(r"^\s*//.*$", "", _text_script(), flags=re.M)
-    # The one thing it ever loads: the recording, into the one <audio>.
-    assert re.findall(r"(\w+)\.src\s*=", script) == ["ear"]
-    assert "createElement" not in script and "innerHTML" not in script
+    # The two things it ever loads: the recording, into the one <audio>, and a cover.
+    assert sorted(re.findall(r"(\w+)\.src\s*=", script)) == ["ear", "picture"]
+    assert set(re.findall(r'createElement\("(\w+)"\)', script)) == {"img", "span"}
+    assert "innerHTML" not in script
     assert page.count("<audio") == 1 and '<audio id="ear" preload="none">' in page
 
 
@@ -437,7 +440,7 @@ def test_a_text_with_a_recording_is_given_one_address_for_that_one_file(
     ends = first["audio"]["ends"] / 1000
     assert heard.LIFETIME_S - 5 < ends - __import__("time").time() <= heard.LIFETIME_S
     # A library text not on the shelf: its door is our library page, and no recording.
-    assert second == {"door": ADDRESS + "/library/ruth"}
+    assert second == {"door": ADDRESS + "/library/ruth", "cover": ADDRESS + "/cover/ruth"}
 
 
 def test_a_text_without_a_recording_has_no_button(shelves: SimpleNamespace) -> None:

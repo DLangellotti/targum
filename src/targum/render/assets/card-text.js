@@ -14,8 +14,10 @@
 //     targum yet, say who published it, and make the door our add page with its address
 //     already in the box. Never the publisher's page: the reader came to read it here.
 //   - play a recording the text already has, from the short-lived address the result
-//     carries in `_meta`, when the reader presses Listen. That is the one thing it ever
-//     loads, and only into the one `<audio>` on the page.
+//     carries in `_meta`, when the reader presses Listen, into the one `<audio>`;
+//   - show a library text's cover, from the `/cover/` address beside it in `_meta`
+//     (design.md §12, "A card's picture comes from targum.page", 2026-10-09). Those two
+//     are all it ever loads, and both only from targum.page.
 //
 // It asks for no tool at all. Its rows are the tool result, its doors and recordings
 // came with them, and a card never presses (§12). `test_cards.py` holds that.
@@ -27,6 +29,22 @@
   var none = document.getElementById("none");
   var one = document.getElementById("one");
   var ear = document.getElementById("ear");
+  // One card with a row for each text (design.md §12, "The connector's pages are the
+  // boards'", 2026-10-09): its head says what it holds, and the rows go under it.
+  var sheet = document.getElementById("sheet");
+  var rowsEl = document.getElementById("rows");
+  var kindLabel = document.getElementById("kind");
+  var plainKind = kindLabel.textContent;
+  var arrow = document.getElementById("arrow");
+  var KINDS = {};
+  try {
+    KINDS = JSON.parse(list.getAttribute("data-kinds") || "{}");
+  } catch (error) {
+    KINDS = {};
+  }
+  // The colour a letter rests on, by what a text is: thumbs.py's `tone`, as covers.js
+  // mirrors it on the desk.
+  var TONES = { article: "news", talk: "spoken", video: "spoken", dialogue: "set", liturgy: "set" };
 
   var HEBREW = /[֐-׿]/;
   // What `mcp_http.TEXT_CARD_META` names: the rows' doors and recordings.
@@ -91,7 +109,8 @@
   function gone(button) {
     if (playing === button) silence();
     button.hidden = true;
-    var credit = button.parentNode.querySelector(".card-credit");
+    var row = button.closest(".card-text");
+    var credit = row && row.querySelector(".card-credit");
     if (credit) credit.hidden = true;
   }
 
@@ -139,6 +158,29 @@
       title.setAttribute("lang", row.language === "arc" ? "arc" : "he");
     }
 
+    // The tile: the letter on its kind's colour, and a library text's own cover over it
+    // once it has loaded. A cover that does not load leaves the letter, never a broken
+    // square (§12, "A card's picture comes from targum.page", 2026-10-09).
+    var tile = card.querySelector(".card-tile");
+    var letter = (name.match(/[^\s"'«»“”„()[\]]/) || ["?"])[0].toUpperCase();
+    tile.querySelector(".card-letter").textContent = letter;
+    if (HEBREW.test(letter)) tile.setAttribute("lang", "he");
+    tile.classList.add("tone-" + (found ? "news" : TONES[row.kind] || "book"));
+    var cover = found ? "" : String(beside.cover || "");
+    if (cover) {
+      var picture = document.createElement("img");
+      picture.alt = "";
+      picture.decoding = "async";
+      picture.addEventListener("load", function () {
+        tile.classList.add("has-cover");
+      });
+      picture.addEventListener("error", function () {
+        picture.remove();
+      });
+      picture.src = cover;
+      tile.appendChild(picture);
+    }
+
     var english = card.querySelector(".card-english");
     var gloss = String(row.english || "");
     english.textContent = gloss;
@@ -148,7 +190,9 @@
     var from = found ? String(row.publisher || "") : "";
     var length = minutes(row);
     var share = known(row.known_share);
+    var kindWord = found ? "" : String(KINDS[row.kind] || "");
     [
+      [".card-kind-word", kindWord],
       [".card-from", from],
       [".card-minutes", length],
       [".card-known", share],
@@ -157,7 +201,18 @@
       part.textContent = pair[1];
       part.hidden = !pair[1];
     });
-    facts.hidden = !from && !length && !share;
+    facts.hidden = !kindWord && !from && !length && !share;
+    // A small leaf meter beside how much is known, as the board draws it: no number of
+    // its own, the sentence says it.
+    if (share) {
+      var meter = document.createElement("span");
+      meter.className = "card-meter";
+      meter.setAttribute("aria-hidden", "true");
+      var filled = document.createElement("span");
+      filled.style.inlineSize = Math.round(Math.max(0, Math.min(1, Number(row.known_share))) * 100) + "%";
+      meter.appendChild(filled);
+      card.querySelector(".card-known").appendChild(meter);
+    }
 
     var door = card.querySelector(".card-door");
     // A found item's door comes only from beside it: its own `link` is the publisher's.
@@ -165,6 +220,7 @@
     if (url) {
       door.setAttribute("href", url);
       door.textContent = found ? arriving(row) : row.reader ? said("open") : said("library");
+      door.appendChild(arrow.content.firstElementChild.cloneNode(true));
       door.hidden = false;
       door.addEventListener("click", function (event) {
         event.preventDefault();
@@ -205,15 +261,18 @@
     if (rows.error) {
       none.textContent = String(rows.error);
       none.hidden = false;
+      sheet.hidden = true;
       return;
     }
     var found = Array.isArray(rows.items);
     var texts = found ? rows.items : Array.isArray(rows.texts) ? rows.texts : rows.title ? [rows] : [];
     none.hidden = texts.length > 0;
+    sheet.hidden = !texts.length;
+    kindLabel.textContent = found ? said("found") || plainKind : plainKind;
     list.classList.toggle("stack", texts.length > 1);
     texts.forEach(function (row, n) {
       var card = draw(row || {}, meta[n] || {}, found);
-      list.appendChild(card);
+      rowsEl.appendChild(card);
       shown.push(card);
     });
   }

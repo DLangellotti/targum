@@ -49,11 +49,10 @@ from urllib.parse import urlencode, urlparse
 SCOPES: tuple[tuple[str, str], ...] = (
     ("library", "Search the library and look up what is at a link"),
     ("record", "Read your words, your mistakes and your progress"),
-    (
-        "chat",
-        "Send us what you write in a language you're learning, for us to correct. Add texts "
-        "to your playlists, and get new ones ready for you to confirm.",
-    ),
+    # The rest of what `chat` lets a connector do is said under it on the approval page
+    # (`connect.scope.chat-also`, design.md §12, "The connector's pages are the boards'",
+    # 2026-10-09): adding to playlists, and offering what the reader then confirms.
+    ("chat", "Send us what you write in a language you're learning, for us to correct"),
 )
 
 #: Scopes that have been renamed, old name to new. **A grant is stored as the words the

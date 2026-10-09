@@ -523,11 +523,13 @@
         lines.push({
           scope: "chat",
           says:
+            t("connect.scope.chat", "Send us what you write in a language you're learning, for us to correct") +
+            ". " +
             t(
-              "connect.scope.chat",
-              "Send us what you write in a language you're learning, for us to correct. Add texts to your playlists, and get new ones ready for you to confirm."
+              "connect.scope.chat-also",
+              "And add texts to your playlists, and offer texts, playlists and subscriptions, which you confirm here, on targum"
             ) +
-            " " +
+            ". " +
             t("you.connections.chat-included", "Chatting is included."),
         });
       }

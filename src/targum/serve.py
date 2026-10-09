@@ -35,7 +35,7 @@ from functools import cache, lru_cache, partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
@@ -934,6 +934,9 @@ def parasha_is_indexed() -> bool:
 #: SVG is a script that runs, which is not a thing to serve from a directory anybody can
 #: drop files into. Both halves of the app read this — one plans covers, one serves them.
 THUMBS = ((".webp", "image/webp"), (".png", "image/png"), (".jpg", "image/jpeg"))
+
+#: A library text's cover, open to a card in a host's frame (`Handler._public_cover`).
+COVER_ROUTE = "/cover/"
 
 MAX_COST = 2.00
 # The runaway guard for the whole box in a day, and the one rail waived for nobody —
@@ -5341,6 +5344,36 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         return self._send_file(target, AUDIO_KINDS[target.suffix.lower()])
 
+    def _public_cover(self, name: str) -> None:
+        """A library text's cover, with no cookie and no key (design.md §12, "A card's
+        picture comes from targum.page", 2026-10-09).
+
+        Narrower than `/thumb/` on purpose: only a name the catalogue has, and only the
+        cover drawn for it in `thumbs/`, so nothing of a reader's — an upload's picture, a
+        cover kept in a home, an import's own frame — is ever behind it. A chapter falls
+        back to its book, as `/thumb/` does. Anything else is the same 404 as an address
+        that is not there.
+        """
+        from . import catalogue as catalogue_module
+
+        wanted = unquote(name)
+        plain = (
+            bool(wanted)
+            and "/" not in wanted
+            and "\\" not in wanted
+            and not wanted.startswith(".")
+            and not OWNED.match(wanted)
+        )
+        if not self._host_is_ours() or not plain or catalogue_module.by_id(wanted) is None:
+            return self._send(404, b"not found", "text/plain")
+        root = (self.library.out / "thumbs").resolve()
+        for candidate in dict.fromkeys((wanted, re.sub(r"-c\d+$", "", wanted))):
+            for suffix, kind in THUMBS:
+                target = (root / (candidate + suffix)).resolve()
+                if root in target.parents and target.is_file():
+                    return self._send(200, target.read_bytes(), kind, cache="public, max-age=86400")
+        return self._send(404, b"not found", "text/plain")
+
     def _send_file(self, target: Path, kind: str) -> None:
         """A slice of a file on disk, the way a browser asks for video.
 
@@ -7511,6 +7544,12 @@ class Handler(BaseHTTPRequestHandler):
         # twenty minutes and nothing else (`heard`).
         if route == HEARD_ROUTE:
             return self._heard()
+        # A library text's cover, for a card in a host's frame and for the connect page's
+        # example (design.md §12, "A card's picture comes from targum.page", 2026-10-09).
+        # Before the account check: a host's frame carries no cookie, and a cover is the
+        # same picture for everybody. Only a catalogue id's own cover answers.
+        if route.startswith(COVER_ROUTE):
+            return self._public_cover(route[len(COVER_ROUTE) :])
         # The connector's metadata, and the page a reader approves on. Before the account
         # check: the two documents are read by a client that has no account and never will
         # have one, and the approval page signs a reader in itself rather than handing a
@@ -7525,6 +7564,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.address,
                 signed_in=self._person() is not None,
                 asked=self._asked(),
+                token=self._key_if_given(),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
@@ -7733,20 +7773,14 @@ class Handler(BaseHTTPRequestHandler):
                 )
             marked = parse_qs(urlparse(self.path).query).get("c", [""])[0] == "1"
             waiting = self._connecting()
+            # A Connect lost on the way through the mail is a page of its own on the
+            # door (design.md §12, "The connector's pages are the boards'", 2026-10-09).
             page = signin_page(
                 landing=person.email,
                 token=token,
                 language=self._page_language(),
                 connecting=self._finishing(self._connecting_client(waiting)) if waiting else "",
-                said=(
-                    self._say(
-                        "signin.page.connect-lost",
-                        "We couldn't finish connecting. Sign in, then connect again from "
-                        "Claude or ChatGPT.",
-                    )
-                    if marked and not waiting
-                    else ""
-                ),
+                lost=marked and not waiting,
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if not self._authorised():
@@ -10935,6 +10969,8 @@ class Handler(BaseHTTPRequestHandler):
             query=urlparse(self.path).query,
             redirect=redirect,
             language=self._page_language(),
+            email=person.email,
+            left=self._sub_credits(person)["credits"]["left"],
         )
         # The press is answered with a 303 to the client's callback, and a policy of
         # `'self'` alone refuses to follow it — see `_policy`. Only this redirect, which
@@ -10972,6 +11008,15 @@ class Handler(BaseHTTPRequestHandler):
             redirect = oauth.check_redirect(asked.redirect, client["redirects"])
         except oauth.OAuthError as refused:
             return self._refuse_connect(refused)
+        # Not you? (design.md §12, "The connector's pages are the boards'", 2026-10-09):
+        # signed out, and back to the same request, which a stranger meets as the sign-in
+        # that finishes connecting. Nothing is granted and the client is told nothing:
+        # the reader has not answered yet, only changed who is answering.
+        if form.get("press") == "not-you":
+            self.store.sign_out(self._cookie(SESSION_COOKIE) or None)
+            # Written again from what was read, never echoed: the form is the asker's.
+            again = urlencode(query, doseq=True)
+            return self._go(f"/oauth/authorize?{again}", _forget_cookie(SESSION_COOKIE))
         if form.get("press") != "approve":
             # A refusal is an answer, and the client is told in the way the spec says so
             # that it can say something better than "it didn't work".
@@ -11075,7 +11120,14 @@ class Handler(BaseHTTPRequestHandler):
         job = self._own_job(job_id)
         if job is None:
             return self._not_found()
-        self._send(200, press_page(job.state(), self._page_language()).encode("utf-8"), HTML)
+        person = self._person()
+        page = press_page(
+            job.state(),
+            self._page_language(),
+            credits=self._sub_credits(person)["credits"] if person is not None else None,
+            token=self._key_if_given(),
+        )
+        self._send(200, page.encode("utf-8"), HTML)
 
     def _press(self, job_id: str) -> None:
         """The press itself, as a form post so the page works with script off.
@@ -11118,6 +11170,7 @@ class Handler(BaseHTTPRequestHandler):
         if owned is None:
             return self._not_found()
         found, jobs = owned
+        person = self._person()
         refused = self.library.set_refusals.pop(int(playlist_id), "")
         self._send(
             200,
@@ -11126,6 +11179,8 @@ class Handler(BaseHTTPRequestHandler):
                 [job.state() if job is not None else None for job in jobs],
                 self._page_language(),
                 refused=refused,
+                balance=self._sub_credits(person)["credits"] if person is not None else None,
+                token=self._key_if_given(),
             ).encode("utf-8"),
             HTML,
         )

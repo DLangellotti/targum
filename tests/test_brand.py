@@ -349,12 +349,12 @@ THUMBED = (
     ".week-part",
     # And Hear first, in the player strip (2026-09-15, targum-internal#265).
     ".player-first",
-    # The connect page's own (2026-09-24): an app's tab, the Copy beside an address,
-    # the examples under the conversation, and a step, which shows its picture.
-    ".plat",
-    ".copy",
-    ".scene",
-    ".steps > li",
+    # The connect page's own (2026-09-24; as the board draws it since 2026-10-09,
+    # design.md §12, "The connector's pages are the boards'"): an app's tab, the Copy
+    # beside an address, and a question, which opens its answer.
+    ".cn-plat",
+    ".cn-copy",
+    ".cn-faq summary",
     ".yours-tabs .tab",
     # Your targums' find field (P4, 2026-10-09); its chips and order are gone.
     ".yours-card > .find",

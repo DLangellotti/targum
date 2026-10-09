@@ -396,7 +396,8 @@ a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
 
 /* --- the confirm page: the board's 640px card (board SubConfirm) ------------------------ */
 
-body.subscribe main.sub-gate {
+body.subscribe main.sub-gate,
+body.press main.sub-gate {
   max-inline-size: calc(40rem + 2.5rem);
   margin-inline: auto;
   padding: 2rem 1.25rem 4rem;
@@ -471,7 +472,8 @@ body.subscribe main.sub-gate {
 .sub-confirm .aside { margin: 0.75rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .sub-confirm .aside a { color: var(--teal); }
 @media (max-width: 40rem) {
-  body.subscribe main.sub-gate { padding: 1.25rem 1rem 3rem; }
+  body.subscribe main.sub-gate,
+body.press main.sub-gate { padding: 1.25rem 1rem 3rem; }
   .sub-confirm { padding: 1.25rem 1rem; }
   .sub-confirm-tile { inline-size: 4.5rem; block-size: 4.5rem; }
   .sub-confirm-title { font-size: 1.5rem; }
@@ -482,3 +484,70 @@ body.subscribe main.sub-gate {
 .cap-choices > .cap-choice:has(input:checked) { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
 .cap-choices > .cap-choice:has(input:checked) .cap-number { color: var(--teal); }
 .sub-names .sub-hebrew { align-self: flex-start; }
+
+/* --- the press for one text and for a set (design.md §12, "The connector's pages are
+   the boards'", 2026-10-09; boards ConnConfirm and ConnConfirmPhone) ----------------
+   The subscription's confirm card, for a quote a model handed over: what it is, its
+   title, the facts, then a hairline, what it uses with the month's balance, and
+   Confirm. */
+.press-confirm { display: flex; flex-direction: column; gap: 0.875rem; padding: 2.25rem 2.5rem; }
+.press-confirm .sub-via { align-self: flex-start; margin: 0; }
+.press-kicker { margin: 0; font-size: 0.875rem; color: var(--ink-soft); }
+.press-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.press-title:dir(rtl) { font-family: var(--reading-hebrew); font-size: 1.9375rem; }
+.press-english { margin: 0; color: var(--ink); }
+.press-facts { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin: 0; padding: 0; list-style: none; font-size: 0.875rem; color: var(--ink); }
+.press-facts:empty { display: none; }
+.press-facts li { display: inline-flex; align-items: center; gap: 0.4rem; }
+.press-facts li[hidden] { display: none; }
+.press-facts svg { inline-size: 1rem; block-size: 1rem; fill: none; stroke: var(--ink-soft); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.press-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--rule);
+}
+.press-cost { display: flex; flex-direction: column; gap: 0.125rem; margin: 0; }
+.press-cost b { font-size: 1.0625rem; font-weight: 600; }
+.press-cost span { font-size: 0.8125rem; color: var(--ink-soft); }
+.press-acts { display: flex; align-items: center; gap: 0.5rem; }
+.press-acts form { margin: 0; }
+.press-confirm .btn.go { min-block-size: 3rem; padding-inline: 2rem; font-size: 1.0625rem; }
+.press-confirm .said { margin: 0; }
+.press-confirm .aside { margin: 0; }
+.press-confirm .said[hidden], .press-confirm .aside[hidden] { display: none; }
+
+/* A set's rows: the tick, the letter, the title over what is known, what it uses. */
+.set-mosaic > span.tone-set { background: var(--iris); }
+.set-mosaic > span .glyph { font-family: var(--reading-hebrew); font-size: 1.25rem; color: var(--card); }
+.set-mosaic.is-one { grid-template-columns: 1fr; }
+.set-rows { margin: 0; padding: 0; list-style: none; }
+.set-row + .set-row { border-block-start: 1px solid var(--rule); }
+.set-row-label { display: flex; align-items: center; gap: 0.875rem; padding-block: 0.75rem; cursor: pointer; }
+.set-row-label input[type="checkbox"] { flex: none; inline-size: 1.25rem; block-size: 1.25rem; margin: 0; accent-color: var(--teal); }
+.set-tile { flex: none; inline-size: 3.5rem; block-size: 3.5rem; display: grid; place-items: center; border-radius: 8px; background: var(--iris); }
+.set-tile .glyph { font-family: var(--reading-hebrew); font-size: 1.5rem; color: var(--card); }
+.set-row-names { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 0.125rem; }
+.set-title { font-size: 1.0625rem; overflow-wrap: anywhere; }
+.set-title:dir(rtl) { font-family: var(--reading-hebrew); font-size: 1.25rem; }
+.set-meta { font-size: 0.8125rem; color: var(--ink-soft); }
+.set-cost { flex: none; font-size: 0.875rem; color: var(--ink-soft); white-space: nowrap; }
+@media (max-width: 40rem) {
+  .press-confirm { padding: 1.25rem 1rem; }
+  .press-title { font-size: 1.5rem; }
+  .press-acts { inline-size: 100%; }
+  .press-acts form { flex: 1; }
+  .press-acts .btn.go { inline-size: 100%; }
+  .set-row-label { flex-wrap: wrap; }
+  .set-cost { flex-basis: 100%; padding-inline-start: calc(1.25rem + 3.5rem + 1.75rem); white-space: normal; }
+}

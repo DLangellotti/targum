@@ -2013,6 +2013,22 @@ def build_offer_card(language: str = "en") -> str:
     )
 
 
+#: The kinds a text card names, with the desk's word for each (`home.kind.*`).
+CARD_KINDS = (
+    ("video", "Video"),
+    ("article", "Article"),
+    ("talk", "Video"),
+    ("dialogue", "Dialogue"),
+    ("story", "Story"),
+    ("novel", "Book"),
+    ("essay", "Essay"),
+    ("prose", "Tanakh"),
+    ("poetry", "Poetry"),
+    ("play", "Play"),
+    ("liturgy", "Prayer"),
+)
+
+
 def build_text_card(language: str = "en") -> str:
     """The text card a host draws beside `find_text` and `open_library_text` (design.md
     §12, "A card in someone else's chat", 2026-10-06).
@@ -2055,6 +2071,9 @@ def build_text_card(language: str = "en") -> str:
             page_language=_page_language(language),
             tenths=json.dumps(tenths, ensure_ascii=False),
             pace=READING_WORDS_PER_MINUTE,
+            # Each kind in one everyday word, the desk's own (design.md §12, "The boards
+            # are the desk"), so a row says "Dialogue · 3 min" as the board draws it.
+            kinds={kind: str(t(f"home.kind.{kind}", word)) for kind, word in CARD_KINDS},
         )
     )
 
@@ -2372,6 +2391,7 @@ def signin_page(
     connecting: str = "",
     again: str = "",
     closing: bool = False,
+    lost: bool = False,
 ) -> str:
     """The door. Three states, one template.
 
@@ -2403,6 +2423,7 @@ def signin_page(
             said=said,
             again=again,
             closing=closing,
+            lost=lost,
             connecting=connecting,
             # Only where this install can finish a Google sign-in. A door that fails at
             # its last step is worse than a door that is not there (#304).
@@ -2410,6 +2431,17 @@ def signin_page(
             strings=script_strings(language, "signin."),
         )
     )
+
+
+def _clock(minutes: int, language: str) -> str:
+    """Minutes as a reader reads a stretch of audio: "5 h 54 min", "2 h", "40 min"."""
+    t = page_words(language)
+    hours, rest = divmod(max(0, int(minutes)), 60)
+    if hours and rest:
+        return str(t("playlists.hours-minutes", "{h} h {m} min", h=hours, m=rest))
+    if hours:
+        return str(t("playlists.hours", "{h} h", h=hours))
+    return str(t("library.minutes", "{n} min", n=rest))
 
 
 def approve_page(
@@ -2420,6 +2452,8 @@ def approve_page(
     query: str,
     redirect: str,
     language: str = "en",
+    email: str = "",
+    left: int | None = None,
 ) -> str:
     """Where a reader grants a connector its scopes (targum-internal#80).
 
@@ -2436,15 +2470,24 @@ def approve_page(
     `query` is the original authorization request, carried through the form so the press
     can be read again from it. Nothing on the grant is taken from the form itself; see
     `serve.Handler._oauth_approve` for why that matters.
+
+    `email` is who is signed in, said with Not you? beside it, and `left` the credits
+    the month has left, None where the reader is held to no allowance (design.md §12,
+    "The connector's pages are the boards'", 2026-10-09).
     """
     parsed = urlparse(redirect)
     host = parsed.netloc or redirect
+    t = page_words(language)
     return (
         _environment()
         .get_template("approve.html.j2")
         .render(
-            t=page_words(language),
+            t=t,
+            tn=page_counts(language),
             page_language=_page_language(language),
+            email=email,
+            left=left,
+            clock=_clock(left or 0, language),
             client=client,
             scopes=scopes,
             spends=spends,
@@ -2454,7 +2497,12 @@ def approve_page(
     )
 
 
-def press_page(job: dict[str, Any], language: str = "en") -> str:
+def press_page(
+    job: dict[str, Any],
+    language: str = "en",
+    credits: dict[str, Any] | None = None,
+    token: str = "",
+) -> str:
     """Where a quote made through a connector is pressed (targum-internal#80).
 
     In the chat a quote becomes a card in the thread and the card's button posts
@@ -2468,7 +2516,12 @@ def press_page(job: dict[str, Any], language: str = "en") -> str:
     `tn` because this page counts out loud and got it wrong: a one-minute video read
     "Uses 1 minutes of your hours" (2026-09-23, §12). Every counted line here goes through
     it, including the ones the credits vocabulary will replace.
+
+    In the app's shell since 2026-10-09 (design.md §12, "The connector's pages are the
+    boards'"): `credits` is what the month has left beside the cost, as the subscription's
+    confirm page says it, and `token` the bar's key where the request carried one.
     """
+    left = (credits or {}).get("left")
     return (
         _environment()
         .get_template("press.html.j2")
@@ -2477,10 +2530,15 @@ def press_page(job: dict[str, Any], language: str = "en") -> str:
             tn=page_counts(language),
             page_language=_page_language(language),
             job=job,
+            credits=credits or {},
+            clock=_clock(int(left or 0), language),
             # `press.js` narrates the build and says how much longer, so it says
             # sentences — and said them in English on a Russian page until this was
-            # passed, because nothing had handed the page a `TargumStrings`.
-            strings=script_strings(language, "press."),
+            # passed, because nothing had handed the page a `TargumStrings`. The bar's
+            # scripts say theirs from the same catalogue.
+            strings=script_strings(language),
+            token=token,
+            names=_language_names(language),
         )
     )
 
@@ -2496,6 +2554,8 @@ def set_page(
     jobs: list[dict[str, Any] | None],
     language: str = "en",
     refused: str = "",
+    balance: dict[str, Any] | None = None,
+    token: str = "",
 ) -> str:
     """Where a set a model quoted is pressed, as one (targum-internal#365).
 
@@ -2546,12 +2606,22 @@ def set_page(
             first=first,
             total=total,
             refused=refused,
+            # The app's shell since 2026-10-09 (design.md §12, "The connector's pages are
+            # the boards'"): the month's credits beside the total, and the bar.
+            credits=balance or {},
+            strings=script_strings(language),
+            token=token,
+            names=_language_names(language),
         )
     )
 
 
 def connect_page(
-    language: str = "en", address: str = "", signed_in: bool = False, asked: str = ""
+    language: str = "en",
+    address: str = "",
+    signed_in: bool = False,
+    asked: str = "",
+    token: str = "",
 ) -> str:
     """targum in Claude and ChatGPT: what it does, and how to add it (#80).
 
@@ -2563,9 +2633,11 @@ def connect_page(
     One block a host, each with its own steps, and nothing detected — a reader in the
     wrong block can see that they are, which is not true of a page that chose for them.
 
-    `signed_in` only decides whether the hero says that connecting needs an account:
-    accounts come off the waitlist, and a stranger sent to the steps would otherwise
-    meet a sign-in door they cannot get through.
+    `signed_in` decides the shell (design.md §12, "The connector's pages are the
+    boards'", 2026-10-09): a reader meets the page in the app's bar and foot, a stranger
+    in the public ones, told that connecting needs an account — accounts come off the
+    waitlist, and a stranger sent to the steps would otherwise meet a sign-in door they
+    cannot get through.
     """
     said = page_words(language)
     # Its own address per language, like every other public page (#188): a crawler
@@ -2573,7 +2645,7 @@ def connect_page(
     here, alternates = _addressed_in(f"{address.rstrip('/')}/connect" if address else "", language)
     return (
         _environment()
-        .get_template("connect.html.j2")
+        .get_template("connect-desk.html.j2" if signed_in else "connect.html.j2")
         .render(
             t=said,
             page_language=_page_language(language),
@@ -2589,9 +2661,11 @@ def connect_page(
             canonical=here,
             alternates=alternates,
             address=address,
-            # The conversation and the set-up screens say their words through
-            # `strings.js`; the template's own `.page.` keys are said already.
-            strings=script_strings(language, "connect."),
+            # Copied, through `strings.js`; and, in the app's shell, everything the bar's
+            # scripts say.
+            strings=script_strings(language) if signed_in else script_strings(language, "connect."),
+            token=token,
+            names=_language_names(language),
         )
     )
 
