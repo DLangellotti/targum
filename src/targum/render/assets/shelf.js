@@ -589,6 +589,24 @@
         next.setAttribute("role", "menuitem");
         menu.appendChild(next);
       }
+      // Where the row's + is not drawn (a phone keeps ⋯ alone, audit Q7), Add to
+      // playlist is in here, as the page that chooses one.
+      var plus = item.querySelector(".add-to-list");
+      if (plus && window.getComputedStyle(plus).display === "none") {
+        var add = document.createElement("a");
+        add.href = plus.href;
+        add.setAttribute("role", "menuitem");
+        add.textContent = t("shelf.add-to-playlist", "Add to playlist");
+        // The same sheet the + opens, in place; the page where the script is not here.
+        if (lists && lists.attach) {
+          lists.attach(add, { name: reader.name, title: reader.title || reader.name }, key);
+          add.setAttribute("role", "menuitem");
+        }
+        add.addEventListener("click", function () {
+          setTimeout(closeMenu, 0);
+        });
+        menu.appendChild(add);
+      }
       if (reader.chapters && reader.chapters.length) {
         var chapters = opener(reader, item);
         chapters.setAttribute("role", "menuitem");
@@ -612,7 +630,7 @@
       document.addEventListener("keydown", escapeMenu, true);
       window.addEventListener("scroll", closeMenu, true);
       window.addEventListener("resize", closeMenu);
-      var first = menu.querySelector("button");
+      var first = menu.querySelector("button, a");
       if (first) first.focus();
     };
     return press;

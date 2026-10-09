@@ -158,7 +158,14 @@
     })(),
     query: "",
     series: "",
+    // Every row, once Show more is pressed; the first few until then (audit Q7).
+    all: false,
   };
+
+  // How many rows the shelf draws before Show more (board Main draws a short list), and
+  // how many it must be hiding before the press is worth drawing at all.
+  var SHOW_FIRST = 8;
+  var SHOW_MORE_FROM = 3;
 
   // The find field is for a shelf long enough to need it.
   var SIFT_FROM = 6;
@@ -424,6 +431,12 @@
           // language from an empty shelf; this can.
           empty = t("shelf.empty.language", "Nothing in {language} yet.", { language: names[shown] || shown });
         }
+        // The first rows, and the rest behind Show more; a search or a series is shown
+        // whole, since there the reader has already said what they want.
+        var moreRows = document.getElementById("shelf-more-rows");
+        var capped = !group && !view.query && !view.all && rows.length >= SHOW_FIRST + SHOW_MORE_FROM;
+        if (capped) rows = rows.slice(0, SHOW_FIRST);
+        if (moreRows) moreRows.hidden = !capped;
         shelf.draw(shown, rows, {
           note: "",
           building: plain ? building : [],
@@ -440,6 +453,7 @@
       function show(code) {
         shown = code;
         view.series = "";
+        view.all = false;
         lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         // No ceiling: this page is the whole of it, which is what it is for.
@@ -466,6 +480,7 @@
           event.preventDefault();
           view.tab = link.getAttribute("data-tab");
           view.series = "";
+          view.all = false;
           Array.prototype.forEach.call(tabs, function (other) {
             if (other === link) other.setAttribute("aria-current", "page");
             else other.removeAttribute("aria-current");
@@ -496,6 +511,13 @@
         view.series = "";
         render();
       });
+      var moreButton = document.getElementById("shelf-more-rows");
+      if (moreButton) {
+        moreButton.addEventListener("click", function () {
+          view.all = true;
+          render();
+        });
+      }
 
       show(lang.current(codes));
 

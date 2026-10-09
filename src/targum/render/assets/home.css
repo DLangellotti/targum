@@ -420,12 +420,24 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
 #library-list .book-title:lang(he),
 #library-list .book-title:lang(yi),
 #library-list .book-title:lang(arc) { font-family: var(--reading-hebrew); }
-/* The quiet line: one line, cut rather than wrapped, and each fact cut on its own so a
-   playlist's long name ("In Everyday Hebrew for the kitchen, the market…") never pushes
-   the row past the card (P4, 2026-10-09). */
-#library-list .book-facts { display: flex; flex-wrap: nowrap; min-inline-size: 0; overflow: hidden; white-space: nowrap; }
-#library-list .book-facts .fact { flex: 0 1 auto; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
-#library-list .book-facts .fact-lists { flex-shrink: 4; }
+/* The quiet line: one line, and a fact either fits on it whole or is not drawn. Each
+   fact was cut on its own, so a row read "Started · 4 min … · In Hebrew i…" (audit Q7,
+   2026-10-09). Now the facts wrap and the line is one line tall, so a fact that does
+   not fit goes to a second line nobody sees, and what is drawn is always a whole word. */
+#library-list .book-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  min-inline-size: 0;
+  line-height: 1.4;
+  max-block-size: 1.4em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+#library-list .book-facts .fact { flex: none; }
+/* Only a first fact longer than the whole line (a build's message) is cut, at its end. */
+#library-list .book-facts .fact:first-child { flex-shrink: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+#library-list .book-facts .fact + .fact::before { content: "·"; margin-inline: 0.35em; }
 #library-list .book-facts .fact-status { display: inline-flex; align-items: center; gap: 0.25rem; flex: none; font-weight: 600; }
 #library-list .book-facts .fact-status.is-new { color: var(--teal); }
 #library-list .book-english { display: inline; color: var(--ink-soft); }
@@ -437,6 +449,22 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
 #library-list .add-to-list .add-glyph { display: block; }
 #library-list .add-to-list .add-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 #library-list .row-controls { flex-direction: row; justify-content: flex-end; gap: 0.25rem; }
+/* The row's two keys are drawn when the row is pointed at or a key in it has the focus
+   (board Main draws a row with neither): the columns stay, so nothing moves when they
+   come. Without a pointer that hovers, ⋯ stays, since it holds Delete; the + is a press
+   inside it on a phone. */
+@media (hover: hover) {
+  #library-list .row-controls { opacity: 0; transition: opacity 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+  #library-list.shelf-rows > li:hover .row-controls,
+  #library-list .row-controls:focus-within,
+  #library-list .row-controls:has([aria-expanded="true"]) { opacity: 1; }
+}
+@media (hover: none) {
+  #library-list .add-to-list { display: none; }
+}
+/* Show more: the first rows, and the rest a press away (audit Q7). */
+.shelf-more-rows { align-self: center; }
+.shelf-more-rows[hidden] { display: none; }
 #library-list .series-stack::before,
 #library-list .series-stack::after { border-radius: var(--radius-control); }
 
@@ -495,10 +523,20 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
   .yours-head .tabs { min-inline-size: 0; max-inline-size: 100%; }
   /* A phone's row is the picture, the title with its line, and when (board HomePhone);
      the tag and the meter fold away, and the keys stay. */
-  #library-list.shelf-rows > li { grid-template-columns: 2.75rem minmax(0, 1fr) auto; gap: 0.75rem; padding-inline: 0; }
+  #library-list.shelf-rows > li { grid-template-columns: 2.75rem minmax(0, 1fr) auto; gap: 0.25rem 0.75rem; padding-inline: 0; align-items: center; }
   #library-list .row-tag,
-  #library-list .row-meter,
   #library-list .row-end { display: none; }
+  /* The meter stays, under the line, so a phone says how much of each is known too. */
+  #library-list .row-thumb,
+  #library-list .series-stack,
+  #library-list .row-controls { grid-row: span 2; }
+  #library-list .row-meter { grid-column: 2; grid-row: 2; max-inline-size: 7.5rem; }
+  #library-list .row-meter:not(.meter) { display: none; }
+  /* A phone's row keeps ⋯ alone, always drawn: Add to playlist is in it too. */
+  #library-list .row-controls { opacity: 1; }
+  #library-list .add-to-list { display: none; }
+  #library-list .book-facts { display: flex; flex-wrap: wrap; column-gap: 0; }
+  #library-list .book-facts .fact + .fact::before { content: "·"; }
   #library-list .book-title { font-size: 1.0625rem; }
   #library-list .book-english { display: none; }
   #library-list.shelf-rows > .chapters { padding-inline-start: 0; }
@@ -517,7 +555,8 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
 @media (prefers-reduced-motion: reduce) {
   .home-card,
   .welcome-go,
-  .upload-card { transition: none; }
+  .upload-card,
+  #library-list .row-controls { transition: none; }
   .welcome-go:active { transform: none; }
   .home-card:not(.is-building):active,
   .upload-card:active { transform: none; }

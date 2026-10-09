@@ -201,15 +201,23 @@ def test_escape_closes_the_more_menu(browser, tmp_path: Path) -> None:
 
 
 def test_on_a_phone_the_row_keeps_its_title_and_its_line(browser, tmp_path: Path) -> None:
-    """Board HomePhone: the picture, the title and its line; the tag and the meter fold
-    away, and the status stays in the line."""
+    """Board HomePhone: the picture, the title and its line; the tag folds away, the
+    status stays in the line, and a known share keeps its meter under it (audit Q7,
+    2026-10-09). The row keeps ⋯ alone, and Add to playlist is inside it."""
     context, page, thrown = shelf(browser, tmp_path, 390)
     first = page.locator("#library-list li").first
-    pill = first.locator(".row-tag").is_visible() or first.locator(".row-meter").is_visible()
+    pill = first.locator(".row-tag").is_visible()
     folded = first.locator(".fact-status").is_visible()
+    measured = page.locator("#library-list li .row-meter.meter").first
+    meter = measured.count() == 0 or measured.is_visible()
+    plus = page.locator("#library-list li .add-to-list").first.is_visible()
+    page.locator("#library-list .row-more").first.click()
+    page.wait_for_selector(".row-menu")
+    added = page.locator(".row-menu a[href*='/playlists?add=']").count()
     wide = page.evaluate("() => document.documentElement.scrollWidth")
     context.close()
-    assert not pill and folded
+    assert not pill and folded and meter
+    assert not plus and added == 1
     assert wide <= 390, "the page never scrolls sideways"
     assert not thrown
 

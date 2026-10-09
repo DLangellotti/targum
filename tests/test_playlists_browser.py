@@ -289,7 +289,8 @@ def test_a_shelf_row_opens_the_sheet_for_its_text(browser, tmp_path: Path) -> No
     page_file = tmp_path / "texts.html"
     page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
     readers = [{"name": "jonah", "document": "jonah", "title": "יונה", "language": "he"}]
-    context = browser.new_context(viewport={"width": 390, "height": 844})
+    # At a desk, where the row draws its + (a phone keeps it in ⋯, audit Q7).
+    context = browser.new_context(viewport={"width": 1280, "height": 844})
     page = context.new_page()
     page.add_init_script(
         f"const readers = {json.dumps(readers)};"
@@ -303,11 +304,11 @@ def test_a_shelf_row_opens_the_sheet_for_its_text(browser, tmp_path: Path) -> No
     assert href == "/playlists?add=jonah&title=%D7%99%D7%95%D7%A0%D7%94&k=test-key"
 
 
-def shelf_with_fake(browser, tmp_path: Path, extra: str = ""):
+def shelf_with_fake(browser, tmp_path: Path, extra: str = "", width: int = 1280):
     page_file = tmp_path / "texts.html"
     page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
     readers = [{"name": "jonah", "document": "jonah", "title": "יונה", "language": "he"}]
-    context = browser.new_context(viewport={"width": 390, "height": 844})
+    context = browser.new_context(viewport={"width": width, "height": 844})
     page = context.new_page()
     thrown: list[str] = []
     page.on("pageerror", lambda error: thrown.append(str(error)))
@@ -318,7 +319,7 @@ def shelf_with_fake(browser, tmp_path: Path, extra: str = ""):
         " : playlistsFetch(url, opts);" + extra
     )
     page.goto(page_file.as_uri())
-    page.wait_for_selector(".add-to-list")
+    page.wait_for_selector(".add-to-list", state="attached")
     return context, page, thrown
 
 
@@ -343,9 +344,27 @@ def test_add_to_playlist_is_a_menu_in_place(browser, tmp_path: Path) -> None:
     assert not thrown
 
 
+def test_on_a_phone_add_to_playlist_is_in_the_rows_menu(browser, tmp_path: Path) -> None:
+    """Audit Q7 (2026-10-09): a phone's row keeps ⋯ alone, and Add to playlist inside
+    it opens the same sheet the + does, on the shelf."""
+    context, page, thrown = shelf_with_fake(browser, tmp_path, width=390)
+    before = page.url
+    page.locator(".row-more").first.click()
+    page.locator(".row-menu a", has_text="Add to playlist").click()
+    page.wait_for_selector(".playlist-menu .pm-choice")
+    row_menu = page.locator(".row-menu").count()
+    after = page.url
+    context.close()
+    assert after == before
+    assert row_menu == 0, "the row's menu gave way to the sheet"
+    assert not thrown
+
+
 def test_the_menu_makes_a_new_playlist_with_the_text_in_it(browser, tmp_path: Path) -> None:
-    context, page, thrown = shelf_with_fake(browser, tmp_path)
-    page.locator(".add-to-list").first.click()
+    # The phone's sheet, where the name is a field from the start; reached through ⋯.
+    context, page, thrown = shelf_with_fake(browser, tmp_path, width=390)
+    page.locator(".row-more").first.click()
+    page.locator(".row-menu a", has_text="Add to playlist").click()
     page.wait_for_selector(".playlist-menu .pm-choice")
     page.fill(".playlist-menu .pm-name", "Morning")
     confirm = page.locator(".playlist-menu .pm-confirm").inner_text()

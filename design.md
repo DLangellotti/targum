@@ -6276,7 +6276,8 @@ phone (under 40rem) the four places — Your targums, Library, Your Progress, Up
 the foot of the window on glass, a glyph over each word, and at a desk only Upload keeps its
 glyph, a `+` before the word; the top bar keeps the mark, the language (its name and badge; no flag since 2026-10-09), the
 bell and the account, with find as a row in the account's sheet; the pill
-that opens the conversation is a round button above the bar, and every panel comes up
+that opens the conversation stands above the bar and says Talk (board HomePhone; it was a
+round glyph until 2026-10-09), and every panel comes up
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
 alike — no taller than the screen less a strip of the page, over the page dimmed. Learn (until 2026-10-08, when home became Your targums — §12) on
 a phone was quiet (2026-09-14, "the whole page is just way too busy"): the greeting and the
