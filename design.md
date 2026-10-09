@@ -363,6 +363,76 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Your account is the board's sections, and Saved on this device its two columns — 2026-10-09
+
+P12 of the polish plan, after "The boards are the desk" and "The desk's controls are one
+layer" (the same day). Boards AccountDesk, AccountPhone, PlanAccount (the plan card
+only), ConnYou, OffSavedDesk and OffSavedPhone.
+
+**Your account** is one column at the board's 880px, with its title over it, and a card
+for each section:
+
+- **Credits.** The balance is in the reading serif ("480 left this month"), with the rate
+  and the day the credits come back under it, a meter of what is left, and "One credit is
+  a minute of audio or video. Reading uses none." The rate stays beside the balance ("A
+  cost is credits").
+- **Plan.** There is one plan while targum is in early access: "480 credits a month while
+  targum is in early access · back on November 1". Top up's two buttons (60 and 180
+  credits) are drawn and greyed, with "Payments open soon" under them, as the refusal
+  surfaces draw Top up until a payment provider is chosen. There are no receipts to list,
+  no plan to change and no money anywhere.
+- **Your languages, as rows.** Each language being learned has Remove, except Hebrew,
+  which the server also keeps on. "Start another language" offers the rest. "Read and
+  translate into" sets the language for meanings, translations, menus and buttons, and
+  the page reloads when the menus' language changes. The board draws "Interface
+  language" as a row of its own. Here it is one control, because on the account it is
+  one setting (`strings.reading_language`, from what you read into). A second control
+  that moved whenever the first one did would say there were two settings when there is
+  one. An account that reads into both English and Russian keeps that as an option of its
+  own. "Your Hebrew" (the rung, 2026-10-07) is the last row, because it changes which
+  words a page draws as known.
+- **What's connected**, as ConnYou draws it. Each app has a row with its letter, its name,
+  "Connected 22 September, again 6 October, last used …", and "It may:" followed by one
+  line for each scope, in the approval page's own sentences. The chat line ends
+  "Chatting is included." Two grants with the same name are one app connected twice
+  (Claude registers itself again each time it reconnects), so they share a row, and
+  Disconnect takes both. "Connect another app" leads to /connect.
+- **Your prompts** and **Telegram** are unchanged in what they do, and drawn on the
+  desk's components.
+- **Account**: the address; Saved on this device, with Open; Export your data, with
+  Download (the instant download, `/account/export`); "What we record as you go" with
+  its two controls, where the box keeps such a record; Correcting a meaning, with its one
+  press and the grant; Sign out; and Delete your account, set apart, in clay, with the
+  seven days said beside it. A press that cannot be undone is now drawn as the boards
+  draw it, with clay around it as well as in it (`.btn.ghost.outline.danger`,
+  shared.css).
+
+What goes, each because the board draws none of it (David's #13, left open; the defaults
+taken, for him to overrule):
+
+- **The name field and the Hebrew form of address.** The account keeps what was said
+  before, and the conversation still reads it. Neither is asked anywhere now.
+- **"Your reading"** (the tally and its three links). The tally is Your Progress's,
+  Saved on this device is a row of Account, and subscriptions are a tab of Your targums.
+- **The explainers.** "Hebrew always stays on…", the long paragraph on what is recorded
+  and the essay on correcting a meaning are each now a line under their own row.
+
+What is not drawn because nothing behind it exists: the email address's Change, receipts,
+and "Brought in this month" on a connection.
+
+**Saved on this device** takes its two columns at a desk: at the left, "Saved on their
+own" and "Saved by you" as tables with column heads (picture, title over what was kept,
+kind, size, a tag for how it came to be saved, Keep and ×), and at the right, Room on this
+device (the figure in the serif and a meter), Saving on its own (the switch on in the
+primary) and Remove all, outlined in clay. On a phone it is one column with the room
+first, and each row is its picture, its title, its kind and size, a pin and ×. A text
+saved on its own can now be let go with × as well as kept. Nothing saved yet is said
+inside the card the rows would be in. The pictures go through the one tile path,
+`TargumCovers.picture`, which amends "What is saved is a page of the account's" (above):
+the letter on the colour of its kind is drawn first, and the text's own picture
+replaces it only once it has loaded. With no connection the tile stays a letter and is
+never a broken square, and the page still asks the server for nothing it needs.
+
 ### Upload is the board's: a field, a place to drop, and the card beside it — 2026-10-09
 
 P11 of the polish plan, after "The boards are the desk" and "The desk's controls are one

@@ -23,7 +23,8 @@ body.you .page-head { max-width: calc(55rem + 2.5rem); }
 b.acct-name { font-weight: 600; }
 .acct-says { color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.5; }
 .acct-end { flex: none; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
-.acct-wrap { flex-wrap: wrap; }
+.acct-rows > .row.acct-wrap { flex-wrap: wrap; }
+.acct-rows > .row.acct-wrap > .row-main { flex: 1 1 18rem; }
 .acct-wrap > .said { flex: 1 1 100%; }
 .acct-inline,
 .acct-link { color: var(--teal); font-weight: 600; text-underline-offset: 2px; }
@@ -130,6 +131,7 @@ b.acct-name { font-weight: 600; }
   .acct-narrow { display: inline; }
   .credits-n { font-size: 1.9375rem; }
   /* A row's presses go under its words where they will not fit beside them. */
+  .acct-rows > .row.acct-wrap > .row-main { flex-basis: 100%; }
   .acct-rows > .row.acct-wrap .acct-end,
   #plan .acct-end { flex: 1 1 100%; justify-content: stretch; }
   #plan .acct-end .btn,
