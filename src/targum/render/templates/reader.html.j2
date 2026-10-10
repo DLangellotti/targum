@@ -634,8 +634,10 @@
       film ends. Once the film has played to its end the line under the picture gives way
       to this: what ended, the words here never marked, and the foot itself, moved in by
       the script rather than drawn twice, so it is one press with one Undo. -#}
-  <section class="film-end" id="film-end" aria-labelledby="film-end-head" dir="ltr" hidden>
-    <h2 class="film-end-head" id="film-end-head">{% if not standalone %}{{ t("reader.film.end-of-part", "End of part {n} of {count}", n=section.number, count=section_count) }}{% else %}{{ t("reader.film.end", "The end") }}{% endif %}</h2>
+  {#- A text on its own is not told it has ended (David, 2026-10-10): the card under the
+      picture says so by being there. A part says which part, which is news. -#}
+  <section class="film-end" id="film-end" {% if standalone %}aria-label="{{ t("reader.film.end", "The end") }}"{% else %}aria-labelledby="film-end-head"{% endif %} dir="ltr" hidden>
+    {% if not standalone %}<h2 class="film-end-head" id="film-end-head">{{ t("reader.film.end-of-part", "End of part {n} of {count}", n=section.number, count=section_count) }}</h2>{% endif %}
     <p class="film-end-ask" hidden></p>
     <ul class="film-end-words" lang="{{ source_language }}" dir="{{ source_direction }}" hidden></ul>
     <div class="film-end-foot"></div>
@@ -977,7 +979,9 @@
 <div class="foot" id="foot" dir="ltr">
   {#- Named, as board ReaderTheatreEnd names it (design.md §12, "The reader's chrome is
       the desk's", 2026-10-09): the foot is a card that says which end this is. -#}
-  <h2 class="foot-title">{% if standalone %}{{ t("reader.film.end", "The end") }}{% elif by_part %}{{ t("reader.film.end-of-part", "End of part {n} of {count}", n=section.number, count=section_count) }}{% else %}{{ t("reader.foot.end-of-chapter", "End of chapter {n} of {count}", n=section.number, count=section_count) }}{% endif %}</h2>
+  {#- Not for a text on its own (David, 2026-10-10: "I don't think we need it to say
+      'the end'"): only a part or a chapter, where which one is worth saying. -#}
+  {% if not standalone %}<h2 class="foot-title">{% if by_part %}{{ t("reader.film.end-of-part", "End of part {n} of {count}", n=section.number, count=section_count) }}{% else %}{{ t("reader.foot.end-of-chapter", "End of chapter {n} of {count}", n=section.number, count=section_count) }}{% endif %}</h2>{% endif %}
   <div class="finished" id="finished" hidden>
     <span id="done-said" hidden></span>
     <button type="button" class="undo" id="done-undo">{{ t("reader.finish.undo", "Undo") }}</button>

@@ -1620,14 +1620,7 @@ var targumReader = function () {
     if (list) list.textContent = "";
     if (!left || !list) return;
     var rest = unmarkedWords(footAllWords ? left : FOOT_CHIPS);
-    if (ask) {
-      ask.textContent = tn(
-        "reader.film.end-ask",
-        rest.count,
-        "{n} word here you haven't marked. Do you know it?",
-        "{n} words here you haven't marked. Do you know them?"
-      );
-    }
+    if (ask) ask.textContent = askSays(rest.count);
     // Shown, not behind "Show them" (design.md §12, "The reader's chrome is the desk's",
     // 2026-10-09): the end of a part is a card that shows its words, as board
     // ReaderTheatreEnd draws it. Drawn as the page is first laid out, so the page the
@@ -1666,7 +1659,24 @@ var targumReader = function () {
       list.appendChild(more);
     }
   }
+  /* One word is asked about as the word, not as a count of one: the chip under the
+     question already shows it (David, 2026-10-10: "when it's just one word the language
+     is strange"). By the count, not the plural form, since Russian's "one" is 21 too. */
+  function askSays(count) {
+    if (count === 1) return t("reader.film.end-ask-single", "Do you know this word?");
+    return tn(
+      "reader.film.end-ask",
+      count,
+      "{n} word here you haven't marked. Do you know it?",
+      "{n} words here you haven't marked. Do you know them?"
+    );
+  }
   function pressSays(verb, left) {
+    if (left === 1) {
+      if (verb === "next") return t("reader.foot.next-single", "Next, I know it");
+      if (verb === "finish") return t("reader.foot.finish-single", "Finish, I know it");
+      return t("reader.foot.done-single", "Done, I know it");
+    }
     if (verb === "next") {
       return left
         ? tn("reader.foot.next-mark", left, "Next, and mark {n} word known", "Next, and mark {n} words known")
@@ -13220,14 +13230,16 @@ var targumReader = function () {
       var rest = reader && reader.unmarked ? reader.unmarked(4) : { count: 0, words: [] };
       if (endAsk) {
         endAsk.hidden = !rest.count;
-        endAsk.textContent = rest.count
-          ? S.tn(
-              "reader.film.end-ask",
-              rest.count,
-              "{n} word here you haven't marked. Do you know it?",
-              "{n} words here you haven't marked. Do you know them?"
-            )
-          : "";
+        endAsk.textContent = !rest.count
+          ? ""
+          : rest.count === 1
+            ? S.t("reader.film.end-ask-single", "Do you know this word?")
+            : S.tn(
+                "reader.film.end-ask",
+                rest.count,
+                "{n} word here you haven't marked. Do you know it?",
+                "{n} words here you haven't marked. Do you know them?"
+              );
       }
       if (endWords) {
         endWords.textContent = "";
