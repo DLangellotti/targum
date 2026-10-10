@@ -226,6 +226,38 @@ def test_theatre_opens_with_the_transcript_at_the_right_until_it_is_put_away(
         context.close()
 
 
+def test_theatre_keeps_its_transcript_readable_with_the_word_list_open(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """David, 2026-10-10 ("theater mode is not working"): with the word list open beside
+    Theatre's transcript, the transcript's column ignored the list's room and was squeezed
+    to a word a line. Its lines keep the panel's width less its own gutters."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(browser, built, view="theatre", panel=True)
+    try:
+        # The fixture has no words, so no list: one is stood in, open, as a reader with
+        # words has it, and the window is told to lay itself out again.
+        page.evaluate(
+            """() => {
+              const list = document.createElement('aside');
+              list.id = 'list';
+              list.className = 'list';
+              document.body.appendChild(list);
+              document.body.classList.add('has-list', 'list-open');
+              window.dispatchEvent(new Event('resize'));
+            }"""
+        )
+        page.wait_for_timeout(200)
+        at = page.evaluate(BOXES, {"picture": ".film-frame", "line": FIRST_LINE})
+        width = page.evaluate("() => document.documentElement.clientWidth")
+        assert at["line"]["left"] >= at["picture"]["right"], at
+        assert at["line"]["right"] <= width - 240 + 1, (at, width)
+        assert at["line"]["right"] - at["line"]["left"] > 300, at
+    finally:
+        context.close()
+
+
 def test_the_transcript_opens_beside_a_smaller_picture(browser, tmp_path) -> None:  # noqa: F811
     """In Theatre a press on Transcript opens it as a panel and the picture makes room;
     the panel's × and the same press shut it."""
