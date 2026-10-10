@@ -971,6 +971,24 @@ def test_the_upload_page_takes_anything_in_one_box() -> None:
     assert "btoa(unescape(encodeURIComponent(" in source, "and Hebrew survives the trip"
 
 
+def test_upload_records_and_invites_what_the_reader_wants() -> None:
+    """Record and the "say what you want" box are back on the board's card (David,
+    2026-10-10; design.md §12). Record is the composer's recorder, drawn only where the
+    browser can record, and its clip is taken like a dropped file — nothing new is
+    fetched or spent on the press itself."""
+    add = PAGES["add"]
+    said = html.unescape(add)
+    assert 'id="record"' in add and "btn ghost outline bring-record" in add
+    assert "or say what you want" in said
+    assert add.index("window.TargumSpeak") < add.index("var recordButton"), (
+        "speak.js comes before add.js, which asks it whether this browser can record"
+    )
+    source = (ASSETS / "add.js").read_text(encoding="utf-8")
+    recording = source[source.index("var recordButton") : source.index("function extensionOf")]
+    assert "take([note])" in recording
+    assert "fetch(" not in recording and "ask(" not in recording, "the press spends nothing"
+
+
 def test_a_description_is_said_in_the_conversation_by_the_reader_s_press() -> None:
     """A sentence about what the reader wants is a turn of conversation, not a text to
     price (2026-09-13, targum-internal#249). Ask targum went with the board (UploadDesk,

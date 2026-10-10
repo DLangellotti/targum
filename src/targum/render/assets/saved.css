@@ -92,7 +92,7 @@ a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
 .saved-keep[hidden] { display: none; }
 .saved-keep .note { margin: 0; color: var(--ink); }
 
-/* Saving on its own: a choice a row, a hairline between. */
+/* Saving automatically: a choice a row, a hairline between. */
 .saved-choice {
   display: grid;
   gap: 0.6rem;

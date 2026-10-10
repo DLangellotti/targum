@@ -135,6 +135,51 @@ def test_a_text_lists_every_page_and_sidecar_with_its_size(served: tuple[int, Pa
         assert get(port, f"{url}?k={TOKEN}")[0] == 200, f"{url} is a file a reader can open"
 
 
+def test_a_part_alone_is_its_page_and_the_sidecars_it_names(served: tuple[int, Path]) -> None:
+    """Saved on its own, a text with a contents page keeps the part that was opened and
+    nothing else of it (David, 2026-10-10; design.md §12)."""
+    port, out = served
+    reader = book(out / "local" / "book-he")
+    (reader / "video").mkdir()
+    (reader / "video" / "part-002.webm").write_bytes(b"film" * 10)
+    (reader / "video" / "part-003.webm").write_bytes(b"film" * 20)
+    second = reader / "sec-0002.html"
+    # Named the way a page's JSON names it, its slash escaped.
+    second.write_text(
+        second.read_text(encoding="utf-8") + '<i data-x="video\\/part-002.webm"></i>',
+        encoding="utf-8",
+    )
+
+    page = "/reader/book-he/reader/sec-0002.html?k=whatever&list=3"
+    status, _, body = get(port, f"/offline.json?page={page}&part=1&k={TOKEN}")
+    assert status == 200
+    told = json.loads(body)
+    assert told["part"] is True
+    assert told["base"] == "/reader/book-he/reader/", "kept under the text, like the whole"
+    assert [file["url"] for file in told["files"]] == [
+        "/reader/book-he/reader/sec-0002.html",
+        "/reader/book-he/reader/video/part-002.webm",
+    ], "the page, and the film it plays — not the next part's"
+    assert told["pages"] == 1
+    assert told["bytes"] == sum(file["bytes"] for file in told["files"])
+
+    # The contents page is a part of its own, by the text's address or by its file.
+    for contents in ("/reader/book-he/reader/", "/reader/book-he/reader/index.html"):
+        told = json.loads(get(port, f"/offline.json?page={contents}&part=1&k={TOKEN}")[2])
+        assert [file["url"] for file in told["files"]] == ["/reader/book-he/reader/index.html"]
+
+    # Without `part`, the whole, as the reader's press asks for it.
+    told = json.loads(get(port, f"/offline.json?page={page}&k={TOKEN}")[2])
+    assert "part" not in told and told["pages"] == 4
+
+    # A text of one page has no parts: asked for one, it is listed whole.
+    book(out / "local" / "one-he", chapters=1)
+    told = json.loads(
+        get(port, f"/offline.json?page=/reader/one-he/reader/index.html&part=1&k={TOKEN}")[2]
+    )
+    assert "part" not in told
+
+
 def test_the_list_keeps_to_the_roots_a_reader_is_served_from(served: tuple[int, Path]) -> None:
     port, out = served
     book(out / "local" / "book-he")

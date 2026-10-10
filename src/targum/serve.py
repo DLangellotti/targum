@@ -4774,8 +4774,12 @@ class Library:
         job.message = "We're reading it aloud…"
         self.remember(job)
         try:
+            # How many lines are said so far, so the page waiting on it shows how far.
             clip, spans = speech.render_lines(
-                lines, folder / "audio" / f"voice-{number:03d}", language=document.language
+                lines,
+                folder / "audio" / f"voice-{number:03d}",
+                language=document.language,
+                progress=lambda said: setattr(job, "done", said),
             )
         except speech.Interrupted as error:
             # Some of it was said, and Google charged for what was. `_blame` settles a
@@ -7886,6 +7890,8 @@ class Handler(BaseHTTPRequestHandler):
                     "/offline.json",
                     # One search's answers (design.md §12, "One search, everywhere").
                     "/search",
+                    # Whether a section's audio is being made (2026-10-10).
+                    "/voice",
                 )
             ):
                 return self._json(
@@ -8218,6 +8224,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(
                 {"jobs": self._followed(self.library.mine(person.id if person else None))}
             )
+        if route == "/voice":
+            return self._voice_asked()
         if route.startswith("/job/"):
             job = self._own_job(route[len("/job/") :])
             return self._json(
@@ -9243,18 +9251,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ready": True})
         # A second press while the first is still being made joins it. Two presses
         # would otherwise make the same section twice and pay for both.
-        underway = next(
-            (
-                other
-                for other in list(self.library.jobs.values())
-                if other.kind == "voice"
-                and other.home == home
-                and other.options.get("folder") == folder.name
-                and other.options.get("section") == number
-                and other.stage not in ("done", "failed", "blocked")
-            ),
-            None,
-        )
+        underway = self._voice_underway(home, folder.name, number)
         if underway is not None:
             return self._json(underway.state())
         wanted = set(section.segment_ids)
@@ -9289,6 +9286,35 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(self._refusal(refused), 402)
         self.library.enqueue(job)
         self._json(job.state())
+
+    def _voice_underway(self, home: Path, folder: str, number: int) -> Job | None:
+        """The audio being made for this section of this reader's folder, if any."""
+        return next(
+            (
+                other
+                for other in list(self.library.jobs.values())
+                if other.kind == "voice"
+                and other.home == home
+                and other.options.get("folder") == folder
+                and other.options.get("section") == number
+                and other.stage not in ("done", "failed", "blocked")
+            ),
+            None,
+        )
+
+    def _voice_asked(self) -> None:
+        """Whether a section's audio is being made already (2026-10-10). The reader asks
+        on load, so a page left and come back to shows the audio on its way, with how
+        far it is, rather than the press again. It only reads: nothing is claimed."""
+        query = parse_qs(urlparse(self.path).query)
+        home = self._home()
+        folder = self.library.within(home, query.get("name", [""])[0])
+        try:
+            number = int(query.get("section", ["0"])[0] or 0)
+        except ValueError:
+            number = 0
+        underway = self._voice_underway(home, folder.name, number) if folder else None
+        return self._json({"job": underway.state() if underway else None})
 
     def _suggest(self) -> None:
         """One text that fits this reader's level and interests, for the Suggested door
@@ -13558,11 +13584,28 @@ class Handler(BaseHTTPRequestHandler):
         roots, behind the same guards, as the files themselves are served from — this
         says what a reader could already open, one file at a time, and nothing more.
         """
-        page = urlparse(parse_qs(urlparse(self.path).query).get("page", [""])[0]).path
+        asked = parse_qs(urlparse(self.path).query)
+        page = urlparse(asked.get("page", [""])[0]).path
         found = self._offline_folder(page)
         if found is None:
             return self._json({"error": "not found"}, 404)
         prefix, bases, about = found
+        # Saved on its own, a text with a contents page keeps only the part that was
+        # opened (David, 2026-10-10; design.md §12): `?part=1` narrows the list to that
+        # one page and the sidecars it names. The whole is the reader's press.
+        if asked.get("part", [""])[0] == "1":
+            narrowed = self._offline_part(page, prefix, bases)
+            if narrowed is not None:
+                return self._json(
+                    {
+                        **about,
+                        "base": prefix,
+                        "part": True,
+                        "files": narrowed,
+                        "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
+                        "bytes": sum(int(f["bytes"]) for f in narrowed),
+                    }
+                )
         files: list[dict[str, Any]] = []
         for under, base, deep in bases:
             try:
@@ -13594,6 +13637,58 @@ class Handler(BaseHTTPRequestHandler):
                 "bytes": sum(int(file["bytes"]) for file in files),
             }
         )
+
+    def _offline_part(
+        self, page: str, prefix: str, bases: list[tuple[str, Path, bool]]
+    ) -> list[dict[str, Any]] | None:
+        """One part of a text with a contents page, as saving it on its own keeps it: the
+        page that was opened, and each sidecar beside the text whose relative address
+        that page names. None where the text has no contents page (it is one page, or a
+        portion's or a day's) or the page is not one of its files, and the whole is
+        listed as before."""
+        if len(bases) != 1 or not page.startswith(prefix):
+            return None
+        _, base, _ = bases[0]
+        if not (base / CONTENTS).is_file():
+            return None
+        relative = unquote(page[len(prefix) :]) or "index.html"
+        target = (base / relative).resolve()
+        if target.suffix.lower() != ".html" or not target.is_file():
+            return None
+        if base not in target.parents:
+            return None
+        files: list[dict[str, Any]] = [
+            {
+                "url": prefix + quote(target.relative_to(base).as_posix()),
+                "bytes": target.stat().st_size,
+                "film": False,
+            }
+        ]
+        try:
+            said = target.read_text(encoding="utf-8", errors="replace")
+            listed = sorted(base.rglob("*"))
+        except OSError:
+            return files
+        for sidecar in listed:
+            suffix = sidecar.suffix.lower()
+            if suffix not in self.MEDIA_KINDS or not sidecar.is_file():
+                continue
+            if base not in sidecar.resolve().parents:
+                continue
+            address = sidecar.relative_to(base).as_posix()
+            # As the page may spell it: plain, quoted, or inside JSON with its slashes
+            # or its letters escaped.
+            spelled = {address, quote(address), json.dumps(address)[1:-1]}
+            spelled |= {one.replace("/", "\\/") for one in spelled}
+            if any(one in said for one in spelled):
+                files.append(
+                    {
+                        "url": prefix + quote(address),
+                        "bytes": sidecar.stat().st_size,
+                        "film": suffix in FILM_KINDS,
+                    }
+                )
+        return files
 
     def _offline_folder(
         self, page: str

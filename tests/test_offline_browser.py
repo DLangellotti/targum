@@ -325,6 +325,53 @@ def test_the_last_five_texts_opened_are_kept_on_their_own(browser, served: Serve
         context.close()
 
 
+PARTS = """(id) => { const it = window.TargumOffline.saved(id);
+  return it ? { part: !!it.part, how: it.how, pages: it.pages,
+                files: (it.files || []).map((f) => new URL(f).pathname) } : null; }"""
+
+
+def test_a_book_opened_keeps_only_its_opened_parts_until_saved_whole(
+    browser,  # noqa: F811
+    served: Served,
+) -> None:
+    """David, 2026-10-10: opening a contents page or a chapter keeps what was opened, and
+    the whole book is saved only by the press."""
+    book(served.out / "local" / "book-he")
+    base = "/reader/book-he/reader/"
+    context, page = opened(browser, served, f"{base}index.html")
+    try:
+        page.wait_for_function(
+            "(id) => { const it = window.TargumOffline.saved(id); return it && it.part; }",
+            arg=base,
+            timeout=15000,
+        )
+        assert page.evaluate(PARTS, base)["files"] == [f"{base}index.html"], (
+            "the contents page alone, not the book"
+        )
+        page.goto(served.url(f"{base}sec-0002.html"))
+        page.wait_for_function(
+            "(id) => (window.TargumOffline.saved(id) || {}).pages === 2", arg=base, timeout=15000
+        )
+        kept_now = page.evaluate(PARTS, base)
+        assert kept_now["part"] and kept_now["how"] == "auto"
+        assert sorted(kept_now["files"]) == [f"{base}index.html", f"{base}sec-0002.html"]
+        cached = {u.split("?")[0] for u in page.evaluate(KEYS) if "/reader/" in u}
+        assert not any("sec-0001" in u or "sec-0003" in u for u in cached), "nothing unopened"
+
+        # The row still offers the whole, and the press saves it.
+        page.click(".bar-tools [data-more]")
+        row = page.locator("#offline-row")
+        page.wait_for_selector("#offline-row.offline-idle")
+        assert row.locator(".offline-label").inner_text() == "Save for offline"
+        row.locator(".offline-go").click()
+        page.wait_for_selector("#offline-row.offline-saved")
+        whole = page.evaluate(PARTS, base)
+        assert not whole["part"] and whole["how"] == "you"
+        assert len([f for f in whole["files"] if f.endswith(".html")]) == 4
+    finally:
+        context.close()
+
+
 def test_save_for_offline_says_the_room_then_saves_and_removes(browser, served: Served) -> None:  # noqa: F811
     book(served.out / "local" / "book-he")
     context = browser.new_context(service_workers="allow")
