@@ -192,6 +192,8 @@
   "reader.chapter.translating": "Translating…",
   "reader.error.connect": "We can't reach targum.",
   "reader.player.cannot-seek": "We can't play this recording in this browser. Try another browser.",
+  "reader.voice.making": "We're making the audio for this section. It plays here when it's ready.",
+  "reader.voice.share-done": "{n}% done",
   "reader.player.sound-blocked": "This tab is muted. Allow sound for targum in the address bar.",
   "reader.player.could-not-play": "We couldn't play this recording.",
   "reader.player.back-a-word": "Back a word",

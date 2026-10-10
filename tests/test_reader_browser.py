@@ -6031,7 +6031,10 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
     page = context.new_page()
 
     def answer(route, request):
-        if "/voice" in request.url:
+        if "/voice" in request.url and request.method == "GET":
+            # The question on load: nothing underway.
+            route.fulfill(status=200, content_type="application/json", body='{"job": null}')
+        elif "/voice" in request.url:
             posted.append(request.post_data_json)
             route.fulfill(
                 status=200, content_type="application/json", body=json.dumps({"ready": True})
@@ -6051,6 +6054,138 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
         "the folder and the section, and nothing else"
     )
     assert len(loads) >= 2, "reopened once the audio was there"
+
+
+#: What the Hear this section offer shows: the button, the line, the meter and its share.
+VOICE_OFFER = """() => {
+  const meter = document.getElementById('voice-meter');
+  return {
+    button: !document.getElementById('voice-go').hidden,
+    said: document.getElementById('voice-said').textContent,
+    making: !document.getElementById('voice-making').hidden,
+    waiting: meter.classList.contains('is-waiting'),
+    now: meter.getAttribute('aria-valuenow'),
+    share: document.getElementById('voice-share').textContent,
+  };
+}"""
+
+
+def _voice_page(browser, tmp_path: Path, monkeypatch, underway, states):
+    """A served chapter whose server says `underway` to the question on load and then
+    each of `states` in turn to `/job/<id>`, the last one for good."""
+    import json
+
+    from targum import speech
+
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
+    html = chapter(tmp_path / "out").read_text(encoding="utf-8")
+    seen: dict[str, list] = {"posted": [], "asked": [], "loads": [], "polled": []}
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/voice" in request.url and request.method == "GET":
+            seen["asked"].append(request.url)
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"job": underway})
+            )
+        elif "/voice" in request.url:
+            seen["posted"].append(request.post_data_json)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(states[0]))
+        elif "/job/" in request.url:
+            state = states[min(len(seen["polled"]), len(states) - 1)]
+            seen["polled"].append(request.url)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(state))
+        else:
+            seen["loads"].append(request.url)
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    return context, page, seen
+
+
+def test_audio_already_on_its_way_shows_how_far_and_offers_no_second_press(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """2026-10-10: pressed, left and come back to, the offer was there again with nothing
+    to say the audio was being made. Now the page asks on load, and a section underway
+    shows the line and a meter at the share of lines said, never the button, and is
+    followed to the end like a press is: reopened once the audio is there."""
+    working = {"id": "v1", "stage": "working", "done": 2, "total": 5}
+    context, page, seen = _voice_page(
+        browser,
+        tmp_path,
+        monkeypatch,
+        working,
+        [working, {"id": "v1", "stage": "done", "done": 5, "total": 5}],
+    )
+    try:
+        page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+        page.wait_for_function("() => !document.getElementById('voice-making').hidden")
+        shown = page.evaluate(VOICE_OFFER)
+        assert shown["button"] is False, "no second press is offered"
+        assert shown["said"].startswith("We're making the audio")
+        assert shown["making"] and not shown["waiting"]
+        assert shown["now"] == "40" and shown["share"] == "40% done"
+        assert "name=a-build" in seen["asked"][0] and "section=1" in seen["asked"][0]
+        page.wait_for_timeout(4500)
+    finally:
+        context.close()
+    assert seen["posted"] == [], "asking is not a press"
+    assert len(seen["loads"]) >= 2, "reopened once the audio was there"
+
+
+def test_audio_waiting_its_turn_shows_a_meter_that_only_says_working(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """Queued, the job has not counted its lines yet: the meter says only that it is on
+    its way, rather than a share nobody counted."""
+    queued = {"id": "v2", "stage": "queued", "done": 0, "total": 0}
+    context, page, _ = _voice_page(browser, tmp_path, monkeypatch, queued, [queued])
+    try:
+        page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+        page.wait_for_function("() => !document.getElementById('voice-making').hidden")
+        shown = page.evaluate(VOICE_OFFER)
+        assert shown["button"] is False and shown["waiting"]
+        assert shown["now"] is None and shown["share"] == ""
+    finally:
+        context.close()
+
+
+def test_a_press_shows_the_meter_and_a_failure_gives_the_button_back(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """After the press the same meter shows, not only a sentence; a job that fails says
+    so and offers the press again."""
+    context, page, seen = _voice_page(
+        browser,
+        tmp_path,
+        monkeypatch,
+        None,
+        [
+            {"id": "v3", "stage": "working", "done": 1, "total": 4},
+            {"id": "v3", "stage": "failed", "error": "The voice did not answer."},
+        ],
+    )
+    try:
+        page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+        page.wait_for_selector("#voice-go", state="attached")
+        page.wait_for_function("() => document.readyState === 'complete'")
+        page.wait_for_timeout(200)
+        assert page.evaluate(VOICE_OFFER)["making"] is False, "nothing underway: the offer"
+        page.evaluate("() => document.getElementById('voice-go').click()")
+        page.wait_for_function("() => document.getElementById('voice-share').textContent")
+        shown = page.evaluate(VOICE_OFFER)
+        assert shown["button"] is False and shown["making"]
+        assert shown["share"] == "25% done"
+        page.wait_for_function("() => !document.getElementById('voice-go').hidden", timeout=6000)
+        shown = page.evaluate(VOICE_OFFER)
+        assert shown["said"] == "The voice did not answer."
+        assert shown["making"] is False
+        assert page.evaluate("() => document.getElementById('voice-go').disabled") is False
+    finally:
+        context.close()
+    assert seen["posted"] == [{"name": "a-build", "section": 1}]
 
 
 def test_a_link_to_hear_a_section_opens_the_offer_and_presses_nothing(

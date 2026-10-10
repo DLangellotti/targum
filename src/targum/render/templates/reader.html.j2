@@ -481,6 +481,12 @@
           <span class="m-label">{{ t("reader.page.hear-this-section", "Hear this section") }}<span class="m-sub voice-cost">{{ tn("reader.page.voice-costs-credits", voice_offer.minutes, "This uses about {n} credit", "This uses about {n} credits") }}</span></span>
         </button>
         <span class="m-note voice-said" id="voice-said" role="status"></span>
+        {#- The audio on its way (2026-10-10): how far, where the voice job says, and a
+            meter that only says "working" where it does not. Drawn by the script. -#}
+        <span class="voice-making" id="voice-making" hidden>
+          <span class="meter is-building is-waiting" id="voice-meter" role="progressbar" aria-labelledby="voice-said" aria-valuemin="0" aria-valuemax="100"><span></span></span>
+          <span class="voice-share" id="voice-share"></span>
+        </span>
       </div>
       {% endif %}
       {% if spoken_audio %}

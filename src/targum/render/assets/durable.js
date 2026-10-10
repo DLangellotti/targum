@@ -145,6 +145,16 @@
      `localStorage` and nothing on the shelf, and its first visit after an update is what
      gives it a durable copy. Seeded at the stamp it already carries, or at zero, so
      seeding can never look newer than a real write. */
+  /* Whose record a copy is: the email `sync.js` keeps in `targum:sync`, or "" where it
+     names nobody. */
+  function owner(value) {
+    try {
+      return String((JSON.parse(value || "{}") || {}).email || "");
+    } catch (error) {
+      return "";
+    }
+  }
+
   function recover(then) {
     shelf(
       "readonly",
@@ -154,7 +164,36 @@
         names.onsuccess = function () {
           values.onsuccess = function () {
             var held = {};
-            for (var n = 0; n < names.result.length; n++) {
+            /* A shelf written for an account that is not the one here is nobody's to
+               restore (2026-10-10). Sign-out on a page that is not a reader emptied
+               `localStorage` and left this copy, and with no stamps beside what was
+               written since, every name on it looked ahead — so the next reader put the
+               last account's list, deletes and sync state back over whoever had signed
+               in, and drew their record empty. The shelf names an account and this
+               browser names another, or none because somebody signed out: none of it
+               comes back, and the shelf is made over from what is here. */
+            var foreign = false;
+            for (var f = 0; f < names.result.length; f++) {
+              if (String(names.result[f]) !== "targum:sync") continue;
+              var theirsOwner = owner((values.result[f] || {}).value);
+              var mineOwner = "";
+              try {
+                mineOwner = owner(localStorage.getItem("targum:sync"));
+              } catch (error) {}
+              foreign = !!theirsOwner && theirsOwner !== mineOwner;
+            }
+            if (foreign) {
+              for (var g = 0; g < names.result.length; g++) {
+                var stale = String(names.result[g]);
+                var here = null;
+                try {
+                  here = localStorage.getItem(stale);
+                } catch (error) {}
+                // What `localStorage` has is seeded below, over the top of it.
+                if (here === null) drop(stale);
+              }
+            }
+            for (var n = 0; n < names.result.length && !foreign; n++) {
               var name = String(names.result[n]);
               var record = values.result[n];
               held[name] = true;

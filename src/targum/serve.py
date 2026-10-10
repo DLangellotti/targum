@@ -4774,8 +4774,12 @@ class Library:
         job.message = "We're reading it aloud…"
         self.remember(job)
         try:
+            # How many lines are said so far, so the page waiting on it shows how far.
             clip, spans = speech.render_lines(
-                lines, folder / "audio" / f"voice-{number:03d}", language=document.language
+                lines,
+                folder / "audio" / f"voice-{number:03d}",
+                language=document.language,
+                progress=lambda said: setattr(job, "done", said),
             )
         except speech.Interrupted as error:
             # Some of it was said, and Google charged for what was. `_blame` settles a
@@ -7886,6 +7890,8 @@ class Handler(BaseHTTPRequestHandler):
                     "/offline.json",
                     # One search's answers (design.md §12, "One search, everywhere").
                     "/search",
+                    # Whether a section's audio is being made (2026-10-10).
+                    "/voice",
                 )
             ):
                 return self._json(
@@ -8218,6 +8224,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(
                 {"jobs": self._followed(self.library.mine(person.id if person else None))}
             )
+        if route == "/voice":
+            return self._voice_asked()
         if route.startswith("/job/"):
             job = self._own_job(route[len("/job/") :])
             return self._json(
@@ -9243,18 +9251,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ready": True})
         # A second press while the first is still being made joins it. Two presses
         # would otherwise make the same section twice and pay for both.
-        underway = next(
-            (
-                other
-                for other in list(self.library.jobs.values())
-                if other.kind == "voice"
-                and other.home == home
-                and other.options.get("folder") == folder.name
-                and other.options.get("section") == number
-                and other.stage not in ("done", "failed", "blocked")
-            ),
-            None,
-        )
+        underway = self._voice_underway(home, folder.name, number)
         if underway is not None:
             return self._json(underway.state())
         wanted = set(section.segment_ids)
@@ -9289,6 +9286,35 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(self._refusal(refused), 402)
         self.library.enqueue(job)
         self._json(job.state())
+
+    def _voice_underway(self, home: Path, folder: str, number: int) -> Job | None:
+        """The audio being made for this section of this reader's folder, if any."""
+        return next(
+            (
+                other
+                for other in list(self.library.jobs.values())
+                if other.kind == "voice"
+                and other.home == home
+                and other.options.get("folder") == folder
+                and other.options.get("section") == number
+                and other.stage not in ("done", "failed", "blocked")
+            ),
+            None,
+        )
+
+    def _voice_asked(self) -> None:
+        """Whether a section's audio is being made already (2026-10-10). The reader asks
+        on load, so a page left and come back to shows the audio on its way, with how
+        far it is, rather than the press again. It only reads: nothing is claimed."""
+        query = parse_qs(urlparse(self.path).query)
+        home = self._home()
+        folder = self.library.within(home, query.get("name", [""])[0])
+        try:
+            number = int(query.get("section", ["0"])[0] or 0)
+        except ValueError:
+            number = 0
+        underway = self._voice_underway(home, folder.name, number) if folder else None
+        return self._json({"job": underway.state() if underway else None})
 
     def _suggest(self) -> None:
         """One text that fits this reader's level and interests, for the Suggested door
@@ -11637,6 +11663,16 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        # Whose record the page thinks it is pushing (2026-10-10). The cookie says who is
+        # signed in now; a page left open from before a change of account in another tab
+        # still holds the last one's words in memory, and without this they would be
+        # merged into the new account. Refused whole, nothing written: the page draws
+        # itself again as whoever is here. A page that names nobody is from before this
+        # check, or has never synced, and is taken as before.
+        claimed = payload.get("who")
+        if isinstance(claimed, str) and claimed.strip():
+            if claimed.strip().casefold() != person.email.strip().casefold():
+                return self._json({"signedIn": True, "otherAccount": True}, 409)
         try:
             since = int(payload.get("since") or 0)
         except (TypeError, ValueError):

@@ -4406,6 +4406,45 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 .m-menu .m-note:empty,
 .m-menu .m-note[hidden] { display: none; }
 
+/* The audio of a section on its way (2026-10-10): the desk's `.meter` in its building
+   colour, filled to the share of lines said, and a short fill that comes and goes where
+   no share is known yet. The reader does not carry chrome.css, so the rail is drawn here
+   at the same values. */
+.m-menu .voice-making {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1.125rem 0.5rem calc(1.125rem + 1.375rem + 0.75rem);
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.m-menu .voice-making[hidden] { display: none; }
+.voice-making .meter {
+  display: block;
+  flex: 1;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.voice-making .meter > span {
+  display: block;
+  block-size: 100%;
+  inline-size: calc(var(--done, 0) * 100%);
+  border-radius: 999px;
+  background: var(--teal);
+}
+.voice-making .meter.is-waiting > span { inline-size: 30%; }
+.voice-making .voice-share { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.voice-making .voice-share:empty { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .voice-making .meter.is-waiting > span { animation: voice-waiting 1.4s ease-in-out infinite alternate; }
+}
+@keyframes voice-waiting {
+  from { margin-inline-start: 0; }
+  to { margin-inline-start: 70%; }
+}
+
 /* On or off: a switch, teal when on. */
 .sw {
   position: relative;
@@ -4899,6 +4938,7 @@ body.practice-section .beside-add { display: none; }
   .m-menu .m-offline + .m-wrap > .m-row:first-child,
   .m-menu .companions > .m-row + .m-row { box-shadow: inset 0 1px var(--rule); }
   .m-menu .m-note { padding-inline-start: calc(1.25rem + 1.375rem + 0.75rem); }
+  .m-menu .voice-making { padding-inline-start: calc(1.25rem + 1.375rem + 0.75rem); }
   body.pop-open .m-scrim { display: block; }
   /* The presses that open the sheets stay above the dim, so a second press of ⋯ or Aa
      still shuts what it opened. */

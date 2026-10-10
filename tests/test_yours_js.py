@@ -816,3 +816,16 @@ def test_every_row_carries_the_five_stages_and_a_press_moves_the_word() -> None:
     )
     assert json.loads(drawn["stored"])["דרך"]["status"] == 3
     assert drawn["words"][0]["stage"] == 3
+
+
+def test_a_browser_just_signed_in_is_not_told_it_has_nothing_before_the_account_answers() -> None:
+    """David, 2026-10-10: signed in on a browser that had just been emptied, his account
+    looked deleted. The words were on their way; "nothing yet" is said only once the
+    account has answered with nothing."""
+    who = {"email": "reader@example.com", "reads": ["en"]}
+    waiting = draw(which="words", who=who, arriving=True)
+    assert not waiting["nothing"], "not while the account is still answering"
+    brought = draw(which="words", who=who, brought=True)
+    assert not brought["nothing"], "and not when it brought something: the page reloads"
+    empty = draw(which="words", who=who)
+    assert empty["nothing"], "said once the account answered with nothing"
