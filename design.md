@@ -366,6 +366,23 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Upload records again, and its box takes what you want — 2026-10-10
+
+David, 2026-10-10, overruling two of the defaults "Upload is the board's" (2026-10-09,
+below) took for him. The board still governs the card; these two are drawn into it.
+
+- **Record is back**, beside Choose a file: the desk's outlined `.btn` with the microphone
+  glyph, in teal's wash while it records, with the word turning to Stop. It is `speak.js`,
+  the composer's recorder, and it is drawn only where the browser can record. The clip is
+  taken as a held file, "Recorded just now · 0:42", and goes up the chunked door and onto
+  the priced card like a dropped recording: the press records and spends nothing, and only
+  Confirm does. On a phone it stays when Choose a file gives way to the dashed place.
+- **The box says "or say what you want" again**, after the board's examples and the
+  language chosen. A description is looked for in place on Upload, as a turn of the
+  conversation on the rails every turn is on, which it already was. **Ask targum stays
+  gone**: Upload is the one press, and the talk drawer is still where a reader asks for
+  something to read.
+
 ### The Talk pill keeps its own room at a desk — 2026-10-09
 
 Audit 2, gap 3. The pill floats at the window's bottom-right corner, and since "The boards
@@ -819,8 +836,9 @@ What goes, each because the board draws none of it (David's #12, left open; the
 defaults taken, for him to overrule):
 
 - **Record.** A voice note is still brought as a file, and the phone's chooser offers its
-  own recorder; the conversation's Speak is unchanged.
-- **"Say what you want" and Ask targum.** The placeholder no longer offers it, and the
+  own recorder; the conversation's Speak is unchanged. *Back since 2026-10-10 (above).*
+- **"Say what you want" and Ask targum.** *The placeholder offers it again since
+  2026-10-10 (above); Ask targum stays gone.* The placeholder no longer offers it, and the
   button that handed a description to the talk drawer is gone; the drawer is where a
   reader asks for something to read. A description typed into the box anyway is still
   looked for in place on Upload, as a turn of the conversation, so it is never met with a
@@ -1638,6 +1656,14 @@ worker (the entry below) answers what is saved. This is how things come to be sa
   10) and the playlist switch belong to this device, and are kept in this browser. Opening
   a text that is already kept fetches nothing: it is only marked as opened, and the worker
   has already refreshed the page itself.
+- **A book or a series keeps only what was opened** (David, 2026-10-10). A text with a
+  contents page is no longer kept whole by being opened: the contents page is kept, and
+  each part as it is opened joins it, with the sidecars that part plays and nothing else
+  (`/offline.json?part=1`). The last-five rule and the playlist rule are unchanged; a part
+  counts toward its text, not as a text of its own. The whole is saved only by Save for
+  offline, so the row keeps offering it, with the whole's size, until it is pressed. Saving
+  a part says nothing in the row. With no connection, a contents page marks each chapter
+  "On this device" or "Not on this device" by the parts kept.
 - **Saved by you.** Save for offline is in a text's ⋯, with the room it will take beside
   it before it is pressed, and on a playlist's own page. What the reader saves stays until
   they remove it. A text kept on its own and then saved by the reader is not fetched again;

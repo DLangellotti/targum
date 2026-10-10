@@ -2161,8 +2161,9 @@ def test_the_upload_page_is_the_boards_box_and_card(browser, tmp_path: Path) -> 
     """Boards UploadDesk and UploadPhone (design.md §12, "Upload is the board's",
     2026-10-09): a field for a link, a dashed place to drop that is itself the press for
     choosing, the language beside Upload, What works, and the priced card at the right
-    with Confirm and Cancel. Record and Ask targum are not drawn: the board draws
-    neither."""
+    with Confirm and Cancel. Record is drawn beside Choose a file and the field invites
+    what the reader wants in their own words (both back on 2026-10-10); Ask targum is
+    not drawn."""
     html = add_page(TOKEN)
 
     def answer(route, request):
@@ -2180,6 +2181,8 @@ def test_the_upload_page_is_the_boards_box_and_card(browser, tmp_path: Path) -> 
     drawn = open_page.evaluate(
         """() => ({
           record: !!document.getElementById('record'),
+          recordClass: (document.getElementById('record') || {}).className || '',
+          placeholder: document.getElementById('given').placeholder,
           ask: !!document.getElementById('ask-targum'),
           works: document.querySelectorAll('.works-list li').length,
           go: document.getElementById('go').textContent.trim(),
@@ -2208,7 +2211,9 @@ def test_the_upload_page_is_the_boards_box_and_card(browser, tmp_path: Path) -> 
     put_away = open_page.evaluate("() => document.getElementById('status').hidden")
     context.close()
 
-    assert not drawn["record"] and not drawn["ask"], drawn
+    assert drawn["record"] and not drawn["ask"], drawn
+    assert "btn" in drawn["recordClass"] and "outline" in drawn["recordClass"], drawn
+    assert drawn["placeholder"].endswith("or say what you want"), drawn
     assert drawn["works"] == 6 and drawn["go"] == "Upload", drawn
     assert drawn["label"] == "The text is in", drawn
     assert opened, "the dashed place opens the file chooser"
@@ -2216,6 +2221,100 @@ def test_the_upload_page_is_the_boards_box_and_card(browser, tmp_path: Path) -> 
     assert card["confirm"] == "Confirm" and card["cancel"], card
     assert "Nothing is used until you confirm." in card["until"], card
     assert put_away, "Cancel puts the card away"
+
+
+def test_add_records_a_voice_note_and_prices_it_like_a_dropped_file(
+    browser, tmp_path: Path
+) -> None:
+    """targum-internal#254, back on the board's card since 2026-10-10 (design.md §12).
+    The recorder is `speak.js`'s, the same one the composer's Speak uses; what a clip is
+    for is the caller's, and here it is a file like any dropped one — up the chunked
+    door, priced as a recording, and nothing spent until Confirm."""
+    html = add_page(TOKEN)
+    sent: list[dict] = []
+    asked_paths: list[str] = []
+
+    def answer(route, request):
+        asked_paths.append(request.url)
+        if "/upload/begin" in request.url:
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"upload": "u1", "chunk": 1024 * 1024}),
+            )
+        elif "/upload/" in request.url:
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"upload": "u1"})
+            )
+        elif "/prepare" in request.url:
+            sent.append(request.post_data_json or {})
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 900}, permissions=["microphone"]
+    )
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    # A recorder that answers without a microphone: what is under test is the page's
+    # half — that a clip becomes a held file and goes up as a recording.
+    open_page.add_init_script(
+        """
+        navigator.mediaDevices = navigator.mediaDevices || {};
+        navigator.mediaDevices.getUserMedia = () =>
+          Promise.resolve({ getTracks: () => [{ stop() {} }] });
+        window.MediaRecorder = class {
+          constructor() { this.mimeType = "audio/webm"; }
+          start() { setTimeout(() => this.ondataavailable(
+            { data: new Blob([new Uint8Array(2048)], { type: "audio/webm" }) }), 0); }
+          stop() { setTimeout(() => this.onstop(), 0); }
+        };
+        """
+    )
+    open_page.goto("http://add.test/add")
+    open_page.wait_for_selector("#record:not([hidden])", timeout=4000)
+    open_page.click("#record")
+    open_page.wait_for_timeout(200)
+    while_recording = open_page.inner_text("#record-word")
+    open_page.click("#record")
+    open_page.wait_for_selector(".given-file", timeout=4000)
+    chip = open_page.inner_text("#given-files")
+    open_page.click("#go")
+    open_page.wait_for_timeout(600)
+    built = [one for one in asked_paths if "/build" in one]
+    context.close()
+
+    assert not built, "a recording is priced on the card, and only Confirm spends"
+    assert while_recording == "Stop", "the word follows the press"
+    assert "Recorded just now" in chip, f"the chip says what it is: {chip!r}"
+    assert sent, "Upload sent nothing"
+    assert sent[0].get("upload") == "u1", "up the chunked door, like any recording"
+
+
+def test_a_browser_that_cannot_record_is_not_offered_the_button(browser, tmp_path: Path) -> None:
+    """The page never offers what it cannot do — the same rule the composer's Speak
+    follows. Nothing here defines `MediaRecorder`."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.add_init_script("delete window.MediaRecorder;")
+    open_page.goto("http://add.test/add")
+    open_page.wait_for_timeout(400)
+    drawn = open_page.is_visible("#record")
+    context.close()
+
+    assert not drawn
 
 
 def test_an_english_phone_is_shown_no_russian(browser) -> None:
