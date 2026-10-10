@@ -1555,6 +1555,109 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     assert "/reader/negev-he/reader/index.html" in landed, landed
 
 
+def test_a_card_follows_its_build_to_open_it_without_a_refresh(browser) -> None:
+    """David, 2026-10-10: a news quote pressed said "We're getting it ready" and nothing
+    more, for a long time, and the finished text showed only after a refresh. The card
+    now draws the stage over the building meter while `/job/<id>` says it is working,
+    and turns into Open it when it is done. Its facts are in the desk's face: the "73
+    sentences" were in a monospace that read as a terminal."""
+    html = chat_page(TOKEN)
+    job = {
+        "id": "j1",
+        "title": "מאמר על הים",
+        "language": "he",
+        "segments": 73,
+        "total": 73,
+        "done": 20,
+        "chapters": 1,
+        "stage": "working",
+        "message": "Finding each word's dictionary form…",
+        "said": "20 of 73 sentences are translated.",
+        "blocked": "",
+        "error": "",
+        "source": "https://www.ynet.co.il/news/article/abc",
+    }
+    asked = {"job": 0}
+
+    def answer(route, request):
+        path = urlparse(request.url).path.strip("/")
+        if path == "chat/list":
+            body: dict = {"chats": [{"id": "a", "title": "news"}], "usable": True, "talk": True}
+        elif path == "chat/a":
+            body = {
+                "chat": {"id": "a"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "news please", "stage": "done"},
+                    {
+                        "n": 2,
+                        "role": "assistant",
+                        "said": "Here.",
+                        "stage": "done",
+                        "quotes": [job],
+                    },
+                ],
+            }
+        elif path == "job/j1":
+            asked["job"] += 1
+            body = (
+                job
+                if asked["job"] < 2
+                else dict(
+                    job, stage="done", reader="sea-he/reader/index.html", said="It's ready to read."
+                )
+            )
+        elif path in ("chat", "chat.html"):
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    page.route("http://chat.test/**", answer)
+    page.goto(f"http://chat.test/chat?k={TOKEN}#a")
+    page.wait_for_selector(".quote-card .quote-meter")
+    working = page.evaluate(
+        """() => {
+          const card = document.querySelector('.quote-card');
+          const fill = card.querySelector('.quote-meter > span').getBoundingClientRect();
+          const rail = card.querySelector('.quote-meter').getBoundingClientRect();
+          return {
+            stage: card.querySelector('.quote-stage').textContent,
+            said: card.querySelector('.quote-said').textContent,
+            share: fill.width / rail.width,
+            face: getComputedStyle(card.querySelector('.quote-meta')).fontFamily,
+          };
+        }"""
+    )
+    page.wait_for_selector(".quote-card .quote-open", timeout=6000)
+    done = page.evaluate(
+        """() => {
+          const card = document.querySelector('.quote-card');
+          const open = card.querySelector('.quote-open');
+          return {
+            text: open.textContent,
+            href: open.getAttribute('href'),
+            meter: !!card.querySelector('.quote-meter'),
+            note: card.querySelector('.quote-note').textContent,
+          };
+        }"""
+    )
+    url = page.url
+    context.close()
+
+    assert working["stage"] == "We're reading the words…"
+    assert working["said"] == "20 of 73 sentences are translated."
+    assert 0.2 < working["share"] < 0.35, working
+    assert "monospace" not in working["face"], working["face"]
+    assert done["text"] == "Open it" and "/reader/sea-he/reader/index.html" in done["href"]
+    assert done["meter"] is False and done["note"] == "It's ready to read."
+    assert "/chat" in url, "the card offers the reader; it does not take them there"
+
+
 @pytest.mark.parametrize("width", [390, 1280])
 def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
     browser, width: int

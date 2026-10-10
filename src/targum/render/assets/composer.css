@@ -175,12 +175,32 @@
   border-block-end: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
 }
 .quote-source:hover { border-block-end-color: var(--teal); }
+/* The facts in the desk's face, with tabular figures, as §13 keeps counts — never the
+   monospace, which read as a terminal in a conversation (David, 2026-10-10). */
 .quote-meta {
   margin: 0;
-  font-family: ui-monospace, monospace;
+  font-family: var(--chrome);
+  font-variant-numeric: tabular-nums;
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
+/* A pressed card following its build (2026-10-10): the stage in words over the desk's
+   building `.meter`, then the server's own line; when it is ready, the Open press. */
+.quote-progress {
+  justify-self: stretch;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+.quote-progress[hidden] { display: none; }
+.quote-stage { margin: 0; font-size: 0.8125rem; color: var(--ink); }
+.quote-meter { justify-self: stretch; }
+.quote-meter > span { transition: inline-size 0.4s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .quote-meter > span { transition: none; }
+}
+.quote-said { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.quote-open { text-decoration: none; }
 .quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 /* What the press spends, beside it (copy audit, 2026-09-28). */
 .quote-uses { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }

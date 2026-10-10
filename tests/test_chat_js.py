@@ -30,8 +30,10 @@ def run(
     language: str = "",
     who: dict[str, Any] | None = None,
     strings: dict[str, Any] | None = None,
+    poll: int = 0,
 ) -> dict[str, Any]:
     payload = {
+        "poll": poll,
         "strings": strings,
         "thread": thread,
         "embed": embed,
@@ -179,6 +181,129 @@ def test_a_quote_is_drawn_as_a_card_and_the_press_posts_to_build() -> None:
     assert card["note"].startswith("We're getting it ready.")
     assert card["cls"] == "quote-card started"
     assert page["stripAsked"] == 1, "the strip is told to look again"
+
+
+WORKING = {
+    **QUOTE,
+    "stage": "working",
+    "message": "Finding each word's dictionary form…",
+    "done": 10,
+    "total": 40,
+    "said": "10 of 40 sentences are translated.",
+}
+
+
+def press_and_follow(job_answers: Any, poll: int = 0) -> dict[str, Any]:
+    return run(
+        do=[
+            {"type": "say", "text": "bring this in"},
+            {"type": "stream", "event": "quote", "data": json.dumps(QUOTE, ensure_ascii=False)},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "Forty sentences."})},
+            {"type": "press", "selector": "quote-go"},
+            {"type": "settle"},
+        ],
+        answers={
+            "/chat/say": {"chat": "abc", "turn": 1},
+            "/build": {**QUOTE, "stage": "queued", "behind": 2},
+            "/job/j1": job_answers,
+        },
+        poll=poll,
+    )
+
+
+def test_a_pressed_card_shows_its_build_working() -> None:
+    """David, 2026-10-10: after Read the card said only "We're getting it ready", and
+    for a long time nothing showed it was working. Pressed, it draws the stage in words
+    over the desk's building meter, with the server's own line — the one `check_job`
+    gives a host — beside it."""
+    page = press_and_follow(WORKING, poll=60_000)
+    (card,) = page["cards"]
+    assert card["hidden"] == {"button": True, "more": True}, "the press gives way"
+    assert card["progress"] == {
+        "stage": "We're reading the words…",
+        "meter": {"cls": "meter is-building quote-meter", "done": "0.25", "now": "25"},
+        "said": "10 of 40 sentences are translated.",
+        "open": None,
+    }
+    assert card["note"] == "We're getting it ready. You'll find it in Your targums."
+    assert page["went"] == ""
+
+
+def test_a_build_waiting_its_turn_says_how_many_are_ahead() -> None:
+    page = press_and_follow(
+        {**QUOTE, "stage": "queued", "behind": 2, "done": 0, "total": 0}, poll=60_000
+    )
+    progress = page["cards"][0]["progress"]
+    assert progress["stage"] == "Waiting behind 2 builds"
+    assert progress["meter"]["done"] == "0.04", "a sliver, so the bar reads as begun"
+
+
+def test_a_card_that_loses_sight_of_its_build_keeps_its_note() -> None:
+    page = press_and_follow([WORKING, {}])
+    (card,) = page["cards"]
+    assert card["progress"] is None
+    assert card["note"] == "We're getting it ready. You'll find it in Your targums."
+    assert page["stripAsked"] == 1, "nothing ended, so the bell is not asked again"
+
+
+def test_a_pressed_card_turns_into_open_when_its_build_is_done() -> None:
+    """No refresh: the card asks after its job and becomes the title and Open it."""
+    done = dict(QUOTE, stage="done", reader="sea-he/reader/index.html", said="It's ready to read.")
+    page = press_and_follow([WORKING, done])
+    (card,) = page["cards"]
+    assert card["title"] == "מאמר על הים"
+    assert card["progress"]["open"] == {
+        "href": "/reader/sea-he/reader/index.html?k=k",
+        "text": "Open it",
+    }
+    assert card["progress"]["meter"] is None and card["progress"]["stage"] == ""
+    assert card["note"] == "It's ready to read."
+    assert "ready" in card["cls"]
+    assert page["went"] == "", "the card offers the reader; it does not take them there"
+    assert page["asked"].count("/job/j1") == 2, "asked while it worked, and no more"
+    assert page["stripAsked"] == 2, "the bell is told at the press and at the end"
+
+
+def test_a_pressed_card_whose_build_fails_says_why() -> None:
+    failed = dict(
+        QUOTE,
+        stage="failed",
+        error="The page was empty.",
+        said="We couldn't get it ready. The page was empty. Nothing was used.",
+    )
+    page = press_and_follow([WORKING, failed])
+    (card,) = page["cards"]
+    assert card["progress"] is None
+    assert card["note"] == "We couldn't get it ready. The page was empty. Nothing was used."
+    assert "refused" in card["cls"]
+
+
+def test_a_card_drawn_mid_build_follows_it() -> None:
+    """A conversation come back to while its text is still being made: the card picks
+    the build up, rather than standing on "getting it ready" until a refresh."""
+    page = run(
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "t"}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "bring this in", "stage": "done"},
+                    {
+                        "n": 2,
+                        "role": "assistant",
+                        "said": "Here it is.",
+                        "stage": "done",
+                        "quotes": [WORKING],
+                    },
+                ],
+            },
+            "/job/j1": dict(QUOTE, stage="done", reader="sea-he/reader/index.html"),
+        },
+        hash="#abc",
+    )
+    (card,) = page["cards"]
+    assert card["progress"]["open"]["text"] == "Open it"
+    assert card["note"] == "It's ready to read."
 
 
 def test_a_blocked_quote_has_no_button() -> None:
@@ -677,8 +802,12 @@ def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() ->
     (card,) = page["cards"]
     assert card["title"] == QUOTE["title"]
     assert card["button"] == "", "Send was the press: no button to press again"
-    assert card["note"] == "We're getting it ready. You'll find it in Your targums."
-    assert "started" in card["cls"]
+    assert card["note"] == "It's ready to read.", "the card followed its build to the end"
+    assert card["progress"]["open"] == {
+        "href": "/reader/story-he/reader/index.html?k=k",
+        "text": "Open it",
+    }
+    assert "started" in card["cls"] and "ready" in card["cls"]
     assert page["turns"][-1]["cls"] == "chat-turn them"
     assert page["sendDisabled"] is False and page["held"] == []
     assert page["went"] == "/reader/story-he/reader/index.html?k=k", "opened when ready"

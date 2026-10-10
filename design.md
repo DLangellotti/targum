@@ -146,7 +146,8 @@ is the page.
   page rather than named** — see §12.
 - **UI:** `system-ui` *(the chrome's face, Source Sans 3, carried in the page, on the reader as on the desk since
   2026-10-09 — §12, "The reader's chrome is the desk's")*. **Details:** `ui-monospace` for keys, hexes and counts (tabular
-  numerals).
+  numerals) *(not a quote card's facts, which are the desk's face since 2026-10-10 — §12, "A
+  pressed card follows its build")*.
 - **Scale:** display 1.75rem/600 · headings 1.5em/600 · reading 1.0625rem (17px) · gloss
   0.9375rem · UI 0.8125rem · labels 0.6875rem uppercase at 0.06em.
 - **Landing display:** 2.75rem/600, 2.25rem under 40rem — the one headline of a public
@@ -427,6 +428,33 @@ What it does not change: nothing plays on arrival from a link, the bell or the p
 page; a word card still asks and marks what it did; a part finished by listening is
 finished without marking, as a swipe finishes it; motion stays optional, and nothing in
 the view animates under reduced motion.
+
+### A pressed card follows its build — 2026-10-10
+
+David pressed Read on a news quote in the AI Assistant. The card said "We're getting it
+ready. You'll find it in Your targums." and nothing else for a long time, and the
+finished text showed only after he refreshed the page: "it wasn't clear for a long time
+that it was loading, and it required me to refresh the page to see it."
+
+- **Pressed, the card is its build's progress.** The button and More options give way to
+  the stage in words (`bring.build.*`, or "Waiting behind {n} builds" in the queue), the
+  desk's building `.meter` (done over total, a sliver before anything is counted), and
+  the server's own line, `said`, which is the sentence `check_job` gives a host. The
+  card in the conversation and the card in someone else's chat say the same thing.
+- **It asks `/job/<id>` every two seconds, and only while the build is under way**:
+  queued, being read or being made. It stops at done, failed or refused, when the card
+  leaves the page, and after five asks in a row that reach nobody.
+- **Done, it is the title and Open it**, a link to the reader, with "It's ready to read."
+  It does not take the reader there. Only Send with a file and a line that says no more
+  than "open this" opens the reader by itself (2026-09-07), and that still rides the
+  card's own follow rather than a second one.
+- **Failed or refused, it says so on the card**, the build's own sentence with the clay
+  mark, or the refusal panel where the rail sent a way on (2026-10-09).
+- **A card drawn mid-build follows it too**: a conversation come back to while its text
+  is being made picks the build up.
+- **The card's facts are in the desk's face**, with tabular figures, as §13 keeps counts.
+  They were in `ui-monospace` (§5's detail face for counts), which in a conversation read
+  as a terminal ("73 sentences"). The monospace stays for keys and hexes.
 
 ### Signing out empties both copies, and an empty list waits for the account — 2026-10-10
 

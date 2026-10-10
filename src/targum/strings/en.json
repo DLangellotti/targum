@@ -791,6 +791,7 @@
   "bring.in-parts.other": "in {n} parts, each made as you reach it",
   "bring.uses-no-credits": "Uses none of your credits",
   "bring.started": "We're getting it ready. You'll find it in Your targums.",
+  "bring.open-it": "Open it",
   "bring.more-options": "More options",
   "bring.cannot": "We can't get this ready right now.",
   "bring.do-not-bring": "Remove {file}",
