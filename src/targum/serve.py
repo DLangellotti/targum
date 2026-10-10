@@ -1216,7 +1216,10 @@ class Job:
             "made": self.made,
             "title": self.title,
             "english": entry.english if entry else "",
-            "language": self.language,
+            # The language it was pressed in until the build has read its own: an
+            # upload is transcribed before it says, and a French video still building
+            # stood on the Hebrew home (David, 2026-10-10).
+            "language": self.language or str(self.options.get("from") or ""),
             "segments": self.segments,
             "chapters": self.chapters,
             "estimate": round(self.estimate, 2),
@@ -2078,7 +2081,7 @@ class Library:
             said_in(
                 ui,
                 "job.plan.fact",
-                "Uploading text uses none, and your credits come back on {date}.",
+                "Uploading text uses none, and your credits reset on {date}.",
                 date=self._month_ends(ui),
             ),
             "plan",
@@ -2108,7 +2111,7 @@ class Library:
                 said_in(
                     ui,
                     "job.out-of.credits",
-                    "You've used this month's credits. Top up, or they come back on {date}.",
+                    "You've used this month's credits. Top up, or they reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
                     date=self._month_ends(ui),
                 ),
@@ -2142,7 +2145,7 @@ class Library:
                     ui,
                     "job.out-of.talk-credits",
                     "You've used this month's credits for audio and talk. Top up, or they "
-                    "come back on {date}.",
+                    "reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
                     date=self._month_ends(ui),
                 ),
@@ -11585,18 +11588,23 @@ class Handler(BaseHTTPRequestHandler):
         """How many words are due a look on home's welcome back (design.md §12, "Home says
         welcome back after a week away", 2026-10-09): in one language, still being learned
         and not marked since `since`, the moment the reader was last in a text. Not a
-        schedule — targum keeps none — and nothing is written."""
+        schedule — targum keeps none — and nothing is written.
+
+        Nought where the practice card has nothing to show (David, 2026-10-10): Practise
+        opens that card, and a line that sends the reader to an empty one is not said."""
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
         language = str((query.get("language") or ["he"])[0]).split("-")[0].strip().lower()
+        language = language or "he"
         try:
             since = int(float((query.get("since") or ["0"])[0]))
         except ValueError:
             since = 0
-        self._json(
-            {"signedIn": True, "due": self.store.due_a_look(person.id, language or "he", since)}
-        )
+        due = self.store.due_a_look(person.id, language, since)
+        if due and not self._practice(person, language, "en")[4]:
+            due = 0
+        self._json({"signedIn": True, "due": due})
 
     def _places(self, query: dict[str, list[str]]) -> None:
         """Where the reader left off, newest first (targum-internal#430): `limit` texts,
@@ -11981,8 +11989,6 @@ class Handler(BaseHTTPRequestHandler):
         fetched and nothing spends. Signed out there is no list, and the page draws from
         the browser alone.
         """
-        from . import meetings as meetings_module
-        from . import occurrences as occurrences_module
         from . import touchstones
 
         person = self._person()
@@ -11992,6 +11998,36 @@ class Handler(BaseHTTPRequestHandler):
         if not language:
             return self._json({"error": "no language"}, 400)
         into = str((query.get("into") or ["en"])[0]).split("-")[0].strip().lower() or "en"
+        marked, finished, folder_for, met, practise = self._practice(person, language, into)
+        self._json(
+            {
+                "signedIn": True,
+                "language": language,
+                "met": met,
+                "often": touchstones.OFTEN,
+                "practise": practise,
+                "notes": self._word_notes(language, into, list(marked), finished, folder_for),
+            }
+        )
+
+    def _practice(
+        self, person: Person, language: str, into: str
+    ) -> tuple[
+        dict[str, int],
+        list[tuple[str, str, int]],
+        Callable[[str], tuple[Path, str] | None],
+        dict[str, int],
+        list[dict[str, object]],
+    ]:
+        """What the practice card on Your Words holds for one language: the reader's marked
+        words, the sections they finished, the folder of a text by its hash, in how many
+        texts each word was met, and up to ten words still being learned, each in a line
+        the reader read. Your Words draws it, and home's Practise line is left out where
+        it is empty (`_due`)."""
+        from . import meetings as meetings_module
+        from . import occurrences as occurrences_module
+        from . import touchstones
+
         marked = self.store.marked(person, language)
         homes = [self.library.home(person), self.library.shared, self.library.weekly]
         folders: dict[str, tuple[Path, str] | None] = {}
@@ -12014,16 +12050,7 @@ class Handler(BaseHTTPRequestHandler):
             said = meetings_module.card_line(line, into) if line else None
             if said:
                 practise.append(said)
-        self._json(
-            {
-                "signedIn": True,
-                "language": language,
-                "met": met,
-                "often": touchstones.OFTEN,
-                "practise": practise,
-                "notes": self._word_notes(language, into, list(marked), finished, folder_for),
-            }
-        )
+        return marked, finished, folder_for, met, practise
 
     @staticmethod
     def _word_notes(

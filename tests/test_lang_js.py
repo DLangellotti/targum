@@ -116,19 +116,12 @@ def test_anywhere_but_the_nav_the_same_call_still_draws_tabs() -> None:
     assert set(menu()["tabs"]) == {"tab"}
 
 
-def test_no_language_wears_a_flag_and_each_is_met_with_its_greeting() -> None:
-    """2026-10-09 (design.md §12, "The boards are the desk"): no board draws a flag, so the
-    menu carries none, and each row ends in the greeting it is met with (LangMenuDesk)."""
+def test_each_language_wears_its_flag_and_no_greeting() -> None:
+    """design.md §12: each row of the menu carries its flag (David, 2026-10-10, back from
+    2026-09-14), and no greeting ("I don't need the shalom, bonjour, ciao")."""
     drawn = menu(stored={"targum:learning": json.dumps(["he", "ru"])})
-    assert drawn["before"]["flags"] == 0
-    assert drawn["before"]["greetings"] == {
-        "he": "שָׁלוֹם",
-        "ru": "Здравствуйте",
-        "arc": "בְּקַדְמִין",
-        "yi": "אַ גוטן טאָג",
-        "fr": "Bonjour",
-        "it": "Ciao",
-    }
+    assert drawn["before"]["flags"] == 6, "one per row: he, ru, then arc, yi, fr, it"
+    assert not any(drawn["before"]["greetings"].values())
 
 
 # -- a text's language, carried out of its reader (design.md §12, 2026-10-07) ----------

@@ -2,7 +2,7 @@
 Progress is a story in three parts", 2026-10-09).
 
 David, 2026-10-08: Your Progress opens on a short ladder of real kinds of text from the
-language's own library — a conversation, a video, a news article, a short story, a novel,
+language's own library — a dialogue, a video, a news article, a short story, a novel,
 a poem — ordered by how hard the catalogue measured each kind (`Entry.difficulty`,
 the median of the texts of that kind that have been measured), and a headline naming the
 hardest of them the reader would follow. Not a placement (§6): every rung is a shelf of

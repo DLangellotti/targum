@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,9 @@ MAX_BYTES = 24 * 1024 * 1024
 #: (−0.17), and the old either-one rule threw away 463 of 1,283 words — a gap a reader
 #: saw as a big chunk of the transcript missing.
 NO_SPEECH = 0.6
+
+#: How much of a title is handed to whisper as its prompt. It reads the last 224 tokens.
+PROMPT_CHARS = 400
 LOW_SEGMENT_LOGPROB = -1.0
 
 
@@ -67,13 +71,14 @@ class WhisperTranscriber:
         audio: Path,
         language: str = "",
         on_progress: Progress | None = None,
+        hint: str = "",
     ) -> Transcript:
         pieces = self._pieces(audio)
         words: list[Word] = []
         total = 0.0
         spoken_language = ""
         for piece, offset in pieces:
-            answer = self._ask(piece, language)
+            answer = self._ask(piece, language, hint)
             spoken_language = spoken_language or str(answer.get("language") or "")
             length = float(answer.get("duration") or 0.0)
             total = max(total, offset + length)
@@ -120,7 +125,7 @@ class WhisperTranscriber:
             pieces.append((piece, start))
         return pieces
 
-    def _ask(self, audio: Path, language: str) -> dict[str, Any]:
+    def _ask(self, audio: Path, language: str, hint: str = "") -> dict[str, Any]:
         import httpx
 
         key = os.environ.get("OPENAI_API_KEY", "")
@@ -133,6 +138,9 @@ class WhisperTranscriber:
         }
         if language:
             data["language"] = language.split("-")[0]
+        if hint.strip():
+            # The title, as whisper's prompt: the names in it are spelled as written.
+            data["prompt"] = hint.strip()[:PROMPT_CHARS]
         with httpx.Client(timeout=TIMEOUT) as client:
             with audio.open("rb") as handle:
                 response = client.post(
@@ -169,20 +177,97 @@ class WhisperTranscriber:
             return any(a <= moment < b for a, b in spans)
 
         words: list[Word] = []
-        for word in answer.get("words") or []:
-            start = float(word.get("start") or 0.0)
-            text = str(word.get("word") or "").strip()
+        for text, start, end in _printed(answer):
             if not text or inside(start, invented):
                 continue
             words.append(
                 Word(
                     text=text,
                     start=round(offset + start, 3),
-                    end=round(offset + float(word.get("end") or 0.0), 3),
+                    end=round(offset + end, 3),
                     confidence=0.3 if inside(start, shaky) else 1.0,
                 )
             )
         return words
+
+
+_CHUNK = re.compile(r"\w+")
+
+
+def _printed(answer: dict[str, Any]) -> list[tuple[str, float, float]]:
+    """Each heard word as the segments print it, on the word list's clock.
+
+    whisper-1's word list is bare: no punctuation, and every apostrophe gone, so French
+    "j'ai" came back as "j" and "ai" and the page read "j ai pu commencer" (David,
+    2026-10-10). The segments' text, in the same answer, has the marks. The two are
+    matched letter-run by letter-run, and a printed token whose every run was heard, by
+    words heard for it alone, takes their place: one word, from the first one's start to
+    the last one's end. Anything that does not line up keeps the bare word, so the words
+    on the page are still the words whisper heard, each on its own clock.
+    """
+    import difflib
+
+    heard = [
+        (
+            str(word.get("word") or "").strip(),
+            float(word.get("start") or 0.0),
+            float(word.get("end") or 0.0),
+        )
+        for word in answer.get("words") or []
+    ]
+    bare = [(text, start, end) for text, start, end in heard if text]
+    text = " ".join(str(segment.get("text") or "") for segment in answer.get("segments") or [])
+    tokens = text.split() or str(answer.get("text") or "").split()
+    if not tokens:
+        return bare
+    # Letter runs on each side, each run knowing whose it is.
+    said: list[str] = []
+    said_by: list[int] = []
+    for index, (spelled, _, _) in enumerate(bare):
+        for run in _CHUNK.findall(spelled):
+            said.append(run.casefold())
+            said_by.append(index)
+    printed: list[str] = []
+    printed_by: list[int] = []
+    for index, written in enumerate(tokens):
+        for run in _CHUNK.findall(written):
+            printed.append(run.casefold())
+            printed_by.append(index)
+    token_of: dict[int, int] = {}
+    matcher = difflib.SequenceMatcher(a=said, b=printed, autojunk=False)
+    for block in matcher.get_matching_blocks():
+        for step in range(block.size):
+            token_of[block.a + step] = printed_by[block.b + step]
+    runs_of_word: dict[int, list[int]] = {}
+    for at, heard_as in enumerate(said_by):
+        runs_of_word.setdefault(heard_as, []).append(at)
+    runs_of_token: dict[int, int] = {}
+    for written_as in printed_by:
+        runs_of_token[written_as] = runs_of_token.get(written_as, 0) + 1
+    # The token each word was wholly heard as, where it was.
+    whole: dict[int, int] = {}
+    for heard_as, ats in runs_of_word.items():
+        owners = {token_of[at] for at in ats if at in token_of}
+        if len(owners) == 1 and all(at in token_of for at in ats):
+            whole[heard_as] = owners.pop()
+    out: list[tuple[str, float, float]] = []
+    index = 0
+    while index < len(bare):
+        if index not in whole:
+            out.append(bare[index])
+            index += 1
+            continue
+        owner = whole[index]
+        group = [index]
+        while whole.get(group[-1] + 1) == owner:
+            group.append(group[-1] + 1)
+        covered = sum(len(runs_of_word[one]) for one in group)
+        if covered == runs_of_token.get(owner, 0):
+            out.append((tokens[owner], bare[group[0]][1], bare[group[-1]][2]))
+        else:
+            out.extend(bare[one] for one in group)
+        index = group[-1] + 1
+    return out
 
 
 def _tag(language: str) -> str:

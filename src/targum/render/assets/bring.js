@@ -311,7 +311,7 @@
       ) +
       " " +
       t("building.credits.rate", "That's about {clock} of audio.", { clock: said(spare) });
-    if (got.ends) line += " " + t("building.hours.reset", "They come back on {date}.", { date: got.ends });
+    if (got.ends) line += " " + t("building.hours.reset", "They reset on {date}.", { date: got.ends });
     return line;
   }
 
