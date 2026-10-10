@@ -1216,7 +1216,10 @@ class Job:
             "made": self.made,
             "title": self.title,
             "english": entry.english if entry else "",
-            "language": self.language,
+            # The language it was pressed in until the build has read its own: an
+            # upload is transcribed before it says, and a French video still building
+            # stood on the Hebrew home (David, 2026-10-10).
+            "language": self.language or str(self.options.get("from") or ""),
             "segments": self.segments,
             "chapters": self.chapters,
             "estimate": round(self.estimate, 2),
