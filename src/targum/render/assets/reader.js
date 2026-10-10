@@ -11876,7 +11876,11 @@ var targumReader = function () {
     pressed(false);
   }
 
-  function play(from) {
+  /* `quietly` is for a start nobody pressed for on this page — arriving with `?listen=1`
+     (design.md §12, "Listening is a view of its own", 2026-10-10). A browser that has not
+     yet seen a press on the page refuses it (NotAllowedError), and that is not a muted
+     tab: the play button simply waits for the press, with nothing said. */
+  function play(from, quietly) {
     try {
       audio.currentTime = from;
     } catch (why) {
@@ -11898,6 +11902,10 @@ var targumReader = function () {
     var done = audio.play();
     if (done && done.catch) {
       done.catch(function (why) {
+        if (quietly === true && why && why.name === "NotAllowedError") {
+          halt();
+          return;
+        }
         // Chrome rejects here when the tab is not allowed to make a sound — a site muted
         // in the address bar, or a policy about autoplay — and the promise is the only
         // place it says so. Silently stopping made that indistinguishable from a broken
@@ -12394,10 +12402,29 @@ var targumReader = function () {
        locked. Released, nothing here writes this text's place or marks its lines. */
     element: function () { return audio; },
     following: function () { return following && !audio.paused; },
-    play: function () {
-      if (!following || audio.paused) toggleScene();
+    play: function (quietly) {
+      if (!following || audio.paused) toggleScene(quietly === true);
     },
     release: release,
+    /* For the listening view (design.md §12, "Listening is a view of its own",
+       2026-10-10), which draws the same recording and keeps nothing of its own: a pause
+       that keeps the place, play and pause as one press, the lines in reading order with
+       their clocks, each word's clock, and the speed stepped round as the strip's figure
+       steps it. */
+    pause: function () {
+      if (audio.paused) return;
+      if (following && !playing) toggleScene();
+      else halt();
+    },
+    paused: function () { return audio.paused; },
+    toggle: function () { toggleScene(); },
+    lines: function () { return order; },
+    clocks: function () { return wordClocks; },
+    handed: function () { return released; },
+    nextRate: function () {
+      var i = RATES.indexOf(nearestRate(audio.playbackRate));
+      setRate(RATES[(i + 1) % RATES.length], true);
+    },
   };
 
   var released = false;
@@ -12577,7 +12604,8 @@ var targumReader = function () {
     return order[0].id;
   }
 
-  function toggleScene() {
+  // A click hands this an event, so only a literal `true` is quiet.
+  function toggleScene(quietly) {
     // Handed to the next item of a playlist: play and pause are that player's (#434).
     if (released) {
       if (audio.paused) audio.play().catch(function () {});
@@ -12599,7 +12627,7 @@ var targumReader = function () {
     pressed(true);
     var opening = order.length ? order[0].start : 0;
     var from = audio.ended || audio.currentTime <= 0 ? opening : audio.currentTime;
-    play(from);
+    play(from, quietly === true);
     mark(at(from));
   }
 

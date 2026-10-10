@@ -13825,6 +13825,17 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(
                         200, poster.read_bytes(), "image/jpeg", cache="private, max-age=86400"
                     )
+            # A library text asked for by its folder, as a reader's listening view asks
+            # (design.md §12, "Listening is a view of its own", 2026-10-10): the cover
+            # drawn for the catalogue row whose source the folder holds.
+            entry = self._entry_of_folder(wanted)
+            if entry:
+                for suffix, kind in THUMBS:
+                    target = (root / (entry + suffix)).resolve()
+                    if root in target.parents and target.is_file():
+                        return self._send(
+                            200, target.read_bytes(), kind, cache="private, max-age=86400"
+                        )
         # Nothing of its own: the drawn tile, for a page that asks for one with
         # `?drawn=1` rather than drawing its own letter (#429). Made here, from what the
         # catalogue or the reader's own folder says the text is; nothing is stored.
@@ -13835,6 +13846,25 @@ class Handler(BaseHTTPRequestHandler):
                     200, drawing.encode("utf-8"), "image/svg+xml", cache="private, max-age=86400"
                 )
         return self._send(404, b"not found", "text/plain")
+
+    def _entry_of_folder(self, name: str) -> str:
+        """The catalogue row a reader's folder was built from, by the source its
+        `document.json` names, or "". The asker's own shelf first, then the shared one;
+        resolved inside each, so a name cannot reach anywhere else."""
+        from . import catalogue as catalogue_module
+
+        for shelf in (self._home(), self.library.shared):
+            base = shelf.resolve()
+            said = (base / name / "document.json").resolve()
+            if base not in said.parents or not said.is_file():
+                continue
+            try:
+                source = str(json.loads(said.read_text(encoding="utf-8")).get("source") or "")
+            except (OSError, json.JSONDecodeError, AttributeError):
+                continue
+            entry = next((e for e in catalogue_module.CATALOGUE if e.source == source), None)
+            return entry.id if entry is not None else ""
+        return ""
 
     def _drawn_thumb(self, wanted: str, chapterless: str, plain: bool) -> str:
         """The drawn tile for a library row or one of the asker's own texts, or ""."""
