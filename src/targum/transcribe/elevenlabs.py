@@ -49,6 +49,7 @@ class ScribeTranscriber:
         audio: Path,
         language: str = "",
         on_progress: Progress | None = None,
+        hint: str = "",
     ) -> Transcript:
         import httpx
 

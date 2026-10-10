@@ -1906,7 +1906,9 @@ class Build:
                 transcript = Transcript.model_validate(stored)
                 self.reused.append(f"transcript (part {number})")
             else:
-                transcript = self.transcriber.transcribe(piece, drafted.language)
+                transcript = self.transcriber.transcribe(
+                    piece, drafted.language, hint=self.title or found.title
+                )
                 self.cache.put("transcribe", key, transcript.model_dump(mode="json"))
             write_model(transcript_path(workspace, number), transcript)
             refined = self._refined(transcript, refiner)
