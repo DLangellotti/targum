@@ -440,6 +440,14 @@
     {% if spoken_audio or spoken_video or voice_offer %}
     <div class="m-sect">
       <p class="m-head">{{ t("reader.page.listening", "Listening") }}</p>
+      {#- The listening view (design.md §12, "Listening is a view of its own", 2026-10-10). -#}
+      {% if spoken_audio %}
+      <button type="button" class="m-row more-listen" data-listen-view data-what="{{ t("reader.listen.open", "Listening view") }}" aria-expanded="false" aria-controls="listen-view"
+              title="{{ t("reader.listen.open-title", "The picture, the line being said and the player") }}">
+        <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><rect x="3.5" y="2" width="9" height="12" rx="2"></rect><path d="M6.5 6v3M8 5v5M9.5 6.5v2"></path></svg></span>
+        <span class="m-label">{{ t("reader.listen.open", "Listening view") }}</span>
+      </button>
+      {% endif %}
       {#- What the strip carries, for while the picture is up and the strip is not
           (targum-internal#422), and on a phone, where the strip has no width for them:
           Hear first, and a step either side of the voice. One switch with the strip's. -#}
@@ -834,6 +842,11 @@
     </svg>
   </button>
   {% endif %}
+  {#- The listening view (design.md §12, "Listening is a view of its own", 2026-10-10). -#}
+  <button type="button" class="player-listen" data-listen-view aria-expanded="false" aria-controls="listen-view"
+          aria-label="{{ t("reader.listen.open", "Listening view") }}" title="{{ t("reader.listen.open", "Listening view") }}">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 10 8 6l4 4"></path></svg>
+  </button>
   {#- A real file, carried in the page already, so saving it costs no request. -#}
   <a class="player-get" download aria-label="{{ t("reader.page.download-the-audio", "Download the audio") }}" title="{{ t("reader.page.download-the-audio", "Download the audio") }}">
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -844,6 +857,104 @@
   </a>
   <button type="button" class="player-close" aria-label="{{ t("reader.page.close-the-player", "Close the player") }}">×</button>
 </div>
+{#- Listening (design.md §12, "Listening is a view of its own", 2026-10-10; boards
+    ListenPhone and ListenWordPhone). Drawn over the reader and driving its one player:
+    nothing here plays or keeps a place of its own. `listen.js` fills the line, the clock
+    and Up next, and opens it only when it is pressed for. -#}
+{% set part_word = t("reader.film.part", "Part {n} of {count}", n=section.number, count=section_count) if by_part else t("reader.listen.chapter-of", "Chapter {n} of {count}", n=section.number, count=section_count) %}
+<section class="listen-view" id="listen-view" role="dialog" aria-label="{{ t("reader.listen.label", "Listening") }}" hidden
+         data-section="{{ section.number }}" data-sections="{{ section_count }}"{% if by_part %} data-by-part{% endif %}{% if not standalone %} data-part="{{ part_word }}"{% endif %}>
+  <div class="lv-col">
+    <header class="lv-head" dir="ltr">
+      <button type="button" class="lv-icon lv-down" aria-label="{{ t("reader.listen.back-to-the-text", "Back to the text") }}" title="{{ t("reader.listen.back-to-the-text", "Back to the text") }}">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 8l5 5 5-5"></path></svg>
+      </button>
+      <span class="lv-from">{{ t("reader.listen.playing-from", "Playing from") }} <bdi class="lv-from-title" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</bdi></span>
+      <button type="button" class="lv-icon lv-more" aria-label="{{ t("reader.listen.more", "More") }}" title="{{ t("reader.listen.more", "More") }}">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="5" cy="10" r="1.3"></circle><circle cx="10" cy="10" r="1.3"></circle><circle cx="15" cy="10" r="1.3"></circle></svg>
+      </button>
+    </header>
+    <div class="lv-top">
+      <span class="lv-cover" aria-hidden="true"><span class="lv-letter" lang="{{ source_language }}">{{ (title or "·")[:1] }}</span></span>
+      <p class="lv-title" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</p>
+      <p class="lv-sub" dir="ltr">
+        <span class="lv-place"><span class="lv-where">{% if english %}<bdi lang="{{ english_lang|default('en') }}">{{ english }}</bdi>{% if not standalone %} · {% endif %}{% endif %}{% if not standalone %}{{ part_word }}{% endif %}</span><span class="lv-paused" hidden> · {{ t("reader.listen.paused", "paused") }}</span></span>
+        <span class="lv-saved" hidden><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="7.5"></circle><path d="M6.5 10.2l2.4 2.4 4.6-4.8"></path></svg>{{ t("reader.listen.saved", "Saved") }}</span>
+      </p>
+    </div>
+    <div class="lv-lines">
+      <p class="lv-far lv-before" lang="{{ source_language }}" dir="{{ source_direction }}" aria-hidden="true"></p>
+      <div class="lv-now" lang="{{ source_language }}" dir="{{ source_direction }}" aria-live="off"></div>
+      {% if translated %}<p class="lv-tr" lang="{{ target_language }}" dir="{{ target_direction }}"></p>{% endif %}
+      <p class="lv-far lv-after" lang="{{ source_language }}" dir="{{ source_direction }}" aria-hidden="true"></p>
+    </div>
+    {#- After a part played to its end with the screen locked, the voice is the next
+        part's: what is playing now, and the press that opens it there. -#}
+    <p class="lv-handed" role="status" dir="ltr" hidden><span class="lv-handed-said"></span> <a class="lv-handed-open" href="#">{{ t("reader.listen.open-it", "Open it") }}</a></p>
+    <div class="lv-foot" dir="ltr">
+      <div class="lv-clock">
+        <span class="lv-at">0:00</span>
+        <span class="lv-track" role="slider" tabindex="0" aria-label="{{ t("reader.page.position", "Position") }}"
+              aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00"><span class="lv-fill"></span></span>
+        <span class="lv-length"></span>
+      </div>
+      <div class="lv-keys">
+        {#- `film-rate-now`, so the figure is the one the bar and the strip say. -#}
+        <button type="button" class="lv-icon lv-rate" aria-label="{{ t("reader.page.speed", "Speed") }}" title="{{ t("reader.page.speed", "Speed") }}"><span class="film-rate-now">1×</span></button>
+        <button type="button" class="lv-icon lv-back" aria-label="{{ t("reader.listen.back-one-line", "Back one line") }}" title="{{ t("reader.listen.back-one-line", "Back one line") }}">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4.5 5v10"></path><path d="M15.5 5v10L8 10z"></path></svg>
+        </button>
+        <button type="button" class="lv-play" aria-pressed="false" aria-label="{{ t("reader.listen.play", "Play") }}" title="{{ t("reader.listen.play", "Play") }}"
+                data-play="{{ t("reader.listen.play", "Play") }}" data-pause="{{ t("reader.listen.pause", "Pause") }}">
+          <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path class="play" d="M3.5 1.6v8.8L10.5 6z"></path><path class="pause" d="M2 1h3v10H2zM7 1h3v10H7z"></path></svg>
+        </button>
+        <button type="button" class="lv-icon lv-on" aria-label="{{ t("reader.listen.forward-one-line", "Forward one line") }}" title="{{ t("reader.listen.forward-one-line", "Forward one line") }}">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 5v10"></path><path d="M4.5 5v10L12 10z"></path></svg>
+        </button>
+        <button type="button" class="lv-icon lv-queue-open" aria-expanded="false" aria-controls="listen-queue" aria-label="{{ t("reader.listen.up-next", "Up next") }}" title="{{ t("reader.listen.up-next", "Up next") }}">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 5h14M3 10h8M3 15h8"></path><path d="M14 10.5v5l3.5-2.5z"></path></svg>
+        </button>
+      </div>
+      <div class="lv-more-row">
+        <button type="button" class="lv-loop" aria-pressed="false" title="{{ t("reader.listen.loop-title", "Hear this line again and again until you press it once more") }}">
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 9V7a2 2 0 0 1 2-2h9"></path><path d="M13 3l2 2-2 2"></path><path d="M16 11v2a2 2 0 0 1-2 2H5"></path><path d="M7 17l-2-2 2-2"></path></svg>{{ t("reader.listen.loop", "Loop this line") }}
+        </button>
+        <button type="button" class="lv-next" hidden>{{ t("reader.listen.up-next-colon", "Up next:") }} <bdi class="lv-next-name" dir="auto"></bdi></button>
+      </div>
+    </div>
+  </div>
+  {#- Up next (board ListenPhone, b): what will play, in the order it will play. -#}
+  <section class="lv-queue" id="listen-queue" role="dialog" aria-labelledby="listen-queue-title" hidden dir="ltr">
+    <header class="lv-qhead">
+      <button type="button" class="lv-icon lv-qdown" aria-label="{{ t("reader.listen.back-to-now-playing", "Back to now playing") }}" title="{{ t("reader.listen.back-to-now-playing", "Back to now playing") }}">
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 8l5 5 5-5"></path></svg>
+      </button>
+      <div class="lv-qnamed"><h2 class="lv-qtitle" id="listen-queue-title">{{ t("reader.listen.up-next", "Up next") }}</h2><p class="lv-qcount"></p></div>
+      <button type="button" class="lv-qdone">{{ t("reader.listen.done", "Done") }}</button>
+    </header>
+    <div class="lv-qbody">
+      <button type="button" class="lv-order" role="switch" aria-checked="false" title="{{ t("reader.list.play-on-title", "When a recording ends, the next one starts") }}">
+        <span>{{ t("reader.listen.play-in-order", "Play in order") }}</span><span class="lv-sw" aria-hidden="true"></span>
+      </button>
+      <p class="lv-grp">{{ t("reader.listen.now-playing", "Now playing") }}</p>
+      <div class="lv-qrow is-now">
+        <span class="lv-qcover" aria-hidden="true"><span class="lv-letter" lang="{{ source_language }}">{{ (title or "·")[:1] }}</span></span>
+        <span class="lv-qtext"><bdi class="lv-qname" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</bdi><span class="lv-qfacts lv-qnow-facts"></span></span>
+        <svg class="lv-eq" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 13V8M10 15V5M15 12V9"></path></svg>
+      </div>
+      <div class="lv-qlist"></div>
+      <p class="lv-qempty" hidden>{{ t("reader.listen.nothing-queued", "Nothing is queued after this.") }}</p>
+    </div>
+    <div class="lv-mini" role="group" aria-label="{{ t("reader.listen.player", "Player") }}">
+      <span class="lv-qcover lv-mini-cover" aria-hidden="true"><span class="lv-letter" lang="{{ source_language }}">{{ (title or "·")[:1] }}</span></span>
+      <span class="lv-qtext"><span class="lv-mini-line" lang="{{ source_language }}" dir="{{ source_direction }}"></span><span class="lv-qfacts">{% if english %}<bdi>{{ english }}</bdi>{% if not standalone %} · {% endif %}{% endif %}{% if not standalone %}{{ part_word }}{% endif %}</span></span>
+      <button type="button" class="lv-play lv-mini-play" aria-pressed="false" aria-label="{{ t("reader.listen.play", "Play") }}" title="{{ t("reader.listen.play", "Play") }}"
+              data-play="{{ t("reader.listen.play", "Play") }}" data-pause="{{ t("reader.listen.pause", "Pause") }}">
+        <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path class="play" d="M3.5 1.6v8.8L10.5 6z"></path><path class="pause" d="M2 1h3v10H2zM7 1h3v10H7z"></path></svg>
+      </button>
+    </div>
+  </section>
+</section>
 {% endif %}
 {% if preread %}
 {% include '_preread.html.j2' %}
@@ -1240,6 +1351,9 @@
 {%- if preread %}
 <script>{{ asset('preread.js') }}</script>
 {% endif %}
+{#- The listening view (design.md §12, "Listening is a view of its own", 2026-10-10): only
+    on a text with a recording, after the player it drives and before the playlist. -#}
+{% if spoken_audio %}<script>{{ asset('listen.js') }}</script>{% endif %}
 {#- A reader opened from a playlist: Next, Back and the swipe (targum-internal#366). Does
     nothing unless the page was served with `?list=`, so a reader off a disk is as it was. -#}
 <script>{{ asset('list.js') }}</script>

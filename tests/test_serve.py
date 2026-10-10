@@ -2507,6 +2507,42 @@ def test_a_text_with_no_picture_is_drawn_when_asked(served: tuple[int, str, Path
     assert nobody == 404
 
 
+def test_a_library_text_asked_for_by_its_folder_wears_its_catalogue_cover(
+    served: tuple[int, str, Path],
+) -> None:
+    """The listening view asks for its picture by the reader's folder (design.md §12,
+    "Listening is a view of its own", 2026-10-10), and a library text's folder is not the
+    catalogue's id: the cover is found by the source the folder holds."""
+    from urllib.parse import quote
+
+    from targum.catalogue import CATALOGUE
+
+    port, key, out = served
+    entry = next(e for e in CATALOGUE if e.id == "psalms")
+    thumbs = out / "thumbs"
+    thumbs.mkdir()
+    (thumbs / "psalms.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 40)
+    folder = out / "shared" / "תהלים-he"
+    folder.mkdir(parents=True)
+    (folder / "document.json").write_text(
+        json.dumps({"source": entry.source, "title": "תהלים"}), encoding="utf-8"
+    )
+
+    def fetch(path: str) -> tuple[int, bytes]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
+    status, body = fetch(f"/thumb/{quote('תהלים-he')}?k={key}&drawn=1")
+    assert status == 200 and body.startswith(b"\x89PNG")
+    climbing, _ = fetch(f"/thumb/..%2Fshared%2F{quote('תהלים-he')}?k={key}")
+    assert climbing == 404
+
+
 def built_catalogue_text(out: Path, entry_id: str, titles: list[str]) -> Path:
     """One catalogue text on disk, with chapters, as a build would leave it."""
     from targum.catalogue import CATALOGUE

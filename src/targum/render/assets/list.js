@@ -695,6 +695,8 @@
     tellHere(at);
     near = neighbours(items, at);
     setName = String((set && set.name) || "");
+    // Said to the listening view, whose Up next is this playlist's next items.
+    if (typeof CustomEvent === "function") document.dispatchEvent(new CustomEvent("targum:list-ready"));
 
     // Where you are, at the head of the foot's one block (design.md §12, "The foot is one
     // block", 2026-09-25): "← Back · Couples and everyday life, 2 of 3". Back is a small
@@ -1142,6 +1144,32 @@
     if (next !== null) recordingOf(next);
     return true;
   }
+
+  /* Up next in the listening view (design.md §12, "Listening is a view of its own",
+     2026-10-10): the items after this one that can be opened, in the order a swipe takes
+     them, each with what it is and the address that opens it listening. And Play on, which
+     the view's "Play in order" is: one choice, said in both places. */
+  window.TargumList.queue = function () {
+    var rows = [];
+    for (var n = at + 1; n < items.length; n++) {
+      var item = items[n] || {};
+      if (!item.open || item.failed) continue;
+      rows.push({
+        title: String(item.title || ""),
+        facts: factsOf(item),
+        thumb: thumbOf(item, "lv-qcover"),
+        href: keyed(addressOf(item, list, n, true, true)),
+      });
+    }
+    return { name: setName, rows: rows };
+  };
+  window.TargumList.playOn = playOn;
+  window.TargumList.choosePlayOn = function (on) {
+    choosePlayOn(on);
+    Array.prototype.forEach.call(document.querySelectorAll(".list-play-on"), function (one) {
+      one.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  };
 
   /* Play on (design.md §12, 2026-10-09): the reader's own say that, with the screen in
      front of them, the end of a recording moves on. Kept on this device; off until they

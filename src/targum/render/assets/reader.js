@@ -12398,6 +12398,25 @@ var targumReader = function () {
       if (!following || audio.paused) toggleScene();
     },
     release: release,
+    /* For the listening view (design.md §12, "Listening is a view of its own",
+       2026-10-10), which draws the same recording and keeps nothing of its own: a pause
+       that keeps the place, play and pause as one press, the lines in reading order with
+       their clocks, each word's clock, and the speed stepped round as the strip's figure
+       steps it. */
+    pause: function () {
+      if (audio.paused) return;
+      if (following && !playing) toggleScene();
+      else halt();
+    },
+    paused: function () { return audio.paused; },
+    toggle: function () { toggleScene(); },
+    lines: function () { return order; },
+    clocks: function () { return wordClocks; },
+    handed: function () { return released; },
+    nextRate: function () {
+      var i = RATES.indexOf(nearestRate(audio.playbackRate));
+      setRate(RATES[(i + 1) % RATES.length], true);
+    },
   };
 
   var released = false;

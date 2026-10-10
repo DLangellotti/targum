@@ -366,6 +366,68 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Listening is a view of its own — 2026-10-10
+
+David, 2026-10-10: build listening mode now (audit 2, "Only David can decide", 3). Boards
+ListenPhone, ListenWordPhone and ListenLock; ListenDesk is superseded and was read for
+intent only. A text with a recording can be listened to with the page put away: the
+picture, the line being said, and the player under them, on a phone and at a desk.
+
+- **One player.** The view is drawn over the reader and drives the reader's own
+  recording (`TargumPlayer`). Nothing in it plays, seeks or keeps a place on its own, so
+  the strip, the bar's play and the view always agree, and the place a reader stopped at
+  is the one Continue already reads.
+- **Opened by a press, never by itself.** The strip's ⌃ and ⋯ → Listening → Listening
+  view open it; ▾ and Escape put it away. It stays open from one part,
+  or one playlist item, to the next for as long as the tab is open
+  (`targum:listen-view`, in session storage); a reader who opens a text afresh gets the
+  text.
+- **What it shows is the board's.** The text's picture (from this box's `/thumb/` where
+  the page is served, its letter on the colour of its kind where it is not, so a reader
+  off a disk still fetches nothing), its title, "Ruth · Part 2 of 4" and "Saved" where
+  this device keeps it. Then the line before, faint; the line being said, large, with
+  the word being said in the teal wash; its translation; the line after, faint.
+- **The steps are lines.** Back and forward move a line, where the strip's step is a
+  word or five seconds: someone listening on the move is following sentences. Back from
+  the middle of a line is the top of that line, as a player's back is. "Loop this line"
+  is a switch, and it holds the line the voice is on until it is pressed again.
+- **A word tapped pauses the voice** and opens the reader's own card over the view (board
+  ListenWordPhone): the picture shrinks, the line says "paused", and the card gains
+  "Keep listening", which closes it and plays on from the second it stopped, as its × does
+  ("Close and keep listening"). The word said from the card does not move that second.
+- **Up next is what will play, in the order it will play.** Outside a playlist, the
+  parts of this text after this one; inside one, the playlist's next items. "Play in
+  order" is the same switch as the playlist's Play on (`targum:play-on`), so one choice
+  covers both. A row is a press that opens that part or item listening.
+- **The lock screen follows the line** (board ListenLock). Outside a playlist the Media
+  Session says the title and the part, carries the line being said, and its back and
+  forward step a line; its scrubber seeks. Inside a playlist the lock screen stays the
+  playlist's, as "Listening plays on by itself" (2026-10-09) set it.
+- **A part ends with the screen locked and plays the next**, when Play in order is on:
+  the page hands its player to the next part's recording, as a playlist does between
+  items, and the view says what is playing now, with "Open it" to go there. With the
+  screen on and the view open, the next part opens in it. With the screen on and the
+  view put away, a part ends as it always did, at its foot.
+
+Where it departs from the boards, deliberately:
+
+- **No drag and no ×** on Up next's rows. The queue is the text's own order or the
+  playlist's, and a playlist is changed in one place, its page. A second place that
+  reorders it, from a sheet over a moving recording, is a second way to lose a set.
+- **No minutes over Up next.** The board's "42 min queued" needs every item's length, and
+  a part's length is known only once its page is open; the head says how many are queued.
+- **No Up next mixing the two.** Inside a playlist the board lists the rest of this
+  text before the playlist's items, but a playlist moves to its next item at the end of
+  a part. The sheet says what will happen, not what the board drew.
+- **Saved for offline**, the board's third phone, is the saved page that "Your account is
+  the board's sections, and Saved on this device its two columns" (2026-10-09) already
+  draws; this entry adds nothing to it.
+
+What it does not change: nothing plays on arrival from a link, the bell or the playlist
+page; a word card still asks and marks what it did; a part finished by listening is
+finished without marking, as a swipe finishes it; motion stays optional, and nothing in
+the view animates under reduced motion.
+
 ### The Talk pill keeps its own room at a desk — 2026-10-09
 
 Audit 2, gap 3. The pill floats at the window's bottom-right corner, and since "The boards
