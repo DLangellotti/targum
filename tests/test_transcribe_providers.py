@@ -86,6 +86,62 @@ def test_whisper_words_are_read_from_verbose_json_and_hallucinated_segments_drop
     assert heard.duration == 10.0
 
 
+def test_whisper_words_keep_the_apostrophes_and_marks_its_segments_print(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """David, 2026-10-10: the French page read "j ai pu commencer". whisper-1's word list
+    is bare; the segments print "j'ai" and the commas. A printed token heard whole takes
+    its words' place, on their clock; a word whisper printed differently stays bare."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    recording = tmp_path / "part.mp3"
+    recording.write_bytes(b"audio")
+    stub = canned(
+        monkeypatch,
+        [
+            {
+                "language": "french",
+                "duration": 10.0,
+                "words": [
+                    {"word": "De", "start": 0.0, "end": 0.2},
+                    {"word": "ce", "start": 0.2, "end": 0.3},
+                    {"word": "que", "start": 0.3, "end": 0.4},
+                    {"word": "j", "start": 0.4, "end": 0.45},
+                    {"word": "ai", "start": 0.45, "end": 0.5},
+                    {"word": "lu", "start": 0.5, "end": 0.7},
+                    {"word": "aujourd", "start": 0.7, "end": 0.9},
+                    {"word": "hui", "start": 0.9, "end": 1.0},
+                    {"word": "chez", "start": 1.0, "end": 1.2},
+                    {"word": "Huelvec", "start": 1.2, "end": 1.6},
+                ],
+                "segments": [
+                    {
+                        "start": 0.0,
+                        "end": 2.0,
+                        "text": " De ce que j'ai lu aujourd'hui, chez Houellebecq.",
+                        "no_speech_prob": 0.1,
+                        "avg_logprob": -0.2,
+                    }
+                ],
+            }
+        ],
+    )
+    heard = WhisperTranscriber().transcribe(recording, "fr", hint="Anéantir - Michel HOUELLEBECQ")
+    said = [(word.text, word.start, word.end) for word in heard.words]
+    assert said == [
+        ("De", 0.0, 0.2),
+        ("ce", 0.2, 0.3),
+        ("que", 0.3, 0.4),
+        ("j'ai", 0.4, 0.5),
+        ("lu", 0.5, 0.7),
+        ("aujourd'hui,", 0.7, 1.0),
+        ("chez", 1.0, 1.2),
+        ("Huelvec", 1.2, 1.6),
+    ], "the heard word stays where the print disagrees with it"
+    assert stub.asked[0]["data"]["prompt"] == "Anéantir - Michel HOUELLEBECQ", (
+        "the title is the prompt"
+    )
+
+
 def test_a_high_no_speech_probability_alone_does_not_drop_words_whisper_is_sure_of(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

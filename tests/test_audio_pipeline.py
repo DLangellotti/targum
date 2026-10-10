@@ -209,7 +209,9 @@ def test_a_supplied_srt_costs_no_transcription(fake_audio, tmp_path: Path) -> No
         def price_per_minute(self) -> float:
             return 99.0
 
-        def transcribe(self, audio: Path, language: str = "", on_progress: object = None):
+        def transcribe(
+            self, audio: Path, language: str = "", on_progress: object = None, hint: str = ""
+        ):
             raise AssertionError("a supplied transcript is not a thing to transcribe")
 
     fake_audio.duration = 90.0
