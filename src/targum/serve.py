@@ -13531,11 +13531,28 @@ class Handler(BaseHTTPRequestHandler):
         roots, behind the same guards, as the files themselves are served from — this
         says what a reader could already open, one file at a time, and nothing more.
         """
-        page = urlparse(parse_qs(urlparse(self.path).query).get("page", [""])[0]).path
+        asked = parse_qs(urlparse(self.path).query)
+        page = urlparse(asked.get("page", [""])[0]).path
         found = self._offline_folder(page)
         if found is None:
             return self._json({"error": "not found"}, 404)
         prefix, bases, about = found
+        # Saved on its own, a text with a contents page keeps only the part that was
+        # opened (David, 2026-10-10; design.md §12): `?part=1` narrows the list to that
+        # one page and the sidecars it names. The whole is the reader's press.
+        if asked.get("part", [""])[0] == "1":
+            narrowed = self._offline_part(page, prefix, bases)
+            if narrowed is not None:
+                return self._json(
+                    {
+                        **about,
+                        "base": prefix,
+                        "part": True,
+                        "files": narrowed,
+                        "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
+                        "bytes": sum(int(f["bytes"]) for f in narrowed),
+                    }
+                )
         files: list[dict[str, Any]] = []
         for under, base, deep in bases:
             try:
@@ -13567,6 +13584,58 @@ class Handler(BaseHTTPRequestHandler):
                 "bytes": sum(int(file["bytes"]) for file in files),
             }
         )
+
+    def _offline_part(
+        self, page: str, prefix: str, bases: list[tuple[str, Path, bool]]
+    ) -> list[dict[str, Any]] | None:
+        """One part of a text with a contents page, as saving it on its own keeps it: the
+        page that was opened, and each sidecar beside the text whose relative address
+        that page names. None where the text has no contents page (it is one page, or a
+        portion's or a day's) or the page is not one of its files, and the whole is
+        listed as before."""
+        if len(bases) != 1 or not page.startswith(prefix):
+            return None
+        _, base, _ = bases[0]
+        if not (base / CONTENTS).is_file():
+            return None
+        relative = unquote(page[len(prefix) :]) or "index.html"
+        target = (base / relative).resolve()
+        if target.suffix.lower() != ".html" or not target.is_file():
+            return None
+        if base not in target.parents:
+            return None
+        files: list[dict[str, Any]] = [
+            {
+                "url": prefix + quote(target.relative_to(base).as_posix()),
+                "bytes": target.stat().st_size,
+                "film": False,
+            }
+        ]
+        try:
+            said = target.read_text(encoding="utf-8", errors="replace")
+            listed = sorted(base.rglob("*"))
+        except OSError:
+            return files
+        for sidecar in listed:
+            suffix = sidecar.suffix.lower()
+            if suffix not in self.MEDIA_KINDS or not sidecar.is_file():
+                continue
+            if base not in sidecar.resolve().parents:
+                continue
+            address = sidecar.relative_to(base).as_posix()
+            # As the page may spell it: plain, quoted, or inside JSON with its slashes
+            # or its letters escaped.
+            spelled = {address, quote(address), json.dumps(address)[1:-1]}
+            spelled |= {one.replace("/", "\\/") for one in spelled}
+            if any(one in said for one in spelled):
+                files.append(
+                    {
+                        "url": prefix + quote(address),
+                        "bytes": sidecar.stat().st_size,
+                        "film": suffix in FILM_KINDS,
+                    }
+                )
+        return files
 
     def _offline_folder(
         self, page: str

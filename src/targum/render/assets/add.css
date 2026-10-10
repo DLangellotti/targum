@@ -85,6 +85,10 @@
 .drop-line-phone { display: none; }
 .drop-line { margin: 0; color: var(--ink); font-size: 1.0625rem; }
 .drop-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.5rem; }
+/* Record (restored 2026-10-10): the desk's outlined press beside Choose a file, and the
+   teal of a press that is on while it records. It stays on a phone, where Choose a file
+   gives way to the dashed place, because a recording is not a file the place can take. */
+.add .bring-record[aria-pressed="true"] { background: var(--teal-wash); color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal); }
 .understood { margin: 0; color: var(--ink-soft); font-size: 0.875rem; line-height: 1.5; }
 .understood:empty,
 .understood[hidden] { display: none; }
@@ -369,6 +373,7 @@
 @media (hover: none) and (pointer: coarse) {
   .add .go,
   .add .bring-choose,
+  .add .bring-record,
   .add .bring-post,
   .add .change,
   .add .ghost,

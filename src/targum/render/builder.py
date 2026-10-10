@@ -1704,7 +1704,7 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(language, "add.", "bring."),
+            strings=script_strings(language, "add.", "bring.", "speak."),
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.
