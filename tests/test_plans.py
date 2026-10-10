@@ -93,7 +93,7 @@ def test_on_free_gets_sixty_credits_and_plan_the_whole_month(tmp_path: Path) -> 
     assert refused.act == "plan"
     assert "It needs 45 credits and you have 10 left this month" in refused
     assert "A plan gives you 480 a month, which is 8 hours" in refused
-    assert "come back on" in refused.fact
+    assert "reset on" in refused.fact
     assert "$" not in refused and "$" not in refused.fact, "never money outside /plans"
     # The operator stands in for Plan, and is held to no month at all.
     assert library.claim(recording(library, 2, 7 * HOUR, "c", admin=True)) == ""

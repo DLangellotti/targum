@@ -437,7 +437,7 @@
         var known = every.length && answer.credits && answer.credits.left !== null && answer.credits.left !== undefined;
         if (builds.length || known) parts.push(tn("subs.credits.used", spent, "{n} credit on subscriptions this month", "{n} credits on subscriptions this month"));
         if (known) {
-          parts.push(tn("subs.credits.left", answer.credits.left, "{n} left in all, back on {date}", "{n} left in all, back on {date}", { date: back }));
+          parts.push(tn("subs.credits.left", answer.credits.left, "{n} left in all, resets on {date}", "{n} left in all, resets on {date}", { date: back }));
         }
         line.textContent = parts.join(" · ");
         line.hidden = !parts.length;

@@ -459,7 +459,7 @@ def test_the_hours_refusal_says_what_to_do_and_what_still_works(tmp_path: Path) 
     refused = library.claim(recording(library, 1, 1 * HOUR, "b"))
 
     assert "Top up" in refused, "what the reader can do now"
-    assert "come back on" in refused, "and when it lifts by itself"
+    assert "reset on" in refused, "and when it lifts by itself"
     assert "library" in refused.fact, "and what is still free"
     assert "Uploading text uses none" in refused.fact, "and that text is not affected"
     assert refused.act == "top-up", "drawn as Top up, greyed until there is a way to pay"

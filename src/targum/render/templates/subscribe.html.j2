@@ -74,7 +74,7 @@
     {%- if credits.left is defined and credits.left is not none and credits.left > 0 %}
     {%- set upgrade_fact = tn("subscribe.page.plan-left", credits.left, "You can still open any of its videos one at a time, with the {n} credit you have left this month.", "You can still open any of its videos one at a time, with the {n} credits you have left this month.") %}
     {%- elif credits.back is defined and credits.back %}
-    {%- set upgrade_fact = t("subscribe.page.plan-left-none", "You can still open any of its videos one at a time once your credits come back on {date}.", date=credits.back) %}
+    {%- set upgrade_fact = t("subscribe.page.plan-left-none", "You can still open any of its videos one at a time once your credits reset on {date}.", date=credits.back) %}
     {%- else %}
     {%- set upgrade_fact = "" %}
     {%- endif %}
@@ -127,7 +127,7 @@
           {%- endfor %}
           </div>
           {%- if credits.left is not none and credits.left is defined %}
-          <p class="cap-left">{{ tn("subscribe.page.left", credits.left, "{n} credit left in your plan this month. They come back on {date}.", "{n} credits left in your plan this month. They come back on {date}.", date=credits.back) }}</p>
+          <p class="cap-left">{{ tn("subscribe.page.left", credits.left, "{n} credit left in your plan this month. They reset on {date}.", "{n} credits left in your plan this month. They reset on {date}.", date=credits.back) }}</p>
           {%- endif %}
         </dd>
         </div>

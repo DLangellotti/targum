@@ -246,7 +246,7 @@ def test_a_panel_draws_top_up_greyed_until_there_is_somewhere_to_pay(browser) ->
     drawn = page.evaluate(
         """() => {
           const box = window.TargumFault.panel(
-            "You've used this month's credits. Top up, or they come back on 1 November.",
+            "You've used this month's credits. Top up, or they reset on 1 November.",
             { topUp: true, fact: "The library still opens" }
           );
           document.querySelector('main').appendChild(box);
