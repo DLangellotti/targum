@@ -17,6 +17,7 @@ email did not match, swept everything and pulled the whole account again.
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
@@ -97,6 +98,11 @@ def chrome_page(tmp_path: Path) -> Path:
 def reader(browser, built: Path):  # noqa: F811
     context = opened(browser)
     page = context.new_page()
+    if os.environ.get("TARGUM_THROTTLE"):
+        # CI's runner, roughly: `TARGUM_THROTTLE=6` slows the page's CPU six times.
+        cdp = context.new_cdp_session(page)
+        rate = int(os.environ["TARGUM_THROTTLE"])
+        cdp.send("Emulation.setCPUThrottlingRate", {"rate": rate})
     page.goto(built.as_uri())
     page.wait_for_selector(".pair")
     page.evaluate(READY)
@@ -113,18 +119,31 @@ def as_the_test_account(reader) -> None:
 
 
 def signed_in_elsewhere_as_main(page) -> None:
-    """What a page that is not a reader leaves after the main account signs in on it:
-    the whole account pulled into `localStorage`, written with no stamps, because
-    `keep.js` writes none."""
-    page.evaluate(
-        "([state, words]) => {"
-        "  localStorage.setItem('targum:sync', state);"
-        "  localStorage.setItem('targum:vocab:he', words);"
-        "}",
-        [
-            json.dumps({"email": MAIN, "revision": 40, "pushed": 40}),
-            json.dumps(MAIN_WORDS, ensure_ascii=False),
-        ],
+    """What a page that is not a reader leaves after the test account signs out and the
+    main account signs in on it: `localStorage` swept — the shelf left alone, as sign-out
+    did before the fix — and the whole main account pulled in, written with no stamps,
+    because `keep.js` writes none.
+
+    Written by the next document as it starts, before the reader's own scripts, rather
+    than by this one just before it navigates. On `file://` a `localStorage` write made
+    the moment before a navigation is not sure to survive it (`durable.js` measured 3.3%;
+    CI lost this one, 2026-10-10, and the reader then found no `targum:sync` at all), and
+    on the real site these writes are a whole page load old by the time a reader opens.
+    """
+    page.add_init_script(
+        """
+        (() => {
+          if (sessionStorage.getItem("switched")) return;
+          sessionStorage.setItem("switched", "1");
+          Object.keys(localStorage)
+            .filter((k) => k.startsWith("targum:"))
+            .forEach((k) => localStorage.removeItem(k));
+          localStorage.setItem("targum:sync", STATE);
+          localStorage.setItem("targum:vocab:he", WORDS);
+        })();
+        """.replace(
+            "STATE", json.dumps(json.dumps({"email": MAIN, "revision": 40, "pushed": 40}))
+        ).replace("WORDS", json.dumps(json.dumps(MAIN_WORDS, ensure_ascii=False)))
     )
 
 
@@ -155,11 +174,6 @@ def test_a_reader_never_restores_another_accounts_copy(reader, built: Path) -> N
     must not put the test account back — not its empty list, not its tombstones, and
     above all not its `targum:sync`, which is what decides whose record this is."""
     as_the_test_account(reader)
-    # Sign-out as it was before the fix: `localStorage` swept, the shelf left alone.
-    reader.evaluate(
-        "() => Object.keys(localStorage).filter((k) => k.startsWith('targum:'))"
-        ".forEach((k) => localStorage.removeItem(k))"
-    )
     signed_in_elsewhere_as_main(reader)
 
     reader.goto(built.as_uri())
