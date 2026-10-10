@@ -124,7 +124,11 @@ global.fetch = (url, options) => {
   // An answer keyed by the whole path with its query, the key left out, comes first —
   // "/chat/list?limit=50&offset=50" is a different page from "/chat/list" (#238).
   const full = String(url).replace(/[?&]k=[^&]*/, "");
-  return Promise.resolve({ json: () => Promise.resolve(answers[full] || answers[at] || {}) });
+  let answer = answers[full] || answers[at] || {};
+  // A list is a path that answers differently each time it is asked, the last answer
+  // standing after: a build seen working, then done (2026-10-10).
+  if (Array.isArray(answer)) answer = answer.length > 1 ? answer.shift() : answer[0] || {};
+  return Promise.resolve({ json: () => Promise.resolve(answer) });
 };
 
 // The thread as a viewport (#247): the stub has no layout, so the payload says how tall
@@ -205,8 +209,9 @@ require(path.join(assets, "bring.js"));
 require(path.join(assets, "chips.js"));
 require(path.join(assets, "lang.js"));
 require(path.join(assets, "first.js"));
-// A build is followed with no wait between looks, so a test sees its end at once.
-global.window.TargumBring.POLL = 0;
+// A build is followed with no wait between looks, so a test sees its end at once — or,
+// where the payload says `poll`, that long, so a test can see a build caught mid-way.
+global.window.TargumBring.POLL = payload.poll || 0;
 require(path.join(assets, "speak.js"));
 // The checklist the first exchange draws (2026-09-11).
 require(path.join(assets, "claim.js"));
@@ -254,6 +259,25 @@ function cards() {
               .map((c) => c.textContent)
           : [],
         doubt: by("quote-doubt") ? by("quote-doubt").textContent : "",
+        // A pressed card following its build (2026-10-10): what it says while it is made,
+        // and the Open press it turns into.
+        progress: (() => {
+          const box = by("quote-progress");
+          if (!box || box.hidden) return null;
+          const part = (cls) => box.children.find((c) => String(c.className).split(" ").includes(cls));
+          const meter = part("meter");
+          const open = part("quote-open");
+          return {
+            stage: part("quote-stage") ? part("quote-stage").textContent : "",
+            meter: meter ? { cls: meter.className, done: meter.children[0].style["--done"], now: meter.attrs["aria-valuenow"] } : null,
+            said: part("quote-said") && !part("quote-said").hidden ? part("quote-said").textContent : "",
+            open: open ? { href: open.href, text: open.textContent } : null,
+          };
+        })(),
+        hidden: {
+          button: by("quote-go") ? !!by("quote-go").hidden : null,
+          more: by("quote-more") ? !!by("quote-more").hidden : null,
+        },
 });
     }
     (node.children || []).forEach(walk);
@@ -481,6 +505,11 @@ function drawn() {
       row.onclick();
       for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
     }
+    if (step.type === "settle") {
+      // Timers as well as promises: a build followed with no wait between looks asks on
+      // a timer, so its end comes after several turns of the loop.
+      for (let i = 0; i < (step.turns || 20); i++) await new Promise((resolve) => setTimeout(resolve, 0));
+    }
     if (step.type === "press") {
       // The newest control with that class, anywhere in the thread.
       const found = [];
@@ -497,7 +526,12 @@ function drawn() {
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
   }
-  console.log(
+  const report = (text) => {
+    // A build still being followed keeps a timer waiting; the page is read by now.
+    if (payload.poll) process.stdout.write(text + "\n", () => process.exit(0));
+    else console.log(text);
+  };
+  report(
     JSON.stringify({
       posted,
       streams: sources.map((s) => s.url),
