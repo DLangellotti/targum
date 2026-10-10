@@ -1292,11 +1292,14 @@ WordCardDesk, WordCardPhone, ReaderTheatreEnd and PlaylistSwipeDesk.
   and a × at its start. The dim is the sheet's own shadow, so a press on the page still
   reaches the page and puts the card away, as before.
 - **The end of a part is a card.** "End of chapter 2 of 19" (of part, in a text cut in
-  parts; "The end" on a text of one), the words its press would mark **shown as chips with
+  parts; no head at all on a text of one, David 2026-10-10: "I don't think we need it to
+  say 'the end'"), the words its press would mark **shown as chips with
   their meanings**, four and "+N more", where #677 folded them behind "Show them"; then the
   press in teal and the plain finish beside it as a line press, one line under it on a
   phone. The same card under a large picture. The press keeps its words ("Done, and mark
-  12 words known"), because a press says what it does; the board's "Mark them known and
+  12 words known"), because a press says what it does; one word is asked about as the word
+  ("Do you know this word?" over its chip, "Done, I know it"), never as "1 word here",
+  David 2026-10-10; the board's "Mark them known and
   finish" is the same press with the count moved to the question.
 - **Where the card does not fit beside the last line**, it has the last page to itself,
   and the walk with the arrows turns to that page before it leaves for the next chapter.
@@ -2469,7 +2472,7 @@ Done, and mark the words never marked, with its Undo — could not be reached fr
 film ends; the part ended on "Next part" alone (2026-10-07).
 
 - **Played to its end in Theatre**, the line under the picture gives way to a block in
-  the picture's column: "End of part 2 of 4" ("The end" on a video in one part), how many
+  the picture's column: "End of part 2 of 4" (no head on a video in one part, 2026-10-10), how many
   words here were never marked with the ones met most as quiet chips in the text's own
   face, and the text's foot. The foot is **moved in, not drawn twice**: one press, one
   Undo, one count, the same endpoints (the ledger's finish, the words marked known as
