@@ -728,10 +728,13 @@
           return job;
         }
         return bringing.start(job).then(function (state) {
-          quoteCard(li, state);
+          // The card follows the build itself (2026-10-10); a reader who only said
+          // "open this" is also taken to it when it is ready, on the card's own follow
+          // rather than a second one asking the same question.
+          var card = quoteCard(li, state);
           if (state.error || state.blocked) return state;
           if (!opening) return state;
-          return bringing.follow(job.id).then(function (done) {
+          return (card.finished || bringing.follow(job.id)).then(function (done) {
             if (done.stage === "done" && done.reader) {
               openReader(done.reader);
             }
