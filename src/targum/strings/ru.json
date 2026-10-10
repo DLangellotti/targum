@@ -175,6 +175,8 @@
   "reader.chapter.translating": "Переводим…",
   "reader.error.connect": "Не удаётся связаться с targum.",
   "reader.player.cannot-seek": "В этом браузере запись не воспроизводится. Попробуйте другой браузер.",
+  "reader.voice.making": "Мы создаём аудио для этого раздела. Оно заиграет здесь, когда будет готово.",
+  "reader.voice.share-done": "Готово на {n}%",
   "reader.player.sound-blocked": "Звук в этой вкладке отключён. Разрешите звук для targum в адресной строке.",
   "reader.player.could-not-play": "Мы не смогли воспроизвести запись.",
   "reader.player.back-a-word": "На слово назад",
