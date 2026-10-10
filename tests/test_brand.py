@@ -952,7 +952,7 @@ def test_the_boards_rulings_are_recorded_and_the_rules_they_retire_say_so() -> N
         "Talk pill is ink",
         "tinted pills",
         "always shown",
-        "No flags",
+        "Flags in the",
         "new system",
         "Noto Sans Hebrew",
         "Plain words",
@@ -1015,12 +1015,12 @@ def test_a_page_title_stands_on_the_desk_under_the_bar() -> None:
     assert title["font-size"] == "1.9375rem" and title["font-weight"] == "500"
 
 
-def test_the_language_menu_draws_no_flag() -> None:
-    """No board draws a flag, and §1's "no flags" holds everywhere again."""
+def test_the_language_menu_is_the_one_place_with_flags() -> None:
+    """§12, 2026-10-10: the menu's rows carry flags again; §1's "no flags" holds elsewhere."""
     for name in ("lang.js", "chrome.css"):
         text = (ASSETS / name).read_text(encoding="utf-8")
         code = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
-        assert "lang-flag" not in code and "FLAGS" not in code, name
+        assert "lang-flag" in code, name
 
 
 # -- the components (design.md §12, "The desk's controls are one layer", 2026-10-09) --------
