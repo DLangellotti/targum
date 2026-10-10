@@ -3115,6 +3115,17 @@ def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
     assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""
 
 
+def test_a_build_says_the_language_it_was_pressed_in_until_it_reads_its_own() -> None:
+    """David, 2026-10-10: a French upload still transcribing had no language yet, and home
+    drew it under Hebrew too. Until the build reads its own, it says the one it was asked in."""
+    from targum.serve import Job
+
+    assert Job(id="j", source="x", options={"from": "fr"}).state()["language"] == "fr"
+    read = Job(id="k", source="x", language="he", options={"from": "fr"})
+    assert read.state()["language"] == "he"
+    assert Job(id="m", source="x").state()["language"] == ""
+
+
 def test_a_quote_says_a_silent_text_can_be_given_a_voice_later() -> None:
     """targum-internal#246, change 5. The card says it in one line and offers no button:
     the press is in the reader, beside the section it would read, and this card is

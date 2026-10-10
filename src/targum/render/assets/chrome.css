@@ -1415,16 +1415,21 @@ body .site-footer { max-inline-size: var(--column); }
   font-weight: 600;
 }
 .lang-panel button[aria-checked="true"] { color: var(--ink); background: var(--teal-wash); }
-/* The greeting at the far side, in the reading serif, in its own script. */
-.lang-panel .lang-greeting {
-  color: var(--ink-soft);
-  font-family: var(--reading);
-  font-size: 1.0625rem;
-  font-weight: 400;
+/* A flag beside each name (§12, 2026-10-10, back from 2026-09-14): small, square-cornered
+   at the scale's smallest step, a hairline round the white stripes. A language with no
+   country keeps the width, so the names line up. */
+.lang-flag {
+  display: inline-block;
+  flex: none;
+  inline-size: 1.125rem;
+  block-size: 0.75rem;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--hairline);
+  line-height: 0;
 }
-.lang-panel .lang-greeting:lang(he),
-.lang-panel .lang-greeting:lang(yi),
-.lang-panel .lang-greeting:lang(arc) { font-family: var(--reading-hebrew); }
+.lang-flag svg { display: block; inline-size: 100%; block-size: 100%; }
+.lang-flag.none { box-shadow: none; }
 @media (max-width: 40rem) {
   .lang-panel { min-inline-size: 0; }
   .lang-menu .lang-open { padding-inline: 0.5rem; }

@@ -52,9 +52,13 @@ class Transcriber(Protocol):
 
     def price_per_minute(self) -> float: ...
 
+    #: `hint` is what the recording is called — its title — for a provider that can be
+    #: told the names it will hear. whisper-1 takes it as a prompt, and spells
+    #: "Houellebecq" where it heard "Huelvec" without it (2026-10-10). Others ignore it.
     def transcribe(
         self,
         audio: Path,
         language: str = "",
         on_progress: Progress | None = None,
+        hint: str = "",
     ) -> Transcript: ...

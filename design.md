@@ -394,6 +394,24 @@ that it was loading, and it required me to refresh the page to see it."
   They were in `ui-monospace` (§5's detail face for counts), which in a conversation read
   as a terminal ("73 sentences"). The monospace stays for keys and hexes.
 
+### Dialogue, Chat History, and no Practise with nothing to practise — 2026-10-10
+
+Three calls of David's, 2026-10-10:
+
+- **The Progress ladder says "Dialogue"** («Диалог»), where its first rung said "A
+  conversation" («Разговор») while the Library called the same kind of text "Dialogue".
+  One kind has one name, so the headline follows: "You'd follow a dialogue", "A dialogue
+  is the place to start" («Вы поймёте диалог», «Начните с диалога»). This amends the
+  wording in "Your Progress is a story in three parts" (2026-10-09).
+- **The drawer's list of past conversations is "Chat History"** («История чатов»), where
+  it said "Chats" beside "New". "New" stays. The page's title is unchanged.
+- **Home's Practise line is left out when there is nothing to practise.** The line under
+  the welcome back ("18 of your words are due a look · Practise") opens Your Words'
+  practice card; where that card has no word in a line the reader read, `/account/due`
+  says nought and the line is not drawn, rather than sending the reader to an empty
+  card. The practice card on Your Words was already hidden when empty. This amends
+  "Home says welcome back after a week away" (2026-10-09).
+
 ### The Talk pill keeps its own room at a desk — 2026-10-09
 
 Audit 2, gap 3. The pill floats at the window's bottom-right corner, and since "The boards
@@ -456,7 +474,8 @@ who comes back after a gap.
   card says nothing is due ("Your Words is one table and a practice card"). The count is
   the words still being learned (steps 1 to 3) in that language that have not been marked
   since the reader left (`/account/due`). Practise opens Your Words, where the practice
-  card is. The line is left out when the count is nought or the reader is signed out.
+  card is. The line is left out when the count is nought, the practice card has nothing
+  to show (2026-10-10, above), or the reader is signed out.
 - **No streak guilt.** The page never says how long they were away, never says a run was
   broken, and has nothing to clear. The gap decides the form of the page and is never
   shown, which keeps "The streak is the longest one, and the current one is refused"
@@ -1174,9 +1193,11 @@ seven places the two disagreed:
   "selection is quiet ink" give way wherever a row of tabs or filters is drawn.
 - **The language menu is always shown, with its badge** (Alpha, Beta, as "A language
   wears how far along it is" gives them), for a reader of one language as well as of six,
-  against §13's "drawn only when the reader learns more than one language". **No flags**
-  unless a board draws one, and none does: "The language menu carries flags" (2026-09-14)
-  is retired, and §1's and §10's "no flags" hold everywhere again.
+  against §13's "drawn only when the reader learns more than one language". **Flags in the
+  menu's rows**, beside the tick (David, 2026-10-10: "bring back the flags here"): "The
+  language menu carries flags" (2026-09-14) stands again, the menu's one exception to §1's
+  and §10's "no flags", which hold everywhere else. **No greeting** at the row's far side
+  (David, 2026-10-10: "I don't need the shalom, bonjour, ciao in the drop down").
 - **The reader is on the new system**: teal actions, the chrome's face for its own chrome,
   Hebrew at about 21px, the board's word card, the end of a part as a card, and its menus
   as sheets. Against §13's "What stays the reader's" and §12's "the reader keeps system-ui
@@ -1752,7 +1773,7 @@ menu's language, as everywhere):
   page**: the month's credits moved to the account page, its first panel ("Credits").
   **No "sections finished"**: it means nothing to a learner (David).
 - **1 · Where you are: touchstones.** A short ladder of real kinds of text from the
-  language's own library — a conversation, a video, a news article, a short story, a
+  language's own library — a dialogue, a video, a news article, a short story, a
   novel, a poem (Italian's stories are StoryWeaver's children's books, and are called
   "a children's book") — ordered by
   the catalogue's median measured `difficulty` for each kind; a kind with nothing measured
@@ -5479,9 +5500,8 @@ stranger was actually looking for is not a help page; it is the first ten minute
 
 ### The language menu carries flags, and the date follows the language — 2026-09-14
 
-*Its flags are retired (2026-10-09): no board draws one, and the boards win — §12, "The boards are the desk", 2026-10-09.
-The menu carries no flag, and §1's and §10's rule stands everywhere. The date and the
-greeting below still hold.*
+*Its flags were retired on 2026-10-09 and came back on 2026-10-10 (David: "bring back
+the flags here"), in each row of the menu beside the tick; the button carries none.*
 
 §1 says "no flags" and §10 lists "flag imagery — texts, not countries" among the things
 targum never does. David asked for a small flag beside each language in the menu, and
