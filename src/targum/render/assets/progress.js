@@ -47,11 +47,11 @@
      slot would be wrong in two of the three. */
   var RUNGS = {
     dialogue: {
-      chip: t("progress.touch.dialogue", "A conversation"),
-      follow: t("progress.where.follow.dialogue", "You'd follow a conversation"),
-      nearly: t("progress.where.nearly.dialogue", "You'd follow nearly all of a conversation"),
-      most: t("progress.where.most.dialogue", "You'd follow most of a conversation"),
-      start: t("progress.where.start.dialogue", "A conversation is the place to start"),
+      chip: t("progress.touch.dialogue", "Dialogue"),
+      follow: t("progress.where.follow.dialogue", "You'd follow a dialogue"),
+      nearly: t("progress.where.nearly.dialogue", "You'd follow nearly all of a dialogue"),
+      most: t("progress.where.most.dialogue", "You'd follow most of a dialogue"),
+      start: t("progress.where.start.dialogue", "A dialogue is the place to start"),
     },
     talk: {
       chip: t("progress.touch.talk", "A video"),

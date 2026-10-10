@@ -232,3 +232,31 @@ def test_french_notes_wait_for_their_switches(
     assert said["notes"]["actuellement"]["friend"]["looks"] == "actually"
     _, said, _ = call(port, "GET", f"/account/words?language=fr&into=ru&k={token}", cookie=cookie)
     assert said["notes"] == {}, "a false friend of English is said only into English"
+
+
+def test_home_says_nothing_is_due_while_there_is_nothing_to_practise(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Home's Practise line opens the practice card, so it is left out while the card is
+    empty (design.md §12, 2026-10-10): words still being learned, but none met in a
+    section the reader finished, are nothing to practise yet."""
+    port, token, out = served
+    text(
+        out / "shared" / "one",
+        {1: [("ספר וים", [w("ספר", "ספר"), w("ים", "ים")])]},
+        content_hash="one",
+        translation={"s1-0": "a book and a sea"},
+    )
+    cookie = sign_in(port, postbox)
+    words = [
+        {"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1},
+        {"language": "he", "lemma": "עיר", "status": 1, "at": 1, "seen": 1},
+    ]
+    call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
+    status, said, _ = call(port, "GET", f"/account/due?language=he&k={token}", cookie=cookie)
+    assert status == 200 and said == {"signedIn": True, "due": 0}, "nothing met, nothing due"
+
+    sections = [{"hash": "one", "section": "1", "at": ms(2026, 9), "seen": ms(2026, 9)}]
+    call(port, "POST", f"/sync?k={token}", {"sections": sections}, cookie=cookie)
+    _, said, _ = call(port, "GET", f"/account/due?language=he&k={token}", cookie=cookie)
+    assert said["due"] == 2, "once one is on the card, the count is every word still learned"
