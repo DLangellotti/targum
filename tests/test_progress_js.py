@@ -509,7 +509,7 @@ def test_where_you_are_names_the_hardest_kind_you_would_follow() -> None:
     ]
     # The share is on the rung you are on and the next one, and nowhere else.
     assert [rung["text"] for rung in drawn["rungs"]] == [
-        "A conversation",
+        "Dialogue",
         "A video",
         "A news article93%",
         "A short story86%",
@@ -541,7 +541,7 @@ def test_with_no_rung_reached_the_first_is_where_to_start() -> None:
     ladder = [dict(rung, state="ahead") for rung in LADDER["ladder"]]
     ladder[0]["state"] = "next"
     drawn = story(ladder=ladder, here=None, said="")["where"]
-    assert drawn["head"] == "A conversation is the place to start"
+    assert drawn["head"] == "A dialogue is the place to start"
 
 
 def test_italian_childrens_books_are_called_so() -> None:
