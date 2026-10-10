@@ -224,7 +224,7 @@ def test_the_tab_draws_every_subscription_in_its_chips(browser, tmp_path: Path) 
     assert got["rows"] == ["series", "channel", "topic", "podcast"], got
     assert got["chips"] == ["All 4", "Series 1", "News 1", "Channels 1", "Podcasts 1"], got
     assert got["credits"] == (
-        "68 credits on subscriptions this month · 354 left in all, back on November 1"
+        "68 credits on subscriptions this month · 354 left in all, resets on November 1"
     ), got
     assert got["months"][:3] == ["No credits", "38 of 60 credits", "No credits"], got
     assert got["months"][3].startswith("Paused"), got

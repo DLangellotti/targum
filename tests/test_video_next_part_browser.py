@@ -273,7 +273,7 @@ def test_a_refused_part_says_why_and_a_failed_one_offers_again(
     tmp_path,
 ) -> None:
     reader = two_parts(tmp_path, second_ready=False)
-    refusal = "You've used this month's credits. Top up, or they come back on 1 November."
+    refusal = "You've used this month's credits. Top up, or they reset on 1 November."
     # What still works and the way on ride beside the sentence (design.md §12,
     # 2026-10-09): Top up drawn and greyed, with the reason and the fact after it.
     refused = {

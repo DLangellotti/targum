@@ -1435,4 +1435,4 @@ def test_the_press_pages_keep_the_full_top_bar_and_say_confirm() -> None:
     )
     assert '<header class="site-head">' in held and "A playlist" in held
     assert "Uses 5 credits in all" in held and ">Confirm</button>" in held
-    assert "354 left this month · comes back x" in held
+    assert "354 left this month · resets on x" in held
