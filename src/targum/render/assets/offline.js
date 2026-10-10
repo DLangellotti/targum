@@ -17,7 +17,9 @@
  *
  * - **Saved on its own.** Opening a text keeps it (`how: "auto"`), and the oldest of these
  *   is let go once there are more than the reader's number (5 unless they chose 3, 10 or
- *   none). Opening a text from a playlist keeps the whole playlist the same way.
+ *   none). A text with a contents page, a book or a series, keeps only the parts that
+ *   were opened (`part: true`), each joining the last (David, 2026-10-10). Opening a text
+ *   from a playlist keeps the whole playlist the same way.
  * - **Saved by you.** Save for offline, in a text's ⋯ or on a playlist's page
  *   (`how: "you"`): kept until it is removed.
  *
@@ -203,7 +205,10 @@
      sound, so a film's text without its sidecar still plays. */
   function plan(page, options) {
     var wantFilm = options && options.film !== undefined ? options.film : choices().film;
-    return fetch(keyed("/offline.json?page=" + encodeURIComponent(textOf(page) || page)), {
+    // A part alone names the page itself; the whole is asked for by the text's address.
+    var asked = options && options.part ? keyOf(page).replace(location.origin, "") : textOf(page) || page;
+    var narrow = options && options.part ? "&part=1" : "";
+    return fetch(keyed("/offline.json?page=" + encodeURIComponent(asked) + narrow), {
       headers: headers(),
       credentials: "same-origin",
     })
@@ -221,6 +226,7 @@
           kind: told.kind || "",
           name: told.name || "",
           pages: told.pages || 0,
+          part: !!told.part,
           files: files,
           film: (told.files || []).some(function (file) {
             return file.film;
@@ -352,28 +358,50 @@
               told();
               return change(function (index) {
                 var was = index.items[planned.id] || {};
+                // A part saved on its own, of a text kept whole meanwhile: nothing to add.
+                if (planned.part && index.items[planned.id] && !was.part) {
+                  if (options.opened) was.opened = Date.now();
+                  return index;
+                }
                 var held = (was.held || []).slice();
+                // A part joins the parts already kept; the whole replaces them.
+                var files = planned.files.map(function (f) {
+                  return keyOf(f.url);
+                });
+                var bytes = planned.bytes;
+                var pages = planned.pages;
+                if (planned.part && was.part) {
+                  files = (was.files || []).slice();
+                  bytes = Number(was.bytes || 0);
+                  planned.files.forEach(function (f) {
+                    if (files.indexOf(keyOf(f.url)) >= 0) return;
+                    files.push(keyOf(f.url));
+                    bytes += Number(f.bytes || 0);
+                  });
+                  pages = files.filter(function (one) {
+                    return /\.html$/i.test(one);
+                  }).length;
+                }
                 if (options.held && held.indexOf(options.held) < 0) held.push(options.held);
                 index.items[planned.id] = {
                   id: planned.id,
                   title: options.title || was.title || planned.title,
                   kind: options.kind || was.kind || planned.kind,
                   name: planned.name || was.name || "",
-                  pages: planned.pages,
+                  pages: pages,
+                  part: planned.part,
                   open: was.open || keyOf(options.open || page),
                   // Once a reader has saved it themselves, opening it again never makes
                   // it one of the texts that are kept on their own and let go.
                   how: was.how === "you" || options.how === "you" ? "you" : "auto",
                   held: held,
-                  film: planned.film,
-                  sound: planned.sound,
-                  withFilm: planned.files.some(function (f) {
+                  film: (planned.part && was.film) || planned.film,
+                  sound: (planned.part && was.sound) || planned.sound,
+                  withFilm: (planned.part && was.withFilm) || planned.files.some(function (f) {
                     return f.film;
                   }),
-                  bytes: planned.bytes,
-                  files: planned.files.map(function (f) {
-                    return keyOf(f.url);
-                  }),
+                  bytes: bytes,
+                  files: files,
                   at: was.at || Date.now(),
                   opened: options.opened ? Date.now() : was.opened || 0,
                 };
@@ -767,6 +795,8 @@
   /* The saves this page is making, by id, so a menu drawn again while one runs shows it
      and a second press does not start another. */
   var running = {};
+  // The parts of texts being saved on their own, by page: a part says nothing in the row.
+  var parting = {};
 
   /* One row that says where a text or a playlist stands and offers the one thing to do
      next: save, stop, remove, try again. `what` is { id, title, start(progress) → handle,
@@ -860,7 +890,8 @@
       }
       return;
     }
-    if (item) {
+    // A text kept only in the parts that were opened is not saved: the row offers the whole.
+    if (item && !item.part) {
       row.classList.add("offline-saved");
       var tick = glyph(row, "saved");
       if (tick) row.appendChild(tick);
@@ -934,7 +965,8 @@
         plan(location.href).then(
           function (planned) {
             what.bytes = planned.bytes;
-            if (!running[here] && !(known && known.items[here])) draw();
+            var had = known && known.items[here];
+            if (!running[here] && !(had && !had.part)) draw();
           },
           function () {}
         );
@@ -969,43 +1001,47 @@
   }
 
   // This text, kept on its own: opened again it is only marked as opened, never fetched
-  // again (the worker already keeps its pages as they were last opened).
+  // again (the worker already keeps its pages as they were last opened). A text with a
+  // contents page keeps only the parts that were opened, the contents page among them,
+  // and each part opened later joins them (David, 2026-10-10): the whole is the press.
+  // A part saved on its own says nothing in the row, which still offers the whole.
   function autoText(what, draw) {
+    var page = keyOf(location.href);
     return readIndex().then(function (index) {
       var item = index.items[what.id];
-      if (item) {
+      if (item && (!item.part || hasPage(item, page))) {
         return change(function (fresh) {
           if (fresh.items[what.id]) fresh.items[what.id].opened = Date.now();
           return fresh;
         }).then(trim);
       }
-      if (running[what.id]) return null;
-      var job = { progress: { done: 0, total: 0 }, error: null };
-      running[what.id] = job;
-      job.handle = save(location.href, {
+      if (running[what.id] || parting[page]) return null;
+      parting[page] = true;
+      var handle = save(location.href, {
         how: "auto",
         opened: true,
+        part: true,
         title: what.title,
-        progress: function (progress) {
-          job.progress = progress;
-          if (running[what.id] === job) draw();
-        },
       });
-      draw();
-      return job.handle.done.then(
+      return handle.done.then(
         function () {
-          delete running[what.id];
+          delete parting[page];
           draw();
           return trim();
         },
-        function (error) {
-          job.handle = null;
-          job.error = (error && error.reason) || "failed";
-          if (job.error === "stopped") delete running[what.id];
-          draw();
+        function () {
+          delete parting[page];
         }
       );
     });
+  }
+
+  // Whether a text kept in parts holds the page at `address`: the text's own address
+  // stands for its contents page, `index.html`.
+  function hasPage(item, address) {
+    var at = keyOf(address);
+    if (/\/$/.test(at)) at += "index.html";
+    return (item.files || []).indexOf(at) >= 0;
   }
 
   function autoSet(list) {
@@ -1201,11 +1237,14 @@
       } catch (e) {
         id = "";
       }
-      // The page of what is saved says so of every row already.
-      if (!id || id === textOf(location.href) || link.closest(".saved-row")) return;
+      // The page of what is saved says so of every row already. A link within this text
+      // is marked only where the text is kept in parts, chapter by chapter.
+      if (!id || link.closest(".saved-row")) return;
+      var item = known.items[id];
+      if (id === textOf(location.href) && !(item && item.part)) return;
       var holder = holderOf(link);
       if (holder.getAttribute("data-offline")) return;
-      var here = !!known.items[id];
+      var here = !!item && (!item.part || hasPage(item, link.href));
       holder.setAttribute("data-offline", here ? "here" : "away");
       if (!here) holder.classList.add("offline-away");
       var tag = element(
