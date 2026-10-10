@@ -253,7 +253,7 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
     # cost is counted in.
     assert page["hours"] == (
         "90 credits left this month. That's about 1 hour 30 minutes of audio. "
-        "They come back on 1 October."
+        "They reset on 1 October."
     )
     assert not page["hoursHidden"]
     quiet = run(
