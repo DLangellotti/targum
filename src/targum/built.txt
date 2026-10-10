@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-09
+One search opens from every page, forgives spelling, and finds Hebrew typed in Latin letters.
+A text once opened can be read with no connection, and what you do offline is kept for when you are back.
+Every page wears one new design, from Home and the Library to Your Words and Your Progress.
+
 2026-10-08
 Home opens on the texts you were reading, each picking up at the sentence you left, on any device.
 Every text in the Library has a picture on its card, and an upload gets its own when it is added.
