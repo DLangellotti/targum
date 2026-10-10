@@ -1146,9 +1146,10 @@ seven places the two disagreed:
   "selection is quiet ink" give way wherever a row of tabs or filters is drawn.
 - **The language menu is always shown, with its badge** (Alpha, Beta, as "A language
   wears how far along it is" gives them), for a reader of one language as well as of six,
-  against §13's "drawn only when the reader learns more than one language". **No flags**
-  unless a board draws one, and none does: "The language menu carries flags" (2026-09-14)
-  is retired, and §1's and §10's "no flags" hold everywhere again.
+  against §13's "drawn only when the reader learns more than one language". **Flags in the
+  menu's rows**, beside the tick (David, 2026-10-10: "bring back the flags here"): "The
+  language menu carries flags" (2026-09-14) stands again, the menu's one exception to §1's
+  and §10's "no flags", which hold everywhere else.
 - **The reader is on the new system**: teal actions, the chrome's face for its own chrome,
   Hebrew at about 21px, the board's word card, the end of a part as a card, and its menus
   as sheets. Against §13's "What stays the reader's" and §12's "the reader keeps system-ui
@@ -5451,9 +5452,8 @@ stranger was actually looking for is not a help page; it is the first ten minute
 
 ### The language menu carries flags, and the date follows the language — 2026-09-14
 
-*Its flags are retired (2026-10-09): no board draws one, and the boards win — §12, "The boards are the desk", 2026-10-09.
-The menu carries no flag, and §1's and §10's rule stands everywhere. The date and the
-greeting below still hold.*
+*Its flags were retired on 2026-10-09 and came back on 2026-10-10 (David: "bring back
+the flags here"), in each row of the menu beside the tick; the button carries none.*
 
 §1 says "no flags" and §10 lists "flag imagery — texts, not countries" among the things
 targum never does. David asked for a small flag beside each language in the menu, and

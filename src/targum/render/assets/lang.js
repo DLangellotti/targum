@@ -222,10 +222,81 @@
   /* The nav's host, which draws a menu rather than tabs. */
   var NAV = "langs";
 
+  /* A small flag beside each language in the menu, drawn back on David's word
+   * (2026-10-10: "bring back the flags here"; design.md §12). The flag of the country
+   * whose language it is, in that flag's own colours, drawn rather than typed: an emoji
+   * flag is an emoji, and §6 has none. Hebrew is Israel's. Yiddish and Aramaic have no
+   * country, and wear the language flags David chose for them on 2026-09-14: Yiddish the
+   * white flag with two black stripes and a menorah, Aramaic the Jewish Babylonian
+   * Aramaic proposal, two blue stripes round the gate of the Vilna Talmud's title page.
+   * A code with no flag keeps the width so the names still line up. */
+  var FLAGS = {
+    he:
+      '<rect width="18" height="12" fill="#fff"/>' +
+      '<rect y="1.3" width="18" height="1.5" fill="#0038b8"/>' +
+      '<rect y="9.2" width="18" height="1.5" fill="#0038b8"/>' +
+      '<path d="M9 3.4 11.6 7.9H6.4ZM9 8.6 6.4 4.1H11.6Z" fill="none" stroke="#0038b8" stroke-width="0.7"/>',
+    fr:
+      '<rect width="6" height="12" fill="#0055a4"/>' +
+      '<rect x="6" width="6" height="12" fill="#fff"/>' +
+      '<rect x="12" width="6" height="12" fill="#ef4135"/>',
+    it:
+      '<rect width="6" height="12" fill="#009246"/>' +
+      '<rect x="6" width="6" height="12" fill="#fff"/>' +
+      '<rect x="12" width="6" height="12" fill="#ce2b37"/>',
+    ru:
+      '<rect width="18" height="4" fill="#fff"/>' +
+      '<rect y="4" width="18" height="4" fill="#0039a6"/>' +
+      '<rect y="8" width="18" height="4" fill="#d52b1e"/>',
+    yi:
+      '<rect width="18" height="12" fill="#fff"/>' +
+      '<rect y="1.125" width="18" height="1.875" fill="#000"/>' +
+      '<rect y="9" width="18" height="1.875" fill="#000"/>' +
+      '<g fill="#000" transform="translate(0.75 0) scale(0.025)">' +
+      '<path d="M230.694,172.92A99.306,99.306 0 1,0 429.306,172.92H419.851A89.851,89.851 0 1,1 240.149,172.92z"/>' +
+      '<path d="M259.256,173.35A70.744,70.744 0 1,0 400.744,173.35H391.223A61.223,61.223 0 1,1 268.777,173.35z"/>' +
+      '<path d="M288.157,172.92A41.843,41.843 0 1,0 371.843,172.92H362.388A32.388,32.388 0 1,1 297.612,172.92z"/>' +
+      '<path d="M278.562,317.879V324.35H381.438V317.879L334.727,307.466V165.639H325.273V307.466z"/>' +
+        '<path transform="translate(0 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(28.731 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(57.461 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(94.577 -7.261)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(131.693 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(160.424 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(189.154 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+      "</g>",
+    arc:
+      '<rect width="18" height="12" fill="#fff"/>' +
+      '<rect y="1.25" width="18" height="1.45" fill="#0000f5"/>' +
+      '<rect y="9.45" width="18" height="1.45" fill="#0000f5"/>' +
+      '<g fill="#3a3a3a">' +
+      '<path d="M6.9 4.25 8.8 3.4V3.9L7.5 4.25ZM11.1 4.25 9.2 3.4V3.9L10.5 4.25Z"/>' +
+      '<rect x="6.8" y="4.25" width="4.4" height="0.5"/>' +
+      '<rect x="7.05" y="4.75" width="0.5" height="3.6"/>' +
+      '<rect x="7.8" y="4.75" width="0.4" height="3.6"/>' +
+      '<rect x="9.8" y="4.75" width="0.4" height="3.6"/>' +
+      '<rect x="10.45" y="4.75" width="0.5" height="3.6"/>' +
+      '<rect x="6.8" y="8.35" width="4.4" height="0.65"/>' +
+      "</g>" +
+      '<path d="M8.2 7.75H9.8M8.2 5.1Q9 5.9 9.8 5.1" fill="none" stroke="#3a3a3a" stroke-width="0.3"/>',
+  };
+
+  function flag(code) {
+    var box = document.createElement("span");
+    box.className = "lang-flag";
+    box.setAttribute("aria-hidden", "true");
+    var drawn = FLAGS[String(code || "").split("-")[0].toLowerCase()];
+    if (drawn) {
+      box.innerHTML = '<svg viewBox="0 0 18 12" focusable="false">' + drawn + "</svg>";
+    } else {
+      box.className += " none";
+    }
+    return box;
+  }
+
   /* The greeting each language is met with in the menu, at the far side in the reading
    * serif and its own script, as board LangMenuDesk draws it (design.md §12, "The boards
-   * are the desk", 2026-10-09). It replaced the flags drawn here since 2026-09-14: no
-   * board draws a flag, and §1's "no flags" holds everywhere again. */
+   * are the desk", 2026-10-09), after the flag. */
   var GREETINGS = {
     he: ["שָׁלוֹם", "rtl"],
     arc: ["בְּקַדְמִין", "rtl"],
@@ -389,6 +460,7 @@
       tick.setAttribute("aria-hidden", "true");
       tick.textContent = code === chosen ? "\u2713" : "";
       named.appendChild(tick);
+      named.appendChild(flag(code));
       named.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
       var mark = badge(code);
       if (mark) named.appendChild(mark);
