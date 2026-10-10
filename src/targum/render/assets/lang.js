@@ -294,30 +294,6 @@
     return box;
   }
 
-  /* The greeting each language is met with in the menu, at the far side in the reading
-   * serif and its own script, as board LangMenuDesk draws it (design.md §12, "The boards
-   * are the desk", 2026-10-09), after the flag. */
-  var GREETINGS = {
-    he: ["שָׁלוֹם", "rtl"],
-    arc: ["בְּקַדְמִין", "rtl"],
-    yi: ["אַ גוטן טאָג", "rtl"],
-    fr: ["Bonjour", "ltr"],
-    it: ["Ciao", "ltr"],
-    ru: ["Здравствуйте", "ltr"],
-  };
-
-  function greeting(code) {
-    var key = String(code || "").split("-")[0].toLowerCase();
-    var own = GREETINGS[key];
-    if (!own) return null;
-    var span = document.createElement("bdi");
-    span.className = "lang-greeting";
-    span.setAttribute("lang", key);
-    span.setAttribute("dir", own[1]);
-    span.textContent = own[0];
-    return span;
-  }
-
   /* Each language in its own name as well as English's (2026-09-14): a Russian reader
    * choosing what their translations are in was offered "Russian". The English name
    * leads, because the chrome is English; the language's own follows, in its own face. */
@@ -409,7 +385,8 @@
    * button and no flag anywhere. The panel is two groups: **Your languages**, the ones
    * learned, a tick on the one the page is in; and under a rule **Start another
    * language**, the rest targum teaches, each of which a press turns on and opens. Each
-   * row carries its badge and, at the far side, the greeting it is met with.
+   * row carries its flag and its badge (no greeting since 2026-10-10, David: "I don't
+   * need the shalom, bonjour, ciao in the drop down").
    */
   function menu(host, codes, names, chosen, onPick, options) {
     var all = order(
@@ -465,8 +442,6 @@
       var mark = badge(code);
       if (mark) named.appendChild(mark);
       item.appendChild(named);
-      var said = greeting(code);
-      if (said) item.appendChild(said);
       return item;
     }
     function heading(text) {

@@ -1430,16 +1430,6 @@ body .site-footer { max-inline-size: var(--column); }
 }
 .lang-flag svg { display: block; inline-size: 100%; block-size: 100%; }
 .lang-flag.none { box-shadow: none; }
-/* The greeting at the far side, in the reading serif, in its own script. */
-.lang-panel .lang-greeting {
-  color: var(--ink-soft);
-  font-family: var(--reading);
-  font-size: 1.0625rem;
-  font-weight: 400;
-}
-.lang-panel .lang-greeting:lang(he),
-.lang-panel .lang-greeting:lang(yi),
-.lang-panel .lang-greeting:lang(arc) { font-family: var(--reading-hebrew); }
 @media (max-width: 40rem) {
   .lang-panel { min-inline-size: 0; }
   .lang-menu .lang-open { padding-inline: 0.5rem; }

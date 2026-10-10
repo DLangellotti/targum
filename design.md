@@ -1149,7 +1149,8 @@ seven places the two disagreed:
   against §13's "drawn only when the reader learns more than one language". **Flags in the
   menu's rows**, beside the tick (David, 2026-10-10: "bring back the flags here"): "The
   language menu carries flags" (2026-09-14) stands again, the menu's one exception to §1's
-  and §10's "no flags", which hold everywhere else.
+  and §10's "no flags", which hold everywhere else. **No greeting** at the row's far side
+  (David, 2026-10-10: "I don't need the shalom, bonjour, ciao in the drop down").
 - **The reader is on the new system**: teal actions, the chrome's face for its own chrome,
   Hebrew at about 21px, the board's word card, the end of a part as a card, and its menus
   as sheets. Against §13's "What stays the reader's" and §12's "the reader keeps system-ui
