@@ -501,5 +501,5 @@ def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
     drawn = page["plan"]
     assert drawn["paid"] is False and drawn["free"] is True
     assert drawn["paidSays"] == "480 credits a month, which is 8 hours of audio or video"
-    assert drawn["back"] == "Your credits come back on November 1"
+    assert drawn["back"] == "Your credits reset on November 1"
     assert drawn["topUps"] == ["60 credits", "180 credits", "300 credits"]
