@@ -40,7 +40,7 @@
       <label class="given-label" for="given">{{ t("add.page.paste-a-link", "Paste a link") }}</label>
       <div class="given-well" id="given-well">
         <textarea id="given" rows="1" dir="auto" spellcheck="false" aria-describedby="understood"
-                  placeholder="{{ t("add.page.link-placeholder", "An article, a video, a podcast, a post") }}"></textarea>
+                  placeholder="{{ t("add.page.link-placeholder.say", "An article, a video, a podcast, or say what you want") }}"></textarea>
       </div>
     </div>
     {#- The whole card takes a dropped file; this is where it says so, and where what was
@@ -57,6 +57,12 @@
       </div>
       <div class="drop-row">
         <button type="button" id="choose" class="btn ghost outline bring-choose">{{ t("add.page.choose-a-file", "Choose a file") }}</button>
+        {#- Something the reader records themselves (targum-internal#254; back on the board's
+            card since 2026-10-10, design.md §12). Hidden until the script says this browser
+            can record, so the page never offers what it cannot do — the composer's Speak
+            follows the same rule. The clip is a file like a dropped one. -#}
+        <button type="button" id="record" class="btn ghost outline bring-record" hidden
+                aria-pressed="false" aria-label="{{ t("add.page.record", "Record") }}" title="{{ t("add.page.record", "Record") }}"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg><span id="record-word">{{ t("add.page.record", "Record") }}</span></button>
         {#- A post from a platform targum does not fetch from, or will not today: the
             reader brings it by hand (targum-internal#158). The board draws a post as a
             thing dropped here; a post typed in by hand stays a press of its own. -#}
@@ -265,6 +271,10 @@ window.TARGUM_INTO = {{ into|tojson }};
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
+{#- The recorder the composer's Speak uses, so a voice note can be made here rather than
+    only brought (targum-internal#254). Before `add.js`, which asks it whether this
+    browser can record before drawing Record. -#}
+<script>{{ asset('speak.js') }}</script>
 <script>{{ asset('add.js') }}</script>
 </body>
 </html>

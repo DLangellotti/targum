@@ -6,7 +6,7 @@
  * itself. The server is asked nothing, so once the page has been opened with a connection
  * it opens without one: it keeps itself, the one page that does.
  *
- * Two groups, as the board draws them. **Saved on their own** — the recent texts and the
+ * Two groups, as the board draws them. **Saved automatically** — the recent texts and the
  * playlist the reader is in, each with Keep, which moves it to the other group. **Saved by
  * you** — what was saved with a press, each with Remove. A text a playlist holds is that
  * playlist's row, not one of its own.
@@ -137,14 +137,14 @@
     line.appendChild(element("span", "saved-kind", kindWord(item)));
     line.appendChild(element("span", "saved-size", offline.size(item.bytes)));
     line.appendChild(
-      element("span", "saved-how tag" + (mine ? " is-mine" : ""), mine ? t("saved.by-you", "By you") : t("saved.on-its-own", "On its own"))
+      element("span", "saved-how tag" + (mine ? " is-mine" : ""), mine ? t("saved.by-you", "By you") : t("saved.on-its-own", "Automatically"))
     );
     if (!mine) {
       var keep = element("button", "btn ghost outline small saved-keep-it");
       keep.type = "button";
       keep.appendChild(glyph(PIN));
-      keep.appendChild(element("span", "saved-keep-word", t("saved.keep", "Keep")));
-      keep.setAttribute("aria-label", t("saved.keep-named", "Keep {title}", { title: item.title || "" }));
+      keep.appendChild(element("span", "saved-keep-word", t("saved.keep", "Keep saved")));
+      keep.setAttribute("aria-label", t("saved.keep-named", "Keep {title} saved", { title: item.title || "" }));
       keep.addEventListener("click", function () {
         keep.disabled = true;
         offline.keep(item.id).then(draw, draw);
@@ -184,7 +184,7 @@
     at("saved-playlist").setAttribute("aria-checked", String(chosen.playlist));
     var says;
     if (!chosen.recent && !chosen.playlist) {
-      says = t("saved.auto-none", "Nothing saves on its own. Change that under Saving on its own.");
+      says = t("saved.auto-none", "Nothing is saved automatically. Change that under Saving automatically.");
     } else if (!chosen.playlist) {
       says = tn(
         "saved.auto-texts",
