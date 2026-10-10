@@ -1216,7 +1216,10 @@ class Job:
             "made": self.made,
             "title": self.title,
             "english": entry.english if entry else "",
-            "language": self.language,
+            # The language it was pressed in until the build has read its own: an
+            # upload is transcribed before it says, and a French video still building
+            # stood on the Hebrew home (David, 2026-10-10).
+            "language": self.language or str(self.options.get("from") or ""),
             "segments": self.segments,
             "chapters": self.chapters,
             "estimate": round(self.estimate, 2),
@@ -11585,18 +11588,23 @@ class Handler(BaseHTTPRequestHandler):
         """How many words are due a look on home's welcome back (design.md §12, "Home says
         welcome back after a week away", 2026-10-09): in one language, still being learned
         and not marked since `since`, the moment the reader was last in a text. Not a
-        schedule — targum keeps none — and nothing is written."""
+        schedule — targum keeps none — and nothing is written.
+
+        Nought where the practice card has nothing to show (David, 2026-10-10): Practise
+        opens that card, and a line that sends the reader to an empty one is not said."""
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
         language = str((query.get("language") or ["he"])[0]).split("-")[0].strip().lower()
+        language = language or "he"
         try:
             since = int(float((query.get("since") or ["0"])[0]))
         except ValueError:
             since = 0
-        self._json(
-            {"signedIn": True, "due": self.store.due_a_look(person.id, language or "he", since)}
-        )
+        due = self.store.due_a_look(person.id, language, since)
+        if due and not self._practice(person, language, "en")[4]:
+            due = 0
+        self._json({"signedIn": True, "due": due})
 
     def _places(self, query: dict[str, list[str]]) -> None:
         """Where the reader left off, newest first (targum-internal#430): `limit` texts,
@@ -11991,8 +11999,6 @@ class Handler(BaseHTTPRequestHandler):
         fetched and nothing spends. Signed out there is no list, and the page draws from
         the browser alone.
         """
-        from . import meetings as meetings_module
-        from . import occurrences as occurrences_module
         from . import touchstones
 
         person = self._person()
@@ -12002,6 +12008,36 @@ class Handler(BaseHTTPRequestHandler):
         if not language:
             return self._json({"error": "no language"}, 400)
         into = str((query.get("into") or ["en"])[0]).split("-")[0].strip().lower() or "en"
+        marked, finished, folder_for, met, practise = self._practice(person, language, into)
+        self._json(
+            {
+                "signedIn": True,
+                "language": language,
+                "met": met,
+                "often": touchstones.OFTEN,
+                "practise": practise,
+                "notes": self._word_notes(language, into, list(marked), finished, folder_for),
+            }
+        )
+
+    def _practice(
+        self, person: Person, language: str, into: str
+    ) -> tuple[
+        dict[str, int],
+        list[tuple[str, str, int]],
+        Callable[[str], tuple[Path, str] | None],
+        dict[str, int],
+        list[dict[str, object]],
+    ]:
+        """What the practice card on Your Words holds for one language: the reader's marked
+        words, the sections they finished, the folder of a text by its hash, in how many
+        texts each word was met, and up to ten words still being learned, each in a line
+        the reader read. Your Words draws it, and home's Practise line is left out where
+        it is empty (`_due`)."""
+        from . import meetings as meetings_module
+        from . import occurrences as occurrences_module
+        from . import touchstones
+
         marked = self.store.marked(person, language)
         homes = [self.library.home(person), self.library.shared, self.library.weekly]
         folders: dict[str, tuple[Path, str] | None] = {}
@@ -12024,16 +12060,7 @@ class Handler(BaseHTTPRequestHandler):
             said = meetings_module.card_line(line, into) if line else None
             if said:
                 practise.append(said)
-        self._json(
-            {
-                "signedIn": True,
-                "language": language,
-                "met": met,
-                "often": touchstones.OFTEN,
-                "practise": practise,
-                "notes": self._word_notes(language, into, list(marked), finished, folder_for),
-            }
-        )
+        return marked, finished, folder_for, met, practise
 
     @staticmethod
     def _word_notes(
@@ -13541,11 +13568,28 @@ class Handler(BaseHTTPRequestHandler):
         roots, behind the same guards, as the files themselves are served from — this
         says what a reader could already open, one file at a time, and nothing more.
         """
-        page = urlparse(parse_qs(urlparse(self.path).query).get("page", [""])[0]).path
+        asked = parse_qs(urlparse(self.path).query)
+        page = urlparse(asked.get("page", [""])[0]).path
         found = self._offline_folder(page)
         if found is None:
             return self._json({"error": "not found"}, 404)
         prefix, bases, about = found
+        # Saved on its own, a text with a contents page keeps only the part that was
+        # opened (David, 2026-10-10; design.md §12): `?part=1` narrows the list to that
+        # one page and the sidecars it names. The whole is the reader's press.
+        if asked.get("part", [""])[0] == "1":
+            narrowed = self._offline_part(page, prefix, bases)
+            if narrowed is not None:
+                return self._json(
+                    {
+                        **about,
+                        "base": prefix,
+                        "part": True,
+                        "files": narrowed,
+                        "pages": sum(1 for f in narrowed if str(f["url"]).endswith(".html")),
+                        "bytes": sum(int(f["bytes"]) for f in narrowed),
+                    }
+                )
         files: list[dict[str, Any]] = []
         for under, base, deep in bases:
             try:
@@ -13577,6 +13621,58 @@ class Handler(BaseHTTPRequestHandler):
                 "bytes": sum(int(file["bytes"]) for file in files),
             }
         )
+
+    def _offline_part(
+        self, page: str, prefix: str, bases: list[tuple[str, Path, bool]]
+    ) -> list[dict[str, Any]] | None:
+        """One part of a text with a contents page, as saving it on its own keeps it: the
+        page that was opened, and each sidecar beside the text whose relative address
+        that page names. None where the text has no contents page (it is one page, or a
+        portion's or a day's) or the page is not one of its files, and the whole is
+        listed as before."""
+        if len(bases) != 1 or not page.startswith(prefix):
+            return None
+        _, base, _ = bases[0]
+        if not (base / CONTENTS).is_file():
+            return None
+        relative = unquote(page[len(prefix) :]) or "index.html"
+        target = (base / relative).resolve()
+        if target.suffix.lower() != ".html" or not target.is_file():
+            return None
+        if base not in target.parents:
+            return None
+        files: list[dict[str, Any]] = [
+            {
+                "url": prefix + quote(target.relative_to(base).as_posix()),
+                "bytes": target.stat().st_size,
+                "film": False,
+            }
+        ]
+        try:
+            said = target.read_text(encoding="utf-8", errors="replace")
+            listed = sorted(base.rglob("*"))
+        except OSError:
+            return files
+        for sidecar in listed:
+            suffix = sidecar.suffix.lower()
+            if suffix not in self.MEDIA_KINDS or not sidecar.is_file():
+                continue
+            if base not in sidecar.resolve().parents:
+                continue
+            address = sidecar.relative_to(base).as_posix()
+            # As the page may spell it: plain, quoted, or inside JSON with its slashes
+            # or its letters escaped.
+            spelled = {address, quote(address), json.dumps(address)[1:-1]}
+            spelled |= {one.replace("/", "\\/") for one in spelled}
+            if any(one in said for one in spelled):
+                files.append(
+                    {
+                        "url": prefix + quote(address),
+                        "bytes": sidecar.stat().st_size,
+                        "film": suffix in FILM_KINDS,
+                    }
+                )
+        return files
 
     def _offline_folder(
         self, page: str

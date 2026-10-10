@@ -386,6 +386,41 @@ Your Words and Progress no longer say "nothing yet" the moment they find an empt
 browser. They wait for the account's first answer, because on a browser that has just
 signed in, the words are on their way.
 
+### Upload records again, and its box takes what you want — 2026-10-10
+
+David, 2026-10-10, overruling two of the defaults "Upload is the board's" (2026-10-09,
+below) took for him. The board still governs the card; these two are drawn into it.
+
+- **Record is back**, beside Choose a file: the desk's outlined `.btn` with the microphone
+  glyph, in teal's wash while it records, with the word turning to Stop. It is `speak.js`,
+  the composer's recorder, and it is drawn only where the browser can record. The clip is
+  taken as a held file, "Recorded just now · 0:42", and goes up the chunked door and onto
+  the priced card like a dropped recording: the press records and spends nothing, and only
+  Confirm does. On a phone it stays when Choose a file gives way to the dashed place.
+- **The box says "or say what you want" again**, after the board's examples and the
+  language chosen. A description is looked for in place on Upload, as a turn of the
+  conversation on the rails every turn is on, which it already was. **Ask targum stays
+  gone**: Upload is the one press, and the talk drawer is still where a reader asks for
+  something to read.
+
+### Dialogue, Chat History, and no Practise with nothing to practise — 2026-10-10
+
+Three calls of David's, 2026-10-10:
+
+- **The Progress ladder says "Dialogue"** («Диалог»), where its first rung said "A
+  conversation" («Разговор») while the Library called the same kind of text "Dialogue".
+  One kind has one name, so the headline follows: "You'd follow a dialogue", "A dialogue
+  is the place to start" («Вы поймёте диалог», «Начните с диалога»). This amends the
+  wording in "Your Progress is a story in three parts" (2026-10-09).
+- **The drawer's list of past conversations is "Chat History"** («История чатов»), where
+  it said "Chats" beside "New". "New" stays. The page's title is unchanged.
+- **Home's Practise line is left out when there is nothing to practise.** The line under
+  the welcome back ("18 of your words are due a look · Practise") opens Your Words'
+  practice card; where that card has no word in a line the reader read, `/account/due`
+  says nought and the line is not drawn, rather than sending the reader to an empty
+  card. The practice card on Your Words was already hidden when empty. This amends
+  "Home says welcome back after a week away" (2026-10-09).
+
 ### The Talk pill keeps its own room at a desk — 2026-10-09
 
 Audit 2, gap 3. The pill floats at the window's bottom-right corner, and since "The boards
@@ -448,7 +483,8 @@ who comes back after a gap.
   card says nothing is due ("Your Words is one table and a practice card"). The count is
   the words still being learned (steps 1 to 3) in that language that have not been marked
   since the reader left (`/account/due`). Practise opens Your Words, where the practice
-  card is. The line is left out when the count is nought or the reader is signed out.
+  card is. The line is left out when the count is nought, the practice card has nothing
+  to show (2026-10-10, above), or the reader is signed out.
 - **No streak guilt.** The page never says how long they were away, never says a run was
   broken, and has nothing to clear. The gap decides the form of the page and is never
   shown, which keeps "The streak is the longest one, and the current one is refused"
@@ -841,8 +877,9 @@ What goes, each because the board draws none of it (David's #12, left open; the
 defaults taken, for him to overrule):
 
 - **Record.** A voice note is still brought as a file, and the phone's chooser offers its
-  own recorder; the conversation's Speak is unchanged.
-- **"Say what you want" and Ask targum.** The placeholder no longer offers it, and the
+  own recorder; the conversation's Speak is unchanged. *Back since 2026-10-10 (above).*
+- **"Say what you want" and Ask targum.** *The placeholder offers it again since
+  2026-10-10 (above); Ask targum stays gone.* The placeholder no longer offers it, and the
   button that handed a description to the talk drawer is gone; the drawer is where a
   reader asks for something to read. A description typed into the box anyway is still
   looked for in place on Upload, as a turn of the conversation, so it is never met with a
@@ -1166,9 +1203,11 @@ seven places the two disagreed:
   "selection is quiet ink" give way wherever a row of tabs or filters is drawn.
 - **The language menu is always shown, with its badge** (Alpha, Beta, as "A language
   wears how far along it is" gives them), for a reader of one language as well as of six,
-  against §13's "drawn only when the reader learns more than one language". **No flags**
-  unless a board draws one, and none does: "The language menu carries flags" (2026-09-14)
-  is retired, and §1's and §10's "no flags" hold everywhere again.
+  against §13's "drawn only when the reader learns more than one language". **Flags in the
+  menu's rows**, beside the tick (David, 2026-10-10: "bring back the flags here"): "The
+  language menu carries flags" (2026-09-14) stands again, the menu's one exception to §1's
+  and §10's "no flags", which hold everywhere else. **No greeting** at the row's far side
+  (David, 2026-10-10: "I don't need the shalom, bonjour, ciao in the drop down").
 - **The reader is on the new system**: teal actions, the chrome's face for its own chrome,
   Hebrew at about 21px, the board's word card, the end of a part as a card, and its menus
   as sheets. Against §13's "What stays the reader's" and §12's "the reader keeps system-ui
@@ -1663,6 +1702,14 @@ worker (the entry below) answers what is saved. This is how things come to be sa
   10) and the playlist switch belong to this device, and are kept in this browser. Opening
   a text that is already kept fetches nothing: it is only marked as opened, and the worker
   has already refreshed the page itself.
+- **A book or a series keeps only what was opened** (David, 2026-10-10). A text with a
+  contents page is no longer kept whole by being opened: the contents page is kept, and
+  each part as it is opened joins it, with the sidecars that part plays and nothing else
+  (`/offline.json?part=1`). The last-five rule and the playlist rule are unchanged; a part
+  counts toward its text, not as a text of its own. The whole is saved only by Save for
+  offline, so the row keeps offering it, with the whole's size, until it is pressed. Saving
+  a part says nothing in the row. With no connection, a contents page marks each chapter
+  "On this device" or "Not on this device" by the parts kept.
 - **Saved by you.** Save for offline is in a text's ⋯, with the room it will take beside
   it before it is pressed, and on a playlist's own page. What the reader saves stays until
   they remove it. A text kept on its own and then saved by the reader is not fetched again;
@@ -1744,7 +1791,7 @@ menu's language, as everywhere):
   page**: the month's credits moved to the account page, its first panel ("Credits").
   **No "sections finished"**: it means nothing to a learner (David).
 - **1 · Where you are: touchstones.** A short ladder of real kinds of text from the
-  language's own library — a conversation, a video, a news article, a short story, a
+  language's own library — a dialogue, a video, a news article, a short story, a
   novel, a poem (Italian's stories are StoryWeaver's children's books, and are called
   "a children's book") — ordered by
   the catalogue's median measured `difficulty` for each kind; a kind with nothing measured
@@ -5471,9 +5518,8 @@ stranger was actually looking for is not a help page; it is the first ten minute
 
 ### The language menu carries flags, and the date follows the language — 2026-09-14
 
-*Its flags are retired (2026-10-09): no board draws one, and the boards win — §12, "The boards are the desk", 2026-10-09.
-The menu carries no flag, and §1's and §10's rule stands everywhere. The date and the
-greeting below still hold.*
+*Its flags were retired on 2026-10-09 and came back on 2026-10-10 (David: "bring back
+the flags here"), in each row of the menu beside the tick; the button carries none.*
 
 §1 says "no flags" and §10 lists "flag imagery — texts, not countries" among the things
 targum never does. David asked for a small flag beside each language in the menu, and

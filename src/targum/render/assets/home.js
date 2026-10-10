@@ -756,7 +756,12 @@
     }
   }
 
+  /* The language the last suggestion was asked in. A switch from Hebrew to French asks
+     again, and the Hebrew answer arriving after the French one put a Hebrew text on the
+     French home (David, 2026-10-10); an answer for a language no longer shown is dropped. */
+  var suggesting = "";
   function suggest(code, readers, first) {
+    suggesting = code;
     var skip = finished(readers);
     ask(
       "/suggest?language=" +
@@ -764,6 +769,7 @@
         (skip.length ? "&skip=" + encodeURIComponent(skip.join(",")) : "")
     )
       .then(function (got) {
+        if (code !== suggesting) return;
         drawTry(got && got.suggestion, first);
         drawNote(code, got ? got.library : undefined);
       })

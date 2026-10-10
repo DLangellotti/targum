@@ -35,13 +35,13 @@
     <div class="saved-main">
       {#- Nothing saved yet is said inside the card the rows would be in. -#}
       <section class="card saved-group" id="saved-none" hidden>
-        <h2 class="section-title">{{ t("saved.page.on-their-own", "Saved on their own") }}</h2>
+        <h2 class="section-title">{{ t("saved.page.on-their-own", "Saved automatically") }}</h2>
         <p class="note">{{ t("saved.page.none", "Nothing is saved on this device yet. Before you go, choose Save for offline in a text's ⋯ menu.") }}</p>
       </section>
 
       <section class="card saved-group" id="saved-auto" aria-labelledby="saved-auto-title" hidden>
         <div class="saved-head">
-          <h2 class="section-title" id="saved-auto-title">{{ t("saved.page.on-their-own", "Saved on their own") }}</h2>
+          <h2 class="section-title" id="saved-auto-title">{{ t("saved.page.on-their-own", "Saved automatically") }}</h2>
           <p class="note" id="saved-auto-says"></p>
         </div>
         <div class="saved-cols" aria-hidden="true">
@@ -75,7 +75,7 @@
       </section>
 
       <section class="card saved-choices" id="saved-choices" aria-labelledby="saved-choices-title" hidden>
-        <h2 class="section-title" id="saved-choices-title">{{ t("saved.page.saving-on-its-own", "Saving on its own") }}</h2>
+        <h2 class="section-title" id="saved-choices-title">{{ t("saved.page.saving-on-its-own", "Saving automatically") }}</h2>
         <div class="saved-choice">
           <span class="saved-choice-what">
             <span class="saved-choice-name" id="recent-label">{{ t("saved.page.recent", "Recent texts") }}</span>

@@ -13050,7 +13050,11 @@ var targumReader = function () {
         var area = (panel ? W - PANEL : W) - listed;
         // Room under it for the controls and three lines of the transcript.
         w = Math.min(area - 160, 1120, (H - top - 300) * ratio);
-        col = panel ? W - PANEL : 0;
+        // The transcript's column starts where the picture's ends, and the word list
+        // takes its own room at the far edge: without it the transcript was squeezed
+        // into what was left, a word to a line (David, 2026-10-10: "theater mode is
+        // not working").
+        col = panel ? W - PANEL - listed : 0;
         // The reader's own size, a share of that (2026-10-07). At the full share this
         // is the line above untouched, so Theatre stands where it always stood.
         fullW = Math.max(160, Math.round(w));
@@ -14119,7 +14123,7 @@ else targumReader();
           return failed(
             state.error ||
               state.blocked ||
-              S.t("reader.voice.could-not-make", "We couldn't make the recording. Try again.")
+              S.t("reader.voice.could-not-make", "We couldn't make the audio. Try again.")
           );
         }
         if (state.stage === "done") {
@@ -14159,8 +14163,8 @@ else targumReader();
       S.tn(
         "reader.voice.recording-now",
         minutes,
-        "Thanks. We're recording this section now. It runs about {n} minute.",
-        "Thanks. We're recording this section now. It runs about {n} minutes."
+        "Thanks. We're making the audio for this section now. It will be about {n} minute long, and it plays here when it's ready.",
+        "Thanks. We're making the audio for this section now. It will be about {n} minutes long, and it plays here when it's ready."
       )
     );
     fetch(keyed("/voice"), {
