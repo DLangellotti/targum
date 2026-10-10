@@ -11629,6 +11629,16 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        # Whose record the page thinks it is pushing (2026-10-10). The cookie says who is
+        # signed in now; a page left open from before a change of account in another tab
+        # still holds the last one's words in memory, and without this they would be
+        # merged into the new account. Refused whole, nothing written: the page draws
+        # itself again as whoever is here. A page that names nobody is from before this
+        # check, or has never synced, and is taken as before.
+        claimed = payload.get("who")
+        if isinstance(claimed, str) and claimed.strip():
+            if claimed.strip().casefold() != person.email.strip().casefold():
+                return self._json({"signedIn": True, "otherAccount": True}, 409)
         try:
             since = int(payload.get("since") or 0)
         except (TypeError, ValueError):
