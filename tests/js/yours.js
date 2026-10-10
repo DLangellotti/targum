@@ -43,6 +43,10 @@ install({
         touched: () => {},
         onChange: () => {},
         start: () => Promise.resolve(),
+        /* The account's first answer. `arriving` holds it back, as a browser just signed
+           in waits on its whole record; `brought` says the answer changed something. */
+        settled: () =>
+          payload.arriving ? new Promise(() => {}) : Promise.resolve(!!payload.brought),
       }
     : undefined,
 });

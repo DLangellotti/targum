@@ -512,3 +512,152 @@ def test_a_place_is_kept_for_somebody_signed_out() -> None:
     seen = json.loads(done.stdout)
     assert seen["posts"] == 0
     assert seen["place"]["section"] == "2" and seen["place"]["segment"] == "b3"
+
+
+# --- one browser, two accounts (2026-10-10) ------------------------------------------
+
+SWITCH = """
+  const {{ install }} = require({dom});
+  const stored = {stored};
+  install({{ TARGUM_KEY: "", stored }});
+  let reloaded = 0;
+  global.location.reload = () => {{ reloaded += 1; }};
+  const sent = [];
+  const me = {me};
+  const syncStatus = {sync_status};
+  global.fetch = function (url, options) {{
+    const body = options && options.body ? JSON.parse(options.body) : null;
+    sent.push({{ url: String(url), body: body }});
+    if (String(url).indexOf("/account/me") >= 0) {{
+      return Promise.resolve({{ ok: true, status: 200, json: () => Promise.resolve(me) }});
+    }}
+    if (String(url).indexOf("/sync") >= 0) {{
+      return Promise.resolve({{
+        ok: syncStatus === 200, status: syncStatus,
+        json: () => Promise.resolve(syncStatus === 200
+          ? {{ signedIn: true, revision: 41, words: [{{ language: "he", lemma: "עיר",
+               status: 2, seen: 5, gone: 0 }}] }}
+          : {{ signedIn: true, otherAccount: true }}),
+      }});
+    }}
+    return Promise.resolve({{ ok: true, status: 200, json: () => Promise.resolve({{}}) }});
+  }};
+  require({where});
+  {then}
+"""
+
+
+def run_switch(
+    stored: dict[str, str], me: dict[str, object], then: str, sync_status: int = 200
+) -> dict[str, object]:
+    program = SWITCH.format(
+        dom=json.dumps(str(DOM)),
+        where=json.dumps(str(ASSETS / "sync.js")),
+        stored=json.dumps(stored, ensure_ascii=False),
+        me=json.dumps(me),
+        sync_status=sync_status,
+        then=then,
+    )
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)
+
+
+REPORT = """
+  console.log(JSON.stringify({
+    stored: stored,
+    syncs: sent.filter((r) => r.url.indexOf("/sync") >= 0).map((r) => r.body),
+    reloaded: reloaded,
+  }));
+"""
+
+TEST_ACCOUNT = "tester@example.com"
+MAIN = "reader@example.com"
+
+
+def test_signing_in_as_somebody_else_sweeps_first_and_pulls_everything() -> None:
+    """The browser holds the test account — its emptied list, a delete, its sync state —
+    and the main account answers. Nothing of the test account's goes up, the main
+    account's whole record is asked for, and what it reads is still here afterwards:
+    swept after being written, it went with the rest."""
+    stored = {
+        "targum:sync": json.dumps({"email": TEST_ACCOUNT, "revision": 7, "pushed": 7}),
+        "targum:vocab:he": json.dumps({}),
+        "targum:gone": json.dumps({"w:he:ספר": 9_999_999_999_999}),
+    }
+    me = {"signedIn": True, "email": MAIN, "reads": ["en"], "learning": ["he"]}
+    seen = run_switch(stored, me, "window.TargumSync.start().then(function () {" + REPORT + "});")
+    syncs = seen["syncs"]
+    assert len(syncs) == 1
+    assert syncs[0]["since"] == 0, "the whole account, not what changed since the other's"
+    assert syncs[0]["who"] == MAIN
+    assert syncs[0]["words"] == [], "the other account's delete did not go up"
+    after = seen["stored"]
+    assert json.loads(after["targum:sync"])["email"] == MAIN
+    assert "targum:gone" not in after
+    assert json.loads(after["targum:reads"]) == ["en"]
+    assert "עיר" in json.loads(after["targum:vocab:he"])
+
+
+def test_a_page_left_open_across_a_change_of_account_pushes_nothing() -> None:
+    """This page started as the main account. Another tab then signed out and in as the
+    test account, so `localStorage` and the cookie are the test account's while this page
+    still holds the main one in memory. Its next push would land in the wrong account;
+    it draws itself again instead."""
+    stored = {"targum:sync": json.dumps({"email": MAIN, "revision": 3, "pushed": 3})}
+    me = {"signedIn": True, "email": MAIN, "reads": [], "learning": []}
+    then = """
+      window.TargumSync.start().then(function () {
+        const before = sent.length;
+        stored["targum:sync"] = JSON.stringify(
+          { email: "TESTER", revision: 1, pushed: 1 });
+        return window.TargumSync.flush().then(function () {
+          sent.splice(0, before);
+          REPORT
+        });
+      });
+    """.replace("TESTER", TEST_ACCOUNT).replace("REPORT", REPORT)
+    seen = run_switch(stored, me, then)
+    assert seen["syncs"] == [], "nothing went up under the other account's cookie"
+    assert seen["reloaded"] == 1
+
+
+def test_a_push_the_account_refuses_as_someone_elses_draws_the_page_again() -> None:
+    stored = {"targum:sync": json.dumps({"email": MAIN, "revision": 3, "pushed": 3})}
+    me = {"signedIn": True, "email": MAIN, "reads": [], "learning": []}
+    seen = run_switch(
+        stored, me, "window.TargumSync.start().then(function () {" + REPORT + "});", 409
+    )
+    assert seen["reloaded"] == 1
+    assert json.loads(seen["stored"]["targum:sync"])["pushed"] == 3, "nothing marked as sent"
+
+
+def test_signing_out_empties_the_browser_before_it_resolves() -> None:
+    stored = {
+        "targum:sync": json.dumps({"email": MAIN, "revision": 3, "pushed": 3}),
+        "targum:vocab:he": json.dumps({"ספר": {"status": 2}}),
+        "targum:at:targum:vocab:he": "12",
+    }
+    me = {"signedIn": True, "email": MAIN, "reads": [], "learning": []}
+    seen = run_switch(
+        stored,
+        me,
+        "window.TargumSync.signOut().then(function () {" + REPORT + "});",
+    )
+    assert seen["stored"] == {}
+
+
+def test_settled_is_the_first_start_not_a_second() -> None:
+    """What a page waits on before it says "nothing yet": one exchange, however many
+    scripts on the page ask."""
+    stored: dict[str, str] = {}
+    me = {"signedIn": True, "email": MAIN, "reads": [], "learning": []}
+    then = """
+      const first = window.TargumSync.start();
+      Promise.all([first, window.TargumSync.settled()]).then(function (both) {
+        REPORT
+      });
+    """.replace("REPORT", REPORT)
+    seen = run_switch(stored, me, then)
+    assert len(seen["syncs"]) == 1
+    assert seen["syncs"][0]["since"] == 0

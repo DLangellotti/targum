@@ -569,8 +569,14 @@
     var data = charts.collect();
     var codes = lang.order(Object.keys(data), names);
     if (!codes.length) {
-      document.getElementById("nothing").hidden = false;
-      return Promise.resolve();
+      // Not before the account has answered (2026-10-10): on a browser just signed in,
+      // the words are on their way, and "nothing yet" read as everything deleted. A
+      // change reloads the page (below), which draws it with them.
+      var sync = window.TargumSync;
+      var answered = sync && sync.settled ? sync.settled() : Promise.resolve(false);
+      return answered.then(function (changed) {
+        if (!changed) document.getElementById("nothing").hidden = false;
+      });
     }
     document.getElementById("page").hidden = false;
 
@@ -623,8 +629,10 @@
     window.TargumSync.onChange(function (changed) {
       if (changed) location.reload();
     });
-    window.TargumSync.start().then(function () {
-      if (lists) lists.offerExports(!!window.TargumSync.who);
-    });
+    (window.TargumSync.settled ? window.TargumSync.settled() : window.TargumSync.start()).then(
+      function () {
+        if (lists) lists.offerExports(!!window.TargumSync.who);
+      }
+    );
   }
 })();
