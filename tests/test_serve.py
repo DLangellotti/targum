@@ -3269,6 +3269,23 @@ def test_hear_this_section_is_reserved_before_it_is_made(tmp_path: Path, monkeyp
         status, second, _ = call(port, "POST", "/voice?k=k", {"name": "book-he", "section": 2})
         assert status == 200 and second["id"] == first["id"], "the same job, not another"
         assert store.committed(0) == pytest.approx(row["claimed"]), "and nothing claimed twice"
+        voices = [job for job in library.jobs.values() if job.kind == "voice"]
+        assert [job.id for job in voices] == [first["id"]], "no second job made"
+        rows = store.db.execute("SELECT id FROM job WHERE kind = 'voice'").fetchall()
+        assert [one["id"] for one in rows] == [first["id"]], "and no second row claimed"
+
+        # The page asks on load whether the section is underway (2026-10-10), and only
+        # asks: the answer is the job, and nothing more is made or claimed.
+        status, asked = get(port, "/voice?k=k&name=book-he&section=2")
+        assert status == 200 and asked["job"]["id"] == first["id"]
+        assert asked["job"]["stage"] not in ("done", "failed", "blocked")
+        assert {"done", "total"} <= set(asked["job"])
+        status, other = get(port, "/voice?k=k&name=book-he&section=1")
+        assert status == 200 and other == {"job": None}, "another section is not underway"
+        status, nowhere = get(port, "/voice?k=k&name=nothing-here&section=2")
+        assert status == 200 and nowhere == {"job": None}
+        assert store.committed(0) == pytest.approx(row["claimed"]), "asking spends nothing"
+        assert len([job for job in library.jobs.values() if job.kind == "voice"]) == 1
     finally:
         server.shutdown()
 
@@ -3296,7 +3313,7 @@ def test_a_voice_that_stops_part_way_settles_what_was_said(
         folder / "document.json"
     )
 
-    def render_lines(lines: list[str], into: Path, voice: str = "", language: str = "he") -> Any:
+    def render_lines(lines: list[str], into: Path, voice: str = "", **kw: Any) -> Any:
         raise speech.Interrupted("The voice did not answer.", seconds=6.0)
 
     monkeypatch.setattr(speech, "render_lines", render_lines)
@@ -3350,13 +3367,17 @@ def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
         folder / "document.json"
     )
 
-    def render_lines(lines: list[str], into: Path, voice: str = "", language: str = "he") -> Any:
+    def render_lines(lines: list[str], into: Path, voice: str = "", **kw: Any) -> Any:
+        for said in range(1, len(lines) + 1):
+            kw["progress"](said)
+            counted.append((job.done, job.total))
         into.parent.mkdir(parents=True, exist_ok=True)
         clip = into.with_suffix(".mp3")
         clip.write_bytes(b"mp3")
         spans = [(float(n), float(n + 1)) for n in range(len(lines))]
         return speech.Clip(clip, "audio/mpeg", float(len(lines))), spans
 
+    counted: list[tuple[int, int]] = []
     monkeypatch.setattr(speech, "render_lines", render_lines)
     rendered: dict[str, Any] = {}
 
@@ -3384,6 +3405,7 @@ def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
     library.run(job)
     assert job.stage == "done", job.error
     assert job.seconds == 4.0, "a heading and three lines"
+    assert counted == [(1, 4), (2, 4), (3, 4), (4, 4)], "how far, line by line, for the page"
     assert job.reader == "book-he/reader/index.html"
     assert rendered["folder"] == folder, "named, so the page finds the manifest beside it"
     kept = manifest_module.load(folder)

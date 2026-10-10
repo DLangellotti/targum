@@ -29,6 +29,7 @@ import shutil
 import struct
 import subprocess
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -199,7 +200,11 @@ def render(text: str, into: Path, voice: str = VOICE, language: str = "he") -> C
 
 
 def render_lines(
-    lines: list[str], into: Path, voice: str = VOICE, language: str = "he"
+    lines: list[str],
+    into: Path,
+    voice: str = VOICE,
+    language: str = "he",
+    progress: Callable[[int], None] | None = None,
 ) -> tuple[Clip, list[tuple[float, float]]]:
     """Say each line and write them as one clip, with where each line sits in it.
 
@@ -207,7 +212,8 @@ def render_lines(
     exact without an aligner — the thing a reader's per-line play needs and a
     whole-section clip could not give (targum-internal#246). The clip is one file for
     the same reason an import's part is: a reader plays a slice of one file, and a
-    page that carries its audio inline carries one.
+    page that carries its audio inline carries one. `progress` is told how many lines
+    are said after each one, so a page waiting on the section can show how far it is.
     """
     pcm = b""
     spans: list[tuple[float, float]] = []
@@ -222,6 +228,8 @@ def render_lines(
         pcm += spoken[44:]
         end = len(pcm) / BYTES_PER_SECOND
         spans.append((round(start, 3), round(end, 3)))
+        if progress is not None:
+            progress(len(spans))
     try:
         return write(wav(pcm), into), spans
     except Exception as error:

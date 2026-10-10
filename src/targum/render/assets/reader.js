@@ -14071,9 +14071,14 @@ else targumReader();
   var offer = document.getElementById("voice-offer");
   var go = document.getElementById("voice-go");
   var said = document.getElementById("voice-said");
+  var making = document.getElementById("voice-making");
+  var meter = document.getElementById("voice-meter");
+  var share = document.getElementById("voice-share");
   if (!offer || !go) return;
   var S = window.TargumStrings || {
-    t: function (key, english) { return english; },
+    t: function (key, english, fill) {
+      return fill ? english.replace("{n}", String(fill.n)) : english;
+    },
     tn: function (key, count, one, other) {
       return (count === 1 ? one : other).replace("{n}", String(count));
     },
@@ -14105,6 +14110,40 @@ else targumReader();
     if (said) said.textContent = text || "";
   }
 
+  // Whether this page is following the section's audio, from a press or from a job it
+  // found underway when it opened: either way the button is not offered again.
+  var busy = false;
+
+  /* The audio on its way (2026-10-10): the button stands aside, and the meter fills to
+   * the share of lines said where the job counts them, or only says it is working where
+   * it does not yet — waiting in line, or just pressed. */
+  function showMaking(state) {
+    busy = true;
+    go.hidden = true;
+    if (!making || !meter) return;
+    making.hidden = false;
+    var total = Number((state && state.total) || 0);
+    var done = Math.min(total, Number((state && state.done) || 0));
+    if (total > 0 && state.stage === "working") {
+      var part = Math.round((done / total) * 100);
+      meter.classList.remove("is-waiting");
+      meter.style.setProperty("--done", String(done / total));
+      meter.setAttribute("aria-valuenow", String(part));
+      if (share) share.textContent = S.t("reader.voice.share-done", "{n}% done", { n: part });
+    } else {
+      meter.classList.add("is-waiting");
+      meter.style.removeProperty("--done");
+      meter.removeAttribute("aria-valuenow");
+      if (share) share.textContent = "";
+    }
+  }
+
+  function stopMaking() {
+    busy = false;
+    if (making) making.hidden = true;
+    go.hidden = false;
+  }
+
   //: How often the page asks after the build. A test sets it to 0.
   var POLL = 2000;
 
@@ -14127,6 +14166,7 @@ else targumReader();
           location.reload();
           return;
         }
+        showMaking(state);
         setTimeout(function () {
           follow(id);
         }, window.TargumVoice.POLL);
@@ -14134,25 +14174,30 @@ else targumReader();
       .catch(function () {
         lost(function () {
           follow(id);
-        });
+        }, true);
       });
   }
 
   function failed(message) {
     tell(message);
+    stopMaking();
     go.disabled = false;
   }
 
   // targum out of reach: the connection's banner (`fault.js`; design.md §12,
   // 2026-10-09), whose Try again picks up where this stopped.
-  function lost(again) {
+  function lost(again, following) {
     if (!window.TargumFault) return failed(S.t("reader.error.connect", "We can't reach targum."));
     tell("");
+    // A job already found is still being made while the connection is away, so the
+    // button stays aside and the banner's Try again goes on following it.
+    if (!following) stopMaking();
     go.disabled = false;
     window.TargumFault.unreachable(again);
   }
 
   go.onclick = function () {
+    busy = true;
     go.disabled = true;
     var minutes = Math.max(1, Math.round(Number(offer.getAttribute("data-seconds") || 0) / 60));
     tell(
@@ -14163,6 +14208,7 @@ else targumReader();
         "Thanks. We're recording this section now. It runs about {n} minutes."
       )
     );
+    showMaking(null);
     fetch(keyed("/voice"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
@@ -14187,6 +14233,37 @@ else targumReader();
   };
 
   window.TargumVoice = { POLL: POLL };
+
+  /* Already on its way (2026-10-10): a page left after the press and come back to asks
+   * whether this section's audio is being made, and if it is, shows how far and follows
+   * it to the end rather than offering the press again. Only a question: the server
+   * joins a second press to the first anyway, so nothing is ever paid for twice. Signed
+   * out or offline, nothing answers and the offer stands as it is. */
+  function ask() {
+    if (offer.hidden || navigator.onLine === false) return;
+    var section = Number(offer.getAttribute("data-section") || 1);
+    fetch(keyed("/voice?name=" + encodeURIComponent(name) + "&section=" + section), {
+      headers: keyHeaders({}),
+    })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        var job = answer && answer.job;
+        if (!job || !job.id || busy) return;
+        go.disabled = true;
+        tell(
+          S.t(
+            "reader.voice.making",
+            "We're making the audio for this section. It plays here when it's ready."
+          )
+        );
+        showMaking(job);
+        follow(job.id);
+      })
+      .catch(function () {});
+  }
+  ask();
 
   /* Sent here to hear this section (targum-internal#407): a link a chat handed over
    * ends `?hear=1`. The offer is opened and the button given focus, never pressed: the
