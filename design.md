@@ -373,8 +373,10 @@ are the desk" the column runs to that corner too. It covered the Library's secon
 "See all →", the Words table and the Upload card on home. Only a phone kept room for it
 (#684).
 
-- **At a desk the pill says "Talk"**, as the boards draw it and as the phone's pill
-  already does ("Поговорить" in Russian). Its accessible name is still "Talk to targum". At 1440 it now fits in the margin outside
+- **At a desk the pill says "AI Assistant"**, as the phone's pill does too ("ИИ-ассистент"
+  in Russian), and so does its accessible name, so what is read out is what is seen
+  (David, 2026-10-10: "change this button to 'AI Assistant'"; it said "Talk", as the
+  boards drew it). The drawer it opens is still "Talk to targum". At 1440 it now fits in the margin outside
   the 1248px column, and nothing on the page moves.
 - **Narrower than that, the page gives up the pill's reach at its end edge only.**
   `talk.js` measures the reach as `--talk-room`, and the body's end padding is that

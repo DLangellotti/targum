@@ -2078,7 +2078,7 @@ class Library:
             said_in(
                 ui,
                 "job.plan.fact",
-                "Uploading text uses none, and your credits come back on {date}.",
+                "Uploading text uses none, and your credits reset on {date}.",
                 date=self._month_ends(ui),
             ),
             "plan",
@@ -2108,7 +2108,7 @@ class Library:
                 said_in(
                     ui,
                     "job.out-of.credits",
-                    "You've used this month's credits. Top up, or they come back on {date}.",
+                    "You've used this month's credits. Top up, or they reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
                     date=self._month_ends(ui),
                 ),
@@ -2142,7 +2142,7 @@ class Library:
                     ui,
                     "job.out-of.talk-credits",
                     "You've used this month's credits for audio and talk. Top up, or they "
-                    "come back on {date}.",
+                    "reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
                     date=self._month_ends(ui),
                 ),

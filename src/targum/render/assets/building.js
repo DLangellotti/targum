@@ -679,7 +679,7 @@
     .then(function (me) {
       var hours = me && me.signedIn && me.hours;
       if (!hours || !hours.allowed || !(hours.used >= hours.allowed * 0.75)) return;
-      var reset = hours.ends ? " " + t("building.hours.reset", "They come back on {date}.", { date: hours.ends }) : "";
+      var reset = hours.ends ? " " + t("building.hours.reset", "They reset on {date}.", { date: hours.ends }) : "";
       /* Credits with the rate beside them (design.md §12, 2026-09-23), and what is left
          rather than what is gone — this is a warning, and what remains is the thing it
          is warning about. It said "You've used 6.2 of your 8 hours", a decimal nobody

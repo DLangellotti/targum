@@ -2216,10 +2216,10 @@
                   plan: plan.planCredits,
                   hours: Math.round(plan.planCredits / 60),
                 }),
-                t("fault.plan.fact", "Uploading text uses none, and your credits come back on {date}.", { date: hours.ends || "" })
+                t("fault.plan.fact", "Uploading text uses none, and your credits reset on {date}.", { date: hours.ends || "" })
               )
             : window.TargumFault.refusal(
-            t("add.credits.none", "You've used all your credits this month. Top up, or they come back on {date}.", {
+            t("add.credits.none", "You've used all your credits this month. Top up, or they reset on {date}.", {
               date: hours.ends || "",
             }),
             t("add.credits.none.fact", "The library still opens"),
@@ -2237,7 +2237,7 @@
         }
         hoursLine.textContent = t(
           "add.credits.none",
-          "You've used all your credits this month. Top up, or they come back on {date}.",
+          "You've used all your credits this month. Top up, or they reset on {date}.",
           { date: hours.ends || "" }
         );
         hoursLine.hidden = false;
