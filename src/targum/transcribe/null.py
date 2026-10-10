@@ -43,6 +43,7 @@ class NullTranscriber:
         audio: Path,
         language: str = "",
         on_progress: Progress | None = None,
+        hint: str = "",
     ) -> Transcript:
         from ..audio import tools
 
