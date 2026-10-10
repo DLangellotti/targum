@@ -895,7 +895,7 @@
         { n: plan.credits, hours: hours }
       );
       document.getElementById("plan-back").textContent = back
-        ? t("you.plan.back", "Your credits come back on {date}", { date: back })
+        ? t("you.plan.back", "Your credits reset on {date}", { date: back })
         : "";
       var ups = document.getElementById("plan-top-ups");
       ups.textContent = "";

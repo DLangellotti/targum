@@ -621,7 +621,7 @@ def test_done_is_said_once_however_often_it_is_pressed() -> None:
     words, lemmas = chapter(["a"])
     fresh = run([], chapter=words, lemmas=lemmas)["finished"]
     assert fresh["at"] == 0 and fresh["said"] == ""
-    assert fresh["button"] == "Done, and mark 1 word known"
+    assert fresh["button"] == "Done, I know it"
     assert fresh["shown"] is False, "the ink block waits for the finish"
 
     done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
