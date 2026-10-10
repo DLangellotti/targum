@@ -221,16 +221,88 @@ def test_inside_a_playlist_up_next_is_the_playlist_and_play_in_order_is_play_on(
         context.close()
 
 
-def test_arriving_to_listen_opens_the_view_and_plays(browser, tmp_path, monkeypatch) -> None:  # noqa: F811
-    """What Up next and Play in order open: the view, left open for the tab, and the voice."""
+def test_arriving_to_listen_from_a_press_opens_the_view_and_plays(
+    browser,  # noqa: F811
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """What an Up next row and Play in order open: the view, left open for the tab, and the
+    voice. The way a reader gets there is a press on this site, which is what lets the
+    browser start a sound on the page it lands on, so the test arrives the same way."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader", turns=3)
+    context = opened(browser, viewport=PHONE)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        open_view(page)
+        page.evaluate(
+            """(to) => {
+              const row = document.createElement('a');
+              row.className = 'lv-qrow probe';
+              row.href = to;
+              row.textContent = 'next';
+              document.querySelector('.lv-qbody').appendChild(row);
+            }""",
+            address(built) + "?listen=1",
+        )
+        page.click(".lv-queue-open")
+        page.click("a.probe")
+        page.wait_for_url("**?listen=1")
+        page.wait_for_selector("#listen-view:not([hidden])")
+        page.wait_for_function("() => window.TargumPlayer && TargumPlayer.at() > 0.1")
+    finally:
+        context.close()
+
+
+def test_arriving_cold_to_listen_waits_for_the_press_and_says_nothing_wrong(
+    browser,  # noqa: F811
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """Opened with `?listen=1` and no press on the site, the browser refuses the sound
+    (NotAllowedError). That is not a muted tab, so nothing says it is: the view stands
+    open with its play waiting, and one press plays."""
     monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
     built = dialogue(tmp_path / "dialogues", tmp_path / "reader", turns=3)
     context = opened(browser, viewport=PHONE)
     context.add_init_script("sessionStorage.setItem('targum:listen-view', '1')")
+    # The browser's answer to the arrival's own start, kept where the test can wait on it.
+    context.add_init_script(
+        """(() => {
+          const play = HTMLMediaElement.prototype.play;
+          HTMLMediaElement.prototype.play = function () {
+            const asked = play.call(this);
+            if (!window.__answered && asked && asked.then) {
+              asked.then(
+                () => { window.__answered = 'played'; },
+                (why) => { window.__answered = why.name; }
+              );
+            }
+            return asked;
+          };
+        })()"""
+    )
     page = context.new_page()
     try:
         page.goto(address(built) + "?listen=1")
         page.wait_for_selector("#listen-view:not([hidden])")
-        page.wait_for_function("() => window.TargumPlayer && !TargumPlayer.paused()")
+        page.wait_for_function("() => !!window.__answered")
+        # Whether a browser lets a page nobody pressed on start a sound is its own call;
+        # refused, the play waits for the press.
+        if page.evaluate("() => window.__answered") == "NotAllowedError":
+            page.wait_for_function(
+                "() => document.querySelector('.lv-play').getAttribute('aria-label') === 'Play'"
+            )
+        assert not page.evaluate(
+            "() => document.getElementById('player').classList.contains('refused')"
+        ), "a refusal to start by itself is not a fault to show"
+        assert (
+            page.evaluate("() => document.querySelector('.player-said').textContent").find("muted")
+            < 0
+        )
+        if page.evaluate("() => TargumPlayer.paused()"):
+            page.click(".lv-play")
+        page.wait_for_function("() => !TargumPlayer.paused() && TargumPlayer.at() > 0.1")
     finally:
         context.close()

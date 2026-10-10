@@ -1067,7 +1067,10 @@
       var arrive = function () {
         setTimeout(function () {
           if (seconds > 0) player.seek(seconds);
-          if (asked.get("listen") === "1") player.play();
+          // Quietly: arriving from a press on this site, the browser lets it play; opened
+          // cold, it refuses, and the play button waits for the press without calling the
+          // tab muted.
+          if (asked.get("listen") === "1") player.play(true);
         }, 0);
       };
       if (span()) arrive();
