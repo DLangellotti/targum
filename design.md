@@ -394,6 +394,26 @@ that it was loading, and it required me to refresh the page to see it."
   They were in `ui-monospace` (§5's detail face for counts), which in a conversation read
   as a terminal ("73 sentences"). The monospace stays for keys and hexes.
 
+### Signing out empties both copies, and an empty list waits for the account — 2026-10-10
+
+David signed out of a test account and into his own on one browser, and his own account
+looked deleted until it came back a few minutes later. The server had lost nothing. A
+reader keeps a second copy of everything in IndexedDB (`durable.js`), and sign-out, which
+happens on a page that is not a reader, emptied only `localStorage`. The next reader he
+opened put the test account's emptied list back over his.
+
+Three rules now hold. Signing out empties `localStorage`, the IndexedDB copy and the
+saved texts, and waits for them before the page moves on (`sync.js`, `clearLocal`). A
+reader never restores a copy written for an account other than the one signed in here,
+or for anybody once this browser has signed out (`durable.js`). And every `/sync` says
+whose record it carries: the server refuses a push for anybody but the signed-in
+account, and a page left open from before a change of account reloads instead of
+pushing.
+
+Your Words and Progress no longer say "nothing yet" the moment they find an empty
+browser. They wait for the account's first answer, because on a browser that has just
+signed in, the words are on their way.
+
 ### Upload records again, and its box takes what you want — 2026-10-10
 
 David, 2026-10-10, overruling two of the defaults "Upload is the board's" (2026-10-09,

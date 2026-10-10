@@ -747,6 +747,69 @@
    */
   var KEEP = [];
 
+  /* The second copy of the same record, emptied the same way (2026-10-10).
+   *
+   * A reader mirrors every write into IndexedDB (`durable.js`), and sign-out happens on
+   * a page that is not a reader, where `targumForget` is `keep.js`'s and knows only
+   * `localStorage`. So the shelf outlived every sign-out, and the next reader opened put
+   * the last account's words, deletes and `targum:sync` back over whoever had signed in
+   * since: David's own account drawn empty from a test account's emptied list, until
+   * sync saw the email did not match and pulled everything again.
+   *
+   * Resolves once the shelf has committed, or after a second whatever happened: the
+   * page goes on to navigate, and a sign-out held hostage by a wedged database is worse
+   * than the reader's own check (`durable.js`) catching what this missed. */
+  var SHELF_DB = "targum";
+  var SHELF = "kept";
+
+  function clearShelf() {
+    return new Promise(function (done) {
+      var finished = false;
+      function finish() {
+        if (finished) return;
+        finished = true;
+        done();
+      }
+      setTimeout(finish, 1000);
+      var ask;
+      try {
+        ask = indexedDB.open(SHELF_DB, 1);
+      } catch (e) {
+        return finish();
+      }
+      ask.onupgradeneeded = function () {
+        if (!ask.result.objectStoreNames.contains(SHELF)) ask.result.createObjectStore(SHELF);
+      };
+      ask.onerror = finish;
+      ask.onsuccess = function () {
+        var db = ask.result;
+        var deal;
+        try {
+          deal = db.transaction(SHELF, "readwrite");
+        } catch (e) {
+          db.close();
+          return finish();
+        }
+        var store = deal.objectStore(SHELF);
+        var listed = store.getAllKeys();
+        listed.onsuccess = function () {
+          listed.result.forEach(function (name) {
+            name = String(name);
+            if (name.indexOf("targum:") === 0 && KEEP.indexOf(name) < 0) store.delete(name);
+          });
+        };
+        deal.oncomplete = function () {
+          db.close();
+          finish();
+        };
+        deal.onerror = deal.onabort = function () {
+          db.close();
+          finish();
+        };
+      };
+    });
+  }
+
   function clearLocal() {
     var doomed = [];
     try {
@@ -755,12 +818,35 @@
         if (name && name.indexOf("targum:") === 0 && KEEP.indexOf(name) < 0) doomed.push(name);
       }
     } catch (e) {
-      return;
+      return Promise.resolve();
     }
     doomed.forEach(drop);
-    // And the texts saved for offline: they are the reader's own as much as the words are.
+    // And the texts saved for offline: they are the reader's own as much as the words
+    // are. Waited on as the shelf is, and for no longer than it: a film takes a moment
+    // to delete, and the next page must not be held for one.
+    var offline = null;
     try {
-      if (window.TargumOffline) window.TargumOffline.removeAll();
+      if (window.TargumOffline) offline = window.TargumOffline.removeAll();
+    } catch (e) {}
+    var capped = new Promise(function (done) {
+      setTimeout(done, 1500);
+      Promise.resolve(offline).then(done, done);
+    });
+    return Promise.all([clearShelf(), capped]).then(function () {});
+  }
+
+  /* A page still running for somebody who is no longer signed in here: another tab
+   * signed out and in again as somebody else, so `localStorage` and the session cookie
+   * are the new account's while this page holds the old one's in memory. Nothing it has
+   * may go up — it would land in the new account — so it is drawn again as the
+   * account that is here now. Once per page. */
+  var reloading = false;
+  function anotherAccount() {
+    if (reloading) return;
+    reloading = true;
+    api.who = null;
+    try {
+      location.reload();
     } catch (e) {}
   }
 
@@ -815,10 +901,18 @@
     // Whatever place is owed rides on this push, whichever page asked for it.
     placeOwed = false;
     var was = state();
+    if (api.who && was.email !== api.who.email) {
+      anotherAccount();
+      return Promise.resolve(false);
+    }
     var since = full ? 0 : Number(was.pushed || 0);
     var mark = Date.now();
     var dead = tombstones(since);
     var body = {
+      // Whose record this is, as this page knows it: the account refuses a push meant
+      // for anybody but whoever the cookie says, which is what keeps a page left open
+      // from before a change of account from writing into the new one.
+      who: was.email || "",
       since: full ? 0 : Number(was.revision || 0),
       words: localWords(since).concat(dead.words),
       meanings: localMeanings(since).concat(dead.meanings),
@@ -854,15 +948,69 @@
         }
         return changed;
       })
-      .catch(function () {
+      .catch(function (error) {
         busy = false;
+        if (error && error.message === "409") {
+          anotherAccount();
+          return false;
+        }
         // Offline, or the server went away. The browser keeps working from its own
         // store and everything unsent is still unsent, because `pushed` did not move.
         return false;
       });
   }
 
+  /* The account that answered, taken in: what it reads and learns, the rung it named,
+   * its language, and then its record. `asked` is the language this page started on, so
+   * a press made while the account was answering is not undone by the answer. */
+  function adopt(me, asked) {
+    write(READS, me.reads || []);
+    write(LEARNING, me.learning || []);
+    // The rung they named on arrival, a plain string, for the Library's first band
+    // on a browser that never drew the arrival (targum-internal#306, 2026-09-19).
+    // Adopted and never cleared from here, as Learn does with the subjects.
+    if (me.declared) {
+      try {
+        targumKeep("targum:declared", String(me.declared));
+      } catch (e) {}
+    }
+    // The language chosen on another device, for the next page this one opens. Not
+    // the page already drawn: redrawing under somebody's hand is worse than one
+    // page in the language they last saw here.
+    //
+    // And not over a press made on this page while the account was answering: the
+    // account's answer is from before it, and would put the reader back where they
+    // just left (2026-09-14).
+    //
+    // And not over a language this page arrived carrying, from the corner of a text
+    // (design.md §12, 2026-10-07): that is a press too, made one page ago, and the
+    // account is told of it now that there is somebody to tell — with leave to turn
+    // the language on, because the text may be the first thing they have in it.
+    var carried =
+      window.TargumLang && typeof window.TargumLang.carried === "function"
+        ? window.TargumLang.carried()
+        : "";
+    if (carried) {
+      api.language(carried, true);
+    } else if (me.language && local("targum:language") === asked) {
+      try {
+        localStorage.setItem("targum:language", me.language);
+      } catch (e) {}
+    }
+    var fresh = !state().email;
+    write(STATE, {
+      email: me.email,
+      revision: fresh ? 0 : state().revision,
+      pushed: fresh ? 0 : state().pushed,
+    });
+    // First sync on this browser sends everything: whatever was kept while
+    // signed out is claimed by the account rather than stranded.
+    return exchange(fresh);
+  }
+
   /* --- what the pages call -------------------------------------------------- */
+
+  var started = null;
 
   var api = {
     // Called by a page that wants to know when the account handed it something.
@@ -880,58 +1028,22 @@
 
     start: function () {
       var asked = local("targum:language");
-      return ask("/account/me")
+      var going = ask("/account/me")
         .then(function (me) {
           api.who = me && me.signedIn ? me : null;
           if (!api.who) return false;
-          write(READS, me.reads || []);
-          write(LEARNING, me.learning || []);
-          // The rung they named on arrival, a plain string, for the Library's first band
-          // on a browser that never drew the arrival (targum-internal#306, 2026-09-19).
-          // Adopted and never cleared from here, as Learn does with the subjects.
-          if (me.declared) {
-            try {
-              targumKeep("targum:declared", String(me.declared));
-            } catch (e) {}
-          }
-          // The language chosen on another device, for the next page this one opens. Not
-          // the page already drawn: redrawing under somebody's hand is worse than one
-          // page in the language they last saw here.
-          //
-          // And not over a press made on this page while the account was answering: the
-          // account's answer is from before it, and would put the reader back where they
-          // just left (2026-09-14).
-          //
-          // And not over a language this page arrived carrying, from the corner of a text
-          // (design.md §12, 2026-10-07): that is a press too, made one page ago, and the
-          // account is told of it now that there is somebody to tell — with leave to turn
-          // the language on, because the text may be the first thing they have in it.
-          var carried =
-            window.TargumLang && typeof window.TargumLang.carried === "function"
-              ? window.TargumLang.carried()
-              : "";
-          if (carried) {
-            api.language(carried, true);
-          } else if (me.language && local("targum:language") === asked) {
-            try {
-              localStorage.setItem("targum:language", me.language);
-            } catch (e) {}
-          }
           var was = state();
+          // Another person signed in on this browser. Nothing of theirs is mixed in
+          // with what is already here, and none of what is here goes up with it. First,
+          // before anything of the new account is written: swept after, it took the
+          // languages they read with it.
           if (was.email && was.email !== me.email) {
-            // Another person signed in on this browser. Nothing of theirs is mixed in
-            // with what is already here, and none of what is here goes up with it.
-            clearLocal();
+            return clearLocal().then(function () {
+              // Swept with the rest: what this page arrived holding was theirs.
+              return adopt(me, "");
+            });
           }
-          var fresh = !state().email;
-          write(STATE, {
-            email: me.email,
-            revision: fresh ? 0 : state().revision,
-            pushed: fresh ? 0 : state().pushed,
-          });
-          // First sync on this browser sends everything: whatever was kept while
-          // signed out is claimed by the account rather than stranded.
-          return exchange(fresh);
+          return adopt(me, asked);
         })
         .then(function (changed) {
           announce(!!changed);
@@ -941,6 +1053,15 @@
           announce(false);
           return false;
         });
+      started = going;
+      return going;
+    },
+
+    /* The first start's answer, for a page that must not say "nothing yet" before the
+       account has had its say: signing in on an empty browser is the new phone, and
+       everything is about to arrive. Resolves with whether anything did. */
+    settled: function () {
+      return started || api.start();
     },
 
     /* How many changes this browser holds that the account has not had: what the
@@ -1117,10 +1238,12 @@
     signOut: function () {
       return ask("/account/sign-out", {}).then(function () {
         // The point of signing out is that the next person to open this browser is
-        // shown nothing. Leaving the words behind would defeat the whole exercise.
-        clearLocal();
+        // shown nothing. Leaving the words behind would defeat the whole exercise —
+        // in either copy, and before the page that called this moves on.
         api.who = null;
-        return true;
+        return clearLocal().then(function () {
+          return true;
+        });
       });
     },
   };

@@ -129,16 +129,19 @@
   var codes = window.TargumLang.order(Object.keys(data), names);
 
   if (!codes.length) {
-    document.getElementById("nothing").hidden = false;
     document.getElementById("library-link").href = keyed("/library");
     wireNav();
     // Signing in on a browser that has nothing is the whole point of signing in: this
-    // is the new phone, and everything is about to arrive.
-    if (window.TargumSync) {
-      window.TargumSync.onChange(function (changed) {
+    // is the new phone, and everything is about to arrive. So "nothing yet" waits for
+    // the account's answer, and is said only if it brought nothing (2026-10-10): said
+    // at once, it told somebody just signed in that their whole record was gone.
+    if (window.TargumSync && window.TargumSync.settled) {
+      window.TargumSync.settled().then(function (changed) {
         if (changed) location.reload();
+        else document.getElementById("nothing").hidden = false;
       });
-      window.TargumSync.start();
+    } else {
+      document.getElementById("nothing").hidden = false;
     }
     return;
   }
@@ -887,7 +890,8 @@
       storyAsked = {};
       show(currentCode);
     });
-    window.TargumSync.start();
+    if (window.TargumSync.settled) window.TargumSync.settled();
+    else window.TargumSync.start();
   }
 
   // The reading line is drawn to a viewBox, but its tooltip is placed in page pixels.
