@@ -172,7 +172,7 @@
        the rate under it, muted — still beside the balance, because the rate goes
        wherever a balance is. */
     if (hoursLine) {
-      var back = has && got.ends ? t("account.credits.back", "back on {date}", { date: got.ends }) : "";
+      var back = has && got.ends ? t("account.credits.back", "resets on {date}", { date: got.ends }) : "";
       hoursLine.textContent = has
         ? tn("account.credits.left-short", credits(spare), "{n} credit left", "{n} credits left") +
           (back ? " · " + back : "")
@@ -208,7 +208,7 @@
     if (planLine && has) {
       planLine.textContent =
         tn("account.plan.month", credits(Number(got.allowed) || 0), "{n} credit a month while targum is in early access", "{n} credits a month while targum is in early access") +
-        (got.ends ? " · " + t("account.plan.back", "back on {date}", { date: got.ends }) : "");
+        (got.ends ? " · " + t("account.plan.back", "resets on {date}", { date: got.ends }) : "");
     }
     var planCard = document.getElementById("plan");
     // With plans on the account draws its own plan instead (`you.js`, design.md §12,

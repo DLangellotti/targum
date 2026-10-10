@@ -81,7 +81,7 @@
         <p class="press-cost">
           <b>{{ tn("set.page.uses-credits-in-all", total, "Uses {n} credit in all", "Uses {n} credits in all") }}</b>
           {%- if credits.left is not none and credits.left is defined %}
-          <span>{{ tn("set.page.left-this-month", credits.left, "{n} left this month · comes back {date}", "{n} left this month · comes back {date}", date=credits.back) }}</span>
+          <span>{{ tn("set.page.left-this-month", credits.left, "{n} left this month · resets on {date}", "{n} left this month · resets on {date}", date=credits.back) }}</span>
           {%- endif %}
         </p>
         <button class="btn filled go" type="submit">{{ t("set.page.read-these", "Confirm") }}</button>
