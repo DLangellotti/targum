@@ -407,6 +407,8 @@
                 };
                 return index;
               }).then(function (index) {
+                // Beside the save, not inside it: the save is done when the text is.
+                keepSaved();
                 return index.items[planned.id];
               });
             });
@@ -638,8 +640,11 @@
   }
 
   /* One desk page kept so it opens with no connection: the Saved page, which the banner
-     sends a reader to. Fetched once, the first time it is opened — the worker keeps it
-     as it is each time after that, the way it keeps a saved text's pages. */
+     sends a reader to. Fetched once, the first time it is opened or the first time a text
+     is saved — the worker keeps it as it is each time after that, the way it keeps a
+     saved text's pages. It is indexed as a page, never as a text: `trim` lets go only of
+     what is kept on its own, `list` names texts and playlists, and the room a reader
+     chose is counted in texts. A page that could not be had is not indexed. */
   function keepPage(address) {
     if (!able) return Promise.resolve();
     var url = new URL(address, location.origin);
@@ -654,22 +659,35 @@
             headers: headers({ "X-Targum-Save": "1" }),
             credentials: "same-origin",
           }).then(function (answer) {
-            if (!answer.ok) return null;
+            if (!answer.ok) return false;
             return cache.put(at, keep(answer, function () {}));
           });
         });
       })
-      .then(function () {
+      .then(function (put) {
+        if (put === false) return null;
         return readIndex();
       })
       .then(function (index) {
-        if (index.items[id]) return null;
+        if (!index || index.items[id]) return null;
         return change(function (fresh) {
           fresh.items[id] = { id: id, kind: "page", how: "page", files: [at], bytes: 0, at: Date.now() };
           return fresh;
         });
       })
       .catch(function () {});
+  }
+
+  /* The first save keeps the Saved page too (design.md §12, 2026-10-11; QA 2026-10-11,
+     decision D4): with no connection, a page that was not saved opens that one, and the
+     worker can only open what is in the cache — so a reader who had never opened it
+     online met the browser's own error instead. Asked once a page at most, and a page
+     that cannot be had never fails the save that asked for it. */
+  var keptSaved = null;
+  function keepSaved() {
+    if (known && known.items["page:" + SAVED]) return Promise.resolve();
+    if (!keptSaved) keptSaved = keepPage(SAVED);
+    return keptSaved;
   }
 
   // Everything off this device: the files and the index both.
@@ -679,6 +697,7 @@
       .delete(STORE)
       .then(function () {
         known = empty();
+        keptSaved = null;
         tellWorker();
         announce();
       })
@@ -1569,11 +1588,16 @@
     choices: choices,
     choose: choose,
     size: size,
+    // The texts and playlists saved: never the Saved page kept beside them.
     list: function () {
       return readIndex().then(function (index) {
-        return Object.keys(index.items).map(function (id) {
-          return index.items[id];
-        });
+        return Object.keys(index.items)
+          .map(function (id) {
+            return index.items[id];
+          })
+          .filter(function (item) {
+            return item.kind !== "page";
+          });
       });
     },
     // Whether a text is saved, from the index as this page last read it; `null` before
