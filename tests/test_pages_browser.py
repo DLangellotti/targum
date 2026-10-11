@@ -213,6 +213,38 @@ def _add_served(browser, asked: list[dict]):
     return context, open_page
 
 
+def test_with_nothing_new_to_make_the_line_under_the_box_does_not_say_press_upload(
+    browser,
+) -> None:
+    """QA 2026-10-11: on a box that can make nothing new, Upload is drawn disabled under
+    a banner that says so, and the line under the field still said "Press Upload and
+    we'll look for it" and "We'll work out how long it'll take". It says what the
+    banner says now."""
+    html = add_page(TOKEN, no_key="We can't get anything new ready right now.")
+
+    def answer(route, request):
+        if request.url.endswith("/add"):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.route("http://add.test/**", answer)
+    page.goto("http://add.test/add")
+    said = []
+    for typed in ("https://www.youtube.com/watch?v=abc", "I want something about cooking"):
+        page.fill("#given", typed)
+        page.wait_for_timeout(250)
+        said.append(page.locator("#understood").inner_text())
+    disabled = page.locator("#go").is_disabled()
+    context.close()
+    assert disabled
+    for line in said:
+        assert "Press Upload" not in line and "work out how long" not in line, said
+        assert line.startswith("We can't get anything new ready right now."), said
+
+
 def test_a_link_in_the_box_is_priced_as_a_link(browser) -> None:
     """One box (2026-09-13, targum-internal#249): a link typed where a text could be is
     sent as the source, and the line under the box says it is a link before anything."""
