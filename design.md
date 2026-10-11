@@ -450,6 +450,27 @@ for known lost the word without a sign. Now:
 The practice card is unchanged: a word ignored there leaves the card, and is found under
 Ignored.
 
+### Known means marked, everywhere a share is shown — 2026-10-11
+
+David, 2026-10-11, QA decision D5 (READER-06). The reader counted the words it assumes
+from the rung named on arrival ("An advanced reader is not asked about the commonest
+words", 2026-10-07) as known, and the contents page and the Library count only the words
+a reader has marked. So one text said 25% known in the reader and 0% on its contents
+page. The QA pass recommended counting the assumed words everywhere; David chose the
+other way, because the figure is what the reader has said, and the word list it is
+measured against is kept as only what the reader said.
+
+- **Every figure for how much of a text you know counts marks only.** The bar's "N of M
+  known", the list's "N% known here" and the finish box's "N% known here" (which takes
+  the bar's figure) count a word as known only when it is marked known. With a rung named
+  and nothing marked, the bar reads "0 of M known".
+- **What the assumption still does.** An assumed word is still drawn plain, still left
+  out of the queue the arrows walk and out of "N left" and "N words to mark", still left
+  out of what the finish press marks, and its card still reads "assumed known". So "M"
+  can be more than the known words plus the ones left: the difference is the words the
+  page took from the rung and is not asking about.
+- **What it no longer does.** It no longer adds to any known count or share.
+
 ### The focus ring is teal everywhere — 2026-10-11
 
 David, 2026-10-11, QA decision D3. The public pages moved their ring to teal on
@@ -2837,8 +2858,9 @@ the point of the word list is the data on what a reader knows. Both are kept.
 - **The rung named on arrival draws the commonest bands plain.** On a Hebrew page, bet and
   bet plus take the easy band as known; gimel and dalet the easy and fairly easy; hey and
   vav up to moderate. Aleph and aleph plus take nothing. An assumed word is drawn as a
-  known word is, left out of the queue the arrows walk and out of "N left", and counted
-  in "N of M known" — that line is what the page is still asking about.
+  known word is, and left out of the queue the arrows walk and out of "N left". It was
+  also counted in "N of M known" until 2026-10-11; it no longer is, because every share
+  of a text counts marks only ("Known means marked, everywhere a share is shown", above).
 - **Assumed is never marked.** It is not written to the word list, not counted in the
   ledger or on the ladder, not sent to the server, and the finish press leaves it out of
   what it marks and of the number it says. The word list stays what the reader said.
