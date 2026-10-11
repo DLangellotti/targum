@@ -2768,7 +2768,7 @@
   "reader.film.loop": "Повторять строку",
   "reader.film.loop-short": "Повтор",
   "reader.film.loop-title": "Повторять звучащую строку снова и снова",
-  "reader.film.transcript-title": "Вся расшифровка рядом с видео",
+  "reader.film.transcript-title": "Вся расшифровка под видео",
   "reader.film.part": "Часть {n} из {count}",
   "reader.film.next-part": "Следующая часть",
   "reader.film.next-part-making": "Мы её готовим.",

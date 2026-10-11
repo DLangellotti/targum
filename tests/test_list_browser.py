@@ -801,9 +801,9 @@ def test_at_a_desk_the_end_is_its_own_screen_at_once(browser, tmp_path, panel) -
         page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
         assert page.evaluate("() => document.body.classList.contains('film-theatre')")
-        if not panel:
-            page.evaluate("() => window.TargumVideo && window.TargumVideo.transcript(false)")
-        # Beside the transcript, the press at its foot; with it put away, Finish under
+        if panel:
+            page.evaluate("() => window.TargumVideo && window.TargumVideo.transcript(true)")
+        # Under the transcript, the press at its foot; with it put away, Finish under
         # the picture.
         page.click("#foot .foot-go" if panel else "#video .video-list-next")
         page.wait_for_function("() => document.body.classList.contains('list-ended')")

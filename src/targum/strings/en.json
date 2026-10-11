@@ -2570,7 +2570,7 @@
   "reader.film.loop": "Loop this line",
   "reader.film.loop-short": "Loop",
   "reader.film.loop-title": "Play the line being said again and again",
-  "reader.film.transcript-title": "The whole transcript beside the video",
+  "reader.film.transcript-title": "The whole transcript under the video",
   "reader.film.part": "Part {n} of {count}",
   "reader.film.next-part": "Next part",
   "reader.film.next-part-making": "We're getting it ready.",

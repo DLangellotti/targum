@@ -3,7 +3,8 @@
 A text that carries a video opens with its picture up, standing one of two ways the reader
 chooses in the bar and keeps: Beside — the picture at the left with one thin row of
 controls under it and the transcript beside it — or Theatre — the picture large, the line
-being said under it with its words tappable, and the transcript a panel one press away.
+being said under it with its words tappable, and the transcript one press away, under the
+picture (2026-10-11).
 While it plays everything but the picture, the hairline of where the voice is and the line
 steps back. On a phone it is the picture, its controls and the transcript under them.
 
@@ -94,20 +95,13 @@ def film_open(
 ):
     """A reader with its picture up, standing `view` way if one is given.
 
-    Theatre opens with the transcript in a column at the right since 2026-10-09 (design.md
-    §12, "The reader's chrome is the desk's"). A test of the picture's own size in Theatre
-    asks for it put away, as a reader who closed it once has it (`panel=False`, the default
-    when `view` is Theatre); `panel=True` opens it as a new reader finds it."""
+    Theatre opens with the transcript put away and the line being said under the picture
+    (David, 2026-10-11; design.md §12, "Theatre is the picture with its text under it").
+    `panel=True` presses Transcript once it is open, as a reader who wants it does."""
     context = opened(browser, viewport)
     if view:
         context.add_init_script(
             f"try {{ localStorage.setItem('targum:film-view', '{view}'); }} catch (e) {{}}"
-        )
-    if panel is None:
-        panel = view != "theatre"
-    if not panel:
-        context.add_init_script(
-            "try { localStorage.setItem('targum:film-panel', '0'); } catch (e) {}"
         )
     page = context.new_page()
     page.goto(address(built))
@@ -115,6 +109,9 @@ def film_open(
     page.wait_for_selector(".pair", state="attached")
     page.wait_for_selector("#video:not([hidden])")
     page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
+    if panel and view == "theatre":
+        page.click(".film-transcript")
+        page.wait_for_function("() => document.body.classList.contains('film-panel')")
     return context, page
 
 
@@ -173,8 +170,8 @@ def test_the_switch_is_kept_for_the_reader_not_for_the_text(browser, tmp_path) -
         seen = page.evaluate(FILM)
         assert seen["theatre"] and seen["pressed"] == ["theatre"], seen
         assert seen["stored"] == "theatre", seen
-        # The transcript in a column at the right, as a new reader finds Theatre.
-        assert seen["panel"] and seen["transcript"], seen
+        # The line being said under the picture, as a reader finds Theatre (2026-10-11).
+        assert not seen["panel"] and not seen["transcript"], seen
 
         page.reload()
         page.wait_for_selector("#video:not([hidden])")
@@ -193,74 +190,132 @@ def test_the_switch_is_kept_for_the_reader_not_for_the_text(browser, tmp_path) -
         context.close()
 
 
-def test_theatre_opens_with_the_transcript_at_the_right_until_it_is_put_away(
+#: A desk window, as David's was when he asked for the text under the picture.
+DESK = {"width": 1500, "height": 900}
+
+#: The reading area, the picture, the line under it and the transcript's first line.
+STACK = """
+() => {
+  const r = (s) => {
+    const el = document.querySelector(s);
+    if (!el || !el.getClientRects().length) return null;
+    const b = el.getBoundingClientRect();
+    if (!b.width || !b.height) return null;
+    return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width };
+  };
+  const list = document.getElementById('list');
+  const listed = list && document.body.classList.contains('list-open')
+    ? list.getBoundingClientRect().left : document.documentElement.clientWidth;
+  return {
+    area: listed,
+    picture: r('.film-frame'),
+    row: r('.film-ctl'),
+    sub: r('#film-sub'),
+    transcript: r('#reader'),
+    line: r('#reader .pair.voiced'),
+  };
+}
+"""
+
+LIST_OPEN = """() => {
+  const list = document.createElement('aside');
+  list.id = 'list';
+  list.className = 'list';
+  document.body.appendChild(list);
+  document.body.classList.add('has-list', 'list-open');
+  window.dispatchEvent(new Event('resize'));
+}"""
+
+
+def centred(seen) -> bool:
+    """The picture's middle within a few pixels of the reading area's."""
+    picture = seen["picture"]
+    return abs((picture["left"] + picture["right"]) / 2 - seen["area"] / 2) < 4
+
+
+def test_theatre_is_the_picture_in_the_middle_with_its_text_under_it(
     browser,  # noqa: F811
     tmp_path,
 ) -> None:
-    """Board PlaylistSwipeDesk: Theatre's transcript is a column at the right with its ×.
-    Put away, it stays away on this device; the press brings it back."""
+    """David, 2026-10-11 (design.md §12): "the text is to the right side, the video isn't
+    central. Text is supposed to be underneath." Theatre opens with the picture in the
+    middle and the line being said under it, and the transcript, opened, runs under the
+    picture at the reading measure, centred under it. Nothing about it is kept."""
     built = video_reader(tmp_path, lines=8)
-    context, page = film_open(browser, built, view="theatre", panel=True)
+    context, page = film_open(browser, built, DESK, view="theatre")
     try:
         seen = page.evaluate(FILM)
-        assert seen["theatre"] and seen["panel"] and seen["transcript"], seen
-        at = page.evaluate(BOXES, {"picture": ".film-frame", "line": FIRST_LINE})
-        assert at["line"]["left"] >= at["picture"]["right"], at
-        # The line being said is drawn once, in the transcript; not again under the
-        # picture (audit Q10, 2026-10-09).
+        assert seen["theatre"] and not seen["panel"] and not seen["transcript"], seen
+        at = page.evaluate(STACK)
+        assert centred(at), at
+        assert at["sub"]["top"] >= at["picture"]["bottom"], at
+        assert abs((at["sub"]["left"] + at["sub"]["right"]) / 2 - at["area"] / 2) < 4, at
+
+        page.click(".film-transcript")
+        seen = page.evaluate(FILM)
+        assert seen["panel"] and seen["transcript"], seen
+        at = page.evaluate(STACK)
+        assert centred(at), at
+        assert at["transcript"]["top"] >= at["picture"]["bottom"], at
+        assert at["line"]["top"] >= at["row"]["bottom"], at
+        line = at["line"]
+        assert abs((line["left"] + line["right"]) / 2 - at["area"] / 2) < 4, at
+        assert 400 < line["width"] <= 640, "at the reading measure, not the window's"
+        assert line["bottom"] < DESK["height"], "and on screen under the picture"
+        # The line being said is the transcript's alone (audit Q10, 2026-10-09).
         sub = "() => getComputedStyle(document.getElementById('film-sub')).display"
         assert page.evaluate(sub) == "none"
-        page.click(".film-panel-close")
+
+        # The picture stays at the top while the transcript scrolls under it.
+        page.mouse.move(DESK["width"] / 2, DESK["height"] - 40)
+        page.mouse.wheel(0, 400)
+        page.wait_for_timeout(150)
+        assert page.evaluate("() => window.scrollY") > 0
+        assert page.evaluate(STACK)["picture"]["top"] == at["picture"]["top"]
+
         page.reload()
         page.wait_for_selector("#video:not([hidden])")
         page.wait_for_timeout(100)
         seen = page.evaluate(FILM)
-        assert seen["theatre"] and not seen["panel"], "put away, it stays away"
-        assert page.evaluate(sub) != "none", "with the transcript away the line is under it"
-        page.click(".film-transcript")
-        page.reload()
-        page.wait_for_selector("#video:not([hidden])")
-        page.wait_for_timeout(100)
-        assert page.evaluate(FILM)["panel"], "and the press brings it back for good"
+        assert seen["theatre"] and not seen["panel"], "it opens with the line under it again"
     finally:
         context.close()
 
 
-def test_theatre_keeps_its_transcript_readable_with_the_word_list_open(
+def test_theatre_centres_in_what_the_word_list_leaves(
     browser,  # noqa: F811
     tmp_path,
 ) -> None:
-    """David, 2026-10-10 ("theater mode is not working"): with the word list open beside
-    Theatre's transcript, the transcript's column ignored the list's room and was squeezed
-    to a word a line. Its lines keep the panel's width less its own gutters."""
+    """The word list stays the panel at the right, as on every text, and the picture and
+    its text centre in what is left, with the transcript put away and open. Its lines
+    keep a measure a sentence can be read in (David, 2026-10-10: "theater mode is not
+    working", when the list squeezed a column at the right to a word a line)."""
     built = video_reader(tmp_path, lines=8)
-    context, page = film_open(browser, built, view="theatre", panel=True)
+    context, page = film_open(browser, built, DESK, view="theatre")
     try:
         # The fixture has no words, so no list: one is stood in, open, as a reader with
         # words has it, and the window is told to lay itself out again.
-        page.evaluate(
-            """() => {
-              const list = document.createElement('aside');
-              list.id = 'list';
-              list.className = 'list';
-              document.body.appendChild(list);
-              document.body.classList.add('has-list', 'list-open');
-              window.dispatchEvent(new Event('resize'));
-            }"""
-        )
+        page.evaluate(LIST_OPEN)
         page.wait_for_timeout(200)
-        at = page.evaluate(BOXES, {"picture": ".film-frame", "line": FIRST_LINE})
-        width = page.evaluate("() => document.documentElement.clientWidth")
-        assert at["line"]["left"] >= at["picture"]["right"], at
-        assert at["line"]["right"] <= width - 240 + 1, (at, width)
-        assert at["line"]["right"] - at["line"]["left"] > 300, at
+        at = page.evaluate(STACK)
+        assert at["area"] <= DESK["width"] - 240 + 1, at
+        assert centred(at) and at["picture"]["right"] <= at["area"], at
+        assert at["sub"]["top"] >= at["picture"]["bottom"], at
+
+        page.click(".film-transcript")
+        at = page.evaluate(STACK)
+        assert centred(at) and at["picture"]["right"] <= at["area"], at
+        assert at["transcript"]["top"] >= at["picture"]["bottom"], at
+        line = at["line"]
+        assert line["right"] <= at["area"] + 1 and line["width"] > 400, at
+        assert abs((line["left"] + line["right"]) / 2 - at["area"] / 2) < 4, at
     finally:
         context.close()
 
 
-def test_the_transcript_opens_beside_a_smaller_picture(browser, tmp_path) -> None:  # noqa: F811
-    """In Theatre a press on Transcript opens it as a panel and the picture makes room;
-    the panel's × and the same press shut it."""
+def test_the_transcript_opens_under_a_smaller_picture(browser, tmp_path) -> None:  # noqa: F811
+    """In Theatre a press on Transcript opens it under the picture, and the picture makes
+    room for it; the transcript's × and the same press shut it."""
     built = video_reader(tmp_path, lines=8)
     context, page = film_open(browser, built, view="theatre")
     try:
@@ -271,11 +326,14 @@ def test_the_transcript_opens_beside_a_smaller_picture(browser, tmp_path) -> Non
         assert page.get_attribute(".film-transcript", "aria-pressed") == "true"
         at = page.evaluate(BOXES, {"picture": ".film-frame", "line": FIRST_LINE})
         assert at["picture"]["width"] < wide["width"], "the picture grew smaller for it"
-        assert at["line"]["left"] >= at["picture"]["right"], at
+        assert at["line"]["top"] >= at["picture"]["bottom"], at
         page.click(".film-panel-close")
         seen = page.evaluate(FILM)
         assert not seen["panel"] and not seen["transcript"], seen
         assert page.evaluate("() => document.activeElement.classList.contains('film-transcript')")
+        page.click(".film-transcript")
+        page.click(".film-transcript")
+        assert not page.evaluate(FILM)["panel"], "the press shuts it as well"
     finally:
         context.close()
 

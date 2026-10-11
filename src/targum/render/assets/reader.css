@@ -2570,7 +2570,7 @@ body.paged .credits { margin-block-end: 6rem; }
    Theatre: the picture large, the line being said under it as a line of the transcript
    set large — its words tappable, the word being said lit where the recording was
    aligned word by word, the English small under it, the lines either side faded — and the
-   transcript a panel one press away, the picture growing smaller to make room. While it
+   transcript one press away, under the picture, which stays at the top (2026-10-11). While it
    plays, everything but the picture, a hairline of where the voice is and the line being
    said steps back. On a phone: the picture, its controls, and the transcript under them.
 
@@ -3041,19 +3041,19 @@ body.film .film-views {
   }
 }
 
-/* --- the panel's head, Theatre --- */
+/* --- the transcript's head, Theatre ---
+   At the head of the transcript under the picture, at the transcript's own measure, and
+   scrolled with it: the row's Transcript press, which stays with the picture, shuts it
+   from anywhere (2026-10-11). */
 body.film-panel .film-panel-head:not([hidden]) {
-  position: fixed;
-  z-index: 13;
-  inset-block-start: var(--bar-foot, 3.5rem);
-  right: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   box-sizing: border-box;
-  inline-size: 26.25rem;
+  max-inline-size: 40rem;
   block-size: 3.25rem;
-  padding: 0 1rem 0 1.6rem;
+  margin: 0.75rem auto 0;
+  padding: 0 1.4rem 0 2rem;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--chrome);
@@ -3082,21 +3082,14 @@ body.film-panel .film-panel-head:not([hidden]) {
      direction: the left is where a Hebrew page's lines end and an English page's begin.
      Weighted past the word list's own padding and margins, which are written by the
      reading direction and would otherwise put them on the picture's side. */
-  html:not([dir="rtl"]) body.reader.film.film-beside,
-  html:not([dir="rtl"]) body.reader.film.film-panel { padding-inline-start: var(--film-col, 50vw); }
-  html[dir="rtl"] body.reader.film.film-beside,
-  html[dir="rtl"] body.reader.film.film-panel { padding-inline-end: var(--film-col, 50vw); }
+  html:not([dir="rtl"]) body.reader.film.film-beside { padding-inline-start: var(--film-col, 50vw); }
+  html[dir="rtl"] body.reader.film.film-beside { padding-inline-end: var(--film-col, 50vw); }
   /* The bar is laid out left to right whatever the text, so its start is the left. */
-  body.reader.film.film-beside > .bar,
-  body.reader.film.film-panel > .bar { margin-inline-start: calc(-1 * var(--film-col, 50vw)); }
+  body.reader.film.film-beside > .bar { margin-inline-start: calc(-1 * var(--film-col, 50vw)); }
   body.film main {
     max-width: 40rem;
     margin: 0 auto;
     padding: 1.25rem 2rem 50vh;
-  }
-  body.film-panel main {
-    max-width: none;
-    padding: 3.75rem 1.4rem 50vh 1.2rem;
   }
   body.film .list-tab { display: none; }
   /* The word list, where a reader opens it: at the window's right edge whichever way
@@ -3110,16 +3103,16 @@ body.film-panel .film-panel-head:not([hidden]) {
   html:not([dir="rtl"]) body.reader.film.has-list.list-open { padding-inline-end: 15rem; }
   html[dir="rtl"] body.reader.film.has-list.list-open { padding-inline-start: 15rem; }
   html body.reader.film.has-list.list-open > .bar { margin-inline-end: -15rem; }
-  html body.reader.film-theatre:not(.film-panel).has-list.list-open > .bar { margin-inline-start: 0; }
-  html:not([dir="rtl"]) body.reader.film-theatre:not(.film-panel).has-list.list-open { padding-inline-start: 0; }
-  html[dir="rtl"] body.reader.film-theatre:not(.film-panel).has-list.list-open { padding-inline-end: 0; }
+  html body.reader.film-theatre.has-list.list-open > .bar { margin-inline-start: 0; }
+  html:not([dir="rtl"]) body.reader.film-theatre.has-list.list-open { padding-inline-start: 0; }
+  html[dir="rtl"] body.reader.film-theatre.has-list.list-open { padding-inline-end: 0; }
   body.film-theatre.has-list.list-open .video { right: 15rem; }
-  body.film-panel.has-list.list-open .video { right: 41.25rem; }
-  body.film-panel.has-list.list-open .film-panel-head:not([hidden]) { right: 15rem; }
 
-  /* Theatre: the picture in the middle of what is left of the window, and the line
-     under it. The page underneath is not shown and does not scroll; with the transcript
-     open the picture keeps the window to the panel's edge. */
+  /* Theatre: the picture in the middle of what is left of the window, and its text
+     under it (David, 2026-10-11; design.md §12). With the transcript put away the page
+     underneath is not shown and does not scroll. With it open, the picture stands at the
+     top under the bar, still in the middle, and the transcript scrolls under it at the
+     reading measure — one column, as on a phone, where Beside is two. */
   body.film-theatre .video {
     inset-inline: 0;
     left: 0;
@@ -3127,9 +3120,12 @@ body.film-panel .film-panel-head:not([hidden]) {
     align-items: center;
     inline-size: auto;
   }
-  body.film-panel .video {
-    right: 26.25rem;
-    border-right: 1px solid var(--rule);
+  html body.reader.film-theatre.film-panel .video {
+    position: sticky;
+    inset-block: var(--bar-foot, 3.5rem) auto;
+    inset-inline: auto;
+    padding-block-end: 0.25rem;
+    border-block-end: 1px solid var(--rule);
   }
   body.film-theatre .film-about { display: none; }
   body.film-theatre .film-sub {
@@ -3786,8 +3782,6 @@ body.list-handed .video-el { visibility: hidden; }
   html[dir="rtl"] body.reader.has-list-rail:not(.list-open) { padding-inline-start: 7rem; }
   body.has-list-rail:not(.list-open) > .bar { margin-inline-end: -7rem; padding-inline-end: 8.5rem; }
   body.film-theatre.has-list-rail:not(.list-open) .video { right: 7rem; }
-  body.film-panel.has-list-rail:not(.list-open) .video { right: 33.25rem; }
-  body.film-panel.has-list-rail:not(.list-open) .film-panel-head:not([hidden]) { right: 7rem; }
 }
 .list-rail-name {
   margin: 0;
@@ -5137,7 +5131,7 @@ body.film-splitting { user-select: none; -webkit-user-select: none; cursor: col-
    from under the transcript: the same press, the same Undo, the same count. */
 .film-end[hidden] { display: none; }
 body.film-ended .film-sub { display: none; }
-/* With the transcript open beside a large picture, the line being said is the
+/* With the transcript open under a large picture, the line being said is the
    transcript's alone, lit there: set again under the picture it was read twice (audit
    Q10, 2026-10-09). */
 body.film-theatre.film-panel .film-sub { display: none; }
