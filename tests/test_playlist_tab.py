@@ -254,9 +254,10 @@ def test_a_playlist_is_a_page_of_its_own(box: tuple[int, str, Path]) -> None:
     _, made = send(port, "POST", "/playlists", {"name": "Own page"}, mine)
     status, page = send(port, "GET", f"/playlists/{made['id']}", session=mine)
     assert status == 200 and b'id="one"' in page
-    # Signed out, a person looking at it meets a page, not a 401 in JSON.
+    # Signed out, a person looking at it meets the sign-in door carrying it, not a 401
+    # in JSON (QA 2026-10-11, decision D2).
     status, page = send(port, "GET", f"/playlists/{made['id']}")
-    assert status == 200 and not page.startswith(b"{")
+    assert status == 303 and not page.startswith(b"{")
 
 
 def test_the_row_you_are_on_says_where_you_stopped(box: tuple[int, str, Path]) -> None:
