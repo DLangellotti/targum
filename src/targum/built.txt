@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-10
+Listening has a view of its own: the picture, the line being said, and steps by line, also on a locked screen.
+Upload can record your voice again, beside choosing a file.
+Hearing a section aloud shows how far the audio has got, and plays it when it is ready.
+
 2026-10-09
 One search opens from every page, forgives spelling, and finds Hebrew typed in Latin letters.
 A text once opened can be read with no connection, and what you do offline is kept for when you are back.
