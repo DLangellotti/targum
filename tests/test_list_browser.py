@@ -842,3 +842,38 @@ def test_at_a_desk_the_end_is_its_own_screen_at_once(browser, tmp_path, panel) -
         assert text.index("You met 1 word") < text.index("Your playlists")
     finally:
         context.close()
+
+
+def test_in_a_short_window_the_playlist_row_stays_clear_of_the_rail(browser, tmp_path) -> None:  # noqa: F811
+    """A playlist's row carries Back, Next with its picture and title, and the play-on
+    switch. In a window 1138 by 526 the picture was narrow, the row took its width, and
+    Next ran out to the right under the rail (David, 2026-10-11, a screenshot). The row
+    stands at its own measure now, and ends before the rail begins."""
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two), viewport={"width": 1138, "height": 526})
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-rail")
+        page.wait_for_selector(".list-key.video-list-next.has-next")
+        seen = page.evaluate(
+            """() => {
+              const ctl = document.querySelector('.film-ctl');
+              const rail = document.getElementById('list-rail').getBoundingClientRect();
+              const key = document.querySelector('.list-key.video-list-next');
+              const next = key.getBoundingClientRect();
+              const on = document.querySelector('.list-play-on').getBoundingClientRect();
+              return {
+                overflow: ctl.scrollWidth - ctl.clientWidth,
+                rail: rail.left,
+                next: next.right,
+                on: on.right,
+                title: !!document.querySelector('.video-list-title').getClientRects().length,
+              };
+            }"""
+        )
+        assert seen["overflow"] <= 0, seen
+        assert seen["next"] <= seen["rail"] and seen["on"] <= seen["rail"], seen
+        assert seen["title"], "a desk's Next says where"
+    finally:
+        context.close()
