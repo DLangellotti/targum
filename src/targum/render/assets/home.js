@@ -193,8 +193,10 @@
      builds still running. One card a text. */
   function gatherContinue(readers, places, building, opened, code, most) {
     var byDocument = {};
+    var byFolder = {};
     readers.forEach(function (reader) {
       if (reader.document) byDocument[reader.document] = reader;
+      if (reader.name) byFolder[reader.name] = reader;
     });
     var seen = {};
     var cards = [];
@@ -202,13 +204,24 @@
       return !code || !language || shelf.base(language) === code;
     }
     places.forEach(function (place) {
-      if (seen[place.hash]) return;
-      var reader = byDocument[place.hash];
+      // A text's hash changes when it is rebuilt, so a place left before a rebuild holds
+      // a hash no reader on the shelf has. Its address still names the text's folder,
+      // which a rebuild keeps: one video was three cards on 2026-10-11, two of them
+      // without a title, until the folder was asked too.
+      var folder = folderOf(place.path);
+      var reader = byDocument[place.hash] || (folder && byFolder[folder]) || null;
+      if (seen[place.hash] || (folder && seen["/" + folder])) return;
       if (!reader && !place.path) return;
+      // A place with no text on the shelf and no title of its own would be a card with
+      // nothing to say what it is.
+      if (!reader && !place.title) return;
       var language = reader ? reader.language : place.language;
       if (!inCode(language)) return;
+      // Places come newest first, so the first one for a text is where Pick up goes.
       seen[place.hash] = true;
-      cards.push({ at: place.at, reader: reader || null, place: place });
+      if (folder) seen["/" + folder] = true;
+      if (reader && reader.document) seen[reader.document] = true;
+      cards.push({ at: place.at, reader: reader, place: place });
     });
     readers.forEach(function (reader) {
       if (!reader.document || seen[reader.document] || !inCode(reader.language)) return;

@@ -43,6 +43,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+# The folder a reader's address names, `/reader/<name>/…`: what a text keeps through a
+# rebuild that gives it a new hash, and so what tells one text's places apart.
+_READER_FOLDER = re.compile(r"/reader/([^/?#]+)")
+
 # Long enough that guessing is not a strategy, short enough to paste into a browser.
 TOKEN_BYTES = 32
 
@@ -4248,6 +4252,11 @@ class Store:
         For Continue — the contents page asks for one text's, home for the last few. A
         text taken off the shelf is left out; its place stays, so putting it back
         brings it back where it was.
+
+        One text is one place, newest, though it may have several rows: a rebuild gives
+        it a new hash, and the place left before it keeps the old one. The folder its
+        `path` names survives the rebuild, so places are told apart by that, and by hash
+        where there is no path (2026-10-11).
         """
         if person_id is None:
             return []
@@ -4262,9 +4271,18 @@ class Store:
             " COALESCE(d.title, '') AS title, COALESCE(d.language, '') AS language"
             " FROM place p LEFT JOIN doc d ON d.person = p.person AND d.hash = p.hash"
             f" WHERE {where} ORDER BY p.at DESC LIMIT ?",
-            (*args, limit),
+            (*args, self.PLACES_AT_MOST),
         ).fetchall()
-        return [dict(row) for row in rows]
+        kept: list[dict[str, Any]] = []
+        texts: set[str] = set()
+        for row in rows:
+            found = _READER_FOLDER.match(str(row["path"] or ""))
+            text = "/" + found.group(1) if found else str(row["hash"])
+            if text in texts:
+                continue
+            texts.add(text)
+            kept.append(dict(row))
+        return kept[:limit]
 
     def read_times(self, person_id: int | None) -> dict[str, dict[str, int]]:
         """When this person last opened each text and when they finished it, by hash, in

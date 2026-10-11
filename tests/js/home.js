@@ -1,0 +1,45 @@
+/* Runs what home's Continue would hold (`home.js`, `TargumHome.gather`) and reports it.
+ *
+ *   node tests/js/home.js payload.json
+ *
+ * The payload is the shelf's readers, the places the account handed back, newest first,
+ * and the language the page is in. What comes back is one entry a card: the document of
+ * the reader it carries, if any, and the hash and path of the place it picks up at.
+ */
+
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const { install } = require("./dom.js");
+
+const payload = JSON.parse(fs.readFileSync(process.argv[2], "utf-8"));
+const assets = path.resolve(__dirname, "../../src/targum/render/assets");
+
+install({
+  TARGUM_KEY: "k",
+  TARGUM_LANGUAGES: { he: "Hebrew", en: "English", ru: "Russian" },
+  TargumLang: { HOME: "he", order: (codes) => codes, current: () => "he", set: () => {} },
+});
+
+require(path.join(assets, "strings.js"));
+require(path.join(assets, "charts.js"));
+require(path.join(assets, "covers.js"));
+require(path.join(assets, "shelf.js"));
+require(path.join(assets, "home.js"));
+
+const cards = global.window.TargumHome.gather(
+  payload.readers || [],
+  payload.places || [],
+  payload.building || [],
+  payload.opened || {},
+  payload.code || "he"
+);
+process.stdout.write(
+  JSON.stringify(
+    cards.map((card) => ({
+      reader: card.reader ? card.reader.document : null,
+      place: card.place ? { hash: card.place.hash, path: card.place.path } : null,
+    }))
+  )
+);
