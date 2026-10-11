@@ -1185,7 +1185,13 @@ def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
 
 @pytest.mark.parametrize(
     ("language", "width", "one_line"),
-    [("en", 768, False), ("ru", 768, False), ("ru", 834, False), ("en", 1024, True), ("ru", 1024, True)],
+    [
+        ("en", 768, False),
+        ("ru", 768, False),
+        ("ru", 834, False),
+        ("en", 1024, True),
+        ("ru", 1024, True),
+    ],
 )
 def test_the_header_never_runs_past_a_tablet(
     browser, tmp_path: Path, language: str, width: int, one_line: bool

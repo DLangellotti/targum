@@ -709,3 +709,51 @@ def test_no_word_from_the_data_layer_reaches_the_screen() -> None:
         for where, text in said:
             for pattern in patterns:
                 assert not re.search(pattern, text), f"{code} {where}: {text!r}"
+
+
+def test_every_sentence_a_desk_script_asks_for_rides_with_the_page() -> None:
+    """QA 2026-10-11: in Russian, /you said "Learning" and all eight levels in English, the
+    chat's word table said WORD and MEANING, and the arrival's shelf named its kinds in
+    English — every one of them in `ru.json`, and each page's prefix list leaving it out.
+    A page now carries every catalogued key its own scripts call."""
+    from targum.render.builder import (
+        LISTS,
+        add_page,
+        chat_page,
+        library_page,
+        list_page,
+        playlists_page,
+        progress_page,
+        saved_page,
+        subscription_page,
+        tanakh_map_page,
+        welcome_page,
+        you_page,
+    )
+    from targum.strings import catalogue
+
+    known = catalogue("ru")
+    pages = {
+        "progress": progress_page("k", language="ru"),
+        "tanakh": tanakh_map_page("k", language="ru"),
+        "welcome": welcome_page("k", language="ru"),
+        "you": you_page("k", language="ru"),
+        "saved": saved_page("k", language="ru"),
+        "playlists": playlists_page("k", language="ru"),
+        "subscription": subscription_page("k", language="ru"),
+        "add": add_page("k", language="ru"),
+        "library": library_page("k", language="ru"),
+        "chat": chat_page("k", language="ru"),
+        "embedded": chat_page("k", embed=True, language="ru"),
+        **{f"lists:{which}": list_page("k", which, language="ru") for which in LISTS},
+    }
+    unsaid = {}
+    for name, html in pages.items():
+        at = re.search(r"window\.TARGUM_STRINGS\s*=\s*", html)
+        assert at, f"{name} carries no strings in Russian"
+        given = json.JSONDecoder().raw_decode(html, at.end())[0]["strings"]
+        called = set(re.findall(r'\btn?\(\s*"([a-z0-9][a-z0-9._-]*)"', html))
+        gone = sorted(key for key in called if key in known and key not in given)
+        if gone:
+            unsaid[name] = gone
+    assert not unsaid, f"said in English on a Russian page: {unsaid}"
