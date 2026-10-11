@@ -432,3 +432,20 @@ def test_a_restore_brings_back_everything_the_progress_page_counts(tmp_path: Pat
     assert after["docs"][0]["done"] == 9 and after["docs"][0]["opened"] == 4
     assert back.profile(same)["name"] == "Ruth"
     assert back.learning(same.id) == {"he", "yi"} and back.reads(same.id) == {"en", "ru"}
+
+
+def test_the_export_carries_what_the_reader_set(tmp_path: Path) -> None:
+    """QA 2026-10-11: the export promised everything and carried four columns of the
+    person — the form of address, the subjects, the level named on arrival and the rest
+    of what a reader sets were held and not handed over."""
+    store = Store(tmp_path / "targum.db")
+    person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
+    store.set_address(person, "f")
+    store.set_interest(person, ["news", "history"])
+    rung = store.set_declared(person, "bet")
+    settings = store.everything(person)["settings"]
+    assert settings["address"] == "f"
+    assert settings["interest"] == ["news", "history"]
+    assert settings["declared"] == rung
+    assert settings["record"] == "kept"
+    assert "token" not in json.dumps(settings)
