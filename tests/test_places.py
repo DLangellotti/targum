@@ -160,3 +160,26 @@ def test_words_due_a_look_are_the_ones_still_learned_and_untouched_since(tmp_pat
     assert store.due_a_look(person.id, "he", since=500) == 2
     assert store.due_a_look(person.id, "he") == 3
     assert store.due_a_look(person.id, "ru", since=500) == 1
+
+
+def test_a_text_rebuilt_under_a_new_hash_is_one_place(tmp_path: Path) -> None:
+    """A rebuild gives a text a new hash, and the places left before it keep the old one.
+    The folder their address names is the same text, so Continue is handed it once, at
+    the newest place (2026-10-11: one video came back three times)."""
+    store = Store(tmp_path / "words.db")
+    person = somebody(store)
+    folder = "/reader/da0mnhlnbhk-he/reader/"
+    store.push(
+        person,
+        {
+            "places": [
+                place("cd3e", 300, section="2", path=folder + "sec-0002.html"),
+                place("2fac", 200, section="2", path=folder + "sec-0002.html"),
+                place("2ffe", 100, section="1", path=folder + "sec-0001.html"),
+                place("ruth", 50, section="1"),
+                place("gen", 40, section="1"),
+            ]
+        },
+    )
+    assert [row["hash"] for row in store.places(person.id)] == ["cd3e", "ruth", "gen"]
+    assert [row["hash"] for row in store.places(person.id, limit=2)] == ["cd3e", "ruth"]
