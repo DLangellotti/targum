@@ -144,7 +144,7 @@ body {
 .site-nav a:hover { color: var(--bar-ink); background: rgb(255 253 249 / 0.08); }
 .site-nav a.on { color: var(--bar-ink); background: rgb(255 253 249 / 0.10); box-shadow: inset 0 -2px 0 var(--teal); }
 
-/* Under 46rem the things in the bar — name, four places, account, light switch — do
+/* Under 56rem the things in the bar — name, four places, account, light switch — do
    not fit on one line. Left to wrap on their own, the name took the first line alone
    with dead paper beside it, and the places sat indented under it (with Upload, when it
    was a corner here, cut off at the edge): their auto margin, which is what pushes them
@@ -171,7 +171,12 @@ body {
   html:lang(ru) .site-nav .nav-many { text-transform: capitalize; }
 }
 
-@media (max-width: 46rem) {
+/* The two lines start at 56rem, not 46rem (QA 2026-10-11). Between them the one row did
+   not fit and the account was pushed past the edge of the window, so the whole page
+   scrolled sideways: 737–793px signed out in English, and 737–840px on every desk page
+   in Russian, whose places are longer — an iPad held upright is 768 to 834. 56rem
+   clears the longest row measured (Russian, Aramaic's «Экспериментальный» badge). */
+@media (max-width: 56rem) {
   .site-head-row { flex-wrap: wrap; row-gap: 0; }
   .site-head-row::before { content: ""; order: 1; flex: 1 0 100%; height: 0; }
   .site-head-row .notices { margin-inline-start: auto; }
