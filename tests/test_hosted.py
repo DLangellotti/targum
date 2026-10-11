@@ -1315,3 +1315,19 @@ def test_a_corrected_line_said_known_leaves_the_queue_and_not_the_record(
     assert _signed_post(port, "/slips/999999", {"known": True}, session)[0] == 404
     assert _signed_post(port, "/slips/nonsense", {"known": True}, session)[0] == 404
     assert _signed_post(port, f"/slips/{mine}", {"known": True}, "")[0] == 401
+
+
+def test_a_strangers_404_is_the_doors_page_and_asks_for_nothing(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """QA 2026-10-11: a signed-out visitor at an address that is not a page met the whole
+    desk — the four places, the bell and the AI Assistant, each a door that would only
+    ask them to sign in — and the page asked for their jobs and conversations and was
+    refused. A stranger gets the door's bar; somebody signed in keeps the desk."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    status, body = ask(port, "/no-such-page", "targum.page")
+    assert status == 404
+    page = body.decode()
+    assert 'class="site-nav door-nav"' in page
+    assert 'id="talk-open"' not in page and 'id="notices-open"' not in page
