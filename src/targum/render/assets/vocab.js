@@ -258,8 +258,8 @@
   // the words page. They ask the same two questions — how well do you know this, and
   // what do you want it to say — so they ask them the same way.
   //
-  // `options.status` is what it is now; `onStatus` is handed the new one, or null when
-  // the setting is taken off by pressing the one already chosen. `onNote` is handed the
+  // `options.status` is what it is now; `onStatus` is handed the new one, and is not
+  // called for a press of the one already chosen (QA 2026-10-11, D8). `onNote` is handed the
   // text you typed, on the way out of the field rather than on every keystroke.
   // `levels: false` draws the field alone: a phrase not kept yet offers its meaning to
   // be written before it offers a scale (2026-09-15).
@@ -317,7 +317,12 @@
         // pressed over a definition you have just written is you saving both — never you
         // taking the mark off, whatever the level happened to be already.
         commitNote();
-        if (options.onStatus) options.onStatus(on && !touched ? null : step.value);
+        // The stage a word already has, pressed again, is no change: it stays, nothing is
+        // written and nothing is sent. It used to take the mark off, so a second tap
+        // meant as a confirmation silently un-marked the word (QA 2026-10-11, decision
+        // D8). A word leaves its stage by another stage, or by ignore.
+        if (on && !touched) return;
+        if (options.onStatus) options.onStatus(step.value);
       });
       scale.appendChild(button);
     });

@@ -2941,7 +2941,19 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     page.locator("#word-rows tr", has_text="עיר").locator(".level-3").click()
     page.wait_for_timeout(200)
     stored = page.evaluate("JSON.parse(localStorage.getItem('targum:vocab:he'))['עיר'].status")
+    # And 3 pressed again changes nothing: still 3, not written again, still pressed (QA
+    # 2026-10-11, decision D8). The row used to write the word again on a second press.
+    word = "JSON.parse(localStorage.getItem('targum:vocab:he'))['עיר']"
+    first = page.evaluate(word)
+    page.wait_for_timeout(20)
+    row = page.locator("#word-rows tr", has_text="עיר")
+    row.locator(".level-3").click()
+    page.wait_for_timeout(200)
+    again = page.evaluate(word)
+    still = row.locator(".level-3").get_attribute("aria-pressed")
     context.close()
+    assert again == first, f"a second press of 3 wrote the word again: {first} → {again}"
+    assert still == "true"
 
     assert got["back"].startswith("/progress")
     assert got["summary"] == "3 on your list · 1 known"
