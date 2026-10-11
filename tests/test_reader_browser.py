@@ -7418,3 +7418,28 @@ def test_the_way_home_answers_a_thumb_over_44px(browser, built: Path) -> None:
     context.close()
     assert not reach.get("missing"), "a served reader has its way home"
     assert reach["across"] and reach["up"] and reach["edgeIsTheBars"], reach
+
+
+def test_the_reader_rings_its_focus_in_teal(browser, built: Path) -> None:
+    """§4, §12 "The focus ring is teal everywhere" (QA 2026-10-11, decision D3): the gold
+    was 2.71:1 on the reader's paper. Computed off a control reached by the keyboard."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    seen = []
+    for _ in range(8):
+        page.keyboard.press("Tab")
+        seen.append(
+            page.evaluate(
+                """() => { const el = document.activeElement;
+                    if (!el || el === document.body) return null;
+                    const s = getComputedStyle(el);
+                    return [el.className || el.tagName, s.outlineStyle, s.outlineColor]; }"""
+            )
+        )
+    context.close()
+    rings = [one for one in seen if one and one[1] != "none"]
+    assert rings, f"nothing Tab reached drew a ring: {seen}"
+    for where, _, colour in rings:
+        assert colour == "rgb(31, 111, 107)", f"{where} rings in {colour}"
