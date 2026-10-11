@@ -1502,8 +1502,12 @@ def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
             """() => {
               const send = document.getElementById('chat-send').getBoundingClientRect();
               const thread = document.getElementById('chat-thread');
+              const bar = document.querySelector('.site-nav').getBoundingClientRect();
               return {
                 sendBottom: send.bottom,
+                room: thread.clientHeight,
+                barTop: getComputedStyle(document.querySelector('.site-nav')).position === 'fixed'
+                  ? bar.top : innerHeight,
                 turns: document.querySelectorAll('.chat-turn').length,
                 scrolls: thread.scrollHeight > thread.clientHeight,
                 labels: [...document.querySelectorAll('.chat-who')].length,
@@ -1516,6 +1520,10 @@ def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
         got = seen[width]
         assert got["turns"] == 60
         assert got["sendBottom"] <= height + 1, f"Send in view at {width}px: {got}"
+        # QA 2026-10-11: the site's foot stood inside the one screen and left the thread
+        # 32px on a phone; and the box must stand above the phone's bar of places.
+        assert got["room"] >= 0.3 * height, f"the thread has the screen at {width}px: {got}"
+        assert got["sendBottom"] <= got["barTop"] + 1, f"Send above the bar at {width}px: {got}"
         assert got["scrolls"], "the thread scrolls inside itself"
         assert got["labels"] == 0, "no word over a turn"
         assert got["motion"] == "none", "asked for no motion, given none"
