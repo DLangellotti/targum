@@ -808,7 +808,8 @@ def test_the_grip_answers_the_keyboard(browser, tmp_path) -> None:  # noqa: F811
         ring = page.evaluate(
             "() => getComputedStyle(document.querySelector('.film-size')).outlineColor"
         )
-        assert ring == "rgb(184, 147, 94)", f"the focus colour: {ring}"
+        # On the film's ink frame the ring is teal on ink (design.md §12, 2026-10-11).
+        assert ring == "rgb(111, 184, 179)", f"the focus colour, on ink: {ring}"
         page.keyboard.press("ArrowDown")
         assert page.evaluate(SIZE)["value"] == 100
         page.keyboard.press("Home")
@@ -973,7 +974,7 @@ def test_the_split_answers_the_keyboard_and_stands_only_beside(browser, tmp_path
         ring = page.evaluate(
             "() => getComputedStyle(document.getElementById('film-split')).outlineColor"
         )
-        assert ring == "rgb(184, 147, 94)", f"the focus colour: {ring}"
+        assert ring == "rgb(31, 111, 107)", f"the focus colour: {ring}"
         page.click("[data-film-view='theatre']")
         assert not page.locator("#film-split").is_visible(), "Theatre has its own grip"
     finally:

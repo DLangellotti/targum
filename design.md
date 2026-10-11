@@ -126,10 +126,12 @@ two are **ink-panel only**.
 
 ### Supporting
 
-Focus ring `#b8935e`, inside the product. On the public pages (the front door, /connect, the
-weekly, the parasha and the dailies), which stand on the desk's ground, the ring is teal
-`#1f6f6b`: the gold measures 2.31:1 on `#ece7de`, under WCAG 1.4.11's 3:1, and teal is
-4.8:1 there and is already a focused field's ring (§13). See §12, 2026-10-02. The mark's translation column on paper is its own value, `#a5824f` —
+Focus ring `#1f6f6b`, teal, everywhere: the desk, the reader and the public pages alike.
+It is 4.81:1 on the ground `#ece7de`, 5.83:1 on a card `#fffdf9` and 5.63:1 on the
+reader's paper `#fbf9f5`, where the gold it replaced measured 2.31, 2.80 and 2.71, under
+WCAG 1.4.11's 3:1. On an ink surface — a film's frame — the ring is teal on ink,
+`#6fb8b3` (7.91:1 on `#171614`), since teal itself is only 3.05:1 there. See §12,
+2026-10-11. The gold `#b8935e` stays the mark's and the mail's, and is never a ring. The mark's translation column on paper is its own value, `#a5824f` —
 the working accent goes muddy at 22 px wide. Deep paper is structural: desk `#ece7de`, rail
 `#e7e1d6`, divider `#e6e1d8` — never a text background.
 
@@ -231,7 +233,7 @@ arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the contr
   rest, raised, floating. A hairline (ink at 8%) stands only where two same-tone
   surfaces meet.
 - Hover lifts muted to ink; row hovers are 7–10% accent washes. Selection is ink-soft with
-  paper text. Focus is a 2px `#b8935e` ring. In the reader a hovered line wears the same
+  paper text. Focus is a 2px `#1f6f6b` ring (`#6fb8b3` on ink). In the reader a hovered line wears the same
   raised band as the line being said — except while a voice is going, when the band is
   the voice's alone and a hovered line takes a 1px rule outline instead, so the pointer
   never reads as the voice having jumped (targum-internal#420).
@@ -383,6 +385,33 @@ targums under a full-height sheet, and the page they asked for was behind it.
   where it was.
 - **At a desk nothing changes.** A drawer left open comes back beside the next page,
   undimmed and under its bar.
+
+### The focus ring is teal everywhere — 2026-10-11
+
+David, 2026-10-11, QA decision D3. The public pages moved their ring to teal on
+2026-10-02 and left the product's gold, on the reasoning that the reader stands on paper
+and the gold is the product's own. Measured, the gold does not hold up on paper either:
+2.71:1 on the reader's `#fbf9f5`, 2.48:1 on raised paper `#f3efe7`, 2.80:1 on a card
+`#fffdf9` and 2.31:1 on the desk's ground `#ece7de` — every one under the 3:1 WCAG 1.4.11
+asks of a focus indicator. So a keyboard reader inside the product could not reliably see
+where they were, and the app had two focus colours.
+
+- **`--focus` is `#1f6f6b`.** Teal measures 5.63:1 on the reader's paper, 5.17:1 on
+  raised paper, 5.83:1 on a card and 4.81:1 on the ground. It is the colour a focused
+  field already rings in (§13), so a field and a button now say "here" the same way.
+  One token, in `tokens.css` and in the two public sheets that carry their own copy of
+  the tokens; the 2026-10-02 override on the front door goes, since the token says it.
+- **On ink, teal on ink.** Teal is 3.05:1 on the film's frame `#171614`, which passes by a
+  hair, and §4 already gives teal on ink as `#6fb8b3` (7.91:1). The frame sets `--focus`
+  to `--focus-on-ink`, so the picture's own presses (play or pause, the size grip) ring
+  in that. No other focusable control stands on an ink surface today; one that does
+  takes the same line.
+- **The gold stays where it is not focus.** The mail's mark keeps `#b8935e`, and so does
+  /connect's underline under the chosen app, which had borrowed `--focus` for it and now
+  names the value.
+
+`test_brand.py` holds `--focus` to teal and `--focus-on-ink` to `#6fb8b3`, and fails any
+stylesheet whose ring or `--focus` is the gold.
 
 ### The row under the picture goes to the next part — 2026-10-11
 
@@ -3220,8 +3249,8 @@ A design review measured the gold ring at 2.31:1 on the desk's ground and 2.80:1
 cards; WCAG 1.4.11 asks 3:1 of a focus indicator. The public pages stand on that ground
 everywhere. There the ring draws in teal, 4.8:1, the colour a focused field already
 rings in (§13), so those pages now have one focus colour rather than two. `--focus`
-itself is unchanged: the reader stands on paper, where the gold is the product's own,
-and `test_brand.py` still holds the token to it.
+itself was left gold for the reader, on paper; since 2026-10-11 it is teal everywhere
+("The focus ring is teal everywhere").
 
 ### The front door keeps its look and moves its promise up — 2026-10-02
 

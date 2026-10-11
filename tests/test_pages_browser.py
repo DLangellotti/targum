@@ -2951,7 +2951,19 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     page.locator("#word-rows tr", has_text="עיר").locator(".level-3").click()
     page.wait_for_timeout(200)
     stored = page.evaluate("JSON.parse(localStorage.getItem('targum:vocab:he'))['עיר'].status")
+    # And 3 pressed again changes nothing: still 3, not written again, still pressed (QA
+    # 2026-10-11, decision D8). The row used to write the word again on a second press.
+    word = "JSON.parse(localStorage.getItem('targum:vocab:he'))['עיר']"
+    first = page.evaluate(word)
+    page.wait_for_timeout(20)
+    row = page.locator("#word-rows tr", has_text="עיר")
+    row.locator(".level-3").click()
+    page.wait_for_timeout(200)
+    again = page.evaluate(word)
+    still = row.locator(".level-3").get_attribute("aria-pressed")
     context.close()
+    assert again == first, f"a second press of 3 wrote the word again: {first} → {again}"
+    assert still == "true"
 
     assert got["back"].startswith("/progress")
     assert got["summary"] == "3 on your list · 1 known"
@@ -3019,3 +3031,33 @@ def test_no_card_sits_in_a_card_and_no_tab_is_underlined(
     for tab in got["tabs"]:
         assert tab["radius"] == "999px", f"{name}: a tab that is not a pill: {tab}"
         assert tab["under"] == "0px" and tab["line"] != "underline", f"{name}: {tab}"
+
+
+#: §4, §12 "The focus ring is teal everywhere" (QA 2026-10-11, decision D3): the gold ring
+#: was 2.31:1 on the ground. Computed, so a rule that names a colour of its own fails too.
+TEAL = "rgb(31, 111, 107)"
+
+
+@pytest.mark.parametrize("name", ["library", "progress", "you"])
+def test_a_desk_page_rings_its_focus_in_teal(browser, tmp_path: Path, name: str) -> None:
+    page_file = tmp_path / f"{name}.html"
+    page_file.write_text(pages()[name], encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.goto(page_file.as_uri())
+    seen = []
+    for _ in range(6):
+        open_page.keyboard.press("Tab")
+        seen.append(
+            open_page.evaluate(
+                """() => { const el = document.activeElement;
+                    if (!el || el === document.body) return null;
+                    const s = getComputedStyle(el);
+                    return [el.className || el.tagName, s.outlineStyle, s.outlineColor]; }"""
+            )
+        )
+    context.close()
+    rings = [one for one in seen if one and one[1] != "none"]
+    assert rings, f"{name}: nothing Tab reached drew a ring: {seen}"
+    for where, _, colour in rings:
+        assert colour == TEAL, f"{name}: {where} rings in {colour}"

@@ -63,8 +63,10 @@ body.connect { background: var(--ground); }
   letter-spacing: 0;
   max-inline-size: none;
 }
-/* The chosen app's name, in the primary over the mark's gold (board ConnConnect). */
-.cn-app { color: var(--teal); border-block-end: 3px solid var(--focus); white-space: nowrap; }
+/* The chosen app's name, in the primary over the mark's gold (board ConnConnect).
+   The gold by value: it borrowed `--focus` while that was gold, and the ring is teal
+   now (design.md §12, 2026-10-11). */
+.cn-app { color: var(--teal); border-block-end: 3px solid #b8935e; white-space: nowrap; }
 .cn-lede { font-size: 1.25rem; line-height: 1.55; color: var(--ink); max-inline-size: 520px; }
 
 /* The address: a field with Copy at its end. */
