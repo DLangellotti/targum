@@ -1942,3 +1942,18 @@ def test_a_rung_that_arrives_after_the_page_drew_is_drawn_at_once() -> None:
     assert moved["queueAfterAccount"] == ["b", "c", "d"]
     still = banded("dalet", declaredLater="")
     assert still["queueAfterAccount"] == ["c", "d"], "an answer with no rung changes nothing"
+
+
+def test_an_assumed_word_is_not_counted_as_known() -> None:
+    """QA 2026-10-11, READER-06, decision D5: the reader said 25% known of a text its
+    contents page said 0% of, because the reader counted the words it assumed from the
+    rung and the contents page counted marks. Every share counts marks only; the
+    assumed words still leave the queue and "N left" (design.md §12, "Known means
+    marked, everywhere a share is shown")."""
+    done = banded("dalet")
+    assert done["counted"]["bar"].startswith("0 of 4 known"), done["counted"]
+    assert "2 left" in done["counted"]["bar"], "the assumed words are still not asked about"
+    assert done["counted"]["list"].startswith("0% known here"), done["counted"]
+    marked = banded("dalet", levels=[{"word": "c", "status": 9}])
+    assert marked["counted"]["bar"].startswith("1 of 4 known"), marked["counted"]
+    assert marked["counted"]["list"].startswith("25% known here"), marked["counted"]

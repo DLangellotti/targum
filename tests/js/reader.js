@@ -396,6 +396,9 @@ process.stdout.write(
       : null,
     // The first-time line under the bar, after everything above.
     first: { hidden: Boolean(byId.first.hidden), text: byId.first.textContent },
+    // What the page says you know of this text: the bar's "N of M known" and the list's
+    // share. Marked words only (design.md §12, "Known means marked", 2026-10-11).
+    counted: { bar: byId.known.textContent, list: byId["list-stats"].textContent },
     // The foot's one block (design.md §12, "The foot is one block"): what the press says,
     // the quiet way under it, and whether the ink block of a finish is up.
     foot: reader.footSays(),

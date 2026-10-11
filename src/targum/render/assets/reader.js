@@ -3383,15 +3383,16 @@ var targumReader = function () {
   // know it is choosing what to read next, so it counts this text and not the language.
   function coverage() {
     var here = lemmasHere();
-    // `assumed` is inside `known`: the count is of what the page still asks about, and
-    // it no longer asks about those. Kept apart as well so nothing mistakes it for marks.
+    // `known` is marks only. An assumed word is neither known nor fresh: the page does
+    // not ask about it, so it stays out of "N left" and the queue, and the reader did not
+    // say it, so it stays out of every share — the bar's "N of M known", the list's
+    // share, the finish box. The contents page and the Library count marks, and one text
+    // read 25% here and 0% there (QA 2026-10-11, READER-06, decision D5).
     var counts = { total: here.length, learning: 0, known: 0, ignored: 0, fresh: 0, assumed: 0 };
     here.forEach(function (lemma) {
       var status = statusOf(lemma);
-      if (status === undefined && assumedOf(lemma)) {
-        counts.known += 1;
-        counts.assumed += 1;
-      } else if (status === undefined) counts.fresh += 1;
+      if (status === undefined && assumedOf(lemma)) counts.assumed += 1;
+      else if (status === undefined) counts.fresh += 1;
       else if (status === KNOWN) counts.known += 1;
       else if (status === IGNORED) counts.ignored += 1;
       else counts.learning += 1;
