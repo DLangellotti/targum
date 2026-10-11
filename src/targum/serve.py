@@ -5292,7 +5292,11 @@ class Handler(BaseHTTPRequestHandler):
     def _not_found(self) -> None:
         """A page that is not there, said as a page (2026-09-14): a bare `not found` in
         plain text, or the holding page with a 200, were both a dead end."""
-        page = not_found_page(self._key_if_given(), language=self._page_language())
+        page = not_found_page(
+            self._key_if_given(),
+            language=self._page_language(),
+            stranger=self._person() is None and not self._key_if_given(),
+        )
         self._send(404, page.encode("utf-8"), HTML)
 
     def _key_if_given(self) -> str:

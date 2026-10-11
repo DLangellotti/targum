@@ -2136,13 +2136,19 @@ def build_text_card(language: str = "en") -> str:
     )
 
 
-def not_found_page(token: str = "", language: str = "en") -> str:
+def not_found_page(token: str = "", language: str = "en", stranger: bool = False) -> str:
     """An address that is not a page: said plainly, with the way back, as a whole page
-    under the desk's own top bar (design.md §12, 2026-10-09)."""
+    under the desk's own top bar (design.md §12, 2026-10-09).
+
+    For a `stranger` the bar is the door's — the Library and nothing that needs an
+    account. It was the whole desk: the four places, the bell and the AI Assistant, each
+    a door to a page that would only ask them to sign in, and the page asked the server
+    for their jobs and conversations and was refused (QA 2026-10-11)."""
     return (
         _environment()
         .get_template("missing.html.j2")
         .render(
+            stranger=stranger,
             t=page_words(language),
             page_language=_page_language(language),
             strings=script_strings(language),
