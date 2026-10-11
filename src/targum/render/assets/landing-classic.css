@@ -235,6 +235,11 @@ h1, h2, h3 { text-wrap: balance; }
    Sign in was the fourth, and it wrapped to a second line and took the bar with it; it
    stands in the foot instead, where somebody who already has a key will look for it. */
 @media (max-width: 30rem) { .bar .signin { display: none; } }
+/* Under 22.5rem the bar holds the name and the one thing it is asking for. With EN / RU
+   beside them, at their 44px reach, the bar ran 9px past a 320px phone in English and
+   24px in Russian on /connect, and the whole page scrolled sideways (QA 2026-10-11). The
+   language stays one tap away in the foot. */
+@media (max-width: 22.5rem) { .bar .tongue { display: none; } }
 
 /* hero */
 /* The headline sits against the middle of the column beside it. Bottom-aligned,
