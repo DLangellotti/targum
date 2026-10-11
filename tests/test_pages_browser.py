@@ -575,7 +575,16 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
           const pill = open.getBoundingClientRect();
           const chevron = getComputedStyle(open, '::before');
           const account = document.querySelector('.account > button').getBoundingClientRect();
+          // What a thumb reaches: 20px either side of the middle, and above and below.
+          const reaches = (sel) => {
+            const el = document.querySelector(sel);
+            const box = el.getBoundingClientRect();
+            const x = box.left + box.width / 2, y = box.top + box.height / 2;
+            const hit = (dx, dy) => el.contains(document.elementFromPoint(x + dx, y + dy));
+            return hit(-20, 0) && hit(20, 0) && hit(0, -20) && hit(0, 20);
+          };
           return {
+            bell: reaches('.notices > button'), avatar: reaches('.account > button'),
             inner: window.innerWidth, scrollWidth: document.documentElement.scrollWidth,
             chevronDrawn: chevron.content === '""' && chevron.position !== 'absolute',
             flag: !open.querySelector('[class*="flag"]'),
@@ -592,6 +601,9 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     # No flag since 2026-10-09 (design.md §12, "The boards are the desk"): the name says it.
     assert got["chevronDrawn"] and got["flag"], f"the chevron in its pill, and no flag: {got}"
     assert got["round"], f"the account is a circle: {got}"
+    # QA 2026-10-11: the bell was 30px wide under a thumb, and the account's reach was
+    # clipped to its circle by `overflow: hidden`.
+    assert got["bell"] and got["avatar"], f"the bell and the account reach 44px: {got}"
     # How far along each language is, a badge and nothing more (design.md §12, 2026-10-09).
     assert got["worn"] == "Beta", got
     assert got["listed"] == [["he", "Beta"], ["it", "Alpha"]], got
