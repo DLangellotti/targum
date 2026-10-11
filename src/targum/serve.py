@@ -347,6 +347,13 @@ def told(ui: str, error: TargumError, *, hosted: bool) -> str:
     """
     if hosted and (error.key in RAW_HINTS or isinstance(error, OffHere)):
         log.warning("refused: %s (%s)", error.message, error.hint or "no detail")
+        # An operator's refusal that names its own sentence for the reader says that one:
+        # a text missing from the shelf on this machine was told "paste its text here",
+        # on a card with nowhere to paste (QA 2026-10-11).
+        if isinstance(error, OffHere) and error.key and error.key not in RAW_HINTS:
+            from .strings import catalogue
+
+            return said_in(ui, error.key, catalogue("en").get(error.key, error.message))
         return unreadable(error, ui)
     return refused_in(ui, error)
 
@@ -5285,7 +5292,11 @@ class Handler(BaseHTTPRequestHandler):
     def _not_found(self) -> None:
         """A page that is not there, said as a page (2026-09-14): a bare `not found` in
         plain text, or the holding page with a 200, were both a dead end."""
-        page = not_found_page(self._key_if_given(), language=self._page_language())
+        page = not_found_page(
+            self._key_if_given(),
+            language=self._page_language(),
+            stranger=self._person() is None and not self._key_if_given(),
+        )
         self._send(404, page.encode("utf-8"), HTML)
 
     def _key_if_given(self) -> str:
@@ -10902,6 +10913,8 @@ class Handler(BaseHTTPRequestHandler):
         interface language, by the same rule as the desk; for a visitor, the first
         language their browser asks for that targum has a catalogue in — English where it
         has none of them (David, 2026-09-15, targum-internal#184)."""
+        if self._answering_in:
+            return self._answering_in
         if self._person() is not None:
             return self._ui_language()
         self._said_by_browser = True
@@ -10935,6 +10948,21 @@ class Handler(BaseHTTPRequestHandler):
         return asked if asked in set(languages()) else ""
 
     def _sign_in(self, payload: dict[str, Any]) -> None:
+        """What the form says back is said in the language of the page it was sent from,
+        which signin.js posts as `into`: a page opened as /account/signin?lang=ru drew its
+        heading in Russian and answered every refusal in the browser's English (QA
+        2026-10-11). For this answer only — a handler outlives a request on a kept-alive
+        connection."""
+        from .strings import languages
+
+        asked = str(payload.get("into") or "").strip().lower()
+        self._answering_in = asked if asked in set(languages()) else ""
+        try:
+            self._signing_in(payload)
+        finally:
+            self._answering_in = ""
+
+    def _signing_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")
         if not plausible(email):
             return self._json(
@@ -10999,6 +11027,10 @@ class Handler(BaseHTTPRequestHandler):
     #: on disk: they live ten minutes, they belong to no account yet, and a restart
     #: losing them costs somebody one press of a button.
     _google_begun: ClassVar[dict[str, Any]] = {}
+
+    #: The language one answer is said in where the request named it (`_sign_in`), over
+    #: the browser's; empty everywhere else.
+    _answering_in: str = ""
 
     def _google_redirect(self) -> str:
         """Where Google sends them back. Must match the console's registered URI exactly."""
@@ -14260,7 +14292,11 @@ def start(
                     "saved": saved_page(token, language=code),
                     "playlists": playlists_page(token, language=code),
                     "subscription": subscription_page(token, language=code),
-                    "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
+                    "adding": add_page(
+                        token,
+                        no_key="" if usable else said_in(code, "job.no-key", NO_KEY),
+                        language=code,
+                    ),
                     "catalogue": library_page(token, language=code),
                     "chatting": chat_page(token, language=code),
                     "embedded": chat_page(token, embed=True, language=code),

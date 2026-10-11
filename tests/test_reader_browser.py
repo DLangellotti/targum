@@ -7386,3 +7386,35 @@ def test_a_psalm_names_no_accent(browser, tmp_path: Path) -> None:
     card = page.evaluate(ACCENT_LINE)
     assert card == {"line": None}, card
     context.close()
+
+
+def test_the_way_home_answers_a_thumb_over_44px(browser, built: Path) -> None:
+    """§8: the mark at the head of the bar is the way home from a text, and on a phone it
+    answered a tap over 13 by 17px — the size of the drawing (QA 2026-10-11). Measured
+    where a thumb lands: 44px across towards the title, and 20px above and below its
+    middle — and never over the bar's edge, where a tap only brings the bar back."""
+    context = browser.new_context(
+        viewport=PHONE, has_touch=True, is_mobile=True, reduced_motion="reduce"
+    )
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    reach = page.evaluate(
+        """() => {
+      const home = document.querySelector('a.bar-brand');
+      if (!home || home.hidden) return {missing: true};
+      const box = home.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const hits = (dx, dy) => home.contains(document.elementFromPoint(x + dx, y + dy));
+      // Towards the title it reaches; the strip at the window's edge stays the bar's,
+      // where a tap brings a quiet bar back (test_reader_qa_browser).
+      const edge = document.elementFromPoint(4, y);
+      return {across: hits(20, 0) && hits(30, 0), up: hits(0, -20) && hits(0, 20),
+              edgeIsTheBars: !home.contains(edge),
+              drawn: [box.width, box.height]};
+    }"""
+    )
+    context.close()
+    assert not reach.get("missing"), "a served reader has its way home"
+    assert reach["across"] and reach["up"] and reach["edgeIsTheBars"], reach

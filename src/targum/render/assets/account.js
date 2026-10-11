@@ -61,10 +61,14 @@
   }
 
   function show(showing) {
+    // Where the keyboard was, so a close gives it back rather than dropping it on the
+    // page's body (QA 2026-10-11).
+    var inside = panel.contains(document.activeElement);
     panel.hidden = !showing;
     open.setAttribute("aria-expanded", showing ? "true" : "false");
     open.classList.toggle("on", showing);
     if (showing && !signedOut.hidden && field) field.focus();
+    if (!showing && (inside || document.activeElement === document.body)) open.focus();
   }
 
   /* The initials this browser was last signed in with, so the corner says who you are

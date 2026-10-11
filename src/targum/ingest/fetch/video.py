@@ -11,7 +11,7 @@ themselves by name too, rather than by wherever their files happen to sit.
 
 from __future__ import annotations
 
-from ...errors import TargumError
+from ...errors import OffHere
 from ...ids import content_hash
 from ...models import Document
 from ...video import store
@@ -28,9 +28,12 @@ class VideoFetcher:
         document = store.document(identifier)
         if held is None or document is None:
             known = ", ".join(store.every()[:6]) or "none yet"
-            raise TargumError(
+            # Missing on this machine: the operator's to fix, and said to a reader on a
+            # hosted box as their sentence, the path in the log (QA 2026-10-11).
+            raise OffHere(
                 f"There is no curated video called {identifier}.",
                 f"Looked in {store.root()}. Videos there: {known}.",
+                key="shelf.unavailable",
             )
         # The store's own copy carries this already; setting it here means a document
         # written by an older curation is still served under the name of the fetcher

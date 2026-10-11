@@ -213,6 +213,38 @@ def _add_served(browser, asked: list[dict]):
     return context, open_page
 
 
+def test_with_nothing_new_to_make_the_line_under_the_box_does_not_say_press_upload(
+    browser,
+) -> None:
+    """QA 2026-10-11: on a box that can make nothing new, Upload is drawn disabled under
+    a banner that says so, and the line under the field still said "Press Upload and
+    we'll look for it" and "We'll work out how long it'll take". It says what the
+    banner says now."""
+    html = add_page(TOKEN, no_key="We can't get anything new ready right now.")
+
+    def answer(route, request):
+        if request.url.endswith("/add"):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.route("http://add.test/**", answer)
+    page.goto("http://add.test/add")
+    said = []
+    for typed in ("https://www.youtube.com/watch?v=abc", "I want something about cooking"):
+        page.fill("#given", typed)
+        page.wait_for_timeout(250)
+        said.append(page.locator("#understood").inner_text())
+    disabled = page.locator("#go").is_disabled()
+    context.close()
+    assert disabled
+    for line in said:
+        assert "Press Upload" not in line and "work out how long" not in line, said
+        assert line.startswith("We can't get anything new ready right now."), said
+
+
 def test_a_link_in_the_box_is_priced_as_a_link(browser) -> None:
     """One box (2026-09-13, targum-internal#249): a link typed where a text could be is
     sent as the source, and the line under the box says it is a link before anything."""
@@ -575,7 +607,16 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
           const pill = open.getBoundingClientRect();
           const chevron = getComputedStyle(open, '::before');
           const account = document.querySelector('.account > button').getBoundingClientRect();
+          // What a thumb reaches: 20px either side of the middle, and above and below.
+          const reaches = (sel) => {
+            const el = document.querySelector(sel);
+            const box = el.getBoundingClientRect();
+            const x = box.left + box.width / 2, y = box.top + box.height / 2;
+            const hit = (dx, dy) => el.contains(document.elementFromPoint(x + dx, y + dy));
+            return hit(-20, 0) && hit(20, 0) && hit(0, -20) && hit(0, 20);
+          };
           return {
+            bell: reaches('.notices > button'), avatar: reaches('.account > button'),
             inner: window.innerWidth, scrollWidth: document.documentElement.scrollWidth,
             chevronDrawn: chevron.content === '""' && chevron.position !== 'absolute',
             flag: !open.querySelector('[class*="flag"]'),
@@ -592,6 +633,9 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     # No flag since 2026-10-09 (design.md §12, "The boards are the desk"): the name says it.
     assert got["chevronDrawn"] and got["flag"], f"the chevron in its pill, and no flag: {got}"
     assert got["round"], f"the account is a circle: {got}"
+    # QA 2026-10-11: the bell was 30px wide under a thumb, and the account's reach was
+    # clipped to its circle by `overflow: hidden`.
+    assert got["bell"] and got["avatar"], f"the bell and the account reach 44px: {got}"
     # How far along each language is, a badge and nothing more (design.md §12, 2026-10-09).
     assert got["worn"] == "Beta", got
     assert got["listed"] == [["he", "Beta"], ["it", "Alpha"]], got
@@ -733,6 +777,68 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
     page.wait_for_timeout(300)
     context.close()
     assert went and "/reader/easy" in went[-1], f"the letters open the easiest text: {went}"
+
+
+def test_the_phones_back_gesture_steps_back_through_the_arrival(browser) -> None:
+    """Each step of the arrival is an entry in the browser's history (QA 2026-10-11). The
+    back gesture on a phone left /welcome altogether from the second step, and coming
+    forward again started over with every answer gone."""
+    context, page, _ = _arrival_page(browser, 390, locale="en-US")
+    step = "document.body.dataset.step"
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
+    page.locator(".arrival-door", has_text="News").first.tap()
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
+    page.locator(".arrival-rung", has_text="I can read simple things").tap()
+
+    page.go_back()
+    assert page.evaluate(step) == "subjects"
+    news = page.locator(".arrival-door", has_text="News").first
+    assert news.get_attribute("aria-pressed") == "true", "the subject chosen is still chosen"
+    page.go_back()
+    assert page.evaluate(step) == "learning"
+    assert page.url.endswith("/welcome?k=" + TOKEN), "and the page never left"
+
+    page.go_forward()
+    page.go_forward()
+    assert page.evaluate(step) == "level"
+    rung = page.locator(".arrival-rung", has_text="I can read simple things")
+    assert rung.get_attribute("aria-checked") == "true", "the level chosen is still chosen"
+    assert not page.locator("#arrival-done").is_disabled()
+
+    page.locator("#arrival-back-mark").tap()
+    assert page.evaluate(step) == "subjects", "the page's own back walks the same history"
+    page.go_forward()
+    assert page.evaluate(step) == "level"
+
+    # A reload on the last step carries on there: the subjects kept at the second step
+    # read as an arrival answered, and the level was never asked.
+    page.reload()
+    page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
+    assert page.evaluate(step) == "level"
+    context.close()
+
+
+@pytest.mark.parametrize("width", [320, 360, 660, 768, 900])
+def test_the_languages_fit_in_russian(browser, width: int) -> None:
+    """In Russian «Арамейский» and «Экспериментальный» side by side pushed Aramaic's
+    greeting off a 320px phone, and the three columns ran past a 660px window
+    (QA 2026-10-11). The badge folds under the name instead."""
+    context, page, _ = _arrival_page(browser, width, language="Русский")
+    got = page.evaluate(
+        """() => ({
+          sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          outside: [...document.querySelectorAll('.arrival-lang .arrival-greeting')]
+            .filter((g) => {
+              const box = g.getBoundingClientRect();
+              const card = g.closest('.arrival-lang').getBoundingClientRect();
+              return box.right > card.right + 1 || box.left < card.left - 1;
+            }).map((g) => g.textContent),
+        })"""
+    )
+    context.close()
+    assert got["outside"] == [] and not got["sideways"], got
 
 
 LANGUAGE_MEASURE = """() => {
@@ -1127,19 +1233,41 @@ def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
     assert not got["pillCovers"], "the pill does not stand over the sheet"
 
 
-def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
-    """At 768px everything fits, and the two-line arrangement must not apply."""
+@pytest.mark.parametrize(
+    ("language", "width", "one_line"),
+    [
+        ("en", 768, False),
+        ("ru", 768, False),
+        ("ru", 834, False),
+        ("en", 1024, True),
+        ("ru", 1024, True),
+    ],
+)
+def test_the_header_never_runs_past_a_tablet(
+    browser, tmp_path: Path, language: str, width: int, one_line: bool
+) -> None:
+    """The header is one line where it fits and two where it does not, and never wider
+    than the window. This test said "at 768px everything fits" until the QA pass of
+    2026-10-11 measured it in a running app: it did not, by 25px signed out and by 73px
+    in Russian on every desk page, so an iPad held upright scrolled sideways and its
+    account sat past the edge. Two lines start under 56rem now; at a laptop the header is
+    still the one line it always was."""
     page_file = tmp_path / "home.html"
-    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
-    context = browser.new_context(viewport={"width": 768, "height": 1024})
+    page_file.write_text(list_page(TOKEN, "texts", language), encoding="utf-8")
+    context = browser.new_context(viewport={"width": width, "height": 1024})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
     open_page.wait_for_timeout(300)
-    one_line = open_page.evaluate(
+    got = open_page.evaluate(
         """() => {
           const brand = document.querySelector('.brand').getBoundingClientRect();
           const nav = document.querySelector('.site-nav').getBoundingClientRect();
-          return nav.top < brand.bottom && nav.bottom > brand.top;
+          const account = document.querySelector('.account').getBoundingClientRect();
+          return {
+            oneLine: nav.top < brand.bottom && nav.bottom > brand.top,
+            accountInside: account.right <= document.documentElement.clientWidth + 1,
+            sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          };
         }"""
     )
     glyphs = open_page.evaluate(
@@ -1148,7 +1276,8 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
           .map((a) => a.dataset.nav)"""
     )
     context.close()
-    assert one_line
+    assert got["oneLine"] is one_line, got
+    assert got["accountInside"] and not got["sideways"], f"the page scrolls sideways: {got}"
     assert glyphs == ["add"], "at a desk only Add keeps its glyph, a + before the word"
 
 
@@ -1429,8 +1558,12 @@ def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
             """() => {
               const send = document.getElementById('chat-send').getBoundingClientRect();
               const thread = document.getElementById('chat-thread');
+              const bar = document.querySelector('.site-nav').getBoundingClientRect();
               return {
                 sendBottom: send.bottom,
+                room: thread.clientHeight,
+                barTop: getComputedStyle(document.querySelector('.site-nav')).position === 'fixed'
+                  ? bar.top : innerHeight,
                 turns: document.querySelectorAll('.chat-turn').length,
                 scrolls: thread.scrollHeight > thread.clientHeight,
                 labels: [...document.querySelectorAll('.chat-who')].length,
@@ -1443,6 +1576,10 @@ def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
         got = seen[width]
         assert got["turns"] == 60
         assert got["sendBottom"] <= height + 1, f"Send in view at {width}px: {got}"
+        # QA 2026-10-11: the site's foot stood inside the one screen and left the thread
+        # 32px on a phone; and the box must stand above the phone's bar of places.
+        assert got["room"] >= 0.3 * height, f"the thread has the screen at {width}px: {got}"
+        assert got["sendBottom"] <= got["barTop"] + 1, f"Send above the bar at {width}px: {got}"
         assert got["scrolls"], "the thread scrolls inside itself"
         assert got["labels"] == 0, "no word over a turn"
         assert got["motion"] == "none", "asked for no motion, given none"
@@ -1656,6 +1793,55 @@ def test_a_card_follows_its_build_to_open_it_without_a_refresh(browser) -> None:
     assert done["text"] == "Open it" and "/reader/sea-he/reader/index.html" in done["href"]
     assert done["meter"] is False and done["note"] == "It's ready to read."
     assert "/chat" in url, "the card offers the reader; it does not take them there"
+
+
+@pytest.mark.parametrize(("language", "width"), [("en", 320), ("en", 375), ("ru", 320)])
+def test_see_all_fits_a_phone_and_its_menus_come_up_as_sheets(
+    browser, language: str, width: int
+) -> None:
+    """QA 2026-10-11: on a phone See all's Kind, Level and Language were one row that
+    could not wrap — 386px wide at 320 in English, 436px in Russian — so the page went
+    sideways and the bar of places with it. Wrapped, the menu on the second line opened
+    past the window's edge; on a phone it is a sheet from the foot, as every panel is."""
+    html = library_page(TOKEN, language=language)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        elif "/jobs" in request.url:
+            body = {"jobs": []}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(
+        viewport={"width": width, "height": 700}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    page.route("http://library.test/**", answer)
+    page.goto(f"http://library.test/library?k={TOKEN}#see/kind/article")
+    page.wait_for_selector(".see-menu-press")
+    page.wait_for_timeout(300)
+    sideways = page.evaluate(
+        "() => document.documentElement.scrollWidth > document.documentElement.clientWidth"
+    )
+    page.locator(".see-menu-press").last.tap()
+    page.wait_for_timeout(200)
+    menu = page.evaluate(
+        """() => {
+          const list = [...document.querySelectorAll('.see-menu-list')]
+            .find((l) => !l.hidden && l.getBoundingClientRect().width);
+          if (!list) return null;
+          const box = list.getBoundingClientRect();
+          return {left: box.left, right: box.right, bottom: box.bottom};
+        }"""
+    )
+    context.close()
+    assert not sideways, f"See all scrolls sideways at {width}px in {language}"
+    assert menu, "the menu opens"
+    assert menu["left"] >= 0 and menu["right"] <= width + 1, menu
+    assert abs(menu["bottom"] - 700) <= 1, f"a sheet from the foot: {menu}"
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -1887,6 +2073,97 @@ def test_the_pages_in_front_of_the_door_stand_on_the_desk(browser, tmp_path: Pat
         assert got == {"ground": True, "face": True, "sideways": False, "split": []}, (
             f"{name} at {width}px: {got}"
         )
+
+
+def test_the_drawer_takes_the_keyboard_in_and_gives_it_back(browser) -> None:
+    """QA 2026-10-11: pressed open from the keyboard the drawer left focus on the page's
+    body; Escape typed in its box did nothing, because a key pressed in a frame never
+    reaches the page around it; and a close left focus on the body again. Now the box
+    takes focus, Escape from inside closes the drawer, and the pill has focus after."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        u = request.url
+        if "/chat/list" in u:
+            body: dict[str, object] = {"chats": [], "usable": True, "talk": True}
+        elif "/readers" in u:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False}
+        elif "/account/me" in u or "/account/follows" in u:
+            body = {"signedIn": False}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None}
+        elif "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
+        elif "/library" in u:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": 1366, "height": 800})
+    page = context.new_page()
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open")
+    page.focus("#talk-open")
+    page.keyboard.press("Enter")
+    box = page.frame_locator("#talk-frame").locator("#say")
+    box.wait_for()
+    page.wait_for_function(
+        "() => document.activeElement && document.activeElement.id === 'talk-frame'"
+    )
+    page.wait_for_timeout(300)
+    assert box.evaluate("(e) => e === document.activeElement"), "the box has the keyboard"
+    page.keyboard.type("שלום")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    got = page.evaluate(
+        """() => ({
+          open: !document.getElementById('talk-drawer').hidden,
+          focus: document.activeElement && document.activeElement.id,
+          role: document.getElementById('talk-drawer').getAttribute('role'),
+        })"""
+    )
+    context.close()
+    assert not got["open"], "Escape typed in the box closes the drawer"
+    assert got["focus"] == "talk-open", got
+    assert got["role"] == "dialog"
+
+
+def test_find_and_the_account_give_the_keyboard_back_on_escape(browser) -> None:
+    """QA 2026-10-11: Escape closed the search palette and the account panel and left
+    focus on the page's body, so a keyboard user started again from the top of the page.
+    The bell and the language menu already gave it back; now all of them do."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/account/me" in request.url:
+            body = {"signedIn": True, "email": "d@x.test", "initials": "DJ", "language": "he"}
+        elif "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": 1366, "height": 800})
+    page = context.new_page()
+    page.route("http://library.test/**", answer)
+    page.goto(f"http://library.test/library?k={TOKEN}")
+    page.wait_for_selector("#palette-open")
+    page.wait_for_timeout(300)
+    back = {}
+    for opener in ("#palette-open", "#account-open"):
+        page.focus(opener)
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(200)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(200)
+        back[opener] = page.evaluate("() => document.activeElement.id")
+    context.close()
+    assert back == {"#palette-open": "palette-open", "#account-open": "account-open"}, back
 
 
 def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:

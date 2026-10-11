@@ -3799,6 +3799,20 @@ class Store:
             out[name] = [dict(row) for row in rows]
         return out
 
+    def _settings_of(self, person: Person) -> dict[str, Any]:
+        """The account's own settings, as the reader set them, for `everything`."""
+        row = self.db.execute(
+            "SELECT address, interest, declared, events, granted FROM person WHERE id = ?",
+            (person.id,),
+        ).fetchone()
+        return {
+            "address": row["address"],
+            "interest": [word for word in str(row["interest"]).split(",") if word],
+            "declared": row["declared"],
+            "record": "off" if row["events"] == "off" else "kept",
+            "granted": row["granted"],
+        }
+
     def everything(self, person: Person) -> dict[str, Any]:
         """Everything targum holds about one person, for them to take away.
 
@@ -3845,6 +3859,13 @@ class Store:
                     (person.id,),
                 )
             ],
+            # What they set on the account page and on arrival: how the conversation
+            # addresses them, what they came to read, the rung they named, whether the
+            # record of their reading is kept, and when they accepted the grant to
+            # correct. Theirs as much as the name above; the
+            # export left them out until the QA pass of 2026-10-11 found it promising
+            # "everything" and carrying four columns of the person.
+            "settings": self._settings_of(person),
             "exported": now(),
         }
         for name, kind in KINDS.items():

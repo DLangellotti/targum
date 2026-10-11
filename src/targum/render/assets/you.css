@@ -150,6 +150,13 @@ b.acct-name { font-weight: 600; }
   #plan .acct-rows > .row { flex-wrap: wrap; }
   .conn-row { grid-template-columns: 2.5rem minmax(0, 1fr); }
   .conn-row .conn-off { grid-column: 1 / -1; justify-self: start; margin-block-start: 0.5rem; }
+  /* A row that ends in a choice — a level, a language, man or woman — puts the choice
+     under its words on a phone. Beside them, the words had what the choice left: a word a
+     line at 320px, and in Russian the two-way switch stood over its own description
+     (QA 2026-10-11). */
+  .acct-rows > .row:has(> .acct-pick, > .seg) { flex-wrap: wrap; row-gap: 0.625rem; }
+  .acct-rows > .row:has(> .acct-pick, > .seg) > .row-main { flex: 1 1 100%; }
+  .acct-rows > .row > .acct-pick { max-inline-size: 100%; }
 }
 
 @media (hover: none) and (pointer: coarse) {

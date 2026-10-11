@@ -607,24 +607,36 @@ table.rows tr:hover .copy,
      centred on the key by its margins, which needs no left or right. */
   /* The grab and the words tab are already placed (sticky, fixed), and a `position` here
      would unplace them; the rest are given one. */
+  /* And the mark at the head of the reader's bar, which is the way home from a text:
+     13 by 17px under a thumb until the QA pass of 2026-10-11. */
   :is(
     .copy, .hear, .pick-card button, .pager a, .bar .levels .level,
     .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .foot-plain,
-    .list-nav .list-back, .arrived button
+    .list-nav .list-back, .arrived button, a.bar-brand
   ) {
     position: relative;
   }
   :is(
     .copy, .hear, .grab, .list-tab, .pick-card button, .pager a, .bar .levels .level,
     .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .foot-plain,
-    .list-nav .list-back, .arrived button
+    .list-nav .list-back, .arrived button, a.bar-brand
   )::after {
     content: "";
     position: absolute;
-    inset: 0;
-    margin: auto;
-    inline-size: max(100%, 44px);
+    /* Centred across by its insets: auto margins centre an over-wide box down the page
+       but not across it, where CSS puts it flush with the inline start instead, so a
+       22px key reached 44px to one side and none to the other (QA 2026-10-11). */
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: 0;
+    margin-block: auto;
     block-size: max(100%, 44px);
+  }
+  /* The way home reaches its 44px towards the title and never past its own start: the
+     strip between it and the window's edge is the bar's, where a tap brings a quiet bar
+     back, and a reach over it sent that tap home. */
+  a.bar-brand#home::after {
+    inset-inline: 0 auto;
+    inline-size: max(100%, 44px);
   }
 }
 

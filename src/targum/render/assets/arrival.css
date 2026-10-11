@@ -125,7 +125,9 @@ body.arriving .arrival-waiting { display: none; }
 .arrival {
   max-inline-size: 640px;
   margin: 0 auto;
-  padding: 56px 0 0;
+  /* A gutter of its own: with none, a window just wider than a phone (41–64rem, a tablet
+     or a narrow laptop window) put the answers against both edges of the glass. */
+  padding: 56px 24px 0;
 }
 body[data-step="learning"] .arrival { max-inline-size: 960px; }
 .arrival[hidden], .arrival-screen[hidden] { display: none; }
@@ -162,6 +164,11 @@ body[data-step="learning"] .arrival { max-inline-size: 960px; }
 .arrival-opts { display: flex; flex-direction: column; gap: 10px; }
 .arrival-doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .arrival-langs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+/* Two across between a phone and a laptop: three columns at 41–48rem left a card too
+   narrow for «Здравствуйте» at the greeting's size (QA 2026-10-11). */
+@media (min-width: 40.01rem) and (max-width: 48rem) {
+  .arrival-langs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 .arrival-opt {
   font: inherit;
@@ -201,7 +208,7 @@ body[data-step="learning"] .arrival { max-inline-size: 960px; }
   line-height: 1.3;
 }
 .arrival-greeting.is-rtl { font-family: var(--reading-hebrew); }
-.arrival-lang-name { display: inline-flex; align-items: center; gap: 10px; }
+.arrival-lang-name { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-inline-size: 0; max-inline-size: 100%; }
 .arrival-lang-word { font-size: 1.0625rem; font-weight: 600; }
 
 .arrival-unsure {
@@ -311,7 +318,11 @@ body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
   }
   /* Physical, not logical: a Hebrew greeting is right-to-left itself, and its own
      inline start is the right-hand side. */
-  .arrival-lang .arrival-greeting { order: 2; margin-left: auto; font-size: 1.25rem; }
+  .arrival-lang .arrival-greeting { order: 2; margin-left: auto; font-size: 1.25rem; flex: none; white-space: nowrap; }
+  /* The name and its badge give way first, the badge folding under the name: in Russian
+     «Арамейский» and «Экспериментальный» side by side pushed the greeting past the
+     edge of a 320px phone (QA 2026-10-11). */
+  .arrival-lang .arrival-lang-name { flex: 1 1 auto; }
   .arrival-lang-name { gap: 8px; }
   #arrival-later { display: block; margin: 12px 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
   .arrival-foot-note, .arrival-back { display: none; }

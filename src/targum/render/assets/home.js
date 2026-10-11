@@ -666,7 +666,17 @@
     var host = document.getElementById("try-next");
     if (!host) return;
     host.textContent = "";
-    if (!row || !row.id) {
+    var already =
+      !!row &&
+      (continuing.entries.indexOf(String(row.id)) >= 0 ||
+        continuing.folders.some(function (folder) {
+          var to = String(row.reader || "");
+          return (
+            to.indexOf("/reader/" + encodeURIComponent(folder) + "/") >= 0 ||
+            to.indexOf("/reader/" + folder + "/") >= 0
+          );
+        }));
+    if (!row || !row.id || already) {
       host.hidden = true;
       return;
     }
@@ -773,9 +783,23 @@
      again, and the Hebrew answer arriving after the French one put a Hebrew text on the
      French home (David, 2026-10-10); an answer for a language no longer shown is dropped. */
   var suggesting = "";
-  function suggest(code, readers, first) {
+  // The texts Continue is showing, so the suggestion under it is never one of them: it
+  // offered the very article Continue led with, only finished texts being skipped (QA
+  // 2026-10-11). By catalogue entry, and by folder for a row that came another way.
+  var continuing = { entries: [], folders: [] };
+  function suggest(code, readers, first, cards) {
     suggesting = code;
+    continuing = { entries: [], folders: [] };
+    (cards || []).forEach(function (card) {
+      var reader = card && card.reader;
+      if (!reader) return;
+      if (reader.entry) continuing.entries.push(String(reader.entry));
+      if (reader.name) continuing.folders.push(String(reader.name));
+    });
     var skip = finished(readers);
+    continuing.entries.forEach(function (entry) {
+      if (skip.indexOf(entry) < 0) skip.push(entry);
+    });
     ask(
       "/suggest?language=" +
         encodeURIComponent(code) +
@@ -898,7 +922,7 @@
       if (empty) empty.hidden = !nothing;
       if (suggestedIn[code] !== nothing) {
         suggestedIn[code] = nothing;
-        suggest(code, readers, nothing);
+        suggest(code, readers, nothing, cards);
       }
       if (mine.length && !rang["subs:" + code]) {
         rang["subs:" + code] = true;

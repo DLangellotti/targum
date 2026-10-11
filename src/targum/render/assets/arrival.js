@@ -685,6 +685,7 @@
       ? ["tongue", "learning", "subjects", "level"]
       : ["learning", "subjects", "level"];
     var step = withTongue && thisVisit() ? 1 : 0;
+    if (order.indexOf(underway()) > step) step = order.indexOf(underway());
     if (!withTongue) handOverTongue();
     drawTongueSwitch(withTongue ? null : document.getElementById("arrival-switch"));
 
@@ -724,6 +725,7 @@
         note.hidden = now !== "learning";
       }
       document.body.setAttribute("data-step", now);
+      standing(now);
     }
 
     function arrive() {
@@ -738,14 +740,41 @@
       if (first && first.focus) first.focus({ preventScroll: true });
     }
 
+    // Each step is an entry in the browser's history, so a phone's back gesture (or the
+    // browser's Back) goes to the step before rather than leaving the arrival, and with
+    // it every answer given so far (QA 2026-10-11). The address does not change.
+    function remembered() {
+      try {
+        return !!history.state && typeof history.state.arrival === "number";
+      } catch (e) {
+        return false;
+      }
+    }
     function onward() {
       if (step < order.length - 1) {
         step += 1;
+        try {
+          history.pushState({ arrival: step }, "", location.href);
+        } catch (e) {}
         arrive();
         return;
       }
       finish(learning, level);
     }
+    try {
+      history.replaceState({ arrival: step }, "", location.href);
+    } catch (e) {}
+    if (window.addEventListener) window.addEventListener("popstate", function (event) {
+      var to = event.state && event.state.arrival;
+      if (typeof to !== "number" || to === step || to < 0 || to >= order.length) return;
+      // Forward through the browser keeps what Continue would have kept on the way.
+      while (step < to) {
+        leave(order[step]);
+        step += 1;
+      }
+      step = to;
+      arrive();
+    });
 
     /* 1. The six languages: greeting, name and badge, the one pressed in the primary.
        The language the browser is already in is pressed to start with — Hebrew for
@@ -861,8 +890,8 @@
       tongues.appendChild(other);
     }
 
-    done.onclick = function () {
-      var now = order[step];
+    // What leaving a step keeps: the language said, the subjects remembered.
+    function leave(now) {
       if (now === "learning") {
         counted("welcome-learning");
         sayLearning(learning);
@@ -870,9 +899,12 @@
       } else if (now === "subjects") {
         counted("welcome-likes");
         remember(picked);
-      } else if (now === "level" && !level) {
-        return;
       }
+    }
+    done.onclick = function () {
+      var now = order[step];
+      if (now === "level" && !level) return;
+      leave(now);
       onward();
     };
     // Not sure is an answer too: no level is kept, and the easiest page there is opens.
@@ -885,6 +917,12 @@
     }
     function goBack() {
       if (step === 0) return;
+      // The page's own Back walks the same history the browser's does, so the two never
+      // disagree about where Forward goes.
+      if (remembered() && history.state.arrival === step) {
+        history.back();
+        return;
+      }
       step -= 1;
       arrive();
     }
@@ -977,8 +1015,30 @@
   function over() {
     try {
       window.sessionStorage.setItem(OVER, "1");
+      window.sessionStorage.removeItem(UNDERWAY);
     } catch (e) {
       /* no session store: home asks this page again, and this page sends them back */
+    }
+  }
+
+  /* The step an unfinished arrival stands on, for this tab only. The subjects are kept
+     at the second step, and kept subjects read as an arrival answered, so a reload on
+     the third went home and the level was never asked (QA 2026-10-11). An arrival under
+     way in this tab is carried on where it stood instead; another device, or a later
+     visit, still reads the subjects as the answer they always were. */
+  var UNDERWAY = "targum:arrival-underway";
+  function underway() {
+    try {
+      return window.sessionStorage.getItem(UNDERWAY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+  function standing(now) {
+    try {
+      window.sessionStorage.setItem(UNDERWAY, now);
+    } catch (e) {
+      /* no session store: a reload starts again, as it did */
     }
   }
 
@@ -1040,7 +1100,7 @@
         return reader.opened > 0;
       });
       var answered =
-        arrived.length || held(WELCOMED) || !!(who && who.signedIn && who.declared);
+        !underway() && (arrived.length || held(WELCOMED) || !!(who && who.signedIn && who.declared));
       var asking = !answered && !reading && !modern.opened && !biblical.opened;
       var waiting = document.getElementById("arrival-waiting");
       if (waiting) waiting.hidden = true;

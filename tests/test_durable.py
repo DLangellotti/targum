@@ -592,3 +592,21 @@ def test_a_database_from_before_the_price_columns_gains_them(tmp_path: Path) -> 
     assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     old = store.job("old")
     assert old is not None and (old["audio"], old["seconds"]) == (0, 0.0)
+
+
+def test_a_text_missing_from_the_shelf_names_no_path_and_offers_no_paste() -> None:
+    """QA 2026-10-11: pressing a Library dialogue whose file was missing on the machine
+    said "There is no dialogue called … Looked in /Users/…/targum-out/dialogues" on the
+    card; as an operator's refusal it then said "paste its text here", on a card with
+    nowhere to paste. A hosted box says the shelf's own sentence, in the reader's
+    language; a laptop keeps the detail for its operator."""
+    from targum.dialogue import index
+    from targum.errors import OffHere
+    from targum.serve import told
+
+    with pytest.raises(OffHere) as raised:
+        index.load("no-such-dialogue-at-all")
+    hosted = told("en", raised.value, hosted=True)
+    assert hosted == "We can't open this one right now. Try another for now."
+    assert "/" not in told("ru", raised.value, hosted=True)
+    assert "Looked in" in told("en", raised.value, hosted=False)

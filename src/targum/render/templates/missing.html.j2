@@ -15,9 +15,9 @@
     2026-10-09): the top bar stays, so whoever followed an old link is still somewhere,
     and under it a heading, one sentence and one button. It stood in the holding page's
     frame until then, the mark alone on the ground. -#}
-{% set here = 'missing' %}
+{% set here = 'door' if stranger else 'missing' %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{% if not stranger %}<script>{{ asset('building.js') }}</script>{% endif %}
 
 <main class="fault-page">
   {#- The board's line icon (NotFound): a page with its corner turned, in the well's

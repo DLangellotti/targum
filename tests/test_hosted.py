@@ -575,6 +575,28 @@ def test_an_uninvited_address_is_pointed_at_the_waitlist_while_there_is_one(
     assert sent == []
 
 
+def test_a_refusal_is_said_in_the_language_of_the_page_it_was_asked_from(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """QA 2026-10-11: /account/signin?lang=ru drew its heading in Russian and said every
+    refusal under the field in the browser's English. The page posts its language as
+    `into`, and the answer follows it — for that answer only, so a kept-alive connection
+    does not carry it to the next."""
+    from targum.strings import catalogue
+
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.delenv("TARGUM_FRONT_DOOR", raising=False)
+    russian = catalogue("ru")
+    status, body = post(port, "/account/sign-in", {"email": "a@b", "into": "ru"})
+    assert status == 400 and body["error"] == russian["serve.we-couldn-t-read-that-as"]
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com", "into": "ru"})
+    assert status == 403 and body["error"] == russian["serve.not-open"]
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com"})
+    assert body["error"] == "Thanks for asking. targum isn't open yet."
+    assert sent == []
+
+
 def test_a_link_asked_for_mid_connect_is_marked_as_one(
     tmp_path: Path, free_port: Callable[[], int]
 ) -> None:
@@ -1293,3 +1315,19 @@ def test_a_corrected_line_said_known_leaves_the_queue_and_not_the_record(
     assert _signed_post(port, "/slips/999999", {"known": True}, session)[0] == 404
     assert _signed_post(port, "/slips/nonsense", {"known": True}, session)[0] == 404
     assert _signed_post(port, f"/slips/{mine}", {"known": True}, "")[0] == 401
+
+
+def test_a_strangers_404_is_the_doors_page_and_asks_for_nothing(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """QA 2026-10-11: a signed-out visitor at an address that is not a page met the whole
+    desk — the four places, the bell and the AI Assistant, each a door that would only
+    ask them to sign in — and the page asked for their jobs and conversations and was
+    refused. A stranger gets the door's bar; somebody signed in keeps the desk."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    status, body = ask(port, "/no-such-page", "targum.page")
+    assert status == 404
+    page = body.decode()
+    assert 'class="site-nav door-nav"' in page
+    assert 'id="talk-open"' not in page and 'id="notices-open"' not in page

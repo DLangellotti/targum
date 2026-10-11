@@ -416,8 +416,22 @@
     if (dropSay) dropSay.hidden = !!chosen;
   }
 
+  // Nothing new can be made on this box (the server draws Upload disabled and says so in
+  // a banner): the line under the field said "Press Upload and we'll look for it" and
+  // "We'll work out how long it'll take" over a button that would not press (QA
+  // 2026-10-11), so it says what the banner says instead.
+  var SHUT = !!(go && go.disabled);
+
   // What targum thinks it was given, in a sentence.
   function understanding() {
+    if (SHUT) {
+      return (
+        t("job.no-key", "We can't get anything new ready right now.") +
+        " " +
+        t("job.no-key.fact", "Everything you have still opens") +
+        "."
+      );
+    }
     if (chosen) {
       var kind = medium(chosen[0]);
       var transcript = transcriptHalf.held();

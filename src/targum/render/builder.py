@@ -24,7 +24,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlencode, urlparse
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, Template
+from jinja2.utils import htmlsafe_json_dumps
 
 if TYPE_CHECKING:  # imported for types only; the real import is inside each function,
     from ..catalogue import Entry  # because catalogue imports nothing from here
@@ -451,6 +452,53 @@ def _plans_are_on() -> bool:
     return plans.on()
 
 
+_STRINGS_AT = re.compile(r"window\.TARGUM_STRINGS\s*=\s*")
+#: A catalogued sentence as a script asks for it: `t("key", ...)` or `tn("key", ...)`.
+_CALLED = re.compile(r'\btn?\(\s*"([a-z0-9][a-z0-9._-]*)"')
+
+
+def _with_called_strings(html: str) -> str:
+    """A page whose scripts ask for a sentence its strings were not handed gets it.
+
+    Each page is handed its words by key prefix (`script_strings`), less the `.page.` keys
+    its template is assumed to have said. Scripts drifted from those lists: in Russian,
+    /you showed "Learning" and every level in English, the chat's word table said WORD and
+    MEANING, and the arrival's shelf named its kinds in English, with every one of those
+    sentences in `ru.json` (QA 2026-10-11). So after a page is rendered, any key its own
+    inlined scripts call, that its language has and its strings lack, is added. English
+    pages carry no strings and are left alone."""
+    at = _STRINGS_AT.search(html)
+    if not at:
+        return html
+    try:
+        given, end = json.JSONDecoder().raw_decode(html, at.end())
+    except ValueError:
+        return html
+    code = given.get("language") if isinstance(given, dict) else None
+    said = given.get("strings") if isinstance(given, dict) else None
+    if not code or not isinstance(said, dict):
+        return html
+    from ..strings import catalogue
+
+    known = catalogue(code)
+    missing = {
+        key: known[key]
+        for key in dict.fromkeys(_CALLED.findall(html))
+        if key in known and key not in said
+    }
+    if not missing:
+        return html
+    filled = {**given, "strings": {**said, **missing}}
+    return html[: at.end()] + str(htmlsafe_json_dumps(filled, sort_keys=True)) + html[end:]
+
+
+class _Page(Template):
+    """A template whose rendered page carries every sentence its scripts ask for."""
+
+    def render(self, *args: Any, **kwargs: Any) -> str:
+        return _with_called_strings(super().render(*args, **kwargs))
+
+
 def _environment() -> Environment:
     env = Environment(
         loader=FileSystemLoader(TEMPLATES),
@@ -461,6 +509,7 @@ def _environment() -> Environment:
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    env.template_class = _Page
     env.filters["isolate"] = isolate
     env.globals["asset"] = _asset
     env.globals["data_uri"] = _data_uri
@@ -2087,13 +2136,19 @@ def build_text_card(language: str = "en") -> str:
     )
 
 
-def not_found_page(token: str = "", language: str = "en") -> str:
+def not_found_page(token: str = "", language: str = "en", stranger: bool = False) -> str:
     """An address that is not a page: said plainly, with the way back, as a whole page
-    under the desk's own top bar (design.md §12, 2026-10-09)."""
+    under the desk's own top bar (design.md §12, 2026-10-09).
+
+    For a `stranger` the bar is the door's — the Library and nothing that needs an
+    account. It was the whole desk: the four places, the bell and the AI Assistant, each
+    a door to a page that would only ask them to sign in, and the page asked the server
+    for their jobs and conversations and was refused (QA 2026-10-11)."""
     return (
         _environment()
         .get_template("missing.html.j2")
         .render(
+            stranger=stranger,
             t=page_words(language),
             page_language=_page_language(language),
             strings=script_strings(language),

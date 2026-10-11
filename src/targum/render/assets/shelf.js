@@ -150,9 +150,14 @@
    * It says the title, how far the build has got, and Building, and it is replaced by
    * the ordinary row when the build is done. `/jobs` is what the bell polls, so the two
    * cannot disagree about what is happening. */
+  // What is still building: not one that is done, failed or refused. A refused one is
+  // as settled as the server's `SETTLED` says, and drawn as "getting ready · opens when
+  // it's ready" it waited at the head of Continue for good, one card per press (QA
+  // 2026-10-11). Its refusal is the bell's to say.
   function building(jobs) {
     return (jobs || []).filter(function (job) {
-      return job.stage !== "done" && !job.error && job.title;
+      return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked" &&
+        !job.error && !job.blocked && job.title;
     });
   }
 
