@@ -1043,10 +1043,20 @@
     listPill.onclick = function () {
       showList(listPill.getAttribute("aria-expanded") !== "true");
     };
-    document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") showList(false);
-    });
   }
+  // Escape closes the list where it is open, and otherwise, in the drawer, the drawer:
+  // a key pressed in a frame never reaches the page around it, so with the box focused
+  // Escape did nothing at all (QA 2026-10-11).
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+    if (listPill && listPill.getAttribute("aria-expanded") === "true") {
+      showList(false);
+      return;
+    }
+    if (EMBED && window.parent !== window) {
+      window.parent.postMessage({ type: "targum:close" }, window.location.origin);
+    }
+  });
 
   // The conversation in the address (targum-internal#238): a row writes it there, so a
   // conversation can be linked to and the back button goes to the one before; the
@@ -1467,6 +1477,19 @@
         Promise.resolve(booted).then(function () {
           if (asked) say(asked);
         });
+      }
+      // The drawer was pressed open: the box is where the reader is going (QA 2026-10-11).
+      if (data.type === "targum:focus" && field) {
+        // Once the list has loaded too: drawing it can take the focus back to the page.
+        var into = function () {
+          try {
+            field.focus({ preventScroll: true });
+          } catch (e) {
+            field.focus();
+          }
+        };
+        into();
+        Promise.resolve(booted).then(into);
       }
       if (data.type === "targum:language" && typeof data.code === "string") {
         holder = data.code.split("-")[0];

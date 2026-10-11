@@ -120,6 +120,29 @@
     frame.setAttribute("src", src);
   }
 
+  // Until the conversation has loaded, the frame holds an empty document that says it is
+  // complete, so readiness is the frame's own load event and not its readyState.
+  var wantsFocus = false;
+  var frameReady = false;
+  function focusBox() {
+    if (!frameReady) {
+      wantsFocus = true;
+      return;
+    }
+    frame.focus();
+    // Under a thumb the box is left alone: focusing it would put the keyboard up over a
+    // sheet the reader may only want to read.
+    if (window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches) return;
+    frame.contentWindow.postMessage({ type: "targum:focus" }, window.location.origin);
+  }
+  frame.addEventListener("load", function () {
+    if (!frame.getAttribute("src")) return;
+    frameReady = true;
+    if (!wantsFocus || drawer.hidden) return;
+    wantsFocus = false;
+    focusBox();
+  });
+
   var leaving = null;
   /* `restored` is the drawer brought back by a page because it was left open on the one
      before, rather than pressed open on this one. It comes back as a panel beside the
@@ -155,6 +178,14 @@
     }
     pill.setAttribute("aria-expanded", on ? "true" : "false");
     document.body.classList.toggle("talking", on);
+    // Focus goes in with a press and comes back to the pill with a close, so a keyboard
+    // is never left on the page's body (QA 2026-10-11). A drawer a page brought back by
+    // itself takes nothing: the reader came to the page.
+    if (on && !restored) focusBox();
+    if (!on && (drawer.contains(document.activeElement) || document.activeElement === frame ||
+        document.activeElement === document.body || !document.activeElement)) {
+      pill.focus();
+    }
     try {
       if (on) localStorage.setItem(OPEN, "open");
       else localStorage.removeItem(OPEN);
@@ -191,6 +222,10 @@
     if (event.origin !== window.location.origin) return;
     if (!frame.contentWindow || event.source !== frame.contentWindow) return;
     var data = event.data || {};
+    if (data.type === "targum:close" && !drawer.hidden) {
+      show(false);
+      return;
+    }
     if (data.type === "targum:open" && data.reader) {
       var path = String(data.reader);
       window.location.href = keyed(
