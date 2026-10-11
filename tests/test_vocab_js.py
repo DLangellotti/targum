@@ -259,13 +259,17 @@ def test_a_level_pressed_over_a_definition_keeps_both() -> None:
     assert built["levels"] == [2]
 
 
-def test_pressing_the_level_you_already_have_still_takes_it_off() -> None:
-    """The toggle is worth keeping — the same press both grades a word and undoes a
-    mistake. It just must not fire because you wrote something."""
-    assert run(status=2, note="", level=2)["levels"] == [None]
+def test_pressing_the_level_you_already_have_changes_nothing() -> None:
+    """QA 2026-10-11, decision D8: the stage a word has, pressed again, stays. It used to
+    take the mark off, so a second tap meant as a confirmation silently un-marked the
+    word. Nothing is handed on, so nothing is written or sent; the step stays pressed."""
+    built = run(status=2, note="", level=2)
+    assert built["levels"] == [], "a second press of the stage is no change"
+    for status in (1, 3, 9, 0):
+        assert run(status=status, note="", level=status)["levels"] == [], status
 
 
-def test_a_level_is_still_a_toggle_after_the_note_has_saved_itself() -> None:
+def test_a_level_pressed_after_the_note_has_saved_itself_is_still_a_save() -> None:
     """The note commits 400ms after the last keystroke, so a field that has been typed in
     and a field that matches the store are the same field by the time a level is pressed.
     Whether it was written in is the question, not whether it currently differs.
@@ -273,7 +277,7 @@ def test_a_level_is_still_a_toggle_after_the_note_has_saved_itself() -> None:
     # `note` already holds what was typed: the debounce has been and gone.
     built = run(status=2, note="second thoughts", type="second thoughts", level=2)
     assert built["levels"] == [2], "written in, so this is a save"
-    assert run(status=2, note="second thoughts", level=2)["levels"] == [None], "untouched"
+    assert run(status=2, note="second thoughts", level=2)["levels"] == [], "untouched"
 
 
 def test_a_level_press_keeps_the_note_before_it_sets_the_level() -> None:
