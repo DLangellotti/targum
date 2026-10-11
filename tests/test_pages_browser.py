@@ -1976,6 +1976,63 @@ def test_the_pages_in_front_of_the_door_stand_on_the_desk(browser, tmp_path: Pat
         )
 
 
+def test_the_drawer_takes_the_keyboard_in_and_gives_it_back(browser) -> None:
+    """QA 2026-10-11: pressed open from the keyboard the drawer left focus on the page's
+    body; Escape typed in its box did nothing, because a key pressed in a frame never
+    reaches the page around it; and a close left focus on the body again. Now the box
+    takes focus, Escape from inside closes the drawer, and the pill has focus after."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        u = request.url
+        if "/chat/list" in u:
+            body: dict[str, object] = {"chats": [], "usable": True, "talk": True}
+        elif "/readers" in u:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False}
+        elif "/account/me" in u or "/account/follows" in u:
+            body = {"signedIn": False}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None}
+        elif "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
+        elif "/library" in u:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": 1366, "height": 800})
+    page = context.new_page()
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open")
+    page.focus("#talk-open")
+    page.keyboard.press("Enter")
+    box = page.frame_locator("#talk-frame").locator("#say")
+    box.wait_for()
+    page.wait_for_function(
+        "() => document.activeElement && document.activeElement.id === 'talk-frame'"
+    )
+    page.wait_for_timeout(300)
+    assert box.evaluate("(e) => e === document.activeElement"), "the box has the keyboard"
+    page.keyboard.type("שלום")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    got = page.evaluate(
+        """() => ({
+          open: !document.getElementById('talk-drawer').hidden,
+          focus: document.activeElement && document.activeElement.id,
+          role: document.getElementById('talk-drawer').getAttribute('role'),
+        })"""
+    )
+    context.close()
+    assert not got["open"], "Escape typed in the box closes the drawer"
+    assert got["focus"] == "talk-open", got
+    assert got["role"] == "dialog"
+
+
 def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
     """The drawer's frame loads once and stays up, and home switches language in place.
     The conversation read the language for itself as it loaded, so it was one switch
