@@ -7386,3 +7386,31 @@ def test_a_psalm_names_no_accent(browser, tmp_path: Path) -> None:
     card = page.evaluate(ACCENT_LINE)
     assert card == {"line": None}, card
     context.close()
+
+
+def test_the_way_home_answers_a_thumb_over_44px(browser, built: Path) -> None:
+    """§8: the mark at the head of the bar is the way home from a text, and on a phone it
+    answered a tap over 13 by 17px — the size of the drawing (QA 2026-10-11). Measured
+    where a thumb lands: 20px either side of its middle, and 20px above and below."""
+    context = browser.new_context(
+        viewport=PHONE, has_touch=True, is_mobile=True, reduced_motion="reduce"
+    )
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    reach = page.evaluate(
+        """() => {
+      const home = document.querySelector('a.bar-brand');
+      if (!home || home.hidden) return {missing: true};
+      const box = home.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const hits = (dx, dy) => home.contains(document.elementFromPoint(x + dx, y + dy));
+      // Towards the window's edge the reach stops where the glass does.
+      return {across: hits(-Math.min(20, x - 1), 0) && hits(20, 0), up: hits(0, -20) && hits(0, 20),
+              drawn: [box.width, box.height]};
+    }"""
+    )
+    context.close()
+    assert not reach.get("missing"), "a served reader has its way home"
+    assert reach["across"] and reach["up"], reach
