@@ -1065,6 +1065,51 @@ def test_a_level_pressed_on_the_card_leaves_it_where_it_was(page, step: str) -> 
     assert level == step, f"the rebuilt card shows {level!r} pressed, not {step!r}"
 
 
+#: Counts every change the reader hands on to the account: `remember()` ends in
+#: `TargumSync.touched()`, which is what sends a change up a moment later.
+COUNT_SENT = """
+() => {
+  window.__sent = 0;
+  const sync = window.TargumSync || (window.TargumSync = {});
+  sync.touched = () => { window.__sent += 1; };
+}
+"""
+
+#: Every word this browser has a stage for, by lemma, as the reader stored it.
+STAGES = """
+() => {
+  const out = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key.startsWith('targum:vocab:')) continue;
+    const words = JSON.parse(localStorage.getItem(key) || '{}');
+    for (const lemma in words) out[lemma] = words[lemma].status;
+  }
+  return out;
+}
+"""
+
+
+def test_the_stage_a_word_has_pressed_again_stays(page) -> None:
+    """QA 2026-10-11, decision D8: pressing the stage a word already has used to take the
+    mark off, so a second tap meant as a confirmation silently un-marked the word. Now it
+    changes nothing: the word stays at 3, one change is sent, and the card still shows 3
+    pressed. The second press lands on the card while it lingers, as a double tap does."""
+    assert page.evaluate(TAP_ABOVE), "no word in the top half of the window to tap"
+    page.evaluate(COUNT_SENT)
+
+    page.locator("#gloss-card .level", has_text="3").first.click()
+    assert list(page.evaluate(STAGES).values()) == [3]
+    page.locator("#gloss-card .level", has_text="3").first.click()
+
+    assert list(page.evaluate(STAGES).values()) == [3], "the second press took the mark off"
+    assert page.evaluate("() => window.__sent") == 1, "the second press sent a change"
+    pressed = page.evaluate(
+        "() => document.querySelector('#gloss-card .level[aria-pressed=\"true\"]')?.textContent"
+    )
+    assert pressed == "3", f"the card shows {pressed!r} pressed after a second press of 3"
+
+
 #: A word looked up: what the card says it means, and whether it is still offering to
 #: find out. A reader who has already asked should meet the answer, not the button.
 CARD = """
