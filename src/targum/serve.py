@@ -347,6 +347,13 @@ def told(ui: str, error: TargumError, *, hosted: bool) -> str:
     """
     if hosted and (error.key in RAW_HINTS or isinstance(error, OffHere)):
         log.warning("refused: %s (%s)", error.message, error.hint or "no detail")
+        # An operator's refusal that names its own sentence for the reader says that one:
+        # a text missing from the shelf on this machine was told "paste its text here",
+        # on a card with nowhere to paste (QA 2026-10-11).
+        if isinstance(error, OffHere) and error.key and error.key not in RAW_HINTS:
+            from .strings import catalogue
+
+            return said_in(ui, error.key, catalogue("en").get(error.key, error.message))
         return unreadable(error, ui)
     return refused_in(ui, error)
 

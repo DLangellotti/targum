@@ -11,7 +11,7 @@ import json
 import os
 from pathlib import Path
 
-from ..errors import TargumError
+from ..errors import OffHere
 from .models import Dialogue
 
 
@@ -30,9 +30,13 @@ def load(identifier: str) -> Dialogue:
     path = path_for(identifier)
     if not path.exists():
         known = ", ".join(sorted(p.stem for p in root().glob("*.json"))[:6]) or "none yet"
-        raise TargumError(
+        # The shelf's own copy is missing on this machine: the operator's to fix, and
+        # said to a reader on a hosted box as their sentence, with this path in the log
+        # rather than on the card (QA 2026-10-11).
+        raise OffHere(
             f"There is no dialogue called {identifier}.",
             f"Looked in {root()}. Dialogues there: {known}.",
+            key="shelf.unavailable",
         )
     return Dialogue.model_validate(json.loads(path.read_text(encoding="utf-8")))
 

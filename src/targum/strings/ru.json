@@ -4026,5 +4026,6 @@
   "reader.listen.now-playing-part": "Сейчас звучит: {part}.",
   "reader.listen.queued.one": "{n} в очереди",
   "reader.listen.queued.few": "{n} в очереди",
-  "reader.listen.queued.many": "{n} в очереди"
+  "reader.listen.queued.many": "{n} в очереди",
+  "shelf.unavailable": "Сейчас этот текст не открывается. Пока попробуйте другой."
 }
