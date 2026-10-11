@@ -412,6 +412,23 @@ exist yet, about a page they had been reading, and nothing brought them back to 
   most 1,024 characters, and not the door itself. Anything else is dropped and the press
   lands home, so the door is never a redirect somebody else can choose.
 
+### On a phone, the drawer closes when you leave the page — 2026-10-11
+
+David, 2026-10-11, QA decision D7. "A drawer left open comes back undimmed" (2026-10-09,
+below) kept the drawer open across pages and said that on a phone it comes back as the
+sheet, because there is no room beside the page. In use that sheet covered the page the
+reader had just chosen: "Open your targums", pressed inside the drawer, opened Your
+targums under a full-height sheet, and the page they asked for was behind it.
+
+- **On a phone, leaving a page closes the drawer.** The next page does not bring it back,
+  and forgets it was left open (`targum:talk` is cleared on load). "A phone" is where the
+  CSS draws the drawer as a sheet: 48rem and under on the chrome's pages, 60rem and under
+  on a reader, so the two can never disagree.
+- **The conversation is kept.** It is the box's, not the page's: the pill opens it again
+  where it was.
+- **At a desk nothing changes.** A drawer left open comes back beside the next page,
+  undimmed and under its bar.
+
 ### The focus ring is teal everywhere — 2026-10-11
 
 David, 2026-10-11, QA decision D3. The public pages moved their ring to teal on
@@ -678,14 +695,13 @@ followed the reader around.
   palette). Escape, ×, the grab and a tap on the scrim close it, as before.
 - **A drawer brought back is a panel beside the page.** When a page opens the drawer
   because it was left open on the one before, it comes back without the scrim and
-  without moving in. At a desk it stands under the page's bar, so the bar stays usable.
-  On a phone it is still the sheet, because there is no room beside the page.
-- **It still stays open across pages.** Somebody mid-conversation who follows a link has
-  not finished talking.
+  without moving in. It stands under the page's bar, so the bar stays usable.
+- **At a desk it still stays open across pages.** Somebody mid-conversation who follows
+  a link has not finished talking.
 
 **A default, David to overrule.** The other answer is to close the drawer on navigation
-and keep only the conversation. The pill would then be the one way back to it, and
-`targum:talk` would stop being read on load. That is a one-line change in `talk.js`.
+and keep only the conversation. David took it for phones on 2026-10-11 (above, "On a
+phone, the drawer closes when you leave the page"); at a desk this entry still stands.
 
 ### Home says welcome back after a week away — 2026-10-09
 
@@ -6676,8 +6692,8 @@ that menu and in the subscriptions menu beside it, since green is progress (§4)
 page behind the account, and so are the series to follow. The conversation lives on no
 page: one pill in the primary *(in ink since 2026-10-09 — §12, "The boards are the desk", 2026-10-09)*, fixed at the foot of every page, opens it as a drawer —
 from the edge on a laptop, up from the foot on a phone — holding the conversation page
-framed without its bar (`/chat?embed=1`), loaded when first opened and left open across
-pages. What is typed there is answered there; a text it offers opens in the sheet on
+framed without its bar (`/chat?embed=1`), loaded when first opened and, at a desk, left
+open across pages *(on a phone leaving a page closes it — §12, 2026-10-11)*. What is typed there is answered there; a text it offers opens in the sheet on
 Learn and on the reader's own page anywhere else; both frames are same-origin only, in
 both directions. Notifications — what is building, what is ready, what landed — are a
 bell in the ink bar with a count and a panel under it; nothing is fixed at the foot of
