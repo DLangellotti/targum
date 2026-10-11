@@ -1751,6 +1751,55 @@ def test_a_card_follows_its_build_to_open_it_without_a_refresh(browser) -> None:
     assert "/chat" in url, "the card offers the reader; it does not take them there"
 
 
+@pytest.mark.parametrize(("language", "width"), [("en", 320), ("en", 375), ("ru", 320)])
+def test_see_all_fits_a_phone_and_its_menus_come_up_as_sheets(
+    browser, language: str, width: int
+) -> None:
+    """QA 2026-10-11: on a phone See all's Kind, Level and Language were one row that
+    could not wrap — 386px wide at 320 in English, 436px in Russian — so the page went
+    sideways and the bar of places with it. Wrapped, the menu on the second line opened
+    past the window's edge; on a phone it is a sheet from the foot, as every panel is."""
+    html = library_page(TOKEN, language=language)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        elif "/jobs" in request.url:
+            body = {"jobs": []}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(
+        viewport={"width": width, "height": 700}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    page.route("http://library.test/**", answer)
+    page.goto(f"http://library.test/library?k={TOKEN}#see/kind/article")
+    page.wait_for_selector(".see-menu-press")
+    page.wait_for_timeout(300)
+    sideways = page.evaluate(
+        "() => document.documentElement.scrollWidth > document.documentElement.clientWidth"
+    )
+    page.locator(".see-menu-press").last.tap()
+    page.wait_for_timeout(200)
+    menu = page.evaluate(
+        """() => {
+          const list = [...document.querySelectorAll('.see-menu-list')]
+            .find((l) => !l.hidden && l.getBoundingClientRect().width);
+          if (!list) return null;
+          const box = list.getBoundingClientRect();
+          return {left: box.left, right: box.right, bottom: box.bottom};
+        }"""
+    )
+    context.close()
+    assert not sideways, f"See all scrolls sideways at {width}px in {language}"
+    assert menu, "the menu opens"
+    assert menu["left"] >= 0 and menu["right"] <= width + 1, menu
+    assert abs(menu["bottom"] - 700) <= 1, f"a sheet from the foot: {menu}"
+
+
 @pytest.mark.parametrize("width", [390, 1280])
 def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
     browser, width: int
