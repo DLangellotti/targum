@@ -631,6 +631,13 @@ table.rows tr:hover .copy,
     margin-block: auto;
     block-size: max(100%, 44px);
   }
+  /* The way home reaches its 44px towards the title and never past its own start: the
+     strip between it and the window's edge is the bar's, where a tap brings a quiet bar
+     back, and a reach over it sent that tap home. */
+  a.bar-brand#home::after {
+    inset-inline: 0 auto;
+    inline-size: max(100%, 44px);
+  }
 }
 
 
