@@ -17,6 +17,21 @@ body.chat {
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100svh;
 }
+/* The page itself (not the drawer's frame) carries the site's foot, which is 290px at a
+   desk and 420px on a phone. Inside the one screen it left the thread 209px and 32px,
+   half a line (QA 2026-10-11). So the conversation takes the screen under the bar, the
+   foot waits below it, and on a phone the room stops above the bar of places.
+   `--chat-head` is the bar's measured height, kept by chat.js. */
+body.chat:not(.embed) {
+  height: auto;
+  min-height: 100svh;
+  grid-template-rows: auto calc(100svh - var(--chat-head, 4.5rem)) auto;
+}
+@media (max-width: 40rem) {
+  body.chat:not(.embed) {
+    grid-template-rows: auto calc(100svh - var(--chat-head, 4rem) - 4rem - env(safe-area-inset-bottom)) auto;
+  }
+}
 body.chat > .site-head { justify-self: stretch; }
 body.chat > .chat-main {
   justify-self: start;

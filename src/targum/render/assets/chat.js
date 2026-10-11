@@ -47,6 +47,18 @@
   // text opens in the page that holds the frame, and the address is left alone: a
   // frame's own history is the holding page's history too.
   var EMBED = String(document.body.className || "").split(" ").indexOf("embed") >= 0;
+  // The bar's height, for the room the conversation takes under it (chat.css): it is one
+  // row or two depending on the width, so it is measured rather than assumed.
+  (function keepHead() {
+    var head = document.querySelector("body.chat > .site-head");
+    if (EMBED || !head) return;
+    function measure() {
+      document.body.style.setProperty("--chat-head", head.offsetHeight + "px");
+    }
+    measure();
+    if (window.ResizeObserver) new ResizeObserver(measure).observe(head);
+    else window.addEventListener("resize", measure);
+  })();
 
   // Where a text opens. On the page itself, the reader. Framed in the front page, the
   // text is offered to the page holding the frame, which opens it in the reader it
