@@ -13086,7 +13086,10 @@ var targumReader = function () {
         // Room under it for the controls and the line being said; with the transcript
         // open under it, the picture stays at the top and is held to about half the
         // window, so the transcript scrolling below has room to be read (2026-10-11).
-        var high = panel ? (H - top) * 0.55 - 60 : H - top - 300;
+        // In a short window the picture keeps half the room whatever that leaves: the
+        // flat reserve made it a small box in the middle of a wide page, and the line
+        // under it scrolls in what is left (David, 2026-10-11).
+        var high = panel ? (H - top) * 0.55 - 60 : Math.max(H - top - 300, (H - top) * 0.5);
         w = Math.min(area - 160, 1120, high * ratio);
         col = 0;
         // The reader's own size, a share of that (2026-10-07). At the full share this

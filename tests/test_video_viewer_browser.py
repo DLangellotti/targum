@@ -984,3 +984,90 @@ def test_the_split_answers_the_keyboard_and_stands_only_beside(browser, tmp_path
         assert not page.locator("#film-split").is_visible()
     finally:
         context.close()
+
+
+#: A wide window that is short: a laptop with the browser not at full height.
+SHORT = {"width": 1138, "height": 526}
+
+#: Where Theatre's stack stands under the picture, and whether the row fits its box.
+SHORT_STACK = """
+() => {
+  const box = (s) => {
+    const el = document.querySelector(s);
+    if (!el || !el.getClientRects().length) return null;
+    const r = el.getBoundingClientRect();
+    const { left, right, top, bottom, width, height } = r;
+    return { left, right, top, bottom, width, height };
+  };
+  const ctl = document.querySelector('.film-ctl');
+  const bar = document.querySelector('.bar').getBoundingClientRect();
+  return {
+    room: window.innerHeight - bar.bottom,
+    video: box('#video'),
+    frame: box('.film-frame'),
+    ctl: box('.film-ctl'),
+    overflow: ctl.scrollWidth - ctl.clientWidth,
+    tools: box('.film-tools'),
+    sub: box('#film-sub'),
+    known: box('.bar-title .known'),
+    english: box('.bar-title .bar-english'),
+  };
+}
+"""
+
+
+def test_in_a_short_window_the_row_and_the_line_keep_their_measure(browser, tmp_path) -> None:  # noqa: F811
+    """David, 2026-10-11, a screenshot: "design messed up in a few ways". In a window
+    1138 by 526 the picture was a small box in the middle of the page, the row under it
+    ran out to the right, and the line being said wrapped a phrase to a line — because the
+    picture's width is worked out from the window's height, and everything under it took
+    that width. Now the picture keeps half the room, and the row and the line stand at a
+    measure of their own under it, the whole row inside the window."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built, viewport=SHORT, view="theatre")
+    try:
+        seek(page, 0.2)
+        seen = page.evaluate(SHORT_STACK)
+        assert seen["frame"]["height"] >= seen["room"] * 0.5 - 2, seen
+        assert seen["overflow"] <= 0, f"the row runs out of its box: {seen}"
+        assert seen["ctl"]["width"] >= 700 and seen["sub"]["width"] >= 700, seen
+        assert seen["tools"]["right"] <= seen["video"]["right"], seen
+        # The row and the line share one measure, centred on the picture.
+        assert abs(seen["ctl"]["left"] - seen["sub"]["left"]) < 1, seen
+        middle = (seen["frame"]["left"] + seen["frame"]["right"]) / 2
+        assert abs((seen["ctl"]["left"] + seen["ctl"]["right"]) / 2 - middle) < 1, seen
+    finally:
+        context.close()
+
+
+def test_between_961_and_1200_the_bar_keeps_the_title_alone(browser, tmp_path) -> None:  # noqa: F811
+    """The count and the English title wait for a window wider than 75rem (2026-09-14):
+    the rule saying so was overruled by later ones, and at 1138 the count ran under the
+    play button (David, 2026-10-11). Wider, both are there. The fixture has no English
+    title and no count yet, so the test puts both in the bar as the page would."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built, viewport=SHORT, view="theatre")
+    try:
+        page.evaluate(
+            """() => {
+              const title = document.querySelector('.bar-title');
+              const english = document.createElement('span');
+              english.className = 'bar-english';
+              english.textContent = 'Improv: a hilarious date';
+              title.insertBefore(english, document.getElementById('known'));
+              const known = document.getElementById('known');
+              known.hidden = false;
+              known.innerHTML = '<b>79</b> of <b>107</b> known';
+            }"""
+        )
+        seen = page.evaluate(SHORT_STACK)
+        assert seen["known"] is None and seen["english"] is None, seen
+        page.set_viewport_size({"width": 1280, "height": 800})
+        seen = page.evaluate(SHORT_STACK)
+        assert seen["known"] and seen["english"], seen
+        controls = page.evaluate(
+            "() => document.querySelector('.bar > .controls').getBoundingClientRect().left"
+        )
+        assert seen["known"]["right"] <= controls, f"the count runs under the controls: {seen}"
+    finally:
+        context.close()

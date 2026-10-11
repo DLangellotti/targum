@@ -562,6 +562,18 @@ opened the transcript as a panel at the right with the picture growing smaller f
   the right, as on every text, and the picture and its text centre in what is left. A
   playlist at a desk keeps its rail at the right in the same way, with the text under the
   picture; its end still opens the transcript, now under the picture.
+- **In a short window the picture keeps half the room, and what is under it keeps a
+  measure of its own** (David, 2026-10-11, a screenshot at 1138 by 526: "design messed
+  up in a few ways"). The picture's width is worked out from the window's height, and
+  with a flat reserve under it a short window made it a small box in the middle of a
+  wide page; with the row, the line being said and the doors tied to that width, the row
+  ran out to the right under a playlist's rail and the line wrapped a phrase to a line.
+  The picture now keeps at least half the room under the bar, and the row, the line and
+  the doors stand centred on it at the picture's width where it is wide and at 44rem —
+  the row's whole length with a playlist's Next in it — where it is not. The same
+  screenshot showed the count of known words run under the play button: the rule that
+  hides the count and the English title between 961 and 1200 pixels (2026-09-14) had
+  been overruled by later ones, and holds again.
 
 ### Listening is a view of its own — 2026-10-10
 

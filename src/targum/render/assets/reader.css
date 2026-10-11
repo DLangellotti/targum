@@ -107,19 +107,8 @@ a.bar-brand:hover { color: var(--teal); }
 /* And the one moment it is an achievement. Celebration in type rather than motion. */
 .bar-title .known.done { color: var(--leaf); }
 
-/* The narrow bar has room for the title or the count, not both, and the title is the
-   one that says where you are. */
-@media (max-width: 40rem) {
-  .bar-title .known { display: none; }
-}
-/* A window just wider than the band keeps every desktop control in the bar, and with
-   both titles and the count beside them the bar wrapped to two rows from 961px to about
-   1200 (2026-09-14). The English title and the count wait for the room; the list beside
-   the text says the count, and the document title keeps both names. */
-@media (min-width: 60.01rem) and (max-width: 75rem) {
-  .bar-english,
-  .bar-title .known { display: none; }
-}
+/* Where the count and the English title wait for the room is said once, at the end of
+   the file, after the rules that set them: said here they were overruled (2026-10-11). */
 /* "No recording" names the voice's row behind ⋯, where it has always been on a phone and
    is at every width since the bar became one row (targum-internal#421). */
 
@@ -3162,6 +3151,16 @@ body.film-panel .film-panel-head:not([hidden]) {
     align-items: center;
     inline-size: auto;
   }
+  /* The row, the line being said and the doors under the picture at a measure of their
+     own: the picture's width where it is wide, and 44rem — the row's whole length with
+     a playlist's Next in it, and a measure a line reads at — where it is not. The
+     picture's width is worked out from the window's height, so in a short window it
+     is narrow; with everything under it tied to that width, the row ran out to the
+     right under the rail and the line wrapped a phrase to a line (David, 2026-10-11:
+     "design messed up"). */
+  body.film-theatre .video > :not(.film-frame) {
+    inline-size: max(var(--film-w, 100%), min(100%, 44rem));
+  }
   html body.reader.film-theatre.film-panel .video {
     position: sticky;
     inset-block: var(--bar-foot, 3.5rem) auto;
@@ -4996,6 +4995,16 @@ body.practice-section .beside-add { display: none; }
   .bar-title .bar-english { display: none; }
 }
 @media (max-width: 40rem) {
+  .bar-title .known { display: none; }
+}
+/* A window just wider than the band keeps every desktop control in the bar, and with
+   both titles and the count beside them the bar wrapped to two rows from 961px to about
+   1200 (2026-09-14). The English title and the count wait for the room; the list beside
+   the text says the count, and the document title keeps both names. Said after the
+   rules above, which show them: said before them it was overruled, and the count ran
+   under the play button (David, 2026-10-11). */
+@media (min-width: 60.01rem) and (max-width: 75rem) {
+  .bar-title .bar-english,
   .bar-title .known { display: none; }
 }
 
