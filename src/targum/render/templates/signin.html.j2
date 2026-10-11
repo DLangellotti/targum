@@ -67,6 +67,9 @@
   <p class="said">{{ t("signin.page.connect-lost-why", "You started in another browser, or too long ago. Sign in, then connect again from Claude or ChatGPT.") }}</p>
   <form method="post" action="/account/enter">
     <input type="hidden" name="t" value="{{ token }}">
+    {%- if back %}
+    <input type="hidden" name="next" value="{{ back }}">
+    {%- endif %}
     <button class="btn filled go" type="submit">{{ t("signin.page.sign-in", "Sign in") }}</button>
   </form>
 
@@ -80,6 +83,9 @@
   <p class="said">{{ t("signin.page.press-to-sign-in-on-this-browser", "Press to sign in on this browser.") }}</p>
   <form method="post" action="/account/enter">
     <input type="hidden" name="t" value="{{ token }}">
+    {%- if back %}
+    <input type="hidden" name="next" value="{{ back }}">
+    {%- endif %}
     <button class="btn filled wide go" type="submit">{{ t("signin.page.sign-in", "Sign in") }}</button>
   </form>
   <p class="aside">{{ t("signin.page.didn-t-ask-for-this-you-can", "Didn't ask for this? You can close the page.") }}</p>
@@ -98,7 +104,7 @@
   <svg class="fault-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 3.75h12.5v8.5H1.75zM1.75 4.25 8 9l6.25-4.75"/></svg>
   <h1>{{ t("signin.page.that-link-has-been-used", "This link has expired") }}</h1>
   <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Enter your email and we'll send a new one.") }}</p>
-  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
+  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}{% if back %} data-next="{{ back }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
@@ -117,11 +123,11 @@
       an anchor to accounts.google.com, which is a link the reader chooses to follow and
       the one thing §11 lets off the page. -#}
   {%- if google %}
-  <a class="btn ghost outline wide go with-google" href="/account/google">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
+  <a class="btn ghost outline wide go with-google" href="/account/google{% if back %}?next={{ back|urlencode }}{% endif %}">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
   <p class="or">{{ t("signin.page.or", "or") }}</p>
   {%- endif %}
   <p class="said">{{ t("signin.page.no-password-we-ll-email-you-a", "No password. We'll email you a link.") }}</p>
-  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
+  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}{% if back %} data-next="{{ back }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">

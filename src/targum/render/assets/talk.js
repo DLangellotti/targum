@@ -6,7 +6,9 @@
  * it is opened and never before; closed by its own button, the scrim or Escape; left open
  * across pages once opened (`targum:talk`), since somebody mid-conversation who follows a
  * link has not finished talking. Only a press dims the page under it: a drawer a page
- * brings back because it was left open comes back beside the page, undimmed.
+ * brings back because it was left open comes back beside the page, undimmed. Not on a
+ * phone, where it would come back as a sheet over the page: there leaving a page closes
+ * it (QA 2026-10-11, D7).
  *
  * A text the conversation offers opens the reader itself, from whatever page holds the
  * drawer (Learn's sheet, which held it in place, went with Learn on 2026-10-08). Nothing
@@ -234,9 +236,25 @@
     }
   });
 
+  // On a phone the drawer is a sheet over the whole page, so one brought back would cover
+  // the page the reader just chose — "Open your targums" pressed inside it opened Your
+  // targums under a sheet. There, leaving a page closes it: the next page forgets it was
+  // open, and the conversation, which is the box's, is there again behind the pill (QA
+  // 2026-10-11, decision D7; design.md §12, "On a phone, the drawer closes when you leave
+  // the page"). "A phone" is where the CSS draws the sheet: 48rem on the chrome's pages
+  // (chrome.css), 60rem on the reader's (reader.css). At a desk it still comes back
+  // beside the page.
+  function sheet() {
+    var at = document.body.classList.contains("reader") ? "60rem" : "48rem";
+    return !!(window.matchMedia && window.matchMedia("(max-width: " + at + ")").matches);
+  }
   var wasOpen = false;
   try {
     wasOpen = localStorage.getItem(OPEN) === "open";
+    if (wasOpen && sheet()) {
+      wasOpen = false;
+      localStorage.removeItem(OPEN);
+    }
   } catch (e) {
     wasOpen = false;
   }

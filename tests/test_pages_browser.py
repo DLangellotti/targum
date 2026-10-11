@@ -1924,7 +1924,8 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     """2026-09-11: "'talk to targum' can be in the sticky CTA on every page that opens
     up for you". On the Library: the pill is on screen, nothing is loaded until it is
     pressed, the drawer then stands on screen with the conversation in it, Escape closes
-    it, and it is open again on the next page since the conversation is not over. A text
+    it, and at a desk it is open again on the next page since the conversation is not
+    over; on a phone the next page has it closed (QA 2026-10-11, D7). A text
     the conversation offers on a page without a sheet opens the reader itself."""
     html = library_page(TOKEN)
 
@@ -1995,6 +1996,10 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     page.wait_for_selector("#talk-open", state="attached")
     page.wait_for_timeout(200)
     again = page.evaluate(measure)
+    if width < 1024:
+        # On a phone the next page does not bring it back (QA 2026-10-11, D7), so the
+        # pill is pressed again, and the conversation is there behind it.
+        page.click("#talk-open")
     # A text offered where there is no sheet: the reader itself.
     page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
     frame = [f for f in page.frames if "embed=1" in f.url][0]
@@ -2011,11 +2016,16 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     assert 0 <= opened["drawer"]["left"] and opened["drawer"]["right"] <= width + 1, opened
     assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
     assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
-    assert again["open"] and again["remembered"] == "open", "open again on the next page"
-    # Audit 2, 2026-10-09: open on the next page because it was left open, not because
-    # it was pressed there — so beside the page, undimmed, and under its bar at a desk.
-    assert not again["dimmed"], "a drawer brought back does not dim the page"
-    if width >= 1024:
+    if width < 1024:
+        # QA 2026-10-11, decision D7: on a phone the drawer is a sheet over the whole
+        # page, so leaving the page closes it and the next page forgets it was open.
+        assert not again["open"] and again["remembered"] is None, again
+        assert again["pillShown"] and not again["dimmed"], again
+    else:
+        assert again["open"] and again["remembered"] == "open", "open again on the next page"
+        # Audit 2, 2026-10-09: open on the next page because it was left open, not
+        # because it was pressed there — so beside the page, undimmed, under its bar.
+        assert not again["dimmed"], "a drawer brought back does not dim the page"
         assert abs(again["drawer"]["right"] - width) <= 1, again
         assert again["drawer"]["top"] >= again["head"] - 1 > 0, again
     # design.md §12, "Talk is a sheet over a dimmed page" (2026-10-09; boards ChatDesk
@@ -2969,6 +2979,114 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     assert got["practise"]["word"] == "הָעִיר" and got["practise"]["at"] == "1 of 1"
     assert got["practise"]["meaningShown"] == (width > 640)
     assert got["practise"]["first"] == (width <= 640)
+
+
+def _words_page(browser, width: int):
+    """Your Words, signed out, on a list of two words still being learned."""
+    html = list_page(TOKEN, "words")
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    page.add_init_script(
+        "if (!sessionStorage.getItem('seeded')) {"
+        "sessionStorage.setItem('seeded', '1');"
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({"
+        "'דרך': {surface: 'דרך', status: 2, at: 2},"
+        "'עיר': {surface: 'עיר', status: 1, at: 3}}));"
+        "localStorage.setItem('targum:language', 'he')}"
+    )
+    page.route("http://words.test/**", answer)
+    page.goto(f"http://words.test/words?k={TOKEN}")
+    page.wait_for_selector("#word-rows tr")
+    return context, page
+
+
+STAGE_OF = "(lemma) => JSON.parse(localStorage.getItem('targum:vocab:he'))[lemma].status"
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_an_ignored_word_can_be_undone_in_its_row(browser, width: int) -> None:
+    """QA 2026-10-11, decision D6 (design.md §12, "An ignored word can be taken back"):
+    ignore took the word off the list at once with no way back. Its row stays, says where
+    it went, and holds Undo under the keyboard, clear of the phone's bar of places; Undo
+    puts the word back at the stage it had."""
+    context, page = _words_page(browser, width)
+    try:
+        page.locator("#word-rows tr", has_text="דרך").locator(".level-0").click()
+        page.wait_for_selector("#word-rows tr.held")
+        got = page.evaluate(
+            """() => {
+              const undo = document.querySelector('#word-rows tr.held .held-undo');
+              undo.scrollIntoView({ block: 'end' });
+              undo.focus();
+              const bar = document.querySelector('.site-nav').getBoundingClientRect();
+              const fixed = getComputedStyle(document.querySelector('.site-nav')).position;
+              return {
+                note: document.querySelector('#word-rows tr.held .held-note').textContent,
+                focused: document.activeElement === undo,
+                clear: fixed !== 'fixed' || undo.getBoundingClientRect().bottom <= bar.top,
+                tabs: [...document.querySelectorAll('#stage-chips .tab')].map((c) => c.textContent),
+              };
+            }"""
+        )
+        ignored = page.evaluate(STAGE_OF, "דרך")
+        page.keyboard.press("Enter")
+        page.wait_for_selector("#word-rows tr.held", state="detached")
+        back = page.evaluate(
+            """() => [...document.querySelectorAll('#word-rows tr')].map(
+              (row) => [row.dataset.word, row.querySelector('.status-name').textContent]
+            )"""
+        )
+        stage = page.evaluate(STAGE_OF, "דרך")
+    finally:
+        context.close()
+    assert got["note"] == "דרך is in Ignored" and got["focused"] and got["clear"], got
+    assert "Ignored" in got["tabs"]
+    assert ignored == 0 and stage == 2
+    assert ["דרך", "Getting there"] in back
+
+
+def test_an_ignored_word_is_found_under_ignored_and_put_back_by_a_stage(browser) -> None:
+    """QA 2026-10-11, decision D6: the Ignored tab lists what was ignored, All does not,
+    and pressing a stage there puts the word back on the list."""
+    context, page = _words_page(browser, 1280)
+    try:
+        page.locator("#word-rows tr", has_text="עיר").locator(".level-0").click()
+        page.wait_for_selector("#word-rows tr.held")
+        page.locator("#stage-chips .tab", has_text="All").click()
+        everything = page.evaluate(
+            "() => [...document.querySelectorAll('#word-rows tr')].map((r) => r.dataset.word)"
+        )
+        page.locator("#stage-chips .tab", has_text="Ignored").click()
+        listed = page.evaluate(
+            """() => [...document.querySelectorAll('#word-rows tr')].map(
+              (row) => [row.dataset.word, row.querySelector('.status-name').textContent]
+            )"""
+        )
+        page.locator("#word-rows tr", has_text="עיר").locator(".level-1").click()
+        page.wait_for_timeout(200)
+        after = page.evaluate(
+            """() => ({
+              rows: document.querySelectorAll('#word-rows tr').length,
+              empty: document.getElementById('words-empty').hidden,
+            })"""
+        )
+        stage = page.evaluate(STAGE_OF, "עיר")
+        page.locator("#stage-chips .tab", has_text="To work on").click()
+        working = page.evaluate(
+            "() => [...document.querySelectorAll('#word-rows tr')].map((r) => r.dataset.word)"
+        )
+    finally:
+        context.close()
+    assert everything == ["דרך"], everything
+    assert listed == [["עיר", "Ignored"]], listed
+    assert after == {"rows": 0, "empty": False} and stage == 1
+    assert sorted(working) == ["דרך", "עיר"]
 
 
 #: What a card is, as the browser draws it: the card's paper, a shadow, and a card's

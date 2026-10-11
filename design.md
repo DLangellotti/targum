@@ -385,6 +385,92 @@ online. A reader who never had, which is most, met the browser's own error page 
 - **It never costs the save.** A Saved page that cannot be had is not written down, and
   the text stays saved.
 
+### A page asked for signed out is a door back to it — 2026-10-11
+
+David, 2026-10-11, QA decision D2. Signed out, every page but the front door answered
+with the holding page, "Coming soon", on the reasoning that a sign-in form shown to
+somebody with no account is a wall that looks like a mistake. The people who actually
+meet it are not strangers: they are readers whose session ran out, or who bookmarked
+`/you`, `/add` or a reader, most often on a phone. They were told the product does not
+exist yet, about a page they had been reading, and nothing brought them back to it.
+
+- **A page route sends a signed-out visitor to the door, carrying the page.** A 303 to
+  `/account/signin?next=<path and query>`, wherever the door would have been needed
+  (hosted, or once an account exists on a machine somebody runs). Data routes still
+  answer 401 with JSON, a thumbnail still gets the holding page, and `/` is unchanged:
+  the front door while it is open, the holding page while it is shut.
+- **The page rides in the mailed link, not a cookie.** The door's form posts it with the
+  address, the link reads `…/account/enter?t=…&next=…`, the page the link opens posts it
+  with the press, and the press lands there instead of home. A link opened in another
+  browser, or a day later, still knows where it was going. Continue with Google carries it the same
+  way, by the sign-in's `state`. A Connect waiting on the sign-in still goes first.
+- **A new account lands on the page too, not on `/welcome`.** Somebody who followed a
+  link to a text came for the text; home asks the arrival's questions on their next visit
+  there.
+- **Only a page of ours.** `next` is checked at every step (`serve.safe_next`): one
+  leading slash and not two, no backslash, no scheme or host, nothing below a space, at
+  most 1,024 characters, and not the door itself. Anything else is dropped and the press
+  lands home, so the door is never a redirect somebody else can choose.
+
+### On a phone, the drawer closes when you leave the page — 2026-10-11
+
+David, 2026-10-11, QA decision D7. "A drawer left open comes back undimmed" (2026-10-09,
+below) kept the drawer open across pages and said that on a phone it comes back as the
+sheet, because there is no room beside the page. In use that sheet covered the page the
+reader had just chosen: "Open your targums", pressed inside the drawer, opened Your
+targums under a full-height sheet, and the page they asked for was behind it.
+
+- **On a phone, leaving a page closes the drawer.** The next page does not bring it back,
+  and forgets it was left open (`targum:talk` is cleared on load). "A phone" is where the
+  CSS draws the drawer as a sheet: 48rem and under on the chrome's pages, 60rem and under
+  on a reader, so the two can never disagree.
+- **The conversation is kept.** It is the box's, not the page's: the pill opens it again
+  where it was.
+- **At a desk nothing changes.** A drawer left open comes back beside the next page,
+  undimmed and under its bar.
+
+### An ignored word can be taken back, and found under Ignored — 2026-10-11
+
+David, 2026-10-11, QA decision D6 (DESK-11). On Your Words, ignore sits a word's width
+from known on every row, and pressing it took the word off the list at once: To work on
+and All both left it out, no Undo followed, and no view showed it again. A press meant
+for known lost the word without a sign. Now:
+
+- **The row stays, with Undo.** For eight seconds the row says "דרך is in Ignored" with
+  Undo after it in teal, the shape a deleted text's row has on home. The keyboard goes to
+  Undo, and the row waits while Undo has focus. Undo writes back the stage the word had,
+  through the same store and the same sync the press used. On a phone the row sits in
+  the list, so it scrolls clear of the bar of places like every other row.
+- **Ignored is a tab after All**, drawn once a word is ignored. It lists the ignored
+  words, each with its five stages, and pressing a stage there puts the word back on the
+  list.
+- **All is everything on the list**, which is the number the head gives. It used to show
+  ignored words too, while the head did not count them.
+
+The practice card is unchanged: a word ignored there leaves the card, and is found under
+Ignored.
+
+### Known means marked, everywhere a share is shown — 2026-10-11
+
+David, 2026-10-11, QA decision D5 (READER-06). The reader counted the words it assumes
+from the rung named on arrival ("An advanced reader is not asked about the commonest
+words", 2026-10-07) as known, and the contents page and the Library count only the words
+a reader has marked. So one text said 25% known in the reader and 0% on its contents
+page. The QA pass recommended counting the assumed words everywhere; David chose the
+other way, because the figure is what the reader has said, and the word list it is
+measured against is kept as only what the reader said.
+
+- **Every figure for how much of a text you know counts marks only.** The bar's "N of M
+  known", the list's "N% known here" and the finish box's "N% known here" (which takes
+  the bar's figure) count a word as known only when it is marked known. With a rung named
+  and nothing marked, the bar reads "0 of M known".
+- **What the assumption still does.** An assumed word is still drawn plain, still left
+  out of the queue the arrows walk and out of "N left" and "N words to mark", still left
+  out of what the finish press marks, and its card still reads "assumed known". So "M"
+  can be more than the known words plus the ones left: the difference is the words the
+  page took from the rung and is not asking about.
+- **What it no longer does.** It no longer adds to any known count or share.
+
 ### The focus ring is teal everywhere — 2026-10-11
 
 David, 2026-10-11, QA decision D3. The public pages moved their ring to teal on
@@ -651,14 +737,13 @@ followed the reader around.
   palette). Escape, ×, the grab and a tap on the scrim close it, as before.
 - **A drawer brought back is a panel beside the page.** When a page opens the drawer
   because it was left open on the one before, it comes back without the scrim and
-  without moving in. At a desk it stands under the page's bar, so the bar stays usable.
-  On a phone it is still the sheet, because there is no room beside the page.
-- **It still stays open across pages.** Somebody mid-conversation who follows a link has
-  not finished talking.
+  without moving in. It stands under the page's bar, so the bar stays usable.
+- **At a desk it still stays open across pages.** Somebody mid-conversation who follows
+  a link has not finished talking.
 
 **A default, David to overrule.** The other answer is to close the drawer on navigation
-and keep only the conversation. The pill would then be the one way back to it, and
-`targum:talk` would stop being read on load. That is a one-line change in `talk.js`.
+and keep only the conversation. David took it for phones on 2026-10-11 (above, "On a
+phone, the drawer closes when you leave the page"); at a desk this entry still stands.
 
 ### Home says welcome back after a week away — 2026-10-09
 
@@ -2111,7 +2196,8 @@ Your Progress's "Practise these words", one language at a time, the one the menu
   already has it.
 - **The stage is chips, not a select**: To work on (steps 1 to 3, where it opens), Just
   met, Getting there, Nearly there, Known, All — the step names the control itself uses
-  (`vocab.js` `steps()`), and the choice remembered in this browser.
+  (`vocab.js` `steps()`), and the choice remembered in this browser. *(Ignored follows
+  All since 2026-10-11: "An ignored word can be taken back, and found under Ignored".)*
 - **Every row carries the five stages**: the same control the card has, pressed in the
   row without opening the card. The table is four columns — the word (its dictionary form
   under it where they differ), the meaning, the stage, when it was kept. "How common" and
@@ -2133,8 +2219,9 @@ beside a word. Now:
 
 - **One card holds the list**: Words and Phrases as tabs with the find field in its
   head, the stages as tabs (To work on · Just met · Getting there · Nearly there · Known
-  · All), then **Met often**, pressed on and off apart from them, and one table — the
-  word, its meaning, **Met in** (how many texts), its stage by name on the ramp's
+  · All, and Ignored since 2026-10-11), then **Met often**, pressed on and off apart
+  from them, and one table — the word, its meaning, **Met in** (how many texts), its
+  stage by name on the ramp's
   colour, and the five stages — with "Most met first" and Show more at its foot. On a
   phone each word is a row: the meaning and the word, the stage and "met in N texts"
   under them, the stages a thumb tall. The exports are quiet links at the end of the
@@ -2771,8 +2858,9 @@ the point of the word list is the data on what a reader knows. Both are kept.
 - **The rung named on arrival draws the commonest bands plain.** On a Hebrew page, bet and
   bet plus take the easy band as known; gimel and dalet the easy and fairly easy; hey and
   vav up to moderate. Aleph and aleph plus take nothing. An assumed word is drawn as a
-  known word is, left out of the queue the arrows walk and out of "N left", and counted
-  in "N of M known" — that line is what the page is still asking about.
+  known word is, and left out of the queue the arrows walk and out of "N left". It was
+  also counted in "N of M known" until 2026-10-11; it no longer is, because every share
+  of a text counts marks only ("Known means marked, everywhere a share is shown", above).
 - **Assumed is never marked.** It is not written to the word list, not counted in the
   ledger or on the ladder, not sent to the server, and the finish press leaves it out of
   what it marks and of the number it says. The word list stays what the reader said.
@@ -6649,8 +6737,8 @@ that menu and in the subscriptions menu beside it, since green is progress (§4)
 page behind the account, and so are the series to follow. The conversation lives on no
 page: one pill in the primary *(in ink since 2026-10-09 — §12, "The boards are the desk", 2026-10-09)*, fixed at the foot of every page, opens it as a drawer —
 from the edge on a laptop, up from the foot on a phone — holding the conversation page
-framed without its bar (`/chat?embed=1`), loaded when first opened and left open across
-pages. What is typed there is answered there; a text it offers opens in the sheet on
+framed without its bar (`/chat?embed=1`), loaded when first opened and, at a desk, left
+open across pages *(on a phone leaving a page closes it — §12, 2026-10-11)*. What is typed there is answered there; a text it offers opens in the sheet on
 Learn and on the reader's own page anywhere else; both frames are same-origin only, in
 both directions. Notifications — what is building, what is ready, what landed — are a
 bell in the ink bar with a count and a panel under it; nothing is fixed at the foot of
