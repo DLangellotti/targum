@@ -2778,13 +2778,12 @@ var targumReader = function () {
     return true;
   }
 
-  // Pressing the level a word already has takes the mark off again, so the same button
-  // both grades a word and undoes a mistake. For the pointer only: a key that lands on
-  // a marked word and says its level again is confirming it. Asked here, before anything
-  // else has written to the store, rather than worked out inside `setStatus` from what
-  // it finds there.
-  function toggled(index, status) {
-    return statusOf(lemmas[index]) === status ? null : status;
+  // Pressing the level a word already has changes nothing (QA 2026-10-11, decision D8).
+  // It used to take the mark off, so a second tap meant as a confirmation silently
+  // un-marked the word. `true` when the press is the level already set, asked here
+  // before anything else has written to the store.
+  function already(index, status) {
+    return statusOf(lemmas[index]) === status;
   }
 
   // `status` is what the reader asked for, and `null` is "take the mark off". Nothing is
@@ -7089,7 +7088,8 @@ var targumReader = function () {
       });
       placeChip(picked.rect);
       pickLevel = function (status) {
-        if (setStatus(index, surface, band, toggled(index, status)) === LIST_FULL) return;
+        if (already(index, status)) return;
+        if (setStatus(index, surface, band, status) === LIST_FULL) return;
         redraw();
         showPick(picked);
       };
@@ -11008,7 +11008,8 @@ var targumReader = function () {
     level: function (index, status) {
       // Followed by the redraw every caller in the page does after it, so the counts
       // and the offer at the foot are as a reader would see them.
-      var now = setStatus(index, lemmas[index], "", toggled(index, status));
+      if (already(index, status)) return statusOf(lemmas[index]);
+      var now = setStatus(index, lemmas[index], "", status);
       redraw();
       return now;
     },

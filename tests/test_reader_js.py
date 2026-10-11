@@ -369,16 +369,16 @@ def test_a_level_says_what_it_did_and_how_much_is_left() -> None:
     assert said[1]["spoken"] == "two, just met. 2 left."
 
 
-def test_saying_a_level_a_word_already_has_takes_it_off() -> None:
-    """The same key both grades a word and undoes itself, and "not marked" is a real
-    answer rather than silence."""
+def test_saying_a_level_a_word_already_has_changes_nothing() -> None:
+    """QA 2026-10-11, decision D8: the level a word has, said again, is no change. It
+    used to take the mark off, so a confirmation silently un-marked the word."""
     said = walk(
         ["one", "two"],
         vocab={"one": KNOWN},
         levels=[{"word": "one", "status": KNOWN}],
     )["said"]
-    assert said[0]["spoken"] == "one, not marked. 2 left."
-    assert [item["lemma"] for item in said[0]["queue"]] == ["one", "two"]
+    assert said[0]["spoken"] == "", "nothing changed, so nothing is announced"
+    assert [item["lemma"] for item in said[0]["queue"]] == ["two"], "still known"
 
 
 # -- the list beside the text ---------------------------------------------------
