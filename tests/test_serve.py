@@ -1218,12 +1218,12 @@ def test_a_session_outlives_a_restart_where_the_key_does_not(
     status, body, _ = call(port, "GET", "/progress", cookie=cookie)
     assert status == 200 and b"your progress" in body
 
-    # And without either, still nothing — the holding page now, rather than the
-    # stale-session error, because once an account exists on a machine "signed out" is
-    # a state somebody chose rather than a key that expired.
+    # And without either, still nothing — the sign-in door now (QA 2026-10-11, D2),
+    # rather than the stale-session error, because once an account exists on a machine
+    # "signed out" is a state somebody chose rather than a key that expired.
     status, body, _ = call(port, "GET", "/progress")
     assert b"<html>words</html>" not in body, "the words page must not be served"
-    assert b"Coming soon" in body or status == 403
+    assert status in (303, 403)
 
 
 # --- one person's readers are their own ---------------------------------------
@@ -1724,13 +1724,16 @@ def test_a_stranger_sees_the_holding_page_and_nothing_else(tmp_path: Path) -> No
     """
     port, _, server = hosted(tmp_path)
     try:
-        for route in ("/", "/progress"):
-            status, body, _ = call(port, "GET", route)
-            assert status == 200, route
-            assert b"Coming soon" in body, f"{route} should be the holding page"
-            assert b'href="/account/signin"' in body, f"{route} has no way in"
-            # None of the product leaks through.
-            assert b"start</html>" not in body and b"library</html>" not in body
+        status, body, _ = call(port, "GET", "/")
+        assert status == 200
+        assert b"Coming soon" in body, "/ should be the holding page"
+        assert b'href="/account/signin"' in body, "/ has no way in"
+        # None of the product leaks through.
+        assert b"start</html>" not in body and b"library</html>" not in body
+        # Any other room is the door, carrying the room (QA 2026-10-11, decision D2).
+        status, body, where = call(port, "GET", "/progress")
+        assert status == 303 and where == "/account/signin?next=/progress"
+        assert b"your progress" not in body
     finally:
         server.shutdown()
 

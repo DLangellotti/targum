@@ -2456,6 +2456,7 @@ def signin_page(
     again: str = "",
     closing: bool = False,
     lost: bool = False,
+    back: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -2471,6 +2472,10 @@ def signin_page(
     `again` is where Sign in again goes, for a sign-in that took too long, so `said` is
     drawn as a panel with that one button; `closing` is the whole page an account in its
     grace period meets at every door (design.md §12, 2026-10-09).
+
+    `back` is the room a signed-out reader was turned away from (design.md §12,
+    2026-10-11), already checked as one of ours by `serve.safe_next`: the form posts it
+    with the address, and the mailed link's page posts it with the press.
     """
     from .. import google as google_module
 
@@ -2489,6 +2494,7 @@ def signin_page(
             closing=closing,
             lost=lost,
             connecting=connecting,
+            back=back,
             # Only where this install can finish a Google sign-in. A door that fails at
             # its last step is worse than a door that is not there (#304).
             google=google_module.configured(),
