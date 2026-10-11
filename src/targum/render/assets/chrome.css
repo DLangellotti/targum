@@ -213,7 +213,9 @@ body {
   padding: 0;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  /* Not `overflow: hidden`, which clipped the 44px reach `shared.css` gives the button on
+     a touch screen to the 30px circle (QA 2026-10-11); the picture is rounded itself. */
+  overflow: visible;
   border: 0;
   border-radius: 50%;
   background: var(--teal);
@@ -228,6 +230,7 @@ body {
   block-size: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 50%;
 }
 .account > button.on { color: var(--bar-ink); background: rgb(255 253 249 / 0.14); }
 
@@ -852,6 +855,23 @@ button:active:not(:disabled) { transform: scale(0.98); }
      larger instead, and its reach is the 44px `::after` that `reader.css` gives every
      `.account > button`. */
   .account > button.avatar { min-height: 0; inline-size: 2.25rem; block-size: 2.25rem; }
+  /* And across as well as up: the bell and find were 30px wide under a thumb and the
+     account 34, with only their height grown (QA 2026-10-11). Centred by insets, so each
+     reaches 22px from its middle and a neighbour a few pixels into the gap at most. */
+  .notices > button, .palette-open, .site-head .account > button.avatar { position: relative; }
+  /* Far enough apart that two reaches meet at the gap's middle rather than one taking the
+     other's: the bell's middle and the account's are 44px apart. */
+  .site-head-row .notices { margin-inline-end: 0.5rem; }
+  .notices > button::after,
+  .palette-open::after,
+  .site-head .account > button.avatar::after {
+    content: "";
+    position: absolute;
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: min(0px, calc(50% - 22px));
+    transform: none;
+    block-size: auto;
+  }
 }
 
 /* --- the command palette (2026-09-11) ------------------------------------------------ */
