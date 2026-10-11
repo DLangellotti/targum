@@ -1142,6 +1142,41 @@ def test_something_to_read_posts_suggest_and_draws_the_card_with_another() -> No
     }
 
 
+def test_something_to_read_already_built_draws_open_it() -> None:
+    """2026-10-11: a suggestion already on a shelf comes back as a finished build's
+    state, and the same card draws it as "It's ready to read." and Open it, with no
+    button to press and nothing to build."""
+    ready = {
+        "id": "",
+        "stage": "done",
+        "reader": "ruth-he/reader/index.html",
+        "title": "רות",
+        "language": "he",
+    }
+    page = run(
+        do=[{"type": "chip", "id": "read"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "x\n= y",
+                "quote": ready,
+                "offered": ["ruth"],
+                "more": True,
+            },
+        },
+    )
+    (card,) = page["cards"]
+    assert card["title"] == "רות"
+    assert card["progress"]["open"] == {
+        "href": "/reader/ruth-he/reader/index.html?k=k",
+        "text": "Open it",
+    }
+    assert card["note"] == "It's ready to read."
+    assert not any(p["path"] == "/build" for p in page["posted"]), "nothing is pressed"
+
+
 def test_a_word_i_am_stuck_on_asks_for_the_word_in_the_field() -> None:
     page = run(
         do=[{"type": "chip", "id": "stuck"}],

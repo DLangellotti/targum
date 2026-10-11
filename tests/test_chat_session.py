@@ -1420,6 +1420,54 @@ def test_something_to_read_is_answered_without_the_model(tmp_path: Path, monkeyp
     assert nothing["status"] == 404
 
 
+def test_something_to_read_already_on_a_shelf_opens_it(tmp_path: Path, monkeypatch: Any) -> None:
+    """2026-10-11: the top suggestion was a text on the shared shelf, `quote_build` said
+    so with no quote, and the chip answered "We can't get that one ready right now". A
+    text already built is the best answer, free to read: the card a finished build draws,
+    with the reader to open, and no job made, nothing claimed, nothing spent."""
+    from targum import catalogue
+    from targum.chat import tools
+
+    entry = next(one for one in catalogue.everything() if one.language.startswith("he"))
+    library, store = world(tmp_path)
+    client = Script([])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    monkeypatch.setattr(
+        tools,
+        "suggest_next",
+        lambda ctx, args: {
+            "suggestions": [
+                {"id": entry.id, "title": entry.title, "english": entry.english},
+                {"id": "esther", "title": "אסתר"},
+            ]
+        },
+    )
+    # The real `quote_build`, over a shared shelf that has the text on it.
+    shelved = {
+        "name": "the-text-he",
+        "source": entry.source,
+        "reader": tools.reader_url("the-text-he"),
+        "shared": True,
+    }
+    monkeypatch.setattr(tools, "_shelf", lambda ctx, measured=True: ([], [dict(shelved)]))
+    jobs_before = set(library.jobs)
+    got = chats.suggest(person, home, "", admin=False)
+    assert "error" not in got, got
+    card = got["quote"]
+    assert card["stage"] == "done" and card["reader"] == "the-text-he/reader/index.html"
+    assert card["title"] == entry.title
+    assert got["offered"] == [entry.id] and got["more"] is True
+    assert client.requests == [], "the model was never asked"
+    assert set(library.jobs) == jobs_before, "no job made, so nothing to press or spend"
+    turns = store.chat_turns(got["chat"])
+    assert [(t["role"], t["said"]) for t in turns] == [
+        ("user", "Find me something to read"),
+        ("assistant", got["said"]),
+    ]
+
+
 def test_a_reader_of_russian_gets_russian_under_every_line(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

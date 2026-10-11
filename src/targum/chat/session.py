@@ -888,11 +888,13 @@ class Chats:
         The one line most readers will press, and the answer to it is `suggest_next` and
         a card: the same card the model's own `quote_build` hands the page, priced and
         not started. No turn is run, no `job` of kind `chat` is written and nothing is
-        spent — the press is the ask, the card's button is still the build's press. The
+        spent — the press is the ask, the card's button is still the build's press. A
+        text already on a shelf gets the card a finished build draws, with Open it. The
         exchange is written into the conversation so the thread reads back whole.
         `skip` names texts already offered, for "Another". Returns what the page draws,
         or `{"error", "status"}`.
         """
+        from .. import catalogue as catalogue_module
         from .. import strings
 
         if self.store is None:
@@ -908,6 +910,23 @@ class Chats:
         top = rows[0]
         quoted = tools_module.quote_build(ctx, {"catalogue_id": top["id"]})
         quote = quoted.get("quote")
+        if quote is None and quoted.get("already_built") and quoted.get("reader"):
+            # On a shelf already, theirs or the shared one: the best answer there is,
+            # because reading it costs nothing. It used to come back as "we can't get
+            # that one ready" (2026-10-11), because only a priced quote counted. The
+            # card is the one a finished build draws — "It's ready to read." and Open
+            # it — from a job's state at `done`; no job is made and nothing is claimed.
+            entry = catalogue_module.by_id(str(top["id"]))
+            folder = tools_module._folder_of(str(quoted["reader"]))
+            quote = {
+                "id": "",
+                "stage": "done",
+                "reader": f"{folder}/reader/index.html",
+                "title": str(top.get("title") or (entry.title if entry else "") or folder),
+                "english": str(top.get("english") or (entry.english if entry else "")),
+                "language": entry.language if entry else ctx.level.language,
+                "source": entry.source if entry else "",
+            }
         if quote is None:
             return {
                 "error": quoted.get("error") or strings.text("chat.suggest.cannot", ui),
