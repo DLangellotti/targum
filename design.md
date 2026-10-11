@@ -369,6 +369,22 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The first save keeps the Saved page too — 2026-10-11
+
+David, 2026-10-11, QA decision D4 (READER-03). With no connection, a page that was not
+saved opens Saved on this device with "That isn't on this device". The worker can only
+open that page from the cache, and it was kept only when the reader had once opened it
+online. A reader who never had, which is most, met the browser's own error page instead.
+
+- **The first text saved, by a press or by being opened, keeps the Saved page beside
+  it.** Saving is the consent to keep what makes a saved text findable again. It is asked
+  once, after the text is in, and only when the page is not kept already.
+- **It is never one of the texts.** It is indexed as a page: it is not listed, not counted
+  against the recent texts the reader chose, never let go to make room and never pushes a
+  text out. Eviction works on texts exactly as it did.
+- **It never costs the save.** A Saved page that cannot be had is not written down, and
+  the text stays saved.
+
 ### The focus ring is teal everywhere — 2026-10-11
 
 David, 2026-10-11, QA decision D3. The public pages moved their ring to teal on
@@ -1868,7 +1884,8 @@ connection banner's Saved texts leads to it.
   text and your record stay in your account." Removing a copy loses nothing that was not
   a copy.
 - **It is the one desk page that keeps itself.** It is fetched once into the cache the
-  first time it is opened, and the worker keeps it current after that. Its query does not
+  first time it is opened, or the first time a text is saved (2026-10-11), and the worker
+  keeps it current after that. Its query does not
   name a different page. With no connection, a page that was not saved opens this one with
   "That isn't on this device, so it opens when you're back online." The reader can then
   open what they do have. A full device's line in a reader's ⋯ points here, because this
@@ -1930,8 +1947,10 @@ network. targum now has a service worker, `/sw.js`.
 - **It fetches nothing by itself.** It caches nothing when it installs, fetches nothing
   ahead and refreshes nothing in the background. What is kept is what the page saved: the
   reader's press, or a text they opened that is kept automatically (the next slice). The
-  page saves while it is open and stops when it is closed. The worker only answers out of
-  what the page saved.
+  one thing kept beside a text is the Saved page, fetched once on the first save, so a
+  page that was not saved has somewhere to open with no connection ("The first save keeps
+  the Saved page too", 2026-10-11). The page saves while it is open and stops when it is
+  closed. The worker only answers out of what the page saved.
 - **It answers three ways, and leaves the rest alone.** Opening a page goes to the network
   first, and the saved copy answers only when the network is not there. The saved copy
   keeps the headers it was served with, so its own policy and hashes come with it, and a

@@ -136,12 +136,29 @@ def test_a_saved_text_opens_without_the_network(browser, served: Served) -> None
         assert len(item["files"]) == 4, "the contents and the three chapters"
         assert saved["seen"][-1]["done"] == saved["seen"][-1]["total"] == item["bytes"]
 
+        # Asked beside the save, so it may land a moment after the save is done.
+        for _ in range(100):
+            if any(p.startswith("/you/saved") for p in served.asked[before:]):
+                break
+            page.wait_for_timeout(50)
         fetched = [path.split("?")[0] for path in served.asked[before:]]
         assert fetched[0] == "/offline.json"
-        assert sorted(fetched[1:]) == sorted(
+        # The one thing beyond the text: the Saved page, asked once on the first save
+        # (design.md §12, 2026-10-11). This server has none to give, and the save stands.
+        assert fetched[-1] == "/you/saved"
+        assert sorted(fetched[1:-1]) == sorted(
             f"/reader/book-he/reader/{name}"
             for name in ("index.html", "sec-0001.html", "sec-0002.html", "sec-0003.html")
         ), "each file once, and nothing it was not asked for"
+        assert page.evaluate("() => window.TargumOffline.saved('page:/you/saved')") is False, (
+            "a page that could not be had is not written down as kept"
+        )
+        before = len(served.asked)
+        again = page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert "item" in again, again
+        assert "/you/saved" not in [p.split("?")[0] for p in served.asked[before:]], (
+            "asked once a page, not once a save"
+        )
 
         keys = page.evaluate(KEYS)
         assert keys and not any("k=" in url for url in keys), "the key is never kept"
@@ -719,6 +736,67 @@ def test_with_no_connection_an_unsaved_page_opens_the_saved_one(
         page.locator("#saved-auto .saved-name").click()
         page.wait_for_selector(".pair, .toc", state="attached")
         assert "/reader/kept-he/" in page.url
+    finally:
+        context.close()
+
+
+def test_the_first_save_keeps_the_saved_page_outside_the_texts(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """QA 2026-10-11, READER-03 / decision D4: a reader who never opened Saved on this
+    device online met the browser's own error offline. The first save keeps that page too,
+    and it is never one of the texts: not listed, not counted, never let go."""
+    served = saved_served
+    for name in ("mine-he", "one-he", "two-he", "three-he", "four-he", "away-he"):
+        book(served.out / "local" / name, chapters=1)
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/mine-he/reader/index.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        page.evaluate("() => window.TargumOffline.choose({ recent: 3 })")
+        saved = page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert "item" in saved, saved
+        kept(page, "page:/you/saved")
+        assert "/reader/mine-he/" in page.url, "never opened, only kept"
+        assert len([p for p in served.asked if p.startswith("/you/saved")]) == 1, "and once"
+        assert any(url.split("?")[0].endswith("/you/saved") for url in page.evaluate(KEYS)), (
+            "the page itself is in the cache"
+        )
+        assert [item["id"] for item in page.evaluate(LIST)] == ["/reader/mine-he/reader/"]
+
+        # Three texts kept on their own, by the reader's choice: the fourth opened makes
+        # room by letting the first go, and the Saved page is neither counted nor let go.
+        for name in ("one-he", "two-he", "three-he", "four-he"):
+            page.goto(served.url(f"/reader/{name}/reader/index.html"))
+            kept(page, f"/reader/{name}/reader/")
+        # Waited for as it is meant to end, not by count: the index in the cache can be a
+        # write behind the page's own copy, so a count of two can be read on the way.
+        try:
+            page.wait_for_function(
+                "async () => (await window.TargumOffline.list()).map((i) => i.id).sort()"
+                ".join() === '/reader/four-he/reader/,/reader/mine-he/reader/,"
+                "/reader/three-he/reader/,/reader/two-he/reader/'",
+                timeout=15000,
+            )
+        except Exception:  # noqa: BLE001 - the assertion below says what is wrong
+            pass
+        assert sorted(item["id"] for item in page.evaluate(LIST)) == [
+            f"/reader/{name}/reader/" for name in ("four-he", "mine-he", "three-he", "two-he")
+        ], "the first opened made room; the Saved page did not"
+        assert not any("/one-he/" in url for url in page.evaluate(KEYS))
+        assert page.evaluate("() => !!window.TargumOffline.saved('page:/you/saved')")
+
+        served.gone()
+        context.set_offline(True)
+        page.goto(served.url("/reader/away-he/reader/index.html"))
+        page.wait_for_selector("#saved-away:not([hidden])")
+        assert page.url.split("?")[0].endswith("/you/saved")
+        assert "away=1" in page.url
+        assert "isn't on this device" in page.locator("#saved-away").inner_text()
+        assert page.locator("#saved-mine .saved-row").count() == 1
+        assert page.locator("#saved-auto .saved-row").count() == 3
     finally:
         context.close()
 
