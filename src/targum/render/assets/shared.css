@@ -519,7 +519,7 @@ table.rows tr:hover .copy,
     /* The row under the picture, the switch beside it in the bar, and the panel's ×
        (targum-internal#422): thin on purpose, and given their reach here. */
     .film-play, .film-rate, .film-loop, .film-transcript, .film-view, .film-panel-close,
-    .film-rate-pick, .more-back, .more-on,
+    .film-rate-pick, .more-back, .more-on, .film-part-go,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
     .player-first,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
@@ -543,7 +543,7 @@ table.rows tr:hover .copy,
     /* The row under the picture, the switch beside it in the bar, and the panel's ×
        (targum-internal#422): thin on purpose, and given their reach here. */
     .film-play, .film-rate, .film-loop, .film-transcript, .film-view, .film-panel-close,
-    .film-rate-pick, .more-back, .more-on,
+    .film-rate-pick, .more-back, .more-on, .film-part-go,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
     .player-first,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose

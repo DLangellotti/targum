@@ -236,6 +236,8 @@ THUMBED = (
     # The next part under the picture, and its Try again (design.md §12, 2026-10-07).
     ".film-next-go",
     ".film-next-again",
+    # And the parts either side, in the row under the picture (design.md §12, 2026-10-11).
+    ".film-part-go",
     # What to work on (2026-09-18, targum-internal#103): the two answers a word row has.
     ".work-keys button",
     ".fold",

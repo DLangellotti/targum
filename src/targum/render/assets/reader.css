@@ -2798,6 +2798,40 @@ body.film-card.film-theatre .film-frame::after {
 body.film-theatre .film-ctl .film-transcript { display: inline-flex; }
 /* A playlist's Back and Next, in the row, quietly (list.js). */
 .film-tools .list-key { margin-block: 0; }
+/* Where this part is, with the parts either side, last in the row (David, 2026-10-11;
+   design.md §12, "The row under the picture goes to the next part"). In the row's quiet
+   type, the presses thin strokes like its others; a side with no part has no press, as
+   the pager has none. A wide window's alone: on a phone the transcript and its pager are
+   under the picture, and the row there has already given up its length. In a playlist
+   the row's own Back and Next stand instead. */
+.film-parts { display: inline-flex; align-items: center; gap: 0.15rem; }
+.film-part-at { font-variant-numeric: tabular-nums; }
+.film-part-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 999px;
+  color: inherit;
+  text-decoration: none;
+}
+.film-part-go:hover { color: var(--ink); }
+.film-part-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.film-ctl .film-part-go svg { inline-size: 0.8125rem; block-size: 0.8125rem; stroke-width: 1.6; }
+.film-part-prev { margin-inline-start: -0.35rem; }
+.film-part-next { margin-inline-end: -0.35rem; }
+body.in-list .film-ctl .film-parts { display: none; }
+/* Beside, the row says which part, so the line under it does not say it again. */
+body:not(.in-list) .film-source > .film-part-said { display: none; }
+/* Where the row runs short — Theatre at a narrow desk with the transcript open, or
+   Beside — "Loop this line" says "Loop", as it does on a phone, so the track keeps its
+   length. */
+.film-ctl { container-type: inline-size; }
+@container (max-width: 680px) {
+  .film-ctl .film-loop-long { display: none; }
+  .film-ctl .film-loop-short { display: inline; }
+}
 
 /* --- the next part, under the picture (David, 2026-10-07; design.md §12, "One press
    gets the whole video, a part at a time") ---
@@ -2808,7 +2842,8 @@ body.film-theatre .film-ctl .film-transcript { display: inline-flex; }
    teal as at the foot of a text, with what is happening to the part beside it in muted
    ink. A playlist carries its own Next in the row, so it is not drawn there. */
 .film-next { display: none; }
-body.film-at-end:not(.in-list) .film-next {
+body.film-at-end:not(.in-list) .film-next,
+body.film-next-asked:not(.in-list) .film-next {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2860,7 +2895,8 @@ body.film-theatre .film-next { justify-content: center; margin-block-end: 0.5rem
 .film-next-again:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .film-next-again[hidden] { display: none; }
 @media (max-width: 60rem) {
-  body.film-at-end:not(.in-list) .film-next { padding-inline: 1rem; margin-block: 0.5rem; }
+  body.film-at-end:not(.in-list) .film-next,
+  body.film-next-asked:not(.in-list) .film-next { padding-inline: 1rem; margin-block: 0.5rem; }
 }
 @media (hover: none) and (pointer: coarse) {
   .film-next-go, .film-next-again { min-block-size: 44px; }
@@ -2889,7 +2925,10 @@ body.film-theatre .film-next { justify-content: center; margin-block-end: 0.5rem
   font-size: 0.8125rem;
 }
 .film-source > span:empty { display: none; }
-.film-source > span:not(:empty) ~ span:not(:empty)::before {
+/* Which part it is stands in the row above outside a playlist, so it is not counted for
+   the dot there (2026-10-11). */
+.film-source > span:not(:empty):not(.film-part-said) ~ span:not(:empty)::before,
+body.in-list .film-source > .film-part-said:not(:empty) ~ span:not(:empty)::before {
   content: "·";
   margin-inline: 0.55rem;
   color: var(--rule);
@@ -3199,7 +3238,8 @@ body.film-quiet .video-tap { cursor: none; }
   .film-length,
   .film-about,
   body.film .film-sub,
-  body.film .film-ctl .film-transcript { display: none; }
+  body.film .film-ctl .film-transcript,
+  body.film .film-ctl .film-parts { display: none; }
   .film-loop-long { display: none; }
   .film-loop-short { display: inline; }
   .film-ctl .film-tools > * { margin-inline-start: 0.75rem; padding-inline-start: 0.75rem; }
@@ -5180,7 +5220,9 @@ body.film-theatre.film-panel .film-sub { display: none; }
   padding: 0;
   border: 0;
 }
-body.film-theatre .film-end + .film-next { justify-content: flex-start; }
+/* Under the end card it starts where the card does; asked for from the row mid-part, with
+   no card, it stands centred under the line like the rest of Theatre (2026-10-11). */
+body.film-theatre .film-end:not([hidden]) + .film-next { justify-content: flex-start; }
 
 /* --- a playlist's ways on, as the boards draw them (P9, 2026-10-09) ----------------- */
 

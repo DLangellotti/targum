@@ -2775,6 +2775,7 @@
   "reader.film.next-part-opening": "Откроем, как только будет готова.",
   "reader.film.next-part-trouble": "Не получилось подготовить следующую часть.",
   "reader.film.next-part-again": "Ещё раз",
+  "reader.film.previous-part": "Предыдущая часть",
   "reader.film.watch-on": "Смотреть на {service}",
   "reader.film.close-transcript": "Закрыть расшифровку",
   "reader.film.key-v": "расшифровка рядом с видео или видео крупно",

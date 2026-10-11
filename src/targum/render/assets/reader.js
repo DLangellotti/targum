@@ -11444,15 +11444,21 @@ var targumReader = function () {
         })
         .catch(function () {});
     };
-    if (go) {
-      go.addEventListener("click", function (event) {
-        if (!making) return;
-        event.preventDefault();
-        wanted = true;
-        tell("making", S.t("reader.film.next-part-opening", "We'll open it when it's ready."));
-        look();
-      });
-    }
+    // The door's press, and Next part in the row under the picture (David, 2026-10-11),
+    // which is the same press from the middle of a part: a part still being made is
+    // waited for, and pressed from the row the door comes up under the picture to say
+    // so, with its Try again, rather than a second way of saying it.
+    var pressed = function (event) {
+      if (!making) return;
+      event.preventDefault();
+      wanted = true;
+      document.body.classList.add("film-next-asked");
+      tell("making", S.t("reader.film.next-part-opening", "We'll open it when it's ready."));
+      look();
+    };
+    if (go) go.addEventListener("click", pressed);
+    var onward = document.querySelector(".film-part-next");
+    if (onward) onward.addEventListener("click", pressed);
     // Within the consent the quote's press gave: the same ask, for the same part.
     if (again) {
       again.addEventListener("click", function () {
