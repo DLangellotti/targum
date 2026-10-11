@@ -367,6 +367,39 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Theatre is the picture with its text under it — 2026-10-11
+
+David, 2026-10-11, looking at an uploaded video in Theatre on a desk window: *"theater -
+the text is to the right side, the video isn't central. Text is supposed to be
+underneath."* The picture stood at the left with empty paper under it, the transcript was
+a column at the right, and the word list stood beyond that. This overturns the bullet
+"Theatre opens with the transcript in a column at the right" in "The word card, the end
+of a part and Theatre are the boards'" (2026-10-09), and the clause of B · Theatre that
+opened the transcript as a panel at the right with the picture growing smaller for it.
+
+- **Theatre opens with the picture large and in the middle**, and the line being said set
+  large under it, as B · Theatre first drew it: its words tappable, with their levels,
+  and the English under it. It always opens this way. Nothing is kept about the
+  transcript, and the old `targum:film-panel` is read by nothing.
+- **The transcript opens under the picture, never beside it.** The picture stays in the
+  middle at the top, and the transcript runs below it at the reading measure, centred
+  under it, with "Transcript" and its × at its head. So Theatre is always one column and
+  Beside is the side-by-side view, and that is the one plain difference between them.
+  While the transcript is open the line being said is lit there and not set again under
+  the picture (audit Q10, 2026-10-09).
+- **The picture stays put while the transcript scrolls**, under the bar, as it does on a
+  phone. A picture that scrolled away would leave a reader reading a film they could no
+  longer see, and the voice follows its line in the transcript anyway, keeping it in
+  view under the picture. To leave the text its room, the picture's full size with the
+  transcript open is held to about half the window's height; the grip still takes it
+  down from there and never past it.
+- **What stays:** the grip and the size it keeps, the end of a part under the picture
+  (the transcript steps aside for it, as before), Next part, the keys, the step back
+  while playing, and the phone, which was already this. The word list stays the panel at
+  the right, as on every text, and the picture and its text centre in what is left. A
+  playlist at a desk keeps its rail at the right in the same way, with the text under the
+  picture; its end still opens the transcript, now under the picture.
+
 ### Listening is a view of its own — 2026-10-10
 
 David, 2026-10-10: build listening mode now (audit 2, "Only David can decide", 3). Boards
@@ -1456,10 +1489,10 @@ WordCardDesk, WordCardPhone, ReaderTheatreEnd and PlaylistSwipeDesk.
   and the walk with the arrows turns to that page before it leaves for the next chapter.
   The door's room under it (9rem, for the player) is not doubled when the credits stand
   under it with their own.
-- **Theatre opens with the transcript in a column at the right**, "Transcript" and its ×,
-  as board PlaylistSwipeDesk draws it; put away, it stays away on this device, and the
-  press brings it back. At the end of a part the column steps aside for the end card
-  without the choice being written down.
+- **Theatre opens with the picture in the middle and the line under it** (2026-10-11,
+  overturning the transcript in a column at the right that board PlaylistSwipeDesk drew).
+  Its press opens the transcript under the picture, "Transcript" and its × at its head.
+  At the end of a part the transcript steps aside for the end card.
 
 What it does not change: what the card knows and asks, the five stages, the walk's keys,
 what the press marks, and the playlist's own end.
@@ -3028,10 +3061,11 @@ of its own. David chose three changes from mockups on the Kan driving-licence cl
   the lines either side faded. It is a line of the transcript, not a caption over a
   film, so between two sentences it holds the one just said (the full-screen subtitle
   went dark between lines; that mode is gone). A long line is set smaller rather than run
-  off the window. Transcript opens the transcript as a panel at the right and the
-  picture grows smaller for it; with it open the line being said is the transcript's
-  alone, lit there, and is not set again under the picture (audit Q10, 2026-10-09: an
-  upright video read every line twice).
+  off the window. Transcript opens the transcript under the picture, centred at the
+  reading measure, and the picture stays at the top as it scrolls (2026-10-11; it was a
+  panel at the right); with it open the line being said is the transcript's alone, lit
+  there, and is not set again under the picture (audit Q10, 2026-10-09: an upright video
+  read every line twice).
 - **The switch.** "Beside | Theatre" in the bar, kept per reader (`targum:film-view`),
   like the speed, and `v` turns between them. Listen is not in the bar while the picture
   is up: the row under it plays it.

@@ -3927,6 +3927,10 @@ var targumReader = function () {
         }
       });
       said["--head"] = head ? Math.round(head) + "px" : null;
+    } else if (document.body.classList.contains("film-panel") && standing(videoPanel)) {
+      // Theatre with its transcript open: the picture stands at the top of a wide window
+      // too, and the transcript scrolls under it (2026-10-11).
+      said["--head"] = Math.round(videoPanel.getBoundingClientRect().height) + "px";
     }
     var headWas = headNow;
     headNow = said["--head"] ? parseInt(said["--head"], 10) : 0;
@@ -12917,8 +12921,8 @@ var targumReader = function () {
      standing that the reader chooses in the bar and that are kept per reader, like the
      speed: Beside — the picture at the left, one thin row of controls under it, and the
      transcript beside it following the voice — and Theatre — the picture large, the
-     line being said under it with its words tappable, and the transcript a panel one
-     press away. While it plays, all of that but the picture, the line of where the voice
+     line being said under it with its words tappable, and the transcript one press away,
+     under the picture (2026-10-11). While it plays, all of that but the picture, the line of where the voice
      is and the line being said steps back; a pause, the pointer or a key brings it back.
      On a phone the picture stands above its controls and the transcript runs under it.
 
@@ -12962,18 +12966,12 @@ var targumReader = function () {
         return english;
       },
     };
-    //: The transcript beside a large picture, in pixels: the panel's width in the CSS.
-    var PANEL = 420;
     var view = "beside";
+    //: Whether Theatre's transcript is open, under the picture. Theatre always opens with
+    //: it put away and the line being said under the picture (David, 2026-10-11; design.md
+    //: §12, "Theatre is the picture with its text under it"), so nothing about it is
+    //: kept; the old `targum:film-panel` is read by nothing.
     var panel = false;
-    //: Theatre opens with the transcript in a column at the right (board PlaylistSwipeDesk;
-    //: design.md §12, "The reader's chrome is the desk's", 2026-10-09), unless the reader
-    //: put it away, which is kept on this device like the view.
-    var PANEL_STORE = "targum:film-panel";
-    var panelWanted = true;
-    try {
-      panelWanted = localStorage.getItem(PANEL_STORE) !== "0";
-    } catch (e) {}
     //: Theatre's picture as a share of the size the layout gives it (2026-10-07), kept
     //: per reader like the view; 1 is the default and is never written.
     var SIZE_STORE = "targum:film-size";
@@ -13075,14 +13073,14 @@ var targumReader = function () {
       var list = document.getElementById("list");
       var listed = list && !list.hidden && body.classList.contains("list-open") ? 240 : 0;
       if (view === "theatre") {
-        var area = (panel ? W - PANEL : W) - listed;
-        // Room under it for the controls and three lines of the transcript.
-        w = Math.min(area - 160, 1120, (H - top - 300) * ratio);
-        // The transcript's column starts where the picture's ends, and the word list
-        // takes its own room at the far edge: without it the transcript was squeezed
-        // into what was left, a word to a line (David, 2026-10-10: "theater mode is
-        // not working").
-        col = panel ? W - PANEL - listed : 0;
+        // The picture in the middle of what the word list leaves, and its text under it.
+        var area = W - listed;
+        // Room under it for the controls and the line being said; with the transcript
+        // open under it, the picture stays at the top and is held to about half the
+        // window, so the transcript scrolling below has room to be read (2026-10-11).
+        var high = panel ? (H - top) * 0.55 - 60 : H - top - 300;
+        w = Math.min(area - 160, 1120, high * ratio);
+        col = 0;
         // The reader's own size, a share of that (2026-10-07). At the full share this
         // is the line above untouched, so Theatre stands where it always stood.
         fullW = Math.max(160, Math.round(w));
@@ -13462,8 +13460,9 @@ var targumReader = function () {
       var top = 0;
       var bar = document.querySelector(".bar");
       if (bar) top = bar.getBoundingClientRect().bottom;
-      if (!wideFilm.matches) top = Math.max(top, videoBox.getBoundingClientRect().bottom);
-      if (panel && panelHead && !panelHead.hidden) top = Math.max(top, panelHead.getBoundingClientRect().bottom);
+      // On a phone, and in Theatre with the transcript open under the picture, the
+      // picture stays at the top and the transcript scrolls under it.
+      if (!wideFilm.matches || panel) top = Math.max(top, videoBox.getBoundingClientRect().bottom);
       var room = window.innerHeight - top;
       var box = pair.getBoundingClientRect();
       if (box.top >= top + 8 && box.bottom <= top + room * 0.72) return true;
@@ -13499,7 +13498,7 @@ var targumReader = function () {
     var setView = function (name, chosen) {
       if (VIEWS.indexOf(name) < 0) return;
       view = name;
-      panel = view === "theatre" && panelWanted;
+      panel = false;
       if (chosen) {
         try {
           targumKeep(VIEW_STORE, view);
@@ -13511,11 +13510,6 @@ var targumReader = function () {
     var setPanel = function (open) {
       if (view !== "theatre") return;
       panel = !!open;
-      panelWanted = panel;
-      try {
-        if (panel) localStorage.removeItem(PANEL_STORE);
-        else localStorage.setItem(PANEL_STORE, "0");
-      } catch (e) {}
       place();
       say(panel ? S.t("reader.film.transcript-said", "Transcript.") : S.t("reader.film.transcript-shut", "Transcript closed."));
     };
@@ -13942,7 +13936,16 @@ var targumReader = function () {
       if (!pages || pages.querySelector("[data-next]") || inList) return;
       if (view === "theatre" && !panel && wideFilm.matches) setPanel(true);
       var foot = document.getElementById("foot");
-      if (foot && foot.scrollIntoView) foot.scrollIntoView({ block: "center", behavior: behaviour() });
+      // Into what the window shows of the text: under the picture where it stands at the
+      // top over the transcript (Theatre, and a phone), under the bar where it is beside.
+      if (!foot) return;
+      var bar = document.querySelector(".bar");
+      var under = bar ? bar.getBoundingClientRect().bottom : 0;
+      if (panel || !wideFilm.matches) under = Math.max(under, videoBox.getBoundingClientRect().bottom);
+      var room = window.innerHeight - under;
+      var box = foot.getBoundingClientRect();
+      var to = window.scrollY + box.top - under - Math.max(0, (room - box.height) / 2);
+      window.scrollTo({ top: Math.max(0, to), behavior: behaviour() });
     });
     videoEl.addEventListener("seeking", function () {
       playedOut = false;
@@ -14027,7 +14030,7 @@ var targumReader = function () {
       swipedHere = inList && listed.get("go") === "1";
     } catch (e) {}
     if (inList) view = "theatre";
-    panel = view === "theatre" && panelWanted;
+    panel = false;
     showVideo(inList || !putAway, false);
     drawSub(heldAt(audio.currentTime || 0));
     subId = subFor ? subFor.getAttribute("data-id") : null;

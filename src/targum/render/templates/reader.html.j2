@@ -614,7 +614,7 @@
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 7.2V6.5A2.5 2.5 0 0 1 5.5 4h7.2M10.6 1.9 12.7 4l-2.1 2.1M13 8.8v.7A2.5 2.5 0 0 1 10.5 12H3.3M5.4 14.1 3.3 12l2.1-2.1"></path></svg>
         <span class="film-word film-loop-long">{{ t("reader.film.loop", "Loop this line") }}</span><span class="film-word film-loop-short" aria-hidden="true">{{ t("reader.film.loop-short", "Loop") }}</span>
       </button>
-      <button type="button" class="film-transcript" aria-pressed="false" aria-controls="reader" title="{{ t("reader.film.transcript-title", "The whole transcript beside the video") }}">
+      <button type="button" class="film-transcript" aria-pressed="false" aria-controls="reader" title="{{ t("reader.film.transcript-title", "The whole transcript under the video") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01"></path></svg>
         <span class="film-word">{{ t("reader.page.transcript", "Transcript") }}</span>
       </button>
@@ -672,7 +672,7 @@
   </div>
   {% endif %}
 </div>
-{#- The transcript's heading while it is a panel beside a large picture. -#}
+{#- The transcript's heading while it is open under a large picture. -#}
 <div class="film-panel-head" id="film-panel-head" dir="ltr" hidden>
   <span>{{ t("reader.page.transcript", "Transcript") }}</span>
   <button type="button" class="film-panel-close" aria-label="{{ t("reader.film.close-transcript", "Close the transcript") }}" title="{{ t("reader.film.close-transcript", "Close the transcript") }}">×</button>
