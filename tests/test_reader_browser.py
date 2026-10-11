@@ -6340,6 +6340,36 @@ def test_a_served_reader_offers_to_talk_and_knows_where_you_are(browser, built: 
     context.close()
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+def test_a_reader_left_with_the_drawer_open_closes_it_on_a_phone(
+    browser, built: Path, width: int
+) -> None:
+    """QA 2026-10-11, decision D7: a drawer left open came back on the next page, and on
+    a phone that is a sheet over the whole of the page the reader just chose. On a phone
+    the reader forgets it was open; at a desk it comes back beside the text, undimmed,
+    as before (design.md §12, 2026-10-09 and 2026-10-11)."""
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#talk-open", state="attached")
+    page.evaluate("() => localStorage.setItem('targum:talk', 'open')")
+    page.reload()
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    page.wait_for_timeout(200)
+    state = page.evaluate(
+        """() => ({
+          open: !document.getElementById('talk-drawer').hidden,
+          dimmed: !document.getElementById('talk-scrim').hidden,
+          remembered: localStorage.getItem('targum:talk'),
+        })"""
+    )
+    context.close()
+    if width < 1024:
+        assert state == {"open": False, "dimmed": False, "remembered": None}, state
+    else:
+        assert state == {"open": True, "dimmed": False, "remembered": "open"}, state
+
+
 def russian(out: Path, stressed: bool = False) -> Path:
     """A Russian reader whose words carry the tagger's grammar (targum-internal#258)."""
     lines = ["Он взял её за руку.", "Рука болела, и рукой он брал хлеб."]

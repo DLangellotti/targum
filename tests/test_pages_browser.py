@@ -1924,7 +1924,8 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     """2026-09-11: "'talk to targum' can be in the sticky CTA on every page that opens
     up for you". On the Library: the pill is on screen, nothing is loaded until it is
     pressed, the drawer then stands on screen with the conversation in it, Escape closes
-    it, and it is open again on the next page since the conversation is not over. A text
+    it, and at a desk it is open again on the next page since the conversation is not
+    over; on a phone the next page has it closed (QA 2026-10-11, D7). A text
     the conversation offers on a page without a sheet opens the reader itself."""
     html = library_page(TOKEN)
 
@@ -1995,6 +1996,10 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     page.wait_for_selector("#talk-open", state="attached")
     page.wait_for_timeout(200)
     again = page.evaluate(measure)
+    if width < 1024:
+        # On a phone the next page does not bring it back (QA 2026-10-11, D7), so the
+        # pill is pressed again, and the conversation is there behind it.
+        page.click("#talk-open")
     # A text offered where there is no sheet: the reader itself.
     page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
     frame = [f for f in page.frames if "embed=1" in f.url][0]
@@ -2011,11 +2016,16 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     assert 0 <= opened["drawer"]["left"] and opened["drawer"]["right"] <= width + 1, opened
     assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
     assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
-    assert again["open"] and again["remembered"] == "open", "open again on the next page"
-    # Audit 2, 2026-10-09: open on the next page because it was left open, not because
-    # it was pressed there — so beside the page, undimmed, and under its bar at a desk.
-    assert not again["dimmed"], "a drawer brought back does not dim the page"
-    if width >= 1024:
+    if width < 1024:
+        # QA 2026-10-11, decision D7: on a phone the drawer is a sheet over the whole
+        # page, so leaving the page closes it and the next page forgets it was open.
+        assert not again["open"] and again["remembered"] is None, again
+        assert again["pillShown"] and not again["dimmed"], again
+    else:
+        assert again["open"] and again["remembered"] == "open", "open again on the next page"
+        # Audit 2, 2026-10-09: open on the next page because it was left open, not
+        # because it was pressed there — so beside the page, undimmed, under its bar.
+        assert not again["dimmed"], "a drawer brought back does not dim the page"
         assert abs(again["drawer"]["right"] - width) <= 1, again
         assert again["drawer"]["top"] >= again["head"] - 1 > 0, again
     # design.md §12, "Talk is a sheet over a dimmed page" (2026-10-09; boards ChatDesk
