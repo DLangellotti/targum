@@ -904,8 +904,12 @@
 
   /* --- opening and closing ------------------------------------------------- */
 
+  // What had the keyboard before the palette opened, given back when it closes; it was
+  // left on the page's body (QA 2026-10-11).
+  var returnTo = null;
   function show(on, options) {
     var settings = options || {};
+    if (on && host.hidden) returnTo = document.activeElement;
     host.hidden = !on;
     if (scrim) scrim.hidden = !on;
     if (opener) opener.setAttribute("aria-expanded", on ? "true" : "false");
@@ -914,6 +918,9 @@
       if (scopeMenu) scopeMenu.hidden = true;
       // Focus leaves the field with it, or "/" would be typed into a field nobody sees.
       if (document.activeElement === field && field.blur) field.blur();
+      var back = returnTo && returnTo !== document.body && document.contains(returnTo) ? returnTo : opener;
+      returnTo = null;
+      if (back && back.focus && back.offsetParent !== null) back.focus();
       return;
     }
     state.filter = settings.scope || "all";
