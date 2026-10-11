@@ -164,6 +164,11 @@ body[data-step="learning"] .arrival { max-inline-size: 960px; }
 .arrival-opts { display: flex; flex-direction: column; gap: 10px; }
 .arrival-doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .arrival-langs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+/* Two across between a phone and a laptop: three columns at 41–48rem left a card too
+   narrow for «Здравствуйте» at the greeting's size (QA 2026-10-11). */
+@media (min-width: 40.01rem) and (max-width: 48rem) {
+  .arrival-langs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 .arrival-opt {
   font: inherit;
