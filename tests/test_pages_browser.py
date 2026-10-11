@@ -2100,6 +2100,40 @@ def test_the_drawer_takes_the_keyboard_in_and_gives_it_back(browser) -> None:
     assert got["role"] == "dialog"
 
 
+def test_find_and_the_account_give_the_keyboard_back_on_escape(browser) -> None:
+    """QA 2026-10-11: Escape closed the search palette and the account panel and left
+    focus on the page's body, so a keyboard user started again from the top of the page.
+    The bell and the language menu already gave it back; now all of them do."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/account/me" in request.url:
+            body = {"signedIn": True, "email": "d@x.test", "initials": "DJ", "language": "he"}
+        elif "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": 1366, "height": 800})
+    page = context.new_page()
+    page.route("http://library.test/**", answer)
+    page.goto(f"http://library.test/library?k={TOKEN}")
+    page.wait_for_selector("#palette-open")
+    page.wait_for_timeout(300)
+    back = {}
+    for opener in ("#palette-open", "#account-open"):
+        page.focus(opener)
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(200)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(200)
+        back[opener] = page.evaluate("() => document.activeElement.id")
+    context.close()
+    assert back == {"#palette-open": "palette-open", "#account-open": "account-open"}, back
+
+
 def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
     """The drawer's frame loads once and stays up, and home switches language in place.
     The conversation read the language for itself as it loaded, so it was one switch
