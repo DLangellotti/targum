@@ -367,6 +367,38 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The row under the picture goes to the next part — 2026-10-11
+
+David, 2026-10-11, in Theatre on the middle of an uploaded video: *"there is no button in
+theater mode to go to the next part in the video"*. "Next part" came up under the picture
+only once the voice reached the last line or the film ended ("One press gets the whole
+video, a part at a time", 2026-10-07), and Theatre's other way on was the pager at the
+foot of the transcript. So in the middle of a part there was no way to the next one
+without opening the transcript and scrolling to its end.
+
+- **The row under the picture says which part, with the parts either side.** Last in the
+  row, after Transcript, behind its hairline like the rest: "Part 2 of 6" in the row's
+  quiet type, a thin ‹ before it ("Previous part") and a thin › after it ("Next part"),
+  both links, labelled, and reached with Tab. Part 1 has no ‹ and the last part no ›, as
+  the pager has none. It is drawn only where there is more than one part.
+- **Next part from the row is the door's press, not a second one.** Ready, it opens the
+  part. Still being made, it does what the door does when pressed: the door comes up
+  under the picture to say "We'll open it when it's ready", and opens the part when it
+  is. Failed or refused, the door is where it says why and offers Try again. It asks the
+  box for nothing the page has not already asked for, so no new spend and no new path to
+  `Library.press` and `claim`: the one ask is still the page's own on the reader's visit.
+  Nothing plays by itself and nothing advances by itself.
+- **Beside has it too, because the row is one row.** Beside's line under the row stops
+  saying "Part 2 of 6", since the row now does. Where the row runs short — Theatre at a
+  narrow desk with the transcript open, or Beside — "Loop this line" says "Loop", as it
+  does on a phone, so the track keeps its length.
+- **Not on a phone, and not in a playlist.** A phone's row has already given up its
+  length and Transcript to fit, and the transcript with its pager is right under the
+  picture there. In a playlist the row's own Back and Next stand instead, as before.
+
+What stays: the door at the end of a part and the end card under the picture, the pager
+at the foot of the transcript, and the one-ahead making of parts.
+
 ### Theatre is the picture with its text under it — 2026-10-11
 
 David, 2026-10-11, looking at an uploaded video in Theatre on a desk window: *"theater -
@@ -2778,7 +2810,11 @@ transcript, and Theatre does not show the transcript.
   one primary colour); Theatre shows no foot and is unchanged. On the last
   part there is no door; in Theatre the transcript opens to its foot when the film
   ends, where Done and the library's next offer are, as a playlist's end opens it to
-  its card. In a playlist the row's own Next stands instead.
+  its card. In a playlist the row's own Next stands instead. Since 2026-10-11 the row
+  under the picture also says which part it is, with Previous part and Next part either
+  side, from the first second of a part ("The row under the picture goes to the next
+  part"); its Next part is this door's press, and pressed while the part is being made it
+  brings the door up to say so.
 
 What it does not reopen: a book is still bought a chapter at a time behind its 60%
 prefetch and its Translate press; a playlist's set is still claimed all or nothing; and a

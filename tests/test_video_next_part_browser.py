@@ -513,3 +513,146 @@ def test_the_unmarked_words_are_the_ones_the_press_would_mark(browser, built) ->
         assert all("gloss" in one for one in rest["glossed"]), rest["glossed"]
     finally:
         context.close()
+
+
+# -- the parts in the row under the picture (David, 2026-10-11; design.md §12) ---------
+
+PARTS = """
+() => {
+  const row = document.querySelector('.film-ctl .film-parts');
+  const shown = (el) => !!el && el.getClientRects().length > 0;
+  const track = document.querySelector('.film-track').getBoundingClientRect();
+  const ctl = document.querySelector('.film-ctl').getBoundingClientRect();
+  const r = row ? row.getBoundingClientRect() : null;
+  return {
+    shown: shown(row),
+    at: row ? row.querySelector('.film-part-at').textContent.trim() : null,
+    prev: shown(row && row.querySelector('.film-part-prev')),
+    next: shown(row && row.querySelector('.film-part-next')),
+    track: track.width,
+    inside: !!r && r.right <= ctl.right + 0.5 && r.left >= ctl.left - 0.5,
+  };
+}
+"""
+
+
+def test_theatre_says_which_part_and_goes_either_way_from_the_middle(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """David, 2026-10-11: "there is no button in theater mode to go to the next part in
+    the video". The row under the picture says "Part 2 of 3" with Previous part and Next
+    part either side, mid-part, without the film having ended; part one has no Previous
+    and the last part no Next, as the pager has none. Next part, pressed with the keyboard,
+    opens the next part's page, and nothing plays by itself."""
+    reader = two_parts(tmp_path, count=3)
+    context, page, _asked = film_page(
+        browser, reader, "sec-0002.html", "theatre", (200, {"ready": True})
+    )
+    try:
+        seen = page.evaluate(PARTS)
+        assert seen["shown"] and seen["at"] == "Part 2 of 3", seen
+        assert seen["prev"] and seen["next"] and seen["inside"], seen
+        assert seen["track"] > 200, "the track keeps its room"
+        assert not page.evaluate("() => document.body.classList.contains('film-at-end')")
+        prev = page.locator(".film-part-prev")
+        assert prev.get_attribute("href") == "sec-0001.html"
+        assert prev.get_attribute("aria-label") == "Previous part"
+        onward = page.locator(".film-part-next")
+        assert onward.get_attribute("href") == "sec-0003.html"
+        assert onward.get_attribute("aria-label") == "Next part"
+        page.wait_for_function("() => document.getElementById('film-next').dataset.state")
+        shot(page, "row-middle")
+        for _ in range(40):
+            page.keyboard.press("Tab")
+            if page.evaluate("() => document.activeElement.classList.contains('film-part-next')"):
+                break
+        else:
+            pytest.fail("Tab never reached Next part in the row")
+        page.keyboard.press("Enter")
+        page.wait_for_url("**/sec-0003.html")
+        assert page.evaluate("() => document.querySelector('.video-el').paused")
+        seen = page.evaluate(PARTS)
+        assert seen["at"] == "Part 3 of 3" and seen["prev"] and not seen["next"], seen
+    finally:
+        context.close()
+
+    context, page, _asked = film_page(
+        browser, reader, "sec-0001.html", "theatre", (200, {"ready": True})
+    )
+    try:
+        seen = page.evaluate(PARTS)
+        assert seen["at"] == "Part 1 of 3" and not seen["prev"] and seen["next"], seen
+    finally:
+        context.close()
+
+
+def test_next_part_in_the_row_waits_for_a_part_being_made(browser, tmp_path) -> None:  # noqa: F811
+    """Mid-part, the next part still being made: the row's Next part is the door's press.
+    The door comes up under the picture to say it will open the part when it is ready,
+    nothing more is asked of the box, and it opens once the job is done."""
+    reader = two_parts(tmp_path, second_ready=False)
+    context, page, asked = film_page(
+        browser,
+        reader,
+        "sec-0001.html",
+        "theatre",
+        (200, {"id": "j1", "stage": "queued", "blocked": "", "error": ""}),
+        jobs=[{"stage": "working"}],
+    )
+    try:
+        page.wait_for_function(
+            "() => document.getElementById('film-next').dataset.state === 'making'"
+        )
+        assert not page.locator("#film-next").is_visible(), "not before it is asked for"
+        page.locator(".film-part-next").click()
+        assert page.locator("#film-next").is_visible()
+        assert page.locator(".film-next-said").inner_text() == "We'll open it when it's ready."
+        shot(page, "row-making")
+        page.wait_for_timeout(300)
+        assert page.url.endswith("sec-0001.html"), "not before it is ready"
+        page.unroute("**/job/*")
+        page.route(
+            "**/job/*",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"stage": "done"})
+            ),
+        )
+        page.wait_for_url("**/sec-0002.html", timeout=10000)
+        posts = [one for one in asked if one["path"] == "/chapter"]
+        assert len(posts) == 1 and posts[0]["body"]["ahead"] is True, posts
+    finally:
+        context.close()
+
+
+def test_beside_shares_the_row_and_a_playlist_and_a_phone_do_not(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """Beside has the same row, and the line under it stops saying which part, since the
+    row does. A playlist keeps its own Back and Next in the row, and a phone has the
+    transcript and its pager under the picture, so neither gets the parts."""
+    reader = two_parts(tmp_path)
+    context, page, _ = film_page(browser, reader, "sec-0001.html", "beside", (200, {"ready": True}))
+    try:
+        seen = page.evaluate(PARTS)
+        assert seen["shown"] and seen["at"] == "Part 1 of 2" and seen["next"], seen
+        assert not page.locator(".film-source .film-part-said").is_visible()
+    finally:
+        context.close()
+    context, page, _ = film_page(
+        browser, reader, "sec-0001.html?list=1&at=0", "theatre", (200, {"ready": True})
+    )
+    try:
+        assert not page.evaluate(PARTS)["shown"], "a playlist's own Next stands instead"
+    finally:
+        context.close()
+    context = opened(browser, {"width": 390, "height": 844})
+    page = context.new_page()
+    answering(page, (200, {"ready": True}))
+    try:
+        page.goto(address(reader / "sec-0001.html"))
+        page.wait_for_selector("#video:not([hidden])")
+        assert not page.evaluate(PARTS)["shown"], "the pager is under the picture on a phone"
+    finally:
+        context.close()

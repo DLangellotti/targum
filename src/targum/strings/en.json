@@ -2577,6 +2577,7 @@
   "reader.film.next-part-opening": "We'll open it when it's ready.",
   "reader.film.next-part-trouble": "We couldn't get the next part ready.",
   "reader.film.next-part-again": "Try again",
+  "reader.film.previous-part": "Previous part",
   "reader.film.watch-on": "Watch on {service}",
   "reader.film.close-transcript": "Close the transcript",
   "reader.film.key-v": "the transcript beside the video, or the video large",

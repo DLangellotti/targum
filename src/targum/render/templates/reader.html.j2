@@ -618,6 +618,19 @@
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01"></path></svg>
         <span class="film-word">{{ t("reader.page.transcript", "Transcript") }}</span>
       </button>
+      {#- Where this part is in the recording, and the way to the parts either side
+          (David, 2026-10-11: "there is no button in theater mode to go to the next part
+          in the video"; design.md §12). Plain links, so they work off a disk; Next part
+          is also the door's (`film-next`), and the script gives it the door's press, so a
+          part still being made is waited for in the same way. Not in a playlist, whose
+          own Back and Next stand in the row. -#}
+      {%- if not standalone and section_count > 1 %}
+      <span class="film-parts">
+        {%- if previous %}<a class="film-part-go film-part-prev" href="{{ previous.filename }}" aria-label="{{ t("reader.film.previous-part", "Previous part") }}" title="{{ t("reader.film.previous-part", "Previous part") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3.5 5.5 8l4.5 4.5"></path></svg></a>{% endif -%}
+        <span class="film-part-at">{{ t("reader.film.part", "Part {n} of {count}", n=section.number, count=section_count) }}</span>
+        {%- if following %}<a class="film-part-go film-part-next" href="{{ following.filename }}" aria-label="{{ t("reader.film.next-part", "Next part") }}" title="{{ t("reader.film.next-part", "Next part") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5 10.5 8 6 12.5"></path></svg></a>{% endif -%}
+      </span>
+      {%- endif %}
     </span>
   </div>
   {#- What it is and whose, under the controls, in Beside. -#}
@@ -627,7 +640,7 @@
     <p class="film-source" dir="ltr">
       {%- if speech_credit %}<span>{{ speech_credit }}</span>{% endif %}
       {%- if speech_licence %}<span>{% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}</span>{% endif %}
-      {%- if not standalone %}<span>{{ t("reader.film.part", "Part {n} of {count}", n=section.number, count=section_count) }}</span>{% endif %}
+      {%- if not standalone %}<span class="film-part-said">{{ t("reader.film.part", "Part {n} of {count}", n=section.number, count=section_count) }}</span>{% endif %}
       <span class="film-length-said"></span>
       {%- if spoken_home and not (post and post.home) %}<span><a class="film-home" data-home="{{ "at" if spoken_home_timed else "" }}" href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener">{{ t("reader.film.watch-on", "Watch on {service}", service=spoken_home_named) }}</a></span>{% endif %}
     </p>
