@@ -2981,6 +2981,114 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     assert got["practise"]["first"] == (width <= 640)
 
 
+def _words_page(browser, width: int):
+    """Your Words, signed out, on a list of two words still being learned."""
+    html = list_page(TOKEN, "words")
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    page.add_init_script(
+        "if (!sessionStorage.getItem('seeded')) {"
+        "sessionStorage.setItem('seeded', '1');"
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({"
+        "'דרך': {surface: 'דרך', status: 2, at: 2},"
+        "'עיר': {surface: 'עיר', status: 1, at: 3}}));"
+        "localStorage.setItem('targum:language', 'he')}"
+    )
+    page.route("http://words.test/**", answer)
+    page.goto(f"http://words.test/words?k={TOKEN}")
+    page.wait_for_selector("#word-rows tr")
+    return context, page
+
+
+STAGE_OF = "(lemma) => JSON.parse(localStorage.getItem('targum:vocab:he'))[lemma].status"
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_an_ignored_word_can_be_undone_in_its_row(browser, width: int) -> None:
+    """QA 2026-10-11, decision D6 (design.md §12, "An ignored word can be taken back"):
+    ignore took the word off the list at once with no way back. Its row stays, says where
+    it went, and holds Undo under the keyboard, clear of the phone's bar of places; Undo
+    puts the word back at the stage it had."""
+    context, page = _words_page(browser, width)
+    try:
+        page.locator("#word-rows tr", has_text="דרך").locator(".level-0").click()
+        page.wait_for_selector("#word-rows tr.held")
+        got = page.evaluate(
+            """() => {
+              const undo = document.querySelector('#word-rows tr.held .held-undo');
+              undo.scrollIntoView({ block: 'end' });
+              undo.focus();
+              const bar = document.querySelector('.site-nav').getBoundingClientRect();
+              const fixed = getComputedStyle(document.querySelector('.site-nav')).position;
+              return {
+                note: document.querySelector('#word-rows tr.held .held-note').textContent,
+                focused: document.activeElement === undo,
+                clear: fixed !== 'fixed' || undo.getBoundingClientRect().bottom <= bar.top,
+                tabs: [...document.querySelectorAll('#stage-chips .tab')].map((c) => c.textContent),
+              };
+            }"""
+        )
+        ignored = page.evaluate(STAGE_OF, "דרך")
+        page.keyboard.press("Enter")
+        page.wait_for_selector("#word-rows tr.held", state="detached")
+        back = page.evaluate(
+            """() => [...document.querySelectorAll('#word-rows tr')].map(
+              (row) => [row.dataset.word, row.querySelector('.status-name').textContent]
+            )"""
+        )
+        stage = page.evaluate(STAGE_OF, "דרך")
+    finally:
+        context.close()
+    assert got["note"] == "דרך is in Ignored" and got["focused"] and got["clear"], got
+    assert "Ignored" in got["tabs"]
+    assert ignored == 0 and stage == 2
+    assert ["דרך", "Getting there"] in back
+
+
+def test_an_ignored_word_is_found_under_ignored_and_put_back_by_a_stage(browser) -> None:
+    """QA 2026-10-11, decision D6: the Ignored tab lists what was ignored, All does not,
+    and pressing a stage there puts the word back on the list."""
+    context, page = _words_page(browser, 1280)
+    try:
+        page.locator("#word-rows tr", has_text="עיר").locator(".level-0").click()
+        page.wait_for_selector("#word-rows tr.held")
+        page.locator("#stage-chips .tab", has_text="All").click()
+        everything = page.evaluate(
+            "() => [...document.querySelectorAll('#word-rows tr')].map((r) => r.dataset.word)"
+        )
+        page.locator("#stage-chips .tab", has_text="Ignored").click()
+        listed = page.evaluate(
+            """() => [...document.querySelectorAll('#word-rows tr')].map(
+              (row) => [row.dataset.word, row.querySelector('.status-name').textContent]
+            )"""
+        )
+        page.locator("#word-rows tr", has_text="עיר").locator(".level-1").click()
+        page.wait_for_timeout(200)
+        after = page.evaluate(
+            """() => ({
+              rows: document.querySelectorAll('#word-rows tr').length,
+              empty: document.getElementById('words-empty').hidden,
+            })"""
+        )
+        stage = page.evaluate(STAGE_OF, "עיר")
+        page.locator("#stage-chips .tab", has_text="To work on").click()
+        working = page.evaluate(
+            "() => [...document.querySelectorAll('#word-rows tr')].map((r) => r.dataset.word)"
+        )
+    finally:
+        context.close()
+    assert everything == ["דרך"], everything
+    assert listed == [["עיר", "Ignored"]], listed
+    assert after == {"rows": 0, "empty": False} and stage == 1
+    assert sorted(working) == ["דרך", "עיר"]
+
+
 #: What a card is, as the browser draws it: the card's paper, a shadow, and a card's
 #: corners (a pill on the card's paper is an outlined press, not a card). Measured rather
 #: than read from the class, so a page that draws its own card under another name is

@@ -3699,6 +3699,8 @@
   "lists.note.often-in": "Чаще всего падеж {case}:",
   "lists.stage.ignored": "Пропущено",
   "lists.stage.often": "Частые",
+  "lists.ignored.gone": "{word} — в пропущенных",
+  "lists.ignored.undo": "Отменить",
   "lists.met.texts.one": "{n} текст",
   "lists.met.texts.few": "{n} текста",
   "lists.met.texts.many": "{n} текстов",

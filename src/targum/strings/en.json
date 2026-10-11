@@ -3406,6 +3406,8 @@
   "lists.note.often-in": "Often in the {case}:",
   "lists.stage.ignored": "Ignored",
   "lists.stage.often": "Met often",
+  "lists.ignored.gone": "{word} is in Ignored",
+  "lists.ignored.undo": "Undo",
   "lists.met.texts.one": "{n} text",
   "lists.met.texts.other": "{n} texts",
   "lists.met.in.one": "met in {n} text",
