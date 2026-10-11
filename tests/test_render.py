@@ -3222,10 +3222,11 @@ def test_taking_a_mark_off_is_asked_for_rather_than_inferred() -> None:
     assert "var current = statusOf(lemma);" not in body, "nothing is inferred from the store"
     assert "if (status === null || status === undefined) {" in body
 
-    # The callers that do want a toggle say so, and ask before anything has been written.
-    assert (
-        "function toggled(index, status) {\n    return statusOf(lemmas[index]) === status" in script
-    )
+    # Nothing toggles any more (QA 2026-10-11, decision D8): the level a word has, pressed
+    # again, is no change, asked before anything has been written.
+    assert "function toggled(" not in script
+    asked = "function already(index, status) {\n    return statusOf(lemmas[index]) === status"
+    assert asked in script
     # Asked whether a free word list is full first (design.md §12, 2026-10-09).
     assert "setStatus(index, surface, band, value) === LIST_FULL" in script, "the card's own row"
     # The keys do not toggle. The back arrow lands on words already marked, and a level

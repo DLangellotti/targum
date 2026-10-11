@@ -1065,6 +1065,51 @@ def test_a_level_pressed_on_the_card_leaves_it_where_it_was(page, step: str) -> 
     assert level == step, f"the rebuilt card shows {level!r} pressed, not {step!r}"
 
 
+#: Counts every change the reader hands on to the account: `remember()` ends in
+#: `TargumSync.touched()`, which is what sends a change up a moment later.
+COUNT_SENT = """
+() => {
+  window.__sent = 0;
+  const sync = window.TargumSync || (window.TargumSync = {});
+  sync.touched = () => { window.__sent += 1; };
+}
+"""
+
+#: Every word this browser has a stage for, by lemma, as the reader stored it.
+STAGES = """
+() => {
+  const out = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key.startsWith('targum:vocab:')) continue;
+    const words = JSON.parse(localStorage.getItem(key) || '{}');
+    for (const lemma in words) out[lemma] = words[lemma].status;
+  }
+  return out;
+}
+"""
+
+
+def test_the_stage_a_word_has_pressed_again_stays(page) -> None:
+    """QA 2026-10-11, decision D8: pressing the stage a word already has used to take the
+    mark off, so a second tap meant as a confirmation silently un-marked the word. Now it
+    changes nothing: the word stays at 3, one change is sent, and the card still shows 3
+    pressed. The second press lands on the card while it lingers, as a double tap does."""
+    assert page.evaluate(TAP_ABOVE), "no word in the top half of the window to tap"
+    page.evaluate(COUNT_SENT)
+
+    page.locator("#gloss-card .level", has_text="3").first.click()
+    assert list(page.evaluate(STAGES).values()) == [3]
+    page.locator("#gloss-card .level", has_text="3").first.click()
+
+    assert list(page.evaluate(STAGES).values()) == [3], "the second press took the mark off"
+    assert page.evaluate("() => window.__sent") == 1, "the second press sent a change"
+    pressed = page.evaluate(
+        "() => document.querySelector('#gloss-card .level[aria-pressed=\"true\"]')?.textContent"
+    )
+    assert pressed == "3", f"the card shows {pressed!r} pressed after a second press of 3"
+
+
 #: A word looked up: what the card says it means, and whether it is still offering to
 #: find out. A reader who has already asked should meet the answer, not the button.
 CARD = """
@@ -7418,3 +7463,28 @@ def test_the_way_home_answers_a_thumb_over_44px(browser, built: Path) -> None:
     context.close()
     assert not reach.get("missing"), "a served reader has its way home"
     assert reach["across"] and reach["up"] and reach["edgeIsTheBars"], reach
+
+
+def test_the_reader_rings_its_focus_in_teal(browser, built: Path) -> None:
+    """§4, §12 "The focus ring is teal everywhere" (QA 2026-10-11, decision D3): the gold
+    was 2.71:1 on the reader's paper. Computed off a control reached by the keyboard."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    seen = []
+    for _ in range(8):
+        page.keyboard.press("Tab")
+        seen.append(
+            page.evaluate(
+                """() => { const el = document.activeElement;
+                    if (!el || el === document.body) return null;
+                    const s = getComputedStyle(el);
+                    return [el.className || el.tagName, s.outlineStyle, s.outlineColor]; }"""
+            )
+        )
+    context.close()
+    rings = [one for one in seen if one and one[1] != "none"]
+    assert rings, f"nothing Tab reached drew a ring: {seen}"
+    for where, _, colour in rings:
+        assert colour == "rgb(31, 111, 107)", f"{where} rings in {colour}"

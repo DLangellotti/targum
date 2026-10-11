@@ -46,7 +46,9 @@ PALETTE = {
     "#9a9288": "muted, on ink",
     "#7a5c38": "accent working",
     "#c8a778": "accent working, on ink / the wash",
-    "#b8935e": "focus ring",
+    # The gold: the mark's column in mail and /connect's underline. Never a focus ring
+    # since 2026-10-11 (§12, "The focus ring is teal everywhere").
+    "#b8935e": "gold, the mark's",
     "#a5824f": "the mark's translation column on paper",
     # The knowledge ramp used to be four gold steps written out per surface, and it is why
     # every chart on the progress page read brown. It climbs to leaf now — tints of
@@ -185,11 +187,40 @@ def test_absolute_type_sizes_are_on_the_scale(sheet: Path) -> None:
         assert size in SIZES, f"{sheet.name}: font-size {size!r} is off the scale"
 
 
+FOCUS = "#1f6f6b"
+FOCUS_ON_INK = "#6fb8b3"
+
+
 def test_the_focus_ring_is_one_colour() -> None:
-    """§4 gives one focus colour, and it is defined once, with the tokens (§11)."""
+    """§4 gives one focus colour, teal, defined once with the tokens (§11), and teal on
+    ink where a press stands on an ink surface (§12, 2026-10-11)."""
     text = (ASSETS / "tokens.css").read_text(encoding="utf-8")
     rings = set(re.findall(r"--focus:\s*([^;]+);", text))
-    assert rings == {"#b8935e"}, f"focus ring should be #b8935e everywhere, found {rings}"
+    assert rings == {FOCUS}, f"focus ring should be {FOCUS} everywhere, found {rings}"
+    on_ink = set(re.findall(r"--focus-on-ink:\s*([^;]+);", text))
+    assert on_ink == {FOCUS_ON_INK}, f"focus on ink should be {FOCUS_ON_INK}, found {on_ink}"
+    # The public sheets carry their own copy of the tokens; an ink surface points at the
+    # ink token rather than naming a value. Nothing else sets the ring.
+    for sheet in STYLESHEETS:
+        for value in re.findall(r"--focus:\s*([^;]+);", sheet.read_text(encoding="utf-8")):
+            assert value.strip() in {FOCUS, "var(--focus-on-ink)"}, (
+                f"{sheet.name}: --focus is {value.strip()!r}"
+            )
+
+
+def test_no_focus_ring_is_the_gold() -> None:
+    """The gold measured 2.31:1 on the ground and 2.71:1 on paper, under 1.4.11's 3:1
+    (§12, "The focus ring is teal everywhere", 2026-10-11). It stays the mark's and is
+    never a ring: no focus rule draws it, and nothing falls back to it."""
+    for sheet in STYLESHEETS:
+        css = re.sub(r"/\*.*?\*/", "", sheet.read_text(encoding="utf-8"), flags=re.S)
+        for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+            if "focus" not in selector and "outline" not in body:
+                continue
+            assert "#b8935e" not in body.lower(), f"{sheet.name}: {selector.strip()} rings in gold"
+        assert not re.search(r"--focus\s*,\s*#b8935e", css, re.I), (
+            f"{sheet.name}: falls back to the gold ring"
+        )
 
 
 #: §8. Every control a thumb presses. This list IS the rule: a new control in the strip,

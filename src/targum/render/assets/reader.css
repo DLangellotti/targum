@@ -2610,6 +2610,9 @@ body.paged .credits { margin-block-end: 6rem; }
   border-radius: 6px;
   overflow: hidden;
   background: #171614;
+  /* The one ink surface a focusable press stands on: teal is 3.05:1 here, teal on ink
+     7.91:1 (design.md §4, §12, 2026-10-11). */
+  --focus: var(--focus-on-ink);
 }
 .video-el {
   display: block;
