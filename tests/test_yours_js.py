@@ -296,6 +296,21 @@ def test_a_finished_or_failed_build_is_not_a_building_row() -> None:
     assert [row["title"] for row in drawn["shelf"]] == ["כתבה"]
 
 
+def test_a_refused_build_is_not_a_building_row() -> None:
+    """QA 2026-10-11: a press the server refused (`stage: blocked`, no error) was drawn as
+    "getting ready" at the head of Continue for good, one card for every press. Refused
+    is settled, as the server's `SETTLED` says."""
+    drawn = draw(
+        which="texts",
+        readers=[reader("article-he", "כתבה")],
+        jobs=[
+            building(stage="blocked", blocked="We can't get anything new ready right now."),
+            building(id="j2", stage="failed"),
+        ],
+    )
+    assert [row["title"] for row in drawn["shelf"]] == ["כתבה"]
+
+
 def test_a_shared_text_is_yours_once_you_have_opened_it() -> None:
     """The shared shelf is the Library's until you open one of it (design.md §12,
     2026-09-25). After that it is something you started, with nothing to delete."""
