@@ -52,7 +52,11 @@
   --paper-raised: #f3efe7;
   --rule: #e2dcd1;
   --accent: #7a5c38;
-  --focus: #b8935e;
+  /* Teal, everywhere (design.md §4, §12 "The focus ring is teal everywhere", QA
+     2026-10-11, decision D3): the gold was 2.71:1 on paper and 2.31:1 on the ground,
+     under WCAG 1.4.11's 3:1. An ink surface sets `--focus` to the ink value. */
+  --focus: #1f6f6b;
+  --focus-on-ink: #6fb8b3;
   /* The mark's translation column is its own value on paper: the working accent
      goes muddy at 22px wide, and every brand asset already uses this one. */
   --mark-accent: #a5824f;
@@ -196,9 +200,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 a { color: var(--teal); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 0.15em; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-/* On the ground the gold ring is 2.31:1; public pages ring in teal, 4.8:1, the colour a
-   focused field already uses (design.md §4, §12, 2026-10-02). */
-:focus-visible, .site-footer a:focus-visible { outline-color: var(--teal); }
 h1, h2, h3 { text-wrap: balance; }
 .he { font-family: var(--reading-hebrew); direction: rtl; unicode-bidi: isolate; }
 .tnum { font-variant-numeric: lining-nums tabular-nums; }

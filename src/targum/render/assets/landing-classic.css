@@ -63,7 +63,7 @@
   --paper-raised: #f3efe7;
   --rule: #e2dcd1;
   --accent: #7a5c38;
-  --focus: #b8935e;
+  --focus: #1f6f6b;   /* teal, as everywhere (design.md §12, 2026-10-11) */
   /* The mark's translation column is its own value on paper: the working accent
      goes muddy at 22px wide, and every brand asset already uses this one. */
   --mark-accent: #a5824f;
