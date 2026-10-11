@@ -738,14 +738,37 @@
       if (first && first.focus) first.focus({ preventScroll: true });
     }
 
+    // Each step is an entry in the browser's history, so a phone's back gesture (or the
+    // browser's Back) goes to the step before rather than leaving the arrival, and with
+    // it every answer given so far (QA 2026-10-11). The address does not change.
+    function remembered() {
+      return history.state && typeof history.state.arrival === "number";
+    }
     function onward() {
       if (step < order.length - 1) {
         step += 1;
+        try {
+          history.pushState({ arrival: step }, "", location.href);
+        } catch (e) {}
         arrive();
         return;
       }
       finish(learning, level);
     }
+    try {
+      history.replaceState({ arrival: step }, "", location.href);
+    } catch (e) {}
+    window.addEventListener("popstate", function (event) {
+      var to = event.state && event.state.arrival;
+      if (typeof to !== "number" || to === step || to < 0 || to >= order.length) return;
+      // Forward through the browser keeps what Continue would have kept on the way.
+      while (step < to) {
+        leave(order[step]);
+        step += 1;
+      }
+      step = to;
+      arrive();
+    });
 
     /* 1. The six languages: greeting, name and badge, the one pressed in the primary.
        The language the browser is already in is pressed to start with — Hebrew for
@@ -861,8 +884,8 @@
       tongues.appendChild(other);
     }
 
-    done.onclick = function () {
-      var now = order[step];
+    // What leaving a step keeps: the language said, the subjects remembered.
+    function leave(now) {
       if (now === "learning") {
         counted("welcome-learning");
         sayLearning(learning);
@@ -870,9 +893,12 @@
       } else if (now === "subjects") {
         counted("welcome-likes");
         remember(picked);
-      } else if (now === "level" && !level) {
-        return;
       }
+    }
+    done.onclick = function () {
+      var now = order[step];
+      if (now === "level" && !level) return;
+      leave(now);
       onward();
     };
     // Not sure is an answer too: no level is kept, and the easiest page there is opens.
@@ -885,6 +911,12 @@
     }
     function goBack() {
       if (step === 0) return;
+      // The page's own Back walks the same history the browser's does, so the two never
+      // disagree about where Forward goes.
+      if (remembered() && history.state.arrival === step) {
+        history.back();
+        return;
+      }
       step -= 1;
       arrive();
     }
