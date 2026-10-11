@@ -735,6 +735,62 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
     assert went and "/reader/easy" in went[-1], f"the letters open the easiest text: {went}"
 
 
+def test_the_phones_back_gesture_steps_back_through_the_arrival(browser) -> None:
+    """Each step of the arrival is an entry in the browser's history (QA 2026-10-11). The
+    back gesture on a phone left /welcome altogether from the second step, and coming
+    forward again started over with every answer gone."""
+    context, page, _ = _arrival_page(browser, 390, locale="en-US")
+    step = "document.body.dataset.step"
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
+    page.locator(".arrival-door", has_text="News").first.tap()
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
+    page.locator(".arrival-rung", has_text="I can read simple things").tap()
+
+    page.go_back()
+    assert page.evaluate(step) == "subjects"
+    news = page.locator(".arrival-door", has_text="News").first
+    assert news.get_attribute("aria-pressed") == "true", "the subject chosen is still chosen"
+    page.go_back()
+    assert page.evaluate(step) == "learning"
+    assert page.url.endswith("/welcome?k=" + TOKEN), "and the page never left"
+
+    page.go_forward()
+    page.go_forward()
+    assert page.evaluate(step) == "level"
+    rung = page.locator(".arrival-rung", has_text="I can read simple things")
+    assert rung.get_attribute("aria-checked") == "true", "the level chosen is still chosen"
+    assert not page.locator("#arrival-done").is_disabled()
+
+    page.locator("#arrival-back-mark").tap()
+    assert page.evaluate(step) == "subjects", "the page's own back walks the same history"
+    page.go_forward()
+    assert page.evaluate(step) == "level"
+    context.close()
+
+
+@pytest.mark.parametrize("width", [320, 360, 660, 768, 900])
+def test_the_languages_fit_in_russian(browser, width: int) -> None:
+    """In Russian «Арамейский» and «Экспериментальный» side by side pushed Aramaic's
+    greeting off a 320px phone, and the three columns ran past a 660px window
+    (QA 2026-10-11). The badge folds under the name instead."""
+    context, page, _ = _arrival_page(browser, width, language="Русский")
+    got = page.evaluate(
+        """() => ({
+          sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          outside: [...document.querySelectorAll('.arrival-lang .arrival-greeting')]
+            .filter((g) => {
+              const box = g.getBoundingClientRect();
+              const card = g.closest('.arrival-lang').getBoundingClientRect();
+              return box.right > card.right + 1 || box.left < card.left - 1;
+            }).map((g) => g.textContent),
+        })"""
+    )
+    context.close()
+    assert got["outside"] == [] and not got["sideways"], got
+
+
 LANGUAGE_MEASURE = """() => {
   const foot = document.querySelector('.arrival-foot').getBoundingClientRect();
   const rows = [...document.querySelectorAll('#arrival-tongues .arrival-rung')];
@@ -1127,19 +1183,35 @@ def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
     assert not got["pillCovers"], "the pill does not stand over the sheet"
 
 
-def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
-    """At 768px everything fits, and the two-line arrangement must not apply."""
+@pytest.mark.parametrize(
+    ("language", "width", "one_line"),
+    [("en", 768, False), ("ru", 768, False), ("ru", 834, False), ("en", 1024, True), ("ru", 1024, True)],
+)
+def test_the_header_never_runs_past_a_tablet(
+    browser, tmp_path: Path, language: str, width: int, one_line: bool
+) -> None:
+    """The header is one line where it fits and two where it does not, and never wider
+    than the window. This test said "at 768px everything fits" until the QA pass of
+    2026-10-11 measured it in a running app: it did not, by 25px signed out and by 73px
+    in Russian on every desk page, so an iPad held upright scrolled sideways and its
+    account sat past the edge. Two lines start under 56rem now; at a laptop the header is
+    still the one line it always was."""
     page_file = tmp_path / "home.html"
-    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
-    context = browser.new_context(viewport={"width": 768, "height": 1024})
+    page_file.write_text(list_page(TOKEN, "texts", language), encoding="utf-8")
+    context = browser.new_context(viewport={"width": width, "height": 1024})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
     open_page.wait_for_timeout(300)
-    one_line = open_page.evaluate(
+    got = open_page.evaluate(
         """() => {
           const brand = document.querySelector('.brand').getBoundingClientRect();
           const nav = document.querySelector('.site-nav').getBoundingClientRect();
-          return nav.top < brand.bottom && nav.bottom > brand.top;
+          const account = document.querySelector('.account').getBoundingClientRect();
+          return {
+            oneLine: nav.top < brand.bottom && nav.bottom > brand.top,
+            accountInside: account.right <= document.documentElement.clientWidth + 1,
+            sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          };
         }"""
     )
     glyphs = open_page.evaluate(
@@ -1148,7 +1220,8 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
           .map((a) => a.dataset.nav)"""
     )
     context.close()
-    assert one_line
+    assert got["oneLine"] is one_line, got
+    assert got["accountInside"] and not got["sideways"], f"the page scrolls sideways: {got}"
     assert glyphs == ["add"], "at a desk only Add keeps its glyph, a + before the word"
 
 
