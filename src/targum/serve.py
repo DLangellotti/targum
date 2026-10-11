@@ -5035,6 +5035,33 @@ SESSION_COOKIE = "targum_session"
 CONNECT_COOKIE = "targum_connect"
 CONNECT_MINUTES = 10
 
+#: The longest page a sign-in carries back to (QA 2026-10-11, decision D2). A reader's
+#: address with its query is a few hundred characters; anything longer is not one.
+NEXT_LONGEST = 1024
+
+
+def safe_next(asked: object) -> str:
+    """The page a sign-in returns to, if it is one of ours, else "" (QA 2026-10-11, D2).
+
+    `next` arrives from a query string and a form, which anybody can write, and it ends
+    up in a `Location` header: so only a path on this origin passes. One leading slash
+    and not two (`//evil.test` is another host to a browser), no backslash (which some
+    browsers read as a slash), no scheme and no host however spelt, nothing below a
+    space, and not the door itself, which would only send them round again.
+    """
+    if not isinstance(asked, str) or not asked or len(asked) > NEXT_LONGEST:
+        return ""
+    if not asked.startswith("/") or asked.startswith("//") or "\\" in asked:
+        return ""
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in asked):
+        return ""
+    seen = urlparse(asked)
+    if seen.scheme or seen.netloc:
+        return ""
+    if seen.path.startswith(("/account/signin", "/account/sign-in", "/account/enter")):
+        return ""
+    return asked
+
 
 def _short_cookie(name: str, value: str) -> str:
     """One cookie that lasts as long as one errand. Same flags as the session's."""
@@ -7882,9 +7909,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if self._needs_account(route):
             # Data routes answer as data. Anything a person could be looking at gets a
-            # page rather than a 401 — and not the sign-in page either, because a door
-            # shown to somebody with no key is a wall that looks like a mistake. The
-            # door is one click away, in the corner.
+            # page rather than a 401: the front door at `/`, and the sign-in door for
+            # every other room, carrying the room so the reader lands back in it
+            # (design.md §12, 2026-10-11).
             if not PLAYLIST_PAGE.fullmatch(route) and route.startswith(
                 (
                     "/readers",
@@ -7916,14 +7943,23 @@ class Handler(BaseHTTPRequestHandler):
                 )
             if not self._is_a_page(route):
                 return self._not_found()
-            # The front door, once there is one. Only at `/`: every other page a
-            # signed-out visitor asks for is still the holding page, because the front
-            # door is a page about the product and not a stand-in for one of its rooms.
+            # The front door, once there is one. Only at `/`, because the front door is
+            # a page about the product and not a stand-in for one of its rooms.
             if route == "/" and front_door_is_open():
                 page = front_page(
                     language=self._public_language(), address=self.address, asked=self._asked()
                 )
                 return self._send(200, page.encode("utf-8"), HTML)
+            # Every other room is a door back to itself (design.md §12, 2026-10-11; QA
+            # decision D2). The holding page said "Coming soon" to a reader whose session
+            # had run out, about a page they had been reading, and nothing brought them
+            # back to it after signing in. `/` keeps its own answer above, and a
+            # thumbnail is a picture inside a page, never somewhere to return to.
+            if route != "/" and not route.startswith("/thumb/"):
+                asked = urlparse(self.path)
+                back = safe_next(asked.path + (f"?{asked.query}" if asked.query else ""))
+                door = "/account/signin" + (f"?next={quote(back, safe='/')}" if back else "")
+                return self._go(door)
             return self._send(
                 200, holding_page(language=self._page_language()).encode("utf-8"), HTML
             )
@@ -7949,7 +7985,13 @@ class Handler(BaseHTTPRequestHandler):
                 # In the language pressed on the front door, where one was: the link there
                 # carries it, and a stranger who chose Russian a page ago is not handed
                 # English to sign in with (2026-09-20).
-                signin_page(language=self._public_language(), asked=self._asked()).encode("utf-8"),
+                # `next` is the room a signed-out reader was turned away from (QA
+                # 2026-10-11, D2), checked here and again at every step after.
+                signin_page(
+                    language=self._public_language(),
+                    asked=self._asked(),
+                    back=safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0]),
+                ).encode("utf-8"),
                 HTML,
             )
         # Google's two halves (targum-internal#304). Exempt from the start-up key for the
@@ -7968,6 +8010,7 @@ class Handler(BaseHTTPRequestHandler):
             # A page, not a sign-in. A mail client that fetches links to preview them
             # spends nothing here; the button below posts, and that is what signs in.
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+            back = safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0])
             person = self.store.peek_sign_in(token) if token else None
             if person is None and token and self.store.leaving_link(token):
                 page = signin_page(language=self._page_language(), closing=True)
@@ -7975,7 +8018,10 @@ class Handler(BaseHTTPRequestHandler):
             if person is None:
                 return self._send(
                     200,
-                    signin_page(expired=True, language=self._page_language()).encode("utf-8"),
+                    # The new link it asks for still goes back to the same room.
+                    signin_page(expired=True, language=self._page_language(), back=back).encode(
+                        "utf-8"
+                    ),
                     HTML,
                 )
             marked = parse_qs(urlparse(self.path).query).get("c", [""])[0] == "1"
@@ -7988,6 +8034,7 @@ class Handler(BaseHTTPRequestHandler):
                 language=self._page_language(),
                 connecting=self._finishing(self._connecting_client(waiting)) if waiting else "",
                 lost=marked and not waiting,
+                back=back,
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if not self._authorised():
@@ -8260,7 +8307,8 @@ class Handler(BaseHTTPRequestHandler):
         # the same thing whatever address it is given, and all it can cause is one email
         # to an address the asker typed themselves.
         if route == "/account/enter":
-            return self._enter(self._form().get("t", ""))
+            form = self._form()
+            return self._enter(form.get("t", ""), safe_next(form.get("next", "")))
         # Telegram's webhook (targum-internal#328). Before the account check: what
         # authorises it is the secret Telegram was given, never a cookie.
         if route == telegram_module.HOOK:
@@ -11002,6 +11050,13 @@ class Handler(BaseHTTPRequestHandler):
         language = self._mail_language(email, payload.get("into"))
         token = self.store.start_sign_in(email)
         link = f"{self.address}/account/enter?t={token}"
+        # The room the reader was turned away from rides in the link itself (QA
+        # 2026-10-11, D2), not in a cookie as a Connect does: a link opened on the phone
+        # it was asked for from has no other way to know, and the link is the reader's
+        # own. Checked here, and again when the link is opened and when it is pressed.
+        back = safe_next(payload.get("next"))
+        if back:
+            link += f"&next={quote(back, safe='')}"
         if self._connecting():
             # Marked, so the page the link opens can tell a connect that is waiting from
             # one that was lost on the way — the link opened in another browser, or after
@@ -11027,6 +11082,9 @@ class Handler(BaseHTTPRequestHandler):
     #: on disk: they live ten minutes, they belong to no account yet, and a restart
     #: losing them costs somebody one press of a button.
     _google_begun: ClassVar[dict[str, Any]] = {}
+    #: The room each of those was started from, by the same `state` (QA 2026-10-11, D2),
+    #: kept beside rather than on `Begun`, which is Google's half and knows no pages.
+    _google_next: ClassVar[dict[str, str]] = {}
 
     #: The language one answer is said in where the request named it (`_sign_in`), over
     #: the browser's; empty everywhere else.
@@ -11048,7 +11106,11 @@ class Handler(BaseHTTPRequestHandler):
         for state, old in list(self._google_begun.items()):
             if google_module.stale(old):
                 self._google_begun.pop(state, None)
+                self._google_next.pop(state, None)
         self._google_begun[begun.state] = begun
+        back = safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0])
+        if back:
+            self._google_next[begun.state] = back
         self._go(begun.where)
 
     def _google_back(self, query: dict[str, list[str]]) -> None:
@@ -11071,6 +11133,7 @@ class Handler(BaseHTTPRequestHandler):
 
         state = (query.get("state") or [""])[0]
         begun = self._google_begun.pop(state, None) if state else None
+        back = self._google_next.pop(state, "") if state else ""
         if begun is None or google_module.stale(begun):
             # Also what an abandoned tab looks like an hour later, so it is said the way
             # a spent link is: not an error, just start again.
@@ -11108,10 +11171,10 @@ class Handler(BaseHTTPRequestHandler):
         _, session = got
         from .accounts import SESSION_DAYS
 
-        where = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
-        self._go(where, self._session_cookie(session, SESSION_DAYS))
+        landed = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
+        self._go(safe_next(back) or landed, self._session_cookie(session, SESSION_DAYS))
 
-    def _enter(self, token: str) -> None:
+    def _enter(self, token: str, back: str = "") -> None:
         got = self.store.finish_sign_in(token) if token else None
         if got is None and token and self.store.leaving_link(token):
             page = signin_page(language=self._page_language(), closing=True)
@@ -11131,7 +11194,11 @@ class Handler(BaseHTTPRequestHandler):
         # is checked against that prefix, so it cannot be turned into a way out.
         waiting = self._connecting()
         landed = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
-        where = waiting or landed
+        # Then the room they were turned away from, where there was one (QA 2026-10-11,
+        # D2). A Connect goes first, because an app is waiting on it. A new account goes
+        # to the room too rather than to `/welcome`: somebody who followed a link to a
+        # text came for the text, and home asks its questions on their next visit there.
+        where = waiting or safe_next(back) or landed
         cookies = [self._session_cookie(session, SESSION_DAYS)]
         if waiting:
             cookies.append(_forget_cookie(CONNECT_COOKIE))

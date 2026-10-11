@@ -367,6 +367,33 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A page asked for signed out is a door back to it — 2026-10-11
+
+David, 2026-10-11, QA decision D2. Signed out, every page but the front door answered
+with the holding page, "Coming soon", on the reasoning that a sign-in form shown to
+somebody with no account is a wall that looks like a mistake. The people who actually
+meet it are not strangers: they are readers whose session ran out, or who bookmarked
+`/you`, `/add` or a reader, most often on a phone. They were told the product does not
+exist yet, about a page they had been reading, and nothing brought them back to it.
+
+- **A page route sends a signed-out visitor to the door, carrying the page.** A 303 to
+  `/account/signin?next=<path and query>`, wherever the door would have been needed
+  (hosted, or once an account exists on a machine somebody runs). Data routes still
+  answer 401 with JSON, a thumbnail still gets the holding page, and `/` is unchanged:
+  the front door while it is open, the holding page while it is shut.
+- **The page rides in the mailed link, not a cookie.** The door's form posts it with the
+  address, the link reads `…/account/enter?t=…&next=…`, the page the link opens posts it
+  with the press, and the press lands there instead of home. A link opened in another
+  browser, or a day later, still knows where it was going. Continue with Google carries it the same
+  way, by the sign-in's `state`. A Connect waiting on the sign-in still goes first.
+- **A new account lands on the page too, not on `/welcome`.** Somebody who followed a
+  link to a text came for the text; home asks the arrival's questions on their next visit
+  there.
+- **Only a page of ours.** `next` is checked at every step (`serve.safe_next`): one
+  leading slash and not two, no backslash, no scheme or host, nothing below a space, at
+  most 1,024 characters, and not the door itself. Anything else is dropped and the press
+  lands home, so the door is never a redirect somebody else can choose.
+
 ### The row under the picture goes to the next part — 2026-10-11
 
 David, 2026-10-11, in Theatre on the middle of an uploaded video: *"there is no button in

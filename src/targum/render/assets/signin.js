@@ -75,7 +75,9 @@
     fetch("/account/sign-in", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: field.value, into: carried() }),
+      // The room a signed-out reader was turned away from, so the mailed link lands
+      // back in it (QA 2026-10-11, D2). The server checks it again; this only carries it.
+      body: JSON.stringify({ email: field.value, into: carried(), next: form.getAttribute("data-next") || "" }),
     })
       .then(function (response) {
         return response.json().then(function (body) {
