@@ -369,6 +369,27 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### An ignored word can be taken back, and found under Ignored — 2026-10-11
+
+David, 2026-10-11, QA decision D6 (DESK-11). On Your Words, ignore sits a word's width
+from known on every row, and pressing it took the word off the list at once: To work on
+and All both left it out, no Undo followed, and no view showed it again. A press meant
+for known lost the word without a sign. Now:
+
+- **The row stays, with Undo.** For eight seconds the row says "דרך is in Ignored" with
+  Undo after it in teal, the shape a deleted text's row has on home. The keyboard goes to
+  Undo, and the row waits while Undo has focus. Undo writes back the stage the word had,
+  through the same store and the same sync the press used. On a phone the row sits in
+  the list, so it scrolls clear of the bar of places like every other row.
+- **Ignored is a tab after All**, drawn once a word is ignored. It lists the ignored
+  words, each with its five stages, and pressing a stage there puts the word back on the
+  list.
+- **All is everything on the list**, which is the number the head gives. It used to show
+  ignored words too, while the head did not count them.
+
+The practice card is unchanged: a word ignored there leaves the card, and is found under
+Ignored.
+
 ### The focus ring is teal everywhere — 2026-10-11
 
 David, 2026-10-11, QA decision D3. The public pages moved their ring to teal on
@@ -2092,7 +2113,8 @@ Your Progress's "Practise these words", one language at a time, the one the menu
   already has it.
 - **The stage is chips, not a select**: To work on (steps 1 to 3, where it opens), Just
   met, Getting there, Nearly there, Known, All — the step names the control itself uses
-  (`vocab.js` `steps()`), and the choice remembered in this browser.
+  (`vocab.js` `steps()`), and the choice remembered in this browser. *(Ignored follows
+  All since 2026-10-11: "An ignored word can be taken back, and found under Ignored".)*
 - **Every row carries the five stages**: the same control the card has, pressed in the
   row without opening the card. The table is four columns — the word (its dictionary form
   under it where they differ), the meaning, the stage, when it was kept. "How common" and
@@ -2114,8 +2136,9 @@ beside a word. Now:
 
 - **One card holds the list**: Words and Phrases as tabs with the find field in its
   head, the stages as tabs (To work on · Just met · Getting there · Nearly there · Known
-  · All), then **Met often**, pressed on and off apart from them, and one table — the
-  word, its meaning, **Met in** (how many texts), its stage by name on the ramp's
+  · All, and Ignored since 2026-10-11), then **Met often**, pressed on and off apart
+  from them, and one table — the word, its meaning, **Met in** (how many texts), its
+  stage by name on the ramp's
   colour, and the five stages — with "Most met first" and Show more at its foot. On a
   phone each word is a row: the meaning and the word, the stage and "met in N texts"
   under them, the stages a thumb tall. The exports are quiet links at the end of the

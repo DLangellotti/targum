@@ -143,12 +143,13 @@ def test_nothing_offers_an_export_to_a_browser_with_no_account() -> None:
 
 
 def test_an_ignored_word_does_not_blank_the_table() -> None:
-    """Ignored is 0, and the status table has no 0: it is not a step on the ramp."""
-    drawn = draw(
-        vocabulary(word("ספר", "book", status=9), word("עיר", "city", status=0)), filter="all"
-    )
-    rows = {row["term"]: row["stage"] for row in drawn["words"]}
-    assert rows["עיר"] == 0 and rows["ספר"] == 9
+    """Ignored is 0, and the status table has no 0: it is not a step on the ramp. It is
+    drawn under its own tab, and All is what is on the list (QA 2026-10-11, D6)."""
+    stored = vocabulary(word("ספר", "book", status=9), word("עיר", "city", status=0))
+    rows = {row["term"]: row["stage"] for row in draw(stored, filter="0")["words"]}
+    assert rows == {"עיר": 0}
+    rows = {row["term"]: row["stage"] for row in draw(stored, filter="all")["words"]}
+    assert rows == {"ספר": 9}
 
 
 def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -> None:

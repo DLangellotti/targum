@@ -138,6 +138,112 @@
     });
   }
 
+  /* Ignoring a word, and taking it back (QA 2026-10-11, decision D6).
+   *
+   * Ignore is the fifth step on every row, a word's width from known, and it took the
+   * word off the list at once: To work on and All both left it out, and no view showed
+   * it again, so a press meant for known lost the word without a sign. Now the row stays
+   * where it was for a few seconds, says where the word went and holds Undo under the
+   * same finger — the shape a deleted text's row has on home (`shelf.js` `binned`). Undo
+   * writes back the stage the word had, through the same store and the same sync the
+   * press used. The Ignored tab is where the word is found after that.
+   *
+   * Held by lemma rather than by the row's object: a press redraws the page from the
+   * store (`onChanged`), and the objects it drew from are new ones each time. */
+  var IGNORED = 0;
+  var UNDO_FOR = 8000;
+  var undoing = null;
+
+  function lookup(lemma) {
+    for (var n = 0; n < entry.words.length; n++) {
+      if (entry.words[n].lemma === lemma) return entry.words[n];
+    }
+    return null;
+  }
+
+  function holdsFocus(node) {
+    var now = document.activeElement;
+    return !!(node && now && node.contains && node.contains(now));
+  }
+
+  // One word held at a time: ignoring a second finishes the first.
+  function letGo() {
+    if (undoing && undoing.timer) clearTimeout(undoing.timer);
+    undoing = null;
+  }
+
+  function expire() {
+    if (!undoing) return;
+    // Never out from under the keyboard: while Undo has focus it waits.
+    var row = rowsBody && rowsBody.querySelector && rowsBody.querySelector("tr.held");
+    if (holdsFocus(row)) {
+      undoing.timer = setTimeout(expire, 1000);
+      return;
+    }
+    letGo();
+    renderWords();
+  }
+
+  /* A stage pressed on a row or its card. Pressing the stage a word already has keeps
+     it, as before. */
+  function restage(word, value) {
+    var was = word.status;
+    var next = value === null ? was : value;
+    if (next === IGNORED && was !== IGNORED) {
+      letGo();
+      undoing = {
+        lemma: word.lemma,
+        was: was,
+        at: Math.max(0, visibleWords().indexOf(word)),
+        focus: true,
+        timer: setTimeout(expire, UNDO_FOR),
+      };
+    }
+    updateWord(word, { status: next });
+  }
+
+  function unignore() {
+    if (!undoing) return;
+    var lemma = undoing.lemma;
+    var was = undoing.was;
+    letGo();
+    var word = lookup(lemma);
+    if (word && word.status === IGNORED) updateWord(word, { status: was });
+    said();
+    // Back on its row, which takes the keyboard Undo had.
+    var rows = rowsBody && rowsBody.querySelectorAll ? rowsBody.querySelectorAll("tr") : [];
+    for (var n = 0; n < rows.length; n++) {
+      if (rows[n].getAttribute("data-word") === lemma && rows[n].focus) rows[n].focus();
+    }
+  }
+
+  // The row an ignored word leaves behind while it can still be taken back.
+  function heldRow(word) {
+    var tr = el("tr", "held");
+    tr.setAttribute("data-word", word.lemma);
+    var cell = el("td", "held-cell");
+    cell.colSpan = 5;
+    var note = el("span", "held-note");
+    var term = el("bdi", "term", word.term);
+    term.setAttribute("lang", code);
+    // The word wherever the sentence puts it: `{word}` marks the place.
+    var sentence = t("lists.ignored.gone", "{word} is in Ignored");
+    var at = Math.max(0, sentence.indexOf("{word}"));
+    note.appendChild(document.createTextNode(sentence.slice(0, at)));
+    note.appendChild(term);
+    note.appendChild(document.createTextNode(sentence.slice(at).replace("{word}", "")));
+    cell.appendChild(note);
+    var undo = el("button", "btn text small held-undo", t("lists.ignored.undo", "Undo"));
+    undo.type = "button";
+    undo.addEventListener("click", function (event) {
+      if (event && event.stopPropagation) event.stopPropagation();
+      unignore();
+    });
+    cell.appendChild(undo);
+    tr.appendChild(cell);
+    return { row: tr, undo: undo };
+  }
+
   /* Your own words for a word or a phrase, filed under the pair they were written in.
    *
    * The word record used to carry the note, and this page went on writing it there after
@@ -691,6 +797,8 @@
      every list on the page is drawn again from the one store it was said into. */
   function said() {
     closeCard();
+    // The Ignored tab comes and goes with the words it holds.
+    drawStageTabs();
     renderWords();
     renderPractise();
     renderPhrases();
@@ -718,7 +826,7 @@
           legend: true,
           placeholder: t("vocab.own-meaning", "Your own meaning"),
           onStatus: function (value) {
-            updateWord(word, { status: value === null ? word.status : value });
+            restage(word, value);
             said();
           },
           onNote: function (text) {
@@ -800,7 +908,11 @@
       .filter(function (word) {
         if (want === "learning") {
           if (!(word.status >= 1 && word.status <= 3)) return false;
-        } else if (want !== "all" && String(word.status) !== want) {
+        } else if (want === "all") {
+          // All that is on the list, which is what the head counts: an ignored word is
+          // not vocabulary (`charts.kept`), and has its own tab since D6.
+          if (word.status === IGNORED) return false;
+        } else if (String(word.status) !== want) {
           return false;
         }
         if (often && metIn(word) < facts.often) return false;
@@ -838,8 +950,16 @@
   function renderWords() {
     if (!rowsBody) return;
     var rows = visibleWords();
+    // A word just ignored keeps its place, held with its Undo.
+    var held = undoing && lookup(undoing.lemma);
+    if (undoing && (!held || held.status !== IGNORED)) {
+      letGo();
+      held = null;
+    }
+    if (held && rows.indexOf(held) < 0) rows.splice(Math.min(undoing.at, rows.length), 0, held);
     var cap = limits.words || 0;
     var drawing = cap ? rows.slice(0, cap) : rows.slice(0, shown);
+    var hadUndo = holdsFocus(rowsBody.querySelector && rowsBody.querySelector("tr.held"));
     rowsBody.textContent = "";
     var table = at("word-table");
     if (table) {
@@ -855,6 +975,15 @@
       table.classList.toggle("is-rtl", DIRECTION[code] === "rtl");
     }
     drawing.forEach(function (word) {
+      if (word === held) {
+        var holding = heldRow(word);
+        rowsBody.appendChild(holding.row);
+        // Focus follows the press to Undo, and stays on it through the redraws the press
+        // brings with it.
+        if ((undoing.focus || hadUndo) && holding.undo.focus) holding.undo.focus();
+        undoing.focus = false;
+        return;
+      }
       var tr = el("tr");
       tr.setAttribute("data-word", word.lemma);
 
@@ -907,7 +1036,7 @@
         window.TargumVocab.editor({
           status: word.status,
           onStatus: function (value) {
-            updateWord(word, { status: value === null ? word.status : value });
+            restage(word, value);
             said();
           },
         })
@@ -1214,6 +1343,7 @@
       stages().forEach(function (pair) {
         if (pair[0] === kept) chosen.value = kept;
       });
+      if (kept === String(IGNORED)) chosen.value = kept;
     } catch (e) {}
     function tab(value, label, on, press) {
       var button = el("button", "tab", label);
@@ -1224,19 +1354,36 @@
       host.appendChild(button);
       return button;
     }
+    function choose(value) {
+      chosen.value = value;
+      try {
+        localStorage.setItem(STAGE_CHOSEN, value);
+      } catch (e) {}
+      letGo();
+      shown = PAGE;
+      drawStageTabs();
+      renderWords();
+    }
     drawStageTabs = function () {
       host.textContent = "";
       stages().forEach(function (pair) {
         tab(pair[0], pair[1], chosen.value === pair[0], function () {
-          chosen.value = pair[0];
-          try {
-            localStorage.setItem(STAGE_CHOSEN, pair[0]);
-          } catch (e) {}
-          shown = PAGE;
-          drawStageTabs();
-          renderWords();
+          choose(pair[0]);
         });
       });
+      // Ignored, after All (QA 2026-10-11, decision D6): the words taken off the list,
+      // where one is found again and put back by pressing a stage. Drawn once there is
+      // one, and kept while it is the tab you are on, so putting the last one back does
+      // not take the tab away from under you.
+      var ignored = String(IGNORED);
+      var any = entry.words.some(function (word) {
+        return word.status === IGNORED;
+      });
+      if (any || chosen.value === ignored) {
+        tab(ignored, t("lists.stage.ignored", "Ignored"), chosen.value === ignored, function () {
+          choose(ignored);
+        }).classList.add("tab-ignored");
+      }
       // Met often is a cut across the stages rather than a stage of its own, so it is
       // pressed on and off and stands apart from them.
       var met = entry.words.some(function (word) {
@@ -1358,6 +1505,7 @@
     if (code !== was) {
       facts = { loaded: false, met: {}, often: 2, practise: [], notes: {} };
       practising = { at: 0, shown: false };
+      letGo();
       // A card is about a word in one language; another language's lists close it.
       closeCard();
     }

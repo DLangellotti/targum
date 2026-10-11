@@ -171,6 +171,16 @@ table.words-table .status-met { display: none; }
 table.words-table td.stage { white-space: nowrap; cursor: auto; }
 table.words-table td.stage .vocab-editor { gap: 0; }
 table.words-table td.stage .vocab-editor .levels { flex-wrap: nowrap; }
+/* A word just ignored (QA 2026-10-11, decision D6): its row says where it went, quietly,
+   with Undo after it in teal, as a deleted text's row does on home. Not a row that opens
+   a card, so it takes no hover. Kept clear of the phone's bar of places when the
+   keyboard scrolls to it. */
+table.words-table tbody tr.held { cursor: auto; }
+table.words-table tbody tr.held:hover { background: none; }
+table.words-table td.held-cell { color: var(--ink-soft); }
+.held-note { margin-inline-end: 0.5rem; }
+.held-note .term { font-size: 1.0625rem; color: var(--ink); }
+.held-undo { scroll-margin-block-end: calc(8.5rem + env(safe-area-inset-bottom)); }
 /* The copy waits like the reader's list's does, beside the word and out of its way. */
 table.words-table .copy { opacity: 0; margin-inline-start: 0.35rem; }
 table.words-table tr:hover .copy,
@@ -305,6 +315,8 @@ table.words-table .copy.copied { opacity: 1; }
   table.words-table .status-met { display: inline; }
   table.words-table td.stage { grid-area: stage; }
   table.words-table td.stage .vocab-editor .level { min-inline-size: 3rem; }
+  table.words-table tbody tr.held,
+  table.words-table.is-rtl tbody tr.held { display: block; }
   .practise-body:not(.is-shown) .practise-meaning,
   .practise-body:not(.is-shown) .practise-stage,
   .practise-body:not(.is-shown) .practise-next,
