@@ -767,6 +767,12 @@ def test_the_phones_back_gesture_steps_back_through_the_arrival(browser) -> None
     assert page.evaluate(step) == "subjects", "the page's own back walks the same history"
     page.go_forward()
     assert page.evaluate(step) == "level"
+
+    # A reload on the last step carries on there: the subjects kept at the second step
+    # read as an arrival answered, and the level was never asked.
+    page.reload()
+    page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
+    assert page.evaluate(step) == "level"
     context.close()
 
 
