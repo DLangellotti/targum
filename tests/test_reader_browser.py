@@ -93,7 +93,12 @@ def coin(n: int) -> str:
     return "".join(ALEPHBET[(n // 22**power) % 22] for power in range(5))
 
 
-def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
+def chapter(
+    out: Path,
+    taamim: bool = False,
+    parts: int = 1,
+    beyond: dict[str, dict[str, str]] | None = None,
+) -> Path:
     """A built reader with everything the bar can change: words, vowels, translation.
 
     With `taamim`, the pointed text also carries accents, which is what gives the switch
@@ -183,6 +188,7 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
         out,
         annotation=annotation,
         vocalization=vocalization,
+        beyond=beyond,
     )
     return pages[0]
 

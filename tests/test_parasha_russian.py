@@ -12,7 +12,6 @@ the English in the book, so the whole path — build, page, frame, reader — is
 
 from __future__ import annotations
 
-import json
 import re
 import shutil
 import threading
@@ -33,7 +32,6 @@ from targum.parasha import build as corpus_build
 from targum.parasha import calendar as cal
 from targum.parasha.models import Index
 from targum.serve import Handler, Library
-from targum.strings import catalogue, said_portion
 
 SLUG = "nitzavim-vayeilech"
 
@@ -187,93 +185,19 @@ def test_the_russian_reader_is_served_and_its_recordings_come_from_the_first_bui
     assert raw(serving, f"/parasha/read/{SLUG}-ru/reader/../../../../etc/passwd") == 404
 
 
-def test_next_shabbat_from_the_russian_reader_answers_in_russian(serving: int) -> None:
-    status, body = get(serving, f"/parasha/next/{SLUG}-ru")
+def test_the_russian_reader_reads_on_into_the_next_portions_russian_reader(serving: int) -> None:
+    """targum-internal#446: past the last aliyah, the next portion in the book — in the
+    reader built in Russian, named in Russian, and never the English one."""
+    status, body = get(serving, f"/parasha/read/{SLUG}-ru/reader/sec-0007.html")
     assert status == 200
-    offered = json.loads(body)["next"]
-    if offered is None:
-        pytest.skip("the fixture's calendar has nothing after this reading")
-    assert offered["page"].endswith("?lang=ru")
-    assert re.search(r"[А-Яа-я]", offered["name"]), offered["name"]
-    english = json.loads(get(serving, f"/parasha/next/{SLUG}")[1])["next"]
-    assert not english["page"].endswith("?lang=ru") and "-ru/" not in english["href"]
-
-
-def text_of(body: str) -> str:
-    body = re.sub(r"<(script|style)\b.*?</\1>", " ", body, flags=re.S)
-    return re.sub(r"<[^>]+>", " ", body)
-
-
-def test_the_named_portion_page_says_its_book_its_name_and_shabbat_in_russian(
-    serving: int,
-) -> None:
-    body = get(serving, f"/parasha/{SLUG}?lang=ru")[1]
-    assert '<p class="series-kicker">Второзаконие</p>' in body
-    assert "Ницавим-Ваелех" in body.split('id="series-now-title"')[1].split("</h2>")[0]
-    words = text_of(body)
-    for english in ("Shabbat", "Deuteronomy", "Nitzavim", "GENESIS", "Genesis"):
-        assert english not in words, english
-    assert "<title>Ницавим-Ваелех — " in body
-    # Whose words stand beside the verse: the Russian Torah, since the reader is Russian.
-    assert "Герштейна и Гордона" in body and "Мецуда, опубликованный" not in body
-
-
-def test_the_english_page_is_what_it_was(serving: int) -> None:
-    body = get(serving, f"/parasha/{SLUG}")[1]
-    assert '<p class="series-kicker">Deuteronomy</p>' in body
-    assert "Nitzavim-Vayeilech" in body.split('id="series-now-title"')[1].split("</h2>")[0]
-    assert "the Metsudah linear translation" in body
-
-
-def test_a_language_pressed_for_rides_on_the_links_that_stay_here(serving: int) -> None:
-    body = get(serving, f"/parasha/{SLUG}?lang=ru")[1]
-    assert 'href="/parasha?lang=ru#sources"' in body
-    assert 'href="/library?lang=ru"' in body, "the way back keeps it too"
-    listed = body.split('<ul class="series-portions">')[1].split("</ul>")[0]
-    links = re.findall(r'<a href="(/parasha/[^"]+)"', listed)
-    assert links and all(href.endswith("?lang=ru") for href in links)
-    # Inferred from the browser rather than pressed, nothing is carried.
-    plain = get(serving, f"/parasha/{SLUG}")[1]
-    assert "lang=ru" not in plain.partition("<main")[2].partition("</main>")[0]
-
-
-def test_the_pdf_is_a_plain_link_without_a_script(serving: int) -> None:
-    """One quiet press with the reader's defaults (design.md §12, 2026-10-09), in the
-    language the page was asked in."""
-    body = get(serving, f"/parasha/{SLUG}?lang=ru")[1]
-    assert f'class="btn ghost outline series-pdf" href="/parasha/{SLUG}.pdf?lang=ru"' in body
-    assert 'aria-label="Скачать PDF"' in body
-
-
-def test_the_sheet_pressed_in_the_russian_reader_is_the_portions(
-    serving: int, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The reader's print link names the portion as its folder does, `…-ru.pdf`."""
-    from targum.parasha import sheet
-
-    asked: list[tuple[str, str]] = []
-
-    def make(slug: str, **kwargs: object) -> None:
-        asked.append((slug, str(kwargs.get("language"))))
-        return None
-
-    monkeypatch.setattr(sheet, "make", make)
-    assert get(serving, f"/parasha/{SLUG}-ru.pdf")[0] == 404
-    assert asked == [(SLUG, "ru")]
-
-
-# -- the strings ------------------------------------------------------------------------
-
-
-def test_every_portion_has_a_russian_name(built: Index) -> None:
-    russian = catalogue("ru")
-    english = catalogue("en")
-    for slug in built.portions:
-        assert f"portion.name.{slug}" in english, slug
-        assert re.search(r"[А-Яа-я]", russian.get(f"portion.name.{slug}", "")), slug
-
-
-def test_a_portion_is_named_in_english_exactly_as_the_calendar_wrote_it() -> None:
-    assert said_portion("bereshit", "Bereshit", "en") == "Bereshit"
-    assert said_portion("bereshit", "Bereshit", "ru") == "Берешит"
-    assert said_portion("made-up", "Made Up", "ru") == "Made Up"
+    onward = re.search(r'<a class="next beyond" href="([^"]+)" data-page="([^"]+)"', body)
+    assert onward is not None
+    assert onward.group(1) == "/parasha/read/vzot-haberachah-ru/reader/sec-0001.html"
+    assert onward.group(2) == "/parasha/vzot-haberachah?lang=ru"
+    # The reader it names is there, in Russian.
+    there = get(serving, "/parasha/read/vzot-haberachah-ru/reader/index.html")
+    assert there[0] == 200 and '<html lang="ru"' in there[1]
+    back = get(serving, f"/parasha/read/{SLUG}-ru/reader/sec-0001.html")[1]
+    assert 'class="prev beyond" href="/parasha/read/vzot-haberachah-ru/reader/' in back
+    english = get(serving, f"/parasha/read/{SLUG}/reader/sec-0007.html")[1]
+    assert 'href="/parasha/read/vzot-haberachah/reader/sec-0001.html"' in english

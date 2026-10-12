@@ -30,9 +30,9 @@ from ..errors import TargumError
 from ..paths import write_atomic
 from ..render.builder import render
 from .calendar import Haftarah as Reference
-from .calendar import Reading, Schedule, always, root
+from .calendar import Reading, ReadingKind, Schedule, always, root
 from .calendar import year as readings_for
-from .cut import BOOKS, NEVIIM, MissingBook, books_for, cut, cut_haftarah, parse_ref
+from .cut import BOOKS, NEVIIM, MissingBook, books_for, cut, cut_haftarah, on_shelf, parse_ref
 from .cut import Portion as Cut
 from .models import Haftarah, Index, Portion, Week, neighbours
 from .sheet import keep as keep_sheet
@@ -280,6 +280,17 @@ def build(
             missing.add(gone.book)
             say(f"  {gone.book} is not built — every reading in it is skipped")
 
+    # The cycle as the shelf will list it, worked out before anything is cut: each
+    # portion's first and last aliyah lead on to the portions either side of it, in the
+    # order of the book (targum-internal#446), and a reader is written once with its
+    # links in it. Only readings whose books are on the shelf, so no link opens a 404.
+    planned = {
+        slug: _planned(reading)
+        for slug, reading in readings.items()
+        if reading.kind is ReadingKind.parasha and on_shelf(reading, library)
+    }
+    cycle = Index(portions=planned).listed()
+
     for slug in sorted(readings):
         reading = readings[slug]
         try:
@@ -298,13 +309,17 @@ def build(
         # And each aliyah carries two readings now, the chanting and the plain reading
         # of the book (targum-internal#412), as files in `reader/audio/` rather than
         # inside the page, which was three megabytes an aliyah with one.
-        render_readers(portion, folder)
+        render_readers(
+            portion,
+            folder,
+            around=neighbours(planned[slug], cycle) if slug in planned else (None, None),
+        )
         # And what the week's sheet is set from, beside the reader: the box has no
         # books to cut it from again (targum-internal#415).
         keep_sheet(portion, folder)
-        # And its words, by dictionary form, beside the reader: what the last aliyah of
-        # the portion before this one counts a reader's word list against when it offers
-        # this one as next Shabbat's (targum-internal#416).
+        # And its words, by dictionary form, beside the reader: what the portion page
+        # counts a reader's word list against when it offers this one as next Shabbat's
+        # (targum-internal#416).
         write_atomic(
             folder / LEMMAS,
             json.dumps(vocabulary(portion), ensure_ascii=False) + "\n",
@@ -345,6 +360,14 @@ def build(
             ),
         )
         say(f"  {reading.name} — {portion.verses} verses")
+
+    # The portions either side of a reader were linked by their count of aliyot, before
+    # they were cut. A reading that came out in another number of files is said, rather
+    # than left behind a link that opens a 404.
+    for slug, plan in planned.items():
+        made = len(list((root() / "read" / slug / "reader").glob("sec-*.html")))
+        if slug in index.portions and plan.aliyot > 1 and made != plan.aliyot:
+            say(f"  {plan.name} is {made} files, not {plan.aliyot}: the links into it miss")
 
     # The haftarot, once each. Every one any occurrence names, whether it is a
     # portion's own or a special Shabbat's, so a week in the pointer years always has
@@ -478,12 +501,71 @@ def read_as(name: str, folders: Iterable[str]) -> tuple[str, str]:
     return name, "en"
 
 
-def render_readers(portion: Cut, folder: Path) -> list[Path]:
+def _planned(reading: Reading) -> Portion:
+    """A reading as the index will hold it, before it is cut: as much as the cycle's
+    order and a link to its first and last aliyah need."""
+    return Portion(
+        slug=reading.slug,
+        name=reading.name,
+        hebrew=reading.hebrew,
+        kind=reading.kind,
+        numbers=list(reading.numbers),
+        summary=reading.summary,
+        aliyot=len(reading.aliyot),
+        folder=reading.slug,
+    )
+
+
+def beyond(
+    around: tuple[Portion | None, Portion | None], language: str = "en"
+) -> dict[str, dict[str, str]]:
+    """Where a portion's reader goes past its own ends (targum-internal#446): its first
+    aliyah back to the last aliyah of the portion before, its last on to the first
+    aliyah of the portion after — the book's order, so the Torah reads as fifty-four
+    portions straight through, and the year wraps as `neighbours` has it.
+
+    Not the calendar's: next Shabbat's reading is the portion page's to offer, not the
+    reader's. Said in `language`, with the reader built in it, so a Russian reader leads
+    on to a Russian one. Written as the served address, because the two readers sit in
+    different folders on the disk (`reader_dir`) and in the same place on the server.
+    `page` is the portion's own page, which a reader framed on the public page opens.
+    """
+    from ..strings import said_portion
+
+    code = language.split("-")[0].lower()
+    suffix = f"-{code}" if code in ALSO_IN else ""
+    before, after = around
+    found: dict[str, dict[str, str]] = {}
+    for side, portion in (("before", before), ("after", after)):
+        if portion is None:
+            continue
+        sections = portion.aliyot
+        if sections <= 1:
+            opens = "index.html"
+        else:
+            opens = f"sec-{sections:04d}.html" if side == "before" else "sec-0001.html"
+        found[side] = {
+            "href": f"/parasha/read/{portion.folder}{suffix}/reader/{opens}",
+            "hebrew": portion.hebrew or portion.name,
+            "name": said_portion(portion.slug, portion.name, code),
+            "page": f"/parasha/{portion.slug}" + (f"?lang={code}" if suffix else ""),
+        }
+    return found
+
+
+def render_readers(
+    portion: Cut,
+    folder: Path,
+    around: tuple[Portion | None, Portion | None] = (None, None),
+) -> list[Path]:
     """Write a reading's reader, and again in each of `ALSO_IN` it has a rendering in.
 
     Returns the first build's files, index first, as `render` does. The second build's
     recordings are the first's — the same files, under the same names — so they are not
     kept twice: the box serves `reader-ru/audio/…` out of `reader/audio/`.
+
+    `around` is the portions before and after this one in the cycle, which its first and
+    last aliyah lead to (`beyond`).
     """
     written = render(
         portion.document,
@@ -497,6 +579,7 @@ def render_readers(portion: Cut, folder: Path) -> list[Path]:
         folder=folder,
         recordings_beside=True,
         commentary_words=portion.commentary_words,
+        beyond=beyond(around),
     )
     for code in ALSO_IN:
         out = folder / f"reader-{code}"
@@ -517,6 +600,7 @@ def render_readers(portion: Cut, folder: Path) -> list[Path]:
             folder=folder,
             recordings_beside=True,
             commentary_words=portion.commentary_words,
+            beyond=beyond(around, code),
         )
         shutil.rmtree(out / "audio", ignore_errors=True)
     return written
@@ -802,7 +886,7 @@ def current(
 
 
 #: A portion's words, by dictionary form, in a file beside its reader (targum-internal#416).
-#: Not served on its own: `following`'s answer carries it to a reader who has a word list.
+#: Not served on its own: the portion page counts it for a reader who has a word list.
 LEMMAS = "lemmas.json"
 
 
@@ -859,8 +943,9 @@ def following(
 ) -> Portion | None:
     """What is read the Shabbat after the reading in `folder`, on one schedule.
 
-    For the offer at the end of a portion's last aliyah, and of its haftarah
-    (targum-internal#416). By the calendar first: the occurrence of this reading nearest
+    For the portion page's next Shabbat (targum-internal#416); a reader's own last aliyah
+    leads on in the book's order instead (`beyond`, targum-internal#446). By the calendar
+    first: the occurrence of this reading nearest
     to this Shabbat — last week's read late, next week's read early — and the week after
     it on the reader's own schedule, so a doubled week, a festival Shabbat and the weeks
     Israel and the diaspora part company all come out as they are read. A haftarah is

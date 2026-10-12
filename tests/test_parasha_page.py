@@ -689,6 +689,81 @@ def test_the_served_page_carries_the_way_round_the_year(serving: int, built: Ind
         assert 'class="next"' in nav
 
 
+def pager_of(page: Path) -> str:
+    return page.read_text("utf-8").split('<nav class="pager"')[1].split("</nav>")[0]
+
+
+@pytest.fixture
+def to_the_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The fixture's Deuteronomy carried on to its last chapter, so V'Zot HaBerakhah is
+    cut whole: seven files, as on the box. Where the reader folders are."""
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
+    (tmp_path / "parasha" / "calendar").mkdir(parents=True)
+    for one in FIXTURES.glob("*.json"):
+        shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
+    library = tmp_path / "library"
+    a_book(
+        library / "דברים-he",
+        "Deuteronomy",
+        "דברים",
+        {29: 29, 30: 20, 31: 30, 33: 29, 34: 12},
+    )
+    said: list[str] = []
+    corpus_build.build(
+        years=[2026],
+        corpus_years=[2026],
+        schedules=[cal.Schedule.diaspora],
+        library=library,
+        notify=said.append,
+    )
+    assert not [line for line in said if "links into it miss" in line], said
+    return tmp_path / "parasha" / "read"
+
+
+def test_a_portions_reader_reads_on_in_the_order_of_the_book(to_the_end: Path) -> None:
+    """targum-internal#446: the last aliyah leads on to the next portion's first, and the
+    first back to the last of the one before — the book's order, never the calendar's.
+    Here the cycle is Nitzavim-Vayeilech and V'Zot HaBerakhah, so the year wraps both
+    ways, and the doubled reading's ends are the portions around both its halves."""
+    doubled = to_the_end / "nitzavim-vayeilech" / "reader"
+    last = pager_of(doubled / "sec-0007.html")
+    onward = '<a class="next beyond" href="/parasha/read/vzot-haberachah/reader/sec-0001.html"'
+    assert onward in last
+    # Another text, so nothing names a section of this one to buy or to turn to.
+    assert "data-next" not in last.split('class="next beyond"')[1]
+    # And the offer once the aliyah is finished names it too, in place of next Shabbat's.
+    whole = (doubled / "sec-0007.html").read_text("utf-8")
+    assert '<aside class="next-up here beyond" id="next-up"' in whole
+    offer = whole.split('<aside class="next-up here beyond"')[1].split("</aside>")[0]
+    assert 'href="/parasha/read/vzot-haberachah/reader/sec-0001.html"' in offer
+    first = pager_of(doubled / "sec-0001.html")
+    assert 'class="prev beyond" href="/parasha/read/vzot-haberachah/reader/sec-0007.html"' in first
+    assert 'class="next" href="sec-0002.html"' in first
+    assert "beyond" not in pager_of(doubled / "sec-0004.html")
+    # V'Zot HaBerakhah, the end of the Torah, leads on to its start, and its start back.
+    vzot = to_the_end / "vzot-haberachah" / "reader"
+    assert 'href="/parasha/read/nitzavim-vayeilech/reader/sec-0001.html"' in pager_of(
+        vzot / "sec-0007.html"
+    )
+    assert 'href="/parasha/read/nitzavim-vayeilech/reader/sec-0007.html"' in pager_of(
+        vzot / "sec-0001.html"
+    )
+    # Every link past an end opens a file that is there.
+    for page in [*doubled.glob("sec-*.html"), *vzot.glob("sec-*.html")]:
+        past = r'class="(?:next|prev) beyond" href="/parasha/read/([^"]+)"'
+        for href in re.findall(past, pager_of(page)):
+            assert (to_the_end / href).is_file(), href
+
+
+def test_a_festival_and_a_haftarah_read_on_nowhere(built: Index, tmp_path: Path) -> None:
+    folders = ["shavuot-ii-on-shabbat"]
+    folders += [one.folder for one in built.haftarot.values() if one.folder]
+    for folder in folders:
+        for page in (tmp_path / "parasha" / "read" / folder / "reader").glob("*.html"):
+            text = page.read_text("utf-8")
+            assert 'class="next beyond"' not in text and 'class="prev beyond"' not in text, page
+
+
 # -- the haftarah ------------------------------------------------------------
 
 

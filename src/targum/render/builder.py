@@ -4458,8 +4458,14 @@ def render(
     moves: Mapping[str, object] | None = None,
     recordings_beside: bool = False,
     commentary_words: Mapping[str, Annotation] | None = None,
+    beyond: Mapping[str, Mapping[str, str]] | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
+
+    `beyond` is where the text goes past its own ends: `before` for its first section's
+    previous and `after` for its last section's next, each an `href`, a `hebrew` and a
+    `name` — a weekly portion's neighbours in the book (`parasha.build.beyond`). None for
+    every text whose first section is the start and whose last is the end.
 
     `folder` is the targum's own directory, where an imported recording's manifest and
     parts live — see `speech`. None for every text that has no such folder to ask.
@@ -5640,6 +5646,12 @@ def render(
             standalone=single,
             # How many parts the text is in, for the line under a video (#422).
             section_count=len(sections),
+            # A portion's first and last aliyah lead on to the portions either side of
+            # it, in the order of the book (targum-internal#446). Not `previous` and
+            # `following`: those are this text's own sections, whose number the page
+            # buys ahead and counts known words in, and a neighbour is another text.
+            beyond_before=(beyond or {}).get("before") if section.number == 1 else None,
+            beyond_after=(beyond or {}).get("after") if section.number == len(sections) else None,
         )
         name = "index.html" if single else section.filename
         written.append(_write(out_dir / name, html))

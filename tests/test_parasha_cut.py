@@ -623,6 +623,109 @@ def test_a_festival_has_no_place_in_the_cycle() -> None:
     assert neighbours(listed[0], [listed[0]]) == (None, None), "nowhere else to go"
 
 
+# -- reading on past the ends, in the order of the book (targum-internal#446) --
+
+
+def the_torah() -> list[Portion]:
+    """The fifty-four as the shelf lists them, in the order the table shipped with targum
+    has them, each with its seven aliyot."""
+    from targum.parasha.build import _fixed
+
+    return [
+        Portion(
+            slug=start.slug,
+            name=start.name,
+            hebrew=start.hebrew,
+            numbers=[number],
+            summary=start.summary,
+            aliyot=7,
+            folder=start.slug,
+        )
+        for number, (_, start) in enumerate(_fixed(), start=1)
+    ]
+
+
+def ends_of(slug: str, language: str = "en", cycle: list[Portion] | None = None) -> dict:
+    from targum.parasha.build import beyond
+    from targum.parasha.models import neighbours
+
+    cycle = cycle or the_torah()
+    portion = next(one for one in cycle if one.slug == slug)
+    return beyond(neighbours(portion, cycle), language)
+
+
+def test_the_last_aliyah_of_bereshit_reads_on_into_noachs_first() -> None:
+    after = ends_of("bereshit")["after"]
+    assert after["href"] == "/parasha/read/noach/reader/sec-0001.html"
+    assert after["name"] == "Noach" and after["hebrew"] == "נֹחַ"
+    assert after["page"] == "/parasha/noach"
+
+
+def test_the_first_aliyah_of_noach_goes_back_to_bereshits_last() -> None:
+    before = ends_of("noach")["before"]
+    assert before["href"] == "/parasha/read/bereshit/reader/sec-0007.html"
+    assert before["name"] == "Bereshit"
+
+
+def test_the_torah_ends_where_it_begins() -> None:
+    assert ends_of("vzot-haberachah")["after"]["href"] == (
+        "/parasha/read/bereshit/reader/sec-0001.html"
+    )
+    assert ends_of("bereshit")["before"]["href"] == (
+        "/parasha/read/vzot-haberachah/reader/sec-0007.html"
+    )
+
+
+def test_a_doubled_reading_reads_on_from_both_its_halves() -> None:
+    """Vayakhel-Pekudei starts where Ki Tisa ends and ends where Vayikra starts — the
+    singles beside it, whether or not its own halves are on the shelf."""
+    doubled = Portion(
+        slug="vayakhel-pekudei",
+        name="Vayakhel-Pekudei",
+        hebrew="וַיַּקְהֵל־פְקוּדֵי",
+        numbers=[22, 23],
+        summary="Exodus 35:1-40:38",
+        aliyot=7,
+        folder="vayakhel-pekudei",
+    )
+    from targum.parasha.build import beyond
+    from targum.parasha.models import neighbours
+
+    ends = beyond(neighbours(doubled, the_torah()))
+    assert ends["before"]["href"] == "/parasha/read/ki-tisa/reader/sec-0007.html"
+    assert ends["after"]["href"] == "/parasha/read/vayikra/reader/sec-0001.html"
+    # And where the halves are not built, the single before reads on into the doubled one.
+    shelf = [one for one in the_torah() if one.slug not in ("vayakhel", "pekudei")] + [doubled]
+    assert ends_of("ki-tisa", cycle=shelf)["after"]["href"] == (
+        "/parasha/read/vayakhel-pekudei/reader/sec-0001.html"
+    )
+    assert ends_of("vayikra", cycle=shelf)["before"]["href"] == (
+        "/parasha/read/vayakhel-pekudei/reader/sec-0007.html"
+    )
+
+
+def test_the_russian_reader_reads_on_into_the_russian_reader() -> None:
+    ends = ends_of("bereshit", "ru")
+    assert ends["after"]["href"] == "/parasha/read/noach-ru/reader/sec-0001.html"
+    assert ends["after"]["name"] == "Ноах"
+    assert ends["after"]["page"] == "/parasha/noach?lang=ru"
+    assert ends["before"]["href"] == "/parasha/read/vzot-haberachah-ru/reader/sec-0007.html"
+
+
+def test_a_reading_of_one_section_is_reached_at_its_one_file() -> None:
+    from targum.parasha.build import beyond
+
+    short = Portion(slug="s", name="S", hebrew="ש", numbers=[1], summary="x", aliyot=1, folder="s")
+    ends = beyond((short, short))
+    assert ends["before"]["href"] == ends["after"]["href"] == "/parasha/read/s/reader/index.html"
+
+
+def test_a_festival_reads_on_nowhere() -> None:
+    from targum.parasha.build import beyond
+
+    assert beyond((None, None)) == {}
+
+
 # -- the haftarah ------------------------------------------------------------
 
 
