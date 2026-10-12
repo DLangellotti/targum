@@ -403,6 +403,20 @@ written with the same mark.
   qamats qatan guessed by rule would still need its own amendment to "What we inferred
   says so" first.
 
+### Torah and Judaism opens scripture, past reach — 2026-10-12
+
+Found in the signed-in QA walk, 2026-10-12: a reader who answered "Torah and Judaism" and
+"I'm just starting" opened a 2008 basketball article. Every Tanakh and Judaica row on the
+shelf is rated vav, so "a subject whose rows are all more than a rung past it gives way"
+("The arrival is a page of its own, and a text they can follow", 2026-09-28) dropped them
+all, and the modern shelf answered a subject that only scripture can.
+
+- **Where no subject is in reach, Torah and Judaism is answered by scripture**: the
+  easiest Biblical row filed under it (by the catalogue's difficulty, a voiced one first),
+  however far past the rung. On the shelf today that is Genesis 1:1–6:8.
+- **A subject they can follow still comes first**, as before, and every other subject
+  still gives way to the modern shelf at their rung.
+
 ### No word is assumed known — 2026-10-12
 
 David, 2026-10-12: the "assumed known" feature is removed. It is the reversal of "An

@@ -64,7 +64,13 @@ REVISION = "3c3c27067bb73a45e99c36bd90b3b3dbc10fda12"
 # word (`Token.syntax`), and the head of a construct chain says `Definite=Cons` in its
 # grammar line. The same call has always returned the syntax and this threw it away, so
 # again no new weights and no extra pass; and again a rename, which re-reads the library.
-FEATURES = "roots+everyword+entities+syntax+grammar/3"
+#
+# "grammar/4" since 2026-10-12 (known issues 1.1-1.3, 2.5): each personal pronoun on its
+# own card rather than all on הוא's, a preposition with a pronoun on the end on the
+# preposition's, wife and women on אישה's rather than "man", two on שניים's rather than
+# "three", and עולה and לקחה on their own verbs. A version number rather than a new piece,
+# because `versions.compare` only sees a text as behind on a piece both names carry.
+FEATURES = "roots+everyword+entities+syntax+grammar/4"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
 # longest, so asking for a whole book in one go builds a tensor the size of the longest
@@ -136,14 +142,17 @@ PREFIX_LETTERS = frozenset(CLITIC_GLOSSES)
 # `היה → היי` alone was 81 of 863 disagreements, and a copula that lemmatizes to an
 # imperative is wrong by any reading.
 #
-# Deliberately not in here: the pronouns. They are the largest block of disagreement and
-# DICTA is the one that is right — Stanza's treebank collapses אני, לי and בו all onto
-# הוא, which merges every personal pronoun into one vocabulary card, and DICTA keeps them
-# apart. The table is for the cases where the permissive model is worse, and it is short
-# because those are closed classes: no new Hebrew copula is coming.
+# The pronouns are not in here, and not because DICTA keeps them apart: it does not. This
+# comment used to say it did, and the shelf said otherwise (known issues 1.1, 2026-10-12):
+# DICTA lemmatizes אתה, היא, הם, הן and אתן to הוא, and בה, בהם and מהם too, so one card
+# said "he; it" for all of them. A lemma→lemma table cannot undo that — הוא is the right
+# answer for הוא — so they are mended by the word, in `PRONOUNS` and `CARRIED` below.
+#
+# Nor is איש↔אישה any longer (2026-10-12). `"אישה": "איש"` was here for DICTA reading
+# איש as אישה on Brenner, and it filed every wife and every woman under "man" instead —
+# ואשתו, אשתי, נשים. The word says which it is, so `_man_or_woman` asks the word.
 OVERRIDES = {
     "היי": "היה",
-    "אישה": "איש",
     "יודע": "ידע",
     "בל": "בלי",
     "ניחם": "מנחם",
@@ -172,7 +181,71 @@ SURFACES = {
     "שמונים": "שמונים",
     "תשעים": "תשעים",
     "מאתיים": "מאתיים",
+    # The ordinal, "second", and the construct of שנים, "years of": never שנה.
     "שני": "שני",
+}
+
+# Two, in each of its spellings, on two's own card (known issues 1.3, 2026-10-12). DICTA
+# read שתי המפלגות as שלושה, "three", and declined שתי elsewhere; שתיים, שני and שניים it
+# files under שניים, which is the dictionary's form, so that is the card. Only where DICTA
+# says it is a number: שני is also "second" and "years of", which keep `SURFACES`' answer.
+# "Both of them" too — שתיהן went to שלושה as well — since it is two with a pronoun on.
+TWO = "שניים"
+TWOS = frozenset(
+    {"שתי", "שתיים", "שתים", "שני", "שניים", "שניהם", "שניהן", "שתיהן", "שתיהם", "שנינו"}
+)
+
+# The personal pronouns, each its own card (known issues 1.1). Keyed on the word under its
+# prefixes — שאתה is אתה — and only where DICTA tagged it a pronoun, because אתן is also
+# "I will give" and את the object marker. Their own spelling is their dictionary form.
+PRONOUNS = frozenset(
+    {
+        "אני",
+        "אנוכי",
+        "אנכי",
+        "אנחנו",
+        "אנו",
+        "אתה",
+        "את",
+        "אתם",
+        "אתן",
+        "הוא",
+        "היא",
+        "הם",
+        "הן",
+        "המה",
+    }
+)
+
+# A preposition with a pronoun on the end, which DICTA sometimes tags a pronoun and files
+# under whatever it likes — בו under בו, בה under הוא, לכם under לי, מכם under מי. Where
+# it tags one an `ADP` it files it under the preposition — אותו under את, שלו under של,
+# עליו under על — and the card says "with a pronoun on the end". These go the same way,
+# so בו is on ב's card, לי on ל's and ממנו on מן's: the preposition is the word to learn,
+# and the ending is the same handful of pronouns on every one of them.
+#
+# Not the feminine plurals לכן, בכן and מכן: in modern prose they are קודם לכן, "before
+# that", בכן, "so", and לאחר מכן, "after that" — כן with a preposition, not you — and DICTA
+# tags the first a pronoun all the same (the weekly, 2026-10-12).
+CARRIED = {
+    **dict.fromkeys(("לי", "לך", "לו", "לה", "לנו", "לכם", "להם", "להן"), "ל"),
+    **dict.fromkeys(("בי", "בך", "בו", "בה", "בנו", "בכם", "בהם", "בהן"), "ב"),
+    **dict.fromkeys(("ממני", "ממך", "ממנו", "ממנה", "מכם", "מהם", "מהן"), "מן"),
+    # Tagged a preposition and still misfiled: ממנו under הוא, ממנה and עמו declined.
+    **dict.fromkeys(("עמי", "עמך", "עמו", "עמה", "עמנו", "עמם", "עמהם"), "עם"),
+}
+# And the same word cut differently: DICTA hands מהם back as the prefix מ and הם. The
+# letter that is the preposition, and the card it goes on.
+CARRYING = {"ב": "ב", "ל": "ל", "מ": "מן"}
+
+# The verbs whose every form DICTA was seen filing under another verb, keyed on the word
+# (known issues 2.5). A verb spelled עולה is the present of עלה whatever the sentence —
+# the hif'il would open with מ — and DICTA said העלה, "raised", and עוול. A verb opening
+# לקח is a form of לקח, and DICTA said קיבל, "received". Only these two, because only
+# these two have a spelling that settles it.
+VERBS = {
+    **dict.fromkeys(("עולה", "עולים", "עולות"), "עלה"),
+    **dict.fromkeys(("לקח", "לקחה", "לקחו", "לקחתי", "לקחת", "לקחנו", "לקחתם"), "לקח"),
 }
 
 
@@ -494,13 +567,21 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
             entity = OUTSIDE
         surface = word.get("token") or ""
         seg = list(word.get("seg") or [])
+        suffix = morph.get("suffix")
+        feats = _stanza_feats(morph.get("feats"))
         # The word under whatever prefixes it carries: ועשרים is keyed as עשרים, and a
         # name is never corrected, because בני is a lemma to mend and Benny is a person.
         lex = word.get("lex") or ""
         lemma = _lemma(lex, surface, seg[-1] if seg else surface, pos)
+        carried = _carried(seg, pos)
+        if carried is not None:
+            # בו as DICTA reads אותו: the preposition, with a pronoun on the end. The
+            # person, gender and number DICTA read stay: they are the pronoun's, and the
+            # pronoun is still on the end.
+            lemma, seg = carried
+            pos, suffix = "ADP", True
         if tally is not None and declined(lex):
             tally["declined"] += 1
-        feats = _stanza_feats(morph.get("feats"))
         if at in heads:
             # The construct state, said where `kept_feats` and the card already look.
             feats = "|".join(part for part in (feats, "Definite=Cons") if part)
@@ -517,7 +598,7 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
                 pos=pos,
                 binyan=binyan,
                 root=root_of(lemma, binyan),
-                built=_pieces_of(seg, lemma, morph.get("suffix")),
+                built=_pieces_of(seg, lemma, suffix),
                 feats=kept_feats(feats, pos),
                 entity=entity,
                 syntax=_governed(word, kept),
@@ -535,10 +616,52 @@ def declined(lex: str) -> bool:
 def _lemma(lex: str, surface: str, base: str, pos: str | None = None) -> str:
     """The dictionary form, corrected where DICTA is reliably wrong or silent."""
     lemma = (lex or "").strip()
+    if pos == "NUM" and base in TWOS:
+        # Before the decline: DICTA declines שתי as often as it misreads it.
+        return TWO
     if declined(lemma):
         return surface.lower()
     if pos == "PROPN":
         return lemma.lower()
+    if pos == "PRON" and base in PRONOUNS:
+        return base
+    if pos == "VERB" and base in VERBS:
+        return VERBS[base]
     if base in SURFACES:
         return SURFACES[base].lower()
+    if pos == "NOUN":
+        lemma = _man_or_woman(lemma, base)
     return OVERRIDES.get(lemma, lemma).lower()
+
+
+def _man_or_woman(lemma: str, base: str) -> str:
+    """איש or אישה, as the word itself spells it.
+
+    DICTA was seen reading איש as אישה on Brenner, and נשים as נש; the word settles both.
+    איש, אישים and every form of אנשים are a man's; everything else DICTA files under
+    אישה — אשה, אשת, אשתו, אשתי — is a woman's, and stays where it put it.
+    """
+    if lemma == "אישה" and (base in ("איש", "אישים") or base.startswith("אנש")):
+        return "איש"
+    if base in ("נשים", "נשי", "נשות"):
+        return "אישה"
+    return lemma
+
+
+def _carried(seg: list[str], pos: str | None) -> tuple[str, list[str]] | None:
+    """The preposition a pronoun-tagged word really is, and the word cut that way; None
+    for a word that is not one. See `CARRIED`. A word tagged a preposition is asked too,
+    because DICTA tags ממנו one and still files it under הוא — but only a preposition or
+    a pronoun: עמו the noun is "his people", and בנו the noun "his son"."""
+    if pos not in ("PRON", "ADP") or not seg:
+        return None
+    base = seg[-1]
+    if base in CARRIED:
+        return CARRIED[base], seg
+    if pos != "PRON":
+        return None
+    prefix = "".join(seg[:-1])
+    if base in ("הם", "הן") and prefix and prefix[-1] in CARRYING:
+        # מהם cut as מ + הם: the מ is the preposition, so it goes back on the word.
+        return CARRYING[prefix[-1]], [*([prefix[:-1]] if prefix[:-1] else []), prefix[-1] + base]
+    return None

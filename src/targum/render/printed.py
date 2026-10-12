@@ -50,6 +50,7 @@ from ..models import (
     direction_for,
     glossaries_in,
     read_artifact,
+    shown,
 )
 from ..translate.prompts import BESIDE, language_name
 from ..vocalize import has_taamim, pointed_positions, strip_nikkud, strip_taamim
@@ -370,7 +371,9 @@ def listed_word(token: Token, glossary: Glossary, known: Collection[str] | None)
     meaning = first_sense(glossary.entries.get(key, ""))
     if not meaning:
         return None
-    return Word(form=glossary.citations.get(key) or token.headword or token.lemma, meaning=meaning)
+    return Word(
+        form=glossary.citations.get(key) or shown(token.headword or token.lemma), meaning=meaning
+    )
 
 
 def _translation(translations: list[Translation], into: str | None) -> Translation:
@@ -707,7 +710,7 @@ def cited_forms(texts: Iterable[Cut], target: str = "en") -> dict[str, tuple[str
                     continue
                 key = token.glossed_as
                 meaning = first_sense(glossary.entries.get(key, ""))
-                form = glossary.citations.get(key) or token.headword or token.lemma
+                form = glossary.citations.get(key) or shown(token.headword or token.lemma)
                 cited[bare] = (form, meaning)
     return cited
 

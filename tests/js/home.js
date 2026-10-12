@@ -20,6 +20,8 @@ install({
   TARGUM_KEY: "k",
   TARGUM_LANGUAGES: { he: "Hebrew", en: "English", ru: "Russian" },
   TargumLang: { HOME: "he", order: (codes) => codes, current: () => "he", set: () => {} },
+  // This browser's own records, where a test says: `targum:places`, `targum:docs`.
+  stored: payload.stored || {},
 });
 
 require(path.join(assets, "strings.js"));
@@ -35,9 +37,14 @@ if (payload.next) {
   process.exit(0);
 }
 
+/* `account` is what `/account/places` handed back. Given, the places are the page's own
+   merge of it with this browser's, as home draws them; otherwise `places` as given. */
+const places = payload.account
+  ? global.window.TargumHome.places(payload.account)
+  : payload.places || [];
 const cards = global.window.TargumHome.gather(
   payload.readers || [],
-  payload.places || [],
+  places,
   payload.building || [],
   payload.opened || {},
   payload.code || "he"
@@ -46,7 +53,9 @@ process.stdout.write(
   JSON.stringify(
     cards.map((card) => ({
       reader: card.reader ? card.reader.document : null,
-      place: card.place ? { hash: card.place.hash, path: card.place.path } : null,
+      place: card.place
+        ? { hash: card.place.hash, path: card.place.path, title: card.place.title || "" }
+        : null,
     }))
   )
 );

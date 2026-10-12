@@ -8,6 +8,7 @@ never serve a stale artifact against new code.
 from __future__ import annotations
 
 import json
+import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, TypeVar
@@ -26,6 +27,24 @@ SCHEMA_VERSION = 4
 #: form both — it goes to the model as the form to gloss, so the model knows which word
 #: the spelling is — and never a display string: the card shows the lemma.
 VERB_MARK = " (verb)"
+
+#: What a pointed headword carries when the lexicon points more than one word alike:
+#: `אֵת (H854)`, "with", beside `אֵת (H853)`, the object marker (`oshb.filed_as`). A key
+#: like `VERB_MARK`, and one a model asked for the meaning can read: it names the entry.
+NUMBER_MARK = " (H{})"
+_NUMBERED = re.compile(r" \(H(\d+)\)$")
+
+
+def shown(headword: str) -> str:
+    """A headword as a reader is shown it: without the number it is filed under."""
+    return _NUMBERED.sub("", headword)
+
+
+def numbered(form: str) -> str:
+    """The Strong's number a form is filed under, or "" where it carries none."""
+    found = _NUMBERED.search(form)
+    return found.group(1) if found else ""
+
 
 # BCP-47 primary subtags written right to left.
 RTL_LANGUAGES = frozenset({"he", "iw", "ar", "fa", "ur", "yi", "ji", "arc", "dv", "ps", "sd", "ug"})

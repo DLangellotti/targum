@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from ..errors import TargumError
+from ..models import NUMBER_MARK, numbered
 from ..paths import ensure, model_dir, write_atomic
 
 SOURCE = "https://raw.githubusercontent.com/openscriptures/morphhb/master/wlc/{book}.xml"
@@ -113,6 +114,11 @@ BOOKS: dict[str, str] = {
 #: them apart.
 _NUMBERED = re.compile(r"^\d")
 
+#: The morphology's first letter for a pronominal suffix, and for the preposition one
+#: hangs on: `ל֥וֹ` is `R` + `Sp3ms`.
+_SUFFIX = "S"
+_HOST = "R"
+
 
 class Word(NamedTuple):
     """One orthographic word of the Hebrew Bible, as it was tagged.
@@ -163,14 +169,23 @@ class Word(NamedTuple):
         unchanged by this and every one of the 10,986 that move was a `PRON` — 6,851 of
         them nouns, 2,435 verbs. Nothing becomes a pronoun that was not one.
 
-        Where no piece carries a number the last piece stands, which is right: `בּוֹ` is
-        `בְּ` + `וֹ`, a preposition and a suffix with no noun between them, and there the
-        suffix *is* the word.
+        Where no piece carries a number, a preposition with a pronoun on the end is the
+        preposition (2026-10-12, known issues 1.4). `בּוֹ` is `בְּ` + `וֹ` with no noun between
+        them, and this used to say the suffix was the word — so `בּוֹ` and `ל֥וֹ` were filed
+        under ו and a reader was told "and", 240 times in Genesis and Exodus alone. The
+        preposition is the word to learn and the suffix is the same handful of endings on
+        every one of them, which is how `אִתּוֹ` (numbered, so already the preposition) and
+        the modern path's `שלו` and `בו` are filed too. Otherwise the last piece stands.
         """
         numbered = [i for i, lexeme in enumerate(self.lexemes) if _NUMBERED.match(lexeme.strip())]
         if numbered:
             return min(numbered[-1], len(self.pieces) - 1)
-        return len(self.pieces) - 1
+        last = len(self.pieces) - 1
+        if 0 < last < len(self.morph) and self.morph[last].startswith(_SUFFIX):
+            hosts = [i for i, code in enumerate(self.morph[:last]) if code.startswith(_HOST)]
+            if hosts:
+                return hosts[-1]
+        return last
 
     @property
     def lexeme(self) -> str:
@@ -312,6 +327,28 @@ def _by_form() -> dict[str, set[str]]:
     return _BY_FORM
 
 
+def filed_as(lexeme: str) -> str:
+    """The pointed headword a meaning is filed under, with its Strong's number on where
+    more than one lexeme is pointed alike; "" where the number names no headword.
+
+    The pointed form tells אֵלֶּה from אָלָה, and nothing written tells `853`, the object
+    marker, from `854`, "with": both are אֵת. Filed under אֵת alone, whichever a text met
+    first lent its meaning to the other, and אִתְּךָ, "with you", said "[marks the direct
+    object]" all through Genesis (known issues 1.4, 2026-10-12). The same is true of 646
+    pointed headwords in the lexicon — אֵל "to" and אֵל "God", אַף "also" and אַף "anger" —
+    so the rule is the spelling's, not a list of the ones noticed. `NUMBER_MARK` says how
+    the number is written, and `models.shown` takes it off again for anything displayed.
+    """
+    pointed = headword(lexeme)
+    if not pointed:
+        return ""
+    pointed = unicodedata.normalize("NFC", pointed)
+    if len(_by_form().get(pointed, ())) < 2:
+        return pointed
+    number = (lexeme or "").strip().split(" ")[0].lstrip("H")
+    return f"{pointed}{NUMBER_MARK.format(number)}"
+
+
 def sense_for(form: str) -> str:
     """What a written form means, where the lexicon is not of two minds about it.
 
@@ -326,6 +363,8 @@ def sense_for(form: str) -> str:
     """
     if not form:
         return ""
+    if numbered(form):
+        return sense(numbered(form))
     numbers = _by_form().get(unicodedata.normalize("NFC", form)) or _by_form().get(bare(form))
     if not numbers:
         return ""

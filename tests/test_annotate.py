@@ -1240,14 +1240,13 @@ def test_a_wordpiece_is_not_a_lemma() -> None:
     assert _lemma("לבלב", "מלבלב", "מלבלב") == "לבלב", "a real lemma still passes"
 
 
-def test_the_corrections_are_closed_classes_and_the_pronouns_are_not_among_them() -> None:
+def test_the_corrections_are_closed_classes() -> None:
     """A copula that lemmatizes to an imperative is wrong by any reading, and the copula,
     the numbers and the pronouns are all closed — no new Hebrew one is coming, so the
     table cannot rot the way an open-class one would.
 
-    The pronouns are deliberately left alone: they are the largest block of disagreement
-    with Stanza and DICTA is the one that is right, keeping אני, לי and בו apart where
-    Stanza's treebank collapsed all of them onto הוא.
+    No pronoun is mended by lemma: הוא is the right answer for הוא, so a table that sent
+    הוא anywhere would break it to fix אתה. They are mended by the word instead (below).
 
     A round ten cannot be corrected by lemma at all — עשרה is the right answer far more
     often than it is the wrong one — so it is keyed on the word, under its prefixes.
@@ -1255,12 +1254,132 @@ def test_the_corrections_are_closed_classes_and_the_pronouns_are_not_among_them(
     from targum.annotate.dicta import OVERRIDES, _lemma
 
     assert _lemma("היי", "היה", "היה") == "היה"
-    assert "הוא" not in OVERRIDES.values(), "the pronouns are DICTA's to keep apart"
+    assert "הוא" not in OVERRIDES, "הוא is right for הוא; the pronouns go by the word"
     assert _lemma("עשרה", "בעשרים", "עשרים") == "עשרים"
     assert _lemma("עשרה", "עשרה", "עשרה") == "עשרה", "the unit itself is untouched"
     # A name is never mended: בני is a lemma to fix and Benny is a person.
     assert _lemma("בני", "בני", "בני", "PROPN") == "בני"
     assert _lemma("בני", "בני", "בני", "NOUN") == "בן"
+
+
+def _said(*words: tuple[str, str, str, tuple[str, ...]]) -> dict[str, object]:
+    """DICTA's answer for a sentence, in its own JSON: (token, lex, pos, seg) per word,
+    with what it really said about these words on 2026-10-12."""
+    return {
+        "tokens": [
+            {"token": token, "lex": lex, "seg": list(seg), "morph": {"pos": pos, "feats": {}}}
+            for token, lex, pos, seg in words
+        ]
+    }
+
+
+def test_each_pronoun_is_its_own_word_and_not_he() -> None:
+    """DICTA files אתה, היא, הם and הן under הוא, and the card said "he; it" on every one
+    (known issues 1.1, 2026-10-12): 96 words of the twelve weeklies, one a page of the
+    dialogues. The comment that said DICTA keeps them apart was wrong. Each is now its
+    own card, under whatever prefixes it carries."""
+    from targum.annotate.dicta import _tokens
+
+    read = _tokens(
+        _said(
+            ("אתה", "הוא", "PRON", ("אתה",)),
+            ("והם", "הוא", "PRON", ("ו", "הם")),
+            ("שהיא", "הוא", "PRON", ("ש", "היא")),
+            ("אנחנו", "אני", "PRON", ("אנחנו",)),
+            ("ואתן", "הוא", "PRON", ("ו", "אתן")),
+            ("הוא", "הוא", "PRON", ("הוא",)),
+            # אתן the verb, "I will give", is not a pronoun because it is spelled like one.
+            ("ואתן", "נתן", "VERB", ("ו", "אתן")),
+        )
+    )
+    assert [token.lemma for token in read] == ["אתה", "הם", "היא", "אנחנו", "אתן", "הוא", "נתן"]
+
+
+def test_a_preposition_with_a_pronoun_on_the_end_is_filed_under_the_preposition() -> None:
+    """בו, לי and מהם came back pronouns filed under הוא, לו, לי or בוא — "come" — where
+    DICTA files אותו under את and שלו under של. They go the same way now: on the
+    preposition's card, with a pronoun on the end."""
+    from targum.annotate.dicta import _tokens
+
+    read = _tokens(
+        _said(
+            ("בו", "בוא", "PRON", ("בו",)),
+            ("ולה", "לו", "PRON", ("ו", "לה")),
+            ("שבהם", "הוא", "PRON", ("ש", "בהם")),
+            ("מהם", "הוא", "PRON", ("מ", "הם")),
+            ("לכם", "לי", "PRON", ("לכם",)),
+        )
+    )
+    assert [token.lemma for token in read] == ["ב", "ל", "ב", "מן", "ל"]
+    assert {token.pos for token in read} == {"ADP"}
+    assert read[0].built == "בו + with a pronoun on the end"
+    assert read[1].built == "ו and + לה + with a pronoun on the end"
+    assert read[3].built == "מהם + with a pronoun on the end", "the מ goes back on the word"
+
+
+def test_a_preposition_dicta_tagged_one_and_still_misfiled_is_filed_too() -> None:
+    """ממנו came back a preposition filed under הוא, and עמו declined; עמו the noun is
+    "his people" and is left to DICTA."""
+    from targum.annotate.dicta import BLANK, _tokens
+
+    read = _tokens(
+        _said(
+            ("וממנו", "הוא", "ADP", ("ו", "ממנו")),
+            ("עמו", BLANK, "ADP", ("עמו",)),
+            ("עמו", "עם", "NOUN", ("עמו",)),
+        )
+    )
+    assert [token.lemma for token in read] == ["מן", "עם", "עם"]
+    assert [token.pos for token in read] == ["ADP", "ADP", "NOUN"]
+    assert read[2].built is None, "the noun is not given a preposition's line"
+
+
+def test_before_that_is_not_to_you() -> None:
+    """קודם לכן is "before that", and DICTA tags its לכן a pronoun; so the feminine
+    plurals are left out of the prepositions rather than filed under ל."""
+    from targum.annotate.dicta import _tokens
+
+    (token,) = _tokens(_said(("לכן", "לכן", "PRON", ("לכן",))))
+    assert token.lemma == "לכן"
+
+
+def test_a_wife_is_not_a_man() -> None:
+    """`"אישה": "איש"` in the overrides was for DICTA reading איש as אישה, and it filed
+    every wife under "man" (known issues 1.2): ואשתו, אשתי, נשים. The word says which."""
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma("אישה", "ואשתו", "אשתו", "NOUN") == "אישה"
+    assert _lemma("אישה", "אשתי", "אשתי", "NOUN") == "אישה"
+    assert _lemma("אישה", "נשים", "נשים", "NOUN") == "אישה"
+    assert _lemma("נש", "והנשים", "נשים", "NOUN") == "אישה"
+    # And what the override was for still holds.
+    assert _lemma("אישה", "האיש", "איש", "NOUN") == "איש"
+    assert _lemma("אישה", "אנשים", "אנשים", "NOUN") == "איש"
+
+
+def test_two_is_two() -> None:
+    """שתי המפלגות was filed under שלושה, "three" (known issues 1.3), and DICTA declines
+    שתי as often as it misreads it. Every spelling of two goes on שניים's card — where
+    DICTA says it is a number; שני the ordinal keeps its own."""
+    from targum.annotate.dicta import BLANK, _lemma
+
+    assert _lemma("שלושה", "שתי", "שתי", "NUM") == "שניים"
+    assert _lemma(BLANK, "שתי", "שתי", "NUM") == "שניים"
+    assert _lemma("שניים", "ושתיים", "שתיים", "NUM") == "שניים"
+    assert _lemma("שני", "בשני", "שני", "NUM") == "שניים"
+    assert _lemma("שלושה", "ובשתיהן", "שתיהן", "NUM") == "שניים"
+    assert _lemma("שנה", "שני", "שני", "ADJ") == "שני", "the second is not two"
+
+
+def test_a_verb_spelled_so_that_it_can_only_be_one_verb_is_that_verb() -> None:
+    """כמה עולה מנוי? is "how much does it cost", and DICTA said העלה, "raised", or עוול;
+    המשטרה לקחה אותו said קיבל, "received" (known issues 2.5)."""
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma("העלה", "עולה", "עולה", "VERB") == "עלה"
+    assert _lemma("עוול", "עולות", "עולות", "VERB") == "עלה"
+    assert _lemma("קיבל", "לקחה", "לקחה", "VERB") == "לקח"
+    assert _lemma("עולה", "עולה", "עולה", "NOUN") == "עולה", "the immigrant stays himself"
 
 
 def test_the_card_line_is_built_from_dictas_own_segmentation() -> None:
@@ -2013,3 +2132,28 @@ def test_the_installed_transformers_still_has_what_dicta_calls() -> None:
     """The other half: a lockfile bump past the cap fails here rather than on the box."""
     modeling = pytest.importorskip("transformers.modeling_utils")
     assert hasattr(modeling.PreTrainedModel, "get_extended_attention_mask")
+
+
+def test_the_scorecard_tells_a_convention_from_a_mistake() -> None:
+    """IAHLT files every personal pronoun under הוא, wife under איש and two under
+    שתיים, and cuts the ב off בו as a prefix so the pronoun is what is left. targum's
+    cards say otherwise on purpose (known issues 1.1-1.3), and the eval that guards the
+    lemma floor must not read the fix as a fall."""
+    from targum.annotate.gold import GoldToken
+    from targum.annotate.score import carried_alike, filed_alike
+
+    def gold(surface: str, lemma: str, upos: str, prefixes: tuple[str, ...] = ()) -> GoldToken:
+        return GoldToken(0, len(surface), surface, lemma, upos, "", prefixes, False, "")
+
+    def ours(lemma: str, pos: str) -> Token:
+        return Token(start=0, end=2, surface="x", lemma=lemma, band=0, pos=pos)
+
+    assert filed_alike(gold("אתה", "הוא", "PRON"), ours("אתה", "PRON"))
+    assert filed_alike(gold("ואשתו", "איש", "NOUN"), ours("אישה", "NOUN"))
+    assert filed_alike(gold("שתי", "שתיים", "NUM"), ours("שניים", "NUM"))
+    assert carried_alike(gold("בו", "הוא", "PRON", ("ב",)), ours("ב", "ADP"))
+    assert carried_alike(gold("מהם", "הוא", "PRON", ("מ",)), ours("מן", "ADP"))
+    # And a mistake is still a mistake.
+    assert not filed_alike(gold("הוא", "הוא", "PRON"), ours("לו", "PRON"))
+    assert not filed_alike(gold("איש", "איש", "NOUN"), ours("שניים", "NOUN"))
+    assert not carried_alike(gold("בו", "הוא", "PRON", ("ב",)), ours("ל", "ADP"))

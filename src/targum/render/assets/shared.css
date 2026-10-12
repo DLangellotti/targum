@@ -632,6 +632,10 @@ table.rows tr:hover .copy,
     margin-block: auto;
     block-size: max(100%, 44px);
   }
+  /* The speed in the strip reaches across as well as up (READER-04): 38 by 26px drawn,
+     it answered 36px across. By its id, because the list it was given its reach in is
+     an `:is()` that takes its most specific selector's weight. */
+  #player .player-rate-now::after { inset-inline: min(0px, calc(50% - 22px)); }
   /* The way home reaches its 44px towards the title and never past its own start: the
      strip between it and the window's edge is the bar's, where a tap brings a quiet bar
      back, and a reach over it sent that tap home. */

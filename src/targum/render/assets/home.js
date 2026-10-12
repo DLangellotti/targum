@@ -179,7 +179,17 @@
     (theirs || []).forEach(function (row) {
       if (!row || !row.hash || !row.section) return;
       var mine = all[row.hash];
-      if (mine && Number(mine.at || 0) >= Number(row.at || 0)) return;
+      if (mine && Number(mine.at || 0) >= Number(row.at || 0)) {
+        // This browser's place is newer, and it carries no title: the reader writes the
+        // part and the sentence, never the name. The account's row does, and a text that
+        // is not on the shelf — a Torah portion, a daily page — is named by nothing else.
+        if (!mine.title && row.title) {
+          mine.title = row.title;
+          mine.language = mine.language || row.language || "";
+          touched = true;
+        }
+        return;
+      }
       all[row.hash] = {
         section: String(row.section),
         path: row.path || "",
@@ -196,17 +206,22 @@
         window.targumKeep(PLACES, JSON.stringify(all));
       } catch (e) {}
     }
+    // And this browser's own record of the text, which the reader names as it opens:
+    // a portion read on this browser and not yet synced is still a card to come back to
+    // (QA, 2026-10-12: a finished Noach was on no card, though home said it was finished).
+    var docs = stored("targum:docs");
     return Object.keys(all)
       .map(function (hash) {
         var place = all[hash] || {};
+        var doc = docs[hash] || {};
         return {
           hash: hash,
           section: String(place.section || ""),
           path: place.path || "",
           seconds: Number(place.seconds || 0),
           at: Number(place.at || 0),
-          title: place.title || "",
-          language: place.language || "",
+          title: place.title || doc.title || "",
+          language: place.language || doc.language || "",
         };
       })
       .sort(function (a, b) {
@@ -1046,6 +1061,7 @@
     // For the tests: what Continue would hold, without the page.
     gather: gatherContinue,
     next: nextUnfinished,
+    places: mergePlaces,
     welcomeBack: welcomeBack,
     language: function () {
       return lang && lang.current ? lang.current(lang.learning ? lang.learning() : ["he"]) : "he";
