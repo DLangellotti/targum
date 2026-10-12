@@ -1202,7 +1202,7 @@
   {#- Past the last aliyah, the next portion's first, with no `data-next`: that names a
       section of this text, to buy ahead and to turn to off the last page, and the next
       portion is another text (targum-internal#446). -#}
-  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>
+  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}"{% if following_ready %} data-ready{% endif %}>{{ following.title }}</a>
   {%- elif beyond_after %}<a class="next beyond" href="{{ beyond_after.href }}" data-page="{{ beyond_after.page }}"><bdi lang="{{ source_language }}" dir="auto">{{ beyond_after.hebrew }}</bdi></a>{% endif %}
 </nav>
 {% endif %}

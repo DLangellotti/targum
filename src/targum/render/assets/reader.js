@@ -11558,6 +11558,14 @@ var targumReader = function () {
     return;
   }
 
+  // Nothing to buy where the next chapter is already on the page's own say, and nothing
+  // that is not a reader's own: a portion is served from its own shelf, and a text off
+  // the shared one is complete. Asked anyway, each answered 404 in the console on every
+  // first text (known issues 2026-10-12, m6). A page built before `data-ready` asks as
+  // it always did, until it is rebuilt.
+  if (link.hasAttribute("data-ready")) return;
+  if (parts[1] !== "reader") return;
+
   // Fetched ahead only for an account: signed out `/chapter` refuses, and the refusal
   // was a console error at the foot of every chapter (QA 2026-10-11).
   (window.TargumSync && window.TargumSync.mayAsk ? window.TargumSync.mayAsk() : Promise.resolve(true)).then(function (may) {
