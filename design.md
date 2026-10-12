@@ -369,6 +369,23 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### No word is assumed known — 2026-10-12
+
+David, 2026-10-12: the "assumed known" feature is removed. It is the reversal of "An
+advanced reader is not asked about the commonest words" (2026-10-07, below), which drew
+the commonest bands plain on a Hebrew page for a reader who named a rung from bet up.
+
+- **Every word on a page is asked about until the reader marks it**, whatever rung they
+  named. It is drawn by its own mark or as new, it is in the queue the arrows walk and in
+  "N left", and the finish press marks it with the rest.
+- **The card no longer says "assumed known"**, and the string is gone in both languages.
+- **The rung itself stays.** The arrival still asks it, and "Your Hebrew" on the You page
+  still changes it, because it still seeds the first text, the Library's band and how hard
+  the conversation writes ("The arrival is two questions"). The You page's note now says
+  that rather than the commonest words.
+- **Known still means marked** ("Known means marked, everywhere a share is shown",
+  2026-10-11), and now nothing else is drawn as known either.
+
 ### A film that errors after a picture is loaded again — 2026-10-12
 
 David, 2026-10-12: a video "cuts off after the first few lines randomly and we go into
@@ -515,6 +532,9 @@ The practice card is unchanged: a word ignored there leaves the card, and is fou
 Ignored.
 
 ### Known means marked, everywhere a share is shown — 2026-10-11
+
+*Since 2026-10-12 there are no assumed words at all ("No word is assumed known", above);
+the paragraphs on what the assumption still did describe a page that no longer exists.*
 
 David, 2026-10-11, QA decision D5 (READER-06). The reader counted the words it assumes
 from the rung named on arrival ("An advanced reader is not asked about the commonest
@@ -2981,6 +3001,9 @@ film ends; the part ended on "Next part" alone (2026-10-07).
   presses.
 
 ### An advanced reader is not asked about the commonest words — 2026-10-07
+
+*Removed 2026-10-12 ("No word is assumed known", at the head of this section). Kept for the
+record of why it was built.*
 
 An alpha reader who reads Hebrew well, 2026-10-06: *"for me as an advanced Hebrew I know a
 lot of words so it's a bit hard to mark them all"* — and *"if I mark myself as advanced

@@ -345,9 +345,7 @@
         ? pressed.value === IGNORED
           ? t("vocab.legend.ignored", "Ignored: a name or a number")
           : pressed.title
-        : options.assumed
-          ? t("vocab.assumed", "assumed known")
-          : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");
+        : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");
       box.appendChild(legend);
     }
 

@@ -1922,7 +1922,7 @@ def test_a_pronoun_says_what_it_stands_for_only_where_the_page_carries_it() -> N
     assert bare["standing"] == [None]
 
 
-# -- words assumed from the rung named on arrival (design.md §12, 2026-10-07) ----------
+# -- the rung named on arrival marks nothing (design.md §12, 2026-10-12) ---------------
 
 #: The builder's band names by a token's third field.
 BANDS = {"1": "easy", "2": "fairly easy", "3": "moderate", "4": "hard"}
@@ -1942,69 +1942,11 @@ def banded(declared: str = "", **chapter: Any) -> dict[str, Any]:
     )
 
 
-def lemmas_queued(done: dict[str, Any]) -> list[str]:
-    return [item["lemma"] for item in done["queue"]]
-
-
-def test_a_reader_who_named_no_rung_is_asked_about_every_word() -> None:
-    assert lemmas_queued(banded()) == ["a", "b", "c", "d"]
-
-
-def test_an_advanced_reader_is_not_asked_about_the_commonest_words() -> None:
-    """Boaz, 2026-10-06: "if I mark myself as advanced then for sure u can auto filter
-    basic words at least and then if I don't know them I can mark them manually"."""
-    assert lemmas_queued(banded("dalet")) == ["c", "d"]
-    assert lemmas_queued(banded("hey")) == ["d"]
-    assert lemmas_queued(banded("bet")) == ["b", "c", "d"]
-
-
-def test_a_beginner_is_assumed_to_know_nothing() -> None:
-    assert lemmas_queued(banded("aleph-plus")) == ["a", "b", "c", "d"]
-
-
-def test_an_assumed_word_is_never_written_as_the_readers_own() -> None:
-    """The word list is what the reader said. The finish marks what is left and leaves
-    the assumed words assumed, and the press counts only what it marks."""
-    assert banded("dalet")["foot"]["press"] == "Done, and mark 2 words known"
-    done = banded("dalet", presses=[True])
-    assert sorted(done["stores"]["he"]) == ["c", "d"]
-
-
-def test_a_level_said_on_an_assumed_word_is_a_real_mark() -> None:
-    done = banded("dalet", levels=[{"word": "a", "status": 1}])
-    assert done["stores"]["he"]["a"]["status"] == 1
-    assert lemmas_queued(done) == ["a", "c", "d"]
-
-
-def test_nothing_is_assumed_outside_hebrew() -> None:
-    """The rung is asked over the ulpan ladder, so it says nothing about a reader's
-    Russian."""
-    assert lemmas_queued(banded("vav", language="ru")) == ["a", "b", "c", "d"]
-
-
-def test_a_rung_that_arrives_after_the_page_drew_is_drawn_at_once() -> None:
-    """On a browser that never drew the arrival, the account's copy of the rung lands after
-    the first draw, and the page used to wait for the next load to use it. And a rung
-    changed on the You page meets a page drawn with the old one the same way."""
-    done = banded(declaredLater="dalet")
-    assert done["queueBeforeAccount"] == ["a", "b", "c", "d"], "drawn before the answer"
-    assert done["queueAfterAccount"] == ["c", "d"]
-    moved = banded("hey", declaredLater="bet")
-    assert moved["queueAfterAccount"] == ["b", "c", "d"]
-    still = banded("dalet", declaredLater="")
-    assert still["queueAfterAccount"] == ["c", "d"], "an answer with no rung changes nothing"
-
-
-def test_an_assumed_word_is_not_counted_as_known() -> None:
-    """QA 2026-10-11, READER-06, decision D5: the reader said 25% known of a text its
-    contents page said 0% of, because the reader counted the words it assumed from the
-    rung and the contents page counted marks. Every share counts marks only; the
-    assumed words still leave the queue and "N left" (design.md §12, "Known means
-    marked, everywhere a share is shown")."""
-    done = banded("dalet")
-    assert done["counted"]["bar"].startswith("0 of 4 known"), done["counted"]
-    assert "2 left" in done["counted"]["bar"], "the assumed words are still not asked about"
-    assert done["counted"]["list"].startswith("0% known here"), done["counted"]
-    marked = banded("dalet", levels=[{"word": "c", "status": 9}])
-    assert marked["counted"]["bar"].startswith("1 of 4 known"), marked["counted"]
-    assert marked["counted"]["list"].startswith("25% known here"), marked["counted"]
+def test_an_advanced_reader_is_asked_about_every_word_too() -> None:
+    """The commonest bands were once drawn plain for a reader who named a high rung
+    (2026-10-07); David took that out on 2026-10-12. A word is known when it is marked."""
+    for declared in ("", "aleph", "dalet", "vav"):
+        done = banded(declared)
+        assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"], declared
+        assert done["counted"]["bar"].startswith("0 of 4 known"), done["counted"]
+        assert done["foot"]["press"] == "Done, and mark 4 words known"
