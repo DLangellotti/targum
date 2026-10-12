@@ -3952,3 +3952,63 @@ def test_a_correction_with_nothing_in_it_is_refused(
     for bad in ({"lemma": "עם"}, {"meaning": "with"}, {}):
         status, answer, _ = call(port, "POST", f"/correction?k={token}", bad, cookie=cookie)
         assert status == 400, answer
+
+
+def test_a_weekly_edition_is_drawn_when_asked(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A weekly row is a library row outside `CATALOGUE`, so its `?drawn=1` was a 404 on
+    every visit to the Library; and its reader's folder lives under the weekly root, not
+    in anybody's home (known issues, 2026-10-12)."""
+    import dataclasses
+    from urllib.parse import quote
+
+    from targum.catalogue import CATALOGUE
+    from targum.weekly import entries as weekly_entries
+
+    port, key, out = served
+    edition = dataclasses.replace(CATALOGUE[0], id="weekly-2026-w39-aleph", title="מבט")
+    monkeypatch.setattr(weekly_entries, "entries", lambda: [edition])
+    folder = out / "weekly" / "weekly-2026-w39-aleph-he"
+    folder.mkdir(parents=True)
+    (folder / "document.json").write_text(
+        json.dumps({"source": "weekly:2026-w39-aleph", "title": "שבוע", "language": "he"}),
+        encoding="utf-8",
+    )
+
+    def fetch(path: str) -> tuple[int, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read().decode("utf-8", "replace")
+        finally:
+            connection.close()
+
+    status, body = fetch(f"/thumb/weekly-2026-w39-aleph?k={key}&drawn=1")
+    assert status == 200 and ">מ</text>" in body
+    status, body = fetch(f"/thumb/{quote('weekly-2026-w39-aleph-he')}?k={key}&drawn=1")
+    assert status == 200 and ">ש</text>" in body
+    missing, _ = fetch(f"/thumb/weekly-2026-w40-aleph?k={key}&drawn=1")
+    assert missing == 404
+
+
+def test_head_answers_like_get_without_a_body(served: tuple[int, str, Path]) -> None:
+    """`HEAD /` answered 501, which link previews and uptime checks read as a broken
+    site (known issues, 2026-10-12)."""
+    port, key, _ = served
+
+    def ask(method: str, path: str) -> tuple[int, str, bytes]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request(method, path)
+            response = connection.getresponse()
+            return response.status, response.getheader("Content-Length") or "", response.read()
+        finally:
+            connection.close()
+
+    for path in ("/", f"/?k={key}", "/health", "/no-such-page"):
+        got, length, body = ask("GET", path)
+        head, head_length, nothing = ask("HEAD", path)
+        assert head == got != 501, path
+        assert head_length == length and nothing == b"", path
