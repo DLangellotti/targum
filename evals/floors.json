@@ -702,5 +702,53 @@
     "system": "stress-rule/1",
     "at_least": 0.95,
     "why": "0.9630 on 2026-10-02; the rule that places Hebrew stress, measured on the Tanakh's cantillation until a modern gold exists"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "gender_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.95,
+    "why": "0.966 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "number_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.97,
+    "why": "0.984 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "person_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.94,
+    "why": "0.955 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "tense_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.97,
+    "why": "0.993 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "construct_precision",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.94,
+    "why": "0.960 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "construct_recall",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.71,
+    "why": "0.738 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
   }
 ]

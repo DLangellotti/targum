@@ -2112,9 +2112,8 @@ def test_every_page_shares_one_language_choice() -> None:
     # says which of them is which, and says it the same way the note under it does.
     assert '<option value="he" selected>' in start
     said = unescape(start)
-    # The into side: English is named alone, Russian says it is experimental there.
-    assert "Russian (Experimental)" in said
-    assert ">English<" in said and "English (" not in said
+    # The into side is not a badge and keeps its two words (2026-10-12).
+    assert "Russian (Experimental)" in said and "English (alpha)" in said
     assert ">Hebrew (Experimental)<" not in said
     # The language the text is in is named alone, as board UploadDesk draws it
     # (2026-10-09); how far along it is is said under the box, in the badge's own word

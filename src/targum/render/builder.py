@@ -1817,14 +1817,17 @@ def _staged(pairs: tuple[tuple[str, str], ...], language: str = "en") -> list[di
     from, named and labelled in `language` (targum-internal#184).
 
     The reading side's word is the badge's (`stages.DECLARED`); the into side's two words
-    (`prompts.INTO`) are not a badge and read as "" for English and "Experimental" for
-    Russian, as they did before the standard of 2026-10-12.
+    (`prompts.INTO`) are not a badge and read as "alpha" for English and "Experimental"
+    for Russian, as they did before the standard of 2026-10-12.
     """
     from ..stages import Stage, label_key, wears
 
     names = dict(_language_names(language))
     said = page_words(language)
-    into_words = {"alpha": "", "beta": str(said(label_key(Stage.experimental), "Experimental"))}
+    into_words = {
+        "alpha": str(said("stage.alpha", "alpha")),
+        "beta": str(said(label_key(Stage.experimental), "Experimental")),
+    }
     rows: list[dict[str, str]] = []
     for code, how in pairs:
         worn = wears(code)

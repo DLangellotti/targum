@@ -2639,8 +2639,9 @@ entry makes the three words promises to the reader, in order, and makes a test k
   and the committed shelf snapshot. A promotion is a commit to the table; a regression
   anywhere fails CI. `targum stages` prints the same table with the shortfall in words.
 - **Hebrew keeps the Beta it wore, by decision and with a date.** Under the letter of the
-  rule it is Experimental today: five of its seven hard spots are computed and shown but
-  not yet measured, no read-through is on record, and no practice exists. It is the
+  rule it is Experimental today: one of its seven hard spots (governed prepositions and *et*) has
+  no gold to measure it against, no read-through is on record, and no practice exists.
+  The other six were measured against the IAHLT treebanks the same day and have floors. It is the
   language targum was built for, read by its alpha readers since August, and the word
   stays while the measurements, the record and the practices catch up (`stages.KEPT`,
   review 2026-12-31). The test prints what the kept word still owes instead of failing

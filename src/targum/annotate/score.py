@@ -160,6 +160,8 @@ class Scorecard:
                     else:
                         self.root_misses[(gold.lemma, want_root, ours.root)] += 1
 
+        self._features(gold, ours)
+
         gold_split = bool(gold.prefixes)
         if gold_split and ours.split:
             c["prefix_tp"] += 1
@@ -167,6 +169,29 @@ class Scorecard:
             c["prefix_fp"] += 1
         elif gold_split and not ours.split:
             c["prefix_fn"] += 1
+
+    def _features(self, gold: GoldToken, ours: Token) -> None:
+        """The features the card says, scored where the treebank marks them (design.md
+        §12, "A badge is a promise, checked", 2026-10-12): gender and number, which carry
+        agreement; tense and person; and the construct state, as precision and recall
+        because it is a thing named on some words and absent from the rest."""
+        c = self.counts
+        want = _feats(gold.feats)
+        have = _feats(ours.feats)
+        for key in SCORED_FEATS:
+            if key not in want:
+                continue
+            c[f"{key.lower()}_scored"] += 1
+            if have.get(key) == want[key]:
+                c[f"{key.lower()}_right"] += 1
+        gold_cons = want.get("Definite") == "Cons"
+        our_cons = have.get("Definite") == "Cons"
+        if gold_cons and our_cons:
+            c["construct_tp"] += 1
+        elif our_cons:
+            c["construct_fp"] += 1
+        elif gold_cons:
+            c["construct_fn"] += 1
 
     def rate(self, numerator: str, denominator: str | int) -> float | None:
         below = self.counts[denominator] if isinstance(denominator, str) else denominator
@@ -192,6 +217,14 @@ class Scorecard:
             "gold_root_derivable": self.rate("verbs_with_gold_root", "verbs"),
             "prefix_precision": tp / (tp + fp) if tp + fp else None,
             "prefix_recall": tp / (tp + fn) if tp + fn else None,
+            **{
+                f"{key.lower()}_accuracy": self.rate(
+                    f"{key.lower()}_right", f"{key.lower()}_scored"
+                )
+                for key in SCORED_FEATS
+            },
+            "construct_precision": _share(c["construct_tp"], c["construct_fp"]),
+            "construct_recall": _share(c["construct_tp"], c["construct_fn"]),
         }
 
     def as_dict(self, top: int = TOP) -> dict[str, Any]:
@@ -243,7 +276,26 @@ ROWS = (
     ("gold_root_derivable", "verbs whose gold root derives"),
     ("prefix_precision", "prefix split precision"),
     ("prefix_recall", "prefix split recall"),
+    ("gender_accuracy", "gender right, where marked"),
+    ("number_accuracy", "number right, where marked"),
+    ("person_accuracy", "person right, where marked"),
+    ("tense_accuracy", "tense right, where marked"),
+    ("construct_precision", "construct state precision"),
+    ("construct_recall", "construct state recall"),
 )
+
+
+#: The features `_features` scores against the treebank, as Universal Dependencies
+#: names them.
+SCORED_FEATS: tuple[str, ...] = ("Gender", "Number", "Person", "Tense")
+
+
+def _feats(feats: str | None) -> dict[str, str]:
+    return dict(part.partition("=")[::2] for part in (feats or "").split("|") if "=" in part)
+
+
+def _share(right: int, wrong: int) -> float | None:
+    return right / (right + wrong) if right + wrong else None
 
 
 def _pct(value: float | None) -> str:

@@ -24,8 +24,8 @@ and `tests/test_stages.py` fails when a claim outruns the facts (`earned`). A pr
 is a commit here; a regression anywhere in the pipeline fails CI.
 
 **Hebrew is the one exception, by decision and with a date** (`KEPT`). Under the letter
-of the rule it is Experimental today — five of its seven hard spots are shown but not yet
-measured — and it keeps the Beta it wore before the standard while its measurements, its
+of the rule it is Experimental today — one of its seven hard spots has no gold
+set yet — and it keeps the Beta it wore before the standard while its measurements, its
 read-through record and its practices catch up. The test prints its shortfall instead of
 failing on it, and `targum stages` says "Beta, kept". Nothing else may be added to `KEPT`
 without a design.md entry first.
@@ -182,7 +182,12 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "marks",
             (_MENAKED, "dicta-modern", "word_exact"),
         ),
-        HardSpot("tense, person and the participle", "feature:Tense", "card", None),
+        HardSpot(
+            "tense, person and the participle",
+            "feature:Tense",
+            "card",
+            (_DICTA, "iahltknesset", "tense_accuracy"),
+        ),
         HardSpot(
             "governed prepositions and et",
             "feature:Case",
@@ -190,8 +195,18 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             None,
             lens=True,
         ),
-        HardSpot("gender and number agreement", "feature:Gender", "card", None),
-        HardSpot("construct state and definiteness", "feature:Definite", "card", None),
+        HardSpot(
+            "gender and number agreement",
+            "feature:Gender",
+            "card",
+            (_DICTA, "iahltknesset", "gender_accuracy"),
+        ),
+        HardSpot(
+            "construct state and definiteness",
+            "feature:Definite",
+            "card",
+            (_DICTA, "iahltknesset", "construct_precision"),
+        ),
         HardSpot(
             "stress and pronunciation",
             "stage:stress",
