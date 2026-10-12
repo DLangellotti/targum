@@ -52,7 +52,13 @@ from .base import BAND_COUNT, UNRATED
 
 # `/2`: recounted from the hand tagging rather than from Stanza (targum-internal#156).
 # Renamed together with `register/2`, which reads the same table.
-NAME = "tanakh/2"
+# `/3` (2026-10-12): recounted with the preposition, not its suffix, as the headword of
+# בּוֹ and ל֥וֹ, and with DICTA's pronouns, wife and two read as `dicta.py` now reads them.
+# `register/2` was deliberately not renamed with it. That name rides on every language's
+# annotator, so renaming it would re-read every French and Russian text on the shelf for
+# a table only Hebrew consults; and every Hebrew text is re-read anyway, by `oshb/6` and
+# DICTA's `grammar/4` in the same release, so the register is asked again of each one.
+NAME = "tanakh/3"
 METHOD = "curated:tanakh"
 
 # Where each band ends, as a share of all running text. Band 1 is whatever it takes to

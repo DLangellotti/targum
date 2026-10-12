@@ -175,7 +175,7 @@ class AramaicLemmatizer:
 
     @property
     def name(self) -> str:
-        """`aramaic/1` before the name of what it wraps, the way `oshb/5` sits before
+        """`aramaic/1` before the name of what it wraps, the way `oshb/6` sits before
         DICTA's. Wrapped only around a text written in Aramaic (`lemma.for_source`), so
         every Hebrew text's annotator is named exactly as it was and nothing on the shelf
         is read again for this."""

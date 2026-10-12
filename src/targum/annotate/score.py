@@ -37,6 +37,7 @@ from typing import Any
 
 from ..models import Segment, SegmentedDocument, Token
 from .canonical import bare, canonical
+from .dicta import CARRYING, PRONOUNS, TWO
 from .gold import GoldSentence, GoldToken
 from .hebrew import BINYANIM, root_of
 
@@ -116,7 +117,7 @@ class Scorecard:
 
         gold_lemma = bare(gold.lemma)
         our_lemma = bare(ours.lemma)
-        if our_lemma == gold_lemma:
+        if our_lemma == gold_lemma or filed_alike(gold, ours):
             c["lemma"] += 1
             c["lemma_canonical"] += 1
             bucket["lemma"] += 1
@@ -128,7 +129,7 @@ class Scorecard:
                 # The surface stood in for a lemma, and the surface was not it.
                 c["surface_stood_in"] += 1
 
-        if ours.pos == gold.upos:
+        if ours.pos == gold.upos or (ours.pos == "ADP" and carried_alike(gold, ours)):
             c["pos"] += 1
             bucket["pos"] += 1
         else:
@@ -371,6 +372,41 @@ def score(
     if tally is not None:
         card.counts["declined"] = tally.get("declined", 0)
     return card
+
+
+#: Where the treebanks file a word under one name and targum, on purpose, under another
+#: (2026-10-12, known issues 1.1-1.3). IAHLT writes every personal pronoun's lemma as
+#: הוא, אישה's as איש and two's as שתיים; targum gives each pronoun its own card, keeps
+#: wife off "man", and files two under שניים. Scored as disagreement, each of those
+#: would read as a fall in accuracy the day it was fixed — three points on the Knesset
+#: treebank, where 430 of 12,800 words are free pronouns.
+TREEBANK_NAMES: dict[str, str] = {
+    **dict.fromkeys(PRONOUNS, "הוא"),
+    "אישה": "איש",
+    TWO: "שתיים",
+}
+
+
+def filed_alike(gold: GoldToken, ours: Token) -> bool:
+    """Whether a lemma differs from the treebank's only by the treebank's convention."""
+    if TREEBANK_NAMES.get(bare(ours.lemma)) == bare(gold.lemma):
+        return True
+    return carried_alike(gold, ours)
+
+
+def carried_alike(gold: GoldToken, ours: Token) -> bool:
+    """בו as the treebank cuts it and as targum files it.
+
+    The treebank takes the ב off the front as a prefix, the way it takes ו off ובית, and
+    what is left is the pronoun: lemma הוא, a `PRON`. targum files a preposition with a
+    pronoun on the end under the preposition, as both the treebank and DICTA file אותו
+    under את — the ב is only cut off because it is one letter long. Same word, same
+    reading, two conventions.
+    """
+    if gold.upos != "PRON" or not gold.prefixes:
+        return False
+    host = CARRYING.get(gold.prefixes[-1][-1:])
+    return host is not None and bare(ours.lemma) == host
 
 
 def annotator_for(bands: Any | None = None, **kwargs: Any) -> Any:

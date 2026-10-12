@@ -37,6 +37,14 @@ def test_a_suffix_is_found_by_its_spelling() -> None:
     assert closed.gloss_for(None, "ך") == "you; your"
 
 
+def test_a_lettered_preposition_is_found_by_its_letter() -> None:
+    """`ל֥וֹ` and `בּוֹ` are filed under their preposition since 2026-10-12, and the
+    preposition is a letter in the tagging, not a number (known issues 1.4)."""
+    assert closed.gloss_for("l", "ל") == "to; for"
+    assert closed.gloss_for("b", "ב") == "in; at; with; by"
+    assert closed.gloss_for("m", "מן") == "from; out of; than"
+
+
 def test_a_word_nobody_wrote_down_says_nothing() -> None:
     assert closed.gloss_for("999999", "zzz") == ""
     assert closed.gloss_for(None, "") == ""

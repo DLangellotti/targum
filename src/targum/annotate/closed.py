@@ -183,6 +183,17 @@ BY_FORM: dict[str, str] = {
 }
 
 
+#: The prepositions the tagging writes as a letter, by that letter: the word `ל֥וֹ` and
+#: `בּוֹ` are filed under since 2026-10-12 (`scripture.PREPOSITIONS`), where they were
+#: filed under their suffix. The suffix is still on the card's pieces line.
+BY_LETTER: dict[str, str] = {
+    "b": "in; at; with; by",
+    "l": "to; for",
+    "k": "like; as",
+    "m": "from; out of; than",
+}
+
+
 #: Targum Onkelos, written out by hand (targum-internal#64). See `aramaic.py` for why this
 #: and the verse's names are all that answers a Targum's words.
 #:
@@ -1016,7 +1027,8 @@ def gloss_for(lexeme: str | None, form: str) -> str:
         for table in (HEBREW, ARAMAIC):
             if number in table:
                 return table[number]
-    return BY_FORM.get(form, "")
+    # A suffix by its spelling first: a word still filed under its suffix is the suffix.
+    return BY_FORM.get(form) or BY_LETTER.get(number, "")
 
 
 #: The commonest words of modern Hebrew, by spelling, as "Words you may already know"
