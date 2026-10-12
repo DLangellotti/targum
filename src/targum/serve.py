@@ -17,6 +17,7 @@ import email.utils
 import errno
 import functools
 import gzip
+import io
 import json
 import logging
 import math
@@ -5185,6 +5186,17 @@ def playlist_answer(found: dict[str, Any]) -> dict[str, Any]:
     return {**found, "items": items}
 
 
+class _Headless(io.BufferedIOBase):
+    """Where a HEAD's body goes: nowhere. The headers were already written to the real
+    stream, which `Handler.do_HEAD` puts back when the answer is done."""
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, data: Any) -> int:
+        return len(data)
+
+
 class Handler(BaseHTTPRequestHandler):
     # Overridden on the type built in start(). Off here so a Handler made by hand —
     # which is how the tests make one — behaves like a machine somebody runs themselves.
@@ -7780,6 +7792,24 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         self._answer(self._get)
+
+    def do_HEAD(self) -> None:  # noqa: N802
+        """A GET's status and headers without its body. `BaseHTTPRequestHandler` answers
+        501 to a method with no `do_` of its own, and that is what `HEAD /` said to every
+        link preview and uptime check (known issues, 2026-10-12). Answered by the GET's own
+        route, so the two cannot disagree; the body is dropped after the headers
+        (`end_headers`) and the real stream put back after, for the connection's next
+        request."""
+        real = self.wfile
+        try:
+            self._answer(self._get)
+        finally:
+            self.wfile = real
+
+    def end_headers(self) -> None:
+        super().end_headers()
+        if self.command == "HEAD" and not isinstance(self.wfile, _Headless):
+            self.wfile = _Headless()
 
     def do_POST(self) -> None:  # noqa: N802
         self._answer(self._post)
@@ -14136,15 +14166,29 @@ class Handler(BaseHTTPRequestHandler):
         from . import thumbs as thumbs_module
 
         entry = next((e for e in catalogue_module.CATALOGUE if e.id in (wanted, chapterless)), None)
+        # A weekly edition is a library row that is not in `CATALOGUE`: it is joined on
+        # at the point of asking (`catalogue.everything`), and asking here only for a
+        # weekly id keeps the index off every other thumbnail. Missing, the Library's
+        # weekly rows were a 404 on every visit (known issues, 2026-10-12).
+        if entry is None and wanted.startswith("weekly-"):
+            from .weekly import entries as weekly_entries
+
+            entry = next((e for e in weekly_entries.entries() if e.id == wanted), None)
         if entry is not None:
             return thumbs_module.drawn(
                 entry.title, entry.kind.value, entry.register.value, entry.language
             )
         if not plain:
             return ""
-        base = self._home().resolve()
-        folder = (base / wanted).resolve()
-        if base not in folder.parents or not (folder / "document.json").is_file():
+        # A folder on the asker's shelf, or on one everybody reads: a weekly edition's
+        # reader is asked for by its folder (`weekly-2026-w39-aleph-he`) from a playlist
+        # or the listening view, and lives under the weekly root, not in anybody's home.
+        for shelf in (self._home(), self.library.shared, self.library.weekly):
+            base = shelf.resolve()
+            folder = (base / wanted).resolve()
+            if base in folder.parents and (folder / "document.json").is_file():
+                break
+        else:
             return ""
         try:
             said = json.loads((folder / "document.json").read_text(encoding="utf-8"))
