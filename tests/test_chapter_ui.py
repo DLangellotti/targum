@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from targum.models import BlockKind, Segment, SegmentedDocument, Translation, read_artifact
 from targum.serve import Library
 
@@ -626,3 +628,65 @@ def test_the_contents_page_starts_a_recording_by_listening_and_a_film_by_watchin
     assert "Start listening" in contents and "Start reading" not in contents
     film, _ = _recording(tmp_path / "film", video=True)
     assert "Start watching" in film
+
+
+def test_a_chapter_already_translated_is_not_asked_for_ahead(tmp_path: Path) -> None:
+    """The reader asks for the next chapter at 60% of this one. A page whose next chapter
+    is already translated says so, and asks nothing: on a text off the shared shelf that
+    asking was a 404 in the console on every first text (known issues 2026-10-12, m6)."""
+    pytest.importorskip("playwright.sync_api")
+    from playwright.sync_api import sync_playwright
+    from test_reader_browser import opened
+
+    from targum.models import Document, SegmentedDocument, Translation, read_artifact
+    from targum.render import render
+
+    folder = tmp_path / "book-he"
+    book(folder, chapters=3, translated=2)
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    translation = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert segmented is not None and translation is not None
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="b")
+    render(document, segmented, [translation], folder / "reader")
+    reader = folder / "reader"
+    first = (reader / "sec-0001.html").read_text(encoding="utf-8")
+    second = (reader / "sec-0002.html").read_text(encoding="utf-8")
+    assert 'data-next="2" data-ready' in first
+    assert 'data-next="3"' in second and 'data-next="3" data-ready' not in second
+
+    with sync_playwright() as driver:
+        try:
+            browser = driver.chromium.launch()
+        except Exception as why:  # pragma: no cover - the browser itself is not installed
+            pytest.skip(f"no Chromium: {why}")
+
+        def asked(path: str, name: str) -> list[dict]:
+            seen: list[dict] = []
+
+            def answer(route, request) -> None:
+                if request.url.split("?")[0].endswith("/chapter"):
+                    seen.append(request.post_data_json)
+                    route.fulfill(status=200, content_type="application/json", body="{}")
+                elif request.url.split("?")[0].endswith(".html"):
+                    body = (reader / name).read_bytes()
+                    route.fulfill(status=200, content_type="text/html", body=body)
+                else:
+                    route.fulfill(status=404, body="")
+
+            context = opened(browser)
+            page = context.new_page()
+            page.route("http://reader.test/**", answer)
+            page.goto(f"http://reader.test{path}{name}")
+            page.wait_for_timeout(600)
+            context.close()
+            return seen
+
+        try:
+            assert asked("/reader/book-he/reader/", "sec-0001.html") == []
+            waiting = asked("/reader/book-he/reader/", "sec-0002.html")
+            assert [ask["number"] for ask in waiting] == [3], "a waiting chapter is still asked for"
+            assert asked("/parasha/read/book-he/reader/", "sec-0002.html") == [], (
+                "a portion is not the reader's to buy"
+            )
+        finally:
+            browser.close()

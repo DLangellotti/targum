@@ -11470,6 +11470,14 @@ var targumReader = function () {
     return;
   }
 
+  // Nothing to buy where the next chapter is already on the page's own say, and nothing
+  // that is not a reader's own: a portion is served from its own shelf, and a text off
+  // the shared one is complete. Asked anyway, each answered 404 in the console on every
+  // first text (known issues 2026-10-12, m6). A page built before `data-ready` asks as
+  // it always did, until it is rebuilt.
+  if (link.hasAttribute("data-ready")) return;
+  if (parts[1] !== "reader") return;
+
   window.addEventListener("scroll", maybe, { passive: true });
   document.addEventListener("targum:page", maybe);
   maybe();

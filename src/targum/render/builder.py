@@ -5725,6 +5725,17 @@ def render(
             ),
             previous=None if section.number == 1 else sections[section.number - 2],
             following=None if section.number == len(sections) else sections[section.number],
+            # Whether the next chapter is translated already, by the same rule as this
+            # one's `translated`: the reader asks for the next at 60% of this one, and a
+            # page that says it is there asks nothing. A text off the shared shelf or a
+            # portion is not the reader's to buy, so that asking was a 404 in the console
+            # on every one of them (known issues 2026-10-12, m6).
+            following_ready=section.number < len(sections)
+            and any(
+                translation.segments.get(sid)
+                for translation in translations
+                for sid in sections[section.number].segment_ids
+            ),
             # An imported recording is made a part at a time, the next as the reader
             # opens the one before (2026-10-07, design.md §12, "One press gets the whole
             # video, a part at a time"): the page asks for it once, on opening, instead
