@@ -13907,11 +13907,71 @@ var targumReader = function () {
       wake();
     });
 
+    /* A film that has already shown a picture and then errors did travel: what broke is
+       the stream under it, not the file (David, 2026-10-12: "it cuts off after the first
+       few lines randomly and we go into full screen text", in every way of standing). So
+       it is loaded again and put back at the second it was on, playing if it was, and
+       only a film that keeps failing — three times in a minute — or one that never gave
+       a picture is given up on below. Each time, which error the browser reported goes
+       to the record as a control (`film-error:<code>:<again|gone>:<message>`) and to the
+       console, because the cause has not been caught on a machine of ours yet and the
+       next one should say what it was. */
+    var filmShown = videoEl.readyState >= 2;
+    var filmFailures = [];
+    videoEl.addEventListener("loadeddata", function () {
+      filmShown = true;
+    });
+    var reportFilm = function (outcome) {
+      var fault = videoEl.error;
+      var code = fault ? fault.code : 0;
+      var message = fault && fault.message ? String(fault.message) : "";
+      var said = message.replace(/[^A-Za-z0-9_.:-]+/g, "_").slice(0, 28);
+      try {
+        if (window.TargumEvents && window.TargumEvents.note) {
+          window.TargumEvents.note({
+            kind: "control",
+            control: ("film-error:" + code + ":" + outcome + (said ? ":" + said : "")).slice(0, 60),
+          });
+        }
+      } catch (e) {}
+      try {
+        if (window.console && console.warn) {
+          console.warn("[targum] film error", code, message, outcome, "at", videoEl.currentTime);
+        }
+      } catch (e) {}
+    };
+    var filmAgain = function () {
+      var now = Date.now();
+      filmFailures = filmFailures.filter(function (at) {
+        return now - at < 60000;
+      });
+      if (!filmShown || filmFailures.length >= 3) return false;
+      filmFailures.push(now);
+      var at = videoEl.currentTime || 0;
+      var going = running || !videoEl.paused;
+      reportFilm("again");
+      var back = function () {
+        videoEl.removeEventListener("loadedmetadata", back);
+        try {
+          videoEl.currentTime = at;
+        } catch (e) {}
+        if (going) {
+          var playing = videoEl.play();
+          if (playing && playing.catch) playing.catch(function () {});
+        }
+      };
+      videoEl.addEventListener("loadedmetadata", back);
+      videoEl.load();
+      return true;
+    };
+
     /* The sidecar did not travel — a reader folder copied without its video/, or a
        page opened somewhere the file is not. The player swaps to the inlined audio
        and the page becomes exactly the audio reader, toggle and all. */
     videoEl.addEventListener("error", function () {
       if (videoDead) return;
+      if (filmAgain()) return;
+      reportFilm("gone");
       videoDead = true;
       var rate = nearestRate(audio.playbackRate);
       halt();

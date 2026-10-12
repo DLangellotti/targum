@@ -369,6 +369,18 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A film that errors after a picture is loaded again — 2026-10-12
+
+David, 2026-10-12: a video "cuts off after the first few lines randomly and we go into
+full screen text", in every way of standing. The only thing that puts the picture away by
+itself is the film's error, and it read every error as a sidecar that never travelled: it
+swapped to the inlined audio and took the picture's switch away for the rest of the visit.
+The cause of the error itself was not caught on a machine of ours, so David chose a guard
+and a record. A film that has already shown a picture is loaded again at the second it was
+on, playing if it was. Three errors in a minute, or a film that never gave a picture, is
+still the audio reader. Each error goes to the record as a control named for the browser's
+error code, so the next one says what it was.
+
 ### Russian has a switch in the bar — 2026-10-12
 
 David, 2026-10-12: "I also want a more logical and obvious way for Russian L1 speakers to

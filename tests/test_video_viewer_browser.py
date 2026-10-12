@@ -676,6 +676,88 @@ def test_a_picture_put_away_is_an_audio_reader_and_comes_back(browser, tmp_path)
         context.close()
 
 
+# -- a film that errors after it has shown a picture (David, 2026-10-12) -------------
+#
+# "It cuts off after the first few lines randomly and we go into full screen text", in
+# every way of standing. The one thing that puts the picture away by itself is the film's
+# error, which took any error as a sidecar that never travelled. A film that has shown a
+# picture did travel: it is loaded again at the second it was on, and the record is told
+# which error it was.
+
+ERRORED = """
+() => {
+  const v = document.querySelector('.video-el');
+  return {
+    up: !document.getElementById('video').hidden,
+    film: document.body.classList.contains('film'),
+    toggle: [...document.querySelectorAll('[data-video], .player-video')]
+      .some((b) => !b.hidden && !(b.closest('.group') && b.closest('.group').hidden)),
+    at: v.currentTime,
+    ready: v.readyState,
+  };
+}
+"""
+
+
+def errors(page, times: int = 1) -> None:
+    """The film's error, as the browser fires it when a stream breaks under it."""
+    for _ in range(times):
+        page.evaluate("() => document.querySelector('.video-el').dispatchEvent(new Event('error'))")
+        page.wait_for_function("() => document.querySelector('.video-el').readyState >= 1")
+
+
+def test_a_film_that_errors_after_a_picture_comes_back_where_it_was(browser, tmp_path) -> None:  # noqa: F811
+    built = video_reader(tmp_path)
+    for view in ("beside", "theatre"):
+        context, page = film_open(browser, built, view=view)
+        warned: list[str] = []
+        page.on("console", lambda m, kept=warned: kept.append(m.text))
+        try:
+            page.wait_for_function("() => document.querySelector('.video-el').readyState >= 2")
+            seek(page, 0.5)
+            errors(page)
+            page.wait_for_timeout(300)
+            seen = page.evaluate(ERRORED)
+            assert seen["up"] and seen["film"], (view, seen)
+            assert seen["toggle"], "the picture's switch is still there"
+            assert abs(seen["at"] - 0.5) < 0.2, ("back at the second it was on", seen)
+            said = [line for line in warned if "film error" in line]
+            assert said and "again" in said[0], warned
+        finally:
+            context.close()
+
+
+def test_a_film_that_keeps_failing_is_given_up_on(browser, tmp_path) -> None:  # noqa: F811
+    """Three times in a minute it is loaded again; the fourth is the audio reader."""
+    built = video_reader(tmp_path)
+    context, page = film_open(browser, built)
+    try:
+        page.wait_for_function("() => document.querySelector('.video-el').readyState >= 2")
+        errors(page, 3)
+        assert page.evaluate(ERRORED)["up"]
+        page.evaluate("() => document.querySelector('.video-el').dispatchEvent(new Event('error'))")
+        page.wait_for_selector("#video[hidden]", state="attached")
+        assert not page.evaluate(ERRORED)["film"]
+    finally:
+        context.close()
+
+
+def test_a_film_that_never_arrived_is_the_audio_reader(browser, tmp_path) -> None:  # noqa: F811
+    """A reader folder copied without its video: the page is the audio reader, as before."""
+    built = video_reader(tmp_path)
+    for film in (built.parent / "video").glob("*"):
+        film.unlink()
+    context = opened(browser)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector(".pair", state="attached")
+        page.wait_for_selector("#video[hidden]", state="attached")
+        assert not page.evaluate(ERRORED)["toggle"], "no switch for a picture that is not there"
+    finally:
+        context.close()
+
+
 # -- Theatre's picture, made smaller (David, 2026-10-07; design.md §12) --------------
 
 #: The picture, its row and the line under it, in Theatre at the suite's 1280x800 on the
