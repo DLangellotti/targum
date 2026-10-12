@@ -82,7 +82,7 @@ def _all_good(language: str = "ru") -> Facts:
         ladder=True,
         talk=True,
         voice=True,
-        shelf={level: Floor(30, 12) for level in stages.CEFR_LEVELS},
+        shelf={level: Floor(100, 40) for level in stages.CEFR_LEVELS},
         covered={spot.name: True for spot in spots},
         practices={spot.name: True for spot in spots},
         read_through=True,
@@ -146,13 +146,13 @@ def test_one_missing_practice_holds_a_language_at_alpha() -> None:
 def test_a_shelf_short_at_one_level_is_said_by_level_and_kind() -> None:
     known = _all_good()
     assert known.shelf is not None
-    known.shelf["B1"] = Floor(9, 3)
+    known.shelf["B1"] = Floor(35, 14)
     assert stages.earned(known) is Stage.experimental
     short = stages.shortfall(known, Stage.alpha)
-    assert "shelf at B1: 9 texts of 10" in short
-    # Three recordings meet Alpha's floor; Beta's floor of ten is the next line.
-    assert "shelf at B1: 3 recordings of 3" not in short
-    assert "shelf at B1: 3 recordings of 10" in stages.shortfall(known, Stage.beta)
+    assert "shelf at B1: 35 texts of 36" in short
+    # Fourteen recordings meet Alpha's floor; Beta's floor of 35 is the next line.
+    assert "shelf at B1: 14 recordings of 14" not in short
+    assert "shelf at B1: 14 recordings of 35" in stages.shortfall(known, Stage.beta)
 
 
 def test_alpha_floors_are_under_betas_at_every_level() -> None:

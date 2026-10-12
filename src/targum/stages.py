@@ -87,16 +87,14 @@ class Floor:
     recordings: int
 
 
-#: Shelf floors per stage and level. Provisional (David, 2026-10-11): to be re-set once
-#: `scripts/measure_difficulty.py` has written `sentence` for the whole catalogue and
-#: Hebrew's per-level counts are known — Beta just under Hebrew, Alpha about 40% of Beta.
+#: Shelf floors per stage and level, set 2026-10-12 against the measured Hebrew shelf once
+#: `scripts/measure_difficulty.py` had written `sentence` for the catalogue (David,
+#: 2026-10-11: Beta just under Hebrew, Alpha about two fifths of Beta). Hebrew's thinnest
+#: level held 95 texts (A2) and 37 recordings (B2+); one floor serves every level.
 SHELF: dict[Stage, dict[str, Floor]] = {
-    Stage.alpha: {level: Floor(10, 3) for level in LEARNER_LEVELS},
-    Stage.beta: {level: Floor(25, 10) for level in CEFR_LEVELS},
+    Stage.alpha: {level: Floor(36, 14) for level in LEARNER_LEVELS},
+    Stage.beta: {level: Floor(90, 35) for level in CEFR_LEVELS},
 }
-#: The day the floors were proposed; removed when they are re-set against the measured
-#: Hebrew shelf.
-PROVISIONAL: date | None = date(2026, 10, 11)
 
 
 @dataclass(frozen=True)

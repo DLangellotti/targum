@@ -2694,9 +2694,10 @@ entry makes the three words promises to the reader, in order, and makes a test k
   levels by hard-word share and sentence length, and the floors are stated in CEFR by a
   mapping said rather than measured: A1 is a text meeting the Easy spec in full, A2 the
   rest of Easy, B1 Simplified, and **Native is one level, B2 and up**, until there is a
-  better ruler than a median nobody measured. The numbers are provisional until the
-  difficulty sweep has measured the whole catalogue; Beta's are then set just under
-  Hebrew's and Alpha's at about two fifths of Beta's.
+  better ruler than a median nobody measured. The floors were set on 2026-10-12, once the
+  difficulty sweep had measured the catalogue, just under Hebrew's thinnest level for
+  Beta (90 texts and 35 with a recording at every level) and at two fifths of that for
+  Alpha (36 and 14).
 - **One table, one test.** `stages.DECLARED` is the claim, written into every page as
   `window.TARGUM_STAGES` and read by the menu, the palette and the arrival; `tests/
   test_stages.py` fails when a claim outruns the facts in the code, the committed evals
