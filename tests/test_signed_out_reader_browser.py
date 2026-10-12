@@ -23,8 +23,13 @@ ACCOUNT_ONLY = ("/offline.json", "/voice", "/chapter", "/jobs", "/chat/list")
 
 @pytest.fixture(scope="module")
 def reader(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Two chapters, so the first has a next one to fetch ahead."""
-    return chapter(tmp_path_factory.mktemp("signed-out") / "reader", parts=2).parent
+    """Two chapters, so the first has a next one to fetch ahead — one still waiting, as a
+    book bought a chapter at a time has it: a next chapter already translated says
+    `data-ready` and is never asked for (known issues 2026-10-12, m6)."""
+    folder = chapter(tmp_path_factory.mktemp("signed-out") / "reader", parts=2).parent
+    first = folder / "sec-0001.html"
+    first.write_text(first.read_text(encoding="utf-8").replace(" data-ready", ""), encoding="utf-8")
+    return folder
 
 
 def read_to_the_end(browser, reader: Path, me: dict) -> list[str]:  # noqa: F811
