@@ -88,3 +88,37 @@ def test_a_place_with_no_text_and_no_title_is_left_out() -> None:
     titled["path"] = "/reader/ruth/reader/sec-0001.html"
     cards = gather(readers=[], places=[stranger, titled])
     assert [card["place"]["hash"] for card in cards] == ["kept"]
+
+
+def portion_place(at: int, **fields: Any) -> dict[str, Any]:
+    return {
+        "section": "1",
+        "path": "/parasha/read/noach/reader/sec-0001.html",
+        "segment": "",
+        "seconds": 0,
+        "at": at,
+        **fields,
+    }
+
+
+def test_a_finished_portion_heads_continue() -> None:
+    """QA, 2026-10-12: Noach finished from the Library, home said "Finished נֹחַ", and no
+    card carried it. A portion is not on the shelf, so its card is named by its place,
+    and this browser's place carries no title: the reader writes the part, not the name.
+    The name comes from this browser's own record of the text, or the account's row."""
+    stored = {
+        "targum:places": json.dumps({"noach": portion_place(5000)}),
+        "targum:docs": json.dumps({"noach": {"title": "נֹחַ", "language": "he"}}),
+    }
+    cards = gather(readers=[video("now")], opened={"now": 100}, stored=stored, account=[])
+    assert cards[0]["place"] == {
+        "hash": "noach",
+        "path": "/parasha/read/noach/reader/sec-0001.html",
+        "title": "נֹחַ",
+    }
+    # Named only by the account: its row is older than this browser's place, and still
+    # gives the card its name.
+    named = {"targum:places": json.dumps({"noach": portion_place(500)})}
+    account = [{"hash": "noach", **portion_place(400), "title": "נֹחַ", "language": "he"}]
+    cards = gather(readers=[], stored=named, account=account)
+    assert [card["place"]["title"] for card in cards] == ["נֹחַ"]
