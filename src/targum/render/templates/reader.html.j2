@@ -778,8 +778,12 @@
     In the corner rather than across the top: a bar over the text is a second toolbar,
     and it moves the reading down to make room for something a reader may never press. -#}
 {% if spoken_audio %}
-<div class="player" id="player" role="group" aria-label="Play {{ spoken_label }}">
-  <button type="button" class="player-play" data-play-scene aria-pressed="false" aria-label="Play {{ spoken_label }}">
+{#- Every press on the strip says what it does, to a screen reader and under the pointer
+    (known issues §3, 2026-10-12: at a desk the strip was a row of glyphs, × ↓ ^ + 1× −
+    and a square, with names only some of them were given). -#}
+{% set play_what = t("reader.page.play-what", "Play {what}", what=spoken_label) %}
+<div class="player" id="player" role="group" aria-label="{{ play_what }}">
+  <button type="button" class="player-play" data-play-scene aria-pressed="false" aria-label="{{ play_what }}" title="{{ play_what }}">
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path>
       <rect class="stop" x="4.5" y="4.5" width="7" height="7" rx="1"></rect>
@@ -820,9 +824,9 @@
       bar, because the bar's button is only "play" and the speed is a fact about listening,
       not about the page. The readout is the typed × after a number (design.md §7). -#}
   <span class="player-rate" role="group" aria-label="{{ t("reader.page.speed", "Speed") }}">
-    <button type="button" class="player-slower" aria-label="{{ t("reader.page.slower", "Slower") }}">−</button>
+    <button type="button" class="player-slower" aria-label="{{ t("reader.page.slower", "Slower") }}" title="{{ t("reader.page.slower", "Slower") }}">−</button>
     <button type="button" class="player-rate-now" dir="ltr" aria-label="{{ t("reader.page.speed", "Speed") }}" title="{{ t("reader.page.speed", "Speed") }}">1×</button>
-    <button type="button" class="player-faster" aria-label="{{ t("reader.page.faster", "Faster") }}">+</button>
+    <button type="button" class="player-faster" aria-label="{{ t("reader.page.faster", "Faster") }}" title="{{ t("reader.page.faster", "Faster") }}">+</button>
   </span>
   {#- Hear first (targum-internal#265): a line pressed while this is on plays with its own
       text hidden and the translation left in place, and the text comes back when the line
@@ -844,7 +848,7 @@
     </button>
     {%- endfor %}
   </span>
-  <button type="button" class="player-first" aria-pressed="false">{{ t("reader.page.hear-first", "Hear first") }}</button>
+  <button type="button" class="player-first" aria-pressed="false" title="{{ t("reader.film.hear-first-title", "Press a line to hear it before you see it") }}">{{ t("reader.page.hear-first", "Hear first") }}</button>
   {#- The picture, from the transport that is always on screen. The same control as the
       one in the bar — same `data-video`, so `showVideo` presses both and neither can
       show a state the other does not — and here as well because the bar's copy folds
@@ -874,7 +878,7 @@
       <path d="M3 13.5h10"></path>
     </svg>
   </a>
-  <button type="button" class="player-close" aria-label="{{ t("reader.page.close-the-player", "Close the player") }}">×</button>
+  <button type="button" class="player-close" aria-label="{{ t("reader.page.close-the-player", "Close the player") }}" title="{{ t("reader.page.close-the-player", "Close the player") }}">×</button>
 </div>
 {#- Listening (design.md §12, "Listening is a view of its own", 2026-10-10; boards
     ListenPhone and ListenWordPhone). Drawn over the reader and driving its one player:

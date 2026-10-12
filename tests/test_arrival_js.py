@@ -405,6 +405,42 @@ def test_a_subject_past_reach_gives_way_to_the_rung() -> None:
     assert draw([], fluent, shared=shelf)["first"] == "קשה", "and sport, at vav"
 
 
+def scripture(name: str, title: str, tag: str, register: str, difficulty: int) -> dict[str, Any]:
+    """A row filed under Torah and Judaism, rated vav as every one on the box is."""
+    return reader(
+        name,
+        title,
+        name,
+        register=register,
+        tags=[tag],
+        difficulty=difficulty,
+        level={"rung": "", "name": "vav", "cefr": ""},
+    )
+
+
+def test_torah_and_judaism_opens_scripture_even_past_reach() -> None:
+    """A Biblical beginner who picks Torah and Judaism opens scripture, not the modern
+    shelf (QA, 2026-10-12: they landed on a 2008 basketball article). The box rates every
+    Tanakh row vav, so reach drops them all; the subject is answered by the easiest
+    scripture there is, Biblical before rabbinic."""
+    shelf = [
+        leveled("news", "חדשות", "aleph", tags=["journalism"]),
+        leveled("easy", "קל", "aleph"),
+        scripture("mishnah", "משנה", "judaica", "rabbinic", 9),
+        scripture("psalms", "תהילים", "tanakh", "biblical", 24),
+        scripture("genesis", "בראשית", "tanakh", "biblical", 11),
+        scripture("ruth", "רות", "tanakh", "biblical", 16),
+    ]
+    starting = {"targum:arrived": "judaism", "targum:declared": "aleph"}
+    assert draw([], starting, shared=shelf)["first"] == "בראשית"
+    # A subject they can follow still comes first, as it gives way today.
+    both = {"targum:arrived": "judaism,news", "targum:declared": "aleph"}
+    assert draw([], both, shared=shelf)["first"] == "חדשות"
+    # And a subject that is not scripture still gives way to the modern shelf.
+    other = {"targum:arrived": "science", "targum:declared": "aleph"}
+    assert draw([], other, shared=shelf)["first"] in {"קל", "חדשות"}
+
+
 def test_where_the_rung_decides_reach_comes_before_a_voice() -> None:
     """The second moment is the voice, and it is found on a page the reader can follow:
     with no subject to go on, a silent text at their rung beats a heard one far past it."""

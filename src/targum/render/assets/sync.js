@@ -1021,6 +1021,11 @@
     // Whoever is signed in, or null. Resolved once and reused.
     who: null,
 
+    // True once the server has said this browser is signed out where an account is
+    // needed: hosted, or a machine with an account on it. A fresh install with nobody to
+    // sign into is never signed out, and works as it did.
+    signedOut: false,
+
     /* Which room they read in. On the account rather than in this browser, and for a
        blunt reason: `clearLocal()` below deletes every `targum:*` key on
        sign-out, on purpose, so a local preference would be forgotten every time somebody
@@ -1031,6 +1036,7 @@
       var going = ask("/account/me")
         .then(function (me) {
           api.who = me && me.signedIn ? me : null;
+          api.signedOut = !api.who && !!(me && me.signedOut);
           if (!api.who) return false;
           var was = state();
           // Another person signed in on this browser. Nothing of theirs is mixed in
@@ -1062,6 +1068,22 @@
        everything is about to arrive. Resolves with whether anything did. */
     settled: function () {
       return started || api.start();
+    },
+
+    /* Whether a page may ask the account's own routes on its own — `/jobs`, a chat's
+       list, `/offline.json`, `/voice`, a chapter fetched ahead — once the account has had
+       its say. Signed out each answered 401 or 403 and the console logged it on every
+       reader and series page (QA 2026-10-11). A press is still sent: what it is refused
+       with is what the reader is told. */
+    mayAsk: function () {
+      return api.settled().then(
+        function () {
+          return !api.signedOut;
+        },
+        function () {
+          return true;
+        }
+      );
     },
 
     /* How many changes this browser holds that the account has not had: what the

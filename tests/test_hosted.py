@@ -1512,6 +1512,19 @@ def test_a_strangers_404_is_the_doors_page_and_asks_for_nothing(
     assert 'id="talk-open"' not in page and 'id="notices-open"' not in page
 
 
+def test_a_stranger_asking_who_is_signed_in_is_told_nobody_not_refused(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """QA 2026-10-11: every reader and series page asks `/account/me`, and signed out it
+    was answered with the stale-key page and a 403 in the console. It is a question with
+    an answer: nobody, and an account is needed here, so the page asks nothing more."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    status, body = ask(port, "/account/me", "targum.page")
+    assert status == 200
+    assert json.loads(body) == {"signedIn": False, "signedOut": True}
+
+
 def test_an_unknown_text_or_reader_page_is_the_sites_own_404_to_a_browser(
     tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
 ) -> None:

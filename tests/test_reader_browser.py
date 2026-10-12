@@ -7620,3 +7620,25 @@ def test_the_reader_rings_its_focus_in_teal(browser, built: Path) -> None:
     assert rings, f"nothing Tab reached drew a ring: {seen}"
     for where, _, colour in rings:
         assert colour == "rgb(31, 111, 107)", f"{where} rings in {colour}"
+
+
+def test_a_touch_screen_is_never_told_the_keys(browser, built: Path) -> None:
+    """Signed-in walk 2026-10-12: after the first mark, a phone's first-run line read
+    "k known · 1 2 3 · ← next word · ? every key" on a screen with no keys. On a touch
+    screen it falls quiet instead, keeping its room so nothing moves."""
+    context = browser.new_context(
+        viewport=PHONE, has_touch=True, is_mobile=True, reduced_motion="reduce"
+    )
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    line = page.locator("#first")
+    assert "Tap a word" in line.inner_text()
+    tall = page.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
+    page.locator(".w").first.tap()
+    page.locator("#gloss-card .vocab-editor .level").first.tap()
+    page.wait_for_function("() => document.getElementById('first').style.visibility === 'hidden'")
+    said = page.evaluate("() => document.getElementById('first').textContent")
+    same = page.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
+    context.close()
+    assert "key" not in said and same == tall, (said, same, tall)

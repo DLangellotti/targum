@@ -906,6 +906,12 @@
     var often = filter.often && facts.loaded;
     var rows = entry.words
       .filter(function (word) {
+        // A name or a number is not vocabulary (`charts.kept`): the finish press clears
+        // them with the rest and they are never called words (design.md §12, "The foot is
+        // one block"). So the tabs list what the head counts, and "Done, and mark 79
+        // words known" is 79 rows under Known, not 119 with 2008 and חולון among them
+        // (QA, 2026-10-12). Under Ignored they stay, so one ignored can be put back.
+        if (want !== String(IGNORED) && !charts.vocabulary([word]).length) return false;
         if (want === "learning") {
           if (!(word.status >= 1 && word.status <= 3)) return false;
         } else if (want === "all") {
