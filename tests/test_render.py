@@ -3707,8 +3707,10 @@ def test_the_speed_is_a_pair_in_the_player_and_only_where_there_is_a_voice(
     player = re.search(r'<div class="player".*?</div>', template, re.S)
     assert player is not None
     card = player.group(0)
-    assert '<button type="button" class="player-slower" aria-label="Slower">−</button>' in card
-    assert '<button type="button" class="player-faster" aria-label="Faster">+</button>' in card
+    slower = 'class="player-slower" aria-label="Slower" title="Slower">−</button>'
+    faster = 'class="player-faster" aria-label="Faster" title="Faster">+</button>'
+    assert f'<button type="button" {slower}' in card
+    assert f'<button type="button" {faster}' in card
     assert 'class="player-rate" role="group" aria-label="Speed"' in card
     assert ">1×<" in card, "the reading's own pace, to begin with"
     assert ">-<" not in card, "a minus sign, not a hyphen"
