@@ -5424,6 +5424,17 @@ class Handler(BaseHTTPRequestHandler):
         )
         self._send(404, page.encode("utf-8"), HTML)
 
+    def _navigating(self) -> bool:
+        """Whether a person's browser asked for this address as a page, rather than a
+        script fetching it: the browser says so in `Sec-Fetch-Mode`, and one too old to
+        send it still asks for HTML first."""
+        if self.command not in ("GET", "HEAD"):
+            return False
+        mode = self.headers.get("Sec-Fetch-Mode")
+        if mode is not None:
+            return mode == "navigate"
+        return "text/html" in (self.headers.get("Accept") or "")
+
     def _key_if_given(self) -> str:
         """The key for a page's top bar, only for a request that already carried it: the
         404 and the subscribe page are answered to anybody, and the key is not a thing to
@@ -5594,6 +5605,12 @@ class Handler(BaseHTTPRequestHandler):
         cookie: str = "",
         forms: str = "",
     ) -> None:
+        if status == 404 and body == b"not found" and self._navigating():
+            # ACCOUNT-12 (QA 2026-10-11): an unknown `/library/<id>` or a reader's page
+            # that is not there answered a browser with the two bare words. A person who
+            # typed or followed the address gets the site's own page instead; a script's
+            # fetch still gets the short answer it reads.
+            return self._not_found()
         self.send_response(status)
         self.send_header("Content-Type", kind)
         if cookie:
