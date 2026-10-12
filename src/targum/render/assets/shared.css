@@ -636,6 +636,41 @@ table.rows tr:hover .copy,
      it answered 36px across. By its id, because the list it was given its reach in is
      an `:is()` that takes its most specific selector's weight. */
   #player .player-rate-now::after { inset-inline: min(0px, calc(50% - 22px)); }
+  /* The rest of READER-04 (known issues §3, 2026-10-12). The strip's scrubber is a 2px
+     line whose padding is its target, and its `overflow: hidden` clips any reach drawn
+     outside it, so the padding grows instead: 44px of glass centred on the line, the
+     height given back by the margin so the strip keeps its size. The clock under it is
+     a readout and lets the tap through. */
+  #player .player-track {
+    padding-block: 21px;
+    margin-block: -21px;
+    position: relative;
+    z-index: 1;
+  }
+  #player .player-clock { pointer-events: none; }
+  /* The sheet's × is drawn 44px and was squeezed to 24 by the card's column, under the
+     reach of the grab above it: it keeps its size and stands over the grab. */
+  #gloss-card .card-x {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+  /* A film's play reaches across as well as up, as the strip's speed does: it is drawn
+     28px wide at the start of the row under the picture. By the picture's id, as the
+     speed's is by the strip's: the list that gave it its reach is an `:is()` with the
+     weight of its most specific selector. */
+  #video .film-ctl .film-play::after { inset-inline: min(0px, calc(50% - 22px)); }
+  /* "Add your meaning", a line of teal in the card: 44px tall for the thumb, centred on
+     it, between the scale's legend above and the card's foot below. */
+  #gloss-card .note-open { position: relative; }
+  #gloss-card .note-open::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: 0;
+    margin-block: auto;
+    block-size: max(100%, 44px);
+  }
   /* The way home reaches its 44px towards the title and never past its own start: the
      strip between it and the window's edge is the bar's, where a tap brings a quiet bar
      back, and a reach over it sent that tap home. */
