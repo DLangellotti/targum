@@ -734,3 +734,21 @@ def test_a_russian_weekly_page_describes_itself_in_russian() -> None:
     assert russian == "שבוע של חדשות. Новости на иврите, написанные тремя способами, каждую неделю."
     english = _head(weekly_page(issue, Level.bet, address=ADDRESS))[1]
     assert english == "שבוע של חדשות. Hebrew news, written three ways, every week."
+
+
+def test_read_it_signs_in_and_lands_on_the_text() -> None:
+    """Known issues 2.13: signed out, "Read it" went to `/account/signin` with nothing
+    after it, so the learner signed in and landed home instead of on the text they chose.
+    Both doors on the page carry the text, through `/open/`, and a Russian page keeps
+    its language at the door."""
+    import re
+
+    from targum.catalogue import everything
+    from targum.render.builder import text_page
+
+    entry = next(iter(everything()))
+    page = text_page(entry, "https://targum.page")
+    doors = re.findall(r'<a class="(?:go|enter)" href="([^"]+)"', page)
+    assert doors == [f"/account/signin?next=%2Fopen%2F{entry.id}"] * 2
+    russian = text_page(entry, "https://targum.page", language="ru")
+    assert f'href="/account/signin?next=%2Fopen%2F{entry.id}&amp;lang=ru"' in russian
