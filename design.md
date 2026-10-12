@@ -369,6 +369,27 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Russian has a switch in the bar — 2026-10-12
+
+David, 2026-10-12: "I also want a more logical and obvious way for Russian L1 speakers to
+switch to Russian." Once signed in, the only way was Your account's "Read and translate
+into", two pages from anywhere a reader is. Asked, David chose the top bar, "very
+minimal", and only for a likely Russian reader.
+
+- **EN · RU beside the language menu**, on every desk page that draws the menu. Two Latin
+  codes and a dot, the front door's and the arrival's own, so nothing in the bar is
+  Cyrillic. No pill and no border: the one in use is ink, the other soft ink.
+- **Drawn only for a signed-in reader who may read Russian**: the account already reads
+  Russian, or the browser lists Russian or a language of the countries where Russian is
+  shared, as the arrival reads it ("Russian is shown to somebody who may read it",
+  2026-09-28). Everybody else sees nothing new.
+- **A press is the account row's choice, said the same way**: the account reads that
+  language, its readers are written again with it (no spend), and the page is drawn again
+  in it.
+
+What it does not change: the language menu is still the language being learned, and Your
+account still offers every language the interface speaks.
+
 ### The first save keeps the Saved page too — 2026-10-11
 
 David, 2026-10-11, QA decision D4 (READER-03). With no connection, a page that was not
