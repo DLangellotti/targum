@@ -6739,14 +6739,70 @@ var targumReader = function () {
     // side of a word in the middle of the window. Growing upwards from a floor of 8px
     // is what used to put it back over the word. It takes the roomier side instead and
     // scrolls inside whatever that side has.
-    var under = window.innerHeight - rect.bottom - 8 - 12;
-    var over = rect.top - 8 - 12;
+    //
+    // Between the bar and the band at the foot, not the whole window (READER-10/12, QA
+    // 2026-10-11): the card stood over the next-page arrow and the words tab, and a
+    // verb's card ran under the foot of an 800px window with its stages out of reach.
+    var span = cardSpan();
+    var under = span.floor - rect.bottom - 8 - 12;
+    var over = rect.top - span.ceiling - 8 - 12;
     var below = box.height <= under || under >= over;
     var room = Math.max(below ? under : over, 0);
     if (box.height > room) element.style.maxHeight = room + "px";
     var height = Math.min(box.height, room);
     var top = below ? rect.bottom + 8 : rect.top - 8 - height;
     element.style.top = top + window.scrollY + "px";
+    // Kept in the page's own terms, so a card that grows after it is placed — a verb's
+    // root, its forms, where it was met, all arrive after the card opens — is placed
+    // again around the same word rather than running on past the floor.
+    element._near = {
+      left: rect.left + window.scrollX,
+      top: rect.top + window.scrollY,
+      width: rect.width,
+      height: rect.height,
+    };
+    element._placedAt = element.offsetHeight;
+    watchGrowth(element);
+  }
+
+  // Where a card may stand: under the bar, and over whatever is at the foot of the
+  // window — the arrows, the words tab, the player — wherever each is showing.
+  function cardSpan() {
+    var ceiling = 0;
+    var head = document.querySelector(".bar");
+    if (head) {
+      var top = head.getBoundingClientRect();
+      if (top.height && top.bottom > 0) ceiling = top.bottom;
+    }
+    var floor = window.innerHeight;
+    [document.getElementById("turn"), document.getElementById("player"), listTab].forEach(
+      function (thing) {
+        if (!thing || thing.hidden) return;
+        var box = thing.getBoundingClientRect();
+        if (!box.height || box.top <= ceiling || box.top >= window.innerHeight) return;
+        floor = Math.min(floor, box.top);
+      }
+    );
+    return { ceiling: ceiling, floor: floor };
+  }
+
+  function watchGrowth(element) {
+    if (element._watched || typeof ResizeObserver !== "function") return;
+    element._watched = true;
+    new ResizeObserver(function () {
+      var near = element._near;
+      if (!near || element.hidden || !roomy.matches) return;
+      // Only growth that came after the placing; the cap placing sets is not news.
+      if (element.style.maxHeight || element.offsetHeight <= element._placedAt) return;
+      placeNear(element, {
+        left: near.left - window.scrollX,
+        top: near.top - window.scrollY,
+        right: near.left - window.scrollX + near.width,
+        bottom: near.top - window.scrollY + near.height,
+        width: near.width,
+        height: near.height,
+      });
+    }).observe(element);
   }
 
   // Named for what it places. It was `place`, which is also what the word queue calls
