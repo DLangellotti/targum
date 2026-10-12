@@ -1527,6 +1527,20 @@
 .band-title { font-size: 1.0625rem; margin-block: 0.15rem 0.35rem; }
 .band-known { margin-block-start: auto; font-weight: 600; }
 .band-known.unmeasured { font-weight: 400; }
+/* A card pressed, asking before it spends (signed-in walk 2026-10-12, m1): the item
+   takes the card's surface, so how long and the two presses read as one card. How much
+   of it is known gives its line to how long, so the row grows by the presses alone. */
+.band-item.asking {
+  gap: 0;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+.band-item.asking > .band-card,
+.band-item.asking > .band-card:hover { box-shadow: none; background: none; padding-block-end: 0.5rem; }
+.band-item.asking .band-known { display: none; }
+.band-item.asking .row-state { margin-block-start: auto; }
+.band-ask { display: flex; flex-wrap: wrap; gap: 0.375rem; padding: 0 0.75rem 0.75rem; }
 .portions { margin: 0 0 1rem; }
 .portions-head { font-family: var(--reading); font-size: 1.5rem; font-weight: 500; }
 
