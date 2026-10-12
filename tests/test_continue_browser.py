@@ -174,3 +174,104 @@ def test_a_part_opens_on_the_sentence_another_device_left_it_at(browser, tmp_pat
         assert kept[facts["hash"]]["segment"] == facts["deep"], "opening kept the sentence"
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("its_own", [False, True], ids=["nothing-here", "older-here"])
+def test_a_part_opened_signed_in_takes_the_sentence_the_account_holds(
+    browser,  # noqa: F811
+    tmp_path,
+    its_own: bool,
+) -> None:
+    """The phone, signed in, opens a part straight from a link — not from Continue — with
+    nothing of this text in its own store, or with an older sentence of its own. The laptop
+    left the reader well down the part a minute ago. Opening the part must not write a
+    place of its own, at the top and newer, over the account's sentence before the account
+    has answered: the page waits for the answer, opens on the laptop's sentence, and sends
+    nothing newer that would undo it."""
+    import time
+
+    built = chapter(tmp_path / "reader")
+    context = opened(browser)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector(".pair")
+        facts = page.evaluate(
+            """() => {
+              const data = JSON.parse(document.getElementById('targum-data').textContent);
+              const pairs = [...document.querySelectorAll('.pair[data-id]')];
+              return {
+                hash: data.document || location.pathname,
+                section: String(data.section || 1),
+                deep: pairs[Math.floor(pairs.length * 0.8)].getAttribute('data-id'),
+                early: pairs[Math.floor(pairs.length * 0.3)].getAttribute('data-id'),
+                first: pairs[0].getAttribute('data-id'),
+              };
+            }"""
+        )
+        context.close()
+
+        laptop = {
+            "hash": facts["hash"],
+            "section": facts["section"],
+            "path": "",
+            "segment": facts["deep"],
+            "seconds": 0,
+            "at": int(time.time() * 1000) - 60_000,
+            "seen": int(time.time() * 1000) - 60_000,
+        }
+        pushed: list[dict] = []
+
+        def on_me(route) -> None:
+            body = {"signedIn": True, "email": "d@x.test", "reads": ["en"], "learning": ["he"]}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+        def on_sync(route, request) -> None:
+            pushed.append(json.loads(request.post_data or "{}"))
+            body = {"signedIn": True, "revision": 1, "places": [laptop]}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+        context = opened(browser)
+        stored: dict[str, object] = {
+            "targum:sync": {"email": "d@x.test", "revision": 0, "pushed": 0}
+        }
+        if its_own:
+            # Where the phone stopped yesterday, a third of the way down.
+            yesterday = laptop["at"] - 86_400_000
+            key = f"{facts['hash']}/{facts['first']}"
+            stored["targum:place"] = {key: {"segment": facts["early"], "at": yesterday}}
+            stored["targum:places"] = {
+                facts["hash"]: {
+                    "section": facts["section"],
+                    "path": "",
+                    "segment": facts["early"],
+                    "seconds": 0,
+                    "at": yesterday,
+                }
+            }
+        keeping(context, stored)
+        page = context.new_page()
+        page.route("**/account/me*", on_me)
+        page.route("**/sync*", on_sync)
+        page.route("**/readers*", lambda route: route.fulfill(status=404, body="{}"))
+        page.goto(address(built))
+        page.wait_for_selector(".pair")
+        page.wait_for_function(
+            '(id) => { const r = document.querySelector(`.pair[data-id="${id}"]`)'
+            ".getBoundingClientRect(); return r.top >= 0 && r.top <= innerHeight; }",
+            arg=facts["deep"],
+            timeout=5000,
+        )
+        box = page.evaluate(
+            '(id) => document.querySelector(`.pair[data-id="${id}"]`).getBoundingClientRect().top',
+            facts["deep"],
+        )
+        assert 0 <= box <= page.viewport_size["height"], "the laptop's sentence is on the screen"
+        kept = page.evaluate("() => JSON.parse(localStorage.getItem('targum:places'))")
+        assert kept[facts["hash"]]["segment"] == facts["deep"], "the account's sentence is kept"
+        for body in pushed:
+            for place in body.get("places") or []:
+                if place.get("segment") != facts["deep"]:
+                    assert place["at"] < laptop["at"], "nothing newer went up over it"
+    finally:
+        context.close()
