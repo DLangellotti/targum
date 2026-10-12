@@ -2045,6 +2045,7 @@
   "connect.scope.chat-also": "А ещё добавлять тексты в ваши плейлисты и предлагать тексты, плейлисты и подписки, которые вы подтверждаете здесь, в targum",
   "serve.playlist-name-it": "Введите название. Плейлистов может быть не больше {most}.",
   "serve.playlist-full": "В плейлисте помещается до {most} текстов.",
+  "serve.playlist-one-language": "«{name}» — плейлист на языке: {language}. В плейлисте тексты на одном языке.",
   "playlists.page.title-targum": "Ваши плейлисты — targum",
   "playlists.page.title": "Ваши плейлисты",
   "playlists.next-name": "Похожее на «{name}»",

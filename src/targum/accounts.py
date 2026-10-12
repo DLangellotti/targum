@@ -5228,6 +5228,25 @@ class Store:
             return None
         return {"id": int(row["id"]), "name": str(row["name"]), "at": int(row["at"])}
 
+    def unfinished_playlists(self, person_id: int | None) -> list[dict[str, Any]]:
+        """Every playlist the reader has been in and not gone through, the one they were
+        in last first: where "Play next" looks for one in a text's own language when the
+        one they are in is in another (2026-10-12)."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT p.id, p.name, p.at,"
+            " (SELECT COUNT(*) FROM playlist_item i WHERE i.playlist = p.id) AS count"
+            " FROM playlist p WHERE p.person = ? AND p.gone = 0 AND p.visited IS NOT NULL"
+            " AND p.at IS NOT NULL ORDER BY p.visited DESC, p.id DESC",
+            (person_id,),
+        ).fetchall()
+        return [
+            {"id": int(row["id"]), "name": str(row["name"]), "at": int(row["at"])}
+            for row in rows
+            if int(row["at"]) < int(row["count"])
+        ]
+
     def play_next(
         self, person_id: int, playlist_id: int, title: str, reader: str
     ) -> dict[str, Any] | None:

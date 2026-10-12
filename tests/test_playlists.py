@@ -295,6 +295,40 @@ def test_a_model_adds_only_what_is_on_the_shelf(
     assert listed["playlists"][0]["texts"][0]["ready"] is True
 
 
+def test_a_model_cannot_mix_languages_in_a_playlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A playlist keeps to one language (2026-10-12), over the chat and the connector as
+    on the page."""
+    import json
+    from dataclasses import replace
+
+    from targum import serve
+    from targum.chat import tools
+    from targum.remembered import Remembered
+
+    store, me, _ = a_store(tmp_path)
+    shared = tmp_path / "shared"
+    for name, language in (("ruth", "he"), ("jonah", "he"), ("roman", "fr")):
+        (shared / name).mkdir(parents=True)
+        (shared / name / "document.json").write_text(
+            json.dumps({"title": name, "language": language, "blocks": []}), encoding="utf-8"
+        )
+    library = serve.Library.__new__(serve.Library)
+    library.shared = shared
+    library.remembered = Remembered()
+    library.jobs = {}  # type: ignore[assignment]
+    shelf = [{"name": name, "title": name.title()} for name in ("ruth", "jonah", "roman")]
+    monkeypatch.setattr(tools, "_shelf", lambda ctx: ([], shelf))
+    ctx = replace(_ctx(store, me), home=tmp_path / "home", library=library)  # type: ignore[type-var]
+    tools.add_to_playlist(ctx, {"playlist": "Prophets", "text": "ruth"})  # type: ignore[arg-type]
+    refused = tools.add_to_playlist(ctx, {"playlist": "Prophets", "text": "roman"})  # type: ignore[arg-type]
+    assert refused["error"].startswith("Prophets is in Hebrew")
+    assert tools.add_to_playlist(ctx, {"playlist": "Prophets", "text": "jonah"})["added"] == "Jonah"  # type: ignore[arg-type]
+    pid = int(store.playlists(me)[0]["id"])
+    assert [i["reader"] for i in (store.playlist(me, pid) or {})["items"]] == ["ruth", "jonah"]
+
+
 def test_the_tool_that_writes_asks_for_the_scope_that_writes() -> None:
     from targum.chat import tools
 

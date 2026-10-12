@@ -526,7 +526,13 @@
 
   function drawTab(answer) {
     var playlists = answer.playlists || [];
-    drawSheet(playlists);
+    // The sheet offers only the playlists the text may go into: a playlist keeps to one
+    // language (2026-10-12), and the server knows the text's. The tab still shows all.
+    if (adding) {
+      ask("/playlists.json?reader=" + encodeURIComponent(adding)).then(function (fitting) {
+        drawSheet(fitting.playlists || []);
+      });
+    }
     drawTargum(answer.targum || []);
     at("new-press").hidden = false;
     at("lists").hidden = false;

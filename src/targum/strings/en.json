@@ -1915,6 +1915,7 @@
   "connect.scope.chat-also": "And add texts to your playlists, and offer texts, playlists and subscriptions, which you confirm here, on targum",
   "serve.playlist-name-it": "Enter a name. You can have up to {most} playlists.",
   "serve.playlist-full": "A playlist holds up to {most} texts.",
+  "serve.playlist-one-language": "{name} is in {language}. A playlist holds texts in one language.",
   "playlists.page.title-targum": "Your playlists — targum",
   "playlists.page.title": "Your playlists",
   "playlists.next-name": "More like {name}",
