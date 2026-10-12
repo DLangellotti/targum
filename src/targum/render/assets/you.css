@@ -36,11 +36,13 @@ b.acct-name { font-weight: 600; }
 .acct-rows:empty { display: none; }
 .acct-narrow { display: none; }
 
-/* A choice in a row: the desk's field, at its words' width. */
+/* A choice in a row: the desk's field, at its words' width. Room for the longest of
+   them whole: at 13rem "Your Hebrew" cut "I follow the news with a dictionary" to "I
+   follow the news with ·" on a desk (signed-in walk 2026-10-12, m14). */
 .acct-pick {
   flex: none;
   min-block-size: 2.6rem;
-  max-inline-size: 13rem;
+  max-inline-size: 24rem;
   padding: 0 2rem 0 0.9rem;
   border: 1px solid var(--rule);
   border-radius: var(--radius-control);
