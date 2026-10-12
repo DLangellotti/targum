@@ -390,6 +390,10 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
       # Safe here because the rebuild writes reader pages and never code: the new
       # process serves the old shelf until each text is rewritten under it, which is
       # what every reader sees mid-rebuild anyway.
+      #
+      # The stop drains: the old process finishes the builds and chat turns it is
+      # running, up to ten minutes, and serves meanwhile (`serve.Stopping`). An idle box
+      # restarts in seconds; a busy one holds this line until its readers are answered.
       systemctl restart targum
 
       # The weights the tree expects, before the rebuild that expects them. The menaked

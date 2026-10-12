@@ -25,6 +25,7 @@ import queue
 import re
 import secrets
 import shutil
+import signal
 import threading
 import time
 import traceback
@@ -1768,9 +1769,14 @@ class Library:
     def _drain(self) -> None:
         while True:
             job = self.jobs.get(self.queue.get())
-            if job is not None:
-                self.run(job)
-            self.queue.task_done()
+            # Done in a `finally`, because a stop waits on this count reaching nothing
+            # (`drain`): a build that raised past `run` would otherwise hold every
+            # deploy for the whole of `DRAIN_SECONDS`.
+            try:
+                if job is not None:
+                    self.run(job)
+            finally:
+                self.queue.task_done()
 
     #: A finished build stays on the list this long, so the strip on every page can say
     #: it is ready and hand over the link. The page forgets one the reader has dismissed.
@@ -14432,6 +14438,92 @@ def default_store() -> Path:
     return Path.home() / ".targum" / "targum.db"
 
 
+#: How long a stop waits for the builds and chat turns already running before it stops
+#: anyway (targum-internal known issues 1.9, 2026-10-12). Every deploy restarts the
+#: service, and a restart used to take whatever was working with it: 21 chat turns and
+#: several builds in a month ended "targum restarted while this was building". Ten
+#: minutes covers a chat turn many times over and most builds; a build longer than that
+#: fails the way it always did, with its translation cached. `TimeoutStopSec` in
+#: deploy/targum.service has to stay above it, or systemd kills the wait it asked for.
+DRAIN_SECONDS = float(os.environ.get("TARGUM_DRAIN_SECONDS") or 600)
+
+
+def unfinished(*queues: queue.Queue[Any]) -> int:
+    """Work put on these queues and not yet done: what is waiting plus what is running.
+
+    A worker calls `task_done` after the job it took has ended, however it ended, so
+    the count only reaches nothing when every pool is idle."""
+    return sum(waiting.unfinished_tasks for waiting in queues)
+
+
+def drain(
+    queues: list[queue.Queue[Any]],
+    limit: float,
+    poll: float = 1.0,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bool:
+    """Wait until every queue is idle, or `limit` seconds have passed. True if idle."""
+    deadline = clock() + limit
+    while unfinished(*queues):
+        if clock() >= deadline:
+            return False
+        sleep(poll)
+    return True
+
+
+class Stopping:
+    """What a stop signal does: finish what is running, then stop serving.
+
+    The first SIGINT or SIGTERM starts a thread that waits on the build and chat queues
+    (`drain`) and then shuts the server down. The server goes on answering meanwhile, so
+    the page following a build or a turn sees it end rather than a 502, and a reader
+    pressing something new in that window is queued and served like any other. A second
+    signal stops at once — Ctrl-C twice at a terminal, or systemd's own patience running
+    out — and what was still working fails on the next start the way it did before.
+    """
+
+    def __init__(
+        self, server: ThreadingHTTPServer, queues: list[queue.Queue[Any]], limit: float
+    ) -> None:
+        self.server = server
+        self.queues = queues
+        self.limit = limit
+        self.signalled = 0
+        self.thread: threading.Thread | None = None
+
+    def __call__(self, signum: int, frame: object = None) -> None:
+        self.signalled += 1
+        if self.signalled > 1:
+            log.warning("stopping now; anything still working will be failed on the next start")
+            self._stop()
+            return
+        busy = unfinished(*self.queues)
+        if busy:
+            log.warning(
+                "stopping after %d running or waiting job(s) finish, %.0f s at most; "
+                "signal again to stop now",
+                busy,
+                self.limit,
+            )
+        self.thread = threading.Thread(target=self._drain_then_stop, name="drain", daemon=True)
+        self.thread.start()
+
+    def _drain_then_stop(self) -> None:
+        if not drain(self.queues, self.limit):
+            log.warning(
+                "stopping with %d job(s) unfinished after %.0f s",
+                unfinished(*self.queues),
+                self.limit,
+            )
+        self._stop()
+
+    def _stop(self) -> None:
+        # From a thread of its own: `shutdown` waits for `serve_forever` to return, and
+        # a signal handler runs on the thread that is inside it.
+        threading.Thread(target=self.server.shutdown, name="shutdown", daemon=True).start()
+
+
 def start(
     out: Path,
     port: int = 8420,
@@ -14624,11 +14716,20 @@ def start(
         tools_module.FEEDS.keep_warm(
             lambda: [publisher.feed for publisher in sources_module.load() if publisher.feed]
         )
+    # A stop drains first (`Stopping`). Only where signals can be caught at all, which is
+    # the main thread: the suite starts servers on threads of their own by the dozen.
+    previous: dict[signal.Signals, Any] = {}
+    if threading.current_thread() is threading.main_thread():
+        stopping = Stopping(server, [library.queue, chats.queue], DRAIN_SECONDS)
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            previous[signum] = signal.signal(signum, stopping)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        for signum, handler_before in previous.items():
+            signal.signal(signum, handler_before)
         if keep_feeds:
             tools_module.FEEDS.stop()
         server.server_close()
