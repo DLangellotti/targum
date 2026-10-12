@@ -1633,6 +1633,7 @@ var targumReader = function () {
      goes: the ink block says so and holds the Undo — except in a playlist, where the
      press is still the way on, and moving on from a finished item marks nothing. */
   function renderFoot() {
+    countShabbatAhead();
     if (!footDrawn || !footPress || !finishedMark) return;
     var when = finishedAt();
     var verb = footWay ? footWay.verb : "done";
@@ -2500,6 +2501,132 @@ var targumReader = function () {
     var connect = document.getElementById("next-up-connect");
     if (connect) connect.hidden = true;
   }
+
+  /* --- what a reading leads on to: next Shabbat's, and the next portion's words ---
+   *
+   * A haftarah belongs to a Shabbat, not to the book, so its end offers next Shabbat's
+   * portion: "Next Shabbat · נח · Noach" (targum-internal#416). A portion's last aliyah
+   * already links the next portion in the book (`next-up beyond`, #446); asked here only
+   * for that portion's words, to say how many of them the reader knows.
+   *
+   * Asked of the server, because the readers are built once for everybody and the
+   * calendar moves under them: which portion follows is the calendar's to say, on the
+   * schedule this browser keeps (`targum:schedule`, the Library shelf's own, diaspora
+   * until they say). The answer carries the next portion's words to a reader with a word
+   * list, and the count is made here, against this browser's store, by the header's rule
+   * (`coverage`): a word is known when it is marked known. Signed out, or nothing known
+   * yet, the offer stands without a count rather than saying nought.
+   */
+  var PORTION_READER = /^\/parasha\/read\/([a-z0-9-]+)\/reader\//.exec(location.pathname);
+  var shabbatAhead = null;
+
+  function knownAhead(words) {
+    var known = 0;
+    for (var n = 0; n < words.length; n++) if (statusOf(words[n]) === KNOWN) known += 1;
+    return known;
+  }
+
+  // Again on every redraw of the foot, so a word marked on this page counts at once.
+  function countShabbatAhead() {
+    if (!shabbatAhead || !shabbatAhead.words) return;
+    var known = knownAhead(shabbatAhead.words);
+    shabbatAhead.line.textContent = known
+      ? t("reader.next.shabbat-known", "You already know {n} of its words.", { n: known })
+      : "";
+    shabbatAhead.line.hidden = !known;
+  }
+
+  function knownLine(offer) {
+    var line = document.createElement("span");
+    line.className = "next-up-known";
+    line.hidden = true;
+    offer.appendChild(line);
+    return line;
+  }
+
+  function offerShabbatAhead(next) {
+    var foot = document.getElementById("foot");
+    if (!next || !next.href || !foot || !foot.parentNode) return;
+    var offer = document.createElement("aside");
+    offer.className = "next-up shabbat";
+    offer.id = "next-shabbat";
+    offer.dir = "ltr";
+    var lead = document.createElement("span");
+    lead.className = "next-up-lead";
+    lead.textContent = t("reader.next.shabbat", "Next Shabbat");
+    offer.appendChild(lead);
+    var link = document.createElement("a");
+    link.className = "next-up-link";
+    // Framed on the public page, the portion's own page rather than its reader: that is
+    // what the frame is a part of, and it opens in the window that holds the frame.
+    link.href = PREVIEW && next.page ? next.page : keyed(next.href);
+    var named = document.createElement("bdi");
+    named.lang = "he";
+    named.dir = "auto";
+    named.textContent = next.hebrew || next.name;
+    link.appendChild(named);
+    if (next.name && next.name !== next.hebrew) {
+      var english = document.createElement("span");
+      english.className = "next-up-english";
+      english.lang = document.documentElement.lang || "en";
+      english.textContent = "· " + next.name;
+      link.appendChild(document.createTextNode(" "));
+      link.appendChild(english);
+    }
+    offer.appendChild(link);
+    var line = knownLine(offer);
+    // After whatever already follows the foot, so it ends the page.
+    var after = foot;
+    while (after.nextElementSibling && after.nextElementSibling.classList.contains("next-up")) {
+      after = after.nextElementSibling;
+    }
+    after.parentNode.insertBefore(offer, after.nextSibling);
+    // A haftarah ends on next Shabbat's: the library's own pick of something else to
+    // read stands down for it, rather than two doors out of one page.
+    var elsewhere = document.getElementById("next-up");
+    if (elsewhere && !elsewhere.classList.contains("here")) elsewhere.hidden = true;
+    shabbatAhead = { line: line, words: Array.isArray(next.lemmas) ? next.lemmas : null };
+    countShabbatAhead();
+  }
+
+  // The next portion in the book is linked already; only its words are new.
+  function countBeyond(next) {
+    var offer = document.querySelector("#next-up.beyond");
+    if (!offer || !next || !Array.isArray(next.lemmas)) return;
+    shabbatAhead = { line: knownLine(offer), words: next.lemmas };
+    countShabbatAhead();
+  }
+
+  function askShabbatAhead() {
+    if (!PORTION_READER || !served || typeof fetch !== "function") return;
+    if (Number(sectionId) !== sectionCount) return;
+    var beyond = document.querySelector("#next-up.beyond");
+    var haftarah = /^haftarah-/.test(PORTION_READER[1]);
+    if (!beyond && !haftarah) return;
+    var asked = "?order=book";
+    if (!beyond) {
+      var schedule = "diaspora";
+      try {
+        if (localStorage.getItem("targum:schedule") === "israel") schedule = "israel";
+      } catch (e) {}
+      asked = "?schedule=" + schedule;
+    }
+    fetch(keyed("/parasha/next/" + PORTION_READER[1] + asked), {
+      headers: keyHeaders({}),
+    })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        var next = answer && answer.next;
+        if (beyond) countBeyond(next);
+        else offerShabbatAhead(next);
+      })
+      .catch(function () {
+        /* offline, or no calendar to ask: the page ends where it always did */
+      });
+  }
+  askShabbatAhead();
 
   /* The Undo on the ink block: the finish, and the words this visit's press marked. A
      word the reader has said something else about since is theirs and is left alone. */

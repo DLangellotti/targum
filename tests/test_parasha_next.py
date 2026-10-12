@@ -1,18 +1,23 @@
-"""Next Shabbat's portion, on the portion page (targum-internal#416).
+"""Next Shabbat's portion, on the portion page and at the end of a haftarah
+(targum-internal#416).
 
 What follows a reading is the calendar's to say, on the reader's own schedule, with the
 cycle's order behind it where the calendar is silent; and the next portion's words are
 kept beside its reader so the page can count them against a reader's word list.
 
-The reader's own last aliyah asked for this once, at `/parasha/next/<folder>`; it reads
-on in the order of the book now (targum-internal#446, `test_parasha_page`), and the route
-is gone.
+A portion's own last aliyah reads on in the order of the book (targum-internal#446,
+`test_parasha_page`), and asks `/parasha/next/<folder>?order=book` only for the words of
+the portion it already links to, to count them.
 """
 
 from __future__ import annotations
 
 import json
+import threading
+from collections.abc import Iterator
 from datetime import datetime
+from http.client import HTTPConnection
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -20,10 +25,13 @@ from zoneinfo import ZoneInfo
 import pytest
 from test_parasha_page import built  # noqa: F401  (the real build, as a fixture)
 
+from targum.accounts import Store
+from targum.mail import ConsoleMailer
 from targum.models import Token
 from targum.parasha import build as corpus
 from targum.parasha import calendar as cal
 from targum.parasha.models import Haftarah, Index, Portion, Week
+from targum.serve import Handler, Library
 
 DIASPORA = cal.Schedule.diaspora
 ISRAEL = cal.Schedule.israel
@@ -218,12 +226,92 @@ def test_the_build_writes_each_portions_words_beside_its_reader(built: Index) ->
     assert corpus.lemmas_of(built.portions["nitzavim-vayeilech"]) == ["אתם"]
 
 
-def test_the_reader_asks_nobody_what_next_shabbat_is() -> None:
-    """targum-internal#446: next Shabbat is the portion page's alone, so the reader has no
-    question to put and the server no route to answer it."""
-    from targum import serve
+# -- the route -------------------------------------------------------------------------
 
-    assets = Path(serve.__file__).parent / "render" / "assets" / "reader.js"
-    script = assets.read_text("utf-8")
-    assert "/parasha/next/" not in script and "next-shabbat" not in script
-    assert not hasattr(serve, "PARASHA_NEXT")
+
+@pytest.fixture
+def serving(tmp_path: Path, root: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[int]:
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    monkeypatch.setattr(cal, "now_in_flip_zone", lambda moment=None: BERESHIT_WEEK)
+    on_disk(root, cycle())
+    (root / "read" / "noach" / corpus.LEMMAS).write_text('["ארץ", "תבה"]', encoding="utf-8")
+    (root / "read" / "vezot-haberakhah" / corpus.LEMMAS).write_text('["ברכה"]', encoding="utf-8")
+    out = tmp_path / "targum-out"
+    out.mkdir(exist_ok=True)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    server.RequestHandlerClass = type(
+        "TestHandler",
+        (Handler,),
+        {
+            "library": Library(out),
+            "token": "test-key",
+            "welcome": "<html>start</html>",
+            "shelf": "<html>library</html>",
+            "store": Store(tmp_path / "words.db"),
+            "mailer": ConsoleMailer(),
+            "address": f"http://127.0.0.1:{port}",
+        },
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield port
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def ask(port: int, path: str) -> tuple[int, dict[str, object]]:
+    conn = HTTPConnection("127.0.0.1", port)
+    conn.request("GET", path)
+    answer = conn.getresponse()
+    body = answer.read().decode("utf-8")
+    conn.close()
+    return answer.status, (json.loads(body) if answer.status == 200 else {})
+
+
+def test_a_haftarah_is_offered_next_shabbat_with_its_words(serving: int) -> None:
+    status, answer = ask(serving, "/parasha/next/haftarah-h-bereshit?schedule=israel&k=test-key")
+    assert status == 200
+    assert answer["next"] == {
+        "slug": "noach",
+        "name": "Noach",
+        "hebrew": "he-noach",
+        "href": "/parasha/read/noach/reader/index.html",
+        "page": "/parasha/noach",
+        "lemmas": ["ארץ", "תבה"],
+    }
+
+
+def test_a_stranger_is_offered_the_portion_and_not_its_words(serving: int) -> None:
+    status, answer = ask(serving, "/parasha/next/haftarah-h-bereshit")
+    assert status == 200
+    offered = answer["next"]
+    assert isinstance(offered, dict) and offered["slug"] == "noach"
+    assert "lemmas" not in offered
+
+
+def test_in_the_books_order_haazinu_leads_to_vezot_haberakhah_not_to_sukkot(
+    serving: int,
+) -> None:
+    """targum-internal#446: the last aliyah's count is of the portion it links, which is
+    the book's next — where the calendar would say the Shabbat of Sukkot."""
+    _, by_calendar = ask(serving, "/parasha/next/haazinu?k=test-key")
+    assert isinstance(by_calendar["next"], dict)
+    assert by_calendar["next"]["slug"] == "sukkot-shabbat-chol-ha-moed"
+    _, by_book = ask(serving, "/parasha/next/haazinu?order=book&k=test-key")
+    assert isinstance(by_book["next"], dict)
+    assert by_book["next"]["slug"] == "vezot-haberakhah"
+    assert by_book["next"]["lemmas"] == ["ברכה"]
+    # And the year wraps.
+    _, wrapped = ask(serving, "/parasha/next/vezot-haberakhah?order=book")
+    assert isinstance(wrapped["next"], dict) and wrapped["next"]["slug"] == "bereshit"
+    # A haftarah is no portion of the book, and has no next in it.
+    _, none = ask(serving, "/parasha/next/haftarah-h-bereshit?order=book")
+    assert none == {"next": None}
+
+
+def test_the_route_answers_for_built_folders_only(serving: int) -> None:
+    assert ask(serving, "/parasha/next/nothing-here")[0] == 404
+    assert ask(serving, "/parasha/next/..%2Findex")[0] == 404

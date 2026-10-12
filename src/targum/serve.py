@@ -837,6 +837,10 @@ PARASHA_READER = re.compile(
 
 #: A portion's week sheet as a PDF (targum-internal#415): `/parasha/bereshit.pdf`.
 PARASHA_SHEET = re.compile(r"^/parasha/([a-z0-9-]{1,64})\.pdf$")
+#: What a built reading leads on to, for the offers at the end of its reader: next
+#: Shabbat's, at the end of a haftarah, and the next portion in the book, whose words the
+#: last aliyah counts (targum-internal#416, #446). The folder, as the reader's address names it.
+PARASHA_NEXT = re.compile(r"^/parasha/next/([a-z0-9-]{1,64})$")
 
 #: A verse of the Torah by its reference — `/torah/Genesis.12.1`, `/torah/בראשית יב א`
 #: percent-encoded — answered with the portion that reads it, open at the verse
@@ -5821,6 +5825,9 @@ class Handler(BaseHTTPRequestHandler):
         sheet = PARASHA_SHEET.match(route)
         if sheet is not None:
             return self._serve_parasha_sheet(sheet.group(1))
+        onward = PARASHA_NEXT.match(route)
+        if onward is not None:
+            return self._parasha_next(onward.group(1))
 
         index = corpus.load()
         if not index.portions:
@@ -6175,6 +6182,59 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
         return self._send(200, target.read_bytes(), kind, frames="out")
+
+    def _parasha_next(self, folder: str) -> None:
+        """What a reading leads on to, for the end of its reader (#416, #446).
+
+        By the calendar, next Shabbat's reading on the schedule the reader's browser
+        keeps — what a haftarah's end offers, because a haftarah belongs to a Shabbat and
+        not to the book. With `order=book`, the next portion in the book instead: the one
+        a portion's last aliyah already links to, asked for here only for its words.
+
+        Asked for by the page rather than written into it: the readers are built once and
+        the calendar moves under them. The portion's words come only to somebody with a
+        word list to count them against — a signed-in reader, or the machine's own — so a
+        stranger is offered the portion and handed nothing it would not use.
+        """
+        from .parasha import build as corpus
+        from .parasha.calendar import Schedule
+        from .parasha.models import neighbours
+
+        query = parse_qs(urlparse(self.path).query)
+        schedule = (
+            Schedule.israel
+            if query.get("schedule", ["diaspora"])[0] == "israel"
+            else Schedule.diaspora
+        )
+        readable = corpus.readable()
+        # Asked from the reader built in Russian, the answer is in Russian too: its name,
+        # and the next reading's reader in Russian where it has one.
+        folder, language = corpus.read_as(folder, readable)
+        if folder not in readable:
+            return self._send(404, b"not found", "text/plain")
+        if query.get("order", [""])[0] == "book":
+            index = corpus.load()
+            portion = next((one for one in index.portions.values() if one.folder == folder), None)
+            listed = [one for one in index.listed() if one.folder in readable]
+            after = neighbours(portion, listed)[1] if portion is not None else None
+        else:
+            after = corpus.following(folder, schedule)
+        if after is None:
+            return self._json({"next": None})
+        from .strings import said_portion
+
+        answer: dict[str, Any] = {
+            "slug": after.slug,
+            "name": said_portion(after.slug, after.name, language),
+            "hebrew": after.hebrew or after.name,
+            "href": corpus.reader_href(after, language=language),
+            "page": f"/parasha/{after.slug}" + (f"?lang={language}" if language != "en" else ""),
+        }
+        if self._authorised():
+            words = corpus.lemmas_of(after)
+            if words is not None:
+                answer["lemmas"] = words
+        return self._json({"next": answer})
 
     def _serve_weekly(self, route: str) -> None:
         """The weekly, at three addresses.
@@ -7860,6 +7920,9 @@ class Handler(BaseHTTPRequestHandler):
         portion_file = PARASHA_READER.match(route)
         if portion_file is not None and self._authorised():
             return self._serve_parasha_reader(portion_file.group(1), portion_file.group(2))
+        onward = PARASHA_NEXT.match(route)
+        if onward is not None and self._authorised():
+            return self._parasha_next(onward.group(1))
         # And a portion's catalogue id opens that reader for them, where a stranger is
         # sent to its public page below. Same id, two answers by who is asking — so a
         # 302: a browser keeps a 301 and would send a reader who signs in later to the
