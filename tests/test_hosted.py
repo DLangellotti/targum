@@ -1510,3 +1510,29 @@ def test_a_strangers_404_is_the_doors_page_and_asks_for_nothing(
     page = body.decode()
     assert 'class="site-nav door-nav"' in page
     assert 'id="talk-open"' not in page and 'id="notices-open"' not in page
+
+
+def test_an_unknown_text_or_reader_page_is_the_sites_own_404_to_a_browser(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ACCOUNT-12 (QA 2026-10-11): an unknown `/library/<id>`, or a reader's page that is
+    not there, answered the browser with the bare words "not found". A browser asking for
+    the page gets the site's own 404; a script's fetch keeps its short answer."""
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    for path in ("/library/no-such-text", "/parasha/read/noach/reader/sec-0099.html"):
+        for headers in ({"Sec-Fetch-Mode": "navigate"}, {"Accept": "text/html,*/*;q=0.8"}):
+            conn = HTTPConnection("127.0.0.1", port, timeout=5)
+            conn.request("GET", path, headers={"Host": "targum.page", **headers})
+            response = conn.getresponse()
+            page = response.read().decode()
+            conn.close()
+            assert response.status == 404, path
+            assert response.getheader("Content-Type", "").startswith("text/html"), path
+            assert 'class="site-nav door-nav"' in page, path
+        conn = HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", path, headers={"Host": "targum.page", "Sec-Fetch-Mode": "cors"})
+        response = conn.getresponse()
+        assert (response.status, response.read()) == (404, b"not found"), path
+        conn.close()
