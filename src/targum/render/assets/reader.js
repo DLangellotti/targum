@@ -7856,6 +7856,8 @@ var targumReader = function () {
   // either means a place arriving late from the account is not wanted (#430).
   var placeFound = false;
   var placeLeft = false;
+  // And which sentence it was, so a late answer naming the same one moves nothing.
+  var placeAt = "";
 
   // On the way out. Written from the same anchor a change of layout holds, so leaving a
   // reader and switching it to source keep the same place by the same rule: the word if
@@ -7990,21 +7992,35 @@ var targumReader = function () {
   // On the way back in: the same words on the same line of the window as when the tab was
   // closed, so that coming back reads as picking the page up rather than as arriving
   // somewhere near where you were. The mark is what says which line it is.
-  function resume() {
+  function resume(late) {
     // Not over a position the browser has already chosen. A reload and the back button
     // both restore a scroll of their own, and both are the better answer: they are where
     // this reader was a moment ago rather than where they were last time.
-    if (location.hash || window.scrollY > 2) return;
+    //
+    // `late` is the account answering after the page opened, with the reader not moved
+    // since: the scroll is then this function's own, and the answer may be better.
+    if (location.hash || (!late && window.scrollY > 2)) return;
     var kept = read(PLACE, "{}")[placeKey] || {};
-    // Where this browser kept nothing for the page, the text's own place — which may have
-    // come from another device (targum-internal#430) — if it is in this part.
-    if (!kept.segment && window.TargumSync && window.TargumSync.placeOf) {
+    // The text's own place — which may have come from another device
+    // (targum-internal#430) — if it is in this part, and where this browser kept nothing
+    // for the page or kept an older sentence: the laptop read on after the phone stopped.
+    if (window.TargumSync && window.TargumSync.placeOf) {
       var far = window.TargumSync.placeOf(documentId);
-      if (far && String(far.section) === sectionId && far.segment) kept = { segment: far.segment };
+      if (
+        far &&
+        String(far.section) === sectionId &&
+        far.segment &&
+        far.segment !== kept.segment &&
+        (!kept.segment || Number(far.at || 0) > Number(kept.at || 0))
+      ) {
+        kept = { segment: far.segment };
+      }
     }
     var pair = kept.segment ? pairBySegment[kept.segment] : null;
     if (!pair) return;
+    if (late && kept.segment === placeAt) return;
     placeFound = true;
+    placeAt = kept.segment;
     var word = null;
     if (/^\d+$/.test(String(kept.word || ""))) {
       // Its spans may never have been drawn: only a screenful is marked up front, and
@@ -10863,10 +10879,17 @@ var targumReader = function () {
   // Or where a link said. After the layout, like `resume`, and for the same reason: a
   // verse's page is only known once the pages have been cut.
   arrive();
-  // This part is where the reader is in this text now, for Continue (#430).
-  if (window.TargumSync && window.TargumSync.place) {
-    window.TargumSync.place(documentId, { section: sectionId, path: location.pathname });
+  // This part is where the reader is in this text now, for Continue (#430). Served, not
+  // until the account has answered: written now, at the top and stamped this second, it
+  // would be newer than the sentence another device left in this same part a minute ago,
+  // and would win over it here and on the account. Written after, the same part keeps
+  // that sentence and only a different part starts at its top.
+  function notePart() {
+    if (window.TargumSync && window.TargumSync.place) {
+      window.TargumSync.place(documentId, { section: sectionId, path: location.pathname });
+    }
   }
+  if (!served || !window.TargumSync || !window.TargumSync.settled) notePart();
   took("back where the reader left off");
   showTab(prefs.listTab);
   waitForMeanings();
@@ -10887,11 +10910,12 @@ var targumReader = function () {
       picks = read(PICKED, "{}");
       redraw();
       took("marks redrawn from the account");
-      // A place from another device, for a page this browser had none for and the
+      // A place from another device, newer than the one this page opened on, and the
       // reader has not moved on yet (targum-internal#430).
-      if (!placeFound && !placeLeft && (!paged() || current === 0)) resume();
+      if (!placeLeft && (!paged() || current === 0)) resume(placeFound);
     });
     window.TargumSync.start();
+    if (window.TargumSync.settled) window.TargumSync.settled().then(notePart, notePart);
   }
 
   /* --- what a test can reach ------------------------------------------------ */
