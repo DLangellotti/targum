@@ -5247,11 +5247,6 @@ def stages(
         short = "\n".join(row["shortfall"]) if row["shortfall"] else "nothing"
         table.add_row(code, worn, earned, short)
     console.print(table)
-    if standard.PROVISIONAL is not None:
-        console.print(
-            f"[dim]Shelf floors are provisional since {standard.PROVISIONAL}: re-set them once the "
-            "difficulty sweep has measured the whole catalogue.[/dim]"
-        )
 
 
 # Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and

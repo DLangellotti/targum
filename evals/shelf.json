@@ -35,30 +35,30 @@
     "recordings": 0
    },
    "B1": {
-    "texts": 0,
-    "recordings": 0
+    "texts": 5,
+    "recordings": 5
    },
    "B2+": {
-    "texts": 0,
-    "recordings": 0
+    "texts": 9,
+    "recordings": 9
    }
   },
   "he": {
    "A1": {
-    "texts": 59,
-    "recordings": 59
+    "texts": 110,
+    "recordings": 110
    },
    "A2": {
-    "texts": 25,
-    "recordings": 25
+    "texts": 95,
+    "recordings": 94
    },
    "B1": {
-    "texts": 28,
-    "recordings": 21
+    "texts": 120,
+    "recordings": 67
    },
    "B2+": {
-    "texts": 102,
-    "recordings": 22
+    "texts": 281,
+    "recordings": 37
    }
   },
   "it": {
@@ -75,7 +75,7 @@
     "recordings": 0
    },
    "B2+": {
-    "texts": 2,
+    "texts": 14,
     "recordings": 0
    }
   },
@@ -89,11 +89,11 @@
     "recordings": 0
    },
    "B1": {
-    "texts": 0,
+    "texts": 1,
     "recordings": 0
    },
    "B2+": {
-    "texts": 17,
+    "texts": 55,
     "recordings": 0
    }
   }
