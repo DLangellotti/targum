@@ -273,6 +273,11 @@ THUMBED = (
     ".work-keys button",
     ".fold",
     ".pair.voiced .say",
+    # The rest of READER-04 (known issues §3, 2026-10-12): the strip's scrubber, the word
+    # card's × on a phone and its "Add your meaning". The video's play is above.
+    ".player-track",
+    ".card-x",
+    ".note-open",
     # The chat's controls (2026-09-05): the button that sends, the door to a fresh
     # conversation, and the rows that open an old one.
     ".chat-send",
