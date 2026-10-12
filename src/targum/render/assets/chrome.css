@@ -1430,6 +1430,24 @@ body .site-footer { max-inline-size: var(--column); }
 
 /* --- the phone: "Your targums" says its whole name at the foot, as board HomePhone, and
    the page keeps clear of the round pill above the bar ---------------------------------- */
+/* A sheet of the bar's — the bell's, the account's, the language's — opened while the
+   AI Assistant's drawer is open stands over the drawer at a desk too, as it does on a
+   phone: the bar's layer (25) sat under the drawer's (31), and the notices opened
+   behind it (known issues, signed-in walk 2026-10-12). */
+.site-head:has(.account-panel:not([hidden]), .notices-panel:not([hidden]), .lang-panel:not([hidden])) {
+  z-index: 33;
+}
+
+/* The AI Assistant's pill joins the band at the foot (known issues §3, 2026-10-12). It
+   floated 4.5rem up, over the page: Home's tabs, the Library's headings, Your Words'
+   filters, a practice card, a series page's aliyot — whatever stopped under it, its end
+   first. A floating control that covers what is read joins the band rather than floating
+   over the page: the glass of the four places grows up behind the pill, and the page's
+   8rem of room at its foot already lets its last row scroll clear of both. Not on the
+   conversation's page, which has no pill, nor the stranger's door bar, which is no band. */
+@media (max-width: 40rem) {
+  body:not(.chat):has(> .talk-cta) .site-head-row .site-nav:not(.door-nav) { padding-block-start: 4rem; }
+}
 @media (max-width: 40rem) {
   .site-nav .nav-many .nav-your { display: inline; }
   html:lang(ru) .site-nav .nav-many { text-transform: none; }

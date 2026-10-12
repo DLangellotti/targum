@@ -385,3 +385,86 @@ def test_at_a_desk_the_talk_pill_covers_nothing(browser, which: str, width: int)
     if width == 1440:
         # The pill stands in the margin: nothing moved, and the column is the board's.
         assert got["bar"][1] - got["bar"][0] >= 1248, got
+
+
+@pytest.mark.parametrize("which", ["series", "texts", "library", "progress", "add"])
+def test_on_a_phone_the_pill_stands_in_the_band_at_the_foot(browser, which: str) -> None:
+    """Known issues §3 (2026-10-12): on a phone the AI Assistant's pill floated over every
+    page — a series page's aliyot, Home's tabs, the Library's headings, Your Words'
+    filters. It stands in the glass band at the foot now, with the four places, so no
+    row is drawn under it at any scroll position but the band's own."""
+    from targum.parasha import calendar as cal
+    from targum.parasha.models import Portion
+    from targum.render.builder import add_page, library_page, parasha_page, progress_page
+
+    portion = Portion(slug="noach", name="Noach", hebrew="נֹחַ", numbers=[2], summary="x")
+    html = {
+        "series": lambda: parasha_page(portion, schedule=cal.Schedule.diaspora, listed=[portion]),
+        "texts": lambda: list_page("test-key", "texts"),
+        "library": lambda: library_page("test-key"),
+        "progress": lambda: progress_page("test-key"),
+        "add": lambda: add_page("test-key"),
+    }[which]()
+
+    def answer(route, request):  # type: ignore[no-untyped-def]
+        if request.resource_type == "document":
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
+    page.route("http://desk.test/**", answer)
+    page.goto(f"http://desk.test/{which}?k=test-key")
+    page.wait_for_timeout(400)
+    got = page.evaluate(
+        """() => {
+      const pill = document.getElementById('talk-open').getBoundingClientRect();
+      const band = document.querySelector('.site-head-row .site-nav').getBoundingClientRect();
+      return {pill: [pill.top, pill.bottom], band: [band.top, band.bottom], shown: pill.height > 0};
+    }"""
+    )
+    context.close()
+    assert got["shown"], got
+    assert got["band"][0] <= got["pill"][0] and got["pill"][1] <= got["band"][1], got
+
+
+def test_at_a_desk_the_bell_s_panel_opens_over_the_assistant_s_drawer(browser) -> None:
+    """Signed-in walk 2026-10-12: with the AI Assistant's drawer open, the bell's panel
+    opened behind it. A sheet of the bar's stands over the drawer while it is open."""
+    from targum.render.builder import library_page
+
+    html = library_page("test-key")
+
+    def answer(route, request):  # type: ignore[no-untyped-def]
+        if request.resource_type == "document" and "/chat" not in request.url:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="text/html", body="<p>chat</p>")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
+    page.route("http://desk.test/**", answer)
+    page.goto("http://desk.test/library?k=test-key")
+    page.wait_for_timeout(300)
+    page.click("#talk-open")
+    page.wait_for_selector("#talk-drawer:not([hidden])")
+    page.evaluate("() => document.getElementById('notices-open').click()")
+    page.wait_for_selector(".notices-panel:not([hidden])")
+    on_top = page.evaluate(
+        """() => {
+      const panel = document.querySelector('.notices-panel');
+      const drawer = document.getElementById('talk-drawer').getBoundingClientRect();
+      const box = panel.getBoundingClientRect();
+      const x = Math.max(box.left, drawer.left) + 5, y = Math.max(box.top, drawer.top) + 5;
+      const overlap = x < Math.min(box.right, drawer.right)
+        && y < Math.min(box.bottom, drawer.bottom);
+      return {overlap, top: panel.contains(document.elementFromPoint(x, y))};
+    }"""
+    )
+    context.close()
+    assert on_top["overlap"] and on_top["top"], on_top

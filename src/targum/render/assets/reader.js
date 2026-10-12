@@ -2815,6 +2815,14 @@ var targumReader = function () {
   var pointingAtPlay = false;
 
   function keysLine() {
+    // Keys are a keyboard's: on a touch screen the line has said its first thing and
+    // falls quiet, rather than naming keys there are none of (signed-in walk 2026-10-12).
+    // Its room is kept, so nothing on the page moves; the next visit has no line at all.
+    if (window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches) {
+      first.textContent = "\u00a0";
+      first.style.visibility = "hidden";
+      return;
+    }
     // The arrow that actually goes forward on this page — §7, typed characters per
     // reading direction. The card's legend already knew this; the bar did not.
     var forward =
