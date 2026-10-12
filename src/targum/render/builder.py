@@ -43,7 +43,7 @@ from ..annotate.base import (
     method_label,
 )
 from ..annotate.model_lemma import antecedents_shown, tenses_apart
-from ..annotate.pronounce import guessed
+from ..annotate.pronounce import guessed, qatan
 from ..models import (
     Annotation,
     BlockKind,
@@ -5162,7 +5162,11 @@ def render(
                     sound = ("", 0)
                     if token.ipa:
                         said_as = as_written.get(sid, "")[token.start : token.end]
-                        sound = (token.ipa, guessed(said_as, token.ipa))
+                        # A known qamats qatan said "o" (`pronounce.qatan`), here as
+                        # well as at the reading, so a text read before the list
+                        # existed says כָּל right without being annotated again.
+                        ipa = qatan(said_as, token.ipa)
+                        sound = (ipa, guessed(said_as, ipa))
                     elif token.start in heard:
                         sound = (heard[token.start], 0)
                     if sound not in sound_at:

@@ -71,3 +71,44 @@ def test_syllables_are_runs_of_vowels() -> None:
     assert syllables("vajhˈi") == 2
     assert syllables("kˈol") == 1
     assert syllables("") == 0
+
+
+# -- the qamats qatan ---------------------------------------------------------------
+#
+# design.md §12, "The card says a Hebrew word in letters you read" (2026-10-12): a closed
+# list of words whose qamats is qatan, said "o", because phonikud says every plain
+# qamats "a" and כָּל came out "kal".
+
+
+def test_kol_is_said_kol_with_its_prefixes_and_its_accent() -> None:
+    from targum.annotate.pronounce import qatan
+
+    assert qatan("כָּל", "kˈal") == "kˈol"
+    assert qatan("כָּ֥ל", "kˈal") == "kˈol", "a chanting mark changes nothing"
+    assert qatan("כָּל־", "kˈal") == "kˈol"
+    assert qatan("וְכָל", "veχˈal") == "veχˈol"
+    assert qatan("מִכָּל", "mikˈal") == "mikˈol"
+    assert qatan("כל", "kˈal") == "kˈol", "bare כל is never anything else"
+    assert qatan("כָּֽל", "kˈal") == "kˈol", "nor is it with a gaya before its maqaf"
+
+
+def test_the_list_reaches_past_kol() -> None:
+    from targum.annotate.pronounce import qatan
+
+    assert qatan("הַחָכְמָה", "haχaχmˈa") == "haχoχmˈa"
+    assert qatan("קָרְבָּן", "kaʁbˈan") == "koʁbˈan"
+    assert qatan("אָמְנָם", "ʔamnˈam") == "ʔomnˈam"
+    assert qatan("תָּכְנִית", "taχnˈit") == "toχnˈit"
+
+
+def test_what_is_not_on_the_list_is_left_alone() -> None:
+    from targum.annotate.pronounce import qatan
+
+    assert qatan("חָֽכְמָה", "χaχmˈa") == "χaχmˈa", "a meteg says the qamats is gadol"
+    assert qatan("כָּלָה", "kalˈa") == "kalˈa", "kala, a bride"
+    assert qatan("שכל", "ʃekˈal") == "ʃekˈal", "bare, it could be sechel"
+    assert qatan("קָרְבוּ", "kaʁvˈu") == "kaʁvˈu"
+    assert qatan(POINTED, "batsˈal") == "batsˈal"
+    assert qatan("כָּל", "") == ""
+    assert qatan("ו", "vu") == "vu", "a word shorter than its prefixes"
+    assert qatan("", "a") == "a"

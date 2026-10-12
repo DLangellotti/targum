@@ -7166,7 +7166,7 @@ def test_a_name_is_one_chip_that_says_what_it_is_and_means_nothing(browser, tmp_
 # guessed part of, one muted word; tapped, the sentence it stands for, under the reading.
 
 
-def guessing(out: Path) -> Path:
+def guessing(out: Path, into: str = "en") -> Path:
     """Three words: the source pointed the first and left the second bare, so the
     menaked supplied its vowels; the third carries phonikud's own stress mark."""
     marked = "מֶ\u05ab" + "לֶךְ"
@@ -7189,10 +7189,10 @@ def guessing(out: Path) -> Path:
         SegmentedDocument(document_hash="h", language="he", segmenter="test/1", segments=[segment]),
         [
             Translation(
-                name="English",
+                name="English" if into == "en" else "Russian",
                 document_hash="h",
                 source_language="he",
-                target_language="en",
+                target_language=into,
                 provider="null",
                 segments={segment.id: "An onion, an onion, a king."},
             )
@@ -7293,6 +7293,38 @@ def test_an_inferred_reading_says_so_and_what_was_inferred(
     page.wait_for_timeout(150)
     card = page.evaluate(PROBABLY)
     assert card == {"word": None}, "a stress read off its mark is never qualified"
+    context.close()
+
+
+SAID_AS = """
+() => {
+  const reading = document.querySelector('#gloss-card .said bdi');
+  return reading ? [reading.textContent, reading.getAttribute('lang')] : null;
+}
+"""
+
+
+@pytest.mark.parametrize("size", [WINDOW, PHONE], ids=["desk", "phone"])
+def test_a_hebrew_reading_is_said_in_letters_a_learner_reads(
+    browser, guessed_reader: Path, size: dict[str, int]
+) -> None:
+    """design.md §12, "The card says a Hebrew word in letters you read" (2026-10-12): no
+    IPA on a Hebrew card. Syllables, and the stressed vowel under an acute."""
+    context, page = open_reader(browser, guessed_reader, viewport=size)
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(150)
+    assert page.evaluate(SAID_AS) == ["ba-tsál", "he-Latn"]
+    page.evaluate(TAP_NTH, 2)
+    page.wait_for_timeout(150)
+    assert page.evaluate(SAID_AS) == ["mé-lekh", "he-Latn"]
+    context.close()
+
+
+def test_a_russian_reader_says_it_in_cyrillic(browser, tmp_path: Path) -> None:
+    context, page = open_reader(browser, guessing(tmp_path / "reader", into="ru"))
+    page.evaluate(TAP_NTH, 2)
+    page.wait_for_timeout(150)
+    assert page.evaluate(SAID_AS) == ["ме\u0301-лех", "he-Cyrl"]
     context.close()
 
 

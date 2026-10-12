@@ -159,9 +159,10 @@
 }
 .gloss-card .form bdi { font-family: var(--reading); color: var(--ink); }
 
-/* How the word is said, under the meaning, bare — the IPA needs no introduction and
-   "said" was one. Left in the UI face rather than the reading face: IPA is notation,
-   not text, and Palatino has no glyph for half of it. */
+/* How the word is said, under the meaning, bare: a Hebrew word in letters the reader
+   reads ("hit-ha-lékh", design.md §12, 2026-10-12), a French one in IPA. "said" was a
+   label, and the line needs none. Left in the UI face rather than the reading face: IPA
+   is notation, not text, and Palatino has no glyph for half of it. */
 .gloss-card .said {
   display: block;
   color: var(--ink-soft);
