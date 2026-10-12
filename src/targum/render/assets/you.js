@@ -661,10 +661,9 @@
 
   /* --- your Hebrew -------------------------------------------------------------- */
 
-  /* The rung named on arrival (design.md §12, "An advanced reader is not asked about the
-     commonest words"). Learn asks it once; this is where it changes. Kept the way Learn
-     keeps it — the account has it, the browser holds a copy — because a reader page
-     reads the copy, and a change here should reach the next page opened here at once. */
+  /* The rung named on arrival (design.md §12, "The arrival is two questions"). Learn asks
+     it once; this is where it changes. Kept the way Learn keeps it — the account has it,
+     the browser holds a copy — so a change here reaches the next page opened at once. */
   var RUNGS = ["aleph", "aleph-plus", "bet", "bet-plus", "gimel", "dalet", "hey", "vav"];
 
   function rungLabels() {
