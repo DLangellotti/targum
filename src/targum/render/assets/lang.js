@@ -566,6 +566,105 @@
     else later();
   }
 
+  /* --- EN · RU, the interface's language -------------------------------------------- */
+
+  /* David, 2026-10-12: "a more logical and obvious way for Russian L1 speakers to switch to
+     Russian", in the top bar, "very minimal". Two Latin codes beside the language menu, the
+     front door's and the arrival's own EN · RU, so nothing in it is Cyrillic (design.md §12,
+     "Russian is shown to somebody who may read it", 2026-09-28). Drawn only for a reader
+     signed in who may read Russian: the account already reads it, or the browser lists
+     Russian or a language of the countries where Russian is shared. Everybody else sees
+     nothing. A press is the account row's "Read and translate into", said the same way,
+     and the page is drawn again in the language chosen. */
+  var RUSSIAN_WORLD = ["ru", "uk", "be", "kk", "ky", "uz", "tg"];
+
+  function browserMayReadRussian() {
+    var nav = window.navigator;
+    if (!nav) return false;
+    var said = nav.languages && nav.languages.length ? nav.languages : [nav.language || ""];
+    for (var i = 0; i < said.length; i++) {
+      if (RUSSIAN_WORLD.indexOf(String(said[i] || "").split("-")[0].toLowerCase()) >= 0) return true;
+    }
+    return false;
+  }
+
+  function pageSpeaks() {
+    var said = (document.documentElement && document.documentElement.lang) || "en";
+    return String(said).split("-")[0].toLowerCase() || "en";
+  }
+
+  function askAccount(path, body) {
+    var key = window.TARGUM_KEY || "";
+    var headers = { "Content-Type": "application/json" };
+    if (key) headers["X-Targum-Key"] = key;
+    return fetch(path + (key ? "?k=" + encodeURIComponent(key) : ""), {
+      method: body ? "POST" : "GET",
+      headers: headers,
+      credentials: "same-origin",
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (response) {
+      return response.json();
+    });
+  }
+
+  function drawTongue(host, who) {
+    var reads = (who && who.reads) || [];
+    if (!who || !who.signedIn) return;
+    if (reads.indexOf("ru") < 0 && !browserMayReadRussian()) return;
+    var now = pageSpeaks() === "ru" ? "ru" : "en";
+    host.textContent = "";
+    [
+      ["en", "EN", "English"],
+      ["ru", "RU", "Русский"],
+    ].forEach(function (one, at) {
+      if (at) {
+        var dot = document.createElement("span");
+        dot.className = "ui-tongue-dot";
+        dot.setAttribute("aria-hidden", "true");
+        dot.textContent = "\u00b7";
+        host.appendChild(dot);
+      }
+      var press = document.createElement("button");
+      press.type = "button";
+      press.className = "ui-tongue-key";
+      press.textContent = one[1];
+      press.setAttribute("lang", one[0]);
+      press.setAttribute("aria-label", one[2]);
+      press.setAttribute("aria-pressed", one[0] === now ? "true" : "false");
+      press.addEventListener("click", function () {
+        if (one[0] === now) return;
+        into(one[0]);
+        askAccount("/account/languages", { learning: who.learning || [HOME], reads: [one[0]] })
+          .catch(function () {
+            return null;
+          })
+          .then(function () {
+            window.location.reload();
+          });
+      });
+      host.appendChild(press);
+    });
+    host.setAttribute("role", "group");
+    host.setAttribute("aria-label", t("nav.interface-language", "Interface language"));
+    host.hidden = false;
+  }
+
+  function mountTongue() {
+    var host = document.getElementById("ui-tongue");
+    if (!host || typeof fetch !== "function") return;
+    askAccount("/account/me")
+      .then(function (who) {
+        drawTongue(host, who);
+      })
+      .catch(function () {
+        /* signed out, or no server: nothing to switch */
+      });
+  }
+  if (typeof document !== "undefined" && document.addEventListener) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountTongue);
+    else mountTongue();
+  }
+
   // Said once, where the language is chosen, rather than on every card. The same
   // sentence the upload picker's own note uses, because it is the same claim.
   function betaNote(code, names) {

@@ -681,6 +681,32 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 .lang-menu .lang-open:hover,
 .lang-menu .lang-open.on { color: var(--ink); background: color-mix(in srgb, var(--teal) 16%, transparent); }
+/* EN · RU, the interface's language (design.md §12, "Russian has a switch in the bar",
+   2026-10-12): two codes and a dot, no pill and no border, so it is the quietest thing in
+   the bar. The one in use is ink; the other is soft ink until it is pointed at. */
+.ui-tongue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.ui-tongue[hidden] { display: none; }
+.ui-tongue-key {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.3rem 0.35rem;
+  font: inherit;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.ui-tongue-key[aria-pressed="true"] { color: var(--ink); font-weight: 600; cursor: default; }
+.ui-tongue-key[aria-pressed="false"]:hover { color: var(--ink); background: var(--teal-wash); }
+.ui-tongue-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .lang-panel {
   border: 0;
   border-radius: var(--radius-sheet);
