@@ -1001,6 +1001,14 @@
     // Saved on its own: this text, once the page has settled, then the playlist it was
     // opened from. Never in a frame, never off a disk, and not when the reader chose none.
     whenSettled(function () {
+      // What is saved is the account's (design.md §12, 2026-10-09): signed out there is
+      // nothing to keep it for, and `/offline.json` refused with a 401 on every reader.
+      var sync = window.TargumSync;
+      (sync && sync.mayAsk ? sync.mayAsk() : Promise.resolve(true)).then(function (may) {
+        if (may) keepOpened();
+      });
+    });
+    function keepOpened() {
       var chosen = choices();
       var list = new URLSearchParams(location.search).get("list");
       var first = chosen.recent > 0 ? autoText(what, draw) : Promise.resolve();
@@ -1008,7 +1016,7 @@
         if (list && /^\d+$/.test(list) && chosen.playlist) return autoSet(list);
         return null;
       });
-    });
+    }
   }
 
   function whenSettled(then) {
