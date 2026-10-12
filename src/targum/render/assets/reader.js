@@ -2285,9 +2285,9 @@ var targumReader = function () {
     if (!already) {
       setFinished(true);
       footPressed = { lemmas: taken, counted: taken.length ? counted : 0 };
-      // Only where the page stays: in a playlist the press leaves, and a line said to a
-      // page nobody is on is a line never said.
-      if (!footWay) sayKnownAhead();
+      // Only where the page stays: in a playlist, or on the first finish, the press
+      // leaves, and a line said to a page nobody is on is a line never said.
+      if (!footWay && !leavingHome) sayKnownAhead();
     }
     return { already: already, lemmas: taken, counted: taken.length ? counted : 0 };
   }
@@ -2301,7 +2301,43 @@ var targumReader = function () {
       return;
     }
     if (finishedAt()) return;
+    if (firstFinishHere()) {
+      goHome(marking);
+      return;
+    }
     pressFoot(marking);
+  }
+
+  /* The first finish in a language goes home (design.md §12, "The first finish goes
+     home", 2026-10-12). A new reader came from the arrival straight into a text, and the
+     ink block and the next part told them what to read next and nothing about where
+     their reading lives. So the first Done in each language leaves for Your targums, the
+     way a playlist's Next leaves for its next item: the text is at the head of Continue
+     there, and the line at the top says what the press did, with its one Undo.
+
+     Once a language, in this browser: the first finish in Russian goes home for a reader
+     who has finished a dozen in Hebrew, and a reader with finishes from before the change
+     is not sent anywhere. Only a press — clearing the last word finishes in place, as it
+     did. Only where home is this server's and the reader is signed in, so never off a
+     disk, in a preview, or on a public page whose "/" is the front door. */
+  var WENT_HOME = "targum:went-home:";
+  var leavingHome = false;
+  function firstFinishHere() {
+    if (PREVIEW || !canAsk() || !window.TargumLanded) return false;
+    if (finishedCount() > 0) return false;
+    try {
+      return !localStorage.getItem(WENT_HOME + language);
+    } catch (e) {
+      return false;
+    }
+  }
+  function goHome(marking) {
+    leavingHome = true;
+    leave(marking, documentTitle);
+    try {
+      targumKeep(WENT_HOME + language, String(Date.now()));
+    } catch (e) {}
+    location.assign(keyed(inItsLanguage("/")));
   }
 
   /* The third moment (targum-internal#335; design.md §12, "Three moments in ten
@@ -2557,34 +2593,29 @@ var targumReader = function () {
      about this sitting and nothing else — a second tab or tomorrow's visit is told
      nothing. Only a press that did something is carried; moving on from an item already
      finished says nothing where it lands. */
-  var LEFT = "targum:foot:left";
   function leave(marking, title) {
     var pressed = pressFoot(marking);
     if (pressed.already) return pressed;
-    try {
-      sessionStorage.setItem(
-        LEFT,
-        JSON.stringify({
-          document: documentId,
-          section: sectionId,
-          sections: sectionCount,
-          title: String(title || documentTitle || ""),
-          counted: pressed.counted,
-          tally: footFigures(),
-          words: pressed.lemmas.map(function (lemma) {
-            return [tongueOf(lemma), wordOf(lemma)];
-          }),
-          at: Date.now(),
-        })
-      );
-    } catch (e) {}
+    if (window.TargumLanded) {
+      window.TargumLanded.carry({
+        document: documentId,
+        section: sectionId,
+        sections: sectionCount,
+        title: String(title || documentTitle || ""),
+        counted: pressed.counted,
+        tally: footFigures(),
+        words: pressed.lemmas.map(function (lemma) {
+          return [tongueOf(lemma), wordOf(lemma)];
+        }),
+        at: Date.now(),
+      });
+    }
     return pressed;
   }
 
   /* Where that press landed the reader: once and briefly, at the top, "Finished <title> ·
-     12 words marked known · Undo". Read once and taken out of the store at once, so a
-     reload does not say it twice. Twenty seconds, then it goes, unless the reader is on
-     it; nothing about it moves. */
+     12 words marked known · Undo" (`landed.js`, which home shares). Twenty seconds, then
+     it goes, unless the reader is on it; nothing about it moves. */
   var arrived = document.getElementById("arrived");
   var arrivedSaid = document.getElementById("arrived-said");
   var arrivedUndo = document.getElementById("arrived-undo");
@@ -2598,109 +2629,28 @@ var targumReader = function () {
       arrived.hidden = true;
     }, after);
   }
-  function sayLanded(said) {
-    arrivedSaid.textContent = "";
-    var line = t("reader.arrived.finished", "Finished {title}");
-    var cut = line.indexOf("{title}");
-    if (cut < 0) arrivedSaid.appendChild(document.createTextNode(line));
-    else {
-      arrivedSaid.appendChild(document.createTextNode(line.slice(0, cut)));
-      var name = document.createElement("bdi");
-      name.setAttribute("dir", "auto");
-      name.textContent = String(said.title || "");
-      arrivedSaid.appendChild(name);
-      arrivedSaid.appendChild(document.createTextNode(line.slice(cut + 7)));
-    }
-    // The finished box's three figures, in the same order, on one line: "Finished
-    // <title> · +12 known · 96% · 3 looked up" (§12, 2026-09-25).
-    var tally = said.tally;
-    if (tally) {
-      arrivedSaid.appendChild(
-        document.createTextNode(
-          " · " +
-            t("reader.arrived.figures", "+{known} known · {share}% · {looked} looked up", {
-              known: Number(tally.known || 0),
-              share: shareOf(tally),
-              looked: Number(tally.looked || 0),
-            })
-        )
-      );
-    } else if (said.counted) {
-      arrivedSaid.appendChild(
-        document.createTextNode(
-          " · " + tn("reader.rest.done", said.counted, "{n} word marked known", "{n} words marked known")
-        )
-      );
-    }
-  }
   function landHere() {
-    var said = null;
-    try {
-      said = JSON.parse(sessionStorage.getItem(LEFT) || "null");
-      sessionStorage.removeItem(LEFT);
-    } catch (e) {
-      said = null;
-    }
-    if (!said || !arrived || !arrivedSaid) return;
-    // A press is news on the page it led to, not on a page opened ten minutes later.
-    if (Date.now() - Number(said.at || 0) > 10 * 60 * 1000) return;
+    if (!arrived || !arrivedSaid || !window.TargumLanded) return;
+    var said = window.TargumLanded.take();
+    if (!said) return;
     if (said.document === documentId && String(said.section) === sectionId) return;
     landed = said;
-    sayLanded(said);
+    window.TargumLanded.say(arrivedSaid, said);
     if (arrivedUndo) arrivedUndo.hidden = false;
     arrived.hidden = false;
     hideArrived(ARRIVED_FOR);
   }
 
-  /* Undo, from where the reader landed: the section that press finished, and the words
-     it marked, in whichever language's list they went to. The page that marked them is
-     gone, so this goes to the stores directly, the way `sync.js` sweeps them, and leaves
-     a tombstone as a dropped word does so another device does not push them back. A word
-     said something else about since the press is left alone. */
+  /* Undo, from where the reader landed: `landed.js` takes the section and its words out
+     of the stores, and this page drops its own copies of their meanings, which it would
+     otherwise write back. */
   function undoLanding() {
     var said = landed;
     landed = null;
-    if (!said) return;
-    // Grouped by language, so each list and each store of meanings is read and written
-    // once rather than once a word: a long chapter marks a few thousand.
-    var byTongue = {};
-    (said.words || []).forEach(function (pair) {
-      var tongue = String((pair && pair[0]) || "");
-      var word = String((pair && pair[1]) || "");
-      if (tongue && word) (byTongue[tongue] = byTongue[tongue] || []).push(word);
-    });
-    Object.keys(byTongue).forEach(function (tongue) {
-      var name = "targum:vocab:" + tongue;
-      var theirs = read(name, "{}");
-      var gone = byTongue[tongue].filter(function (word) {
-        var record = theirs[word];
-        if (!record || record.status !== KNOWN || record.learned) return false;
-        delete theirs[word];
-        return true;
-      });
-      if (!gone.length) return;
-      try {
-        targumKeep(name, JSON.stringify(theirs));
-      } catch (e) {}
-      // Their meanings, in the browser's stores and in this page's own copies, which it
-      // would otherwise write back.
-      var head = "targum:meanings:" + tongue + ":";
-      var names = [];
-      try {
-        for (var i = 0; i < localStorage.length; i++) {
-          var key = localStorage.key(i) || "";
-          if (key.indexOf(head) === 0) names.push(key);
-        }
-      } catch (e) {}
-      names.forEach(function (key) {
-        var records = read(key, "{}");
-        gone.forEach(function (word) {
-          delete records[word];
-        });
-        try {
-          targumKeep(key, JSON.stringify(records));
-        } catch (e) {}
-      });
+    if (!said || !window.TargumLanded) return;
+    var taken = window.TargumLanded.undo(said);
+    Object.keys(taken).forEach(function (tongue) {
+      var gone = taken[tongue];
       Object.keys(meaningStores).forEach(function (store) {
         var mine = tongue === language ? store.indexOf(":") < 0 : store.indexOf(tongue + ":") === 0;
         var records = mine && meaningStores[store].records;
@@ -2710,27 +2660,7 @@ var targumReader = function () {
           });
         }
       });
-      if (window.TargumSync) {
-        gone.forEach(function (word) {
-          window.TargumSync.forgetWord(tongue, word);
-        });
-      }
     });
-    var all = read(DOCS, "{}");
-    var record = all[said.document];
-    if (record) {
-      if (record.sections && typeof record.sections === "object") delete record.sections[String(said.section)];
-      if (Number(said.sections) === 1) record.done = 0;
-      record.updated = Date.now();
-      all[said.document] = record;
-      try {
-        targumKeep(DOCS, JSON.stringify(all));
-      } catch (e) {}
-    }
-    if (window.TargumSync) {
-      if (window.TargumSync.forgetSection) window.TargumSync.forgetSection(said.document, String(said.section));
-      window.TargumSync.touched();
-    }
     vocab = readVocab();
     redraw();
     if (arrivedSaid) arrivedSaid.textContent = t("reader.arrived.took-back", "Taken back.");

@@ -369,6 +369,38 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The first finish goes home — 2026-10-12
+
+David, 2026-10-12: "the user isn't explained what to do after completing their first
+targum — they should be logically redirected to their 'your targums' page." The arrival
+opens a text directly ("The arrival is three plain questions", 2026-10-09), and its first
+Done drew the ink block and the next part in place. That told a new reader what to read
+next and nothing about where their reading lives. Asked, David chose each of these:
+
+- **The first Done in a language leaves for Your targums**, in that language, the way a
+  playlist's Next leaves for its next item ("The foot is one block", 2026-09-25). The
+  press is the same press and says the same thing: it finishes the section and marks
+  the words it says it marks. The text they read is at the head of Continue when they
+  land.
+- **What the press did is said there, once, in the arrived line**: "Finished <title> ·
+  +12 known · 96% · 3 looked up · Undo", and nothing else. No explainer: home's Continue,
+  the suggestion and the upload say what the page is. The line stays for the visit, since
+  it is how a new reader learns where they are, and a reload does not say it again. Undo
+  takes back the finish and the words, as it does on a playlist's next item.
+- **Once per language, in this browser.** The first Russian finish goes home for a reader
+  who has finished a dozen Hebrew texts. A language with a finish already on record,
+  including any from before this change, is never sent anywhere.
+- **Only the press.** Clearing the last word still finishes in place. Never in a playlist,
+  where the press already leaves; never off a disk, in a preview, or signed out, where "/"
+  is not their home.
+
+What it amends: "the increment is still drawn only where the section is finished in
+place" holds, and for this one finish the place is home's line, not the ink block. The
+"You already know N words in this one" moment (2026-09-19, "Three moments in ten
+minutes") is not said on a finish that leaves, and waits for the next finish in place.
+What it does not overturn: nothing on the way spends, the press is the reader's, and it
+says what it does before it is pressed.
+
 ### The first save keeps the Saved page too — 2026-10-11
 
 David, 2026-10-11, QA decision D4 (READER-03). With no connection, a page that was not

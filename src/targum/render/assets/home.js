@@ -966,6 +966,31 @@
     });
   }
 
+  /* --- where a press landed the reader ----------------------------------------------- */
+
+  /* The first finish in a language comes home (design.md §12, "The first finish goes
+     home", 2026-10-12): the text is at the head of Continue, and this line says what the
+     press did — "Finished <title> · +12 known · 96% · 3 looked up · Undo" — with the one
+     Undo that takes back the finish and the words. Read once, so a reload says nothing.
+     It stays while the visit does: it is how a new reader learns where they are. */
+  (function landHere() {
+    var line = document.getElementById("arrived");
+    var said = document.getElementById("arrived-said");
+    var undo = document.getElementById("arrived-undo");
+    var landed = window.TargumLanded && line && said ? window.TargumLanded.take() : null;
+    if (!landed) return;
+    window.TargumLanded.say(said, landed);
+    line.hidden = false;
+    if (!undo) return;
+    undo.addEventListener("click", function () {
+      if (!landed) return;
+      window.TargumLanded.undo(landed);
+      landed = null;
+      said.textContent = t("reader.arrived.took-back", "Taken back.");
+      undo.hidden = true;
+    });
+  })();
+
   // The upload card's address carries the key on a machine somebody runs themselves.
   Array.prototype.forEach.call(document.querySelectorAll("[data-home-link]"), function (link) {
     link.href = keyed(link.getAttribute("href"));
