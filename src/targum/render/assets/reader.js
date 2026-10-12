@@ -2815,6 +2815,14 @@ var targumReader = function () {
   var pointingAtPlay = false;
 
   function keysLine() {
+    // Keys are no help where there is no keyboard: on a phone the line said "k known ·
+    // 1 2 3 · ← next word" to somebody holding a touch screen (signed-in walk 2026-10-12,
+    // m3). There the first mark is the line's last job, and it goes.
+    var touch = window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+    if (touch) {
+      first.hidden = true;
+      return;
+    }
     // The arrow that actually goes forward on this page — §7, typed characters per
     // reading direction. The card's legend already knew this; the bar did not.
     var forward =

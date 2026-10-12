@@ -7620,3 +7620,32 @@ def test_the_reader_rings_its_focus_in_teal(browser, built: Path) -> None:
     assert rings, f"nothing Tab reached drew a ring: {seen}"
     for where, _, colour in rings:
         assert colour == "rgb(31, 111, 107)", f"{where} rings in {colour}"
+
+
+def test_a_phone_is_not_told_keys_after_its_first_mark(browser, tmp_path) -> None:
+    """Signed-in walk 2026-10-12, m3: after the first mark the first-run line turned into
+    "k known · 1 2 3 · ← next word · ? every key" on a touch screen. Where there is no
+    keyboard that line has done its job at the first mark, and it goes. A desk still
+    gets the keys (`test_the_second_moment_is_the_voice_and_it_is_said_once`)."""
+    built = chapter(tmp_path / "reader")
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        is_mobile=True,
+        has_touch=True,
+        reduced_motion="reduce",
+    )
+    context.add_init_script(SCROLLING)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#first:not([hidden])")
+        page.locator(".w").first.tap()
+        page.keyboard.press("1")
+        page.wait_for_function("() => localStorage.getItem('targum:first')")
+        line = page.evaluate(
+            "() => { const f = document.getElementById('first');"
+            " return {hidden: f.hidden, said: f.textContent}; }"
+        )
+    finally:
+        context.close()
+    assert line["hidden"], line
