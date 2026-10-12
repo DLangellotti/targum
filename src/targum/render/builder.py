@@ -3149,6 +3149,13 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             ],
             sample_language=_page_language(language),
             minutes=max(1, round(entry.words / 130)),
+            # The door carries the text (known issues 2.13): "Read it" signed in and then
+            # landed home, and the learner had to find the text again. `/open/` is the
+            # one door onto a catalogue text, so the sign-in lands in its reader.
+            door="/account/signin?"
+            + urlencode(
+                {"next": f"/open/{entry.id}", **({"lang": language} if language != "en" else {})}
+            ),
         )
     )
 
