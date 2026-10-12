@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-11
+In Theatre the picture sits centred, the line being said under it, and Next part is always a press away.
+An ignored word on Your Words can be taken back, and found again under Ignored.
+A word counts as known only once you mark it, the same in a text, on its contents page and in the Library.
+
 2026-10-10
 Listening has a view of its own: the picture, the line being said, and steps by line, also on a locked screen.
 Upload can record your voice again, beside choosing a file.
