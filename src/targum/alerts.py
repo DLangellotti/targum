@@ -216,3 +216,119 @@ def watch(
         raise
     save(state, after)
     return f"mailed: {mail[0]}"
+
+
+# -- a provider out of credit ------------------------------------------------------------
+#
+# OpenAI ran dry on 2026-10-09 and 10-10 and Anthropic on 09-29, and each time the first
+# anybody heard of it was a reader whose build failed with the provider's JSON on it
+# (known issues 1.10). The reader is now told a sentence (`serve.told`); this tells the
+# operator, once per provider per `CREDIT_REMIND`, from the process that met it.
+
+#: What a provider says when the account behind it has run out, lowercased. Rate limits
+#: are deliberately not here: they pass on their own, and nobody needs mailing about them.
+CREDIT_SIGNS = (
+    "credit balance is too low",  # Anthropic, 400 invalid_request_error
+    "no credits remaining",  # OpenAI, 429 insufficient_quota
+    "insufficient_quota",  # OpenAI
+    "exceeded your current quota",  # OpenAI, older wording
+    "billing_hard_limit_reached",  # OpenAI
+    "billing_not_active",  # OpenAI
+    "quota_exceeded",  # ElevenLabs
+    "billing_disabled",  # Google (Gemini, Vertex)
+    "requires billing to be enabled",  # Google
+    "purchase credits",  # Anthropic, the same message's second half
+)
+
+#: Who said it, by what the error carries: a name, a host, a header.
+PROVIDER_SIGNS = (
+    ("anthropic", "Anthropic"),
+    ("openai", "OpenAI"),
+    ("elevenlabs", "ElevenLabs"),
+    ("googleapis", "Google"),
+    ("gemini", "Google"),
+    ("vertex", "Google"),
+)
+
+#: One mail per provider this often while the credit stays out.
+CREDIT_REMIND = timedelta(hours=4)
+
+
+def out_of_credit(said: str) -> str:
+    """The provider whose account ran out, if `said` is that refusal, else "".
+
+    "a provider" where the refusal is plain but says nobody's name."""
+    low = said.lower()
+    if not any(sign in low for sign in CREDIT_SIGNS):
+        return ""
+    for sign, name in PROVIDER_SIGNS:
+        if sign in low:
+            return name
+    return "a provider"
+
+
+def credit_due(state: Path, provider: str, now: datetime) -> bool:
+    """Whether this provider's running out is news, and marks it told if so.
+
+    Kept in a file rather than in memory, because a deploy restarts the process and
+    there were 32 restarts on 2026-10-09: an in-memory limit would have mailed on each."""
+    try:
+        told = json.loads(state.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        told = {}
+    if not isinstance(told, dict):
+        told = {}
+    last = _when(str(told.get(provider) or ""))
+    if last is not None and now - last < CREDIT_REMIND:
+        return False
+    told[provider] = now.isoformat()
+    try:
+        save_json(state, told)
+    except OSError:
+        pass  # better a second mail than none
+    return True
+
+
+def save_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fresh = path.with_name(f".{path.name}.tmp")
+    fresh.write_text(json.dumps(value, indent=2), encoding="utf-8")
+    fresh.replace(path)
+
+
+@dataclass
+class CreditWatch:
+    """Where a credit alert goes: the state file and how to send. Configured once, by
+    the hosted server (`serve.start`); unconfigured, an alert is a log line only, which
+    is what every test and every laptop gets."""
+
+    state: Path | None = None
+    send: Callable[[str, str], object] | None = None
+
+
+CREDIT = CreditWatch()
+
+
+def credit_ran_out(provider: str, detail: str, *, now: datetime | None = None) -> bool:
+    """Tell the operator `provider` is out of credit, unless they were told lately.
+
+    True if a mail went. Never raises: this runs inside a reader's failing build, and a
+    mail that did not go must not change what the reader is told."""
+    if CREDIT.state is None or CREDIT.send is None or not recipient():
+        return False
+    moment = now or datetime.now(UTC)
+    if not credit_due(CREDIT.state, provider, moment):
+        return False
+    try:
+        CREDIT.send(
+            f"targum: {provider} is out of credit",
+            f"A build or a turn failed at {moment.strftime(STAMP)} because {provider} "
+            "refused for want of credit. Readers are told it is on our side and to try "
+            "again in a few hours.\n\n"
+            f"What it said: {detail[:600]}\n\n"
+            f"Top up the account, then nothing else is needed. Another mail comes after "
+            f"{int(CREDIT_REMIND.total_seconds() // 3600)} hours if it is still out.\n",
+        )
+    except Exception:  # noqa: BLE001 - see above
+        return False
+    return True

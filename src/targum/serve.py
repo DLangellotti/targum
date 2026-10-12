@@ -54,8 +54,9 @@ from .accounts import (
     now,
     plausible,
 )
+from .alerts import out_of_credit
 from .audio.manifest import POSTER
-from .errors import OffHere, TargumError, UnsupportedSource
+from .errors import OffHere, ProviderError, TargumError, UnsupportedSource
 from .heard import ROUTE as HEARD_ROUTE
 from .mail import Mailer
 from .models import Document, Segment, SegmentedDocument, Style, glossary_path, is_biblical
@@ -336,6 +337,33 @@ def refused_in(ui: str, error: TargumError) -> str:
 RAW_HINTS = frozenset({"fetch.would-not-open", "fetch.no-such-site"})
 
 
+def ran_out(ui: str, detail: str) -> str:
+    """What a reader is told when a provider's account has run out of credit, after
+    telling the operator (rate-limited, `alerts.credit_ran_out`). The provider's own
+    words go to the log, never to the reader: they were raw JSON on a build's card on
+    2026-10-09 and 10-10 (known issues 1.10)."""
+    from . import alerts
+
+    provider = out_of_credit(detail) or "a provider"
+    log.warning("%s is out of credit: %s", provider, detail[:600])
+    alerts.credit_ran_out(provider, detail)
+    return said_in(
+        ui,
+        "job.provider.out-of-credit",
+        "Our account with the service that does this has run out, and we've been told. "
+        "Try again in a few hours.",
+    )
+
+
+def broke(ui: str, error: BaseException) -> str:
+    """What a reader is told when a build failed on something nobody wrote a sentence
+    for: the plain apology, unless it was a provider out of credit, which has its own."""
+    detail = f"{error} {error.__cause__ or ''}"
+    if out_of_credit(detail):
+        return ran_out(ui, detail)
+    return "Something went wrong on our side, and we've noted it. Try again later."
+
+
 def told(ui: str, error: TargumError, *, hosted: bool) -> str:
     """A refusal as whoever is reading should meet it.
 
@@ -345,6 +373,18 @@ def told(ui: str, error: TargumError, *, hosted: bool) -> str:
     `job.unreadable.*`, chosen by the status where there was one — and the detail is
     written to the log, where the person who can act on it reads.
     """
+    detail = f"{error.message} {error.hint or ''} {error.__cause__ or ''}"
+    if out_of_credit(detail):
+        return ran_out(ui, detail)
+    # A provider's refusal carries the provider's own words — a status, a JSON body, a
+    # segment id — which on a box is nothing a reader can act on (known issues 1.10).
+    if hosted and isinstance(error, ProviderError):
+        log.warning("provider refused: %s (%s)", error.message, error.hint or "no detail")
+        return said_in(
+            ui,
+            "job.provider.failed",
+            "We couldn't finish this on our side. Try again in a few minutes.",
+        )
     if hosted and (error.key in RAW_HINTS or isinstance(error, OffHere)):
         log.warning("refused: %s (%s)", error.message, error.hint or "no detail")
         # An operator's refusal that names its own sentence for the reader says that one:
@@ -4412,10 +4452,7 @@ class Library:
             # back office, which is where it is read.
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
-            self._blame(
-                job,
-                "Something went wrong on our side, and we've noted it. Try again later.",
-            )
+            self._blame(job, broke(job.ui, error))
 
     def keep_post(self, job: Job, folder: Path, document: Document) -> None:
         """Write `post.json` beside a post's reader, with its pictures kept as webp
@@ -4783,9 +4820,7 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
-            return self._blame(
-                job, "Something went wrong on our side, and we've noted it. Try again later."
-            )
+            return self._blame(job, broke(job.ui, error))
 
         job.spent = builder.spent.cost()
         job.reader = f"{folder.name}/reader/{pages[0].name}"
@@ -4849,9 +4884,7 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice", error, job=job.id)
-            return self._blame(
-                job, "Something went wrong on our side, and we've noted it. Try again later."
-            )
+            return self._blame(job, broke(job.ui, error))
         # Paid for from here on, whatever happens to the page below.
         self._charge_speech(job, clip.seconds)
         kept = manifest_module.load(folder) or manifest_module.AudioManifest(
@@ -4901,9 +4934,7 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice:render", error, job=job.id)
-            return self._blame(
-                job, "Something went wrong on our side, and we've noted it. Try again later."
-            )
+            return self._blame(job, broke(job.ui, error))
         job.reader = f"{folder.name}/reader/{pages[0].name}"
         job.message = ""
         job.stage = "done"
@@ -4964,9 +4995,7 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
-            self._blame(
-                job, "Something went wrong on our side, and we've noted it. Try again later."
-            )
+            self._blame(job, broke(job.ui, error))
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -14495,6 +14524,14 @@ def start(
     # build caught mid-flight stops claiming to be working and keeps its claim on the
     # budget rather than handing it back for money it had probably already spent.
     delivering = mailer or from_environment()
+    # A provider out of credit mails the operator from here (known issues 1.10). Hosted
+    # only, beside the store, where the health watch keeps its own state; and still
+    # nothing unless TARGUM_ALERT_TO names somebody (`alerts.credit_ran_out`).
+    if require_account:
+        from . import alerts
+
+        alerts.CREDIT.state = keeping.path.parent / "credit-watch.json"
+        alerts.CREDIT.send = partial(alerts.tell, mailer=delivering)
     public = (public_address or f"http://127.0.0.1:{port}").rstrip("/")
     library = Library(
         out,

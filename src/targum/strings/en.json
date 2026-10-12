@@ -2161,6 +2161,8 @@
   "job.unreadable.broken": "That site didn't answer. Try again in a minute.",
   "job.unreadable.other": "We couldn't read that page. Paste its text here instead.",
   "job.unreadable.language": "This looks like {language}, and we can't read that yet. Choose the language it's in.",
+  "job.provider.out-of-credit": "Our account with the service that does this has run out, and we've been told. Try again in a few hours.",
+  "job.provider.failed": "We couldn't finish this on our side. Try again in a few minutes.",
   "reader.post.the-post": "The post",
   "reader.post.on-service": "On {service}",
   "reader.post.pictures.one": "{n} picture",

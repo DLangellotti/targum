@@ -1262,9 +1262,18 @@ class Chats:
             if not timed_out:
                 traceback.print_exc()
             job.stage = "failed"
+            # A provider out of credit is said as that, and the operator is told
+            # (known issues 1.10): "We couldn't answer that" for a day of empty balance
+            # reads as the chat being broken, and nobody would have known why.
+            from ..alerts import out_of_credit
+            from ..serve import ran_out
+
+            detail = f"{error} {error.__cause__ or ''}"
             job.error = (
                 said_in(asked.ui, "chat.too-long", TURN_TOO_LONG)
                 if timed_out
+                else ran_out(asked.ui, detail)
+                if out_of_credit(detail)
                 else said_in(
                     asked.ui,
                     "chat.could-not-carry-on",
