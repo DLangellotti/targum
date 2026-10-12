@@ -11470,9 +11470,14 @@ var targumReader = function () {
     return;
   }
 
-  window.addEventListener("scroll", maybe, { passive: true });
-  document.addEventListener("targum:page", maybe);
-  maybe();
+  // Fetched ahead only for an account: signed out `/chapter` refuses, and the refusal
+  // was a console error at the foot of every chapter (QA 2026-10-11).
+  (window.TargumSync && window.TargumSync.mayAsk ? window.TargumSync.mayAsk() : Promise.resolve(true)).then(function (may) {
+    if (!may) return;
+    window.addEventListener("scroll", maybe, { passive: true });
+    document.addEventListener("targum:page", maybe);
+    maybe();
+  });
 })();
 
 /* --- a chapter nobody has paid for yet ----------------------------------------
@@ -14367,7 +14372,9 @@ else targumReader();
       })
       .catch(function () {});
   }
-  ask();
+  (window.TargumSync && window.TargumSync.mayAsk ? window.TargumSync.mayAsk() : Promise.resolve(true)).then(function (may) {
+    if (may) ask();
+  });
 
   /* Sent here to hear this section (targum-internal#407): a link a chat handed over
    * ends `?hear=1`. The offer is opened and the button given focus, never pressed: the

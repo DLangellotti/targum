@@ -380,7 +380,8 @@ def test_a_signed_out_browser_is_shown_nothing(served: tuple[int, str, Path]) ->
     port, token, _ = served
     status, payload = get(port, f"/account/me?k={token}")
     assert status == 200
-    assert payload == {"signedIn": False}
+    # Nobody to sign into yet, so not "signed out" either: the page asks as it always did.
+    assert payload == {"signedIn": False, "signedOut": False}
 
     status, payload, _ = call(port, "POST", f"/sync?k={token}", {"since": 0})
     assert status == 401
@@ -396,7 +397,7 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     port, token, _ = served
     cookie = sign_in(port, postbox)
     status, payload = get(port, f"/account/me?k={token}")
-    assert payload == {"signedIn": False}, "the key alone is not a person"
+    assert payload == {"signedIn": False, "signedOut": True}, "the key alone is not a person"
 
     status, payload, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert payload["signedIn"] is True
@@ -1192,7 +1193,7 @@ def test_signing_out_ends_it_on_that_browser_only(
     assert status == 200 and "Max-Age=0" in handed
 
     _, mine, _ = call(port, "GET", f"/account/me?k={token}", cookie=laptop)
-    assert mine == {"signedIn": False}
+    assert mine == {"signedIn": False, "signedOut": True}
 
     _, theirs, _ = call(port, "GET", f"/account/me?k={token}", cookie=phone)
     assert theirs["signedIn"] is True
