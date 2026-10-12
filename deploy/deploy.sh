@@ -392,7 +392,7 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
       # what every reader sees mid-rebuild anyway.
       #
       # The stop drains: the old process finishes the builds and chat turns it is
-      # running, up to ten minutes, and serves meanwhile (`serve.Stopping`). An idle box
+      # running, up to ten minutes, and serves meanwhile (serve.Stopping). An idle box
       # restarts in seconds; a busy one holds this line until its readers are answered.
       systemctl restart targum
 
