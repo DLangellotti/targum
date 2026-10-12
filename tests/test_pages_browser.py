@@ -3228,6 +3228,54 @@ def test_a_desk_page_rings_its_focus_in_teal(browser, tmp_path: Path, name: str)
         assert colour == TEAL, f"{name}: {where} rings in {colour}"
 
 
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_your_level_is_shown_whole_on_a_desk(browser, language: str) -> None:
+    """Signed-in walk 2026-10-12, m14: "Your Hebrew" was cut to "I follow the news with ·"
+    at a desk, the row's choice held to 13rem. The longest rung is read whole."""
+    import json as _json
+
+    from targum.strings import catalogue
+
+    said = catalogue(language)
+    longest = max((said[key] for key in said if key.startswith("learn.level.")), key=len)
+    css = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "shared.css"
+    ).read_text(encoding="utf-8") + (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "you.css"
+    ).read_text(encoding="utf-8")
+    html = (
+        "<!doctype html><html><head><style>" + css + "</style></head><body>"
+        "<main style='max-inline-size: 58rem; margin: auto'><div class='acct-rows'>"
+        "<div class='row' style='display:flex;justify-content:space-between'>"
+        "<span class='row-main'>Your Hebrew</span>"
+        "<select class='acct-pick' id='pick'></select></div></div></main></body></html>"
+    )
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+    try:
+        page.set_content(html)
+        page.evaluate(
+            "(text) => { const o = document.createElement('option'); o.textContent = text;"
+            " document.getElementById('pick').appendChild(o); }",
+            longest,
+        )
+        fits = page.evaluate(
+            """(text) => {
+              const pick = document.getElementById('pick');
+              const style = getComputedStyle(pick);
+              const ctx = document.createElement('canvas').getContext('2d');
+              ctx.font = style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily;
+              const room = pick.clientWidth - parseFloat(style.paddingLeft)
+                - parseFloat(style.paddingRight);
+              return {room: room, text: ctx.measureText(text).width};
+            }""",
+            longest,
+        )
+    finally:
+        context.close()
+    assert fits["text"] <= fits["room"], _json.dumps({"label": longest, **fits})
+
+
 @pytest.mark.parametrize("width", [390, 1280])
 def test_a_first_week_of_words_is_one_column_not_a_block(browser, width: int) -> None:
     """Signed-in walk 2026-10-12, m7: the chart starts at the first week with anything in

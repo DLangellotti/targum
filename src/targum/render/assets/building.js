@@ -612,27 +612,29 @@
   // An answer that arrived while you were away (2026-09-11): a conversation targum
   // finished answering after the person last opened it. Opening it from here is the
   // drawer, by name; the note is put away as the press is made.
-  fetch(keyed("/chat/list?limit=20"), { credentials: "same-origin" })
-    .then(function (r) {
-      return r.ok ? r.json() : null;
-    })
-    .then(function (got) {
-      ((got && got.chats) || []).forEach(function (chat) {
-        if (!chat.answered || !(chat.answered > (chat.opened || 0))) return;
-        var about = chat.title
-          ? bdi(chat.title)
-          : document.createTextNode(t("building.your-conversation", "your chat"));
-        var said = filled(t("building.new-reply", "New reply in {title}", { title: SLOT }), about);
-        note("chat:" + chat.id + ":" + chat.answered, said, {
-          label: t("building.open", "Open"),
-          action: function () {
-            if (window.TargumTalk && window.TargumTalk.open) window.TargumTalk.open(chat.id);
-            else window.location.href = keyed("/chat") + "#" + encodeURIComponent(chat.id);
-          },
+  whenMayAsk(function () {
+    fetch(keyed("/chat/list?limit=20"), { credentials: "same-origin" })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (got) {
+        ((got && got.chats) || []).forEach(function (chat) {
+          if (!chat.answered || !(chat.answered > (chat.opened || 0))) return;
+          var about = chat.title
+            ? bdi(chat.title)
+            : document.createTextNode(t("building.your-conversation", "your chat"));
+          var said = filled(t("building.new-reply", "New reply in {title}", { title: SLOT }), about);
+          note("chat:" + chat.id + ":" + chat.answered, said, {
+            label: t("building.open", "Open"),
+            action: function () {
+              if (window.TargumTalk && window.TargumTalk.open) window.TargumTalk.open(chat.id);
+              else window.location.href = keyed("/chat") + "#" + encodeURIComponent(chat.id);
+            },
+          });
         });
-      });
-    })
-    .catch(function () {});
+      })
+      .catch(function () {});
+  });
 
   // The panel opens and closes like the account's: the bell, a press outside, Escape.
   function show(on) {
@@ -657,7 +659,22 @@
     if (event.key === "Escape" && !panel.hidden) show(false);
   });
 
-  ask();
+  whenMayAsk(ask);
+
+  /* Asked only where the account will answer (`TargumSync.mayAsk`): signed out these
+     routes refuse, and each refusal was a console error on every page (QA 2026-10-11).
+     After the page has loaded, since sync.js may come later in it. */
+  function whenMayAsk(then) {
+    function go() {
+      var sync = window.TargumSync;
+      if (!sync || !sync.mayAsk) return then();
+      sync.mayAsk().then(function (may) {
+        if (may) then();
+      });
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go);
+    else go();
+  }
 
   // Hours as a person says them: "6 hours 30 minutes", never "6.5" (2026-09-14).
   function clockOf(hours) {

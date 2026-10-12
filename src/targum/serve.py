@@ -8184,6 +8184,12 @@ class Handler(BaseHTTPRequestHandler):
                 back=back,
             )
             return self._send(200, page.encode("utf-8"), HTML)
+        # Who is signed in is a question a stranger's page asks too, and "nobody" is its
+        # answer, not the stale-key page: every reader and series page logged a 403 for
+        # it signed out (QA 2026-10-11).
+        if route == "/account/me" and self._host_is_ours() and self._person() is None:
+            if not self._authorised():
+                return self._json({"signedIn": False, "signedOut": True})
         if not self._authorised():
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
@@ -9706,7 +9712,11 @@ class Handler(BaseHTTPRequestHandler):
     def _me(self) -> None:
         person = self._person()
         if person is None:
-            return self._json({"signedIn": False})
+            # `signedOut` where the account's own routes would refuse this browser, so a
+            # page asks none of them on its own (`TargumSync.mayAsk`).
+            return self._json(
+                {"signedIn": False, "signedOut": self.require_account or self.store.anyone()}
+            )
         answer = {
             "signedIn": True,
             "email": person.email,

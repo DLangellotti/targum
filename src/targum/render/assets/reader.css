@@ -2137,6 +2137,40 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .foot-press {
   .pair.voiced .say { transition: none; }
 }
 
+/* A verse's play and its number under a thumb (READER-04, QA 2026-10-11). On a phone a
+   verse has no header row to hold the play — spacing verses apart would make a chapter a
+   list (above) — so the play stands at the line's end, and the line kept running under
+   it: the Hebrew was drawn over the button, and a tap on it landed on the text. The line
+   now stops short of it, the button is drawn above the line, and each mark reaches its
+   44px across the gutter it stands in and the page's margin beyond it, never into the
+   words (§8: "the reach may cross a margin; it may not cross the text"). */
+@media (max-width: 60rem) {
+  .pair.verse.voiced { padding-inline-end: 1.9rem; }
+  .pair.voiced .say { z-index: 1; }
+}
+@media (max-width: 60rem) and (hover: none) and (pointer: coarse) {
+  /* From the line's end out to the window's edge: the play's own 1.75rem and the 1rem
+     of page margin past it. And down from the verse's top rather than centred: a verse
+     cut across two pages clips whatever stands above its top, and the gutter under the
+     play is empty for the verse's whole height. */
+  body.reader .pair.verse.voiced .say::after {
+    inset-inline: 0 auto;
+    inline-size: max(100%, 44px);
+    inset-block-start: -0.2rem;
+    block-size: 44px;
+    transform: none;
+  }
+  /* The number reaches from the line's start to the window's edge, the same way. */
+  .pair.verse .verse-number { z-index: 1; }
+  .pair.verse .verse-number::after {
+    content: "";
+    position: absolute;
+    inset-inline: calc(-0.2rem - 1rem) -0.25rem;
+    inset-block-start: -0.32rem;
+    block-size: 44px;
+  }
+}
+
 /* The line being spoken. Deliberately the same band as hover and `.here` rather than a
    mark of its own: a reader already reads that band as "this one", and a third meaning for
    a fourth colour would be spending the ration on bookkeeping. */
