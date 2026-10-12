@@ -19,7 +19,7 @@ ANTHROPIC = (
 )
 OPENAI = (
     'OpenAI 429: {\n    "error": {\n        "message": "You have no credits remaining. Add '
-    'credits to continue using the API at https://platform.openai.com/settings/organization/'
+    "credits to continue using the API at https://platform.openai.com/settings/organization/"
     'billing/.",\n        "type": "insufficient_quota"'
 )
 RATE_LIMITED = '{"error": {"type": "rate_limit_error", "message": "Rate limited"}}'
