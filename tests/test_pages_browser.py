@@ -3226,3 +3226,44 @@ def test_a_desk_page_rings_its_focus_in_teal(browser, tmp_path: Path, name: str)
     assert rings, f"{name}: nothing Tab reached drew a ring: {seen}"
     for where, _, colour in rings:
         assert colour == TEAL, f"{name}: {where} rings in {colour}"
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_a_first_week_of_words_is_one_column_not_a_block(browser, width: int) -> None:
+    """Signed-in walk 2026-10-12, m7: the chart starts at the first week with anything in
+    it (§12), so on a first day its one week stretched across the whole card as one solid
+    block, which a newcomer read as broken. A week is a twelfth of the row however few
+    there are yet."""
+    from targum.render.builder import progress_page
+
+    html = progress_page(TOKEN)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    try:
+        page.add_init_script(
+            "const v = {}; for (let i = 0; i < 40; i++) v['w' + i] = {surface: 'w' + i,"
+            " status: 9, band: 'easy', at: Date.now() - 3600000};"
+            " localStorage.setItem('targum:vocab:he', JSON.stringify(v));"
+            " localStorage.setItem('targum:language', 'he')"
+        )
+        page.route("http://progress.test/**", answer)
+        page.goto(f"http://progress.test/progress?k={TOKEN}")
+        page.wait_for_selector("#weeks .week-bar")
+        got = page.evaluate(
+            """() => {
+              const row = document.querySelector('#weeks .weeks').getBoundingClientRect();
+              const bars = [...document.querySelectorAll('#weeks .week')];
+              return {row: row.width, columns: bars.length,
+                      bar: bars[0].getBoundingClientRect().width};
+            }"""
+        )
+    finally:
+        context.close()
+    assert got["columns"] == 1, got
+    assert got["bar"] <= got["row"] / 12 + 1, f"one week is a twelfth of the row: {got}"

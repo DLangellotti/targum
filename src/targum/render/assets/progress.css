@@ -199,7 +199,16 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   gap: 0.6rem;
   block-size: 5.25rem;
 }
-.progress .week { flex: 1; block-size: 100%; display: flex; align-items: flex-end; }
+/* A week is a twelfth of the row however few there are yet: the chart starts at the first
+   week with anything in it, and on a first day that one week stretched across the whole
+   card as one solid block, which read as a page that had broken (signed-in walk
+   2026-10-12, m7). A twelfth, and the one week reads as one week. */
+.progress .week {
+  flex: 0 1 calc((100% - 11 * 0.6rem) / 12);
+  block-size: 100%;
+  display: flex;
+  align-items: flex-end;
+}
 .progress .week-bar {
   display: block;
   inline-size: 100%;
