@@ -7,6 +7,33 @@
 
 body.yours main { gap: 2.25rem; }
 
+/* --- Where the press landed the reader ------------------------------------------------- */
+
+/* The first finish in a language comes home (design.md §12, "The first finish goes home",
+   2026-10-12): one line over Continue, in the reader's own arrived voice — the chrome face,
+   soft ink, the Undo pressable in ink. Nothing moves. */
+.arrived {
+  margin: 0 0 -1.25rem;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.arrived[hidden] { display: none; }
+.arrived button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.arrived button[hidden] { display: none; }
+.arrived button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
 /* --- Continue ------------------------------------------------------------------------- */
 
 .continue[hidden] { display: none; }
