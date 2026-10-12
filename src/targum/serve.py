@@ -2755,6 +2755,52 @@ class Library:
             self.store.add_to_playlist(person_id, int(made["id"]), entry.title, reader=folder)
         return self.store.playlist(person_id, int(made["id"])) or made
 
+    def text_language(self, home: Path, reader: str | None = None, job: str | None = None) -> str:
+        """The language a playlist's text is in, as a base code: from its built reader,
+        on `home` and then the shared shelf, or from the build making it. Empty where
+        neither says, which a playlist takes as fitting anything."""
+        if reader and "/" not in reader and not reader.startswith("."):
+            for root in (home, self.shared):
+                document = root / reader / "document.json"
+                if not document.is_file():
+                    continue
+                facts = self.remembered.get(
+                    root / reader, "document", [document], partial(self._document_facts, document)
+                )
+                language = str(facts.get("language") or "")
+                if language:
+                    return language.split("-")[0].lower()
+        building = self.jobs.get(job) if job else None
+        if building is not None and building.language:
+            return building.language.split("-")[0].lower()
+        return ""
+
+    def playlist_language(self, home: Path, found: Mapping[str, Any]) -> str:
+        """A playlist keeps to one language (David, 2026-10-12): the language of its first
+        text that says one. Empty for a playlist with nothing in it yet, which takes the
+        first text it is given."""
+        for item in found.get("items") or []:
+            if item.get("failed"):
+                continue
+            language = self.text_language(home, item.get("reader"), item.get("job"))
+            if language:
+                return language
+        return ""
+
+    def fits_playlist(
+        self,
+        home: Path,
+        found: Mapping[str, Any],
+        reader: str | None = None,
+        job: str | None = None,
+    ) -> bool:
+        """Whether a text may go into a playlist: it is in the playlist's language, or one
+        of the two does not say. An existing playlist that already mixes languages is left
+        as it is, and holds its first text's language from then on."""
+        mine = self.text_language(home, reader, job)
+        theirs = self.playlist_language(home, found)
+        return not mine or not theirs or mine == theirs
+
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
         found: list[dict[str, Any]] = []
@@ -8152,7 +8198,15 @@ class Handler(BaseHTTPRequestHandler):
             person = self._person()
             if person is None:
                 return self._json({"signedIn": False}, 401)
-            return self._json({"current": self.store.current_playlist(person.id)})
+            return self._json(
+                {
+                    "current": self.store.current_playlist(person.id),
+                    # And one per language (2026-10-12): a text is offered "Play next"
+                    # only in a playlist in its own language — the one the reader is in
+                    # where that is it, or the last one in that language they were in.
+                    "languages": self._playing_by_language(person.id),
+                }
+            )
         if route.startswith("/playlists/") and route.endswith("/end.json"):
             return self._playlist_end(route[len("/playlists/") : -len("/end.json")])
         if route.startswith("/playlists/") and route.endswith(".json"):
@@ -9940,10 +9994,16 @@ class Handler(BaseHTTPRequestHandler):
         if which is None:
             language = self._page_language()
             current = self.store.current_playlist(person.id)
+            home = self._home()
+            # Asked for one text (`?reader=`), only the playlists it may go into: those
+            # in its language, and the empty ones (2026-10-12).
+            reader = (parse_qs(urlparse(self.path).query).get("reader") or [""])[0]
             mine = []
             for one in self.store.playlists(person.id):
                 found = self.store.playlist(person.id, int(one["id"]))
                 if found is None:
+                    continue
+                if reader and not self.library.fits_playlist(home, found, reader=reader):
                     continue
                 shown = self._playlist_facts(person, found, vocabulary)
                 summary = {key: value for key, value in shown.items() if key != "items"}
@@ -9954,6 +10014,7 @@ class Handler(BaseHTTPRequestHandler):
                     for item in found.get("items") or []
                     if item.get("reader")
                 ]
+                summary["language"] = self.library.playlist_language(home, found)
                 mine.append({**one, **summary})
             targum = []
             for collection, built in self.library.targum_sets():
@@ -10499,6 +10560,12 @@ class Handler(BaseHTTPRequestHandler):
         playlist_id = int(which)
         doing = str(payload.get("do") or "")
         position = int(payload.get("position") or 0)
+        if doing in ("add", "next"):
+            # A playlist keeps to one language (David, 2026-10-12): a text in another is
+            # refused at every door, this one included.
+            refused = self._other_language(playlist_id, str(payload.get("reader") or ""))
+            if refused is not None:
+                return self._json({"error": refused}, 400)
         if doing == "add":
             reader = str(payload.get("reader") or "")
             added = self.store.add_to_playlist(
@@ -10558,6 +10625,34 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "bad request"}, 400)
         found = self.store.playlist(person.id, playlist_id)
         return self._json(self._playlist_facts(person, found, {}) if found else {"gone": True})
+
+    def _playing_by_language(self, person_id: int) -> dict[str, dict[str, Any]]:
+        """For each language, the unfinished playlist in it the reader was in last."""
+        home = self._home()
+        playing: dict[str, dict[str, Any]] = {}
+        for one in self.store.unfinished_playlists(person_id):
+            found = self.store.playlist(person_id, int(one["id"]))
+            language = self.library.playlist_language(home, found) if found else ""
+            if language and language not in playing:
+                playing[language] = one
+        return playing
+
+    def _other_language(self, playlist_id: int, reader: str) -> str | None:
+        """Why this text may not go into this playlist, or None where it may: a playlist
+        keeps to one language (David, 2026-10-12)."""
+        person = self._person()
+        found = self.store.playlist(person.id, playlist_id) if person else None
+        if found is None or not reader:
+            return None
+        home = self._home()
+        if self.library.fits_playlist(home, found, reader=reader):
+            return None
+        return self._say(
+            "serve.playlist-one-language",
+            "{name} is in {language}. A playlist holds texts in one language.",
+            name=found["name"],
+            language=self._named(self.library.playlist_language(home, found)),
+        )
 
     def _disconnect(self, payload: dict[str, Any]) -> None:
         """Take a connector's tokens back — the other half of the approval page.

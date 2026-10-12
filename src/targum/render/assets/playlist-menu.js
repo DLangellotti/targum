@@ -405,7 +405,9 @@
     status(menu, say("playlist-menu.loading", "Loading…"));
     document.addEventListener("click", outside, true);
     document.addEventListener("keydown", escape, true);
-    ask("GET", "/playlists.json", key)
+    // Only the playlists this text may go into: a playlist keeps to one language
+    // (2026-10-12), and the server knows the text's.
+    ask("GET", "/playlists.json" + (text.name ? "?reader=" + encodeURIComponent(text.name) : ""), key)
       .then(function (got) {
         if (got.status === 401) {
           status(menu, say("playlist-menu.sign-in", "Sign in to use playlists."), true);
@@ -439,15 +441,25 @@
 
   /* "Play next" (targum-internal#434): a text put straight after the one the reader is
    * on, in the playlist they are in — the one they opened an item of last and have not
-   * gone through. Asked for once a page; `playing()` is what came back, or null before
-   * it has, so a menu drawn in the same moment as it is opened can offer it or not. */
+   * gone through. Asked for once a page; `playing(language)` is what came back, or null
+   * before it has, so a menu drawn in the same moment as it is opened can offer it or
+   * not.
+   *
+   * Only in a playlist in the text's own language (2026-10-12): a French video was
+   * offered "Play next in" a Hebrew playlist. The box answers one per language — the
+   * one the reader is in where it is in that language, or else the last one in it they
+   * were in and have not gone through — and a text whose language is not known is
+   * offered the one they are in. */
   var currentAsk = null;
   var currentNow = null;
+  var byLanguage = {};
   function current(key) {
     if (!currentAsk) {
       currentAsk = ask("GET", "/playlists/current.json", key)
         .then(function (got) {
-          currentNow = got.status < 400 && got.answer && got.answer.current ? got.answer.current : null;
+          var answer = got.status < 400 && got.answer ? got.answer : {};
+          currentNow = answer.current || null;
+          byLanguage = answer.languages || {};
           return currentNow;
         })
         .catch(function () {
@@ -455,6 +467,12 @@
         });
     }
     return currentAsk;
+  }
+
+  function playing(language) {
+    var code = String(language || "").split("-")[0].toLowerCase();
+    if (!code) return currentNow;
+    return byLanguage[code] || null;
   }
 
   /* The press itself, for any menu: "Play next in Mornings". Pressed, it says what it
@@ -507,9 +525,7 @@
     attach: attach,
     close: close,
     current: current,
-    playing: function () {
-      return currentNow;
-    },
+    playing: playing,
     nextButton: nextButton,
   };
 })();

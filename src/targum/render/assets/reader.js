@@ -14304,7 +14304,9 @@ else targumReader();
      text was not opened from it: it goes straight after the one they are on. */
   var lists = window.TargumPlaylistMenu;
   if (lists && lists.current && !new URLSearchParams(location.search).get("list")) {
-    lists.current(key).then(function (playing) {
+    lists.current(key).then(function () {
+      // In a playlist in this text's own language only (2026-10-12).
+      var playing = lists.playing(document.documentElement.getAttribute("data-language"));
       if (!playing) return;
       group.appendChild(
         lists.nextButton(

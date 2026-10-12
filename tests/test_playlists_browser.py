@@ -390,17 +390,22 @@ def test_escape_closes_the_menu_and_gives_focus_back(browser, tmp_path: Path) ->
     assert not thrown
 
 
+def playing_in(languages: dict) -> str:
+    """The shelf's fetch, with `/playlists/current.json` answering `languages`."""
+    answer = json.dumps({"current": {"id": 1, "name": "Kitchen", "at": 0}, "languages": languages})
+    return (
+        "const viaShelf = window.fetch; window.fetch = (url, opts) =>"
+        " String(url).indexOf('/playlists/current.json') >= 0"
+        f" ? Promise.resolve(new Response(JSON.stringify({answer})))"
+        " : viaShelf(url, opts);"
+    )
+
+
 def test_play_next_is_in_a_rows_menu_while_you_are_in_a_playlist(browser, tmp_path: Path) -> None:
     """targum-internal#434: "Play next" in a text's ⋯ puts it straight after the one the
     reader is on, in the playlist they are in."""
     context, page, thrown = shelf_with_fake(
-        browser,
-        tmp_path,
-        "const viaShelf = window.fetch; window.fetch = (url, opts) =>"
-        " String(url).indexOf('/playlists/current.json') >= 0"
-        " ? Promise.resolve(new Response(JSON.stringify("
-        "{current: {id: 1, name: 'Kitchen', at: 0}})))"
-        " : viaShelf(url, opts);",
+        browser, tmp_path, playing_in({"he": {"id": 1, "name": "Kitchen", "at": 0}})
     )
     page.wait_for_timeout(100)
     page.locator(".row-more").first.click()
@@ -413,6 +418,31 @@ def test_play_next_is_in_a_rows_menu_while_you_are_in_a_playlist(browser, tmp_pa
     assert not thrown, thrown
     assert label == "Play next in Kitchen"
     assert sent == [["/playlists/1", {"do": "next", "reader": "jonah", "title": "יונה"}]]
+
+
+def test_play_next_is_only_offered_in_the_texts_own_language(browser, tmp_path: Path) -> None:
+    """A French video was offered "Play next in" a Hebrew playlist (2026-10-12). A Hebrew
+    row in a reader who is in a French playlist, and in no Hebrew one, is offered none,
+    and its Add to playlist asks only for the playlists it may go into."""
+    context, page, thrown = shelf_with_fake(
+        browser,
+        tmp_path,
+        playing_in({"fr": {"id": 1, "name": "Romans", "at": 0}})
+        + "const viaMenu = window.fetch; window.asked = [];"
+        " window.fetch = (url, opts) => { window.asked.push(String(url));"
+        " return viaMenu(url, opts); };",
+    )
+    page.wait_for_timeout(100)
+    page.locator(".row-more").first.click()
+    offered = page.locator(".row-menu .play-next").count()
+    page.keyboard.press("Escape")
+    page.locator(".add-to-list").first.click()
+    page.wait_for_selector(".playlist-menu .pm-choice")
+    asked = page.evaluate("() => window.asked")
+    context.close()
+    assert not thrown, thrown
+    assert offered == 0
+    assert any(url.split("/")[-1].startswith("playlists.json?reader=jonah") for url in asked), asked
 
 
 # --- review fixes, 2026-09-24 -------------------------------------------------------

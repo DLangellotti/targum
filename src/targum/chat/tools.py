@@ -1621,6 +1621,19 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         if key in seen:
             continue
         seen.add(key)
+        # A playlist keeps to one language (David, 2026-10-12): the set's is its first
+        # text's, and a text in another is refused with its reason.
+        if not ctx.library.fits_playlist(
+            ctx.home, {"items": held}, one.get("reader"), one.get("job")
+        ):
+            refused.append(
+                {
+                    "source": item.get("source") or item.get("catalogue_id") or one["title"],
+                    "why": "It is in another language from the set's first text, and a "
+                    "playlist holds texts in one language.",
+                }
+            )
+            continue
         held.append(one)
     if not held:
         return {"error": "Nothing in that set can be made now.", "refused": refused}
@@ -1989,6 +2002,16 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         there = _already_in(ctx, int(existing["id"]), one)
         if there is not None:
             return there
+        # A playlist keeps to one language (David, 2026-10-12).
+        found = ctx.store.playlist(person, int(existing["id"])) or {}
+        if not ctx.library.fits_playlist(ctx.home, found, one.get("reader"), one.get("job")):
+            from ..translate.prompts import language_name
+
+            language = language_name(ctx.library.playlist_language(ctx.home, found))
+            return {
+                "error": f"{existing['name']} is in {language}, and a playlist holds texts "
+                "in one language. Add it to a playlist in its own language, or start one."
+            }
     if existing is None:
         existing = ctx.store.make_playlist(
             person, wanted, made_by="connector" if ctx.press_at else "chat"

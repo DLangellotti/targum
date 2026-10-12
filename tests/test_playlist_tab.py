@@ -90,6 +90,18 @@ def test_the_one_you_are_in_is_the_last_one_opened_until_it_is_gone_through(
     assert store.current_playlist(me) is None
 
 
+def test_unfinished_playlists_are_the_last_one_in_first(tmp_path: Path) -> None:
+    store, me = a_store(tmp_path)
+    first, second, done = filled(store, me), filled(store, me), filled(store, me, "ab")
+    never = filled(store, me)
+    store.playlist_here(me, first, 1)
+    store.playlist_here(me, done, 2)  # past its last: gone through
+    store.playlist_here(me, second, 0)
+    assert [p["id"] for p in store.unfinished_playlists(me)] == [second, first]
+    assert never not in [p["id"] for p in store.unfinished_playlists(me)]
+    assert store.unfinished_playlists(None) == []
+
+
 def test_play_next_puts_a_text_straight_after_the_one_you_are_on(tmp_path: Path) -> None:
     store, me = a_store(tmp_path)
     pid = filled(store, me, "abcd")
@@ -143,8 +155,14 @@ def box(
     store = Store(store_path)
     one = store.finish_sign_in(store.start_sign_in("one@example.com"))
     assert one is not None
-    # Two texts on the shared shelf, which a playlist can point at as targum's own sets do.
-    for name, words in (("story", 260), ("article", 650)):
+    # Two texts on the shared shelf, which a playlist can point at as targum's own sets do,
+    # and two in French, which a Hebrew playlist may not take (2026-10-12).
+    for name, words, language in (
+        ("story", 260, "he"),
+        ("article", 650, "he"),
+        ("roman", 100, "fr"),
+        ("nouvelle", 100, "fr-FR"),
+    ):
         folder = tmp / "out" / "shared" / name
         (folder / "reader").mkdir(parents=True)
         (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
@@ -152,7 +170,7 @@ def box(
             json.dumps(
                 {
                     "title": name.title(),
-                    "language": "he",
+                    "language": language,
                     "source": f"file:{name}.txt",
                     "blocks": [{"text": "שלום " * words}],
                 }
@@ -247,6 +265,50 @@ def test_where_you_are_is_told_and_marks_the_one_you_are_in(box: tuple[int, str,
     assert [i["reader"] for i in dragged["items"]] == ["x", "story", "article"]
     assert dragged["at"] == 2, "still on the article"
     assert send(port, "GET", "/playlists/current.json")[0] == 401
+
+
+def test_a_playlist_keeps_to_one_language(box: tuple[int, str, Path]) -> None:
+    """A French video was offered "Play next in" a Hebrew playlist (2026-10-12). A
+    playlist holds texts in one language, its first text's: a text in another is refused
+    at the door, the menu for a text lists only the playlists it may go into, and "Play
+    next" is offered per language."""
+    port, mine, _ = box
+    _, hebrew = send(port, "POST", "/playlists", {"name": "Couples"}, mine)
+    for name in ("story", "article"):
+        send(port, "POST", f"/playlists/{hebrew['id']}", {"do": "add", "reader": name}, mine)
+    for doing in ("add", "next"):
+        status, said = send(
+            port, "POST", f"/playlists/{hebrew['id']}", {"do": doing, "reader": "roman"}, mine
+        )
+        assert status == 400 and said["error"] == (
+            "Couples is in Hebrew. A playlist holds texts in one language."
+        )
+    _, one = send(port, "GET", f"/playlists/{hebrew['id']}.json", session=mine)
+    assert [i["reader"] for i in one["items"]] == ["story", "article"]
+    # An empty playlist takes its first text's language; "fr-FR" is French too.
+    _, french = send(port, "POST", "/playlists", {"name": "Romans"}, mine)
+    for name in ("roman", "nouvelle"):
+        status, _ = send(
+            port, "POST", f"/playlists/{french['id']}", {"do": "add", "reader": name}, mine
+        )
+        assert status == 200
+    _, empty = send(port, "POST", "/playlists", {"name": "Empty"}, mine)
+    _, listed = send(port, "GET", "/playlists.json?reader=roman", session=mine)
+    offered = {p["name"] for p in listed["playlists"]}
+    assert {"Romans", "Empty"} <= offered and "Couples" not in offered
+    assert {p["language"] for p in listed["playlists"]} <= {"fr", ""}
+    _, everything = send(port, "GET", "/playlists.json", session=mine)
+    assert "Couples" in {p["name"] for p in everything["playlists"]}, "the tab shows all"
+    # In the French one first, then the Hebrew: the Hebrew is the one you are in, and a
+    # French text is offered the French one.
+    send(port, "POST", f"/playlists/{french['id']}", {"do": "here", "position": 0}, mine)
+    time.sleep(0.01)  # visits are stamped to the millisecond
+    send(port, "POST", f"/playlists/{hebrew['id']}", {"do": "here", "position": 0}, mine)
+    _, current = send(port, "GET", "/playlists/current.json", session=mine)
+    assert current["current"]["id"] == hebrew["id"]
+    assert current["languages"]["he"]["id"] == hebrew["id"]
+    assert current["languages"]["fr"] == {"id": french["id"], "name": "Romans", "at": 0}
+    assert empty["id"] not in {p["id"] for p in current["languages"].values()}
 
 
 def test_a_playlist_is_a_page_of_its_own(box: tuple[int, str, Path]) -> None:

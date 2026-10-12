@@ -582,7 +582,7 @@
       // "Play next" (targum-internal#434), first: the playlist the reader is in takes
       // this text straight after the one they are on.
       var lists = window.TargumPlaylistMenu;
-      var playing = lists && lists.playing ? lists.playing() : null;
+      var playing = lists && lists.playing ? lists.playing(reader.language) : null;
       if (playing && reader.name) {
         var next = lists.nextButton(
           { name: reader.name, title: reader.title || reader.name },
