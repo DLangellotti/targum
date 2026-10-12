@@ -149,7 +149,7 @@
     // matches a row if any of either does.
     { id: "everyday", kinds: ["dialogue"] },
     { id: "israel", tags: ["israel"] },
-    { id: "judaism", tags: ["tanakh", "judaica"] },
+    { id: "judaism", tags: ["tanakh", "judaica"], scripture: true },
     { id: "news", tags: ["journalism"] },
     { id: "sport", tags: ["sport"] },
     { id: "stories", kinds: ["story", "novel", "play"] },
@@ -363,6 +363,19 @@
         return wanted(reader, came) && inReach(reader, rung);
       });
       if (rows.length) return pickByRung(voiced(rows), rung);
+    }
+    /* Torah and Judaism is answered by scripture, whatever the rung (QA, 2026-10-12). The
+       shelf rates every Tanakh row past bet, so the passes above dropped them all and a
+       Biblical beginner opened a modern news article. Their subject is the text they came
+       for: the easiest scripture the shelf has, a stretch rather than a different
+       language. */
+    for (var b = 0; b < arrived.length; b++) {
+      var sought = interestOf(arrived[b]);
+      if (!sought || !sought.scripture) continue;
+      var scripture = handed.filter(function (reader) {
+        return wanted(reader, sought) && reader.register === "biblical";
+      });
+      if (scripture.length) return pickByShare(voiced(scripture), 0);
     }
     if (rung) {
       // Reach before voice: a voice is the second thing to find, and it is found on a
