@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ..errors import OffHere, TargumError
+from ..errors import OffHere, ProviderError, TargumError
 from ..usage import Usage
 from .base import Progress, language_tag
 from .models import Transcript, Word
@@ -151,7 +151,10 @@ class WhisperTranscriber:
                 )
         if response.status_code >= 400:
             # Their message, not ours: it says which of the many things went wrong.
-            raise TargumError("The recording could not be transcribed.", response.text[:200])
+            raise ProviderError(
+                "The recording could not be transcribed.",
+                f"OpenAI {response.status_code}: {response.text[:300]}",
+            )
         try:
             answer: dict[str, Any] = response.json()
         except json.JSONDecodeError as error:

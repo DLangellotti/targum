@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..errors import OffHere, TargumError
+from ..errors import OffHere, ProviderError, TargumError
 from ..usage import Usage
 from .base import Progress, language_tag
 from .models import Transcript, Word
@@ -73,7 +73,10 @@ class ScribeTranscriber:
                     files={"file": (audio.name, handle, "audio/mpeg")},
                 )
         if response.status_code >= 400:
-            raise TargumError("The recording could not be transcribed.", response.text[:200])
+            raise ProviderError(
+                "The recording could not be transcribed.",
+                f"ElevenLabs {response.status_code}: {response.text[:300]}",
+            )
         try:
             answer: dict[str, Any] = response.json()
         except json.JSONDecodeError as error:
