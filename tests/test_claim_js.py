@@ -32,6 +32,7 @@ def page(forms: list[str], offset: int, next_at: int | None) -> dict[str, Any]:
         "words": [{"form": f, "meaning": f"m-{f}", "band": "easy"} for f in forms],
         "offset": offset,
         "next": next_at,
+        "into": "en",
     }
 
 
@@ -82,7 +83,12 @@ def test_the_checked_words_are_marked_known_for_real_and_the_rest_are_left() -> 
     assert all(row["source"] == "claimed" for row in marked.values()), (
         "ticked off here, not met in a text (targum-internal#245)"
     )
-    assert marked["של"]["surface"] == "של" and marked["של"]["meaning"] == "m-של"
+    assert marked["של"]["surface"] == "של"
+    # Where Your Words reads a meaning and the sync carries it, not on the word's own
+    # record, where nothing read it (known issues 2026-10-12, 1.8).
+    assert "meaning" not in marked["של"]
+    assert got["meanings"]["של"]["meaning"] == "m-של"
+    assert sorted(got["meanings"]) == ["הוא", "של"]
     assert marked["של"]["at"] < marked["הוא"]["at"], "kept in the order they were shown"
     assert sorted(got["passed"]) == sorted(f for f in FIRST if f not in ("של", "הוא")), (
         "looked at and left"
@@ -127,3 +133,51 @@ def test_the_end_of_the_list_and_another_language_show_nothing() -> None:
     assert sorted(got["ledger"]) == sorted(FIRST + SECOND)
     russian = run(pages=PAGES, language="ru")
     assert russian["asked"] == [] and russian["hidden"]
+
+
+def test_a_meaning_already_filed_is_not_written_over() -> None:
+    mine = {"של": {"meaning": "my own", "note": "n", "at": 1, "seen": 1}}
+    got = run(
+        pages=PAGES,
+        stored={"targum:meanings:he:en": mine},
+        do=[{"type": "check", "form": "של"}, {"type": "yes"}],
+    )
+    assert got["meanings"]["של"] == mine["של"]
+
+
+def test_words_claimed_before_get_their_meanings_back_and_are_asked_once() -> None:
+    """Known issues 2026-10-12, 1.8. Every claimed word's meaning was written onto its own
+    record, which Your Words does not read, so the list showed them blank. On the page
+    that carries the list they are asked for by name and filed where they are read; one
+    no table holds stays bare, and is not asked for again."""
+    claimed = {
+        "עם": {"status": 9, "source": "claimed", "meaning": "with"},
+        "היא": {"status": 9, "source": "claimed"},
+        "גם": {"status": 9, "source": "claimed"},
+        "בית": {"status": 9},
+    }
+    got = run(
+        pages=PAGES,
+        ledger=claimed,
+        stored={"targum:meanings:he:en": {"גם": {"meaning": "also", "seen": 1}}},
+        meanings={"עם": "with", "היא": "she"},
+    )
+    named = [a for a in got["asked"] if "forms=" in a]
+    assert len(named) == 1
+    asked = named[0].split("forms=")[1].split("&")[0]
+    from urllib.parse import unquote
+
+    assert sorted(unquote(asked).split(",")) == ["היא", "עם"], (
+        "only claimed words with no meaning filed anywhere"
+    )
+    assert got["meanings"]["עם"]["meaning"] == "with"
+    assert got["meanings"]["היא"]["meaning"] == "she"
+    assert got["meanings"]["גם"]["meaning"] == "also"
+    assert "בית" not in got["meanings"], "a word met in a text is not this repair's"
+    assert sorted(got["claimAsked"]) == ["היא", "עם"]
+    assert got["touched"]["lists"] == 1, "Your Words redraws with them"
+
+    again = run(
+        pages=PAGES, ledger=claimed, stored={"targum:claim-asked": {"עם": 1, "היא": 1, "גם": 1}}
+    )
+    assert not [a for a in again["asked"] if "forms=" in a], "asked once"

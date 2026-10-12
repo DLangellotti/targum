@@ -3013,6 +3013,60 @@ STAGE_OF = "(lemma) => JSON.parse(localStorage.getItem('targum:vocab:he'))[lemma
 
 
 @pytest.mark.parametrize("width", [390, 1280])
+def test_a_word_claimed_from_the_list_shows_its_meaning(browser, width: int) -> None:
+    """Known issues 2026-10-12, 1.8 (DESK-10, targum-internal#378). A word marked known
+    from "Words you may already know" had its meaning written onto its own record, which
+    Your Words never reads, so the row was blank. The page asks for it by name, files it
+    where meanings live, and the row says it."""
+    html = list_page(TOKEN, "words")
+    asked: list[str] = []
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        if "/words/common" in request.url and "forms=" in request.url:
+            asked.append(request.url)
+            body = {
+                "words": [{"form": "עם", "meaning": "with", "band": "easy"}],
+                "next": None,
+                "into": "en",
+            }
+            return route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    page.add_init_script(
+        "if (!sessionStorage.getItem('seeded')) {"
+        "sessionStorage.setItem('seeded', '1');"
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({"
+        "'עם': {surface: 'עם', status: 9, source: 'claimed', meaning: 'with', at: 2},"
+        "'עיר': {surface: 'עיר', status: 1, at: 3}}));"
+        # The meanings moved out of the word's record long before the list existed, so
+        # that move never ran over a claim.
+        "localStorage.setItem('targum:migrated', JSON.stringify({meanings: 1}));"
+        "localStorage.setItem('targum:language', 'he')}"
+    )
+    page.route("http://words.test/**", answer)
+    try:
+        page.goto(f"http://words.test/words?k={TOKEN}")
+        page.wait_for_selector("#word-rows tr")
+        page.wait_for_function(
+            "() => !!JSON.parse(localStorage.getItem('targum:meanings:he:en') || '{}')['עם']",
+            timeout=5000,
+        )
+        known = page.locator("#stage-chips [data-stage]", has_text="Known")
+        if known.count():
+            known.first.click()
+        page.wait_for_selector("#word-rows tr[data-word='עם']")
+        meaning = page.locator("#word-rows tr[data-word='עם'] td.meaning").first.inner_text()
+    finally:
+        context.close()
+    assert len(asked) == 1
+    assert meaning.strip() == "with"
+
+
+@pytest.mark.parametrize("width", [390, 1280])
 def test_an_ignored_word_can_be_undone_in_its_row(browser, width: int) -> None:
     """QA 2026-10-11, decision D6 (design.md §12, "An ignored word can be taken back"):
     ignore took the word off the list at once with no way back. Its row stays, says where
