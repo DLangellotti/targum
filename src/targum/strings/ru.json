@@ -672,7 +672,6 @@
   "add.change": "Изменить",
   "add.spoken.timings": "Сохраним тайминги, так что записывать ничего не нужно.",
   "add.spoken.parts": "Запишем, что говорят, часть за частью.",
-  "add.stage.rd": "{language} пока экспериментальный. Уровней слов для него ещё нет.",
   "add.fetching": "Получаем его…",
   "add.still-working": "Ещё работаем. Первый текст на новом языке занимает больше времени.",
   "add.uploading": "Загружаем… {share}%",
@@ -979,7 +978,6 @@
   "language.arc": "Арамейский",
   "language.yi": "Идиш",
   "stage.alpha": "альфа",
-  "stage.experimental": "Экспериментальный",
   "you.page.we-wait-seven-days-before-deleting": "Перед удалением мы ждём семь дней. Если передумаете, напишите на hello@targum.page.",
   "foot.privacy": "Приватность",
   "foot.terms": "Условия",
@@ -4028,5 +4026,6 @@
   "reader.listen.queued.few": "{n} в очереди",
   "reader.listen.queued.many": "{n} в очереди",
   "shelf.unavailable": "Сейчас этот текст не открывается. Пока попробуйте другой.",
-  "torah.forward.open": "Открыть в недельной главе"
+  "torah.forward.open": "Открыть в недельной главе",
+  "nav.interface-language": "Язык интерфейса"
 }

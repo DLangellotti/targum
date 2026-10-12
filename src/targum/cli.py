@@ -5184,6 +5184,76 @@ def levels(
         )
 
 
+@app.command()
+def stages(
+    measure: Annotated[
+        bool,
+        typer.Option(
+            "--measure",
+            help="Count the shelf from the catalogue and the builds on disk into evals/shelf.json.",
+        ),
+    ] = False,
+    out: Annotated[
+        Path,
+        typer.Option(help="Where builds live, read for a sentence length the catalogue lacks."),
+    ] = Path("targum-out"),
+    videos: Annotated[
+        Path | None,
+        typer.Option(help="The curated video shelf. Defaults to TARGUM_VIDEO_DIR's."),
+    ] = None,
+) -> None:
+    """How far along each language is: the word it wears, the one it has earned, and what
+    stands between (design.md §12, "A badge is a promise, checked", 2026-10-12).
+
+    Reads the code, the committed evals and the shelf snapshot; fetches nothing and spends
+    nothing. With --measure, the shelf is counted first from the catalogue and the builds
+    on disk and written to evals/shelf.json, which is what the test and this table read.
+    """
+    from datetime import date
+
+    from . import stages as standard
+
+    if measure:
+        from . import levelmap, spoken
+        from .catalogue import CATALOGUE
+        from .video import store as video_store
+
+        shelves = levelmap.tally(
+            CATALOGUE,
+            sentence=levelmap.Sentences(out, videos or video_store.root()),
+            spoken=spoken.is_spoken,
+            video=spoken.is_video,
+        )
+        counts = {
+            code: {
+                level: standard.Floor(*pair) for level, pair in levelmap.cefr_rows(shelf).items()
+            }
+            for code, shelf in shelves.items()
+        }
+        standard.write_shelf(counts, measured=date.today())
+        console.print(f"[dim]Shelf counted into {standard.SHELF_SNAPSHOT}[/dim]")
+
+    table = Table(title="How far along each language is", title_justify="left")
+    table.add_column("Language")
+    table.add_column("Wears")
+    table.add_column("Earned")
+    table.add_column("Short of what it wears")
+    for code in standard.DECLARED:
+        row = standard.report(code)
+        worn = row["declared"].capitalize() + (
+            f", kept until {row['review']}" if row["kept"] else ""
+        )
+        earned = row["earned"].capitalize() if row["earned"] else "nothing"
+        short = "\n".join(row["shortfall"]) if row["shortfall"] else "nothing"
+        table.add_row(code, worn, earned, short)
+    console.print(table)
+    if standard.PROVISIONAL is not None:
+        console.print(
+            f"[dim]Shelf floors are provisional since {standard.PROVISIONAL}: re-set them once the "
+            "difficulty sweep has measured the whole catalogue.[/dim]"
+        )
+
+
 # Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
 # then calls main(), so anything defined below the guard is not registered yet when the
 # app is invoked — the parasha commands were added after it and `python -m targum.cli

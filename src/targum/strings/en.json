@@ -635,7 +635,6 @@
   "add.change": "Change",
   "add.spoken.timings": "We'll keep its timings, so there's nothing to write down.",
   "add.spoken.parts": "We'll write down what's said, part by part.",
-  "add.stage.rd": "{language} is experimental. It has no word levels yet.",
   "add.fetching": "We're reading it…",
   "add.still-working": "Still working. A long text, or the first in a new language, takes us longer.",
   "add.uploading": "We're uploading it… {share}%",
@@ -926,7 +925,6 @@
   "language.arc": "Aramaic",
   "language.yi": "Yiddish",
   "stage.alpha": "alpha",
-  "stage.experimental": "Experimental",
   "you.page.we-wait-seven-days-before-deleting": "We wait seven days before deleting. To change your mind, email hello@targum.page.",
   "foot.privacy": "Privacy",
   "foot.terms": "Terms",
@@ -3714,5 +3712,6 @@
   "reader.listen.queued.one": "{n} queued",
   "reader.listen.queued.other": "{n} queued",
   "shelf.unavailable": "We can't open this one right now. Try another for now.",
-  "torah.forward.open": "Open it in its portion"
+  "torah.forward.open": "Open it in its portion",
+  "nav.interface-language": "Interface language"
 }

@@ -39,29 +39,34 @@ def system_prompt(source_language: str, target_language: str, style: Style) -> s
 # and so shows meanings without levels. Yiddish has neither and is not offered.
 OFFERED = ("he", "ru", "en", "ar", "fr", "it", "es", "de", "la")
 
-# What somebody may upload, and how far along each one is. Hebrew is what targum was
-# built for and everything works in it. The other two are here because a reader who has
-# Aramaic or Yiddish has nowhere else to take it, and they are honestly labelled: neither
-# has the frequency data that rates a word's difficulty, and Yiddish has no lemmatiser
-# either, so those readers get the text and the translation without the word levels.
+# What somebody may upload, and how its words are read. Hebrew is what targum was built
+# for and its words are read locally by DICTA. The other two are here because a reader
+# who has Aramaic or Yiddish has nowhere else to take it: Aramaic's words are not read at
+# all (its Onkelos taps go to a list), and Yiddish, French, Russian and Italian (since
+# 2026-09-13) are read by the model (`annotate/model_lemma.py`) because no Stanza model
+# for them clears the licence bar; each is scored against its Universal Dependencies dev
+# set before it is trusted.
+#
+# How far along each one is — the word the menu badges it with — is not here. It used to
+# be ("alpha", "R&D"), and it disagreed with the badge in `lang.js` about Hebrew and
+# Russian on the same day; since 2026-10-12 the one table is `stages.DECLARED`, checked
+# by `tests/test_stages.py` (design.md §12, "A badge is a promise, checked").
 #
 # A picker is not a boundary — see `_prepare`, which checks a request against these.
-#
-# French, Russian and Italian since 2026-09-13, beside Yiddish: their words are read by the
-# model (`annotate/model_lemma.py`) because no Stanza model for them clears the licence
-# bar, and each is scored against its Universal Dependencies dev set before it is trusted.
 READING = (
-    ("he", "alpha"),
-    ("arc", "R&D"),
-    ("yi", "R&D"),
-    ("fr", "R&D"),
-    ("ru", "R&D"),
-    ("it", "R&D"),
+    ("he", "dicta"),
+    ("arc", "none"),
+    ("yi", "model"),
+    ("fr", "model"),
+    ("ru", "model"),
+    ("it", "model"),
 )
 
 # And what it may be turned into. English first because the glossaries are deepest there.
-# Russian is beta rather than R&D: it has been read end to end, it is simply not Hebrew.
-# Both words reach a reader as "Experimental" — see STAGE_LABELS below.
+# These two words are about the *into* side and are not a badge: Russian meanings have
+# been read end to end and are simply not English; the upload page says "Experimental"
+# beside Russian for it (`render.builder._staged`). Left alone by the standard of
+# 2026-10-12 on purpose.
 INTO = (("en", "alpha"), ("ru", "beta"))
 
 # What a text may carry a rendering in without that being a language anybody reads it
@@ -77,17 +82,6 @@ BESIDE = frozenset({"arc"})
 # and in this version the profile draws it ticked and will not let it be unticked. Empty
 # this out when that stops being true; nothing else has to change.
 REQUIRED_LEARNING = ("he",)
-
-# What a reader is shown. "R&D" and "beta" are a real difference — a language with no word
-# levels against one that simply is not Hebrew — but it is a difference about how targum
-# was built, not one anybody choosing from a picker can act on. Both read as experimental;
-# the note under the picker is where the two part company.
-STAGE_LABELS = {"alpha": "alpha", "beta": "Experimental", "R&D": "Experimental"}
-
-
-def stage_label(stage: str) -> str:
-    return STAGE_LABELS.get(stage, stage)
-
 
 _NAMES = {
     "he": "Hebrew",

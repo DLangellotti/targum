@@ -369,6 +369,26 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Russian has a switch in the bar — 2026-10-12
+
+David, 2026-10-12: "I also want a more logical and obvious way for Russian L1 speakers to
+switch to Russian." Once signed in, the only way was Your account's "Read and translate
+into", two pages from anywhere a reader is. Asked, David chose the top bar, "very
+minimal", and only for a likely Russian reader.
+
+- **EN · RU beside the language menu**, on every desk page that draws the menu. Two Latin
+  codes and a dot, the front door's and the arrival's own, so nothing in the bar is
+  Cyrillic. No pill and no border: the one in use is ink, the other soft ink.
+- **Drawn only for a signed-in reader who may read Russian**: the account already reads
+  Russian, or the browser lists Russian or a language of the countries where Russian is
+  shared, as the arrival reads it ("Russian is shown to somebody who may read it",
+  2026-09-28). Everybody else sees nothing new.
+- **A press is the account row's choice, said the same way**: the account reads that
+  language, its readers are written again with it (no spend), and the page is drawn again
+  in it.
+
+What it does not change: the language menu is still the language being learned, and Your
+account still offers every language the interface speaks.
 ### The first finish goes home — 2026-10-12
 
 David, 2026-10-12: "the user isn't explained what to do after completing their first
@@ -2628,7 +2648,63 @@ own slice is built.
   for Beta, iris for Alpha, clay for Experimental. This departs from §4 on purpose as the
   drawn tiles do: clay is cost and errors, and here it says "least far along". The word
   carries it too, so no badge rests on colour alone.
-- The list is one table in `lang.js` (`STATUS`); a language not in it wears nothing.
+- The list was one table in `lang.js` (`STATUS`) until 2026-10-12; it is `stages.DECLARED`
+  now, checked by a test. See "A badge is a promise, checked" below. A language not in it
+  wears nothing.
+
+### A badge is a promise, checked — 2026-10-12
+
+David, 2026-10-11 and 2026-10-12 (targum-internal#445, and the research in
+targum-internal `research/hard-spots-2026-10-11`): the badge above was a list typed by
+hand, and on the day it went in it said Alpha of a French shelf with 14 texts while a
+second table in `translate/prompts.py` called the same languages "R&D" and Hebrew
+"alpha". Two words for the same thing on two surfaces, and neither one checkable. This
+entry makes the three words promises to the reader, in order, and makes a test keep them.
+
+- **Experimental:** we read it and translate it. Nothing else is promised. Everything
+  below Alpha wears it, shelf or no shelf; the menu shows the word and nothing more.
+- **Alpha:** the learning loop works, and a person has checked it. Every word has a lemma
+  above its floor; there is a ladder of levels; the chat talks it; a voice reads it; the
+  shelf holds texts and recordings at every level a learner sits at, A1 to B2; David has
+  read ten texts end to end as a learner and filed what was wrong; a known-issues list
+  exists; and **every hard spot on the language's list is covered**, which means all three
+  of computed per word or line, shown on a card or in a lens, and measured against gold
+  with a floor in `evals/floors.json`.
+- **Beta:** what we would let a stranger pay for, unattended. Alpha plus a bigger shelf
+  with a second medium and a feed that grows by itself; the box building a new text with
+  no laptop in the loop; chat evals in the language with floors; **a practice for every
+  hard spot** in What to work on; and nothing a paying reader would call a blocker.
+- **The hard-spot lists are ranked by the research**, five to seven a language: Hebrew's
+  root and binyan first, Russian's cases with their governing preposition, French's
+  gender, Italian's gender and agreement. A language nobody here can read (Yiddish,
+  Aramaic) has no list and stays Experimental.
+- **The shelf is counted on the library's own ruler**, which places a text on three
+  levels by hard-word share and sentence length, and the floors are stated in CEFR by a
+  mapping said rather than measured: A1 is a text meeting the Easy spec in full, A2 the
+  rest of Easy, B1 Simplified, and **Native is one level, B2 and up**, until there is a
+  better ruler than a median nobody measured. The numbers are provisional until the
+  difficulty sweep has measured the whole catalogue; Beta's are then set just under
+  Hebrew's and Alpha's at about two fifths of Beta's.
+- **One table, one test.** `stages.DECLARED` is the claim, written into every page as
+  `window.TARGUM_STAGES` and read by the menu, the palette and the arrival; `tests/
+  test_stages.py` fails when a claim outruns the facts in the code, the committed evals
+  and the committed shelf snapshot. A promotion is a commit to the table; a regression
+  anywhere fails CI. `targum stages` prints the same table with the shortfall in words.
+- **Hebrew keeps the Beta it wore, by decision and with a date.** Under the letter of the
+  rule it is Experimental today: one of its seven hard spots (governed prepositions and *et*) has
+  no gold to measure it against, no read-through is on record, and no practice exists.
+  The other six were measured against the IAHLT treebanks the same day and have floors. It is the
+  language targum was built for, read by its alpha readers since August, and the word
+  stays while the measurements, the record and the practices catch up (`stages.KEPT`,
+  review 2026-12-31). The test prints what the kept word still owes instead of failing
+  on it, and nothing else may be kept without an entry here first. **Nothing earns Beta
+  on the day**, and Russian, Italian and French go to Experimental.
+- The per-language record (read-through, known issues, the list with its evidence) lives
+  in targum-internal `languages/<code>.md` and is advisory: nothing public can read it.
+
+What it does not change: the badge's colours and placement above; the five word stages;
+what the chat may spend; the *into* languages' two words on the upload page, which are not
+a badge.
 
 ### Listening plays on by itself, and reading still waits for a swipe — 2026-10-09
 

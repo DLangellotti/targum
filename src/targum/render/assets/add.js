@@ -1193,14 +1193,13 @@
       stages.forEach(function (row) {
         if (row.code === code) found = row;
       });
-      note.hidden = !found || found.stage === "alpha";
+      // The stage is the badge's word (`stages.DECLARED`, design.md §12 2026-10-12): the
+      // note is for a language that promises reading and translation and nothing more.
+      note.hidden = !found || found.stage !== "experimental";
       if (!note.hidden) {
-        // Both say experimental, which is what the picker says. This is where the two
-        // part company: one has no word levels at all, the other simply is not Hebrew.
-        note.textContent =
-          found.stage === "R&D"
-            ? t("add.stage.rd", "{language} is experimental. It has no word levels yet.", { language: found.name })
-            : t("lang.beta-note", "{language} is new here, and still experimental.", { language: found.name });
+        note.textContent = t("lang.beta-note", "{language} is new here, and still experimental.", {
+          language: found.name,
+        });
       }
       if (code) lang.set(code);
     }
