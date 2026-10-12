@@ -263,3 +263,11 @@ def test_meteg_is_not_a_vowel() -> None:
 
     assert phonikud.phonemize("בָּאָֽרֶץ").strip() == "baʔaeʁˈets"
     assert PhonikudPronouncer().say(["בָּאָֽרֶץ"])["בָּאָֽרֶץ"] == "baʔaʁˈets"
+
+
+def test_kol_is_said_with_its_qamats_qatan() -> None:
+    """phonikud says every plain qamats "a"; the closed list says כָּל "kol"."""
+    said = PhonikudPronouncer().say(["כָּל", "וְכָל", "בָּצָל"])
+    assert said["כָּל"] == "kˈol"
+    assert said["וְכָל"] == "veχˈol"
+    assert said["בָּצָל"] == "batsˈal"

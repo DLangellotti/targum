@@ -5003,6 +5003,88 @@ var targumReader = function () {
     return out;
   }
 
+  // How a Hebrew word is said, in letters a learner already reads (design.md §12,
+  // "The card says a Hebrew word in letters you read", 2026-10-12). The build stores
+  // phonikud's IPA, and a beginner cannot read χ, ʁ or ˈ: "hithaˈleχ" is "hit-ha-lékh".
+  // Latin for an English interface and Cyrillic for a Russian one, cut into syllables
+  // with hyphens, the stressed vowel under an acute the way a Russian card already marks
+  // stress ("рука́"). One syllable carries no accent: there is nowhere else for it to go.
+  // ʔ (alef, ayin) is not written: the hyphen already says a new syllable starts.
+  var PLAIN = {
+    en: { "χ": "kh", x: "kh", "ʃ": "sh", "ʒ": "zh", "ʁ": "r", j: "y", "tʃ": "ch", "dʒ": "j", "ʔ": "" },
+    ru: {
+      a: "а", e: "е", i: "и", o: "о", u: "у", b: "б", v: "в", g: "г", d: "д", h: "х", z: "з",
+      "χ": "х", x: "х", t: "т", j: "й", k: "к", l: "л", m: "м", n: "н", s: "с", f: "ф", p: "п",
+      ts: "ц", "tʃ": "ч", "dʒ": "дж", "ʒ": "ж", "ʁ": "р", r: "р", "ʃ": "ш", w: "в", "ʔ": ""
+    }
+  };
+  var PLAIN_ACUTE = { a: "á", e: "é", i: "í", o: "ó", u: "ú" };
+  function plainly(ipa, interfaceLanguage) {
+    var table = PLAIN[interfaceLanguage] || PLAIN.en;
+    var cyrillic = table === PLAIN.ru;
+    return String(ipa || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(function (word) {
+        // The sounds, an affricate as one, each vowel knowing whether it carries stress.
+        var units = [];
+        var stress = false;
+        for (var i = 0; i < word.length; i++) {
+          var ch = word.charAt(i);
+          if (ch === "ˈ") {
+            stress = true;
+            continue;
+          }
+          var two = word.substr(i, 2);
+          if (two === "ts" || two === "tʃ" || two === "dʒ") {
+            units.push({ sound: two });
+            i++;
+            continue;
+          }
+          ch = { "ɡ": "g", "ə": "e", "ɛ": "e", "ɔ": "o" }[ch] || ch;
+          if (/[aeiou]/.test(ch)) {
+            units.push({ sound: ch, vowel: true, stressed: stress });
+            stress = false;
+          } else if (/[a-zʃʒʁχʔ]/.test(ch)) {
+            units.push({ sound: ch });
+          }
+        }
+        var vowels = [];
+        units.forEach(function (unit, index) {
+          if (unit.vowel) vowels.push(index);
+        });
+        if (!vowels.length) return "";
+        // Where each syllable starts: one consonant between two vowels opens the next
+        // syllable, and of two or more the first closes the one before.
+        var starts = [0];
+        for (var v = 1; v < vowels.length; v++) {
+          var between = vowels[v] - vowels[v - 1] - 1;
+          starts.push(between < 2 ? vowels[v] - between : vowels[v - 1] + 2);
+        }
+        var syllables = starts.map(function (start, n) {
+          var end = n + 1 < starts.length ? starts[n + 1] : units.length;
+          var out = "";
+          var onset = true;
+          for (var u = start; u < end; u++) {
+            var unit = units[u];
+            var said = unit.sound in table ? table[unit.sound] : unit.sound;
+            if (unit.vowel) {
+              // Russian writes a syllable-initial e as э; after a consonant, е.
+              if (cyrillic && unit.sound === "e" && onset) said = "э";
+              if (unit.stressed && vowels.length > 1)
+                said = cyrillic ? said + "́" : PLAIN_ACUTE[unit.sound] || said;
+            }
+            if (said) onset = false;
+            out += said;
+          }
+          return out;
+        });
+        return syllables.filter(Boolean).join("-");
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+
   // What of this occurrence's reading was guessed rather than read off the text's own
   // marks, as the bits above; 0 where nothing was, or where the page cannot say.
   function guessOf(word) {
@@ -5867,8 +5949,8 @@ var targumReader = function () {
       });
     }
 
-    // How it is said — the IPA bare, its stress mark being the half of the reading a
-    // learner cannot get from the spelling — and, where the page's own recording
+    // How it is said — in letters a learner reads, its stress being the half of the
+    // reading a learner cannot get from the spelling — and, where the page's own recording
     // covers this word, the word itself, said by the voice that read the page.
     var said = readingOf(word);
     var hear = hearFor(word);
@@ -5881,8 +5963,14 @@ var targumReader = function () {
         notation.className = "said";
         var heard = document.createElement("bdi");
         heard.setAttribute("dir", "ltr");
-        heard.setAttribute("lang", "he-fonipa");
-        heard.textContent = syllableStress(said);
+        if (language === "he") {
+          heard.setAttribute("lang", uiLanguage === "ru" ? "he-Cyrl" : "he-Latn");
+          heard.textContent = plainly(said, uiLanguage);
+        } else {
+          // French keeps its IPA: its liaison and its tie are written in it (§12).
+          heard.setAttribute("lang", "he-fonipa");
+          heard.textContent = syllableStress(said);
+        }
         notation.appendChild(heard);
         saying.appendChild(notation);
         // One word after the reading and outside it, where we guessed part of it — the

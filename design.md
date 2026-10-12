@@ -369,6 +369,40 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The card says a Hebrew word in letters you read — 2026-10-12
+
+The pronunciation line on a Hebrew word card was phonikud's IPA, bare: "hithaˈleχ",
+"toldˈot", "ˈkal". A beginner cannot read χ, ʁ or ˈ, and nothing on the card said what
+the line was (known issues 2026-10-12, 1.6). Worse, כָּל, one of the commonest words in
+the Tanakh, read "kal": phonikud says every plain qamats as "a", and a qamats qatan is
+written with the same mark.
+
+- **The line is a romanization now, cut into syllables, with the stressed vowel under an
+  acute**: הִתְהַלֵּךְ is "hit-ha-lékh", תּוֹלְדֹת "tol-dót", כָּל "kol". The
+  acute is how a Russian card already marks stress ("рука́"), so one convention serves
+  both. A word of one syllable carries none. Alef and ayin are not written; the hyphen
+  says a new syllable starts.
+- **In the interface's own alphabet.** Latin for English, Cyrillic for Russian
+  ("хит-ха-ле́х"), because a Russian reader reads Cyrillic first and that is how Russian
+  books for learners of Hebrew write it.
+- **No label.** A word in Latin letters under a Hebrew word, hyphenated and accented,
+  reads as how it is said; a label would be the line's one piece of chrome and say less
+  than the line does. The IPA was the thing that needed a label, and it is gone from the
+  Hebrew card. The build still stores IPA, and the romanization is drawn from it on the
+  page, so nothing is annotated again.
+- **French keeps its IPA** ("The card says the word as it is said here"): its liaison
+  consonant and its tie are written in it.
+- **"inferred" is unchanged.** It follows the romanization exactly as it followed the
+  IPA, for the same reasons.
+- **A closed list says the qamats qatan** (`pronounce.QATAN`): כָּל and a few words whose
+  qamats is qatan wherever they appear (חָכְמָה, אָזְנַיִם, תָּכְנִית, קָרְבָּן, חָפְשִׁי, מָרְדְּכַי,
+  אָמְנָם and their kin). A meteg on that qamats marks it as gadol, and a word carrying
+  one is left alone, except כָּל, which has no reading with "a" for a meteg to choose. It is applied when a page is drawn as well as when a word is read,
+  so a text on the shelf says "kol" at its next render, without being annotated again. A
+  listed word is read off the list, not guessed, so it does not say "inferred"; a
+  qamats qatan guessed by rule would still need its own amendment to "What we inferred
+  says so" first.
+
 ### No word is assumed known — 2026-10-12
 
 David, 2026-10-12: the "assumed known" feature is removed. It is the reversal of "An

@@ -19,6 +19,7 @@ around 12,000 words a second, so a novel is eight seconds.
 from __future__ import annotations
 
 import logging
+import re
 
 from ..vocalize.base import LETTERS, TAAMIM, has_nikkud, has_taamim, strip_taamim
 
@@ -160,6 +161,96 @@ def guessed(
     return flags
 
 
+# The qamats qatan, said "o", is written with the same mark as the qamats gadol, said
+# "a", everywhere except a few editions that use U+05C7 for it. phonikud reads the plain
+# mark as "a", so a pointed Tanakh's כָּל came out "kal" on one of its commonest words
+# (known issues 2026-10-12, 1.6). Telling the two apart in general is a grammar question
+# (a closed syllable without stress), and nothing here can answer it. A closed list can:
+# words whose qamats is qatan in that place wherever they appear. Each row is the stem's
+# consonants (final letters written plain), whether the stem must be the whole word after
+# its prefixes, and where the vowel sits in phonikud's reading, stress marks aside. The
+# qatan is always the stem's first vowel. A meteg on that qamats marks it as gadol, so a
+# word carrying one is never touched, except כל, which has no gadol reading. Modern
+# Hebrew mostly writes these words with a vav (חוכמה, תוכנית), which phonikud already
+# says right. design.md §12, 2026-10-12.
+QAMATS = "\u05b8"
+_FINALS = str.maketrans("ךםןףץ", "כמנפצ")
+_PREFIXES = frozenset("ובלמהשכ")
+QATAN: tuple[tuple[str, bool, str], ...] = (
+    ("כל", True, r"[kχ](a)l$"),  # kol, all
+    ("חכמ", False, r"χ(a)χm"),  # chochma, wisdom
+    ("אזנ", False, r"ʔ(a)zn"),  # ozen, ear: oznayim, ozno
+    ("תכני", False, r"t(a)χn"),  # tochnit, plan
+    ("צרכ", False, r"ts(a)ʁχ"),  # tsorech, need: tsorchei
+    ("קרבנ", False, r"k(a)ʁb"),  # korban, offering
+    ("חפשי", False, r"χ(a)fʃ"),  # chofshi, free
+    ("מרדכי", True, r"m(a)ʁd"),  # Mordechai
+    ("אמנמ", True, r"ʔ(a)mn"),  # omnam, indeed
+    ("אפני", False, r"ʔ(a)fn"),  # ofanayim, bicycle
+)
+STRESS_MARK = "\u02c8"
+
+
+def _clusters(word: str) -> list[tuple[str, str]]:
+    """Each Hebrew letter of a word with the marks after it."""
+    out: list[tuple[str, str]] = []
+    for char in word:
+        if ord(char) in LETTERS:
+            out.append((char, ""))
+        elif out and 0x0591 <= ord(char) <= 0x05C7:
+            out[-1] = (out[-1][0], out[-1][1] + char)
+    return out
+
+
+def _listed(written: str) -> str | None:
+    """The reading pattern of the closed-list row this word is, or None."""
+    clusters = _clusters(strip_taamim(written))
+    skeleton = "".join(letter for letter, _ in clusters).translate(_FINALS)
+    bare = not has_nikkud(written)
+    for stem, whole, pattern in QATAN:
+        for start in range(3):
+            if start >= len(skeleton) or (start and skeleton[start - 1] not in _PREFIXES):
+                break
+            rest = skeleton[start:]
+            if not rest.startswith(stem) or (whole and rest != stem):
+                continue
+            if bare:
+                # Bare, only the one word that cannot be anything else.
+                if stem == "כל" and not start:
+                    return pattern
+                continue
+            marks = clusters[start][1]
+            # כָּל is kol with or without one: a Masoretic text puts a gaya on it before
+            # a maqaf, and כל has no reading with "a" for a meteg to be choosing.
+            if QAMATS in marks and (METEG not in marks or stem == "כל"):
+                return pattern
+    return None
+
+
+def qatan(written: str, reading: str) -> str:
+    """The reading with a known qamats qatan said "o" rather than "a".
+
+    `written` is the word as pointed. Unchanged unless the word is on the closed list
+    above, its qamats is where the list says and carries no meteg, and the reading has
+    the "a" where the list expects it.
+    """
+    pattern = _listed(written) if reading else None
+    if pattern is None:
+        return reading
+    found = re.search(pattern, reading.replace(STRESS_MARK, ""))
+    if found is None:
+        return reading
+    # Back to the reading's own index, past the stress marks before it.
+    seen = -1
+    for index, char in enumerate(reading):
+        if char == STRESS_MARK:
+            continue
+        seen += 1
+        if seen == found.start(1):
+            return reading[:index] + "o" + reading[index + 1 :]
+    return reading
+
+
 def supports(language: str) -> bool:
     return language in LANGUAGES
 
@@ -244,7 +335,7 @@ class PhonikudPronouncer:
             # what it could not read, which is what it does with Latin and with anything
             # it has no rule for. Nothing is learned from showing it.
             if said and said != word:
-                out[surface] = said
+                out[surface] = qatan(surface, said)
         if failed:
             LOG.warning("no reading for %d of %d words", failed, len(surfaces))
         return out
