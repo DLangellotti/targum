@@ -376,6 +376,64 @@ def test_a_text_the_catalogue_never_heard_of_still_gets_a_row() -> None:
     assert row["cover"]["letter"] == "כ", "and rests on the text's own letter"
 
 
+DAILY = "/tanakh-yomi/2026-10-12/reader/sec-0001.html"
+NOACH = "/parasha/read/noach-he/reader/index.html"
+
+
+def test_a_portion_you_read_is_on_recent_though_it_is_on_no_shelf() -> None:
+    """known-issues 1.17: a Torah portion and a daily page are not library folders, so
+    `/readers` never lists them and Recent left out the portion home said was finished.
+    Their places name them, the account's row or this browser's record of the text."""
+    stored = {
+        "targum:opened": json.dumps({"article-he": 1000}),
+        "targum:places": json.dumps(
+            {
+                "daily1": {"section": "1", "path": DAILY, "at": 3000},
+                "gone1": {"section": "1", "path": "/reader/deleted-he/reader/index.html", "at": 9},
+            }
+        ),
+        "targum:docs": json.dumps(
+            {
+                "noach1": {"title": "נֹחַ", "language": "he", "done": 5000, "sections": {"1": 5000}},
+                "daily1": {"title": "יהושע א", "language": "he", "sections": {}},
+            },
+            ensure_ascii=False,
+        ),
+    }
+    drawn = draw(
+        stored,
+        which="texts",
+        readers=[reader("article-he", "כתבה")],
+        places=[
+            {
+                "hash": "noach1",
+                "section": "7",
+                "path": "/parasha/read/noach-he/reader/sec-0007.html",
+                "at": 5000,
+                "title": "נֹחַ",
+                "language": "he",
+            }
+        ],
+    )
+    rows = drawn["shelf"]
+    assert [row["title"] for row in rows] == ["נֹחַ", "יהושע א", "כתבה"], "newest first"
+    assert rows[0]["status"] == "Finished"
+    assert rows[0]["href"].startswith("/parasha/read/noach-he/reader/sec-0007.html")
+    assert rows[0]["controls"] == [], "nothing to add, buy or delete"
+    assert rows[1]["status"] == "Started"
+    assert "/account/places?limit=20" in drawn["asked"]
+
+
+def test_a_portion_alone_is_a_shelf_and_not_an_empty_page() -> None:
+    """A reader whose only reading so far is a portion has something under Recent."""
+    stored = {
+        "targum:docs": json.dumps({"noach1": {"title": "נֹחַ", "language": "he"}}, ensure_ascii=False)
+    }
+    places = [{"hash": "noach1", "section": "1", "path": NOACH, "at": 5}]
+    drawn = draw(stored, which="texts", places=places)
+    assert [row["title"] for row in drawn["shelf"]] == ["נֹחַ"]
+
+
 # --- the practice card (design.md §12, "Your Words is one table and a practice card",
 #     2026-10-09) ----------------------------------------------------------------------
 #
