@@ -171,6 +171,28 @@ def load_book(name: str, root: Path | None = None) -> Book:
     return book_in(name, root / f"{slug(hebrew)}-he")
 
 
+def on_shelf(reading: Reading | Haftarah, root: Path | None = None) -> bool:
+    """Whether every book a reading touches is built, without reading any of them.
+
+    For the build to know which readings it will cut before it cuts the first: a reader
+    is linked to the portions either side of it, and a link to one whose book is not on
+    the shelf would open a 404. The same three files `book_in` refuses to go without.
+    """
+    from ..ids import slug
+
+    root = root or library_root()
+    for name in reading.books:
+        hebrew = BOOKS.get(name) or NEVIIM.get(name)
+        if hebrew is None:
+            return False
+        folder = root / f"{slug(hebrew)}-he"
+        if not (folder / "document.json").is_file() or not (folder / "segments.json").is_file():
+            return False
+        if not any((folder / "translations").glob("*.json")):
+            return False
+    return True
+
+
 def book_in(name: str, folder: Path) -> Book:
     """One built text, read off the disk. Shared with `daily/cut.py`, which finds its
     folder a different way — off the catalogue rather than off a table of five books —
