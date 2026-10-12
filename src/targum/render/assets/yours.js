@@ -143,6 +143,83 @@
     return readers;
   }
 
+  /* Texts read that are on no shelf (known-issues 1.17): a Torah portion and a daily
+     page are cut once for everybody and served from their own addresses, so `/readers`
+     never lists them and Recent left out the portion home said was finished. Their places
+     name them — the account's rows carry the title, and this browser's own record of the
+     text names it where the account has not yet heard (targum#768) — so each is a row
+     here too, newest place first, opening where the reader left off. Only addresses that
+     are not a reader folder: a folder's text is on the shelf or was taken off it, and a
+     text taken off stays off. */
+  var KINDS_BY_PATH = [
+    [/^\/parasha\//, "prose"],
+    [/^\/(tanakh-yomi|nach-yomi)\//, "prose"],
+    [/^\/tehillim\//, "poetry"],
+  ];
+
+  function away(theirs, readers) {
+    var places = stored("targum:places");
+    var docs = stored("targum:docs");
+    var all = {};
+    Object.keys(places).forEach(function (hash) {
+      all[hash] = Object.assign({}, places[hash] || {});
+    });
+    (theirs || []).forEach(function (row) {
+      if (!row || !row.hash) return;
+      var mine = all[row.hash];
+      if (!mine || Number(row.at || 0) > Number(mine.at || 0)) {
+        all[row.hash] = Object.assign({}, row, {
+          title: row.title || (mine && mine.title) || "",
+          language: row.language || (mine && mine.language) || "",
+        });
+      } else {
+        mine.title = mine.title || row.title || "";
+        mine.language = mine.language || row.language || "";
+      }
+    });
+    var have = {};
+    readers.forEach(function (reader) {
+      if (reader.document) have[reader.document] = true;
+    });
+    var rows = [];
+    Object.keys(all).forEach(function (hash) {
+      var place = all[hash] || {};
+      var path = String(place.path || "");
+      if (have[hash] || !path || path.indexOf("/reader/") === 0 || path.charAt(0) !== "/") return;
+      var doc = docs[hash] || {};
+      var title = place.title || doc.title || "";
+      var language = place.language || doc.language || "";
+      if (!title || !language) return;
+      var kind = "";
+      KINDS_BY_PATH.forEach(function (pair) {
+        if (!kind && pair[0].test(path)) kind = pair[1];
+      });
+      rows.push({
+        document: hash,
+        name: "",
+        title: title,
+        language: language,
+        kind: kind,
+        href: path,
+        opened: Number(place.at || 0) || Number(doc.updated || 0),
+        shared: true,
+        away: true,
+      });
+    });
+    return rows;
+  }
+
+  function accountPlaces() {
+    return ask("/account/places?limit=20")
+      .then(function (answer) {
+        return (answer && answer.places) || [];
+      })
+      .catch(function () {
+        // Signed out, or the box went away: this browser's own places are all there are.
+        return [];
+      });
+  }
+
   /* --- sifting the shelf (design.md §12, "Your targums has tabs", 2026-09-26) ----------
    *
    * Two tabs over one shelf — everything of yours, and only what you brought — then a
@@ -328,13 +405,16 @@
     };
     return Promise.all([caughtUp().then(function () {
       return ask("/readers");
-    }), jobs()]).then(function (both) {
+    }), jobs(), accountPlaces()]).then(function (both) {
       var readers = gather(both[0], opened);
       var trash = (both[0] && both[0].trash) || [];
       var building = shelf.building((both[1] && both[1].jobs) || []);
+      // Portions and daily pages, for Recent only: home draws its own Continue from the
+      // places, so they are kept out of the readers it is handed.
+      var elsewhere = away(both[2], readers);
 
       var codes = [lang.HOME];
-      readers.concat(building).forEach(function (thing) {
+      readers.concat(building, elsewhere).forEach(function (thing) {
         var code = shelf.base(thing.language);
         if (code && codes.indexOf(code) < 0) codes.push(code);
       });
@@ -345,7 +425,7 @@
          `home.js` draws them. A reader with nothing yet still has a page: it says what
          will appear here, and offers one to start with and the upload. */
       var home = window.TargumHome || null;
-      var nothingYet = !readers.length && !building.length;
+      var nothingYet = !readers.length && !building.length && !elsewhere.length;
       var tabStrip = document.getElementById("yours-tabs");
       // Subscriptions answer even with nothing on the shelf: a reader may subscribe
       // before they open anything (design.md §12, 2026-10-09).
@@ -399,7 +479,7 @@
               ? t("yours.list.uploads", "Uploaded by you")
               : t("yours.list.all", "All your targums");
         }
-        var mine = readers.filter(function (reader) {
+        var mine = readers.concat(elsewhere).filter(function (reader) {
           return shelf.base(reader.language) === shown && onTab(reader);
         });
         find.hidden = mine.length < SIFT_FROM;

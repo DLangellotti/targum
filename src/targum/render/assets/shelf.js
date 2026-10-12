@@ -345,7 +345,8 @@
        keyboard (2026-09-27). */
     var link = document.createElement("a");
     link.className = "book-open";
-    link.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
+    // A portion or a daily page has an address of its own, not a folder (`yours.js`).
+    link.href = keyed(reader.href || "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
     item.appendChild(
       window.TargumCovers.picture(reader, { keyed: keyed, className: "thumb row-thumb" })
     );
@@ -372,7 +373,9 @@
     var controls = document.createElement("span");
     controls.className = "row-controls";
     if (!reader.shared) controls.appendChild(listLink(reader));
-    controls.appendChild(more(reader, item));
+    // Nothing to put under ⋯ for a portion or a daily page: no playlist takes it by
+    // folder, it has no chapters to buy and nothing to delete.
+    if (!reader.away) controls.appendChild(more(reader, item));
     item.appendChild(controls);
     return item;
   }
@@ -537,6 +540,13 @@
    * recorded (`targum:docs`), the same record Learn's progress reads. */
   function status(reader, docs) {
     var record = (reader.document && docs[reader.document]) || null;
+    // A portion or a daily page is not on the shelf, so how many parts it has is not
+    // known here: finished when the reader's record says so, and started until then.
+    if (reader.away) {
+      return record && record.done
+        ? { kind: "finished", said: t("shelf.status.finished", "Finished") }
+        : { kind: "reading", said: t("shelf.status.started", "Started") };
+    }
     var total = (reader.chapters && reader.chapters.length) || reader.sections || 1;
     var done = 0;
     if (record && record.sections && typeof record.sections === "object") {

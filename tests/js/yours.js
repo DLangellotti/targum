@@ -139,6 +139,10 @@ global.fetch = (url, options) => {
   // What the server knows about the list (design.md §12, "Your Words is one table and
   // a practice card", 2026-10-09). Signed out, refused.
   if (clean.indexOf("/account/words") === 0) answer = payload.facts || { signedIn: false };
+  // Where the reader left off (targum-internal#430): signed out, refused.
+  if (clean.indexOf("/account/places") === 0) {
+    answer = payload.places ? { signedIn: true, places: payload.places } : { signedIn: false };
+  }
   return Promise.resolve({ ok: true, json: () => Promise.resolve(answer) });
 };
 
@@ -235,6 +239,7 @@ function shelf() {
     return {
       cover: tile(cells),
       title: part("book-title"),
+      href: ((deep(what, "book-open") || { attrs: {} }).attrs || {}).href || (deep(what, "book-open") || {}).href || "",
       english: part("book-english"),
       facts: part("book-facts"),
       // The tag on a build; the quiet line's own status on a text (board Main, P4).
