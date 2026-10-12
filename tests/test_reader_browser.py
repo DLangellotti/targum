@@ -5315,10 +5315,12 @@ def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) 
 # contents page has to send it on to the file that holds the chapter.
 
 
-def tanakh(out: Path) -> Path:
+def tanakh(out: Path, accented: bool = False) -> Path:
     """A built book: two chapters of sixty verses under their headings, each verse with
     its ref, the way `sefaria/3` ingests one. From chapter 2, because a range does not
-    start at one and the file that holds a chapter is not the chapter's number."""
+    start at one and the file that holds a chapter is not the chapter's number.
+    `accented` puts an etnahta in each verse, which is what makes a page scripture's,
+    with the credit that says so at its foot."""
     segments: list[Segment] = []
     for chapter in (2, 3):
         n = len(segments)
@@ -5336,6 +5338,8 @@ def tanakh(out: Path) -> Path:
         for number in range(1, 61):
             n = len(segments)
             words = [coin(n * 16 + i) for i in range(14)]
+            if accented:
+                words[6] = words[6][:1] + "\u0591" + words[6][1:]
             segments.append(
                 Segment(
                     id=f"{n:04d}.000-aaaaaa",
@@ -5361,7 +5365,18 @@ def tanakh(out: Path) -> Path:
         provider="null",
         segments={s.id: f"And it came to pass ({s.ref or s.text})." for s in segments},
     )
-    render(document, segmented, [translation], out)
+    vocalization = (
+        Vocalization(
+            document_hash="h",
+            language="he",
+            vocalizer="test/1",
+            segments={s.id: s.text for s in segments if s.kind is BlockKind.verse},
+            machine=[],
+        )
+        if accented
+        else None
+    )
+    render(document, segmented, [translation], out, vocalization=vocalization)
     return out
 
 
@@ -5398,6 +5413,50 @@ VERSE_SHOWN = """
   return box.top >= 0 && box.bottom <= window.innerHeight;
 }
 """
+
+
+CREDITS_CLEAR = """
+() => {
+  const band = Math.min(
+    ...['#turn', '#list-tab', '#player']
+      .map((s) => document.querySelector(s))
+      .filter((e) => e && e.getClientRects().length)
+      .map((e) => e.getBoundingClientRect().top)
+  );
+  const credits = document.getElementById('credits');
+  const pager = document.querySelector('.pager');
+  return {
+    band,
+    bottom: credits.getBoundingClientRect().bottom,
+    gap: pager ? credits.getBoundingClientRect().top - pager.getBoundingClientRect().bottom : null,
+    direction: getComputedStyle(credits).direction,
+  };
+}
+"""
+
+
+def test_the_credits_stand_clear_of_the_arrows_on_a_phone_s_last_page(
+    browser, tmp_path: Path
+) -> None:
+    """Known issues 2026-10-12, 1.7. On a phone the Done line, the pager and the credits
+    each kept the room the arrows need, so the three stood too tall for the last page and
+    the credits were drawn under the arrows and the words tab; and laid out right to left
+    on a Hebrew page, the English sentence read ".on a c" on its last line."""
+    context = opened(browser, viewport=PHONE, scrolling=False)
+    page = context.new_page()
+    page.goto(address(tanakh(tmp_path / "reader", accented=True) / "sec-0001.html"))
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    pages = int(page.inner_text("#page-of").split()[-1])
+    for _ in range(pages - 1):
+        page.click(".turn .forward")
+    page.wait_for_function("() => document.body.classList.contains('last-page')")
+    page.wait_for_timeout(200)
+    clear = page.evaluate(CREDITS_CLEAR)
+    context.close()
+
+    assert clear["bottom"] <= clear["band"], clear
+    assert clear["gap"] < 48, "the credits stand under the pager, not a screen below it"
+    assert clear["direction"] == "ltr", "the chrome's sentences read left to right"
 
 
 @pytest.mark.parametrize("hash", ["#2:55", "#2.55"])
@@ -5575,6 +5634,8 @@ def portion(out: Path, onkelos: bool = False) -> Path:
         for number in numbers:
             n = len(segments)
             words = [coin(n * 16 + i) for i in range(14)]
+            if accented:
+                words[6] = words[6][:1] + "\u0591" + words[6][1:]
             segments.append(
                 Segment(
                     id=f"{n:04d}.000-aaaaaa",
