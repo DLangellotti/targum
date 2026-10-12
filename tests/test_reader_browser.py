@@ -2548,6 +2548,9 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
         )
 
     page.route("**/known-ahead*", answer)
+    # A reader whose first finish in Hebrew already went home (design.md §12, "The first
+    # finish goes home"): this moment is said where a finish stays in place.
+    page.add_init_script("localStorage.setItem('targum:went-home:he', '1')")
     # With a key, as a page served by targum is: it is what lets a page ask anything.
     page.goto(address(first) + "?k=test")
     page.wait_for_selector(".pair")

@@ -45,6 +45,12 @@
       rows, as board Main draws them. `yours.js` moves the one strip between the two. -#}
   <div class="yours-top" id="yours-top" hidden></div>
 
+  {#- What the press at the foot of a text did, where it landed the reader: the first
+      finish in a language comes home (design.md §12, "The first finish goes home",
+      2026-10-12). Once and briefly, with the one Undo that takes it back. `home.js`
+      draws it from `landed.js`. -#}
+  <p class="arrived" id="arrived" role="status" hidden><span id="arrived-said"></span> <button type="button" id="arrived-undo">{{ t("reader.finish.undo", "Undo") }}</button></p>
+
   {#- Welcome back (design.md §12, "Home says welcome back after a week away", 2026-10-09;
       boards WelcomeBackDesk and WelcomeBackPhone): after seven days or more with no place
       moved, the line, the text they stopped in as one large card, and the words due a
@@ -309,6 +315,7 @@ window.TARGUM_LIST = "{{ which }}";
 <script>{{ asset('claim.js') }}</script>
 {%- endif %}
 {%- if which == 'texts' %}
+<script>{{ asset('landed.js') }}</script>
 <script>{{ asset('home.js') }}</script>
 {%- endif %}
 <script>{{ asset('yours.js') }}</script>
