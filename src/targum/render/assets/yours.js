@@ -296,6 +296,29 @@
     return latest(b, opened) - latest(a, opened) || latest(b, built) - latest(a, built);
   }
 
+  /* The account hears what this browser holds before the shelf is measured against it
+     (QA, 2026-10-12). The first Done in a language comes straight here, and its marks were
+     still on their way: the line said "+79 known · 98%" over a card that said "You know
+     0%". Only when something is owed, so a home with nothing new asks at once, and never
+     for longer than a few seconds: a slow push costs the figure, not the page. */
+  var CAUGHT_UP_MS = 4000;
+  function caughtUp() {
+    var sync = window.TargumSync;
+    var owed = 0;
+    try {
+      owed = sync && sync.owed && sync.flush ? sync.owed() : 0;
+    } catch (e) {
+      owed = 0;
+    }
+    if (!owed) return Promise.resolve();
+    return Promise.race([
+      Promise.resolve(sync.flush()).catch(function () {}),
+      new Promise(function (resolve) {
+        setTimeout(resolve, CAUGHT_UP_MS);
+      }),
+    ]);
+  }
+
   function drawTexts() {
     var opened = stored("targum:opened");
     var jobs = function () {
@@ -303,7 +326,9 @@
         return {};
       });
     };
-    return Promise.all([ask("/readers"), jobs()]).then(function (both) {
+    return Promise.all([caughtUp().then(function () {
+      return ask("/readers");
+    }), jobs()]).then(function (both) {
       var readers = gather(both[0], opened);
       var trash = (both[0] && both[0].trash) || [];
       var building = shelf.building((both[1] && both[1].jobs) || []);

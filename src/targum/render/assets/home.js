@@ -128,6 +128,45 @@
     return /^\d+$/.test(section) ? Number(section) : 0;
   }
 
+  /* Where a card picks up: the place, unless the part it is in has been finished, and
+     then the next part not finished (QA, 2026-10-12: "Pick up at chapter 1" under the
+     line that said chapter 1 was finished). A finish writes no place of its own — the
+     place is where the reader was when they pressed Done — so the record of finished
+     parts is what says the place is behind them. Answers `{ n, path }`, `n` counted from
+     one, or null where the place stands. */
+  function nextUnfinished(reader, place, docs) {
+    if (!reader || !place || !place.section) return null;
+    var record = (reader.document && docs && docs[reader.document]) || null;
+    var finished = (record && record.sections) || {};
+    if (!finished[place.section]) return null;
+    var chapters = reader.chapters || [];
+    if (chapters.length) {
+      var from = partNumber(reader, place);
+      if (!from) return null;
+      for (var i = from; i < chapters.length; i++) {
+        var chapter = chapters[i] || {};
+        if (finished[String(chapter.number)]) continue;
+        if (!chapter.ready || !chapter.file) return null;
+        var path = String(place.path || "");
+        var cut = path.lastIndexOf("/");
+        return { n: i + 1, path: cut >= 0 ? path.slice(0, cut + 1) + chapter.file : "" };
+      }
+      return null;
+    }
+    // A long text's parts, numbered as its pages are: `sec-0003.html`.
+    var number = /^\d+$/.test(place.section) ? Number(place.section) : 0;
+    var page = /^(.*\/sec-)(\d+)(\.html)$/.exec(String(place.path || ""));
+    if (!number || !page) return null;
+    var total = partsOf(reader);
+    for (var n = number + 1; n <= total; n++) {
+      if (finished[String(n)]) continue;
+      var digits = String(n);
+      while (digits.length < page[2].length) digits = "0" + digits;
+      return { n: n, path: page[1] + digits + page[3] };
+    }
+    return null;
+  }
+
   /* --- where the reader left off ----------------------------------------------------- */
 
   /* The account's places and this browser's, newest per text. A place the account has and
@@ -140,7 +179,17 @@
     (theirs || []).forEach(function (row) {
       if (!row || !row.hash || !row.section) return;
       var mine = all[row.hash];
-      if (mine && Number(mine.at || 0) >= Number(row.at || 0)) return;
+      if (mine && Number(mine.at || 0) >= Number(row.at || 0)) {
+        // This browser's place is newer, and it carries no title: the reader writes the
+        // part and the sentence, never the name. The account's row does, and a text that
+        // is not on the shelf — a Torah portion, a daily page — is named by nothing else.
+        if (!mine.title && row.title) {
+          mine.title = row.title;
+          mine.language = mine.language || row.language || "";
+          touched = true;
+        }
+        return;
+      }
       all[row.hash] = {
         section: String(row.section),
         path: row.path || "",
@@ -157,17 +206,22 @@
         window.targumKeep(PLACES, JSON.stringify(all));
       } catch (e) {}
     }
+    // And this browser's own record of the text, which the reader names as it opens:
+    // a portion read on this browser and not yet synced is still a card to come back to
+    // (QA, 2026-10-12: a finished Noach was on no card, though home said it was finished).
+    var docs = stored("targum:docs");
     return Object.keys(all)
       .map(function (hash) {
         var place = all[hash] || {};
+        var doc = docs[hash] || {};
         return {
           hash: hash,
           section: String(place.section || ""),
           path: place.path || "",
           seconds: Number(place.seconds || 0),
           at: Number(place.at || 0),
-          title: place.title || "",
-          language: place.language || "",
+          title: place.title || doc.title || "",
+          language: place.language || doc.language || "",
         };
       })
       .sort(function (a, b) {
@@ -292,12 +346,18 @@
     var place = card.place;
     var item = el("li", "card home-card");
     var link = el("a", "home-card-open");
-    var href = place && place.path ? place.path : "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html";
+    var ahead = nextUnfinished(card.reader, place, docs);
+    var href =
+      ahead && ahead.path
+        ? ahead.path
+        : place && place.path
+          ? place.path
+          : "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html";
     link.href = keyed(href);
     item.appendChild(coverFor(card.reader, reader.title, reader.language, place && place.path));
 
     var total = partsOf(reader);
-    var at = partNumber(reader, place);
+    var at = ahead && ahead.path ? ahead.n : partNumber(reader, place);
     var what = kindWord(reader);
     if (total > 1 && at) what = t("home.card.part-of", "{kind} · part {n} of {total}", { kind: what, n: at, total: total });
     // The tag is what it is and which part (board Main: "Video · part 4 of 4"), an
@@ -327,7 +387,7 @@
 
     var go;
     var medium = mediumOf(reader);
-    if (place && place.seconds > 0 && medium !== "read") {
+    if (place && place.seconds > 0 && medium !== "read" && !(ahead && ahead.path)) {
       go = t("home.card.pick-up-at-time", "Pick up at {time}", { time: clock(place.seconds) });
     } else if (place && total > 1 && at && reader.chapters && reader.chapters.length) {
       // A book's or a Tanakh book's part is a chapter (board Main: "Pick up at chapter 2").
@@ -1000,6 +1060,8 @@
     draw: draw,
     // For the tests: what Continue would hold, without the page.
     gather: gatherContinue,
+    next: nextUnfinished,
+    places: mergePlaces,
     welcomeBack: welcomeBack,
     language: function () {
       return lang && lang.current ? lang.current(lang.learning ? lang.learning() : ["he"]) : "he";
