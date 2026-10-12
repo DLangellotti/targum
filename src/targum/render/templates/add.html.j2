@@ -163,7 +163,7 @@
                the page forget it on every visit, which for anyone who reads into anything
                but English was a wrong answer waiting to be submitted. -#}
             <select id="to">
-              {% for one in into %}<option value="{{ one.code }}">{{ one.name }} ({{ one.label }})</option>{% endfor %}
+              {% for one in into %}<option value="{{ one.code }}">{{ one.name }}{% if one.label %} ({{ one.label }}){% endif %}</option>{% endfor %}
             </select>
           </label>
         </div>

@@ -20,6 +20,9 @@ const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 const told = [];
 install({
   TARGUM_LANGUAGES: { he: "Hebrew", yi: "Yiddish", arc: "Aramaic" },
+  // The badge table the nav writes into every page (`stages.DECLARED`); the Python test
+  // passes the real one, so this file carries no copy of it.
+  TARGUM_STAGES: payload.stages || {},
   stored: payload.stored || {},
   TargumSync: { language: (code) => told.push(code) },
   CustomEvent: function (type, init) {

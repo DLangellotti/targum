@@ -1,0 +1,101 @@
+{
+ "measured": "2026-10-12",
+ "levels": [
+  "A1",
+  "A2",
+  "B1",
+  "B2+"
+ ],
+ "languages": {
+  "arc": {
+   "A1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "A2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B2+": {
+    "texts": 0,
+    "recordings": 0
+   }
+  },
+  "fr": {
+   "A1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "A2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B2+": {
+    "texts": 0,
+    "recordings": 0
+   }
+  },
+  "he": {
+   "A1": {
+    "texts": 59,
+    "recordings": 59
+   },
+   "A2": {
+    "texts": 25,
+    "recordings": 25
+   },
+   "B1": {
+    "texts": 28,
+    "recordings": 21
+   },
+   "B2+": {
+    "texts": 102,
+    "recordings": 22
+   }
+  },
+  "it": {
+   "A1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "A2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B2+": {
+    "texts": 2,
+    "recordings": 0
+   }
+  },
+  "ru": {
+   "A1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "A2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B2+": {
+    "texts": 17,
+    "recordings": 0
+   }
+  }
+ }
+}

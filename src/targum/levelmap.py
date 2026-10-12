@@ -214,6 +214,37 @@ def tally(
     return dict(sorted(shelves.items(), key=lambda item: (-item[1].total, item[0])))
 
 
+#: The media that count as a recording, for the stage standard's shelf floors.
+RECORDED: tuple[str, ...] = ("audio", "video")
+
+
+def cefr_rows(shelf: Shelf) -> dict[str, tuple[int, int]]:
+    """The shelf on CEFR levels, as the stage standard states its floors (design.md §12,
+    "A badge is a promise, checked", 2026-10-12): texts and texts with a recording at each.
+
+    The ruler is the one above — three levels by hard share and sentence length — and the
+    mapping is stated rather than measured: a text meeting the Easy spec in full is A1,
+    the rest of Easy is A2, Simplified is B1, and Native is one level, B2 and up, until
+    there is a better ruler than a median nobody measured (David, 2026-10-12). The Easy
+    spec is a subset of Easy, so A2 is Easy less the spec.
+    """
+    easy = [shelf.cells[(Level.aleph.value, how)] for how in MEDIA]
+    spec = [shelf.easy[how] for how in MEDIA]
+    simplified = [shelf.cells[(Level.bet.value, how)] for how in MEDIA]
+    native = [shelf.cells[(Level.gimel.value, how)] for how in MEDIA]
+    recorded = [MEDIA.index(how) for how in RECORDED]
+
+    def counted(cells: list[int]) -> tuple[int, int]:
+        return sum(cells), sum(cells[at] for at in recorded)
+
+    return {
+        "A1": counted(spec),
+        "A2": counted([have - met for have, met in zip(easy, spec, strict=True)]),
+        "B1": counted(simplified),
+        "B2+": counted(native),
+    }
+
+
 def rows(shelf: Shelf) -> list[tuple[str, list[int]]]:
     """The shelf as printable rows: a label and one count per medium, then the total."""
     labelled = [(level.value, LEVELS[level].name) for level in Level] + [(UNMEASURED, "Unmeasured")]

@@ -636,9 +636,10 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     # QA 2026-10-11: the bell was 30px wide under a thumb, and the account's reach was
     # clipped to its circle by `overflow: hidden`.
     assert got["bell"] and got["avatar"], f"the bell and the account reach 44px: {got}"
-    # How far along each language is, a badge and nothing more (design.md §12, 2026-10-09).
+    # How far along each language is, a badge and nothing more (design.md §12, 2026-10-09),
+    # from the one table the test in `test_stages.py` holds to the facts (2026-10-12).
     assert got["worn"] == "Beta", got
-    assert got["listed"] == [["he", "Beta"], ["it", "Alpha"]], got
+    assert got["listed"] == [["he", "Beta"], ["it", "Experimental"]], got
 
 
 def _arrival_page(
@@ -747,7 +748,9 @@ def test_the_arrival_is_the_screen_on_a_phone(browser, width: int) -> None:
     assert got["footFixed"] == "fixed" and got["footInView"], got
     assert got["filled"] == ["arrival-done"], f"Continue is the one filled press: {got}"
     assert got["cards"] == 6 and got["tall"] and got["clearOfFoot"], got
-    assert got["badges"] == ["Beta", "Alpha", "Alpha", "Alpha", "Experimental", "Experimental"]
+    # Hebrew keeps its Beta by decision; the rest wear what they have earned (design.md
+    # §12, "A badge is a promise, checked", 2026-10-12).
+    assert got["badges"] == ["Beta"] + ["Experimental"] * 5
     assert got["chrome"] == [], got
     assert not got["sideways"]
 
