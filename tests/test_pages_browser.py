@@ -3274,3 +3274,57 @@ def test_your_level_is_shown_whole_on_a_desk(browser, language: str) -> None:
     finally:
         context.close()
     assert fits["text"] <= fits["room"], _json.dumps({"label": longest, **fits})
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_a_pressed_shelf_card_asks_inside_itself(browser, width: int) -> None:
+    """Signed-in walk 2026-10-12, m1: a card pressed on a shelf drew Start reading and Not
+    now under its own bottom edge, the card stopped filling its cell, and it said "Ready
+    in a moment." beside a press nobody had made yet. The presses sit inside the card's
+    surface now, the line says how long it takes, and Not now puts the card back."""
+    html = library_page(TOKEN, language="en")
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        elif "/jobs" in request.url:
+            body = {"jobs": []}
+        elif "/prepare" in request.url:
+            body = {"id": "j1", "estimate": 0}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+    try:
+        page.route("http://library.test/**", answer)
+        page.goto(f"http://library.test/library?k={TOKEN}")
+        page.wait_for_selector(".band-card[data-build]")
+        page.locator(".band-card[data-build]").first.click()
+        page.wait_for_selector(".band-item.asking .row-go")
+        laid = page.evaluate(
+            """() => {
+              const item = document.querySelector('.band-item.asking');
+              const box = (e) => e.getBoundingClientRect();
+              const surface = getComputedStyle(item).backgroundColor;
+              return {
+                item: box(item).toJSON(),
+                go: box(item.querySelector('.row-go')).toJSON(),
+                not: box(item.querySelector('.row-not')).toJSON(),
+                surface: surface,
+                said: item.querySelector('.row-state').textContent,
+              };
+            }"""
+        )
+        for press in ("go", "not"):
+            assert laid[press]["bottom"] <= laid["item"]["bottom"], (press, laid)
+            assert laid[press]["right"] <= laid["item"]["right"], (press, laid)
+        assert laid["surface"] not in ("rgba(0, 0, 0, 0)", "transparent"), "the card's surface"
+        assert laid["said"] == "It takes a moment."
+        page.locator(".band-item.asking .row-not").click()
+        assert page.locator(".band-item.asking").count() == 0
+        assert page.locator(".band-ask").count() == 0
+    finally:
+        context.close()

@@ -1949,7 +1949,7 @@
 
   // How long it will take, in the reader's minutes, and the press that starts it.
   function waitFor(job) {
-    if (!job.estimate) return t("library.wait.moment", "Ready in a moment.");
+    if (!job.estimate) return t("library.wait.moment", "It takes a moment.");
     var mins = Math.max(1, Math.round((job.total || job.segments || 0) / 25));
     var chapter = job.chapters > 1;
     if (mins <= 1) {
@@ -1977,11 +1977,22 @@
         : entry && entry.kind === "talk"
           ? t("library.build.start-listening", "Start listening")
           : t("library.build.start-reading", "Start reading");
-      var go = el("button", "row-go", starting);
+      // A card on a shelf holds the press inside its own surface (signed-in walk
+      // 2026-10-12, m1): appended under the card, the two buttons sat below its edge, the
+      // card stopped filling its cell, and every other card on the row grew tall and empty.
+      // The item takes the card's surface while it asks, and the presses sit side by side
+      // in it, in the desk's one button. A See all row keeps its own layout.
+      var card = item && item.classList && item.classList.contains("band-item");
+      var go = el("button", card ? "row-go btn filled small" : "row-go", starting);
       go.type = "button";
-      var not = el("button", "row-not", t("library.build.not-now", "Not now"));
+      var not = el("button", card ? "row-not btn ghost small" : "row-not", t("library.build.not-now", "Not now"));
       not.type = "button";
+      var holder = card ? el("span", "band-ask") : item;
       function done(answer) {
+        if (card) {
+          item.classList.remove("asking");
+          if (holder.parentNode) holder.parentNode.removeChild(holder);
+        }
         if (go.parentNode) go.parentNode.removeChild(go);
         if (not.parentNode) not.parentNode.removeChild(not);
         resolve(answer);
@@ -1992,8 +2003,12 @@
       not.onclick = function () {
         done(false);
       };
-      item.appendChild(go);
-      item.appendChild(not);
+      holder.appendChild(go);
+      holder.appendChild(not);
+      if (card) {
+        item.classList.add("asking");
+        item.appendChild(holder);
+      }
       if (go.focus) go.focus();
     });
   }

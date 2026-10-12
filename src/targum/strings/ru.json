@@ -493,7 +493,7 @@
   "library.build.almost": "Почти готово…",
   "library.build.getting-ready": "Готовим…",
   "library.build.could-not-start": "Не удалось начать. Попробуйте ещё раз.",
-  "library.wait.moment": "Будет готово вот-вот.",
+  "library.wait.moment": "Это займёт минутку.",
   "library.wait.chapter-minute": "Первая глава будет готова примерно через минуту.",
   "library.wait.minute": "Будет готово примерно через минуту.",
   "library.wait.chapter-couple": "Первая глава будет готова через пару минут.",
