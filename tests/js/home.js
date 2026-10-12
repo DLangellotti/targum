@@ -28,6 +28,13 @@ require(path.join(assets, "covers.js"));
 require(path.join(assets, "shelf.js"));
 require(path.join(assets, "home.js"));
 
+/* `next`: where a card for this reader and place picks up, given `targum:docs`. */
+if (payload.next) {
+  const { reader, place, docs } = payload.next;
+  process.stdout.write(JSON.stringify(global.window.TargumHome.next(reader, place, docs || {})));
+  process.exit(0);
+}
+
 const cards = global.window.TargumHome.gather(
   payload.readers || [],
   payload.places || [],

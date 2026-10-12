@@ -88,3 +88,52 @@ def test_a_place_with_no_text_and_no_title_is_left_out() -> None:
     titled["path"] = "/reader/ruth/reader/sec-0001.html"
     cards = gather(readers=[], places=[stranger, titled])
     assert [card["place"]["hash"] for card in cards] == ["kept"]
+
+
+def article(chapters: int = 4) -> dict[str, Any]:
+    return {
+        "name": "hapoel-he",
+        "document": "hapoel",
+        "title": "הפועל חולון",
+        "language": "he",
+        "built": 1,
+        "chapters": [
+            {"number": n, "file": f"sec-{n:04d}.html", "ready": True}
+            for n in range(1, chapters + 1)
+        ],
+    }
+
+
+def next_part(reader: dict[str, Any], place: dict[str, Any], docs: dict[str, Any]) -> Any:
+    with tempfile.TemporaryDirectory() as where:
+        written = Path(where) / "payload.json"
+        written.write_text(
+            json.dumps({"next": {"reader": reader, "place": place, "docs": docs}}),
+            encoding="utf-8",
+        )
+        done = subprocess.run(
+            ["node", str(HARNESS), str(written)], capture_output=True, text=True, timeout=60
+        )
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)
+
+
+def test_a_finished_chapter_is_not_where_the_card_picks_up() -> None:
+    """QA, 2026-10-12: "Pick up at chapter 1" under the line that said chapter 1 was just
+    finished, and still after reloads. A finish leaves the place where Done was pressed,
+    so the record of finished parts says the place is behind them: the card goes on to
+    the next part not finished."""
+    here = {"section": "1", "path": "/reader/hapoel-he/reader/sec-0001.html"}
+    finished = {"hapoel": {"sections": {"1": 1000}}}
+    assert next_part(article(), here, finished) == {
+        "n": 2,
+        "path": "/reader/hapoel-he/reader/sec-0002.html",
+    }
+    # Part 2 already finished too: on to 3.
+    both = {"hapoel": {"sections": {"1": 1000, "2": 900}}}
+    assert next_part(article(), here, both)["n"] == 3
+    # Not finished: the place stands.
+    assert next_part(article(), here, {}) is None
+    # The last part finished: nothing ahead, the place stands.
+    last = {"section": "4", "path": "/reader/hapoel-he/reader/sec-0004.html"}
+    assert next_part(article(), last, {"hapoel": {"sections": {"4": 1}}}) is None
