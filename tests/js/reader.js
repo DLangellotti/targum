@@ -26,6 +26,9 @@ const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 const language = payload.language || "he";
 
 install({
+  // The verse rows a portion's page holds, by their `id`, for the finish carried over
+  // from its book's own reader (targum-internal#446).
+  selectors: { ".pair.verse[id]": (payload.verseIds || []).map((id) => ({ id })) },
   innerWidth: payload.window.width,
   innerHeight: payload.window.height,
   // What you have already said about words in this language, as the browser would have
@@ -69,6 +72,8 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   // which is what every page built before this said.
   ...(payload.section ? { section: payload.section } : {}),
   ...(payload.sections ? { sections: payload.sections } : {}),
+  // The book a portion was cut from (targum-internal#446).
+  ...(payload.carriesFrom ? { carriesFrom: payload.carriesFrom } : {}),
   // The renderings this section carries, as the builder ships them: `{ t0: { text,
   // coarse, language, direction }, ... }`.
   ...(payload.translations ? { translations: payload.translations } : {}),

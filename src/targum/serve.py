@@ -842,6 +842,11 @@ PARASHA_SHEET = re.compile(r"^/parasha/([a-z0-9-]{1,64})\.pdf$")
 #: address names it.
 PARASHA_NEXT = re.compile(r"^/parasha/next/([a-z0-9-]{1,64})$")
 
+#: A verse of the Torah by its reference — `/torah/Genesis.12.1`, `/torah/בראשית יב א`
+#: percent-encoded — answered with the portion that reads it, open at the verse
+#: (targum-internal#446). Every way into the Torah is pointed here.
+TORAH_ROUTE = re.compile(r"^/torah/([^/]{1,160})$")
+
 #: A learning cycle at its own address: `/mishna-yomi`, `/mishna-yomi/2026-09-01`, and
 #: one file of a built reader under `/mishna-yomi/read/<date>/reader/…`. The slugs are the
 #: four this shelf carries and nothing else matches, so a cycle Hebcal publishes and
@@ -7848,6 +7853,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._waitlist_get(route)
         if shelves_are_public() and (route == "/weekly" or route.startswith("/weekly/")):
             return self._serve_weekly(route)
+        torah = TORAH_ROUTE.match(route)
+        if torah is not None and (shelves_are_public() or self._authorised()):
+            return self._torah(torah.group(1))
         if shelves_are_public() and (route == "/parasha" or route.startswith("/parasha/")):
             return self._serve_parasha(route)
         # A portion's reader is in the Library too (targum-internal#410), so a reader who
@@ -12326,6 +12334,11 @@ class Handler(BaseHTTPRequestHandler):
         typed = str(payload.get("text") or "").strip()
         if len(typed) < 2:
             return self._json({})
+        # A verse of the Torah, by any of its names: the portion that reads it, open at
+        # the verse (targum-internal#446). Opening it builds nothing and spends nothing.
+        verse = self._torah_place(typed)
+        if verse is not None:
+            return self._json(verse)
         entry = catalogue_module.matching(typed)
         if entry is None:
             wanted = typed.lower()
@@ -12351,6 +12364,26 @@ class Handler(BaseHTTPRequestHandler):
                 "translations": len(entry.translations),
             }
         )
+
+    def _torah_place(self, typed: str) -> dict[str, Any] | None:
+        """What `/already` says of a reference to a verse of the Torah, or None where the
+        text is not one: the portion's name and the verse as its title, and `opens`, the
+        address that reads it."""
+        from .parasha import build as corpus
+        from .torahref import parse
+
+        ref = parse(typed)
+        place = corpus.locate(ref.book, ref.chapter, ref.verse) if ref is not None else None
+        if ref is None or place is None:
+            return None
+        portion = corpus.load().portions.get(place.slug)
+        said = f"{ref.book} {ref.chapter}:{ref.verse}"
+        return {
+            "id": f"parasha-{place.slug}",
+            "title": f"{portion.name} · {said}" if portion else said,
+            "english": portion.name if portion else "",
+            "opens": f"/torah/{ref.book}.{ref.chapter}.{ref.verse}",
+        }
 
     def _describe(self, payload: dict[str, Any]) -> None:
         """What is at the end of a link, before anything is priced (targum-internal#250).
@@ -13658,9 +13691,35 @@ class Handler(BaseHTTPRequestHandler):
         )
         if folder:
             return sent("/reader/" + quote(folder) + "/reader/index.html")
+        # A Torah book is read as its portions (targum-internal#446), so it is never built
+        # into a shelf of one's own from here: its row is not in the Library to offer.
+        from .render.builder import read_as_portions
+
+        if read_as_portions(entry):
+            return sent("/torah/" + quote(entry.source.removeprefix("sefaria:")))
         # `#build:` rather than `#<id>`: the library opens the row's offer on this one
         # instead of only marking it, so the press that spends is still a press.
         return sent("/library", "#build:" + quote(entry.id))
+
+    def _torah(self, asked: str) -> None:
+        """A verse of the Torah, opened in the portion that reads it (targum-internal#446).
+
+        The five books are read as the 54 portions and nothing else (David, 2026-10-12),
+        so this is where the map, the Library, a typed reference, the connector and an old
+        book reader's address all land. A 302, like `/open/`: what a verse opens onto may
+        change with the next cut, and a browser keeps a 301. A reference that names no
+        verse of the Torah is a page that is not there.
+        """
+        from .parasha import build as corpus
+        from .torahref import parse
+
+        ref = parse(unquote(asked))
+        place = corpus.locate(ref.book, ref.chapter, ref.verse) if ref is not None else None
+        if place is None:
+            return self._not_found()
+        where, _, anchor = place.href(self._public_language()).partition("#")
+        query = urlparse(self.path).query
+        self._sent_on(where + (f"?{query}" if query else "") + f"#{anchor}")
 
     def _worker(self) -> None:
         """targum's worker, from the root (design.md §12, 2026-10-09).
@@ -14062,6 +14121,32 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, html.encode("utf-8"), "text/html; charset=utf-8", frames="out")
         return True
 
+    def _torah_book(self, target: Path) -> str | None:
+        """The book a reader's page is a whole Torah book of — "Genesis" — or None.
+
+        Read off the build's own `document.json`, so a reader's own copy of Genesis is
+        caught as the shared one is; a chapter they built themselves (`sefaria:Genesis
+        12`) is a text of theirs and is not. Only where the portions are built: without
+        them the book is the only Torah there is.
+        """
+        from .parasha import build as corpus
+        from .parasha.cut import BOOKS
+
+        if target.suffix != ".html" or target.parent.name != "reader":
+            return None
+        document = target.parent.parent / "document.json"
+        facts = self.library.remembered.get(
+            target.parent.parent,
+            "document",
+            [document],
+            partial(self.library._document_facts, document),
+        )
+        source = str(facts.get("source") or "")
+        book = source.removeprefix("sefaria:")
+        if not source.startswith("sefaria:") or book not in BOOKS:
+            return None
+        return book if corpus.readable() else None
+
     def _serve_reader(self, relative: str) -> None:
         """This person's readers, and the shared ones — never another person's.
 
@@ -14079,6 +14164,17 @@ class Handler(BaseHTTPRequestHandler):
         for root in roots:
             target = (root / wanted).resolve()
             if target.is_file() and root in target.parents:
+                # A Torah book is read as its portions (targum-internal#446): any page of
+                # its reader forwards to the same verse there.
+                book = self._torah_book(target) if root != roots[2] else None
+                if book is not None:
+                    from .render.builder import torah_forward_page
+
+                    numbered = re.fullmatch(r"sec-(\d{4})\.html", target.name)
+                    page = torah_forward_page(
+                        book, int(numbered.group(1)) if numbered else 1, self._page_language()
+                    )
+                    return self._send(200, page.encode("utf-8"), HTML, cache="no-store")
                 # A text's contents page is the desk's, drawn here from the build's
                 # `contents.json` (design.md §12, "A contents page is a page of its own",
                 # 2026-10-09). The weekly's levels keep the page they were built with.

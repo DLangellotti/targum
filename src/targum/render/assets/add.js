@@ -736,9 +736,16 @@
     open.className = "btn filled";
     open.textContent = t("add.already.open", "Open {title}", { title: entry.title });
     open.onclick = function () {
-      window.location.href = keyed("/library/" + entry.id);
+      // A verse of the Torah opens the portion that reads it (targum-internal#446).
+      window.location.href = keyed(entry.opens || "/library/" + entry.id);
     };
     row.appendChild(open);
+    // A reference is not a text anybody brings a copy of: Open is the whole answer.
+    if (entry.opens) {
+      alreadyBox.appendChild(row);
+      alreadyBox.hidden = false;
+      return;
+    }
     // The way past it, named as what it is rather than as a refusal of the offer: some
     // readers want their own copy, and Continue would have done it anyway.
     var mine = document.createElement("button");
@@ -1357,6 +1364,30 @@
   }
 
   go.onclick = function () {
+    // A verse of the Torah typed into the box is a place to open, not a text to build or
+    // look for (targum-internal#446). Asked here as well as while typing, because a press
+    // can come before that answer has: unasked, "Genesis 12:1" was a search, and a
+    // search is a turn of the conversation.
+    var typedNow = given ? String(given.value || "").trim() : "";
+    var askFirst = readGiven().kind !== "link" || /(^|\/\/|\.)sefaria\.org(\.il)?\//i.test(typedNow);
+    if (!chosen && askFirst && typedNow.length >= 2 && !go.getAttribute("data-asked")) {
+      go.disabled = true;
+      ask("/already", { text: typedNow })
+        .catch(function () {
+          return null;
+        })
+        .then(function (entry) {
+          if (entry && entry.opens) {
+            window.location.href = keyed(entry.opens);
+            return;
+          }
+          go.disabled = false;
+          go.setAttribute("data-asked", "1");
+          go.click();
+          go.removeAttribute("data-asked");
+        });
+      return;
+    }
     var payload = options();
     var prepared;
     posted = "";

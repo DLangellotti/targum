@@ -504,6 +504,57 @@ def test_the_press_takes_the_names_with_it_but_never_counts_them() -> None:
     assert done["list"] == [], "and nothing on the list"
 
 
+def test_the_press_never_marks_a_word_of_onkelos() -> None:
+    """Marking the rest known at the foot is the Torah's words only. Onkelos's words, read
+    beside the verse with a table of their own, are marked one at a time or not at all
+    (David, 2026-10-12, targum-internal#446)."""
+    words, lemmas = chapter(["a", "b"])
+    onkelos = {
+        "t1": {
+            "text": {"s0": "אמר"},
+            "language": "arc",
+            "direction": "rtl",
+            "beside": True,
+            "tokens": {
+                "language": "arc",
+                "words": {"s0": [[0, 3, 1, 0, 0, 0, 0]]},
+                "lemmas": ["אמר"],
+            },
+        }
+    }
+    done = run([], chapter=words, lemmas=lemmas, vocab={}, translations=onkelos, presses=[True])
+    assert done["queue"] == [], "the Torah's words are all known"
+    assert set(done["stores"]["he"]) == {"a", "b"}
+    assert done["stores"]["arc"] == {}, "and nothing of Onkelos's was marked with them"
+
+
+def test_chapters_finished_in_the_book_show_the_aliyah_finished_and_write_nothing() -> None:
+    """A portion's page reads its book's own finishes (targum-internal#446): an aliyah all
+    of whose chapters were finished in the book stands finished, as of the last of them.
+    Never written, because the ledger counted each of them once already."""
+    words, lemmas = chapter(["a"])
+    book = {"genesis-book": {"sections": {"12": 100, "13": 200}}}
+    both = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        docs=book,
+        carriesFrom="genesis-book",
+        verseIds=["12:14", "12:20", "13:1"],
+    )
+    assert both["finished"]["at"] == 200
+    assert both["finished"]["sections"] == {}, "nothing written under the portion"
+    half = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        docs=book,
+        carriesFrom="genesis-book",
+        verseIds=["13:18", "14:1"],
+    )
+    assert half["finished"]["at"] == 0, "a chapter not finished in the book is not finished here"
+
+
 def test_nothing_left_to_mark_is_plain_done() -> None:
     words, lemmas = chapter(["a"])
     done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})

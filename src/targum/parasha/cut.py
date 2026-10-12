@@ -22,7 +22,7 @@ only new ids, and they are named for the aliyah so they cannot collide with a bo
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..models import (
@@ -220,6 +220,9 @@ class Portion:
     #: The words of each commentary carried, narrowed to the verses kept, so Rashi is
     #: tapped in a portion as in its book (targum-internal#414). Handed to `render`.
     commentary_words: dict[str, Annotation] = field(default_factory=dict)
+    #: The document id of the book a portion was cut from, so chapters finished in the
+    #: book's own reader show finished here (targum-internal#446). "" for anything else.
+    carries_from: str = ""
 
     @property
     def verses(self) -> int:
@@ -355,7 +358,7 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
 
     blocks, segments = run.blocks, run.segments
     first_book = books[reading.aliyot[0].book] if reading.aliyot else next(iter(books.values()))
-    return assemble(
+    cut_from = assemble(
         blocks,
         segments,
         books,
@@ -369,6 +372,7 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
         ingester="parasha/1",
         reading=reading,
     )
+    return replace(cut_from, carries_from=first_book.segmented.document_hash)
 
 
 def cut_haftarah(haftarah: Haftarah, books: dict[str, Book]) -> Portion:

@@ -3715,5 +3715,6 @@
   "reader.listen.now-playing-part": "Now playing {part}.",
   "reader.listen.queued.one": "{n} queued",
   "reader.listen.queued.other": "{n} queued",
-  "shelf.unavailable": "We can't open this one right now. Try another for now."
+  "shelf.unavailable": "We can't open this one right now. Try another for now.",
+  "torah.forward.open": "Open it in its portion"
 }

@@ -697,6 +697,8 @@ var targumReader = function () {
   // carries neither, and is its own single section — which is the shape the record it
   // wrote already had.
   var sectionId = String(data.section || 1);
+  // The book a portion was cut from, for `carriedAt` (targum-internal#446).
+  var carriesFrom = String(data.carriesFrom || "");
   var sectionCount = Number(data.sections || 1);
 
   /* What happens here is said to `events.js`, which decides whether anybody is told
@@ -1153,11 +1155,37 @@ var targumReader = function () {
    * back-filled, and re-reading fills them in.
    */
   function finishedAt() {
-    var record = read(DOCS, "{}")[documentId];
-    if (!record) return 0;
-    var mine = record.sections && record.sections[sectionId];
+    var all = read(DOCS, "{}");
+    var record = all[documentId];
+    var mine = record && record.sections && record.sections[sectionId];
     if (mine) return Number(mine);
-    return sectionCount === 1 ? Number(record.done || 0) : 0;
+    if (record && sectionCount === 1 && record.done) return Number(record.done);
+    return carriedAt(all);
+  }
+
+  /* An aliyah whose chapters were all finished in the book's own reader, from before the
+     Torah was read as its portions (targum-internal#446): finished here too, as of the
+     last of them. Only ever read. The finishes were counted once, in the book, and a
+     second record of them would count them twice. */
+  function carriedAt(all) {
+    var book = carriesFrom && all[carriesFrom];
+    var done = book && book.sections;
+    if (!done) return 0;
+    var chapters = {};
+    var verses = document.querySelectorAll(".pair.verse[id]");
+    for (var i = 0; i < verses.length; i++) {
+      var chapter = /^(\d+):\d+$/.exec(verses[i].id);
+      if (chapter) chapters[chapter[1]] = true;
+    }
+    var latest = 0;
+    var any = false;
+    for (var number in chapters) {
+      any = true;
+      var at = Number(done[number] || 0);
+      if (!at) return 0;
+      if (at > latest) latest = at;
+    }
+    return any ? latest : 0;
   }
 
   /* Which control was pressed (targum-internal#341): "audit all controls on the reader and

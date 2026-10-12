@@ -4029,5 +4029,6 @@
   "reader.listen.queued.one": "{n} в очереди",
   "reader.listen.queued.few": "{n} в очереди",
   "reader.listen.queued.many": "{n} в очереди",
-  "shelf.unavailable": "Сейчас этот текст не открывается. Пока попробуйте другой."
+  "shelf.unavailable": "Сейчас этот текст не открывается. Пока попробуйте другой.",
+  "torah.forward.open": "Открыть в недельной главе"
 }

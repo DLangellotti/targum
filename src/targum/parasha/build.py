@@ -32,7 +32,17 @@ from ..render.builder import render
 from .calendar import Haftarah as Reference
 from .calendar import Reading, Schedule, always, root
 from .calendar import year as readings_for
-from .cut import BOOKS, NEVIIM, MissingBook, books_for, cut, cut_haftarah, parse_ref
+from .cut import (
+    BOOKS,
+    NEVIIM,
+    MissingBook,
+    Verse,
+    books_for,
+    cut,
+    cut_haftarah,
+    parse_place,
+    parse_ref,
+)
 from .cut import Portion as Cut
 from .models import Haftarah, Index, Portion, Week, neighbours
 from .sheet import keep as keep_sheet
@@ -497,6 +507,7 @@ def render_readers(portion: Cut, folder: Path) -> list[Path]:
         folder=folder,
         recordings_beside=True,
         commentary_words=portion.commentary_words,
+        carries_from=portion.carries_from,
     )
     for code in ALSO_IN:
         out = folder / f"reader-{code}"
@@ -517,6 +528,7 @@ def render_readers(portion: Cut, folder: Path) -> list[Path]:
             folder=folder,
             recordings_beside=True,
             commentary_words=portion.commentary_words,
+            carries_from=portion.carries_from,
         )
         shutil.rmtree(out / "audio", ignore_errors=True)
     return written
@@ -738,6 +750,84 @@ def reader_href(portion: Portion, page: str = "index.html", language: str = "en"
     `language` asks for the reader built in it (`ALSO_IN`), where there is one.
     """
     return f"/parasha/read/{served_as(portion.folder, language)}/reader/{page}"
+
+
+@dataclass(frozen=True)
+class Place:
+    """Where one verse of the Torah is read: a portion's reader, the file holding it, and
+    the verse's own anchor in that file."""
+
+    slug: str
+    folder: str
+    page: str
+    anchor: str
+
+    def href(self, language: str = "en") -> str:
+        return f"/parasha/read/{served_as(self.folder, language)}/reader/{self.page}#{self.anchor}"
+
+
+_contents: dict[tuple[Path, int], list[tuple[Verse, Verse, str]]] = {}
+
+
+def _aliyot(folder: str) -> list[tuple[Verse, Verse, str]]:
+    """Each section of a portion's reader as (first verse, last verse, file), off the
+    reader's own `contents.json` — the ranges its contents page already draws. Empty where
+    the reader has none, and then the reader's `index.html` is the answer: its contents
+    script forwards a `#c:v` to the section holding it."""
+    path = reader_dir(folder) / "contents.json"
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        return []
+    key = (path, stamp)
+    if key not in _contents:
+        try:
+            sections = json.loads(path.read_text(encoding="utf-8")).get("sections") or []
+        except (OSError, ValueError, AttributeError):
+            sections = []
+        found: list[tuple[Verse, Verse, str]] = []
+        for one in sections:
+            first = parse_place(str(one.get("from") or ""))
+            last = parse_place(str(one.get("to") or ""))
+            if first is not None and last is not None and one.get("file"):
+                found.append((first, last, str(one["file"])))
+        _contents[key] = found
+    return _contents[key]
+
+
+def locate(book: str, chapter: int, verse: int, index: Index | None = None) -> Place | None:
+    """The portion a verse of the Torah is read in, and the aliyah holding it
+    (targum-internal#446).
+
+    Every way into the Torah ends here — the map, the Library, a typed reference, the
+    connector, an old address of a book reader — so the five books read as the 54
+    portions and nothing else (David, 2026-10-12). The portion is the last one on the
+    shelf to begin at or before the verse; `Index.listed` covers the Torah once, so a
+    doubled week is the answer only where its halves are not built.
+
+    None where the verse is before the first portion, past the end of the book, or in a
+    portion with no reader built: an address that would 404 is not an answer.
+    """
+    index = index or load()
+    starts = portions_for(book, index) if index.portions else []
+    wanted = Verse(chapter, verse)
+    holding = None
+    for start in starts:
+        if Verse(start.chapter, start.verse) <= wanted:
+            holding = start
+    if holding is None or chapter < 1 or verse < 1:
+        return None
+    portion = index.portions.get(holding.slug)
+    if portion is None or portion.folder not in readable(index):
+        return None
+    sections = _aliyot(portion.folder)
+    if not sections:
+        return Place(portion.slug, portion.folder, "index.html", f"{chapter}:{verse}")
+    for first, last, page in sections:
+        if first <= wanted <= last:
+            return Place(portion.slug, portion.folder, page, f"{chapter}:{verse}")
+    # Past the portion's last verse is past the book's: the next portion would have held it.
+    return None
 
 
 def shelf(index: Index | None = None, moment: datetime | None = None) -> dict[str, object]:

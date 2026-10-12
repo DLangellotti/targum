@@ -647,10 +647,55 @@ def _too_many_playlists(ctx: Ctx) -> str:
     )
 
 
+def _read_for_everybody(ctx: Ctx, entry: catalogue_module.Entry) -> str:
+    """Where a library text opens without being anybody's to build, or "": a portion's
+    reader, which the box keeps for everybody (targum-internal#410), and a Torah book,
+    which is read as its portions (targum-internal#446)."""
+    from ..parasha import build as corpus
+    from ..render.builder import read_as_portions
+
+    at = ctx.press_at.rstrip("/")
+    if read_as_portions(entry):
+        return f"{at}/torah/{quote(entry.source.removeprefix('sefaria:'))}"
+    if not entry.id.startswith("parasha-"):
+        return ""
+    index = corpus.load()
+    portion = index.portions.get(entry.id.removeprefix("parasha-"))
+    if portion is None or portion.folder not in corpus.readable(index):
+        return ""
+    return at + corpus.reader_href(portion)
+
+
+def _torah_verse(ctx: Ctx, query: str) -> dict[str, Any] | None:
+    """A query that is a verse of the Torah — "Genesis 12:1", "בראשית יב א", "Lech
+    Lecha", a sefaria.org link — as the row of the portion that reads it, its `reader`
+    open at that verse (targum-internal#446). None for any other query, which is searched
+    as words."""
+    from ..parasha import build as corpus
+    from ..torahref import parse
+
+    ref = parse(query)
+    place = corpus.locate(ref.book, ref.chapter, ref.verse) if ref is not None else None
+    entry = catalogue_module.by_id(f"parasha-{place.slug}") if place is not None else None
+    if ref is None or entry is None:
+        return None
+    row = _entry_row(entry, None)
+    row["on_shelf"] = True
+    row["reader"] = f"{ctx.press_at.rstrip('/')}/torah/{ref.book}.{ref.chapter}.{ref.verse}"
+    row["verse"] = f"{ref.book} {ref.chapter}:{ref.verse}"
+    return row
+
+
 def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     entry = catalogue_module.by_id(str(args.get("id") or ""))
     if entry is None:
         return {"error": "No text in the library has that id."}
+    everybody = _read_for_everybody(ctx, entry)
+    if everybody:
+        row = _entry_row(entry, None)
+        row.update(on_shelf=True, reader=everybody, blurb=entry.blurb)
+        row["how_to_open"] = "Give the reader the link in `reader`."
+        return row
     mine, shared = _shelf(ctx)
     built = _by_source([*mine, *shared]).get(catalogue_module._key(entry.source))
     row = _entry_row(entry, built)
@@ -1106,6 +1151,9 @@ def find_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             return {"count": len(suggested), "texts": _from("library", suggested)}
         found = search_library(ctx, {**narrowed, **said, "limit": limit})
         return {"count": found["count"], "texts": _from("library", found["texts"])}
+    # A verse of the Torah is a place, not words to match (targum-internal#446): the
+    # portion that reads it comes first, open at the verse, and only once.
+    verse = _torah_verse(ctx, query) if where != "mine" else None
     out: dict[str, Any] = {"count": 0, "texts": []}
     shown: set[str] = set()
     if where in ("mine", "both"):
@@ -1123,6 +1171,10 @@ def find_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         fresh = [row for row in found["texts"] if not (row["reader"] and row["reader"] in shown)]
         out["count"] += found["count"] - (len(found["texts"]) - len(fresh))
         out["texts"] = [*out["texts"], *_from("library", fresh)][:limit]
+    if verse is not None:
+        rest = [row for row in out["texts"] if row.get("id") != verse["id"]]
+        out["count"] += 1 - (len(out["texts"]) - len(rest))
+        out["texts"] = [*_from("library", [verse]), *rest][:limit]
     return out
 
 
