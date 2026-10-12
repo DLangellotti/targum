@@ -370,14 +370,3 @@ a.series-day:focus-visible { outline: 2px solid var(--focus); outline-offset: 2p
 @media (max-width: 40rem) {
   .series-masthead.is-cover { font-size: 0.875rem; padding: 0.5rem; }
 }
-
-/* The AI Assistant's pill on a phone (known issues §3, 2026-10-12). It floats over the
-   foot of the window, above the four places, and on a series page the aliyot, the days
-   of the month and the past issues scrolled under it: a row's end — where Read and
-   Started stand — was behind the pill wherever the page stopped. A floating control that
-   covers what is read joins the band at the foot rather than floating over the page:
-   the bar's glass grows up behind the pill, and the page's own room at its foot (8rem)
-   already lets the last row scroll clear of both. */
-@media (max-width: 40rem) {
-  body.series-page .site-head-row .site-nav { padding-block-start: 4rem; }
-}
