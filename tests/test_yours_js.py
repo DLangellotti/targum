@@ -152,6 +152,29 @@ def test_an_ignored_word_does_not_blank_the_table() -> None:
     assert rows == {"ספר": 9}
 
 
+def test_names_and_numbers_the_finish_cleared_are_not_listed_as_words() -> None:
+    """QA, 2026-10-12: "Done, and mark 79 words known" marked 119, and Known listed 2008,
+    73, מכבי and חולון beside a head that said 79 known. The press clears names and
+    numbers with the rest and never calls them words (design.md §12, "The foot is one
+    block"), so the tabs list what the head counts. An ignored one is still found under
+    Ignored, where it can be put back."""
+    stored = vocabulary(
+        word("ספר", "book", status=9),
+        word("חולון", "Holon", status=9, band="name"),
+        word("2008", "2008", status=9, band="number"),
+        word("דרך", "road", status=2),
+        word("מכבי", "Maccabi", status=0, band="name"),
+    )
+    known = draw(stored, filter="9")
+    assert [row["term"] for row in known["words"]] == ["ספר"]
+    assert "1 known" in known["summary"]
+    every = draw(stored, filter="all")
+    assert sorted(row["term"] for row in every["words"]) == ["דרך", "ספר"]
+    assert "2 on your list" in every["summary"]
+    ignored = draw(stored, filter="0")
+    assert [row["term"] for row in ignored["words"]] == ["מכבי"]
+
+
 def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -> None:
     """The checklist lives here after the first visit (2026-09-11). Marking a page known
     puts the words on the ledger and the list is collected again, so the count in its
