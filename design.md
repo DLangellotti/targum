@@ -602,6 +602,10 @@ measured against is kept as only what the reader said.
   can be more than the known words plus the ones left: the difference is the words the
   page took from the rung and is not asking about.
 - **What it no longer does.** It no longer adds to any known count or share.
+- **An ignored word is out of the total everywhere** (2026-10-13, known-issues 1.18). The
+  reader always left the words a reader ignored out of "M", since ignore says "this is
+  not vocabulary"; the shelf, the Library, a playlist and the contents page counted them,
+  so one text read two figures. `coverage.measure` now leaves them out as the bar does.
 
 ### The focus ring is teal everywhere — 2026-10-11
 

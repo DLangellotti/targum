@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from statistics import median
 from typing import Any
 
-from .coverage import KNOWN, Index
+from .coverage import IGNORED, KNOWN, Index
 
 #: The kinds a ladder is made of, the board's six (Progress, 2026-10-08). The catalogue
 #: has more — Bible narrative, essays, plays, documents, prayer — and they stay on their
@@ -113,7 +113,8 @@ def ladder(entries: Iterable[Any], language: str) -> list[Rung]:
 
 
 def running_share(index: Index, entry_id: str, marked: Mapping[str, int]) -> float | None:
-    """The share of one text's running words whose dictionary form is marked known.
+    """The share of one text's running words whose dictionary form is marked known, the
+    ones marked ignored left out of it.
 
     Falls back to the share of its distinct words where the index carries no counts for
     it (an entry indexed before counts were), and None where it is not indexed at all:
@@ -129,8 +130,12 @@ def running_share(index: Index, entry_id: str, marked: Mapping[str, int]) -> flo
     total = 0
     known = 0
     for at, count in zip(positions, counts, strict=True):
+        status = marked.get(index.words[at]) if at < len(index.words) else None
+        # An ignored word is not vocabulary, and is left out as the reader leaves it out.
+        if status == IGNORED:
+            continue
         total += count
-        if at < len(index.words) and marked.get(index.words[at]) == KNOWN:
+        if status == KNOWN:
             known += count
     return known / total if total else None
 
