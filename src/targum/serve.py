@@ -9608,7 +9608,12 @@ class Handler(BaseHTTPRequestHandler):
         may already know" on Learn: a reader who reads Hebrew already marks the ones
         they know, fifty at a time, and the count rises because the count did. The
         page leaves out what is on the ledger; nothing here is bought — a word the
-        glossary does not hold is shown bare."""
+        glossary does not hold is shown bare.
+
+        `forms`, comma-separated, asks for those words instead of a page of the list:
+        the meanings of words already claimed, for a browser whose claims were filed
+        where Your Words never read them (known issues 2026-10-12, 1.8). The same
+        answers, from the same tables, and as many as a page."""
         from .annotate import closed
         from .annotate.base import BAND_NAMES
         from .annotate.frequency import FrequencyBands
@@ -9630,6 +9635,11 @@ class Handler(BaseHTTPRequestHandler):
             n=min(self.COMMON_REACH, offset + limit), language=spoken
         )
         page = forms[offset : offset + limit]
+        asked = [form for form in query.get("forms", [""])[0].split(",") if form.strip()][
+            : self.COMMON_PAGE
+        ]
+        if asked:
+            page = [form.strip() for form in asked]
         target = self._reading_language()
         bands = FrequencyBands()
         provider = gloss_provider_name()
@@ -9653,7 +9663,7 @@ class Handler(BaseHTTPRequestHandler):
                 "words": rows,
                 "offset": offset,
                 "next": offset + len(page)
-                if len(page) == limit and offset + limit < self.COMMON_REACH
+                if not asked and len(page) == limit and offset + limit < self.COMMON_REACH
                 else None,
                 "into": target,
                 "language": spoken,

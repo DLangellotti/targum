@@ -3218,6 +3218,16 @@ def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
     # The hand table answers before the glossary for the commonest words (#378).
     said = {row["form"]: row["meaning"] for row in payload["words"]}
     assert said.get("עם") == "with" and said.get("היא") == "she; it"
+    # By name, for words already claimed (known issues 2026-10-12, 1.8): the same
+    # meanings, in the order asked, and no next page.
+    from urllib.parse import quote
+
+    status, named = get(port, f"/words/common?forms={quote('היא,עם')}&k={token}")
+    assert status == 200 and named["next"] is None and named["into"] == "en"
+    assert [(row["form"], row["meaning"]) for row in named["words"]] == [
+        ("היא", "she; it"),
+        ("עם", "with"),
+    ]
 
 
 # -- hear a silent text (targum-internal#246) ----------------------------------------

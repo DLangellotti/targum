@@ -21,6 +21,7 @@ const touched = { sync: 0, lists: 0 };
 const stored = {};
 if (payload.ledger) stored["targum:vocab:he"] = JSON.stringify(payload.ledger);
 if (payload.passed) stored["targum:claim-passed"] = JSON.stringify(payload.passed);
+for (const [name, value] of Object.entries(payload.stored || {})) stored[name] = JSON.stringify(value);
 
 install({
   TARGUM_KEY: "k",
@@ -33,6 +34,14 @@ install({
 global.fetch = (url) => {
   const clean = String(url).replace(/[?&]k=[^&]*/, "");
   asked.push(clean);
+  // Asked by name: the words the payload means them to have, the rest bare.
+  const named = /[?&]forms=([^&]*)/.exec(clean);
+  if (named) {
+    const words = decodeURIComponent(named[1])
+      .split(",")
+      .map((form) => ({ form, meaning: (payload.meanings || {})[form] || "", band: "" }));
+    return Promise.resolve({ json: () => Promise.resolve({ words, next: null, into: "en" }) });
+  }
   const offset = Number((/offset=(\d+)/.exec(clean) || [0, 0])[1]);
   const answer = (payload.pages || {})[String(offset)] || { words: [], offset, next: null };
   return Promise.resolve({ json: () => Promise.resolve(answer) });
@@ -84,6 +93,8 @@ const part = (name) => body.querySelector("." + name) || { hidden: true, childre
       said: part("claim-said").textContent,
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       passed: JSON.parse(global.localStorage.getItem("targum:claim-passed") || "{}"),
+      meanings: JSON.parse(global.localStorage.getItem("targum:meanings:he:en") || "{}"),
+      claimAsked: JSON.parse(global.localStorage.getItem("targum:claim-asked") || "{}"),
       touched,
     }),
   );
