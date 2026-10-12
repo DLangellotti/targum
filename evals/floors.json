@@ -678,5 +678,29 @@
     "system": "ctc-forced-aligner",
     "at_most": 80.0,
     "why": "20.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "binyan_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.93,
+    "why": "0.9441 on 2026-09-28; the binyan is derived from the lemma (annotate/dicta.py) and is Hebrew's first hard spot (design.md §12, 2026-10-12)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "root_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.92,
+    "why": "0.9290 on 2026-09-28; the root beside the binyan on the card"
+  },
+  {
+    "stage": "stress",
+    "corpus": "tanakh-taamim-v2",
+    "metric": "rule_accuracy",
+    "system": "stress-rule/1",
+    "at_least": 0.95,
+    "why": "0.9630 on 2026-10-02; the rule that places Hebrew stress, measured on the Tanakh's cantillation until a modern gold exists"
   }
 ]

@@ -42,20 +42,17 @@
     return (code || "").split("-")[0].toLowerCase() !== HOME;
   }
 
-  /* How far along each language is, as the menu badges it (David, 2026-10-08; design.md
-     §12, "A language wears how far along it is"). A badge and nothing else: no note says
-     what Beta means. A language not named here wears none. */
-  var STATUS = {
-    he: "beta",
-    ru: "alpha",
-    it: "alpha",
-    fr: "alpha",
-    arc: "experimental",
-    yi: "experimental",
-  };
+  /* How far along each language is, as the menu badges it (design.md §12, "A language
+     wears how far along it is", 2026-10-09, and "A badge is a promise, checked",
+     2026-10-12). A badge and nothing else: no note says what Beta means.
 
+     The table is not here. It is `stages.DECLARED` in Python, written into the page as
+     `window.TARGUM_STAGES` by the nav, and a test holds it to the facts; a second copy
+     in this file is what said Alpha of a French shelf with 14 texts. A language the page
+     does not name wears none. */
   function status(code) {
-    return STATUS[String(code || "").split("-")[0].toLowerCase()] || "";
+    var table = window.TARGUM_STAGES || {};
+    return table[String(code || "").split("-")[0].toLowerCase()] || "";
   }
 
   function badge(code) {

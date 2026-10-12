@@ -2112,16 +2112,23 @@ def test_every_page_shares_one_language_choice() -> None:
     # says which of them is which, and says it the same way the note under it does.
     assert '<option value="he" selected>' in start
     said = unescape(start)
-    assert "(Experimental)" in said
+    # The into side: English is named alone, Russian says it is experimental there.
+    assert "Russian (Experimental)" in said
+    assert ">English<" in said and "English (" not in said
     assert ">Hebrew (Experimental)<" not in said
     # The language the text is in is named alone, as board UploadDesk draws it
-    # (2026-10-09); how far along it is is said under the box.
+    # (2026-10-09); how far along it is is said under the box, in the badge's own word
+    # from the one table (design.md §12, "A badge is a promise, checked", 2026-10-12).
     assert '<option value="he" selected>Hebrew</option>' in start
-    # One word in the picker, two behind it: the note says which kind of experimental.
-    from targum.translate.prompts import stage_label
+    import json as _json
 
-    assert stage_label("R&D") == stage_label("beta") == "Experimental"
-    assert stage_label("alpha") == "alpha"
+    from targum.stages import DECLARED
+
+    reading = _json.loads(start.split("window.TARGUM_READING = ", 1)[1].split(";", 1)[0])
+    assert {row["code"]: row["stage"] for row in reading} == {
+        code: stage.value for code, stage in DECLARED.items()
+    }
+    assert "window.TARGUM_STAGES = " in start
 
 
 def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:

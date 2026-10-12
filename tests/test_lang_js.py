@@ -21,6 +21,11 @@ pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 
 
 def menu(**payload: Any) -> dict[str, Any]:
+    # The badge table the nav writes into every page: the real one, so this file holds
+    # no copy (design.md §12, "A badge is a promise, checked", 2026-10-12).
+    from targum.stages import DECLARED
+
+    payload.setdefault("stages", {code: stage.value for code, stage in DECLARED.items()})
     with tempfile.TemporaryDirectory() as where:
         given = Path(where) / "payload.json"
         given.write_text(json.dumps(payload), encoding="utf-8")
@@ -44,21 +49,28 @@ def test_the_menu_lists_every_language_the_reader_learns() -> None:
 
 
 def test_every_language_wears_how_far_along_it_is() -> None:
-    """design.md §12, 2026-10-09: Hebrew Beta; Russian, Italian, French Alpha; Aramaic and
-    Yiddish Experimental. A badge, on the menu's button and on every row, and nothing
-    more."""
+    """design.md §12, 2026-10-09: a badge, on the menu's button and on every row, and
+    nothing more. Since 2026-10-12 the words come from `stages.DECLARED` through the page,
+    checked by `test_stages.py`: Hebrew keeps Beta by decision, the rest wear what they
+    have earned, which today is Experimental."""
     learning = ["he", "ru", "it", "fr", "arc", "yi"]
     drawn = menu(stored={"targum:learning": json.dumps(learning)}, pageCodes=["he"])
     said = dict(zip(drawn["before"]["items"], drawn["before"]["badges"], strict=True))
     assert said == {
         "he": "Beta",
-        "ru": "Alpha",
-        "it": "Alpha",
-        "fr": "Alpha",
+        "ru": "Experimental",
+        "it": "Experimental",
+        "fr": "Experimental",
         "arc": "Experimental",
         "yi": "Experimental",
     }
     assert drawn["before"]["badge"] == "Beta", "the button wears the one it is showing"
+
+
+def test_a_language_the_page_does_not_name_wears_nothing() -> None:
+    """The table is the page's, not this file's: with no table there is no badge."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he", "ru"])}, stages={})
+    assert drawn["before"]["badge"] == "" and drawn["before"]["badges"] == ["", ""]
 
 
 def test_a_press_is_kept_on_the_page_and_on_the_account() -> None:

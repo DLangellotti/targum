@@ -1,0 +1,260 @@
+"""A language's badge is a promise, checked (design.md §12, 2026-10-12; targum-internal#445).
+
+The one table is `stages.DECLARED`. These tests hold every claim in it to the facts the
+code, the committed evals and the shelf snapshot show, print the one kept exception's
+shortfall so it is read on every run, and refuse a second table anywhere.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+import re
+import warnings
+from pathlib import Path
+
+import pytest
+
+from targum import evals, levelmap, stages
+from targum.stages import DECLARED, HARD_SPOTS, KEPT, SHELF, Facts, Floor, Stage
+
+ROOT = Path(__file__).resolve().parent.parent
+ASSETS = ROOT / "src" / "targum" / "render" / "assets"
+
+
+def test_the_three_words_are_in_order() -> None:
+    assert list(stages.ORDER) == [Stage.experimental, Stage.alpha, Stage.beta]
+    assert Stage.experimental < Stage.alpha < Stage.beta
+    assert Stage.beta >= Stage.alpha
+
+
+def test_every_language_targum_reads_wears_a_word_and_no_other_does() -> None:
+    assert set(DECLARED) == stages.reading_codes()
+
+
+def test_declared_is_earned_for_every_language_not_kept() -> None:
+    """The gate. A claim that outruns the facts fails here, with the shortfall named; the
+    way through is the facts, never the table."""
+    for code, worn in DECLARED.items():
+        if code in KEPT:
+            continue
+        known = stages.facts(code)
+        short = stages.shortfall(known, worn)
+        assert not short, f"{code} wears {worn.value} but is short: {short}"
+        assert (stages.earned(known) or Stage.experimental) >= worn
+
+
+def test_the_kept_exception_is_named_dated_and_its_shortfall_is_read() -> None:
+    """Hebrew keeps its Beta by decision (David, 2026-10-12). The entry has a date, a
+    review date not yet passed, and a reason, and this prints what the kept word still
+    owes so it is seen on every run. Past the review date the entry fails until renewed
+    with a new date and a design.md line, or removed."""
+    assert set(KEPT) == {"he"}, "a second kept language needs a design.md entry first"
+    for code, held in KEPT.items():
+        assert held.stage == DECLARED[code]
+        assert held.since <= dt.date.today(), code
+        assert held.why.strip(), code
+        assert held.review >= dt.date.today(), (
+            f"{code}: the kept {held.stage.value} passed its review date {held.review}; "
+            "renew it with a new date and a design.md line, or remove it"
+        )
+        short = stages.shortfall(stages.facts(code), held.stage)
+        warnings.warn(
+            f"{code} wears {held.stage.value}, kept until {held.review}; still owes: {short}",
+            stacklevel=1,
+        )
+
+
+def test_a_claim_that_outruns_the_facts_is_refused_with_the_criterion_named() -> None:
+    known = stages.facts("fr")
+    short = stages.shortfall(known, Stage.alpha)
+    assert any(line.startswith("hard spot not covered") for line in short), short
+    assert "no read-through on record" in short
+    assert stages.earned(known) is Stage.experimental
+
+
+def _all_good(language: str = "ru") -> Facts:
+    spots = HARD_SPOTS[language]
+    return Facts(
+        language=language,
+        reads=True,
+        lemmatiser=True,
+        ladder=True,
+        talk=True,
+        voice=True,
+        shelf={level: Floor(30, 12) for level in stages.CEFR_LEVELS},
+        covered={spot.name: True for spot in spots},
+        practices={spot.name: True for spot in spots},
+        read_through=True,
+        known_issues=True,
+        builds_unattended=True,
+        chat_evals=True,
+        second_medium=True,
+        growing=True,
+        no_blocker=True,
+    )
+
+
+def test_every_criterion_holding_earns_beta() -> None:
+    assert stages.earned(_all_good()) is Stage.beta
+    assert stages.shortfall(_all_good(), Stage.beta) == []
+
+
+@pytest.mark.parametrize(
+    ("flip", "drops_to", "said"),
+    [
+        (dict(lemmatiser=False), Stage.experimental, "a lemma floor is breached"),
+        (dict(lemmatiser=None), Stage.experimental, "no lemma floors named"),
+        (dict(ladder=False), Stage.experimental, "no ladder"),
+        (dict(talk=False), Stage.experimental, "does not talk it"),
+        (dict(voice=False), Stage.experimental, "no voice"),
+        (dict(shelf=None), Stage.experimental, "shelf not measured"),
+        (dict(read_through=False), Stage.experimental, "no read-through"),
+        (dict(known_issues=False), Stage.experimental, "no known-issues list"),
+        (dict(builds_unattended=False), Stage.alpha, "unattended"),
+        (dict(chat_evals=False), Stage.alpha, "no chat evals"),
+        (dict(second_medium=False), Stage.alpha, "no second medium"),
+        (dict(growing=False), Stage.alpha, "grows the shelf"),
+        (dict(no_blocker=False), Stage.alpha, "blockers"),
+    ],
+)
+def test_each_criterion_alone_decides(flip: dict[str, object], drops_to: Stage, said: str) -> None:
+    known = _all_good()
+    for name, value in flip.items():
+        setattr(known, name, value)
+    assert stages.earned(known) is drops_to, flip
+    missing = stages.shortfall(known, Stage.beta)
+    assert any(said in line for line in missing), (said, missing)
+
+
+def test_one_uncovered_hard_spot_holds_a_language_at_experimental() -> None:
+    known = _all_good()
+    first = HARD_SPOTS["ru"][0].name
+    known.covered[first] = False
+    assert stages.earned(known) is Stage.experimental
+    assert f"hard spot not covered: {first}" in stages.shortfall(known, Stage.alpha)
+
+
+def test_one_missing_practice_holds_a_language_at_alpha() -> None:
+    known = _all_good()
+    last = HARD_SPOTS["ru"][-1].name
+    known.practices[last] = False
+    assert stages.earned(known) is Stage.alpha
+    assert f"no practice for: {last}" in stages.shortfall(known, Stage.beta)
+
+
+def test_a_shelf_short_at_one_level_is_said_by_level_and_kind() -> None:
+    known = _all_good()
+    assert known.shelf is not None
+    known.shelf["B1"] = Floor(9, 3)
+    assert stages.earned(known) is Stage.experimental
+    short = stages.shortfall(known, Stage.alpha)
+    assert "shelf at B1: 9 texts of 10" in short
+    # Three recordings meet Alpha's floor; Beta's floor of ten is the next line.
+    assert "shelf at B1: 3 recordings of 3" not in short
+    assert "shelf at B1: 3 recordings of 10" in stages.shortfall(known, Stage.beta)
+
+
+def test_alpha_floors_are_under_betas_at_every_level() -> None:
+    for level, floor in SHELF[Stage.alpha].items():
+        above = SHELF[Stage.beta][level]
+        assert floor.texts < above.texts and floor.recordings < above.recordings, level
+
+
+def test_every_hard_spot_list_is_five_to_seven_or_empty_and_ranked_names_are_distinct() -> None:
+    for code, spots in HARD_SPOTS.items():
+        assert len(spots) in (0, 5, 6, 7), (code, len(spots))
+        assert len({spot.name for spot in spots}) == len(spots), code
+    assert HARD_SPOTS["yi"] == () and HARD_SPOTS["arc"] == ()
+
+
+def test_a_covered_hard_spot_names_a_floor_that_exists() -> None:
+    """Covered is computed, shown and measured with a floor. The floor a spot names must
+    be in evals/floors.json, or the spot is drawn and not measured, which is not covered."""
+    limits = evals.floors(stages.FLOORS)
+    for code, spots in HARD_SPOTS.items():
+        for spot in spots:
+            covered = stages._covered(spot, limits)
+            if spot.floor is None or not spot.computed_at_all or not spot.shown_at_all:
+                assert not covered, (code, spot.name)
+                continue
+            assert covered, (
+                f"{code}: {spot.name} names a floor {spot.floor} that is not in floors.json"
+            )
+
+
+def test_hebrews_measured_spots_are_covered_and_the_rest_are_named_in_the_shortfall() -> None:
+    known = stages.facts("he")
+    assert known.covered["root and binyan"] and known.covered["nikkud and homographs"]
+    assert known.covered["stress and pronunciation"]
+    short = stages.shortfall(known, Stage.alpha)
+    for name in (
+        "tense, person and the participle",
+        "governed prepositions and et",
+        "gender and number agreement",
+        "construct state and definiteness",
+    ):
+        assert f"hard spot not covered: {name}" in short
+
+
+def test_the_cefr_mapping_counts_what_the_library_measures() -> None:
+    """A1 is the Easy spec in full, A2 the rest of Easy, B1 Simplified, and Native is one
+    level (David, 2026-10-12); recordings are audio and video."""
+    shelf = levelmap.Shelf("xx")
+    shelf.cells[("aleph", "text")] = 4
+    shelf.cells[("aleph", "audio")] = 6
+    shelf.cells[("bet", "video")] = 2
+    shelf.cells[("gimel", "text")] = 10
+    shelf.cells[("gimel", "audio")] = 1
+    shelf.easy["audio"] = 5
+    assert levelmap.cefr_rows(shelf) == {
+        "A1": (5, 5),
+        "A2": (5, 1),
+        "B1": (2, 2),
+        "B2+": (11, 1),
+    }
+
+
+def test_the_shelf_snapshot_round_trips(tmp_path: Path) -> None:
+    counts = {"he": {"A1": Floor(84, 84), "B2+": Floor(102, 22)}}
+    path = tmp_path / "shelf.json"
+    stages.write_shelf(counts, measured=dt.date(2026, 10, 12), path=path)
+    assert stages.read_shelf(path) == counts
+    assert json.loads(path.read_text())["measured"] == "2026-10-12"
+    assert stages.read_shelf(tmp_path / "none.json") == {}
+
+
+def test_there_is_no_second_table() -> None:
+    """`lang.js` carried its own list and `prompts.py` another, and they disagreed about
+    Hebrew on the same day. The page's table is written from `stages.DECLARED`."""
+    lang_js = (ASSETS / "lang.js").read_text(encoding="utf-8")
+    assert "var STATUS" not in lang_js
+    assert "window.TARGUM_STAGES" in lang_js
+    prompts = (ROOT / "src" / "targum" / "translate" / "prompts.py").read_text(encoding="utf-8")
+    assert "STAGE_LABELS =" not in prompts and "def stage_label" not in prompts
+    assert '("arc", "R&D")' not in prompts and '("he", "alpha")' not in prompts
+    nav = (ROOT / "src" / "targum" / "render" / "templates" / "_nav.html.j2").read_text()
+    assert "window.TARGUM_STAGES = {{ stage_table()|safe }}" in nav
+
+
+def test_every_desk_page_carries_the_table() -> None:
+    from targum.render.builder import add_page, library_page, list_page, progress_page
+
+    for html in (add_page("k"), list_page("k", "texts"), progress_page("k"), library_page("k")):
+        found = re.search(r"window\.TARGUM_STAGES = (\{[^;]*\});", html)
+        assert found, "the page does not carry the stage table"
+        assert json.loads(found.group(1)) == {code: s.value for code, s in DECLARED.items()}
+
+
+def test_the_shortfall_is_said_plainly() -> None:
+    for code in DECLARED:
+        for line in stages.shortfall(stages.facts(code), Stage.beta):
+            assert "!" not in line and "—" not in line, line
+            assert line == line.strip() and line[0].islower(), line
+
+
+def test_the_report_row_says_kept_and_review() -> None:
+    row = stages.report("he")
+    assert row["declared"] == "beta" and row["kept"] is True and row["review"] == "2026-12-31"
+    row = stages.report("fr")
+    assert row["declared"] == "experimental" and row["kept"] is False and row["shortfall"] == []

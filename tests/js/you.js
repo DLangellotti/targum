@@ -28,8 +28,8 @@ install({
   // What the page is built with: every language targum has, and which stay on.
   TARGUM_READING: [
     { code: "he", name: "Hebrew", stage: "alpha", label: "alpha" },
-    { code: "arc", name: "Aramaic", stage: "R&D", label: "Experimental" },
-    { code: "yi", name: "Yiddish", stage: "R&D", label: "Experimental" },
+    { code: "arc", name: "Aramaic", stage: "experimental", label: "Experimental" },
+    { code: "yi", name: "Yiddish", stage: "experimental", label: "Experimental" },
   ],
   TARGUM_INTO: [
     { code: "en", name: "English", stage: "alpha", label: "alpha" },

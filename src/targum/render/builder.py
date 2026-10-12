@@ -517,6 +517,8 @@ def _environment() -> Environment:
     env.globals["scripture_face"] = _scripture_face
     env.globals["chrome_face"] = _chrome_face
     env.globals["legal_is_public"] = legal_is_public
+    # How far along each language is, for the menu's badge (design.md §12, 2026-10-12).
+    env.globals["stage_table"] = _stage_table
     # The foot carries the way into Claude and ChatGPT, and only where there is one
     # to carry (design.md §12, 2026-09-24). A function rather than a value, like the
     # line above it, so a template cannot be rendered against a stale answer.
@@ -1801,26 +1803,37 @@ def chat_page(token: str, embed: bool = False, language: str = "en") -> str:
     )
 
 
+def _stage_table() -> str:
+    """`stages.DECLARED` as the JSON object every page carries in `window.TARGUM_STAGES`,
+    for `lang.js` to badge the menu from (design.md §12, "A badge is a promise, checked",
+    2026-10-12). A function, like the globals beside it, so no page renders a stale table."""
+    from ..stages import DECLARED
+
+    return json.dumps({code: stage.value for code, stage in DECLARED.items()})
+
+
 def _staged(pairs: tuple[tuple[str, str], ...], language: str = "en") -> list[dict[str, str]]:
-    """A language list with its stage beside each, for a page to draw a picker from, named
-    and labelled in `language` (targum-internal#184)."""
-    from ..translate.prompts import stage_label
+    """A language list with how far along each is beside it, for a page to draw a picker
+    from, named and labelled in `language` (targum-internal#184).
+
+    The reading side's word is the badge's (`stages.DECLARED`); the into side's two words
+    (`prompts.INTO`) are not a badge and read as "" for English and "Experimental" for
+    Russian, as they did before the standard of 2026-10-12.
+    """
+    from ..stages import Stage, label_key, wears
 
     names = dict(_language_names(language))
     said = page_words(language)
-    labels = {
-        "alpha": said("stage.alpha", "alpha"),
-        "Experimental": said("stage.experimental", "Experimental"),
-    }
-    return [
-        {
-            "code": code,
-            "name": names.get(code, code),
-            "stage": stage,
-            "label": str(labels.get(stage_label(stage), stage_label(stage))),
-        }
-        for code, stage in pairs
-    ]
+    into_words = {"alpha": "", "beta": str(said(label_key(Stage.experimental), "Experimental"))}
+    rows: list[dict[str, str]] = []
+    for code, how in pairs:
+        worn = wears(code)
+        if worn is not None and how not in into_words:
+            stage, label = worn.value, str(said(label_key(worn), worn.value.capitalize()))
+        else:
+            stage, label = how, into_words.get(how, "")
+        rows.append({"code": code, "name": names.get(code, code), "stage": stage, "label": label})
+    return rows
 
 
 def about_page(language: str = "en", address: str = "") -> str:

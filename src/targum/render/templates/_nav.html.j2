@@ -55,6 +55,10 @@
         every desk page, filled by `lang.js`. Always drawn, with the language's badge,
         for a reader of one language too, since it is also where another is started
         (design.md §12, "The boards are the desk", 2026-10-09). -#}
+    {#- How far along each language is, the one table (`stages.DECLARED`), for the badge
+        the menu and the palette draw (design.md §12, "A badge is a promise, checked",
+        2026-10-12). -#}
+    <script>window.TARGUM_STAGES = {{ stage_table()|safe }};</script>
     {%- if here in ('texts', 'chat', 'library', 'progress', 'add', 'yours', 'you', 'missing', 'subscribe', 'connect', 'press', 'plans') %}
     <div class="langs" id="langs" hidden></div>
     {%- endif %}
