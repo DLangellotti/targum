@@ -2174,6 +2174,32 @@ def not_found_page(token: str = "", language: str = "en", stranger: bool = False
     )
 
 
+def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
+    """What an old address of a Torah book's reader answers now (targum-internal#446):
+    the same verse, in the portion that reads it.
+
+    A page and not a redirect, because the verse is in the address's `#12:5`, which a
+    browser never sends; only the page can read it. With no verse it is the file's own
+    chapter, from its first verse. The address's query rides along, so a local key still
+    reaches `/torah/`. Without a script it is one link, to the chapter.
+    """
+    t = page_words(language)
+    fallback = f"/torah/{book}.{chapter}.1"
+    script = (
+        "(function(){var h=location.hash.slice(1),m=/^(\\d+):(\\d+)$/.exec(h);"
+        f"location.replace((m?'/torah/{book}.'+m[1]+'.'+m[2]:'{fallback}')+location.search);"
+        "})();"
+    )
+    return (
+        f'<!doctype html><html lang="{escape(_page_language(language))}"><head>'
+        '<meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+        '<meta name="robots" content="noindex">'
+        f"<script>{script}</script></head><body>"
+        f'<p><a href="{fallback}">{t("torah.forward.open", "Open it in its portion")}</a></p>'
+        "</body></html>"
+    )
+
+
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
 LEGAL_CHANGED = "28 September 2026"
@@ -2848,6 +2874,10 @@ def tanakh_map() -> list[dict[str, Any]]:
 
     hebrew = {**BOOKS, **NEVIIM, **KETUVIM}
     counted = coverage_module.read_map()
+    from ..parasha import build as corpus
+
+    # Where the portions are built, the Torah is read as them (targum-internal#446).
+    as_portions = bool(corpus.readable())
     parts: dict[str, list[dict[str, Any]]] = {}
     for book, part, chapters in counted.books:
         entry = catalogue_module.matching(f"sefaria:{book}")
@@ -2866,7 +2896,15 @@ def tanakh_map() -> list[dict[str, Any]]:
                     "number": number,
                     "verses": chapter.verses if chapter else 0,
                     "language": chapter.language if chapter else "he",
-                    "href": f"{door}#{number}:1" if door else "",
+                    # The Torah is read as its portions (targum-internal#446): a chapter
+                    # opens the one its first verse is read in, at that verse.
+                    "href": (
+                        f"/torah/{book}.{number}.1"
+                        if part == "torah" and as_portions
+                        else f"{door}#{number}:1"
+                        if door
+                        else ""
+                    ),
                     "portion": portion.name if portion else "",
                 }
             )
@@ -2910,7 +2948,10 @@ def tanakh_year() -> list[dict[str, Any]]:
                 "name": portion.name,
                 "hebrew": portion.hebrew,
                 "chapters": chapters,
-                "href": f"/library/parasha-{portion.slug}",
+                # Its reader at its first verse, as a chapter square opens it, rather than
+                # the portion's page (targum-internal#446).
+                "href": "/torah/"
+                + re.sub(r"[ :]", ".", portion.opening_ref or portion.summary.partition("-")[0]),
             }
         )
     return year
@@ -4196,6 +4237,20 @@ def saved_page(token: str, language: str = "en") -> str:
     )
 
 
+def read_as_portions(entry: Any) -> bool:
+    """Whether a catalogue entry is one of the five books, which are read as their
+    portions wherever the portions are built (targum-internal#446, David 2026-10-12): no
+    plainer Genesis beside the 54. A machine with no corpus keeps the books, so the Torah
+    is never missing from a shelf altogether."""
+    from ..parasha import build as corpus
+    from ..parasha.cut import BOOKS
+
+    source = str(getattr(entry, "source", "") or "")
+    if getattr(entry, "language", "") != "he" or source.removeprefix("sefaria:") not in BOOKS:
+        return False
+    return bool(corpus.readable())
+
+
 def library_page(token: str, language: str = "en") -> str:
     """Texts worth reading, and the ones you have already built.
 
@@ -4212,7 +4267,7 @@ def library_page(token: str, language: str = "en") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             token=token,
-            catalogue=[entry.state() for entry in everything()],
+            catalogue=[entry.state() for entry in everything() if not read_as_portions(entry)],
             # Which texts the page meets as one thing. Baked in beside the catalogue and
             # for the same reason — and only the members actually on the shelf, so a
             # collection can never open onto a row that is not there.
@@ -4474,8 +4529,15 @@ def render(
     moves: Mapping[str, object] | None = None,
     recordings_beside: bool = False,
     commentary_words: Mapping[str, Annotation] | None = None,
+    carries_from: str = "",
+    beyond: Mapping[str, Mapping[str, str]] | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
+
+    `beyond` is where the text goes past its own ends: `before` for its first section's
+    previous and `after` for its last section's next, each an `href`, a `hebrew` and a
+    `name` — a weekly portion's neighbours in the book (`parasha.build.beyond`). None for
+    every text whose first section is the start and whose last is the end.
 
     `folder` is the targum's own directory, where an imported recording's manifest and
     parts live — see `speech`. None for every text that has no such folder to ask.
@@ -5570,6 +5632,10 @@ def render(
                     # and the pager all name it, and a second notion of which part this
                     # is would be one more thing that can disagree.
                     "section": section.number,
+                    # The book a portion was cut from, whose chapters finished in its own
+                    # reader show this aliyah finished here (targum-internal#446). Read,
+                    # never written: the finish was counted once, in the book.
+                    **({"carriesFrom": carries_from} if carries_from else {}),
                     # How many there are, which is what tells the page whether a
                     # finished section is a finished document. A single-section text
                     # keeps the meaning its pre-2026-09-04 record had.
@@ -5656,6 +5722,12 @@ def render(
             standalone=single,
             # How many parts the text is in, for the line under a video (#422).
             section_count=len(sections),
+            # A portion's first and last aliyah lead on to the portions either side of
+            # it, in the order of the book (targum-internal#446). Not `previous` and
+            # `following`: those are this text's own sections, whose number the page
+            # buys ahead and counts known words in, and a neighbour is another text.
+            beyond_before=(beyond or {}).get("before") if section.number == 1 else None,
+            beyond_after=(beyond or {}).get("after") if section.number == len(sections) else None,
         )
         name = "index.html" if single else section.filename
         written.append(_write(out_dir / name, html))

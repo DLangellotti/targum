@@ -1152,6 +1152,15 @@
       (design.md §12, "The connector is met on the way in"). -#}
   <span class="next-up-connect" id="next-up-connect" hidden></span>
 </aside>
+{#- A portion's last aliyah, with the next portion in the book after it (targum-internal#446):
+    the same near offer, shown once this section is finished, naming a reading rather than
+    a section. Its own class, because the count of known words is asked of the next
+    section of this text, and this is another text. -#}
+{% elif beyond_after and not standalone %}
+<aside class="next-up here beyond" id="next-up" dir="ltr" hidden>
+  <span class="next-up-lead">{{ t("reader.page.read-next", "Up next") }}</span>
+  <a class="next-up-link" href="{{ beyond_after.href }}" data-page="{{ beyond_after.page }}"><bdi lang="{{ source_language }}" dir="auto">{{ beyond_after.hebrew }}</bdi>{% if beyond_after.name and beyond_after.name != beyond_after.hebrew %} <span class="next-up-english" lang="{{ page_language|default('en') }}">· {{ beyond_after.name }}</span>{% endif %}</a>
+</aside>
 {% elif suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
   <span class="next-up-lead">{{ t("reader.page.read-next", "Up next") }}</span>
@@ -1184,8 +1193,13 @@
 
 {% if not standalone %}
 <nav class="pager" data-chapter="{{ section.number }}" data-document="{{ document.content_hash }}"{% if by_part %} data-by-part{% endif %}>
-  {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>{% endif %}
-  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>{% endif %}
+  {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>
+  {%- elif beyond_before %}<a class="prev beyond" href="{{ beyond_before.href }}" data-page="{{ beyond_before.page }}"><bdi lang="{{ source_language }}" dir="auto">{{ beyond_before.hebrew }}</bdi></a>{% endif %}
+  {#- Past the last aliyah, the next portion's first, with no `data-next`: that names a
+      section of this text, to buy ahead and to turn to off the last page, and the next
+      portion is another text (targum-internal#446). -#}
+  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>
+  {%- elif beyond_after %}<a class="next beyond" href="{{ beyond_after.href }}" data-page="{{ beyond_after.page }}"><bdi lang="{{ source_language }}" dir="auto">{{ beyond_after.hebrew }}</bdi></a>{% endif %}
 </nav>
 {% endif %}
 {#- Who and what made this page, at the foot of the text (targum-internal#342, 2026-09-20).

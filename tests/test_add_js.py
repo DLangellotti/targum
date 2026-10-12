@@ -213,3 +213,24 @@ def test_a_press_that_spends_says_what_beside_it() -> None:
     add = (HARNESS.parents[2] / "src/targum/render/assets/add.js").read_text(encoding="utf-8")
     offered = add[add.index("  function offer(job) {") :][:2000]
     assert "bringing.uses(job)" in offered, "and on Add's"
+
+
+def test_a_verse_of_the_torah_opens_its_portion_and_is_never_a_search() -> None:
+    """Continue on "Genesis 12:1" opens the portion that reads it (targum-internal#446).
+    Asked of `/already` before anything else, because a press can come before the answer
+    to the typing has: unasked, the reference was a description, and a description is a
+    turn of the conversation."""
+    said = run(
+        typed="Genesis 12:1",
+        answers={"/already": {"id": "parasha-lech-lecha", "opens": "/torah/Genesis.12.1"}},
+    )
+    paths = [one["path"] for one in said["asked"]]
+    assert said["went"].startswith("/torah/Genesis.12.1")
+    assert "/chat" not in paths and not [path for path in paths if path.startswith("/job")]
+    assert "/prepare" not in paths and "/describe" not in paths
+
+
+def test_words_that_are_not_a_reference_go_on_as_they_did() -> None:
+    said = run(typed="something funny about food", answers=FOUND)
+    assert "/torah/" not in str(said["went"]), "it went nowhere"
+    assert "/already" in [one["path"] for one in said["asked"]]

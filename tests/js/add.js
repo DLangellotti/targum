@@ -171,6 +171,8 @@ const settled = () => new Promise((done) => setImmediate(done));
   }
 
   out.asked = asked;
+  // Where the page sent the reader, if it went anywhere (a reference opens its portion).
+  out.went = window.location.href;
   process.stdout.write(JSON.stringify(out));
   process.exit(0);
 })();

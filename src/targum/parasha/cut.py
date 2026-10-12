@@ -22,7 +22,7 @@ only new ids, and they are named for the aliyah so they cannot collide with a bo
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..models import (
@@ -171,6 +171,28 @@ def load_book(name: str, root: Path | None = None) -> Book:
     return book_in(name, root / f"{slug(hebrew)}-he")
 
 
+def on_shelf(reading: Reading | Haftarah, root: Path | None = None) -> bool:
+    """Whether every book a reading touches is built, without reading any of them.
+
+    For the build to know which readings it will cut before it cuts the first: a reader
+    is linked to the portions either side of it, and a link to one whose book is not on
+    the shelf would open a 404. The same three files `book_in` refuses to go without.
+    """
+    from ..ids import slug
+
+    root = root or library_root()
+    for name in reading.books:
+        hebrew = BOOKS.get(name) or NEVIIM.get(name)
+        if hebrew is None:
+            return False
+        folder = root / f"{slug(hebrew)}-he"
+        if not (folder / "document.json").is_file() or not (folder / "segments.json").is_file():
+            return False
+        if not any((folder / "translations").glob("*.json")):
+            return False
+    return True
+
+
 def book_in(name: str, folder: Path) -> Book:
     """One built text, read off the disk. Shared with `daily/cut.py`, which finds its
     folder a different way — off the catalogue rather than off a table of five books —
@@ -220,6 +242,9 @@ class Portion:
     #: The words of each commentary carried, narrowed to the verses kept, so Rashi is
     #: tapped in a portion as in its book (targum-internal#414). Handed to `render`.
     commentary_words: dict[str, Annotation] = field(default_factory=dict)
+    #: The document id of the book a portion was cut from, so chapters finished in the
+    #: book's own reader show finished here (targum-internal#446). "" for anything else.
+    carries_from: str = ""
 
     @property
     def verses(self) -> int:
@@ -355,7 +380,7 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
 
     blocks, segments = run.blocks, run.segments
     first_book = books[reading.aliyot[0].book] if reading.aliyot else next(iter(books.values()))
-    return assemble(
+    cut_from = assemble(
         blocks,
         segments,
         books,
@@ -369,6 +394,7 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
         ingester="parasha/1",
         reading=reading,
     )
+    return replace(cut_from, carries_from=first_book.segmented.document_hash)
 
 
 def cut_haftarah(haftarah: Haftarah, books: dict[str, Book]) -> Portion:

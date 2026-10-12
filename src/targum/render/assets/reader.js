@@ -125,6 +125,19 @@ var targumReader = function () {
       event.preventDefault();
       var to = url.href;
       var where = window;
+      // The next portion in the book, or the one before (targum-internal#446): framed on
+      // the public page, its own page in the window that holds the frame, not its reader
+      // inside a frame that belongs to this one.
+      var page = link.getAttribute("data-page");
+      if (page) {
+        try {
+          where = window.top || window;
+        } catch (e) {
+          where = window;
+        }
+        where.location.assign(page);
+        return;
+      }
       if (url.origin === location.origin && OWN_PAGE.test(url.pathname)) {
         to = framed(to);
       } else {
@@ -697,6 +710,8 @@ var targumReader = function () {
   // carries neither, and is its own single section — which is the shape the record it
   // wrote already had.
   var sectionId = String(data.section || 1);
+  // The book a portion was cut from, for `carriedAt` (targum-internal#446).
+  var carriesFrom = String(data.carriesFrom || "");
   var sectionCount = Number(data.sections || 1);
 
   /* What happens here is said to `events.js`, which decides whether anybody is told
@@ -1153,11 +1168,37 @@ var targumReader = function () {
    * back-filled, and re-reading fills them in.
    */
   function finishedAt() {
-    var record = read(DOCS, "{}")[documentId];
-    if (!record) return 0;
-    var mine = record.sections && record.sections[sectionId];
+    var all = read(DOCS, "{}");
+    var record = all[documentId];
+    var mine = record && record.sections && record.sections[sectionId];
     if (mine) return Number(mine);
-    return sectionCount === 1 ? Number(record.done || 0) : 0;
+    if (record && sectionCount === 1 && record.done) return Number(record.done);
+    return carriedAt(all);
+  }
+
+  /* An aliyah whose chapters were all finished in the book's own reader, from before the
+     Torah was read as its portions (targum-internal#446): finished here too, as of the
+     last of them. Only ever read. The finishes were counted once, in the book, and a
+     second record of them would count them twice. */
+  function carriedAt(all) {
+    var book = carriesFrom && all[carriesFrom];
+    var done = book && book.sections;
+    if (!done) return 0;
+    var chapters = {};
+    var verses = document.querySelectorAll(".pair.verse[id]");
+    for (var i = 0; i < verses.length; i++) {
+      var chapter = /^(\d+):\d+$/.exec(verses[i].id);
+      if (chapter) chapters[chapter[1]] = true;
+    }
+    var latest = 0;
+    var any = false;
+    for (var number in chapters) {
+      any = true;
+      var at = Number(done[number] || 0);
+      if (!at) return 0;
+      if (at > latest) latest = at;
+    }
+    return any ? latest : 0;
   }
 
   /* Which control was pressed (targum-internal#341): "audit all controls on the reader and
@@ -1592,7 +1633,6 @@ var targumReader = function () {
      goes: the ink block says so and holds the Undo — except in a playlist, where the
      press is still the way on, and moving on from a finished item marks nothing. */
   function renderFoot() {
-    countShabbatAhead();
     if (!footDrawn || !footPress || !finishedMark) return;
     var when = finishedAt();
     var verb = footWay ? footWay.verb : "done";
@@ -2394,6 +2434,8 @@ var targumReader = function () {
   // What the foot is offering, as the server names it: the next section of this text,
   // or a catalogue text by its id off the `/open/<id>` link. Null for anything else.
   function offerNamed(offer) {
+    // A portion's next in the book is another text, which this page has no id for.
+    if (offer.classList.contains("beyond")) return null;
     if (offer.classList.contains("here")) return { next: Number(sectionId) + 1 };
     var link = offer.querySelector(".next-up-link");
     var href = (link && link.getAttribute("href")) || "";
@@ -2458,109 +2500,6 @@ var targumReader = function () {
     var connect = document.getElementById("next-up-connect");
     if (connect) connect.hidden = true;
   }
-
-  /* --- next Shabbat's portion, at the end of the last aliyah (targum-internal#416) ---
-   *
-   * A portion is read a week at a time, and the week after this one is the next portion:
-   * "Next Shabbat · נח · Noach", and under it how many of its words the reader already
-   * knows. At the foot of the last aliyah and of the haftarah, and nowhere else.
-   *
-   * Asked of the server, because the readers are built once for everybody and the
-   * calendar moves under them: which portion follows is the calendar's to say, on the
-   * schedule this browser keeps (`targum:schedule`, the Library shelf's own, diaspora
-   * until they say). The answer carries the next portion's words to a reader with a word
-   * list, and the count is made here, against this browser's store, by the header's rule
-   * (`coverage`): a word is known when it is marked known. Signed out, or nothing known
-   * yet, the offer stands without a count rather than saying nought.
-   */
-  var PORTION_READER = /^\/parasha\/read\/([a-z0-9-]+)\/reader\//.exec(location.pathname);
-  var shabbatAhead = null;
-
-  function knownAhead(words) {
-    var known = 0;
-    for (var n = 0; n < words.length; n++) if (statusOf(words[n]) === KNOWN) known += 1;
-    return known;
-  }
-
-  // Again on every redraw of the foot, so a word marked on this page counts at once.
-  function countShabbatAhead() {
-    if (!shabbatAhead || !shabbatAhead.words) return;
-    var known = knownAhead(shabbatAhead.words);
-    shabbatAhead.line.textContent = known
-      ? t("reader.next.shabbat-known", "You already know {n} of its words.", { n: known })
-      : "";
-    shabbatAhead.line.hidden = !known;
-  }
-
-  function offerShabbatAhead(next) {
-    var foot = document.getElementById("foot");
-    if (!next || !next.href || !foot || !foot.parentNode) return;
-    var offer = document.createElement("aside");
-    offer.className = "next-up shabbat";
-    offer.id = "next-shabbat";
-    offer.dir = "ltr";
-    var lead = document.createElement("span");
-    lead.className = "next-up-lead";
-    lead.textContent = t("reader.next.shabbat", "Next Shabbat");
-    offer.appendChild(lead);
-    var link = document.createElement("a");
-    link.className = "next-up-link";
-    // Framed on the public page, the portion's own page rather than its reader: that is
-    // what the frame is a part of, and it opens in the window that holds the frame.
-    link.href = PREVIEW && next.page ? next.page : keyed(next.href);
-    var named = document.createElement("bdi");
-    named.lang = "he";
-    named.dir = "auto";
-    named.textContent = next.hebrew || next.name;
-    link.appendChild(named);
-    if (next.name && next.name !== next.hebrew) {
-      var english = document.createElement("span");
-      english.className = "next-up-english";
-      english.lang = "en";
-      english.textContent = "· " + next.name;
-      link.appendChild(document.createTextNode(" "));
-      link.appendChild(english);
-    }
-    offer.appendChild(link);
-    var line = document.createElement("span");
-    line.className = "next-up-known";
-    line.hidden = true;
-    offer.appendChild(line);
-    // After whatever already follows the foot, so it ends the page.
-    var after = foot;
-    while (after.nextElementSibling && after.nextElementSibling.classList.contains("next-up")) {
-      after = after.nextElementSibling;
-    }
-    after.parentNode.insertBefore(offer, after.nextSibling);
-    // A portion's last aliyah ends on next Shabbat's: the library's own pick of something
-    // else to read stands down for it, rather than two doors out of one page.
-    var elsewhere = document.getElementById("next-up");
-    if (elsewhere && !elsewhere.classList.contains("here")) elsewhere.hidden = true;
-    shabbatAhead = { line: line, words: Array.isArray(next.lemmas) ? next.lemmas : null };
-    countShabbatAhead();
-  }
-
-  function askShabbatAhead() {
-    if (!PORTION_READER || !served || typeof fetch !== "function") return;
-    if (Number(sectionId) !== sectionCount) return;
-    var schedule = "diaspora";
-    try {
-      if (localStorage.getItem("targum:schedule") === "israel") schedule = "israel";
-    } catch (e) {}
-    fetch(keyed("/parasha/next/" + PORTION_READER[1] + "?schedule=" + schedule), {
-      headers: keyHeaders({}),
-    })
-      .then(function (response) {
-        return response.ok ? response.json() : null;
-      })
-      .then(function (answer) {
-        offerShabbatAhead(answer && answer.next);
-      })
-      .catch(function () {
-        /* offline, or no calendar to ask: the page ends where it always did */
-      });
-  }
-  askShabbatAhead();
 
   /* The Undo on the ink block: the finish, and the words this visit's press marked. A
      word the reader has said something else about since is theirs and is left alone. */
@@ -10618,7 +10557,7 @@ var targumReader = function () {
     if (homePlain) homePlain.hidden = true;
     // Section-to-section links are relative and would drop the key, and with it access:
     // the next chapter would answer 403. No key hosted, where `keyed` is the identity.
-    var carried = document.querySelectorAll(".pager a, .bar-title .up");
+    var carried = document.querySelectorAll(".pager a, .bar-title .up, .next-up.beyond .next-up-link");
     Array.prototype.forEach.call(carried, function (link) {
       var href = link.getAttribute("href");
       if (href && href.indexOf("?") === -1) {
