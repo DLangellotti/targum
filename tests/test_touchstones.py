@@ -18,7 +18,7 @@ from test_reading_line import built, ms, word
 from test_serve import Postbox, call, sign_in
 
 from targum import touchstones
-from targum.coverage import KNOWN, build_index
+from targum.coverage import IGNORED, KNOWN, build_index
 
 served = test_serve.served
 postbox = test_serve.postbox
@@ -99,6 +99,13 @@ def test_a_share_is_of_running_words_not_of_distinct_ones() -> None:
     index = index_of({"a1": {"common": 9, "rare": 1}})
     assert touchstones.running_share(index, "a1", {"common": KNOWN}) == pytest.approx(0.9)
     assert touchstones.running_share(index, "nowhere", {"common": KNOWN}) is None
+
+
+def test_an_ignored_word_is_left_out_of_the_running_share() -> None:
+    """Ignored is not vocabulary: left out of the running words, as the reader does."""
+    index = index_of({"a1": {"common": 6, "name": 3, "rare": 1}})
+    marked = {"common": KNOWN, "name": IGNORED}
+    assert touchstones.running_share(index, "a1", marked) == pytest.approx(6 / 7)
 
 
 def test_a_share_falls_back_to_distinct_words_where_nothing_was_counted() -> None:

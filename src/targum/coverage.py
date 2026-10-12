@@ -33,6 +33,12 @@ from .paths import write_atomic
 # them something to read.
 KNOWN = 9
 
+#: The status a word set aside as not vocabulary carries: a name, a numeral, a word from
+#: another language. Neither known nor waiting, so it comes out of a text's total rather
+#: than counting against the reader, as the reader's own figure takes it out
+#: (`reader.js`, `renderStats`; known-issues 1.18).
+IGNORED = 0
+
 ANNOTATION = "annotation.json"
 LEMMAS = "lemmas.json"
 
@@ -133,9 +139,19 @@ def against(folder: Path, marked: dict[str, int]) -> Coverage | None:
     words = lemmas(folder)
     if not words:
         return None
+    return measure(words, marked)
+
+
+def measure(words: list[str], marked: dict[str, int]) -> Coverage:
+    """A text's distinct dictionary forms measured against one person's marks, as the
+    reader measures the page in front of them: the words they ignored are left out of the
+    total, so the share the shelf, the Library and the contents page show is the one the
+    reader's bar shows (design.md §12, "Known means marked, everywhere a share is shown").
+    A text whose every word is ignored has nothing to measure, and its total is nought."""
     known = sum(1 for lemma in words if marked.get(lemma) == KNOWN)
     fresh = sum(1 for lemma in words if lemma not in marked)
-    return Coverage(known=known / len(words), fresh=fresh, total=len(words))
+    scored = sum(1 for lemma in words if marked.get(lemma) != IGNORED)
+    return Coverage(known=known / scored if scored else 0.0, fresh=fresh, total=scored)
 
 
 # -- the catalogue's own lemmas (targum-internal#293) ---------------------------------
@@ -232,9 +248,7 @@ class Index:
         words = self.lemmas_for(entry_id)
         if not words:
             return None
-        known = sum(1 for lemma in words if marked.get(lemma) == KNOWN)
-        fresh = sum(1 for lemma in words if lemma not in marked)
-        return Coverage(known=known / len(words), fresh=fresh, total=len(words))
+        return measure(words, marked)
 
 
 EMPTY = Index(words=(), texts={})
