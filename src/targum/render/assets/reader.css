@@ -1386,6 +1386,15 @@ body.first-page .turn button[data-turn="-1"]:hover { background: var(--paper-rai
 body.paged main { padding-block-end: 1rem; }
 /* And on the last page, what sits under the text clears the arrows too. */
 body.paged .foot, body.paged .pager { margin-block-end: 6rem; }
+/* Only the last of them (known issues 2026-10-12, 1.7). The Done line, the pager and the
+   credits each kept their own room, and the pager its scrolling padding besides, so on a
+   phone the three stood half a screen taller than they are: too tall for the last page
+   to hold, the credits went under the arrows and the words tab, at every chapter's end.
+   Close together, they fit, and `withTail` budgets the page around them. */
+body.paged .pager { padding-block-end: 0; }
+body.paged .foot:has(~ .pager),
+body.paged .pager:has(~ .credits) { margin-block-end: 1rem; }
+body.paged .pager:has(~ .credits) + .credits { margin-block-start: 1rem; }
 /* A verse taller than the page, cut between two lines across pages (QA 2026-10-05): the
    pair stands as tall as its piece, what is in it is drawn up by what is above the
    piece, and the rest is clipped — so nothing of it is under the arrows and there is no
