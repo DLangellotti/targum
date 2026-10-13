@@ -4083,5 +4083,10 @@
   "reader.lens.governed-cue": "Каждый выделенный глагол берёт выделенный рядом предлог, в этой строке.",
   "reader.lens.governed-said": "Предлоги при глаголах: {n} здесь.",
   "reader.lens.none": "Линза выключена.",
+  "reader.page.show-subjects-after-their-verb-w": "Показать подлежащие после глагола (w)",
+  "reader.page.subjects-after-their-verb": "Подлежащие после глагола",
+  "reader.page.subjects-after-their-verb-lower": "подлежащие после глагола",
+  "reader.lens.order-cue": "Каждое выделенное слово — подлежащее глагола перед ним.",
+  "reader.lens.order-said": "Подлежащие после глагола: {n} здесь.",
   "practice.page.lens": "Практикуется линзой в читалке: Aa, затем «Предлоги при глаголах», когда вы дочитаете часть."
 }

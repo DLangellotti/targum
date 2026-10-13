@@ -2437,6 +2437,16 @@ def _governed_lines(tokens: Sequence[Token]) -> dict[int, str]:
     return {key: "|".join(parts) for key, parts in out.items()}
 
 
+def _order_lines(text: str, tokens: Sequence[Token]) -> dict[int, str]:
+    """The grammar-line addition for a Russian subject that comes after its verb, keyed by
+    `id(token)`: `Order=VS`, which the word-order lens lights (design.md §12, "Subjects
+    after their verb, on a lens", 2026-10-13). Read off the stored grammar
+    (`annotate.word_order`), so a text annotated before this shows it as it is."""
+    from ..annotate.word_order import inverted
+
+    return {id(tokens[one.subject]): "Order=VS" for one in inverted(text, tokens)}
+
+
 def _family_at(
     token: object,
     families: list[list[list[str]]],
@@ -5135,6 +5145,9 @@ def render(
         guesses: list[int] = [0]
         sound_at: dict[tuple[str, int], int] = {("", 0): 0}
         as_written = {segment.id: segment.text for segment in segmented.segments}
+        # Whether a subject after its verb is looked for: Russian alone, where the case
+        # says who did it and the order is free (`annotate.word_order`).
+        ordered = segmented.language.split("-")[0].lower() == "ru"
         # How a split surface is put together, and the occurrence's grammar. Both are
         # facts about the occurrence, like the sound, and ride the same way: a table of
         # distinct strings with an index on each token, because ולבית is built the same
@@ -5191,6 +5204,11 @@ def render(
                 # goes with (Hebrew's fourth hard spot, `annotate.governed`), said on the
                 # row's grammar line so it rides the table the card already reads.
                 said_with = _governed_lines(tokens)
+                # And a Russian subject standing after its verb, for the word-order lens:
+                # Russian's word-order hard spot (`annotate.word_order`).
+                if ordered:
+                    for key, line in _order_lines(as_written.get(sid, ""), tokens).items():
+                        said_with[key] = "|".join(p for p in (said_with.get(key), line) if p)
                 heard: dict[int, str] = {}
                 if pronouncing is not None:
                     heard = _said_here(
@@ -5513,6 +5531,9 @@ def render(
             # The prepositions lens, on a page whose verbs say what they take — a Hebrew
             # one with DICTA's syntax (design.md §12, "Lenses wait for a second read").
             governs=any("Takes=" in line for line in grammar),
+            # The word-order lens, on a Russian page with a subject after its verb
+            # (design.md §12, "Subjects after their verb, on a lens").
+            orders=any("Order=VS" in line for line in grammar),
             # CC BY asks to be named where the work is used, and the words are used in
             # the reader, so the naming goes in the reader rather than in a file about
             # the reader. Keyed off what actually ran: a text annotated before the swap

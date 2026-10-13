@@ -7804,3 +7804,88 @@ def test_the_prepositions_lens_waits_for_a_finish_and_says_once_what_it_shows(
     said = page.evaluate("() => document.getElementById('spoken').textContent")
     assert said == "Prepositions verbs take, 1 here.", "the cue is said once"
     context.close()
+
+
+def russian_order(out: Path) -> Path:
+    """A Russian reader with its subject after its verb (design.md §12, "Subjects after
+    their verb, on a lens", 2026-10-13)."""
+    text = "Книгу написал Толстой."
+    said = [
+        ("Книгу", "книга", "NOUN", "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing"),
+        ("написал", "написать", "VERB", "UPOS=VERB|Gender=Masc|Number=Sing|VerbForm=Fin"),
+        ("Толстой", "Толстой", "PROPN", "UPOS=PROPN|Case=Nom|Gender=Masc|Number=Sing"),
+    ]
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    placed = [
+        Token(
+            start=text.index(surface),
+            end=text.index(surface) + len(surface),
+            surface=surface,
+            lemma=lemma,
+            band=1,
+            pos=pos,
+            feats=feats,
+        )
+        for surface, lemma, pos, feats in said
+    ]
+    document = Document(
+        source="memory",
+        title="Книга",
+        language="ru",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
+        content_hash="o",
+    )
+    segmented = SegmentedDocument(
+        document_hash="o", language="ru", segmenter="test/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="o",
+        source_language="ru",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "Tolstoy wrote the book."},
+    )
+    annotation = Annotation(
+        document_hash="o",
+        language="ru",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens={segment.id: placed},
+    )
+    return render(document, segmented, [translation], out, annotation=annotation)[0]
+
+
+LENS_STATE = """
+(lens) => [
+  document.body.getAttribute('data-lens'),
+  document.body.getAttribute('data-case'),
+  document.querySelector(lens).getAttribute('aria-pressed'),
+]
+"""
+
+
+def test_the_word_order_lens_lights_the_late_subject_and_gives_way_to_a_case(
+    browser, tmp_path: Path
+) -> None:
+    """Russian's word-order lens: hidden on a first read, `w` lights the subject standing
+    after its verb and says once what it shows, and a case turned on turns it off."""
+    context, page = open_reader(browser, russian_order(tmp_path / "reader"))
+    lens = "[data-order-lens]"
+    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    page.keyboard.press("w")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.click("#done-go")
+    page.keyboard.press("w")
+    assert page.evaluate(GOVERNED_SHOWN) == ["Толстой"]
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each word lit is the subject of a verb before it."
+    assert page.evaluate(LENS_STATE, lens) == ["order", None, "true"]
+    page.keyboard.press("c")
+    assert page.evaluate(LENS_STATE, lens) == [None, "Nom", "false"]
+    page.keyboard.press("w")
+    assert page.evaluate(LENS_STATE, lens) == ["order", None, "true"]
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Subjects after their verb, 1 here.", "the cue is said once"
+    context.close()

@@ -429,8 +429,8 @@ only teaches with a line saying what to look at. This amends "One case at a time
 Russian case lens, targum-internal#261), which was already on demand.
 
 - **No lens on a first read.** A lens's row in Aa is hidden until this part is finished
-  or the text is opened again; its key (`c` for a case, `r` for prepositions; `g` stays retired) does
-  nothing until then.
+  or the text is opened again; its key (`c` for a case, `r` for prepositions, `w` for word
+  order; `g` stays retired) does nothing until then.
 - **One lens at a time.** Turning one on turns the other off.
 - **A cue the first time.** The first time a lens is turned on on a page it says what it
   lights ("Each verb lit takes the preposition lit beside it, in this line."), and after
@@ -441,6 +441,30 @@ Russian case lens, targum-internal#261), which was already on demand.
   underline ("Governed prepositions on the card", below). It is governed prepositions'
   practice: the research found that spot immune to feedback ("A practice for every hard
   spot", above).
+
+### Subjects after their verb, on a lens — 2026-10-13
+
+David, 2026-10-13, closing Russian's word-order hard spot under "A badge is a promise,
+checked" (2026-10-12, below), as a lens: the research (targum-internal,
+`research/hard-spots-2026-10-11`) ranks word order among the spots feedback does not fix.
+Russian says who did it with the ending, so *Книгу написал Толстой* is Tolstoy writing the
+book, and an English reader who takes the first noun for the subject reads it backwards.
+
+- **One feature: a subject that comes after its verb.** The word-order lens lights it in
+  the case lens's wash and dotted underline, and lights nothing else: not the verb, not
+  an object placed first. The cue the first time is "Each word lit is the subject of a
+  verb before it."; after that, the count.
+- **Russian pages only, on `w`**, under every rule of "Lenses wait for a second read"
+  (above): offered on a second read, one lens at a time, never remembered.
+- **Read off the stored grammar, not a parse** (`annotate/word_order.py`): a nominative
+  noun or pronoun after a finite verb it agrees with, in the same clause, with no agreeing
+  nominative before the verb. The case is already settled by the parse where the ending
+  cannot say it, so nothing is read again and no Russian text is re-annotated.
+- **Precision over recall, measured.** On all 8,906 SynTagRus dev sentences it is right
+  0.951 of the time and finds 0.708 of the treebank's subjects after a verb (floors 0.93
+  and 0.68). The parse's own subjects, which would have meant storing it and re-reading
+  every Russian text, were right 0.848 of the time. A lit word that is not the subject
+  teaches the wrong sentence, so the lens says less and is right.
 
 ### Governed prepositions on the card — 2026-10-13
 

@@ -838,9 +838,12 @@ body[data-case="Loc"] .w.case-Loc {
 
 /* The prepositions lens (design.md §12, "Lenses wait for a second read", 2026-10-13): a
    verb that takes a preposition here, and the preposition's word or the word it is
-   written onto, in the same wash and dotted underline as a case, one lens at a time. */
+   written onto, in the same wash and dotted underline as a case, one lens at a time.
+   The word-order lens likewise: a Russian subject standing after its verb ("Subjects
+   after their verb, on a lens"). */
 body[data-lens="governed"] .w.gov-verb,
-body[data-lens="governed"] .w.gov-arg {
+body[data-lens="governed"] .w.gov-arg,
+body[data-lens="order"] .w.late-subject {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
   text-decoration: underline dotted var(--accent);
   text-decoration-thickness: 2px;
