@@ -28,6 +28,23 @@ SCHEMA_VERSION = 4
 #: the spelling is — and never a display string: the card shows the lemma.
 VERB_MARK = " (verb)"
 
+#: The few unpointed spellings that stand for a grammatical word and another word on
+#: nearly every modern page, filed by part of speech the way a verb is (known issues
+#: 1.21, 2026-10-13). עם is "with" and "people", את the object marker and "you", אל "to",
+#: "God" and "don't", עד "until" and "witness", תחת "under" and "bottom". Filed under one
+#: key, the card on the commonest of them said the wrong one: "with" read "people;
+#: nation" on 96 of the shelf's modern texts. A closed list, because a mark on every
+#: preposition would buy every preposition's meaning again for nothing.
+SPLIT_BY_POS = frozenset({"עם", "את", "אל", "עד", "תחת"})
+POS_MARKS = {
+    "ADP": " (preposition)",
+    "NOUN": " (noun)",
+    "PRON": " (pronoun)",
+    "ADV": " (adverb)",
+}
+#: Every mark a meaning's key can carry after the form.
+MARKS = (VERB_MARK, *POS_MARKS.values())
+
 #: What a pointed headword carries when the lexicon points more than one word alike:
 #: `אֵת (H854)`, "with", beside `אֵת (H853)`, the object marker (`oshb.filed_as`). A key
 #: like `VERB_MARK`, and one a model asked for the meaning can read: it names the entry.
@@ -391,7 +408,8 @@ class Token(Artifact):
     @property
     def glossed_as(self) -> str:
         """The form a meaning is bought and filed under: the headword where two words
-        share a spelling, the lemma with `VERB_MARK` on a verb, the lemma everywhere else.
+        share a spelling, the lemma with `VERB_MARK` on a verb, a `SPLIT_BY_POS` spelling
+        with its part of speech, the lemma everywhere else.
 
         The mark, since 2026-09-08. DICTA names many verbs by their present participle,
         and in modern Hebrew a participle is a noun as often as not: מְשַׁנּוֹת, "are
@@ -408,6 +426,8 @@ class Token(Artifact):
             return self.headword
         if self.pos == "VERB":
             return self.lemma + VERB_MARK
+        if self.lemma in SPLIT_BY_POS and self.pos in POS_MARKS:
+            return self.lemma + POS_MARKS[self.pos]
         return self.lemma
 
     @property

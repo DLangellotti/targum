@@ -497,6 +497,30 @@ def test_a_verb_is_filed_apart_from_the_noun_spelled_like_it() -> None:
     )
 
 
+def test_a_grammatical_word_is_filed_apart_from_the_word_spelled_like_it() -> None:
+    """Known issues 1.21 (2026-10-13): עם, "with", read "people; nation" on 96 modern
+    texts, because the preposition and the noun shared one key. The few spellings that
+    collide on every page are filed by part of speech; every other preposition keeps its
+    bare key and its meaning, and a pointed headword still wins."""
+
+    def token(lemma: str, pos: str, headword: str | None = None) -> Token:
+        return Token(start=0, end=2, surface=lemma, lemma=lemma, band=1, pos=pos, headword=headword)
+
+    assert token("עם", "ADP").glossed_as == "עם (preposition)"
+    assert token("עם", "NOUN").glossed_as == "עם (noun)"
+    assert token("את", "PRON").glossed_as == "את (pronoun)"
+    assert token("את", "ADP").glossed_as == "את (preposition)"
+    assert token("אל", "ADV").glossed_as == "אל (adverb)"
+    assert token("על", "ADP").glossed_as == "על", "a spelling off the list keeps its key"
+    assert token("עם", "PROPN").glossed_as == "עם", "a name is not glossed apart"
+    assert token("עם", "ADP", "עִם (H5973)").glossed_as == "עִם (H5973)"
+    assert filed_as(["עם (preposition)", "עם (noun)"]) == {
+        "עם (preposition)": "עם (preposition)",
+        "עם (noun)": "עם (noun)",
+    }, "a bare answer could be either, so it is neither"
+    assert filed_as(["עם (preposition)"])["עם"] == "עם (preposition)"
+
+
 def test_an_answer_that_dropped_the_verb_mark_still_lands_on_the_verb() -> None:
     """The one instruction the model drops most is "return the form exactly": asked for
     משנה (verb) it may answer משנה. That answer is the verb's — unless the same batch

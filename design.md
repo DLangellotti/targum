@@ -369,6 +369,18 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### "With" is not "people" — 2026-10-13
+
+David, 2026-10-13 (known issues 1.21). A handful of unpointed spellings stand for a
+grammatical word and another word on nearly every modern page, and the meaning was filed
+under the spelling: עם, "with", read "people; nation" on 96 of the shelf's modern texts.
+Those spellings are now filed by part of speech, the way a verb has been since 2026-09-08
+(עם as preposition and as noun, את as the object marker and as "you", אל as "to", "God"
+and "don't", עד, תחת). A closed list (`models.SPLIT_BY_POS`), because a mark on every
+preposition would buy every preposition's meaning again for nothing. The key is computed,
+so no text is annotated again; a reader is re-rendered and the new keys are bought, for
+cents. The card shows the word as before: the mark is a key, never a label.
+
 ### A practice for every hard spot — 2026-10-13
 
 David, 2026-10-13 (targum-internal#440, #439), the Beta criterion of "A badge is a
