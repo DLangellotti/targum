@@ -752,3 +752,36 @@ def test_read_it_signs_in_and_lands_on_the_text() -> None:
     assert doors == [f"/account/signin?next=%2Fopen%2F{entry.id}"] * 2
     russian = text_page(entry, "https://targum.page", language="ru")
     assert f'href="/account/signin?next=%2Fopen%2F{entry.id}&amp;lang=ru"' in russian
+
+
+# -- what a shared link shows -------------------------------------------------
+
+
+def test_every_public_page_names_the_link_preview() -> None:
+    """One picture for every public page, at its full address and its size (design.md
+    §12, "A shared link shows the mark", 2026-10-13). Without it a shared link was bare
+    and Meta's crawler asked for /null."""
+    import struct
+
+    from targum.catalogue import everything
+    from targum.render.builder import LINK_PREVIEW, LINK_PREVIEW_SIZE
+
+    entry = next(iter(everything()))
+    for page in (shelf_page(ADDRESS), text_page(entry, ADDRESS)):
+        assert f'property="og:image" content="{ADDRESS}/link-preview.png"' in page
+        assert 'property="og:image:width" content="1200"' in page
+        assert 'property="og:image:height" content="630"' in page
+        assert 'name="twitter:card" content="summary_large_image"' in page
+        assert "null" not in re.findall(r'<meta property="og:image" content="([^"]*)"', page)[0]
+    head = LINK_PREVIEW.read_bytes()[:24]
+    assert head[:8] == b"\x89PNG\r\n\x1a\n"
+    assert struct.unpack(">II", head[16:24]) == LINK_PREVIEW_SIZE, "the size the tags say"
+
+
+def test_a_page_with_no_address_names_no_preview(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A local build knows no origin, and a picture at a relative address is one a crawler
+    drops. Nothing is better than a broken one."""
+    monkeypatch.delenv("TARGUM_PUBLIC_ADDRESS", raising=False)
+    page = shelf_page("")
+    assert "og:image" not in page
+    assert 'name="twitter:card" content="summary"' in page

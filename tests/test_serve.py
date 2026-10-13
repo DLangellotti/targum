@@ -1758,6 +1758,23 @@ def test_the_catalogue_is_shut(tmp_path: Path) -> None:
         server.shutdown()
 
 
+def test_the_link_preview_is_served_to_anybody(tmp_path: Path) -> None:
+    """The picture a shared link shows (design.md §12, "A shared link shows the mark",
+    2026-10-13). A crawler carries no key and no cookie, so it answers before either."""
+    port, _, server = hosted(tmp_path)
+    try:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", "/link-preview.png")
+        response = connection.getresponse()
+        body = response.read()
+        connection.close()
+        assert response.status == 200
+        assert response.getheader("Content-Type") == "image/png"
+        assert body.startswith(b"\x89PNG"), "a PNG"
+    finally:
+        server.shutdown()
+
+
 def test_a_shut_site_tells_crawlers_to_stay_out(tmp_path: Path) -> None:
     """The half-open state is the harmful one.
 
