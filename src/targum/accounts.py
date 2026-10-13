@@ -280,10 +280,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    On a table every box has, so they are in MIGRATIONS; zero for every row before
 #    them, which is the truth about every text that is not a recording.
 #
+# 45→46: practised — where a reader is with each hard spot's practice (targum-internal#440,
+#    design.md §12, "A practice for every hard spot", 2026-10-13): the step on the ramp,
+#    when the next round is due, the last answers and the lines already asked about. A new
+#    table, so it needs no MIGRATIONS entry.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 45
+SCHEMA_VERSION = 46
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -349,6 +354,7 @@ WIPED = (
     "event",
     "chosen",
     "slip",
+    "practised",
     "telegram",
     "oauth_token",
     "oauth_grant",
@@ -1159,6 +1165,22 @@ CREATE TABLE IF NOT EXISTS slip (
   known    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS slip_person ON slip (person, at);
+
+-- Where a reader is with each hard spot's practice (targum-internal#440). One row per
+-- (person, language, spot): the step on the ramp, when the next round is due, the last
+-- twenty answers as a string of 1s and 0s, and the lines already asked about as JSON, so
+-- no line is asked about twice. Theirs: exported by `everything`, gone in `purge`.
+CREATE TABLE IF NOT EXISTS practised (
+  person   INTEGER NOT NULL,
+  language TEXT    NOT NULL,
+  spot     TEXT    NOT NULL,
+  step     INTEGER NOT NULL DEFAULT 0,
+  due      INTEGER NOT NULL DEFAULT 0,
+  history  TEXT    NOT NULL DEFAULT '',
+  seen     TEXT    NOT NULL DEFAULT '[]',
+  at       INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, language, spot)
+);
 
 -- Who is waiting for a way in (2026-09-16, targum-internal#69). The front door takes an
 -- address and nothing else, and this is where it goes.
@@ -3612,6 +3634,8 @@ class Store:
                     # the most personal row in the database: a record of a learner's own
                     # mistakes, in their own sentences.
                     "slip",
+                    # Where they are with each practice: a record of how they learn.
+                    "practised",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 # Conversations too: half of every one is what the person said.
@@ -3883,6 +3907,15 @@ class Store:
         # personal rows in the database, so the first thing that had to be true of them
         # is that somebody can take them away.
         out["slips"] = self.slips(person.id, limit=100_000)
+        # Where they are with each hard spot's practice (targum-internal#440).
+        out["practised"] = [
+            dict(row)
+            for row in self.db.execute(
+                "SELECT language, spot, step, due, history, seen, at FROM practised"
+                " WHERE person = ? ORDER BY language, spot",
+                (person.id,),
+            )
+        ]
 
         # What they said to targum and what it said back. Theirs in the plainest sense.
         out["chats"] = [
@@ -4926,6 +4959,51 @@ class Store:
             if cursor.rowcount > 0:
                 self._bump_ledger(db, person_id)
             return cursor.rowcount > 0
+
+    # --- where a reader is with each hard spot (targum-internal#440) -----------------
+
+    def practised(self, person_id: int, language: str) -> dict[str, dict[str, Any]]:
+        """Each spot's row for one reader and language, by the spot's short key."""
+        rows = self.db.execute(
+            "SELECT spot, step, due, history, seen FROM practised"
+            " WHERE person = ? AND language = ?",
+            (person_id, language),
+        ).fetchall()
+        out: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            try:
+                seen = [str(key) for key in json.loads(row["seen"] or "[]")]
+            except (TypeError, ValueError):
+                seen = []
+            out[str(row["spot"])] = {
+                "step": int(row["step"]),
+                "due": int(row["due"]),
+                "history": str(row["history"] or ""),
+                "seen": seen,
+            }
+        return out
+
+    def practise(
+        self,
+        person_id: int,
+        language: str,
+        spot: str,
+        *,
+        step: int,
+        due: int,
+        history: str,
+        seen: list[str],
+    ) -> None:
+        """Write one spot's row whole."""
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO practised (person, language, spot, step, due, history, seen, at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT (person, language, spot) DO UPDATE SET step = excluded.step,"
+                " due = excluded.due, history = excluded.history, seen = excluded.seen,"
+                " at = excluded.at",
+                (person_id, language, spot, step, due, history, json.dumps(seen), now()),
+            )
 
     # --- what a reader wrote for their own connector (targum-internal#80) ----------
 

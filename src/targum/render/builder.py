@@ -1698,7 +1698,12 @@ def welcome_page(token: str, language: str = "en") -> str:
 #: What each of the three list pages is called. The route names are code — "texts"
 #: rather than "targums" — and the heading is the copy. `texts` is home since 2026-10-08,
 #: served at `/`; `/texts` sends there.
-LISTS = {"texts": "Your targums", "words": "Your Words", "phrases": "Your Phrases"}
+LISTS = {
+    "texts": "Your targums",
+    "words": "Your Words",
+    "phrases": "Your Phrases",
+    "grammar": "Grammar",
+}
 
 
 def list_page(token: str, which: str, language: str = "en") -> str:
@@ -1732,6 +1737,7 @@ def list_page(token: str, which: str, language: str = "en") -> str:
                 "home.",
                 "follow.",
                 "subs.",
+                "practice.",
             ),
         )
     )

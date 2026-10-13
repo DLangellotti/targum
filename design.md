@@ -369,6 +369,45 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A practice for every hard spot — 2026-10-13
+
+David, 2026-10-13 (targum-internal#440, #439), the Beta criterion of "A badge is a
+promise, checked" (2026-10-12, below), built on the research in targum-internal
+`research/hard-spots-2026-10-11`.
+
+- **Grammar is the third tab beside Words and Phrases** (`/grammar`). It lists the
+  language's hard spots, each with how often it was met ("Met in 9 lines across 2
+  texts"), and a round on one of them in the practice card's frame beside the list.
+- **A round is a worked example and five items.** Each item is one word marked in a line
+  the reader read to its end, a question, and two answers: the right one and the one
+  learners confuse it with (pa'al against pi'el, he against I, bound against free).
+  Once one is chosen, the right one is said ("It's past · he here."), then the clause
+  that decided it, then one real line where the other answer is right. Never a paragraph,
+  never a paradigm.
+- **Nothing is scored on the page.** No percentage, no streak, no count of right
+  answers. The answers go to the server only to choose the next round: its lines (a line
+  is never asked about twice), its kind (above 85% of the last twenty, items whose wrong
+  answer is the confusable one; below 60%, the further-off ones), and its day (a step up
+  the ramp for a round mostly right, a step down otherwise; one day, then three, seven,
+  fourteen, thirty).
+- **A spot is offered once it has been met in six lines across two texts.** The count
+  is the encounter ledger, and it is derived, not kept: lines in sections the reader
+  finished, which is what "met" means everywhere else ("Met" means a section you
+  finished, 2026-09-28). This departs from #439's "a line read to its end, or a word
+  tapped", counted in the browser and synced: finishing a section is reading its lines
+  to their end, and a derived count needs no new record to export or forget.
+- **Governed prepositions and *et* are practised with a lens, not a question.** The
+  research found this spot immune to feedback, so a question with a right answer is the
+  wrong tool; the lens (#439) is its practice, and the register says so when it lands.
+  Until then the stage table names it as owed.
+- **Stress is asked only where the text placed it.** A Masoretic accent or phonikud's own
+  mark, never phonikud's last-syllable default, which is wrong on a quarter of modern
+  words (known issues 2.2). That keeps the right answer right. Playing the word from a
+  recording beside it is not built yet.
+- Items are read off the annotation already built and cached beside it as
+  `practice.json`; nothing is fetched and nothing spends. Where the reader is with each
+  spot is the `practised` table: theirs, exported and forgotten with the account.
+
 ### Governed prepositions on the card — 2026-10-13
 
 David, 2026-10-13, closing Hebrew's fourth hard spot under "A badge is a promise, checked"

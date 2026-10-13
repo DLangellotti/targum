@@ -2970,7 +2970,7 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
 
     assert got["back"].startswith("/progress")
     assert got["summary"] == "3 on your list · 1 known"
-    assert got["tabs"] == ["Words 3", "Phrases 0"] and got["current"].startswith("Words")
+    assert got["tabs"] == ["Words 3", "Phrases 0", "Grammar"] and got["current"].startswith("Words")
     assert got["chips"][0] == "To work on" and "Getting there" in got["chips"]
     five = ["1", "2", "3", "known", "ignore"]
     assert got["steps"] and all(steps == five for steps in got["steps"])
@@ -3369,3 +3369,89 @@ def test_a_first_week_of_words_is_one_column_not_a_block(browser, width: int) ->
         context.close()
     assert got["columns"] == 1, got
     assert got["bar"] <= got["row"] / 12 + 1, f"one week is a twelfth of the row: {got}"
+
+
+RULE = "The letters added before and after the root say who; their pattern says when."
+PRACTICE = {
+    "signedIn": True,
+    "language": "he",
+    "spots": [
+        {"key": "tense", "kind": "choice", "encounters": 9, "texts": 2, "ready": True,
+         "step": 0, "due": 0, "needs": {"encounters": 6, "texts": 2}},
+        {"key": "construct", "kind": "choice", "encounters": 2, "texts": 1, "ready": False,
+         "step": 0, "due": 0, "needs": {"encounters": 6, "texts": 2}},
+    ],
+    "round": {
+        "spot": "tense",
+        "due": True,
+        "items": [
+            {"key": "a:s1", "spot": "tense", "example": True,
+             "ask": "When, and who?",
+             "options": ["past · I", "past · he"], "answer": 0, "said": "past · I",
+             "rule": RULE,
+             "hard": True, "contrast": None, "line": "כתבתי מכתב", "start": 0, "end": 5,
+             "word": "כתבתי", "translation": "I wrote a letter.", "title": "A Book"},
+            {"key": "a:s2", "spot": "tense", "example": False,
+             "ask": "When, and who?",
+             "options": ["past · he", "future · he"], "answer": 0, "said": "past · he",
+             "rule": RULE,
+             "hard": False, "line": "הוא כתב", "start": 4, "end": 7, "word": "כתב",
+             "translation": "He wrote.", "title": "A Book",
+             "contrast": {"line": "הוא יכתוב", "start": 4, "end": 9, "word": "יכתוב",
+                          "translation": "He will write.", "said": "future · he"}},
+        ],
+    },
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_the_grammar_tab_works_one_example_then_asks_and_says_why(browser, width: int) -> None:
+    """targum-internal#440 (design.md §12, "A practice for every hard spot", 2026-10-13):
+    each spot says how often it was met, a round opens on a worked example, an answer is
+    sent to the server and followed by the rule and a line where the other answer is
+    right, and the end of the round is sent once."""
+    html = list_page(TOKEN, "grammar")
+    posted: list[dict] = []
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        if "/account/practice" in request.url:
+            return route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(PRACTICE)
+            )
+        if request.url.split("?")[0].endswith("/practice") and request.method == "POST":
+            posted.append(json.loads(request.post_data or "{}"))
+            return route.fulfill(status=200, content_type="application/json", body='{"ok": true}')
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = context.new_page()
+    page.add_init_script("localStorage.setItem('targum:language', 'he')")
+    page.route("http://words.test/**", answer)
+    page.goto(f"http://words.test/grammar?k={TOKEN}")
+    page.wait_for_selector("#grammar-round:not([hidden]) .grammar-option")
+    spots = page.eval_on_selector_all(
+        ".grammar-spot",
+        "(rows) => rows.map((r) => [r.dataset.spot,"
+        " r.querySelector('.grammar-spot-met').textContent,"
+        " !!r.querySelector('.grammar-go')])",
+    )
+    assert spots[0] == ["tense", "Met in 9 lines across 2 texts.", True]
+    assert spots[1][0] == "construct" and not spots[1][2] and "So far: 2" in spots[1][1]
+    assert page.text_content("#grammar-round-at") == "Worked example"
+    assert page.text_content(".grammar-verdict") == "Here it's past · I."
+    page.click(".grammar-next")
+    assert page.text_content("#grammar-round-at") == "1 of 1"
+    page.click(".grammar-option >> nth=1")
+    page.wait_for_selector(".grammar-feedback")
+    assert page.text_content(".grammar-verdict") == "It's past · he here."
+    assert page.text_content(".grammar-other") == "Where it's future · he:"
+    assert page.text_content(".grammar-other-line mark") == "יכתוב"
+    page.click(".grammar-next")
+    page.wait_for_selector(".grammar-done")
+    page.wait_for_timeout(100)
+    context.close()
+    assert posted[0] == {"spot": "tense", "key": "a:s2", "right": False, "language": "he"}
+    assert posted[1] == {"spot": "tense", "done": [0, 1], "language": "he"}
+    assert len(posted) == 2

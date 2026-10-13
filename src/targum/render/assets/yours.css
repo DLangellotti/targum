@@ -323,3 +323,45 @@ table.words-table .copy.copied { opacity: 1; }
   .practise-body:not(.is-shown) .practise-coming { display: none; }
   .practise-body:not(.is-shown) .practise-ask { display: block; }
 }
+
+/* The Grammar tab (targum-internal#440): the hard spots as a list, and a round beside it
+   in the practice card's frame. Two answers as two presses; once one is chosen the right
+   one wears leaf and a wrong choice clay, each with a line under it, so it never rests on
+   colour alone (design.md §4). */
+.grammar-spots { list-style: none; margin: 0; padding: 0; }
+.grammar-spot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.8rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.grammar-spot-name { margin: 0; font-weight: 600; }
+.grammar-spot-met { margin: 0.2rem 0 0; font-size: 0.875rem; color: var(--ink-soft); }
+.grammar-spot:not(.is-ready) .grammar-spot-name { color: var(--ink-soft); font-weight: 400; }
+.grammar-options { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-block: 0.4rem 0.9rem; }
+.grammar-option {
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.grammar-option:hover:not(:disabled) { background: var(--teal-wash); }
+.grammar-option:disabled { cursor: default; }
+.grammar-option.is-right { border-color: var(--leaf); text-decoration: underline; text-underline-offset: 4px; }
+.grammar-option.is-wrong { border-color: var(--clay); text-decoration: line-through; color: var(--ink-soft); }
+.grammar-answer:lang(he) { font-family: var(--reading-hebrew); }
+.grammar-feedback { padding-block-start: 0.8rem; border-block-start: 1px solid var(--hairline); }
+.grammar-verdict { margin: 0 0 0.3rem; font-weight: 600; }
+.grammar-rule { margin: 0 0 0.6rem; font-size: 0.9375rem; color: var(--ink); }
+.grammar-other { margin: 0 0 0.2rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.grammar-other-line { font-size: 1.0625rem; margin-block-end: 0; }
+.grammar-done { margin: 0 0 1rem; }
+@media (max-width: 40rem) {
+  .grammar-options { grid-template-columns: 1fr; }
+}

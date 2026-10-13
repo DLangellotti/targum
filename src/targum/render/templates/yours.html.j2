@@ -181,6 +181,7 @@
   <nav class="tabs list-tabs" aria-label="{{ t("lists.work.words-or-phrases", "Words or phrases") }}">
     <a class="tab" href="/words" data-back{% if which == 'words' %} aria-current="page"{% endif %}>{{ t("lists.work.words", "Words") }} <span class="tab-count" id="count-words"></span></a>
     <a class="tab" href="/phrases" data-back{% if which == 'phrases' %} aria-current="page"{% endif %}>{{ t("lists.work.phrases", "Phrases") }} <span class="tab-count" id="count-phrases"></span></a>
+    <a class="tab" href="/grammar" data-back{% if which == 'grammar' %} aria-current="page"{% endif %}>{{ t("lists.work.grammar", "Grammar") }}</a>
   </nav>
   {%- endmacro %}
 
@@ -268,9 +269,35 @@
   </section>
   {%- endif %}
 
+  {#- Grammar, the third tab (targum-internal#440; design.md §12, "A practice for every
+      hard spot", 2026-10-13): each hard spot with how often it was met, and a round on
+      one of them beside the list. Drawn by `grammar.js` from `/account/practice`. -#}
+  {%- if which == 'grammar' %}
+  <div class="words-head">
+    <a class="words-back" href="/progress" data-back>← {{ t("you.page.your-progress", "Your Progress") }}</a>
+  </div>
+  <div class="words-grid">
+  <section class="card words-card" aria-label="{{ t("lists.work.grammar", "Grammar") }}">
+    <div class="words-card-head">
+      {{ list_tabs() }}
+    </div>
+    <p class="note">{{ t("practice.page.note", "The parts of Hebrew that take longest, practised in lines you've read.") }}</p>
+    <ul class="grammar-spots" id="grammar-spots"></ul>
+    <p class="empty" id="grammar-empty" hidden></p>
+  </section>
+  <aside class="card practise grammar-round" id="grammar-round" aria-labelledby="grammar-round-heading" hidden>
+    <div class="practise-top">
+      <h2 class="section-title" id="grammar-round-heading"></h2>
+      <span class="practise-at" id="grammar-round-at"></span>
+    </div>
+    <div class="practise-body" id="grammar-round-body"></div>
+  </aside>
+  </div>
+  {%- endif %}
+
   {#- Your targums is a place in the nav since 2026-09-24; a way back to Learn at its foot
       was left from when it hung off Learn. The lists behind the account keep theirs. -#}
-  {%- if which not in ('texts', 'words', 'phrases') %}
+  {%- if which not in ('texts', 'words', 'phrases', 'grammar') %}
   <p><a class="back" href="/" data-back>{{ t("yours.page.your-targums", "Your targums") }}</a></p>
   {%- endif %}
 </main>
@@ -313,6 +340,9 @@ window.TARGUM_LIST = "{{ which }}";
 <script>{{ asset('shelf.js') }}</script>
 {%- if which == 'words' %}
 <script>{{ asset('claim.js') }}</script>
+{%- endif %}
+{%- if which == 'grammar' %}
+<script>{{ asset('grammar.js') }}</script>
 {%- endif %}
 {%- if which == 'texts' %}
 <script>{{ asset('landed.js') }}</script>

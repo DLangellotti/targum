@@ -8493,6 +8493,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._story(parse_qs(urlparse(self.path).query))
         if route == "/account/words":
             return self._words_page(parse_qs(urlparse(self.path).query))
+        if route == "/account/practice":
+            return self._practice_page(parse_qs(urlparse(self.path).query))
         if route == "/account/places":
             return self._places(parse_qs(urlparse(self.path).query))
         if route == "/account/due":
@@ -8774,6 +8776,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._address(payload)
         if route.startswith("/slips/"):
             return self._know_slip(route[len("/slips/") :], payload)
+        if route == "/practice":
+            return self._practised(payload)
         if route == "/account/grant":
             return self._accept_grant()
         if route == "/correction":
@@ -12481,6 +12485,79 @@ class Handler(BaseHTTPRequestHandler):
                 "notes": self._word_notes(language, into, list(marked), finished, folder_for),
             }
         )
+
+    def _practice_page(self, query: dict[str, list[str]]) -> None:
+        """What the Grammar tab draws for one language (targum-internal#440, design.md
+        §12, "A practice for every hard spot", 2026-10-13): each hard spot with how often
+        the reader has met it and when it is next due, and a round on the one asked for
+        or the one most due. Read off builds already on this machine; nothing spends."""
+        from . import practices
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str((query.get("language") or [""])[0]).split("-")[0].strip().lower()
+        if not language:
+            return self._json({"error": "no language"}, 400)
+        into = str((query.get("into") or ["en"])[0]).split("-")[0].strip().lower() or "en"
+        ui = into if into in ("en", "ru") else "en"
+        spot = str((query.get("spot") or [""])[0])
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        said = practices.page(
+            language,
+            self.store.finished(person.id),
+            folder_for,
+            self.store.practised(person.id, language),
+            ui=ui,
+            into=into,
+            spot=spot,
+        )
+        self._json({"signedIn": True, **said})
+
+    def _practised(self, payload: dict[str, Any]) -> None:
+        """One answer, or the end of a round, on one spot: `{language, spot, key, right}`
+        or `{language, spot, done: [right, asked]}`. The reader's own row only."""
+        from . import practices
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str(payload.get("language") or "").split("-")[0].strip().lower()
+        spot = str(payload.get("spot") or "")
+        if spot not in practices.SPOTS or not language:
+            return self._json({"error": "no such spot"}, 400)
+        done = payload.get("done")
+        finished: tuple[int, int] | None = None
+        if isinstance(done, list) and len(done) == 2:
+            try:
+                finished = (max(0, int(done[0])), max(0, int(done[1])))
+            except (TypeError, ValueError):
+                finished = None
+        key = str(payload.get("key") or "")[:200]
+        right = payload.get("right")
+        state = practices.record(
+            self.store.practised(person.id, language).get(spot),
+            key=key,
+            right=bool(right) if isinstance(right, bool) else None,
+            done=finished,
+        )
+        self.store.practise(
+            person.id,
+            language,
+            spot,
+            step=state.step,
+            due=state.due,
+            history=state.history,
+            seen=state.seen,
+        )
+        self._json({"ok": True, "step": state.step, "due": state.due})
 
     def _practice(
         self, person: Person, language: str, into: str
