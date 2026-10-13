@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-12
+Every way into the Torah opens its weekly portion at the verse, and each portion leads on to the next.
+A Hebrew word's card spells its sound in letters a learner reads, in syllables, with the stress marked.
+A reader who reads Russian can switch the interface between English and Russian from the top bar.
+
 2026-10-11
 In Theatre the picture sits centred, the line being said under it, and Next part is always a press away.
 An ignored word on Your Words can be taken back, and found again under Ignored.
