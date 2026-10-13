@@ -2847,7 +2847,16 @@ entry makes the three words promises to the reader, in order, and makes a test k
   on it, and nothing else may be kept without an entry here first. **Nothing earns Beta
   on the day**, and Russian, Italian and French go to Experimental.
 - The per-language record (read-through, known issues, the list with its evidence) lives
-  in targum-internal `languages/<code>.md` and is advisory: nothing public can read it.
+  in targum-internal `languages/<code>.md` and `known-issues.md`. **Since 2026-10-13 its
+  dates are facts** (`stages.RECORDED`, David): the read-through names its ten texts and
+  the date its findings were filed, the list has the date it was drawn up, and the reading
+  for blockers has a date that goes stale after 45 days, each pointing at the
+  targum-internal commit that holds it. The substance stays private; the test checks the
+  record is there, complete and fresh. Until then these three were false by construction
+  and no language could earn Alpha, whatever else was true.
+- **The second medium is video, counted** (2026-10-13). It had been read off recordings,
+  which are mostly texts read aloud, the same text in another sense. `targum stages
+  --measure` now writes each language's videos into the snapshot.
 
 What it does not change: the badge's colours and placement above; the five word stages;
 what the chat may spend; the *into* languages' two words on the upload page, which are not

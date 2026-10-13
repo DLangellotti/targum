@@ -30,6 +30,15 @@ read-through record and its practices catch up. The test prints its shortfall in
 failing on it, and `targum stages` says "Beta, kept". Nothing else may be added to `KEPT`
 without a design.md entry first.
 
+**The record is a fact here, its substance stays private** (`RECORDED`, 2026-10-13). The
+read-through, the known-issues list and the reading of that list for blockers live in
+targum-internal (`languages/<code>.md`, `known-issues.md`), which nothing public can read.
+Each is entered in `RECORDED` with its date and the targum-internal commit it points to,
+so the test checks that the record exists, is complete and is fresh, and a person can
+follow the pointer to read it. The read-through names its ten texts; the reading for
+blockers goes stale after `BLOCKERS_FRESH` days, because a list read once is not a list
+read before the next stranger arrives.
+
 The shelf is counted on the library's own ruler (`levelmap`), which places a text on
 three levels. CEFR is finer, and the floors are stated in CEFR by the mapping in
 `levelmap.cefr_rows`: A1 is a text meeting the Easy spec in full, A2 the rest of Easy,
@@ -147,6 +156,36 @@ DECLARED: dict[str, Stage] = {
     "arc": Stage.experimental,
     "yi": Stage.experimental,
 }
+
+
+@dataclass(frozen=True)
+class Record:
+    """The private record, entered as public facts (see the module docstring).
+
+    `read_through` is the ten texts David read end to end as a learner, A1 to B2, with
+    the date the findings were filed; `issues_listed` the date the known-issues list was
+    drawn up; `blockers_read` the date the list was last read with no blocker open.
+    `where` is the targum-internal commit each date points to."""
+
+    read: tuple[str, ...] = ()
+    read_through: date | None = None
+    issues_listed: date | None = None
+    blockers_read: date | None = None
+    where: str = ""
+
+
+#: How many texts a read-through names, and how long a reading for blockers holds.
+READ_THROUGH_TEXTS = 10
+BLOCKERS_FRESH = 45
+
+#: The record per language. A language not here has none.
+RECORDED: dict[str, Record] = {
+    "he": Record(
+        issues_listed=date(2026, 10, 12),
+        where="targum-internal a4d20a3 (known-issues.md)",
+    ),
+}
+
 
 #: The one exception the test tolerates (David, 2026-10-12). See the module docstring.
 KEPT: dict[str, Kept] = {
@@ -397,7 +436,11 @@ def read_shelf(path: Path = SHELF_SNAPSHOT) -> dict[str, dict[str, Floor]]:
 
 
 def write_shelf(
-    counts: Mapping[str, Mapping[str, Floor]], *, measured: date, path: Path = SHELF_SNAPSHOT
+    counts: Mapping[str, Mapping[str, Floor]],
+    *,
+    measured: date,
+    videos: Mapping[str, int] | None = None,
+    path: Path = SHELF_SNAPSHOT,
 ) -> None:
     """The snapshot `targum stages --measure` writes, dated, for the test to read."""
     payload = {
@@ -410,6 +453,7 @@ def write_shelf(
             }
             for language, levels in sorted(counts.items())
         },
+        "videos": dict(sorted((videos or {}).items())),
     }
     path.write_text(json.dumps(payload, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -425,12 +469,38 @@ def _practices(language: str) -> dict[str, bool]:
     return {spot.name: bool(registered.get(spot.name)) for spot in HARD_SPOTS.get(language, ())}
 
 
+def read_videos(path: Path = SHELF_SNAPSHOT) -> dict[str, int]:
+    """Videos on each language's shelf, at any level, from the committed snapshot. A
+    snapshot written before videos were counted has none, and says nothing either way."""
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {language: int(count) for language, count in (raw.get("videos") or {}).items()}
+
+
+def _record_holds(record: Record | None, today: date) -> tuple[bool, bool, bool]:
+    """Read-through, known-issues list, and no blocker, as the record says them."""
+    if record is None:
+        return False, False, False
+    read = record.read_through is not None and len(set(record.read)) >= READ_THROUGH_TEXTS
+    listed = record.issues_listed is not None
+    fresh = (
+        listed
+        and record.blockers_read is not None
+        and 0 <= (today - record.blockers_read).days <= BLOCKERS_FRESH
+    )
+    return read, listed, bool(fresh)
+
+
 def facts(
     language: str,
     *,
     floors: list[Any] | None = None,
     rows: list[Any] | None = None,
     shelf: Mapping[str, Mapping[str, Floor]] | None = None,
+    videos: Mapping[str, int] | None = None,
+    record: Record | None = None,
+    today: date | None = None,
 ) -> Facts:
     """Everything the standard asks of a language, read off the code and the committed
     files. Nothing here fetches or spends."""
@@ -443,6 +513,10 @@ def facts(
     limits = floors if floors is not None else evals.floors(FLOORS)
     ledger = rows if rows is not None else evals.read(LEDGER)
     snapshot = shelf if shelf is not None else read_shelf()
+    filmed = videos if videos is not None else read_videos()
+    read, listed, clear = _record_holds(
+        record if record is not None else RECORDED.get(code), today or date.today()
+    )
     spots = HARD_SPOTS.get(code, ())
     counts = snapshot.get(code)
     return Facts(
@@ -455,18 +529,15 @@ def facts(
         shelf=dict(counts) if counts is not None else None,
         covered={spot.name: _covered(spot, limits) for spot in spots},
         practices=_practices(code),
-        # The read-through and the known-issues list live in the private record in
-        # targum-internal (languages/<code>.md), which is advisory (David, 2026-10-12):
-        # nothing public can read it, so both are false here until a public fact exists.
-        read_through=False,
-        known_issues=False,
+        read_through=read,
+        known_issues=listed,
         builds_unattended=code in BUILDS_UNATTENDED,
         chat_evals=code in CHAT_EVALS,
-        second_medium=(
-            None if counts is None else any(level.recordings > 0 for level in counts.values())
-        ),
+        # Video, not recordings: a text read aloud is the same text, and the standard's
+        # second medium is a video or a podcast (design.md §12).
+        second_medium=None if code not in filmed else filmed[code] > 0,
         growing=code in GROWING,
-        no_blocker=False,
+        no_blocker=clear,
     )
 
 
@@ -502,7 +573,7 @@ def shortfall(known: Facts, stage: Stage) -> list[str]:
         missing.append("no voice reads it")
     missing.extend(_shelf_short(known.shelf, SHELF[Stage.alpha]))
     if not known.read_through:
-        missing.append("no read-through on record")
+        missing.append(f"no read-through of {READ_THROUGH_TEXTS} texts on record")
     spots = HARD_SPOTS.get(known.language, ())
     if not spots:
         missing.append("no hard-spot list")
@@ -526,7 +597,9 @@ def shortfall(known: Facts, stage: Stage) -> list[str]:
         if not known.practices.get(spot.name):
             missing.append(f"no practice for: {spot.name}")
     if not known.no_blocker:
-        missing.append("the known-issues list is not read for blockers")
+        missing.append(
+            f"the known-issues list has not been read clear of blockers in {BLOCKERS_FRESH} days"
+        )
     return missing
 
 

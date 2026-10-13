@@ -5230,7 +5230,11 @@ def stages(
             }
             for code, shelf in shelves.items()
         }
-        standard.write_shelf(counts, measured=date.today())
+        standard.write_shelf(
+            counts,
+            measured=date.today(),
+            videos={code: levelmap.videos(shelf) for code, shelf in shelves.items()},
+        )
         console.print(f"[dim]Shelf counted into {standard.SHELF_SNAPSHOT}[/dim]")
 
     table = Table(title="How far along each language is", title_justify="left")

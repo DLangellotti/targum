@@ -69,7 +69,7 @@ def test_a_claim_that_outruns_the_facts_is_refused_with_the_criterion_named() ->
     known = stages.facts("fr")
     short = stages.shortfall(known, Stage.alpha)
     assert any(line.startswith("hard spot not covered") for line in short), short
-    assert "no read-through on record" in short
+    assert "no read-through of 10 texts on record" in short
     assert stages.earned(known) is Stage.experimental
 
 
@@ -214,8 +214,10 @@ def test_the_cefr_mapping_counts_what_the_library_measures() -> None:
 def test_the_shelf_snapshot_round_trips(tmp_path: Path) -> None:
     counts = {"he": {"A1": Floor(84, 84), "B2+": Floor(102, 22)}}
     path = tmp_path / "shelf.json"
-    stages.write_shelf(counts, measured=dt.date(2026, 10, 12), path=path)
+    stages.write_shelf(counts, measured=dt.date(2026, 10, 12), videos={"he": 88}, path=path)
     assert stages.read_shelf(path) == counts
+    assert stages.read_videos(path) == {"he": 88}
+    assert stages.read_videos(tmp_path / "none.json") == {}
     assert json.loads(path.read_text())["measured"] == "2026-10-12"
     assert stages.read_shelf(tmp_path / "none.json") == {}
 
@@ -254,3 +256,56 @@ def test_the_report_row_says_kept_and_review() -> None:
     assert row["declared"] == "beta" and row["kept"] is True and row["review"] == "2026-12-31"
     row = stages.report("fr")
     assert row["declared"] == "experimental" and row["kept"] is False and row["shortfall"] == []
+
+
+TODAY = dt.date(2026, 10, 13)
+TEN = tuple(f"text-{n}" for n in range(10))
+
+
+def test_the_record_is_read_from_its_dated_entries() -> None:
+    """The read-through, the list and the reading for blockers are facts once entered
+    with their dates (2026-10-13); nothing at all is none of them."""
+    whole = stages.Record(
+        read=TEN,
+        read_through=dt.date(2026, 10, 1),
+        issues_listed=dt.date(2026, 10, 12),
+        blockers_read=dt.date(2026, 10, 13),
+        where="targum-internal abc1234",
+    )
+    known = stages.facts("ru", record=whole, today=TODAY)
+    assert (known.read_through, known.known_issues, known.no_blocker) == (True, True, True)
+    bare = stages.facts("ru", record=stages.Record(), today=TODAY)
+    assert (bare.read_through, bare.known_issues, bare.no_blocker) == (False, False, False)
+
+
+def test_a_read_through_names_ten_distinct_texts() -> None:
+    nine = stages.Record(read=(*TEN[:9], TEN[0]), read_through=dt.date(2026, 10, 1))
+    assert not stages.facts("ru", record=nine, today=TODAY).read_through
+
+
+def test_a_reading_for_blockers_goes_stale() -> None:
+    """A list read once is not a list read before the next stranger arrives."""
+    read = stages.Record(issues_listed=dt.date(2026, 8, 1), blockers_read=dt.date(2026, 8, 1))
+    assert not stages.facts("ru", record=read, today=TODAY).no_blocker
+    days = dt.timedelta(days=stages.BLOCKERS_FRESH)
+    assert stages.facts("ru", record=read, today=dt.date(2026, 8, 1) + days).no_blocker
+    unlisted = stages.Record(blockers_read=TODAY)
+    assert not stages.facts("ru", record=unlisted, today=TODAY).no_blocker
+
+
+def test_every_record_is_a_declared_language_and_says_where_it_lives() -> None:
+    for code, record in stages.RECORDED.items():
+        assert code in DECLARED, code
+        dated = (record.read_through, record.issues_listed, record.blockers_read)
+        if any(dated):
+            assert record.where.startswith("targum-internal "), (code, record.where)
+        if record.read_through is not None:
+            assert len(set(record.read)) >= stages.READ_THROUGH_TEXTS, code
+
+
+def test_the_second_medium_is_video_and_not_a_text_read_aloud() -> None:
+    """A text with a recording is the same text; the second medium is a video
+    (design.md §12). A snapshot that never counted videos says nothing either way."""
+    assert stages.facts("he", videos={"he": 3}).second_medium is True
+    assert stages.facts("he", videos={"he": 0}).second_medium is False
+    assert stages.facts("he", videos={}).second_medium is None
