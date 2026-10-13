@@ -459,12 +459,10 @@ def write_shelf(
 
 
 def _practices(language: str) -> dict[str, bool]:
-    """Which hard spots have a practice registered (targum-internal#440). None yet: the
-    registry is that card's to build, and this reads it when it exists."""
-    try:
-        from . import practices  # type: ignore[attr-defined]
-    except ImportError:
-        return {spot.name: False for spot in HARD_SPOTS.get(language, ())}
+    """Which hard spots have a practice registered (`practices.REGISTERED`,
+    targum-internal#440)."""
+    from . import practices
+
     registered = getattr(practices, "REGISTERED", {}).get(language, {})
     return {spot.name: bool(registered.get(spot.name)) for spot in HARD_SPOTS.get(language, ())}
 

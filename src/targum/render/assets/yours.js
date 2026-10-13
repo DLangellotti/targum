@@ -718,7 +718,10 @@
     return Promise.resolve();
   }
 
-  var drawing = which === "texts" ? drawTexts() : drawKept();
+  // The Grammar tab draws itself (`grammar.js`) from the server: there is nothing of it in
+  // the browser's lists to draw first.
+  var drawing =
+    which === "grammar" ? Promise.resolve() : which === "texts" ? drawTexts() : drawKept();
   // After the lists, and never in their way: the phrases appear first and the record of
   // corrected lines a moment later.
   drawing.then(drawRewrote).catch(function () {});
