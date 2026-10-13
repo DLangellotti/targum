@@ -113,6 +113,13 @@ ABSENT: dict[str, str] = {
 }
 
 BY_SLUG = {cycle.slug: cycle for cycle in CYCLES}
+
+#: The cycles whose days are read aloud, in Rabbi Dan Be'eri's reading of the books they
+#: are cut from (CC BY-SA, the same recording the Library's Tanakh and every portion's
+#: plain reading carry). Decided by David on 2026-10-13. A day's chapter that Be'eri did
+#: not record is silent, as it is in the book. Mishnah Yomit is not here: Be'eri's
+#: recording is of the Tanakh, and no licensed recording of the Mishnah is on the shelf.
+RECITED = frozenset({"nach-yomi", "tanakh-yomi", "tehillim"})
 BY_CATEGORY = {cycle.category: cycle for cycle in CYCLES}
 
 

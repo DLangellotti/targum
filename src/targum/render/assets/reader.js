@@ -1527,8 +1527,10 @@ var targumReader = function () {
   // Finished: the strip inverts to ink — §9's wake-up move, spent on the one block that
   // earned it — and says what the section came to in three figures of equal weight
   // (design.md §12, "The finished box is three figures", 2026-09-25): "Finished · #14",
-  // then the words known, the share known here, the words looked up. A zero is a 0, so the three
-  // stand where they always stand. Type, not motion.
+  // then the words known, the share known in this part, the words looked up. A zero is a 0, so
+  // the three stand where they always stand. Type, not motion. The share names the part, since
+  // home's card gives the whole text's beside it (§12, "Each share says what it is a share
+  // of", 2026-10-13); a text in one part says "this text".
   function renderFinished() {
     if (!finishedBox || !finishedSaid) return;
     var when = finishedAt();
@@ -1548,7 +1550,14 @@ var targumReader = function () {
             tn("reader.finish.known", tally.known, "word known", "words known")
           )
         );
-        row.appendChild(tile(shareOf(tally) + "%", t("reader.finish.known-here", "known here")));
+        row.appendChild(
+          tile(
+            shareOf(tally) + "%",
+            sectionCount > 1
+              ? t("reader.finish.known-part", "known in this part")
+              : t("reader.finish.known-text", "known in this text")
+          )
+        );
         row.appendChild(
           tile(
             String(tally.looked),

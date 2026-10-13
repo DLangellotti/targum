@@ -395,6 +395,23 @@ press marks every word with the rest.
   marking.
 - The ids say what they do: `#done-go` finishes, `#done-mark` finishes and marks.
 
+### Each share says what it is a share of — 2026-10-13
+
+David, 2026-10-13. After a finish, home's card said "You know 34%" and the line above it
+said "96%", both unlabelled, so a reader saw two figures for one text that seemed to
+disagree. They do not: the finish counts the part just read, and the card counts the
+whole text. Both stay, and each now says which.
+
+- **The finish names the part.** The finished box's middle tile reads "known in this part"
+  under its figure, and the line a press lands on reads "+12 known · 96% of this part · 3
+  looked up". A text in one part says "this text" in both places, since there the part is
+  the text.
+- **Home names the whole.** Continue's card, the welcome-back card and Your targums' meter
+  read "You know 34% of the whole text".
+- **What it amends:** the tile label "known here" in "The finished box is three figures"
+  (2026-09-25). The figures, their order and what they count are unchanged, and known
+  still means marked ("Known means marked, everywhere a share is shown", 2026-10-11).
+
 ### The card says a Hebrew word in letters you read — 2026-10-12
 
 The pronunciation line on a Hebrew word card was phonikud's IPA, bare: "hithaˈleχ",

@@ -13,6 +13,7 @@ server renders, with the account's answers stubbed.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -153,6 +154,9 @@ def test_the_first_finish_goes_home_and_says_what_it_did(browser, tmp_path) -> N
         line = page.inner_text("#arrived")
         assert line.startswith(f"Finished {LINES[0]} · "), line
         assert "known" in line and "looked up" in line and line.endswith("Undo"), line
+        # The share names the part it counts, not the whole text home's card counts (§12,
+        # "Each share says what it is a share of", 2026-10-13).
+        assert re.search(r"\d+% of this (part|text) ·", line), line
         state = page.evaluate(STATE)
         assert any((r.get("sections") or {}) or r.get("done") for r in state["docs"].values())
         assert state["went"], "the language has gone home once"

@@ -371,7 +371,7 @@
     var facts = [];
     if (upload) facts.push(t("home.card.uploaded", "Uploaded by you"));
     if (typeof reader.known === "number" && reader.words && reader.known > 0) {
-      facts.push(t("home.card.known", "You know {share}%", { share: Math.round(reader.known * 100) }));
+      facts.push(t("home.card.known", "You know {share}% of the whole text", { share: Math.round(reader.known * 100) }));
     }
     if (!place && card.reader && !(stored("targum:opened")[reader.document] || 0)) {
       facts.push(t("home.card.not-opened", "Not opened yet"));
@@ -664,7 +664,7 @@
     }
     if (typeof reader.known === "number" && reader.words && reader.known > 0) {
       if (facts.childNodes.length) facts.appendChild(document.createTextNode(" · "));
-      facts.appendChild(el("strong", "", t("home.card.known", "You know {share}%", { share: Math.round(reader.known * 100) })));
+      facts.appendChild(el("strong", "", t("home.card.known", "You know {share}% of the whole text", { share: Math.round(reader.known * 100) })));
     }
     if (facts.childNodes.length) what.appendChild(facts);
     if (typeof reader.known === "number" && reader.words && reader.known > 0) what.appendChild(bar(reader.known));
@@ -1030,7 +1030,7 @@
 
   /* The first finish in a language comes home (design.md §12, "The first finish goes
      home", 2026-10-12): the text is at the head of Continue, and this line says what the
-     press did — "Finished <title> · +12 known · 96% · 3 looked up · Undo" — with the one
+     press did — "Finished <title> · +12 known · 96% of this part · 3 looked up · Undo" — with the one
      Undo that takes back the finish and the words. Read once, so a reload says nothing.
      It stays while the visit does: it is how a new reader learns where they are. */
   (function landHere() {

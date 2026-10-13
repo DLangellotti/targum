@@ -901,7 +901,10 @@ NEARBY_DAYS = 3
 #: of it by name, `sec-0005` and not `sec-0005.html`, where it is not the first.
 SHORT_READER = re.compile(r"^([a-z2-7]{8})(?:/([a-z0-9-]{1,40}))?$")
 
-DAILY_READER = re.compile(r"^/read/(\d{4}-\d{2}-\d{2})/reader/([a-z0-9-]{0,40}\.html)?$")
+#: One file of a built day: a page, or the reading beside it in `audio/` (2026-10-13).
+DAILY_READER = re.compile(
+    r"^/read/(\d{4}-\d{2}-\d{2})/reader/([a-z0-9-]{0,40}\.html|audio/[a-z0-9-]{1,40}\.mp3)?$"
+)
 
 #: How often one address may ask to be subscribed. The `asked` table and its rail are
 #: reused exactly: a subscribe endpoint anybody can call is, like the sign-in one, a way
@@ -6215,6 +6218,9 @@ class Handler(BaseHTTPRequestHandler):
         target = (base / (name or "index.html")).resolve()
         if not target.is_file() or base not in target.parents:
             return self._send(404, b"not found", "text/plain")
+        moving = self.MEDIA_KINDS.get(target.suffix.lower())
+        if moving:
+            return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
         return self._send(200, target.read_bytes(), kind, frames="out")
 
@@ -14127,7 +14133,12 @@ class Handler(BaseHTTPRequestHandler):
             if not days.readable(day.group(1), when):
                 return None
             base = (days.folder_for(day.group(1), when) / "reader").resolve()
-            return day.group(0), [("", base, False)], {"title": "", "kind": "", "name": ""}
+            # The pages, and the reading kept beside them in `audio/` (2026-10-13).
+            return (
+                day.group(0),
+                [("", base, False), ("audio/", base / "audio", False)],
+                {"title": "", "kind": "", "name": ""},
+            )
         return None
 
     def _serve_thumb(self, name: str) -> None:

@@ -1179,7 +1179,7 @@ def test_a_deck_name_cannot_nest_deeper_than_the_text() -> None:
 #
 # design.md §12, "The finished box is three figures" (2026-09-25), after #174 and #175:
 # "Finished · #N", then three figures of equal weight — words that became known here,
-# the share known here, and words looked up here. This text only, and a zero is a 0.
+# the share known in this part ("this text" in one part), and words looked up here. A zero is a 0.
 
 
 def _days(*ago: int) -> dict[str, int]:
@@ -1201,7 +1201,7 @@ def test_the_box_says_three_figures_for_this_text() -> None:
     said = done["said"]
     assert said.startswith("Finished · #1")
     assert "+1word known" in said, "the word that became known while it was read"
-    assert "50%known here" in said, "the header's own share, after the press"
+    assert "50%known in this text" in said, "the header's own share, after the press"
     assert "1word looked up" in said
     for standing in ("known ·", "saved", "reading", "running"):
         assert standing not in said, f"{standing!r} is a standing, and it lives on Progress"
@@ -1217,7 +1217,7 @@ def test_a_zero_is_said_as_zero_so_the_figures_never_move() -> None:
         stored={"targum:days": json.dumps(_days(0))},
         finish=[True],
     )["finished"]["said"]
-    assert "+0words known" in said and "0%known here" in said and "0words looked up" in said
+    assert "+0words known" in said and "0%known in this text" in said and "0words looked up" in said
 
 
 def test_the_press_that_marks_counts_its_words_as_known() -> None:
@@ -1225,7 +1225,7 @@ def test_the_press_that_marks_counts_its_words_as_known() -> None:
     among the known — "Done, and mark 2 words known" says +2."""
     words, lemmas = chapter(["a", "b"])
     said = run([], chapter=words, lemmas=lemmas, presses=[True])["finished"]["said"]
-    assert "+2words known" in said and "100%known here" in said
+    assert "+2words known" in said and "100%known in this text" in said
 
 
 def test_no_run_and_no_word_list_is_said() -> None:

@@ -580,8 +580,11 @@ def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_
         page.wait_for_selector("#arrived:not([hidden])")
         line = page.inner_text("#arrived")
         assert line.startswith("Finished Item 1 · ")
-        # The finished box's three figures, on one line (§12, 2026-09-25).
-        assert re.search(r"· \+[1-9]\d* known · \d+% · \d+ looked up", line), line
+        # The finished box's three figures, on one line (§12, 2026-09-25), the share
+        # naming what it is a share of (§12, 2026-10-13).
+        assert re.search(r"· \+[1-9]\d* known · \d+% of this (part|text) · \d+ looked up", line), (
+            line
+        )
         state = page.evaluate(RECORD, document)
         assert state["sections"], "the item is finished"
         assert state["known"] > 0, "and its words are marked"
