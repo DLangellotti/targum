@@ -72,6 +72,25 @@ def _spells(root: str, surface: str) -> bool:
     return _shared(root, surface) >= max(2, len(have) - 1)
 
 
+def _reheaded(tokens: list[Token], kept_at: Mapping[int, int]) -> list[Token]:
+    """Syntax heads renumbered onto the tokens kept, -1 where the head was read past.
+
+    `Syntax.head` counts the lemmatizer's own list. Reading past an English name or an
+    emoji shortens it, and every head beyond the gap then named the next word over, which
+    put a preposition on the wrong verb (`governed`)."""
+    out: list[Token] = []
+    for token in tokens:
+        syntax = token.syntax
+        if syntax is None or syntax.head < 0:
+            out.append(token)
+            continue
+        head = kept_at.get(syntax.head, -1)
+        if head != syntax.head:
+            token = token.model_copy(update={"syntax": syntax.model_copy(update={"head": head})})
+        out.append(token)
+    return out
+
+
 def _unpointed(lemma: str) -> str:
     """A lemma without its nikkud, for comparing against a table written bare.
 
@@ -207,6 +226,9 @@ class Annotator:
             marked: list[Token] = []
             said_in = spoken.get(segment_id, segmented.language)
             english = foreign_runs(tokens, said_in, zipf) if zipf is not None else set()
+            # Where each kept token now sits, so a syntax head counted over the
+            # lemmatizer's list still names the same word once the ones read past are gone.
+            kept_at: dict[int, int] = {}
             for at, token in enumerate(tokens):
                 if not in_script(token.surface, said_in):
                     # An English name, a time, an emoji inside the Hebrew: read past,
@@ -266,7 +288,10 @@ class Annotator:
                         "end": end,
                         "surface": source_text[segment_id][start:end],
                     }
+                kept_at[at] = len(marked)
                 marked.append(token.model_copy(update=update))
+            if len(marked) < len(tokens):
+                marked = _reheaded(marked, kept_at)
             if marked:
                 banded[segment_id] = marked
 

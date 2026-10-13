@@ -183,14 +183,15 @@ def test_a_covered_hard_spot_names_a_floor_that_exists() -> None:
             )
 
 
-def test_hebrews_measured_spots_are_covered_and_the_rest_are_named_in_the_shortfall() -> None:
-    """Six of Hebrew's seven are computed, shown and measured with a floor since
-    2026-10-12; governed prepositions and et has no gold, and the research says a lens."""
+def test_hebrews_hard_spots_are_all_covered() -> None:
+    """All seven of Hebrew's are computed, shown and measured with a floor: six since
+    2026-10-12, and governed prepositions and et since 2026-10-13, read off the stored
+    syntax and scored against the IAHLT treebank's case-marked arguments."""
     known = stages.facts("he")
     uncovered = [name for name, done in known.covered.items() if not done]
-    assert uncovered == ["governed prepositions and et"], uncovered
+    assert uncovered == [], uncovered
     short = stages.shortfall(known, Stage.alpha)
-    assert "hard spot not covered: governed prepositions and et" in short
+    assert not any(line.startswith("hard spot not covered") for line in short), short
 
 
 def test_the_cefr_mapping_counts_what_the_library_measures() -> None:

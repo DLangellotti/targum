@@ -750,5 +750,21 @@
     "system": "dicta/dicta-il/dictabert-joint",
     "at_least": 0.71,
     "why": "0.738 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "governed_precision",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.95,
+    "why": "0.976 on 2026-10-13, first scored: which core preposition marks which verb's argument, against the treebank's case-marked arguments (annotate/governed.py); Hebrew's fourth hard spot (design.md §12, \"Governed prepositions on the card\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "governed_recall",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.85,
+    "why": "0.879 on 2026-10-13, first scored: which core preposition marks which verb's argument, against the treebank's case-marked arguments (annotate/governed.py); Hebrew's fourth hard spot (design.md §12, \"Governed prepositions on the card\")"
   }
 ]

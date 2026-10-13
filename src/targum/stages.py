@@ -118,8 +118,8 @@ class HardSpot:
 
     name: str
     #: "feature:Case" (a kept morphological feature), "stage:stress" (a pipeline stage),
-    #: "dicta:binyan" (derived by the Hebrew annotator), "lookup:openrussian:partners",
-    #: or "none".
+    #: "dicta:binyan" (derived by the Hebrew annotator), "syntax:governed" (read off the
+    #: stored syntax, `annotate.governed`), "lookup:openrussian:partners", or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -227,9 +227,9 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
         ),
         HardSpot(
             "governed prepositions and et",
-            "feature:Case",
-            "pieces",
-            None,
+            "syntax:governed",
+            "card",
+            (_DICTA, "iahltknesset", "governed_precision"),
             lens=True,
         ),
         HardSpot(

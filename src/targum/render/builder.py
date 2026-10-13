@@ -16,7 +16,7 @@ import os
 import re
 import shutil
 from collections import Counter
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from functools import cache
@@ -2400,6 +2400,30 @@ def _said_here(
         drawn.append([first, last, kind, consonant] if consonant else [first, last, kind])
     said_marks[sid] = drawn
     return {token.start: one.as_said for token, one in zip(tokens, said, strict=True) if one.ipa}
+
+
+def _governed_lines(tokens: Sequence[Token]) -> dict[int, str]:
+    """The grammar-line additions for one segment, keyed by `id(token)`.
+
+    A verb gets `Takes=` and the prepositions it takes here; its argument, and the
+    preposition's own word where it has one, get `Governor=` and the verb's dictionary
+    form with `Prep=` (design.md §12, "Governed prepositions on the card", 2026-10-13).
+    Empty for every segment with no syntax, which is every language but Hebrew."""
+    from ..annotate.governed import governed
+
+    out: dict[int, list[str]] = {}
+    takes: dict[int, list[str]] = {}
+    for pair in governed(tokens):
+        verb = tokens[pair.verb]
+        if pair.preposition not in takes.setdefault(pair.verb, []):
+            takes[pair.verb].append(pair.preposition)
+        said = [f"Governor={verb.lemma}", f"Prep={pair.preposition}"]
+        for at in (pair.argument, pair.marker):
+            if at is not None:
+                out.setdefault(id(tokens[at]), list(said))
+    for at, prepositions in takes.items():
+        out.setdefault(id(tokens[at]), []).append("Takes=" + ",".join(prepositions))
+    return {key: "|".join(parts) for key, parts in out.items()}
 
 
 def _family_at(
@@ -5152,6 +5176,10 @@ def render(
                     for token in chips(tokens)
                     if not (sid in unwordly and inside(token.start, token.end, unwordly[sid]))
                 ]
+                # Which preposition each verb takes here, and which verb each preposition
+                # goes with (Hebrew's fourth hard spot, `annotate.governed`), said on the
+                # row's grammar line so it rides the table the card already reads.
+                said_with = _governed_lines(tokens)
                 heard: dict[int, str] = {}
                 if pronouncing is not None:
                     heard = _said_here(
@@ -5209,9 +5237,12 @@ def render(
                     if token.built and token.built not in built_at:
                         built_at[token.built] = len(builts)
                         builts.append(token.built)
-                    if token.feats and token.feats not in grammar_at:
-                        grammar_at[token.feats] = len(grammar)
-                        grammar.append(token.feats)
+                    line = "|".join(
+                        part for part in (token.feats or "", said_with.get(id(token), "")) if part
+                    )
+                    if line and line not in grammar_at:
+                        grammar_at[line] = len(grammar)
+                        grammar.append(line)
                     start, end = js_span(bare[sid], *map_span(token.start, token.end, to_bare[sid]))
                     row = [
                         start,
@@ -5224,7 +5255,7 @@ def render(
                         # which is never counted as vocabulary.
                         kind_of(token.pos, token.entity),
                         built_at.get(token.built or "", 0),
-                        grammar_at.get(token.feats or "", 0),
+                        grammar_at.get(line, 0),
                     ]
                     # What the NER called it — a person, a place, a date — on the rows
                     # that have one and no other, so a page without entities weighs
