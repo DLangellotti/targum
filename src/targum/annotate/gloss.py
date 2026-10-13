@@ -19,7 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..cache import Cache
 from ..errors import ProviderError, TargumError
-from ..models import VERB_MARK, Annotation, Glossary
+from ..models import MARKS, Annotation, Glossary
 from ..translate.prompts import language_name
 from . import aramaic, closed, oshb
 from .base import is_named
@@ -105,8 +105,9 @@ For each {source} dictionary form you are given, return one short {target} gloss
 
 - Each entry is a dictionary form after `form:`, sometimes followed by the sentence the
   reader met it in after `in:`. Gloss the form, and return it exactly as it was given.
-- A form may end in `(verb)`. It says which word a shared spelling is here: gloss the
-  verb, not a noun spelled the same, and return the form with `(verb)` still on it.
+- A form may end in `(verb)`, `(preposition)`, `(noun)`, `(pronoun)` or `(adverb)`. It
+  says which word a shared spelling is here: gloss that word, not another spelled the
+  same, and return the form with the mark still on it.
 - Two to six words. The most common sense first — or, where a sentence is given, the
   sense the form has there — and a second sense only when the word is genuinely
   ambiguous, separated by a semicolon. The gloss is kept for every text, not this one.
@@ -131,9 +132,16 @@ def filed_as(batch: list[str]) -> dict[str, str]:
     form it was asked for. Only where that is unambiguous: a batch that asked for both
     the verb and the bare noun keeps the bare answer for the noun."""
     wanted = {form: form for form in batch}
+    marked: dict[str, list[str]] = {}
     for form in batch:
-        if form.endswith(VERB_MARK):
-            wanted.setdefault(form[: -len(VERB_MARK)], form)
+        for mark in MARKS:
+            if form.endswith(mark):
+                marked.setdefault(form[: -len(mark)], []).append(form)
+    for bare, forms in marked.items():
+        # Two marked forms of one spelling (עם as preposition and as noun): a bare answer
+        # could be either, so it is filed under neither.
+        if len(forms) == 1:
+            wanted.setdefault(bare, forms[0])
     return wanted
 
 
