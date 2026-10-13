@@ -69,6 +69,27 @@ BOTS = re.compile(
     re.IGNORECASE,
 )
 
+#: Chrome ships a major version every four weeks and updates itself, so a person's
+#: Chrome is never far behind. A crawler that rotates residential addresses and draws
+#: its agent from a list of old ones is (2026-10-13): ~900 "visitors" a day from 3,300
+#: addresses, each Chrome 101–136 about equally, while Chrome was at ~157.
+_CHROME = re.compile(r"\bChrome/(\d+)\.")
+CHROME_AT = (date(2023, 12, 5), 120)
+CHROME_EVERY = timedelta(days=28)
+#: About a year: a machine whose updates stopped still counts, and a list of old agents does not.
+CHROME_GRACE = 13
+
+
+def stale_chrome(agent: str, on: date) -> bool:
+    """Whether the agent claims a Chrome a year or more behind the one shipping `on`."""
+    found = _CHROME.search(agent)
+    if found is None:
+        return False
+    since, major = CHROME_AT
+    shipping = major + (on - since) // CHROME_EVERY
+    return int(found.group(1)) < shipping - CHROME_GRACE
+
+
 #: Not the front door. The operator's own page, and the app's: a page only a signed-in
 #: reader can open is a reader using targum, which the back office counts as accounts.
 #: The cookie rule in `parse` already leaves these out; this is the second lock.
@@ -189,6 +210,8 @@ def parse(line: str) -> Request | None:
     - **No cookie.** targum sets one cookie, the session, so a request that carries any
       is a signed-in reader, and a reader using the app is not a visitor at the door.
       Caddy writes the header as `REDACTED`, which is all this needs to know.
+    - **A Chrome of its day.** Real headless Chrome sends every header above; what gives
+      a rotating crawler away is the year-old version it claims (`stale_chrome`).
     """
     try:
         record = json.loads(line)
@@ -207,7 +230,7 @@ def parse(line: str) -> Request | None:
         return None
     headers = request.get("headers") or {}
     agent = _header(headers, "User-Agent")
-    if not agent or BOTS.search(agent):
+    if not agent or BOTS.search(agent) or stale_chrome(agent, at.date()):
         return None
     if _header(headers, "Sec-Fetch-Dest") != "document":
         return None
