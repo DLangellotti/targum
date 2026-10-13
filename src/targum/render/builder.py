@@ -1589,7 +1589,12 @@ def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
     # something. Past the last scene the step-up is all there is.
     if mine is not None and scene_number(mine.id):
         following = next(
-            (e for e in CATALOGUE if scene_number(e.id) == scene_number(mine.id) + 1), None
+            (
+                e
+                for e in CATALOGUE
+                if scene_number(e.id) == scene_number(mine.id) + 1 and e.language == mine.language
+            ),
+            None,
         )
         if following is not None:
             offer(following, "Next in the sequence.", f"Scene {scene_number(following.id)}")

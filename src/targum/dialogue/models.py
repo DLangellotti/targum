@@ -80,6 +80,9 @@ class Dialogue(BaseModel):
     id: str
     title: str
     english: str
+    #: The language the scene is written in. Every scene before 2026-10-13 was Hebrew and
+    #: says nothing, so the default is Hebrew; Russian's are the first that say otherwise.
+    language: str = "he"
     #: One sentence on what happens, for the shelf. Not shown inside the reader: a scene
     #: that has to be explained before it is read has not been written well enough.
     gloss: str = ""

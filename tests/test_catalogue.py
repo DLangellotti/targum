@@ -49,6 +49,9 @@ def test_a_scene_knows_its_number_and_nothing_else_has_one() -> None:
     assert scene_number("scene-100-the-same-spot") == 100
     assert scene_number("ruth") == 0
     assert scene_number("") == 0
+    # A scene in another language names it after `scene-` and keeps its own count.
+    assert scene_number("scene-ru-01-at-the-market") == 1
+    assert scene_number("scene-russian-01-x") == 0, "a language is a code, not a word"
 
 
 # -- collections --------------------------------------------------------------

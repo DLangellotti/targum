@@ -964,11 +964,13 @@ def _key(source: str) -> str:
 
 
 #: The numbered scenes: a hundred short dialogues whose ids are `scene-NN-slug`, and the
-#: number is the order somebody with no Hebrew reads them in. Parsed from the id rather
+#: number is the order somebody with no Hebrew reads them in. A scene in another language
+#: says so after `scene-` (`scene-ru-01-slug`, 2026-10-13), and its number orders its own
+#: language's scenes only. Parsed from the id rather
 #: than stored beside it — the id is the one key every page already has, and a second
 #: copy of the number would be a second thing to drift. `render/assets/scenes.js` is the
 #: same rule in the browser.
-SCENE = re.compile(r"^scene-(\d+)-")
+SCENE = re.compile(r"^scene-(?:[a-z]{2,3}-)?(\d+)-")
 
 
 def scene_number(entry_id: str) -> int:
