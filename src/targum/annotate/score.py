@@ -39,6 +39,7 @@ from ..models import Segment, SegmentedDocument, Token
 from .canonical import bare, canonical
 from .dicta import CARRYING, PRONOUNS, TWO
 from .gold import GoldSentence, GoldToken
+from .governed import governed
 from .hebrew import BINYANIM, root_of
 
 #: Sentences per call to the annotator. The number `lemma_map.py` settled on after a box
@@ -106,6 +107,10 @@ class Scorecard:
         default_factory=collections.Counter
     )
     pos_misses: collections.Counter[tuple[str, str]] = dataclasses.field(
+        default_factory=collections.Counter
+    )
+    #: (gold preposition, ours) where one side had a pair the other did not.
+    governed_misses: collections.Counter[tuple[str, str]] = dataclasses.field(
         default_factory=collections.Counter
     )
 
@@ -226,7 +231,23 @@ class Scorecard:
             },
             "construct_precision": _share(c["construct_tp"], c["construct_fp"]),
             "construct_recall": _share(c["construct_tp"], c["construct_fn"]),
+            "governed_precision": _share(c["governed_tp"], c["governed_fp"]),
+            "governed_recall": _share(c["governed_tp"], c["governed_fn"]),
         }
+
+    def add_governed(
+        self, gold: set[tuple[int, int, str, int, int]], ours: set[tuple[int, int, str, int, int]]
+    ) -> None:
+        """Hebrew's fourth hard spot: which preposition marks which verb's argument, as
+        (verb span, preposition, argument span), against the treebank's (`governed`)."""
+        c = self.counts
+        c["governed_tp"] += len(gold & ours)
+        c["governed_fp"] += len(ours - gold)
+        c["governed_fn"] += len(gold - ours)
+        for _, _, preposition, _, _ in ours - gold:
+            self.governed_misses[("", preposition)] += 1
+        for _, _, preposition, _, _ in gold - ours:
+            self.governed_misses[(preposition, "")] += 1
 
     def as_dict(self, top: int = TOP) -> dict[str, Any]:
         return {
@@ -256,6 +277,10 @@ class Scorecard:
                 {"lemma": lemma, "gold": g, "ours": o, "n": n}
                 for (lemma, g, o), n in self.binyan_misses.most_common(top)
             ],
+            "governed_misses": [
+                {"gold": g, "ours": o, "n": n}
+                for (g, o), n in self.governed_misses.most_common(top)
+            ],
             "pos_misses": [
                 {"gold": g, "ours": o, "n": n} for (g, o), n in self.pos_misses.most_common(top)
             ],
@@ -283,6 +308,8 @@ ROWS = (
     ("tense_accuracy", "tense right, where marked"),
     ("construct_precision", "construct state precision"),
     ("construct_recall", "construct state recall"),
+    ("governed_precision", "governed preposition precision"),
+    ("governed_recall", "governed preposition recall"),
 )
 
 
@@ -366,6 +393,20 @@ def score(
                 token = ours.get((gold.start, gold.end))
                 if token is not None:
                     card.add(gold, token)
+            tokens = read.get(segment.id, [])
+            card.add_governed(
+                set(sentence.governed),
+                {
+                    (
+                        tokens[pair.verb].start,
+                        tokens[pair.verb].end,
+                        pair.preposition,
+                        tokens[pair.argument].start,
+                        tokens[pair.argument].end,
+                    )
+                    for pair in governed(tokens)
+                },
+            )
         gc.collect()
         say(f"{min(start + batch, len(held))}/{len(held)} sentences")
 

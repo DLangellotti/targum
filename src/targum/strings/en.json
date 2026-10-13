@@ -150,6 +150,8 @@
   "reader.card.from": "from ",
   "reader.card.dictionary": "Dictionary",
   "reader.card.in-this-line": "In this line",
+  "reader.card.takes": "Takes",
+  "reader.card.goes-with": "Goes with",
   "reader.card.all-cases": "All its cases",
   "reader.card.root-label": "Root",
   "reader.card.binyan": "Binyan",

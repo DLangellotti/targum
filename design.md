@@ -369,6 +369,28 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Governed prepositions on the card — 2026-10-13
+
+David, 2026-10-13, closing Hebrew's fourth hard spot under "A badge is a promise, checked"
+(2026-10-12, below). A learner gets governed prepositions and *et* wrong longest: חיכה
+takes ל־, פחד takes מ־, דיבר takes עם, and nothing in English predicts which.
+
+- **The verb's card says what it takes here**: "Takes ל־", or "Takes עם · על" for a
+  verb with two. A letter written onto the next word gets a maqaf (ל־); a word of its
+  own is shown as written (על, את).
+- **The argument's card says the verb it goes with**: "Goes with חיכה ל־", on the noun
+  and on the preposition's own word where it has one.
+- **It says this line, not the dictionary.** The IAHLT treebank marks every case-marked
+  argument `obl` and does not separate a governed preposition from an adjunct, so the
+  card claims only which preposition marks which verb's argument here. The core seven
+  (ל ב מ על עם אל את) are the ones shown; the long tail (בשל, לאחר) is meaning, not
+  government.
+- **Read off the syntax every annotation already stores** (`annotate/governed.py`), so
+  texts annotated before this show it without being read again. Measured against the
+  treebank's own triples, with a floor (`governed_precision` on iahltknesset).
+- The research says a lens is this spot's surface, not feedback. The lens and the
+  practice question are settled under the practices (#440).
+
 ### Done marks nothing; knowing them all is a choice — 2026-10-13
 
 David, 2026-10-13, of the press at the foot that marked every word never marked: "they

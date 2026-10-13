@@ -7684,3 +7684,80 @@ def test_a_touch_screen_is_never_told_the_keys(browser, built: Path) -> None:
     same = page.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
     context.close()
     assert "key" not in said and same == tall, (said, same, tall)
+
+
+def hebrew_governed(out: Path) -> Path:
+    """A Hebrew reader whose words carry DICTA's syntax: a verb and the preposition its
+    argument takes (design.md §12, "Governed prepositions on the card", 2026-10-13)."""
+    from targum.models import Syntax
+
+    text = "דיבר עם המנהל"
+    said = [
+        ("דיבר", "דיבר", "VERB", "UPOS=VERB|Tense=Past", -1, "root", (), 0),
+        ("עם", "עם", "ADP", "UPOS=ADP", 2, "case", (), 0),
+        ("המנהל", "מנהל", "NOUN", "UPOS=NOUN|Gender=Masc", 0, "obl", ("DET",), 1),
+    ]
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    placed, cursor = [], 0
+    for surface, lemma, pos, feats, head, relation, prefixes, lead in said:
+        start = text.index(surface, cursor)
+        cursor = start + len(surface)
+        placed.append(
+            Token(
+                start=start,
+                end=cursor,
+                surface=surface,
+                lemma=lemma,
+                band=1,
+                pos=pos,
+                feats=feats,
+                syntax=Syntax(head=head, relation=relation, prefixes=prefixes, lead=lead),
+            )
+        )
+    document = Document(
+        source="memory",
+        title="מנהל",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
+        content_hash="g",
+    )
+    segmented = SegmentedDocument(
+        document_hash="g", language="he", segmenter="test/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="g",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "He spoke with the manager."},
+    )
+    annotation = Annotation(
+        document_hash="g",
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens={segment.id: placed},
+    )
+    return render(document, segmented, [translation], out, annotation=annotation)[0]
+
+
+FACTS = """
+(text) => {
+  [...document.querySelectorAll('.w')].find((w) => w.textContent === text).click();
+  const card = document.querySelector('.gloss-card');
+  return [...card.querySelectorAll('.card-facts dt, .card-facts dd')].map((el) => el.textContent);
+}
+"""
+
+
+def test_a_hebrew_verb_says_what_it_takes_and_its_argument_the_verb(
+    browser, tmp_path: Path
+) -> None:
+    context, page = open_reader(browser, hebrew_governed(tmp_path / "reader"))
+    verb = page.evaluate(FACTS, "דיבר")
+    noun = page.evaluate(FACTS, "המנהל")
+    context.close()
+    assert verb[-2:] == ["Takes", "עם"], verb
+    assert noun[-2:] == ["Goes with", "דיבר עם"], noun

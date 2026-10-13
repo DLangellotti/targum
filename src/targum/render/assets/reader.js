@@ -4442,6 +4442,12 @@ var targumReader = function () {
     return text.slice(before[0], before[1]) + " " + shown;
   }
 
+  // A preposition as a learner looks it up: a letter written onto the next word with a
+  // maqaf after it (ל־), a word of its own as it stands (על, את).
+  function prepositionShown(preposition) {
+    return preposition.length === 1 ? preposition + "\u05be" : preposition;
+  }
+
   // The languages whose board says "noun" with no gender after it.
   var NOUN_GENDER_UNSAID = { he: true, arc: true };
 
@@ -6068,6 +6074,28 @@ var targumReader = function () {
         cases.textContent = t("reader.card.all-cases", "All its cases") + " \u2192";
         facts.add("", cases);
       }
+    }
+    // Which preposition a verb takes in this line, and which verb a preposition goes
+    // with: Hebrew's fourth hard spot, read off the syntax (design.md §12, "Governed
+    // prepositions on the card", 2026-10-13). The verb's card says what it takes here;
+    // the argument's says the verb it hangs on.
+    var takesLine = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
+    var taken = feat(takesLine, "Takes");
+    if (taken) {
+      var takes = document.createElement("bdi");
+      takes.className = "form";
+      takes.setAttribute("lang", wordLanguage(index));
+      takes.textContent = taken.split(",").map(prepositionShown).join(" \u00b7 ");
+      facts.add(t("reader.card.takes", "Takes"), takes);
+    }
+    var governor = feat(takesLine, "Governor");
+    var by = feat(takesLine, "Prep");
+    if (governor && by) {
+      var goes = document.createElement("bdi");
+      goes.className = "form";
+      goes.setAttribute("lang", wordLanguage(index));
+      goes.textContent = wordOf(governor) + " " + prepositionShown(by);
+      facts.add(t("reader.card.goes-with", "Goes with"), goes);
     }
     facts.place(card);
 

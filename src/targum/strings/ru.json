@@ -132,6 +132,8 @@
   "reader.card.from": "от ",
   "reader.card.dictionary": "Словарная форма",
   "reader.card.in-this-line": "В этой строке",
+  "reader.card.takes": "Предлог",
+  "reader.card.goes-with": "При глаголе",
   "reader.card.all-cases": "Все падежи",
   "reader.card.root-label": "Корень",
   "reader.card.binyan": "Биньян",
