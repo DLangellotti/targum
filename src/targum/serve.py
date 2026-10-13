@@ -666,6 +666,29 @@ OAUTH_POSTS = frozenset({"/oauth/register", "/oauth/token", "/oauth/revoke", "/o
 # while this is off the sitemap is gone and robots refuses the whole site.
 PUBLIC_TEXT = re.compile(r"^/library/([a-z0-9][a-z0-9-]{0,63})$")
 
+#: The crawlers that gather pages to train a model, by the names their makers give for
+#: robots.txt (2026-10-13). targum wants to be found by AI: the agent a person sends to
+#: fetch a page and the indexes an AI answers from are let in like any search engine. What
+#: these take is a text already glossed, parsed and read aloud, which is the work itself,
+#: so they get the pages that say what targum is and none of the shelves.
+TRAINING_CRAWLERS = (
+    "GPTBot",
+    "ClaudeBot",
+    "anthropic-ai",
+    "Google-Extended",
+    "Applebot-Extended",
+    "CCBot",
+    "Meta-ExternalAgent",
+    "Bytespider",
+    "cohere-training-data-crawler",
+    "AI2Bot",
+    "Diffbot",
+    "PanguBot",
+)
+
+#: What a training crawler may read: the pages about targum, not the texts on it.
+ABOUT_TARGUM = ("/$", "/about", "/how", "/connect", "/llms.txt")
+
 
 #: Which level `/weekly` and `/weekly/<week>` land on. The middle one, because it is
 #: the one most readers can read and the other two are one click either side of it.
@@ -7012,9 +7035,62 @@ class Handler(BaseHTTPRequestHandler):
             "Disallow: /job/",
             "Disallow: /glossary/",
             "Disallow: /health",
+            "",
+            # A crawler follows the one group that names it and ignores `*`, so this
+            # group is the whole of what a training crawler is told.
+            *(f"User-agent: {name}" for name in TRAINING_CRAWLERS),
+            *(f"Allow: {path}" for path in ABOUT_TARGUM),
+            *(f"Allow: {route}" for route in LEGAL_ROUTES if legal_is_public()),
+            "Disallow: /",
         ]
         if self.address:
-            lines.append(f"Sitemap: {self.address}/sitemap.xml")
+            lines += ["", f"Sitemap: {self.address}/sitemap.xml"]
+        return "\n".join(lines) + "\n"
+
+    def _llms(self) -> str:
+        """What an AI is told targum is, at the name llms.txt proposes.
+
+        It points an agent at the connector rather than the pages: through `/mcp` it
+        finds texts by the reader's own words, and anything that would spend still waits
+        for the reader's press on targum's own page.
+        """
+        where = self.address or ""
+        lines = [
+            "# targum",
+            "",
+            "> targum is a reading app for people learning languages, Hebrew above all."
+            " Paste a link and it comes back as a text at your level, every word glossed,"
+            " with the audio beside it.",
+            "",
+        ]
+        if connector_is_open():
+            lines += [
+                "If you are an AI helping someone learn, connect to targum rather than reading"
+                " these pages. Through the connector you can find texts the reader can"
+                " mostly follow, judged by the words they already know, and talk with them"
+                " in Hebrew built from those words. A new text from a link is offered as a"
+                " link the reader confirms on targum, never made ready by the model.",
+                "",
+                "## Connect",
+                "",
+                f"- [MCP server]({where}/mcp): remote MCP over streamable HTTP, with OAuth."
+                " The reader signs in to targum and approves the connection.",
+                f"- [Setting it up]({where}/connect): the steps for Claude, ChatGPT,"
+                " Claude Code, VS Code, Gemini CLI and Codex.",
+                "",
+            ]
+        lines += [
+            "## About",
+            "",
+            f"- [How targum reads Hebrew]({where}/how)",
+            f"- [Built in public]({where}/about): every change, day by day.",
+            f"- [Library]({where}/library): the texts anyone can open.",
+            "",
+            "## Use",
+            "",
+            "The texts in the library are made ready for people learning with targum."
+            " They are not for training models, and robots.txt says so.",
+        ]
         return "\n".join(lines) + "\n"
 
     def _sitemap(self) -> str:
@@ -7915,6 +7991,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _icon(), "image/png")
         if route == "/robots.txt":
             return self._send(200, self._robots().encode("utf-8"), "text/plain; charset=utf-8")
+        # Shut with the shelves, like the sitemap: nothing is introduced to anybody
+        # while every page says "Coming soon".
+        if route == "/llms.txt" and shelves_are_public():
+            return self._send(200, self._llms().encode("utf-8"), "text/plain; charset=utf-8")
         # The picture a shared link shows (design.md §12, "A shared link shows the mark",
         # 2026-10-13). Before the key check: a crawler has no account, and the picture is
         # the same for everybody.

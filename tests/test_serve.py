@@ -1815,7 +1815,7 @@ def test_the_catalogue_opens_when_the_deployment_says_so(
         assert status == 200 and b"The Land of Israel" in body
 
         assert call(port, "GET", "/sitemap.xml")[0] == 200
-        assert b"Disallow: /\n" not in call(port, "GET", "/robots.txt")[1]
+        assert not call(port, "GET", "/robots.txt")[1].startswith(b"User-agent: *\nDisallow: /\n")
     finally:
         server.shutdown()
 
