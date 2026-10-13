@@ -39,6 +39,7 @@ from ..models import Segment, Syntax, Token
 from ..paths import settle_hf_home
 from ..segment.pieces import at_spaces
 from ..segment.stanza_segmenter import stanza_code
+from ..vocalize.base import strip_nikkud
 from .hebrew import BINYANIM, CLITIC_GLOSSES, FINALS, binyan_of, kept_feats, root_of
 
 # The one model, named in full because the name rides into every annotation.
@@ -74,7 +75,13 @@ REVISION = "3c3c27067bb73a45e99c36bd90b3b3dbc10fda12"
 #
 # "grammar/5" in the same undeployed release (2026-10-13): a pointed מוֹכֵר is a seller,
 # not "familiar". See `SELLER`. The box never ran grammar/4, so it reads the library once.
-FEATURES = "roots+everyword+entities+syntax+grammar/5"
+#
+# "grammar/6" since 2026-10-13 (after the long deploy): grammar/5's seller never fired,
+# because `Annotator.annotate` strips the marks before this class sees a word, so the
+# check now runs there, on the pointed word (`mend_pointed`); and היא, הם and הן as the
+# copula, which DICTA tags AUX and files under הוא, go on their own cards like the
+# pronouns they are.
+FEATURES = "roots+everyword+entities+syntax+grammar/6"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
 # longest, so asking for a whole book in one go builds a tensor the size of the longest
@@ -200,8 +207,8 @@ TWOS = frozenset(
 )
 
 # The personal pronouns, each its own card (known issues 1.1). Keyed on the word under its
-# prefixes — שאתה is אתה — and only where DICTA tagged it a pronoun, because אתן is also
-# "I will give" and את the object marker. Their own spelling is their dictionary form.
+# prefixes — שאתה is אתה — and only where DICTA tagged it a pronoun or the copula, because
+# אתן is also "I will give" and את the object marker. Their own spelling is their dictionary form.
 PRONOUNS = frozenset(
     {
         "אני",
@@ -561,8 +568,6 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
     out: list[Token] = []
     entities = _entities(said)
     kept, heads = _syntax(said)
-    # The sentence as handed over, marks and all; the words DICTA returns are unpointed.
-    text = str(said.get("text") or "")
     for at, word in enumerate(said.get("tokens", [])):
         morph = word.get("morph") or {}
         pos = morph.get("pos") or None
@@ -580,8 +585,6 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
         lex = word.get("lex") or ""
         lemma = _lemma(lex, surface, seg[-1] if seg else surface, pos)
         offsets = word.get("offsets") or {}
-        pointed = text[int(offsets.get("start", 0)) : int(offsets.get("end", 0))]
-        lemma, pos = _seller(lemma, seg[-1] if seg else surface, pos, pointed)
         carried = _carried(seg, pos)
         if carried is not None:
             # בו as DICTA reads אותו: the preposition, with a pronoun on the end. The
@@ -621,22 +624,35 @@ def declined(lex: str) -> bool:
     return not lemma or lemma == BLANK or PIECE in lemma
 
 
-# A seller, where the pointing says so (the gym dialogue, 2026-10-13). DICTA reads its own
-# input unpointed, so מוֹכֵר, "salesman", and מוּכָּר, "familiar", reach it as the same
-# מוכר, and it filed the salesman under הוכר, "was recognized", as an adjective. The text
-# it was handed keeps the marks, and the offsets point into it: a holam on the vav after
-# the mem (מוֹ) is the seller, or the selling — מכר's participle, filed under מוכר as
-# DICTA already files מוֹכְרִים and הַמּוֹכֶרֶת. Familiar is spelled with a shuruq (מוּ),
-# and an unpointed word says neither, so both keep DICTA's answer.
+# A seller, where the pointing says so (the gym dialogue, 2026-10-13). DICTA reads
+# unpointed, so מוֹכֵר, "salesman", and מוּכָּר, "familiar", reach it as the same מוכר,
+# and it filed the salesman under הוכר, "was recognized", as an adjective. Only the
+# annotator still holds the marks — it strips them before any lemmatizer sees the text,
+# which is why grammar/5's check in here never fired — so it asks `mend_pointed` once the
+# word is back in its own pointed coordinates. A holam on the vav after the mem (מוֹ) is
+# the seller, or the selling: מכר's participle, filed under מוכר as DICTA already files
+# מוֹכְרִים and הַמּוֹכֶרֶת. Familiar is spelled with a shuruq (מוּ), and an unpointed word
+# says neither, so both keep DICTA's answer. Only DICTA's הוכר is mended, so a lemma the
+# hand tagging of scripture gave is never touched.
 SELLER = "מוכר"
 SELLERS = frozenset({"מוכר", "מוכרת", "מוכרים", "מוכרות"})
+MISREAD_SELLER = "הוכר"
 HOLAM_AFTER_MEM = re.compile("מ[\u0591-\u05c7]*ו[\u05b9\u05ba]")
+# The letters a seller can carry in front: וְהַמּוֹכֵר, לַמּוֹכְרִים, שֶׁמּוֹכֶרֶת.
+SELLER_PREFIXES = frozenset("ובהכלמש")
 
 
-def _seller(lemma: str, base: str, pos: str | None, pointed: str) -> tuple[str, str | None]:
-    """מוכר and its pos, for a word the pointing says is a seller; else as given."""
-    if base in SELLERS and HOLAM_AFTER_MEM.search(pointed):
-        return SELLER, "NOUN" if pos == "ADJ" else pos
+def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | None]:
+    """The lemma and pos of a Hebrew word, mended where its own pointing settles what the
+    unpointed reading could not; else as given. `pointed` is the word as it stands in
+    the text, prefixes and marks and all."""
+    if lemma != MISREAD_SELLER or not HOLAM_AFTER_MEM.search(pointed):
+        return lemma, pos
+    bare, _ = strip_nikkud(pointed)
+    for seller in SELLERS:
+        head = bare[: len(bare) - len(seller)]
+        if bare.endswith(seller) and len(head) <= 3 and set(head) <= SELLER_PREFIXES:
+            return SELLER, "NOUN" if pos == "ADJ" else pos
     return lemma, pos
 
 
@@ -650,7 +666,9 @@ def _lemma(lex: str, surface: str, base: str, pos: str | None = None) -> str:
         return surface.lower()
     if pos == "PROPN":
         return lemma.lower()
-    if pos == "PRON" and base in PRONOUNS:
+    if pos in ("PRON", "AUX") and base in PRONOUNS:
+        # AUX too: היא, הם and הן as the copula — המצרכים הם מיץ — which DICTA tags AUX
+        # and files under הוא, so "they are" said "he; it" (known issues 1.1, 2026-10-13).
         return base
     if pos == "VERB" and base in VERBS:
         return VERBS[base]

@@ -2204,53 +2204,100 @@ def _pointed(text: str, *words: tuple[str, str, str]) -> dict[str, object]:
     }
 
 
+class DictaSays:
+    """DICTA's own mending (`dicta._tokens`) over canned answers, behind the real
+    `Annotator`: the shape a build has, where the marks are stripped before any
+    lemmatizer sees the text. grammar/5's seller passed tests that handed `_tokens`
+    pointed text, which no build ever does, and never fired on the shelf."""
+
+    name = "dicta-says/1"
+
+    def __init__(self, *sentences: tuple[tuple[str, str, str], ...]) -> None:
+        self.sentences = sentences
+
+    def lemmas(self, segments, language):  # type: ignore[no-untyped-def]
+        from targum.annotate.dicta import _tokens
+
+        out = {}
+        for segment, words in zip(segments, self.sentences, strict=True):
+            assert not any("֑" <= c <= "ׇ" for c in segment.text), segment.text
+            out[segment.id] = _tokens(_pointed(segment.text, *words))
+        return out
+
+
+def _read(texts: list[str], *sentences: tuple[tuple[str, str, str], ...]) -> list[list[Token]]:
+    annotation = Annotator(lemmatizer=DictaSays(*sentences), bands=FakeBands()).annotate(
+        document(texts)
+    )
+    return [annotation.tokens[f"0{i:03d}.000-aaaaaa"] for i in range(len(texts))]
+
+
 def test_a_pointed_seller_is_a_seller_and_not_familiar() -> None:
     """The gym dialogue's מוֹכֵר, "salesman", came back הוכר, "was recognized", an
-    adjective: DICTA reads unpointed, and מוכר is also מוּכָּר, "familiar". The pointing
-    it was handed says which, so a holam on the mem is the seller, filed under מוכר as
-    DICTA files the delivery scene's מוֹכְרִים."""
-    from targum.annotate.dicta import _tokens
-
-    gym = _tokens(
-        _pointed(
+    adjective: DICTA reads unpointed, and מוכר is also מוּכָּר, "familiar". The text
+    says which, so a holam on the mem is the seller, filed under מוכר as DICTA files the
+    delivery scene's מוֹכְרִים — and with a prefix on, too."""
+    gym, line, shop = _read(
+        [
             "אַתָּה יָשָׁר מִדַּי בִּשְׁבִיל מוֹכֵר.",
+            "אֲנִי לֹא הַמּוֹכֵר.",
+            "כִּי בַּחֲנוּת מוֹכְרִים סַפּוֹת",
+        ],
+        (
             ("אתה", "אתה", "PRON"),
             ("ישר", "ישר", "ADJ"),
             ("מדי", "מדי", "ADV"),
             ("בשביל", "בשביל", "ADP"),
             ("מוכר", "הוכר", "ADJ"),
-        )
+        ),
+        (("אני", "אני", "PRON"), ("לא", "לא", "ADV"), ("המוכר", "הוכר", "ADJ")),
+        (
+            ("כי", "כי", "SCONJ"),
+            ("בחנות", "חנות", "NOUN"),
+            ("מוכרים", "מוכר", "VERB"),
+            ("ספות", "ספה", "NOUN"),
+        ),
     )
-    assert (gym[-1].lemma, gym[-1].pos) == ("מוכר", "NOUN")
-    (selling,) = [
-        token
-        for token in _tokens(
-            _pointed(
-                "כִּי בַּחֲנוּת מוֹכְרִים סַפּוֹת",
-                ("כי", "כי", "SCONJ"),
-                ("בחנות", "חנות", "NOUN"),
-                ("מוכרים", "מוכר", "VERB"),
-                ("ספות", "ספה", "NOUN"),
-            )
-        )
-        if token.surface == "מוכרים"
-    ]
-    assert (selling.lemma, selling.pos) == ("מוכר", "VERB")
+    assert (gym[-1].surface, gym[-1].lemma, gym[-1].pos) == ("מוֹכֵר", "מוכר", "NOUN")
+    assert (line[-1].lemma, line[-1].pos) == ("מוכר", "NOUN")
+    assert (shop[2].lemma, shop[2].pos) == ("מוכר", "VERB")
 
 
 def test_familiar_stays_familiar() -> None:
     """מוּכָּר, "familiar", and an unpointed מוכר, which could be either, keep DICTA's
     answer."""
-    from targum.annotate.dicta import _tokens
+    said = (
+        ("הוא", "הוא", "PRON"),
+        ("שחקן", "שחקן", "NOUN"),
+        ("מוכר", "הוכר", "ADJ"),
+        ("מאוד", "מאוד", "ADV"),
+    )
+    for read in _read(["הוּא שַׂחְקָן מוּכָּר מְאוֹד", "הוא שחקן מוכר מאוד"], said, said):
+        assert (read[2].lemma, read[2].pos) == ("הוכר", "ADJ")
 
-    for text in ("הוּא שַׂחְקָן מוּכָּר מְאוֹד", "הוא שחקן מוכר מאוד"):
-        read = _tokens(
-            _pointed(
-                text,
-                ("הוא", "הוא", "PRON"),
-                ("שחקן", "שחקן", "NOUN"),
-                ("מוכר", "הוכר", "ADJ"),
-                ("מאוד", "מאוד", "ADV"),
-            )
-        )
-        assert (read[2].lemma, read[2].pos) == ("הוכר", "ADJ"), text
+
+def test_the_copula_is_on_its_pronouns_card() -> None:
+    """היא, הם and הן as the copula, which DICTA tags AUX and files under הוא, so "they
+    are" said "he; it" (known issues 1.1, 2026-10-13). The copula הוא stays on הוא's, and
+    the verb היה is not a pronoun."""
+    (read,) = _read(
+        ["המצרכים הם מיץ היא הדרך הן חלקים הוא כאן היה"],
+        (
+            ("המצרכים", "מצרך", "NOUN"),
+            ("הם", "הוא", "AUX"),
+            ("מיץ", "מיץ", "NOUN"),
+            ("היא", "הוא", "AUX"),
+            ("הדרך", "דרך", "NOUN"),
+            ("הן", "הוא", "AUX"),
+            ("חלקים", "חלק", "NOUN"),
+            ("הוא", "הוא", "AUX"),
+            ("כאן", "כאן", "ADV"),
+            ("היה", "היה", "AUX"),
+        ),
+    )
+    lemmas = {token.surface: token.lemma for token in read}
+    assert lemmas["הם"] == "הם"
+    assert lemmas["היא"] == "היא"
+    assert lemmas["הן"] == "הן"
+    assert lemmas["הוא"] == "הוא"
+    assert lemmas["היה"] == "היה"

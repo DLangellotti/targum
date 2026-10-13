@@ -30,6 +30,7 @@ from .base import (
     unread,
 )
 from .biblical import METHOD as TANAKH_METHOD
+from .dicta import mend_pointed
 from .dictionary import Entry as DictionaryEntry
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
@@ -256,6 +257,16 @@ class Annotator:
                     # the part of speech, and a card offering its conjugations offers a
                     # table that does not exist.
                     token = token.model_copy(update={"pos": "AUX"})
+                if positions is not None and said_in == "he":
+                    # What only the marks settle, and only here are they still held: the
+                    # lemmatizer was handed the bare text. Before the band, which is
+                    # asked of the lemma. See `dicta.mend_pointed`.
+                    start, end = map_span(token.start, token.end, positions)
+                    lemma, pos = mend_pointed(
+                        token.lemma, token.pos, source_text[segment_id][start:end]
+                    )
+                    if (lemma, pos) != (token.lemma, token.pos):
+                        token = token.model_copy(update={"lemma": lemma, "pos": pos})
                 if segment_id in elsewhere:
                     # Read, and deliberately not rated. See `elsewhere` above.
                     band = UNRATED
