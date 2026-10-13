@@ -822,6 +822,13 @@ var targumReader = function () {
   // The reader's own local midnight rather than UTC, because "did I read yesterday" is a
   // question about their evening. Built from the parts rather than sliced off an ISO
   // string, which is UTC and lands on the wrong day either side of midnight.
+  // Whether this text was open before this visit, read before the visit is written: a
+  // lens is offered on a second read (design.md §12, "Lenses wait for a second read").
+  var openedBefore = false;
+  try {
+    openedBefore = !!JSON.parse(localStorage.getItem("targum:opened") || "{}")[documentId];
+  } catch (e) {}
+
   function recordVisit() {
     try {
       var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
@@ -1256,6 +1263,8 @@ var targumReader = function () {
 
   function setFinished(on) {
     if (on) sectionRead();
+    // Finishing a part is the end of a first read: the lenses are offered from here.
+    if (on && typeof offerLenses === "function") offerLenses();
     // What moved while this section was read, worked out before the finish is written
     // so the finish itself is not among the movements (targum-internal#175).
     footMoved(on);
@@ -2917,6 +2926,11 @@ var targumReader = function () {
       // the one case chosen, so choosing another redraws nothing.
       var inCase = token.length > 8 ? feat(grammarTable[token[8]] || "", "Case") : "";
       if (CASE_LENS.indexOf(inCase) >= 0) classes.push("case-" + inCase);
+      // And whether it is a verb that takes a preposition here, or that preposition's
+      // word, for the prepositions lens (`annotate/governed.py`).
+      var governedLine = token.length > 8 ? grammarTable[token[8]] || "" : "";
+      if (feat(governedLine, "Takes")) classes.push("gov-verb");
+      if (feat(governedLine, "Governor")) classes.push("gov-arg");
       var status = statusOf(lemma);
       layers.push({
         start: at(token[0]),
@@ -5260,19 +5274,96 @@ var targumReader = function () {
 
   function showCase(name) {
     var chosen = CASE_LENS.indexOf(name) >= 0 ? name : "";
-    if (chosen) body.setAttribute("data-case", chosen);
-    else body.removeAttribute("data-case");
+    if (chosen) {
+      body.setAttribute("data-case", chosen);
+      showGoverned(false, true);
+    } else body.removeAttribute("data-case");
     if (caseLens) caseLens.value = chosen;
     say(
       chosen
-        ? t("reader.case.said", "{case}, {n} here.", { case: caseWord(chosen), n: caseCounts[chosen] })
+        ? cueOnce("case", t("reader.case.cue", "Every word lit is in the {case}.", { case: caseWord(chosen) })) ||
+            t("reader.case.said", "{case}, {n} here.", { case: caseWord(chosen), n: caseCounts[chosen] })
         : t("reader.case.none", "No case shown.")
     );
   }
 
+  /* --- lenses wait for a second read -------------------------------------------
+   *
+   * design.md §12, "Lenses wait for a second read" (2026-10-13), from the research in
+   * targum-internal#439: lighting a feature buys a little form at a cost to
+   * comprehension, and only with a line saying what to look at. So no lens is offered on
+   * a first read: its row appears once this part is finished, or when the text is
+   * opened again. One lens is on at a time, the first time one is turned on it says
+   * what it shows, and none is remembered past the page.
+   */
+  var lensRows = document.querySelectorAll(".lens-row");
+  var cued = {};
+
+  function cueOnce(name, line) {
+    if (cued[name]) return "";
+    cued[name] = true;
+    return line;
+  }
+
+  function offerLenses() {
+    Array.prototype.forEach.call(lensRows, function (row) {
+      row.hidden = false;
+    });
+  }
+
+  var governedLens = document.querySelector("[data-governed-lens]");
+  // Counted off the page's data rather than the drawn words, which may not be drawn yet.
+  function governedCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Takes")) count++;
+      });
+    });
+    return count;
+  }
+
+  function showGoverned(on, quietly) {
+    if (!governedLens) return false;
+    if (on) {
+      body.setAttribute("data-lens", "governed");
+      if (body.getAttribute("data-case")) {
+        body.removeAttribute("data-case");
+        if (caseLens) caseLens.value = "";
+      }
+    } else if (body.getAttribute("data-lens") === "governed") {
+      body.removeAttribute("data-lens");
+    }
+    governedLens.setAttribute("aria-pressed", on ? "true" : "false");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce(
+            "governed",
+            t("reader.lens.governed-cue", "Each verb lit takes the preposition lit beside it, in this line.")
+          ) || t("reader.lens.governed-said", "Prepositions verbs take, {n} here.", { n: governedCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (openedBefore || finishedAt()) offerLenses();
+
+  if (governedLens) {
+    governedLens.addEventListener("click", function () {
+      showGoverned(body.getAttribute("data-lens") !== "governed");
+    });
+  }
+
+  // `r` turns the prepositions lens on and off, where the page has it and it is offered.
+  function toggleGoverned() {
+    if (!governedLens || governedLens.hidden) return false;
+    return showGoverned(body.getAttribute("data-lens") !== "governed");
+  }
+
   // `c` steps through the cases this page has, and past the last one back to none.
   function nextCase() {
-    if (!caseLens) return false;
+    if (!caseLens || caseLens.closest(".lens-row").hidden) return false;
     var present = CASE_LENS.filter(function (name) {
       return caseCounts[name] > 0;
     });
@@ -10722,6 +10813,9 @@ var targumReader = function () {
       case "n":
         toggleVowels();
         return;
+      case "r":
+        if (!toggleGoverned()) return;
+        break;
       case "c":
         if (!nextCase()) return;
         break;

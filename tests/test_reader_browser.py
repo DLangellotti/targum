@@ -6757,6 +6757,18 @@ def test_one_case_is_shown_at_a_time_and_only_when_asked(browser, tmp_path: Path
     reader = russian(tmp_path / "reader")
     context, page = open_reader(browser, reader)
     assert page.evaluate(CASES_SHOWN) == [], "off by default"
+    # Not on a first read (design.md §12, "Lenses wait for a second read", 2026-10-13):
+    # the row is hidden and `c` does nothing, until the text is opened again.
+    assert page.evaluate(
+        "() => document.querySelector('[data-case-lens]').closest('.lens-row').hidden"
+    )
+    page.keyboard.press("c")
+    assert page.evaluate("() => document.body.getAttribute('data-case')") is None
+    page.reload()
+    page.wait_for_selector(".pair")
+    assert not page.evaluate(
+        "() => document.querySelector('[data-case-lens]').closest('.lens-row').hidden"
+    )
     options = page.evaluate(
         "() => [...document.querySelector('[data-case-lens]').options].map((o) => o.textContent)"
     )
@@ -7761,3 +7773,34 @@ def test_a_hebrew_verb_says_what_it_takes_and_its_argument_the_verb(
     context.close()
     assert verb[-2:] == ["Takes", "עם"], verb
     assert noun[-2:] == ["Goes with", "דיבר עם"], noun
+
+
+GOVERNED_SHOWN = """
+() => [...document.querySelectorAll('.w')]
+  .filter((w) => getComputedStyle(w).textDecorationStyle === 'dotted')
+  .map((w) => w.textContent)
+"""
+
+
+def test_the_prepositions_lens_waits_for_a_finish_and_says_once_what_it_shows(
+    browser, tmp_path: Path
+) -> None:
+    """targum-internal#439: off on a first read, offered once the part is finished, one
+    lens at a time, a cue line the first time it is turned on and its count after."""
+    context, page = open_reader(browser, hebrew_governed(tmp_path / "reader"))
+    lens = "[data-governed-lens]"
+    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    page.keyboard.press("r")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.click("#done-go")
+    assert not page.evaluate(f"() => document.querySelector('{lens}').hidden")
+    page.keyboard.press("r")
+    assert page.evaluate(GOVERNED_SHOWN) == ["דיבר", "עם", "המנהל"]
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each verb lit takes the preposition lit beside it, in this line."
+    page.keyboard.press("r")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.keyboard.press("r")
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Prepositions verbs take, 1 here.", "the cue is said once"
+    context.close()

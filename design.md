@@ -408,6 +408,28 @@ promise, checked" (2026-10-12, below), built on the research in targum-internal
   `practice.json`; nothing is fetched and nothing spends. Where the reader is with each
   spot is the `practised` table: theirs, exported and forgotten with the account.
 
+### Lenses wait for a second read — 2026-10-13
+
+David, 2026-10-13 (targum-internal#439), from the research in targum-internal
+`research/hard-spots-2026-10-11` ("Six understood encounters gate a lens"): lighting a
+feature buys a little form (d = 0.22 to 0.54) at a cost to comprehension (d = −0.26), and
+only teaches with a line saying what to look at. This amends "One case at a time" (the
+Russian case lens, targum-internal#261), which was already on demand.
+
+- **No lens on a first read.** A lens's row in Aa is hidden until this part is finished
+  or the text is opened again; its key (`c` for a case, `r` for prepositions; `g` stays retired) does
+  nothing until then.
+- **One lens at a time.** Turning one on turns the other off.
+- **A cue the first time.** The first time a lens is turned on on a page it says what it
+  lights ("Each verb lit takes the preposition lit beside it, in this line."), and after
+  that its count, as the case lens always did.
+- **Never remembered.** A lens is off when the page is opened, as the case lens was.
+- **The prepositions lens** lights a verb that takes a preposition here and that
+  preposition's word, or the word it is written onto, in the case lens's wash and dotted
+  underline ("Governed prepositions on the card", below). It is governed prepositions'
+  practice: the research found that spot immune to feedback ("A practice for every hard
+  spot", above).
+
 ### Governed prepositions on the card — 2026-10-13
 
 David, 2026-10-13, closing Hebrew's fourth hard spot under "A badge is a promise, checked"

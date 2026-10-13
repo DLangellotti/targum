@@ -4073,5 +4073,12 @@
   "practice.page.wrong": "Здесь — {said}.",
   "practice.page.other": "Где — {said}:",
   "practice.page.start": "Начать",
-  "practice.page.next": "Дальше"
+  "practice.page.next": "Дальше",
+  "reader.page.show-the-prepositions-verbs-take-r": "Показать предлоги при глаголах (r)",
+  "reader.page.prepositions-verbs-take": "Предлоги при глаголах",
+  "reader.page.prepositions-verbs-take-lower": "предлоги при глаголах",
+  "reader.case.cue": "Все выделенные слова — в падеже: {case}.",
+  "reader.lens.governed-cue": "Каждый выделенный глагол берёт выделенный рядом предлог, в этой строке.",
+  "reader.lens.governed-said": "Предлоги при глаголах: {n} здесь.",
+  "reader.lens.none": "Линза выключена."
 }

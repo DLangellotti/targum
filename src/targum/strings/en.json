@@ -3759,5 +3759,12 @@
   "practice.page.wrong": "It's {said} here.",
   "practice.page.other": "Where it's {said}:",
   "practice.page.start": "Start",
-  "practice.page.next": "Next"
+  "practice.page.next": "Next",
+  "reader.page.show-the-prepositions-verbs-take-r": "Show the prepositions verbs take (r)",
+  "reader.page.prepositions-verbs-take": "Prepositions verbs take",
+  "reader.page.prepositions-verbs-take-lower": "the prepositions verbs take",
+  "reader.case.cue": "Every word lit is in the {case}.",
+  "reader.lens.governed-cue": "Each verb lit takes the preposition lit beside it, in this line.",
+  "reader.lens.governed-said": "Prepositions verbs take, {n} here.",
+  "reader.lens.none": "No lens shown."
 }
