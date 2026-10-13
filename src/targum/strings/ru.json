@@ -158,6 +158,8 @@
   "reader.card.looking": "ищем…",
   "reader.card.nothing-saved": "ничего не сохранено",
   "reader.card.other-aspect": "другой вид: ",
+  "reader.card.motion-one": "в одну сторону или сейчас в пути. Туда и обратно или привычка: ",
+  "reader.card.motion-both": "туда и обратно или привычка. В одну сторону или сейчас в пути: ",
   "reader.card.own-meaning": "Ваше значение",
   "reader.card.prefix-caveat": "читается как приставка плюс слово",
   "reader.card.read-here": "здесь читается {form}",

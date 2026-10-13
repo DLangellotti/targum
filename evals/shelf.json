@@ -45,56 +45,56 @@
   },
   "he": {
    "A1": {
-    "texts": 110,
-    "recordings": 110
+    "texts": 114,
+    "recordings": 114
    },
    "A2": {
-    "texts": 95,
-    "recordings": 94
+    "texts": 98,
+    "recordings": 97
    },
    "B1": {
-    "texts": 120,
-    "recordings": 67
+    "texts": 155,
+    "recordings": 102
    },
    "B2+": {
-    "texts": 281,
-    "recordings": 37
+    "texts": 326,
+    "recordings": 82
    }
   },
   "it": {
    "A1": {
-    "texts": 0,
-    "recordings": 0
+    "texts": 3,
+    "recordings": 3
    },
    "A2": {
     "texts": 0,
     "recordings": 0
    },
    "B1": {
-    "texts": 0,
-    "recordings": 0
+    "texts": 33,
+    "recordings": 33
    },
    "B2+": {
-    "texts": 14,
-    "recordings": 0
+    "texts": 56,
+    "recordings": 42
    }
   },
   "ru": {
    "A1": {
-    "texts": 0,
-    "recordings": 0
+    "texts": 9,
+    "recordings": 4
    },
    "A2": {
-    "texts": 0,
-    "recordings": 0
+    "texts": 11,
+    "recordings": 9
    },
    "B1": {
-    "texts": 1,
-    "recordings": 0
+    "texts": 93,
+    "recordings": 79
    },
    "B2+": {
-    "texts": 55,
-    "recordings": 0
+    "texts": 155,
+    "recordings": 86
    }
   }
  },

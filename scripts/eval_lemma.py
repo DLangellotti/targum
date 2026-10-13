@@ -21,11 +21,15 @@ is the first part's, which is what the prompt asks for.
 annotation carries the feature, the share the model gave the same value: `case_accuracy`,
 `aspect_accuracy`, `gender_accuracy`, `number_accuracy`, and since targum-internal#263
 `tense_accuracy`, `mood_accuracy`, `person_accuracy` and `verbform_accuracy`, which the
-French card's verb line is read from. A treebank's `Tense=Imp` (the imparfait) counted
-against prompt 2, which could not say it; prompt 3 can. A word the model left without the
-feature counts as wrong. A language whose treebank never marks a feature, or whose card
-does not keep it (`model_lemma.KEPT`), gets no row for it. The run also prints output
-tokens per word, which is the figure the quote uses (`model_lemma.TOKENS_PER_WORD_OUT`).
+French card's verb line is read from. For Russian, `participle_precision` and
+`participle_recall` besides: whether a word is a participle at all, which the hard spot
+of that name rests on (2026-10-13); and `motion_precision` and `motion_recall`, whether a
+verb of motion is found and said to go the right way (`annotate/motion.py`). A
+treebank's `Tense=Imp` (the imparfait) counted against prompt 2, which could not say it;
+prompt 3 can. A word the model left without the feature counts as wrong. A language whose
+treebank never marks a feature, or whose card does not keep it (`model_lemma.KEPT`), gets
+no row for it. The run also prints output tokens per word, which is the figure the quote
+uses (`model_lemma.TOKENS_PER_WORD_OUT`).
 
 **And a French clitic's role** (prompt 3, targum-internal#264): `role_accuracy`, over the
 treebank's object pronouns, read off its relations — `obj` a direct object, `iobj` an
@@ -65,6 +69,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import evals  # noqa: E402
 from targum.annotate import model_lemma  # noqa: E402
+from targum.annotate.motion import motion_of  # noqa: E402
 from targum.annotate.russian import RussianLemmatizer  # noqa: E402
 from targum.cache import Cache  # noqa: E402
 from targum.models import BlockKind, Segment  # noqa: E402
@@ -254,6 +259,12 @@ def score(
     marked = dict.fromkeys(SCORED, 0)
     agreed = dict.fromkeys(SCORED, 0)
     roles = roles_right = 0
+    # Participles, the Russian hard spot (stages.HARD_SPOTS): which words are one, counted
+    # both ways, because `verbform_accuracy` is mostly finite verbs and says little of them.
+    participles_gold = participles_said = participles_both = 0
+    # And verbs of motion: which way the dictionary form goes, read off the treebank's own
+    # dictionary form with the same table the card uses (`annotate/motion.py`).
+    motions_gold = motions_said = motions_both = 0
     for segment, (text, words) in zip(segments, picked, strict=True):
         gold = {
             span: word
@@ -274,6 +285,17 @@ def score(
                 if gold_value:
                     marked[name] += 1
                     agreed[name] += feature(token.feats or "", name) == gold_value
+            gold_part = feature(word.feats, "VerbForm") == "Part"
+            said_part = feature(token.feats or "", "VerbForm") == "Part"
+            participles_gold += gold_part
+            participles_said += said_part
+            participles_both += gold_part and said_part
+            if language == "ru":
+                gold_way = motion_of(word.lemma) if word.upos == "VERB" else ""
+                said_way = motion_of(token.lemma) if token.pos == "VERB" else ""
+                motions_gold += bool(gold_way)
+                motions_said += bool(said_way)
+                motions_both += bool(gold_way) and gold_way == said_way
             if language == "fr" and (said := role(word)):
                 roles += 1
                 roles_right += feature(token.feats or "", "Role") == said
@@ -334,6 +356,26 @@ def score(
         for name, metric in SCORED.items()
         if marked[name] and name in model_lemma.KEPT.get(language, frozenset(model_lemma.FEATURES))
     )
+    if language == "ru" and participles_gold:
+        rows.extend(
+            evals.Row(
+                today,
+                "lemma",
+                system,
+                version,
+                metric,
+                round(right / max(1, n), 4),
+                n,
+                corpus,
+                note,
+            )
+            for metric, right, n in (
+                ("participle_precision", participles_both, participles_said),
+                ("participle_recall", participles_both, participles_gold),
+                ("motion_precision", motions_both, motions_said),
+                ("motion_recall", motions_both, motions_gold),
+            )
+        )
     if roles and system == "model-lemma":
         rows.append(
             evals.Row(

@@ -5867,6 +5867,55 @@ def test_a_russian_reader_carries_partners_and_moving_stress_where_the_tables_ar
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 
 
+def test_a_russian_reader_says_which_way_a_verb_of_motion_goes(tmp_path: Path) -> None:
+    """идти and ходить are both imperfective, so the aspect line cannot tell them apart;
+    the card names the way each goes and the other verb of its pair, from the dictionary
+    form alone (`annotate/motion.py`). A prefixed verb and every other word carry
+    nothing, and a page in another language carries no table at all."""
+    from targum.models import Annotation, Token
+
+    text = "Он шёл, ходил и пришёл."
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+
+    def data(language: str, folder: str) -> dict[str, Any]:
+        segmented = SegmentedDocument(
+            document_hash="h", language=language, segmenter="fake/1", segments=[segment]
+        )
+        document = Document(source="m", title="T", language=language, blocks=[], content_hash="h")
+        translation = Translation(
+            name="English",
+            document_hash="h",
+            source_language=language,
+            target_language="en",
+            provider="null",
+            segments={segment.id: "He was walking, went and came back, and arrived."},
+        )
+        annotation = Annotation(
+            document_hash="h",
+            language=language,
+            annotator="t",
+            method="frequency",
+            method_note="note",
+            tokens={
+                segment.id: [
+                    Token(start=3, end=6, surface="шёл", lemma="идти", band=1),
+                    Token(start=8, end=13, surface="ходил", lemma="ходить", band=1),
+                    Token(start=16, end=22, surface="пришёл", lemma="прийти", band=1),
+                ]
+            },
+        )
+        html = render(document, segmented, [translation], tmp_path / folder, annotation=annotation)[
+            0
+        ].read_text(encoding="utf-8")
+        found = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+        assert found is not None
+        loaded: dict[str, Any] = json.loads(found.group(1))
+        return loaded
+
+    assert data("ru", "ru")["extensions"]["motion"] == ["one:ходить", "both:идти", ""]
+    assert "motion" not in data("uk", "uk").get("extensions", {})
+
+
 def test_a_reader_carries_its_own_words_only_in_a_language_other_than_english(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

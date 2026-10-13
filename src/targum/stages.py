@@ -119,7 +119,8 @@ class HardSpot:
     name: str
     #: "feature:Case" (a kept morphological feature), "stage:stress" (a pipeline stage),
     #: "dicta:binyan" (derived by the Hebrew annotator), "syntax:governed" (read off the
-    #: stored syntax, `annotate.governed`), "lookup:openrussian:partners", or "none".
+    #: stored syntax, `annotate.governed`), "lookup:openrussian:partners", "lookup:motion"
+    #: (`annotate.motion`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -183,6 +184,10 @@ RECORDED: dict[str, Record] = {
     "he": Record(
         issues_listed=date(2026, 10, 12),
         where="targum-internal a4d20a3 (known-issues.md)",
+    ),
+    "ru": Record(
+        issues_listed=date(2026, 10, 13),
+        where="targum-internal 30d9a1e (languages/ru.md)",
     ),
 }
 
@@ -251,31 +256,43 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             ("stress-rule/1", "tanakh-taamim-v2", "rule_accuracy"),
         ),
     ),
+    # Measured on `ru-local` (`annotate/russian.py`), the reader production has run since
+    # 2026-09-27, not on the model it replaced.
     "ru": (
         HardSpot(
             "cases with their governing preposition",
             "feature:Case",
             "lens",
-            ("model-lemma", "ud-ru-syntagrus", "case_accuracy"),
+            ("ru-local", "ud-ru-syntagrus", "case_accuracy"),
         ),
         HardSpot(
             "aspect",
             "feature:Aspect",
             "card",
-            ("model-lemma", "ud-ru-syntagrus", "aspect_accuracy"),
+            ("ru-local", "ud-ru-syntagrus", "aspect_accuracy"),
         ),
         HardSpot(
             "stress", "stage:stress", "marks", ("stress", "wiktionary-ru", "stress_precision")
         ),
-        HardSpot("verbs of motion", "none", "none", None),
+        HardSpot(
+            "verbs of motion",
+            "lookup:motion",
+            "card",
+            ("ru-local", "ud-ru-syntagrus", "motion_precision"),
+        ),
         HardSpot(
             "gender and animacy",
             "feature:Gender",
             "card",
-            ("model-lemma", "ud-ru-syntagrus", "gender_accuracy"),
+            ("ru-local", "ud-ru-syntagrus", "gender_accuracy"),
         ),
         HardSpot("word order", "none", "none", None, lens=True),
-        HardSpot("participles", "feature:VerbForm", "card", None),
+        HardSpot(
+            "participles",
+            "feature:VerbForm",
+            "card",
+            ("ru-local", "ud-ru-syntagrus", "participle_precision"),
+        ),
     ),
     "fr": (
         HardSpot(

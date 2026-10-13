@@ -176,6 +176,8 @@
   "reader.card.looking": "looking…",
   "reader.card.nothing-saved": "nothing saved",
   "reader.card.other-aspect": "the other aspect: ",
+  "reader.card.motion-one": "one way, or under way now. There and back, or a habit: ",
+  "reader.card.motion-both": "there and back, or a habit. One way, or under way now: ",
   "reader.card.own-meaning": "Your own meaning",
   "reader.card.prefix-caveat": "read as a prefix plus a word",
   "reader.card.read-here": "read {form} here",
