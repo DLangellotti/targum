@@ -354,6 +354,7 @@ WIPED = (
     "event",
     "chosen",
     "slip",
+    "practised",
     "telegram",
     "oauth_token",
     "oauth_grant",
