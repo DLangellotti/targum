@@ -1,5 +1,5 @@
 {
- "measured": "2026-10-13",
+ "measured": "2026-10-14",
  "levels": [
   "A1",
   "A2",
@@ -81,20 +81,20 @@
   },
   "ru": {
    "A1": {
-    "texts": 9,
-    "recordings": 4
+    "texts": 48,
+    "recordings": 25
    },
    "A2": {
-    "texts": 11,
-    "recordings": 9
+    "texts": 88,
+    "recordings": 56
    },
    "B1": {
-    "texts": 93,
-    "recordings": 79
+    "texts": 124,
+    "recordings": 94
    },
    "B2+": {
-    "texts": 155,
-    "recordings": 86
+    "texts": 63,
+    "recordings": 27
    }
   }
  },
