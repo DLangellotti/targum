@@ -33,12 +33,14 @@ library needed the same number to say which of its texts a beginner could finish
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from functools import lru_cache
+from typing import Any
 
 from ..models import Annotation, BlockKind, SegmentedDocument
-from .base import not_vocabulary
-from .frequency import FrequencyBands
+from .base import BAND_COUNT, not_vocabulary
+from .frequency import CUTS, FrequencyBands
 
 #: Where a word stops being one a reader knows and starts being one they look up.
 LOOKED_UP = 4
@@ -53,7 +55,67 @@ NOT_SENTENCES = frozenset({BlockKind.heading, BlockKind.byline})
 
 @lru_cache(maxsize=200_000)
 def band_of(lemma: str, language: str) -> int:
+    if language.split("-")[0].lower() == "ru":
+        summed = russian_zipf(lemma)
+        if summed is not None:
+            return band_for(summed)
     return _bands.band(lemma, language)
+
+
+def band_for(score: float) -> int:
+    """The band a Zipf score falls in, on the reader's own cuts."""
+    for index, cut in enumerate(CUTS, start=1):
+        if score >= cut:
+            return index
+    return BAND_COUNT
+
+
+#: The parses whose forms are counted for one lemma, at most: a word with many readings
+#: is summed for its likeliest few, which is where its frequency is.
+_PARSES = 4
+
+
+@lru_cache(maxsize=200_000)
+def russian_zipf(lemma: str) -> float | None:
+    """A Russian lemma's frequency as the sum of all its forms, or None where this machine
+    cannot inflect Russian (no `russian` extra) or the lemma is no word pymorphy3 knows.
+
+    **Why** (2026-10-13): wordfreq counts written forms, and the difficulty looked up the
+    dictionary form alone. A Russian lemma's use is spread over a dozen forms or more, so
+    its citation form looks rare — мочь at Zipf 2.63 against могу and может everywhere,
+    хотеть 3.80, кошка 4.07 — and Russian measured 12 to 15 points too hard: 4 of 20
+    level 1–2 Global Storybooks and none of 15 Bloom grade-1 readers placed Easy, and
+    Bloom's "Почему жужжат пчелы?" scored 36 against 19 for the same book in Italian.
+    Summed over its forms (and the ё-less spellings, which wordfreq keeps apart), 18 of
+    the 20 place Easy and Russian sits beside Italian (scratchpad ruler report,
+    targum-internal languages/ru.md).
+
+    Only the difficulty measure: the bands a reader's card shows are the annotation's
+    and are left alone, so nothing is re-annotated and only the catalogue needs a sweep.
+    The parse whose forms sum highest is taken, so мочь counts as the verb.
+    """
+    try:
+        import pymorphy3
+        from wordfreq import word_frequency
+    except ImportError:
+        return None
+    analyser = _morph(pymorphy3)
+    word = lemma.lower()
+    best = 0.0
+    for parse in analyser.parse(word)[:_PARSES]:
+        if parse.normal_form.replace("ё", "е") != word.replace("ё", "е"):
+            continue
+        forms = {form.word for form in parse.lexeme}
+        forms |= {form.replace("ё", "е") for form in forms}
+        best = max(best, sum(word_frequency(form, "ru") for form in forms))
+    if best <= 0:
+        return None
+    return math.log10(best * 1e9)
+
+
+@lru_cache(maxsize=1)
+def _morph(pymorphy3: Any) -> Any:
+    return pymorphy3.MorphAnalyzer()
 
 
 def hard_share(annotation: Annotation, language: str) -> int:
