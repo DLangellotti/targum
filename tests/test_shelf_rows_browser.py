@@ -147,7 +147,7 @@ def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> Non
     # words", 2026-10-09).
     assert "Bet" not in facts and "A2" not in facts
     assert tag.strip() == "Video"
-    assert known == "You know 72%"
+    assert known == "You know 72% of the whole text"
     assert end.strip() == "7 hours ago" and said == "Uploaded 7 hours ago"
     assert "In Morning" in facts
     assert [one.strip() for one in statuses] == ["Finished", "3 of 6", "New"]

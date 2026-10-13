@@ -81,9 +81,17 @@
     return tally && tally.of ? Math.round((tally.here / tally.of) * 100) : 0;
   }
 
-  /* "Finished <title> · +12 known · 96% · 3 looked up": the finished box's three figures,
-     in the same order, on one line (§12, "The finished box is three figures"). The title
+  /* "Finished <title> · +12 known · 96% of this part · 3 looked up": the finished box's
+     three figures, in the same order, on one line (§12, "The finished box is three
+     figures"). The share names the part, or the text when it has one part, because home's
+     card beside it gives the whole text's (§12, 2026-10-13). The title
      is isolated, since it may run right to left inside a line that runs left to right. */
+  function figures(w, said) {
+    return Number(said.sections) === 1
+      ? w.t("reader.arrived.figures-text", "+{known} known · {share}% of this text · {looked} looked up")
+      : w.t("reader.arrived.figures", "+{known} known · {share}% of this part · {looked} looked up");
+  }
+
   function say(node, said) {
     var w = words();
     node.textContent = "";
@@ -103,7 +111,7 @@
       node.appendChild(
         document.createTextNode(
           " · " +
-            fill(w.t("reader.arrived.figures", "+{known} known · {share}% · {looked} looked up"), {
+            fill(figures(w, said), {
               known: Number(tally.known || 0),
               share: shareOf(tally),
               looked: Number(tally.looked || 0),
