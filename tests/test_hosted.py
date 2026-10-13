@@ -414,6 +414,48 @@ def test_the_sitemap_and_robots_name_the_documents_once_they_are_open(
         assert f"<loc>https://targum.page{route}</loc>" in sitemap, route
 
 
+def test_an_ai_finds_targum_and_does_not_train_on_its_shelves(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2026-10-13: an agent a person sends and an AI's search index read the library like
+    any search engine; a training crawler gets the pages about targum and no texts."""
+    from urllib.robotparser import RobotFileParser
+
+    port, _ = hosted
+    assert ask(port, "/llms.txt", "targum.page")[0] == 404, "shut with the shelves"
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+
+    rules = RobotFileParser()
+    rules.parse(ask(port, "/robots.txt", "targum.page")[1].decode().splitlines())
+    text = "https://targum.page/library/scene-57-the-lease"
+    for agent in ("ChatGPT-User", "Claude-User", "OAI-SearchBot", "Claude-SearchBot", "Applebot"):
+        assert rules.can_fetch(agent, text), agent
+    for agent in serve.TRAINING_CRAWLERS:
+        assert not rules.can_fetch(agent, text), agent
+        assert not rules.can_fetch(agent, "https://targum.page/parasha/noach"), agent
+        assert rules.can_fetch(agent, "https://targum.page/connect"), agent
+        assert rules.can_fetch(agent, "https://targum.page/llms.txt"), agent
+    assert not rules.can_fetch("Googlebot", "https://targum.page/account/me")
+
+    status, llms = ask(port, "/llms.txt", "targum.page")
+    assert status == 200
+    said = llms.decode()
+    assert said.startswith("# targum\n")
+    assert "https://targum.page/mcp" in said
+    assert "not for training" in said
+
+
+def test_llms_txt_names_no_connector_that_is_shut(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    said = ask(port, "/llms.txt", "targum.page")[1].decode()
+    assert "/mcp" not in said
+    assert "/connect" not in said
+
+
 def test_every_text_answers_at_one_address(
     hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
