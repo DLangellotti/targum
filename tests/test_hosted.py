@@ -400,6 +400,10 @@ def test_the_legal_documents_answer_once_the_switch_is_thrown(
         assert status == 200, route
         assert b"Coming soon" not in body, f"{route} fell through to the holding page"
         assert b"hello@targum.page" in body, f"{route} gives nobody to write to"
+    # 2026-10-13: robots.txt asks training crawlers to stay off the shelves; the terms
+    # are what that request stands on.
+    terms = ask(port, "/terms", "targum.page")[1]
+    assert b"train, fine-tune or" in terms
 
 
 def test_the_sitemap_and_robots_name_the_documents_once_they_are_open(
