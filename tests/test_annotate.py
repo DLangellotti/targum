@@ -2157,3 +2157,76 @@ def test_the_scorecard_tells_a_convention_from_a_mistake() -> None:
     assert not filed_alike(gold("הוא", "הוא", "PRON"), ours("לו", "PRON"))
     assert not filed_alike(gold("איש", "איש", "NOUN"), ours("שניים", "NOUN"))
     assert not carried_alike(gold("בו", "הוא", "PRON", ("ב",)), ours("ל", "ADP"))
+
+
+def _pointed(text: str, *words: tuple[str, str, str]) -> dict[str, object]:
+    """DICTA's answer for a pointed sentence: (token, lex, pos) per word, with the offsets
+    into the pointed text it was handed. What it said on 2026-10-13."""
+    import re
+
+    spans = [match.span() for match in re.finditer(r"[^\s.,]+", text)]
+    return {
+        "text": text,
+        "tokens": [
+            {
+                "token": token,
+                "lex": lex,
+                "seg": [token],
+                "morph": {"pos": pos, "feats": {}},
+                "offsets": {"start": start, "end": end},
+            }
+            for (token, lex, pos), (start, end) in zip(words, spans, strict=True)
+        ],
+    }
+
+
+def test_a_pointed_seller_is_a_seller_and_not_familiar() -> None:
+    """The gym dialogue's מוֹכֵר, "salesman", came back הוכר, "was recognized", an
+    adjective: DICTA reads unpointed, and מוכר is also מוּכָּר, "familiar". The pointing
+    it was handed says which, so a holam on the mem is the seller, filed under מוכר as
+    DICTA files the delivery scene's מוֹכְרִים."""
+    from targum.annotate.dicta import _tokens
+
+    gym = _tokens(
+        _pointed(
+            "אַתָּה יָשָׁר מִדַּי בִּשְׁבִיל מוֹכֵר.",
+            ("אתה", "אתה", "PRON"),
+            ("ישר", "ישר", "ADJ"),
+            ("מדי", "מדי", "ADV"),
+            ("בשביל", "בשביל", "ADP"),
+            ("מוכר", "הוכר", "ADJ"),
+        )
+    )
+    assert (gym[-1].lemma, gym[-1].pos) == ("מוכר", "NOUN")
+    (selling,) = [
+        token
+        for token in _tokens(
+            _pointed(
+                "כִּי בַּחֲנוּת מוֹכְרִים סַפּוֹת",
+                ("כי", "כי", "SCONJ"),
+                ("בחנות", "חנות", "NOUN"),
+                ("מוכרים", "מוכר", "VERB"),
+                ("ספות", "ספה", "NOUN"),
+            )
+        )
+        if token.surface == "מוכרים"
+    ]
+    assert (selling.lemma, selling.pos) == ("מוכר", "VERB")
+
+
+def test_familiar_stays_familiar() -> None:
+    """מוּכָּר, "familiar", and an unpointed מוכר, which could be either, keep DICTA's
+    answer."""
+    from targum.annotate.dicta import _tokens
+
+    for text in ("הוּא שַׂחְקָן מוּכָּר מְאוֹד", "הוא שחקן מוכר מאוד"):
+        read = _tokens(
+            _pointed(
+                text,
+                ("הוא", "הוא", "PRON"),
+                ("שחקן", "שחקן", "NOUN"),
+                ("מוכר", "הוכר", "ADJ"),
+                ("מאוד", "מאוד", "ADV"),
+            )
+        )
+        assert (read[2].lemma, read[2].pos) == ("הוכר", "ADJ"), text

@@ -29,6 +29,7 @@ hardest would put the licence back exactly where the corpus is thinnest.
 from __future__ import annotations
 
 import collections
+import re
 import threading
 from collections.abc import Iterator
 from typing import Any
@@ -70,7 +71,10 @@ REVISION = "3c3c27067bb73a45e99c36bd90b3b3dbc10fda12"
 # preposition's, wife and women on אישה's rather than "man", two on שניים's rather than
 # "three", and עולה and לקחה on their own verbs. A version number rather than a new piece,
 # because `versions.compare` only sees a text as behind on a piece both names carry.
-FEATURES = "roots+everyword+entities+syntax+grammar/4"
+#
+# "grammar/5" in the same undeployed release (2026-10-13): a pointed מוֹכֵר is a seller,
+# not "familiar". See `SELLER`. The box never ran grammar/4, so it reads the library once.
+FEATURES = "roots+everyword+entities+syntax+grammar/5"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
 # longest, so asking for a whole book in one go builds a tensor the size of the longest
@@ -557,6 +561,8 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
     out: list[Token] = []
     entities = _entities(said)
     kept, heads = _syntax(said)
+    # The sentence as handed over, marks and all; the words DICTA returns are unpointed.
+    text = str(said.get("text") or "")
     for at, word in enumerate(said.get("tokens", [])):
         morph = word.get("morph") or {}
         pos = morph.get("pos") or None
@@ -573,6 +579,9 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
         # name is never corrected, because בני is a lemma to mend and Benny is a person.
         lex = word.get("lex") or ""
         lemma = _lemma(lex, surface, seg[-1] if seg else surface, pos)
+        offsets = word.get("offsets") or {}
+        pointed = text[int(offsets.get("start", 0)) : int(offsets.get("end", 0))]
+        lemma, pos = _seller(lemma, seg[-1] if seg else surface, pos, pointed)
         carried = _carried(seg, pos)
         if carried is not None:
             # בו as DICTA reads אותו: the preposition, with a pronoun on the end. The
@@ -586,7 +595,6 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
             # The construct state, said where `kept_feats` and the card already look.
             feats = "|".join(part for part in (feats, "Definite=Cons") if part)
         binyan = binyan_of(feats) or (_binyan_of(lemma) if pos == "VERB" else None)
-        offsets = word.get("offsets") or {}
         out.append(
             Token(
                 start=int(offsets.get("start", 0)),
@@ -611,6 +619,25 @@ def declined(lex: str) -> bool:
     """Whether DICTA gave no usable lemma: nothing, `[BLANK]`, or a raw wordpiece."""
     lemma = (lex or "").strip()
     return not lemma or lemma == BLANK or PIECE in lemma
+
+
+# A seller, where the pointing says so (the gym dialogue, 2026-10-13). DICTA reads its own
+# input unpointed, so מוֹכֵר, "salesman", and מוּכָּר, "familiar", reach it as the same
+# מוכר, and it filed the salesman under הוכר, "was recognized", as an adjective. The text
+# it was handed keeps the marks, and the offsets point into it: a holam on the vav after
+# the mem (מוֹ) is the seller, or the selling — מכר's participle, filed under מוכר as
+# DICTA already files מוֹכְרִים and הַמּוֹכֶרֶת. Familiar is spelled with a shuruq (מוּ),
+# and an unpointed word says neither, so both keep DICTA's answer.
+SELLER = "מוכר"
+SELLERS = frozenset({"מוכר", "מוכרת", "מוכרים", "מוכרות"})
+HOLAM_AFTER_MEM = re.compile("מ[\u0591-\u05c7]*ו[\u05b9\u05ba]")
+
+
+def _seller(lemma: str, base: str, pos: str | None, pointed: str) -> tuple[str, str | None]:
+    """מוכר and its pos, for a word the pointing says is a seller; else as given."""
+    if base in SELLERS and HOLAM_AFTER_MEM.search(pointed):
+        return SELLER, "NOUN" if pos == "ADJ" else pos
+    return lemma, pos
 
 
 def _lemma(lex: str, surface: str, base: str, pos: str | None = None) -> str:
