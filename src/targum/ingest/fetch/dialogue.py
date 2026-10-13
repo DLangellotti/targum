@@ -22,6 +22,8 @@ class DialogueFetcher:
     # a stale document. The scene's own text is hashed as well, which is what catches an
     # edit between one build and the next.
     name = "dialogue/1"
+    # Not bumped for the scene's language (2026-10-13): a Hebrew scene's document is the
+    # same document it was, and a Russian one has never been ingested.
 
     def load(self, identifier: str) -> Document:
         scene = index.load(identifier)
@@ -37,7 +39,7 @@ class DialogueFetcher:
         document = Document(
             source=f"dialogue:{identifier}",
             title=scene.title,
-            language="he",
+            language=scene.language,
             blocks=blocks,
             ingester=self.name,
         )
