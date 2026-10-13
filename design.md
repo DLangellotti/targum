@@ -386,6 +386,7 @@ drawn by `scripts/link_preview.py` from the lockup's own geometry).
   A meta tag is read by a crawler and never fetched by the page, so "readers fetch
   nothing" holds: no reader's page loads it.
 - **A page with no address names no picture**, rather than a relative one a crawler drops.
+
 ### Each share says what it is a share of — 2026-10-13
 
 David, 2026-10-13. After a finish, home's card said "You know 34%" and the line above it
