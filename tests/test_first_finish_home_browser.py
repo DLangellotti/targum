@@ -136,7 +136,7 @@ def opened(browser, reader: str, seeded: dict[str, str] | None = None, signed_in
     )
     page.route(f"{SITE}/**", answer)
     page.goto(SITE + READER)
-    page.wait_for_selector("#done-mark")
+    page.wait_for_selector("#done-go")
     if signed_in:
         page.wait_for_function("() => window.TargumSync && window.TargumSync.who")
     else:
@@ -147,7 +147,7 @@ def opened(browser, reader: str, seeded: dict[str, str] | None = None, signed_in
 def test_the_first_finish_goes_home_and_says_what_it_did(browser, tmp_path) -> None:
     context, page = opened(browser, built(tmp_path / "one"))
     try:
-        page.click("#done-mark")
+        page.click("#done-go")
         page.wait_for_url(lambda url: url.split("?")[0] == SITE + "/")
         page.wait_for_selector("#arrived:not([hidden])")
         line = page.inner_text("#arrived")
@@ -172,7 +172,7 @@ def test_the_first_finish_goes_home_and_says_what_it_did(browser, tmp_path) -> N
 def test_a_language_that_has_gone_home_finishes_in_place(browser, tmp_path) -> None:
     context, page = opened(browser, built(tmp_path / "two"), seeded={"targum:went-home:ru": "1"})
     try:
-        page.click("#done-mark")
+        page.click("#done-go")
         page.wait_for_selector("#finished:not([hidden])")
         assert page.evaluate(STATE)["address"] == READER
     finally:
@@ -186,7 +186,7 @@ def test_a_language_with_a_finish_on_record_finishes_in_place(browser, tmp_path)
         browser, built(tmp_path / "three"), seeded={"targum:docs": json.dumps(earlier)}
     )
     try:
-        page.click("#done-mark")
+        page.click("#done-go")
         page.wait_for_selector("#finished:not([hidden])")
         state = page.evaluate(STATE)
         assert state["address"] == READER and not state["went"]
@@ -198,7 +198,7 @@ def test_signed_out_finishes_in_place(browser, tmp_path) -> None:
     """Signed out, "/" is the front door and not their home."""
     context, page = opened(browser, built(tmp_path / "four"), signed_in=False)
     try:
-        page.click("#done-mark")
+        page.click("#done-go")
         page.wait_for_selector("#finished:not([hidden])")
         assert page.evaluate(STATE)["address"] == READER
     finally:

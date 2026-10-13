@@ -250,8 +250,8 @@
 
   /* Moving on finishes the item (design.md §12, "The foot is one block", 2026-09-25):
    * "Next" finished nothing, so a reader who went Next, Next, Next through a set had
-   * finished nothing on Your Progress. The press at the foot marks the words never marked
-   * when it says so; a swipe, the arrow and the Next among a video's keys finish without
+   * finished nothing on Your Progress. Next itself marks nothing; the quiet press under it
+   * marks the words never marked (design.md §12, "Done marks nothing", 2026-10-13); a swipe, the arrow and the Next among a video's keys finish without
    * marking, because marking words is never done by a gesture. The reader does the
    * finishing — it owns the record — and says where the reader lands what it did. */
   function forward(how, marking, listening) {

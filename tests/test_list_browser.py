@@ -171,8 +171,8 @@ def test_an_article_is_read_before_it_is_left(browser, tmp_path) -> None:  # noq
         page.wait_for_url("**/film/**go=1")
         page.wait_for_selector("#list-nav", state="attached")
         # And Tab reaches the press, which Enter presses.
-        page.focus("#done-mark")
-        assert page.evaluate("() => document.activeElement.id === 'done-mark'")
+        page.focus("#done-go")
+        assert page.evaluate("() => document.activeElement.id === 'done-go'")
     finally:
         context.close()
 
@@ -495,7 +495,7 @@ def test_next_stands_clear_of_the_player(browser, tmp_path, monkeypatch, viewpor
         page.wait_for_timeout(200)
         hit = page.evaluate(
             """() => {
-              const box = document.getElementById('done-mark').getBoundingClientRect();
+              const box = document.getElementById('done-go').getBoundingClientRect();
               const x = box.left + box.width / 2;
               const on = document.elementFromPoint(x, box.top + box.height / 2);
               const strip = document.getElementById('player').getBoundingClientRect();
@@ -560,8 +560,9 @@ def other_text(out: Path) -> Path:
 
 def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_path) -> None:  # noqa: F811
     """design.md §12, "The foot is one block" (2026-09-25). In a playlist the press is
-    Next and says both halves; it finishes the item, marks the words never marked, and
-    the page it leads to says so once, with one Undo that takes back both."""
+    Next, and the quiet press under it says both halves (§12, "Done marks nothing",
+    2026-10-13); it finishes the item, marks the words never marked, and the page it
+    leads to says so once, with one Undo that takes back both."""
     one = chapter(tmp_path / "one" / "reader")
     two = other_text(tmp_path / "two" / "reader")
     context, _ = listed(browser, playlist(one, two))
@@ -569,9 +570,9 @@ def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_
     try:
         page.goto(at(one, 0))
         page.wait_for_selector("#list-nav", state="attached")
+        assert page.inner_text("#done-go") == "Next"
         said = page.inner_text("#done-mark")
         assert said.startswith("Next, and mark ") and said.endswith(" words known")
-        assert page.inner_text("#done-plain") == "Next without marking"
         assert page.inner_text("#list-nav") == "Reels, 1 of 2", "no Back on the first"
         document = page.evaluate(DOCUMENT)
         page.evaluate("() => document.getElementById('done-mark').click()")
@@ -592,6 +593,26 @@ def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_
         page.reload()
         page.wait_for_selector("#list-nav", state="attached")
         assert page.is_hidden("#arrived")
+    finally:
+        context.close()
+
+
+def test_next_finishes_and_marks_nothing(browser, tmp_path) -> None:  # noqa: F811
+    """design.md §12, "Done marks nothing; knowing them all is a choice" (2026-10-13):
+    the press itself is Next, and it finishes the item without marking a word."""
+    one = chapter(tmp_path / "one" / "reader")
+    two = other_text(tmp_path / "two" / "reader")
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav", state="attached")
+        document = page.evaluate(DOCUMENT)
+        page.evaluate("() => document.getElementById('done-go').click()")
+        page.wait_for_url("**/two/**go=1")
+        state = page.evaluate(RECORD, document)
+        assert state["sections"], "the item is finished"
+        assert state["known"] == 0, "and no word is marked"
     finally:
         context.close()
 

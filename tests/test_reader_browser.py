@@ -2577,7 +2577,9 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
     moved = page.evaluate(
         """() => {
           const link = document.querySelector('#next-up .next-up-link');
-          const at = () => link.getBoundingClientRect().top;
+          // Where it stands on the page, not in the window: at the very foot of a phone's
+          // page, a line taken away clamps the scroll, which is not the row moving.
+          const at = () => link.getBoundingClientRect().top + window.scrollY;
           const said = at();
           const line = document.getElementById('next-up-known');
           line.hidden = true;
@@ -2633,6 +2635,46 @@ def test_the_foot_shows_the_words_its_press_would_mark(browser, tmp_path, viewpo
     page.click("#done-mark")
     page.wait_for_function("() => !document.getElementById('finished').hidden")
     assert page.locator("#foot-words").is_hidden()
+    context.close()
+
+
+WORDS_KEPT = """() => Object.keys(localStorage)
+  .filter((key) => key.startsWith('targum:vocab:'))
+  .map((key) => Object.keys(JSON.parse(localStorage.getItem(key) || '{}')).length)
+  .reduce((sum, n) => sum + n, 0)"""
+
+
+@pytest.mark.parametrize("viewport", [WINDOW, PHONE], ids=["desk", "phone"])
+@pytest.mark.parametrize("which", ["done-go", "done-mark"])
+def test_done_marks_nothing_and_the_press_under_it_marks_what_it_says(
+    browser, tmp_path, viewport, which
+) -> None:
+    """design.md §12, "Done marks nothing; knowing them all is a choice" (2026-10-13).
+    David: "if they know all the words they know all the words - let them decide that as
+    they like". The press says "Done" and finishes alone; under it, a quiet press says
+    "Done, and mark N words known" and marks them, names and numbers cleared with them."""
+    first = chapter(tmp_path / "reader", parts=2).parent / "sec-0001.html"
+    context = opened(browser, viewport)
+    page = context.new_page()
+    page.goto(address(first))
+    page.wait_for_selector(".pair")
+    page.locator("#done-go").scroll_into_view_if_needed()
+    assert page.inner_text("#done-go") == "Done"
+    said = page.inner_text("#done-mark")
+    assert said.startswith("Done, and mark ") and said.endswith(" words known"), said
+    count = int(said.split("mark ", 1)[1].split(" ", 1)[0])
+    assert count > 1
+    for button in ("#done-go", "#done-mark"):
+        box = page.locator(button).bounding_box()
+        assert box and box["x"] >= 0 and box["x"] + box["width"] <= viewport["width"], button
+    assert page.evaluate(WORDS_KEPT) == 0
+    page.click(f"#{which}")
+    page.wait_for_function("() => !document.getElementById('finished').hidden")
+    if which == "done-go":
+        assert page.evaluate(WORDS_KEPT) == 0, "Done marks nothing"
+    else:
+        assert page.evaluate(WORDS_KEPT) >= count, "the press marks every word it counted"
+        assert page.locator("#foot-words").is_hidden(), "and nothing is left to ask about"
     context.close()
 
 
