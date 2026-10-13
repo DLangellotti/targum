@@ -95,6 +95,9 @@ REGISTERED: dict[str, dict[str, Practice]] = {
         "stress and pronunciation": Practice(
             "stress and pronunciation", "choice", "practice.ask.stress"
         ),
+        # A lens, not a question: the research found this spot immune to feedback
+        # (design.md §12, "Lenses wait for a second read", 2026-10-13).
+        "governed prepositions and et": Practice("governed prepositions and et", "lens", ""),
     },
 }
 
@@ -248,6 +251,25 @@ def _moved_stress(ipa: str) -> str:
     return bare[:mark_at] + STRESS_MARK + bare[mark_at:]
 
 
+def _governed(stored: Sequence[Mapping[str, Any]], segment: str) -> list[Candidate]:
+    """The verbs in one segment that take a core preposition here: what the lens lights,
+    counted for the ledger (`annotate.governed`)."""
+    from .annotate.governed import governed
+    from .models import Token
+
+    try:
+        tokens = [Token.model_validate(token) for token in stored]
+    except ValueError:
+        return []
+    out = []
+    for pair in governed(tokens):
+        verb = tokens[pair.verb]
+        out.append(
+            Candidate("governed", segment, verb.start, verb.end, pair.preposition, "", False)
+        )
+    return out
+
+
 @dataclass(frozen=True)
 class TextPractice:
     """One built text's candidates per section, and the headword of every word that shares
@@ -281,7 +303,9 @@ def count_text(folder: Path) -> TextPractice | None:
     pointed: list[tuple[int, str, int, int, str, str]] = []
     for segment in segmented.segments:
         section = section_of.get(segment.id, 1)
-        for token in tokens.get(segment.id) or ():
+        stored = tokens.get(segment.id) or ()
+        by_section.setdefault(section, []).extend(_governed(stored, segment.id))
+        for token in stored:
             by_section.setdefault(section, []).extend(candidates(token, segment.id))
             pos = str(token.get("pos") or "")
             lemma = str(token.get("lemma") or "")
@@ -746,6 +770,7 @@ REGISTERED_ASK = {
     KEYS[name]: practice.ask
     for practices in REGISTERED.values()
     for name, practice in practices.items()
+    if practice.ask
 }
 
 

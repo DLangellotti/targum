@@ -836,6 +836,18 @@ body[data-case="Loc"] .w.case-Loc {
   text-underline-offset: 0.2em;
 }
 
+/* The prepositions lens (design.md §12, "Lenses wait for a second read", 2026-10-13): a
+   verb that takes a preposition here, and the preposition's word or the word it is
+   written onto, in the same wash and dotted underline as a case, one lens at a time. */
+body[data-lens="governed"] .w.gov-verb,
+body[data-lens="governed"] .w.gov-arg {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  text-decoration: underline dotted var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+.lens-row[hidden] { display: none; }
+
 /* --- phrases you picked out ---------------------------------------------- */
 
 /* Underlined rather than filled, so a saved phrase reads as a note you made and does

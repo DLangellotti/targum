@@ -139,6 +139,11 @@
           });
       text.appendChild(el("p", "grammar-spot-met", met));
       row.appendChild(text);
+      if (spot.kind === "lens") {
+        text.appendChild(
+          el("p", "grammar-spot-lens", t("practice.page.lens", "Practised with a lens in the reader: Aa, then Prepositions verbs take, once you've finished a part."))
+        );
+      }
       if (spot.ready && spot.kind === "choice") {
         var go = el("button", "btn grammar-go", t("practice.page.practise", "Practise"));
         go.type = "button";

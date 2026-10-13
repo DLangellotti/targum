@@ -339,6 +339,7 @@ table.words-table .copy.copied { opacity: 1; }
 }
 .grammar-spot-name { margin: 0; font-weight: 600; }
 .grammar-spot-met { margin: 0.2rem 0 0; font-size: 0.875rem; color: var(--ink-soft); }
+.grammar-spot-lens { margin: 0.2rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .grammar-spot:not(.is-ready) .grammar-spot-name { color: var(--ink-soft); font-weight: 400; }
 .grammar-options { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-block: 0.4rem 0.9rem; }
 .grammar-option {

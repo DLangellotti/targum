@@ -236,8 +236,17 @@
       {#- One case at a time, on demand. Always-on grammar colouring costs comprehension
           (Lee & Huang 2008), so nothing is shown until a case is chosen, only one is ever
           shown, and it is never remembered (targum-internal#261). -#}
+      {#- A lens waits for a second read (design.md §12, "Lenses wait for a second read",
+          2026-10-13): the row is hidden until this part is finished or the text is opened
+          again, one lens is on at a time, and turning one on says once what it shows. -#}
+      {% if governs %}
+      <button type="button" class="m-row aa-switch lens-row" data-governed-lens aria-pressed="false" hidden
+              title="{{ t("reader.page.show-the-prepositions-verbs-take-r", "Show the prepositions verbs take (r)") }}">
+        <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><circle cx="7" cy="7" r="4.25"></circle><path d="M10.25 10.25 14 14"></path></svg></span>
+        <span class="m-label aa-name">{{ t("reader.page.prepositions-verbs-take", "Prepositions verbs take") }}</span><span class="sw" aria-hidden="true"></span></button>
+      {% endif %}
       {% if cases %}
-      <label class="m-row aa-row">
+      <label class="m-row aa-row lens-row" hidden>
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><circle cx="7" cy="7" r="4.25"></circle><path d="M10.25 10.25 14 14"></path></svg></span>
         <span class="m-label aa-label">{{ t("reader.page.show-one-case", "Show one case") }}</span>
         <select class="m-end m-select" data-case-lens aria-label="{{ t("reader.page.show-one-case", "Show one case") }}" title="{{ t("reader.page.show-every-word-in-one-case-c", "Show every word in one case (c)") }}">
@@ -1345,6 +1354,7 @@
     {% else %}<dt>Esc</dt><dd>{{ t("reader.page.close-this", "close this") }}</dd>
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>{% endif %}
     {% if cases %}<dt>c</dt><dd>{{ t("reader.page.one-case-at-a-time", "one case at a time") }}</dd>{% endif %}
+    {% if governs %}<dt>r</dt><dd>{{ t("reader.page.prepositions-verbs-take-lower", "the prepositions verbs take") }}</dd>{% endif %}
     {% if said %}<dt>n</dt><dd>{{ t("said.key", "the French as said") }}</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>{% if stress_marks %}{{ t("reader.page.key-stress-marks", "stress marks") }}{% else %}{{ t("reader.page.key-vowel-points", "vowel points") }}{% endif %}</dd>{% endif %}
     {% if has_taamim %}<dt>a</dt><dd>{{ t("reader.page.the-chanting-marks-with-the-vowels-on", "the chanting marks, with the vowels on") }}</dd>{% endif %}
