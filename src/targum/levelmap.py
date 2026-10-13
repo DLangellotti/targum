@@ -245,6 +245,12 @@ def cefr_rows(shelf: Shelf) -> dict[str, tuple[int, int]]:
     }
 
 
+def videos(shelf: Shelf) -> int:
+    """Videos on the shelf at any level, measured or not: the second medium the stage
+    standard asks of a Beta language (design.md §12)."""
+    return sum(count for (_, how), count in shelf.cells.items() if how == "video")
+
+
 def rows(shelf: Shelf) -> list[tuple[str, list[int]]]:
     """The shelf as printable rows: a label and one count per medium, then the total."""
     labelled = [(level.value, LEVELS[level].name) for level in Level] + [(UNMEASURED, "Unmeasured")]
