@@ -11,6 +11,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
+from datetime import UTC, date, datetime
 from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -69,10 +70,12 @@ def hosted(
     return port, signed_in[1]
 
 
-def ask(port: int, path: str, host: str, session: str = "") -> tuple[int, bytes]:
+def ask(port: int, path: str, host: str, session: str = "", agent: str = "") -> tuple[int, bytes]:
     conn = HTTPConnection("127.0.0.1", port, timeout=5)
     conn.putrequest("GET", path, skip_host=True)
     conn.putheader("Host", host)
+    if agent:
+        conn.putheader("User-Agent", agent)
     if session:
         conn.putheader("Cookie", f"targum_session={session}")
     conn.endheaders()
@@ -412,6 +415,32 @@ def test_the_sitemap_and_robots_name_the_documents_once_they_are_open(
     for route in ("/privacy", "/terms", "/retention", "/deletion"):
         assert f"Allow: {route}" in robots, route
         assert f"<loc>https://targum.page{route}</loc>" in sitemap, route
+
+
+def test_a_year_old_chrome_gets_no_text_unless_signed_in(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2026-10-13: the crawler behind the October spike, as real headless Chrome through
+    residential addresses, claiming Chrome 101–136 while Chrome was at ~157."""
+    port, session = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+
+    def chrome(major: int) -> str:
+        return (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            f" (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+        )
+
+    shipping = 120 + (datetime.now(UTC).date() - date(2023, 12, 5)).days // 28
+    old, current = chrome(shipping - 20), chrome(shipping)
+    for shelf in ("/library", "/library/il-declaration", "/parasha", "/weekly", "/tehillim"):
+        status, body = ask(port, shelf, "targum.page", agent=old)
+        assert status == 403, shelf
+        assert b"out of date" in body
+    assert ask(port, "/library/il-declaration", "targum.page", agent=current)[0] == 200
+    assert ask(port, "/library/il-declaration", "targum.page", session, old)[0] == 200
+    for door in ("/", "/robots.txt"):
+        assert ask(port, door, "targum.page", agent=old)[0] == 200, door
 
 
 def test_every_text_answers_at_one_address(

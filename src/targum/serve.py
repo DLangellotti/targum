@@ -96,6 +96,7 @@ from .thumbs import THUMB
 from .usage import Usage
 from .video import MAX_VIDEO_BYTES
 from .vision import MAX_PAGES, PICTURE_SUFFIXES
+from .visits import stale_chrome
 from .weekly import index as weekly_index
 from .weekly.models import Issue as WeeklyIssue
 from .weekly.models import Level as WeeklyLevel
@@ -665,6 +666,10 @@ OAUTH_POSTS = frozenset({"/oauth/register", "/oauth/token", "/oauth/revoke", "/o
 # the holding page, and that is then what ranks for the product's own name later. So
 # while this is off the sitemap is gone and robots refuses the whole site.
 PUBLIC_TEXT = re.compile(r"^/library/([a-z0-9][a-z0-9-]{0,63})$")
+
+#: What a stranger on a year-old Chrome is told instead of a text. Plain, because the one
+#: person who ever reads it is someone whose browser stopped updating.
+OLD_BROWSER = b"This browser is more than a year out of date. Update it to read on targum.\n"
 
 
 #: Which level `/weekly` and `/weekly/<week>` land on. The middle one, because it is
@@ -5524,6 +5529,26 @@ class Handler(BaseHTTPRequestHandler):
         # to drive the builder, whatever else it can prove.
         return (self.headers.get("Host") or "").rsplit(":", 1)[0] in self.hosts
 
+    def _crawler_in_disguise(self, route: str) -> bool:
+        """A stranger on the shelves whose Chrome is a year behind the one shipping today.
+
+        Since 2026-10-11 a crawler has copied the library through ~3,300 residential
+        addresses, a page each, as real headless Chrome with an agent drawn from a list
+        of old ones; robots.txt does not reach it. The texts are the work, so it gets
+        nothing. Only the shelves, and only signed out: a reader with an account is never
+        asked what browser they use, and a stranger on the front door or the connector
+        is not turned away by this.
+        """
+        if not shelves_are_public() or self._authorised():
+            return False
+        if not (
+            route == "/library"
+            or route.startswith(("/library/", "/weekly", "/parasha", "/torah/"))
+            or DAILY_ROUTE.match(route)
+        ):
+            return False
+        return stale_chrome(self.headers.get("User-Agent") or "", datetime.now(UTC).date())
+
     def _authorised(self) -> bool:
         if not self._host_is_ours():
             return False
@@ -8004,6 +8029,8 @@ class Handler(BaseHTTPRequestHandler):
         # The two doors the waitlist's mail carries, read by somebody with no account.
         if front_door_is_open() and route in {"/waitlist/confirm", "/waitlist/stop"}:
             return self._waitlist_get(route)
+        if self._crawler_in_disguise(route):
+            return self._send(403, OLD_BROWSER, "text/plain; charset=utf-8")
         if shelves_are_public() and (route == "/weekly" or route.startswith("/weekly/")):
             return self._serve_weekly(route)
         torah = TORAH_ROUTE.match(route)
