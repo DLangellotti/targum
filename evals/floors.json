@@ -385,6 +385,38 @@
   },
   {
     "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "participle_precision",
+    "system": "ru-local",
+    "at_least": 0.89,
+    "why": "on 2026-10-13: 0.9108 over all 8,906 dev sentences (2,522 said); the participles hard spot (stages.HARD_SPOTS)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "participle_recall",
+    "system": "ru-local",
+    "at_least": 0.87,
+    "why": "on 2026-10-13: 0.8907 over all 8,906 dev sentences (2,579 in gold)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "motion_precision",
+    "system": "ru-local",
+    "at_least": 0.98,
+    "why": "on 2026-10-13: 0.9933 over all 8,906 dev sentences (299 said); the verbs-of-motion hard spot, annotate/motion.py"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "motion_recall",
+    "system": "ru-local",
+    "at_least": 0.92,
+    "why": "on 2026-10-13: 0.9459 over all 8,906 dev sentences (314 in gold)"
+  },
+  {
+    "stage": "lemma",
     "corpus": "ud-fr-gsd",
     "metric": "gender_accuracy",
     "system": "model-lemma",

@@ -292,6 +292,8 @@ var targumReader = function () {
   // A Russian verb's aspect partner, and a word whose stress moves, stressed, from
   // OpenRussian's tables where the build had them (targum-internal#259).
   var partners = extensions.partners || [];
+  // Which way a Russian verb of motion goes, and its pair: "one:ходить", "both:идти".
+  var motions = extensions.motion || [];
   var stressLines = extensions.stress || [];
   // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
   // which one this text is written in. Codes, not sentences: the words are in
@@ -6381,6 +6383,26 @@ var targumReader = function () {
         other.appendChild(go);
       }
       card.appendChild(other);
+    }
+
+    // A verb of motion: which way it goes, and the verb that goes the other way. Both
+    // are imperfective, so the aspect line above cannot say it (annotate/motion.py).
+    var motion = (motions[index] || "").split(":");
+    if (motion.length === 2 && motion[1]) {
+      var way = document.createElement("span");
+      way.className = "verb motion";
+      way.appendChild(
+        document.createTextNode(
+          motion[0] === "one"
+            ? t("reader.card.motion-one", "one way, or under way now. There and back, or a habit: ")
+            : t("reader.card.motion-both", "there and back, or a habit. One way, or under way now: ")
+        )
+      );
+      var pair = document.createElement("bdi");
+      pair.setAttribute("lang", language);
+      pair.textContent = motion[1];
+      way.appendChild(pair);
+      card.appendChild(way);
     }
 
     // Where the stress lands in the forms that move it: рука́ · ру́ку. Only for a word

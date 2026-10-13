@@ -5319,6 +5319,14 @@ def render(
             from ..annotate.endings import ending_of
 
             endings = [ending_of(lemma) for lemma in lemmas]
+        # Which way a Russian verb of motion goes, and the other verb of its pair
+        # (`annotate/motion.py`): идти and ходить are both imperfective, so the aspect
+        # line cannot tell them apart.
+        motions: list[str] = []
+        if segmented.language.split("-")[0].lower() == "ru":
+            from ..annotate.motion import motion_of
+
+            motions = [motion_of(lemma) for lemma in lemmas]
         # And the English it looks like and does not mean, from targum's own list
         # (targum-internal#267), behind its switch until a person has read the list. The
         # card says it only while the text is read into English.
@@ -5354,6 +5362,7 @@ def render(
                     [name for name, _ in sorted(feature_at.items(), key=lambda kv: kv[1])],
                 ),
                 ("partners", partners),
+                ("motion", motions),
                 ("stress", stresses),
                 ("friends", friends),
             )
