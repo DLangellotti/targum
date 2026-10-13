@@ -120,7 +120,8 @@ class HardSpot:
     #: "feature:Case" (a kept morphological feature), "stage:stress" (a pipeline stage),
     #: "dicta:binyan" (derived by the Hebrew annotator), "syntax:governed" (read off the
     #: stored syntax, `annotate.governed`), "lookup:openrussian:partners", "lookup:motion"
-    #: (`annotate.motion`), or "none".
+    #: (`annotate.motion`), "grammar:word_order" (read off the stored grammar,
+    #: `annotate.word_order`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -286,7 +287,13 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "card",
             ("ru-local", "ud-ru-syntagrus", "gender_accuracy"),
         ),
-        HardSpot("word order", "none", "none", None, lens=True),
+        HardSpot(
+            "word order",
+            "grammar:word_order",
+            "lens",
+            ("ru-local", "ud-ru-syntagrus", "inverted_subject_precision"),
+            lens=True,
+        ),
         HardSpot(
             "participles",
             "feature:VerbForm",

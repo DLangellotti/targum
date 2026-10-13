@@ -5916,6 +5916,89 @@ def test_a_russian_reader_says_which_way_a_verb_of_motion_goes(tmp_path: Path) -
     assert "motion" not in data("uk", "uk").get("extensions", {})
 
 
+def test_a_russian_reader_lights_a_subject_after_its_verb_on_a_lens(tmp_path: Path) -> None:
+    """Russian's word-order hard spot (design.md §12, "Subjects after their verb, on a
+    lens", 2026-10-13): a subject standing after its verb says `Order=VS` on its grammar
+    line, read off the stored grammar (`annotate/word_order.py`), and the page offers the
+    lens on `w`, hidden until a second read. A page in another language says nothing."""
+    from targum.models import Annotation, Token
+
+    text = "Книгу написал Толстой."
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    said = [
+        ("Книгу", "книга", "NOUN", "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing"),
+        ("написал", "написать", "VERB", "UPOS=VERB|Gender=Masc|Number=Sing|VerbForm=Fin"),
+        ("Толстой", "Толстой", "PROPN", "UPOS=PROPN|Case=Nom|Gender=Masc|Number=Sing"),
+    ]
+    tokens = [
+        Token(
+            start=text.index(surface),
+            end=text.index(surface) + len(surface),
+            surface=surface,
+            lemma=lemma,
+            band=1,
+            pos=pos,
+            feats=feats,
+        )
+        for surface, lemma, pos, feats in said
+    ]
+
+    def page(language: str, folder: str) -> tuple[str, dict[str, Any]]:
+        segmented = SegmentedDocument(
+            document_hash="h", language=language, segmenter="fake/1", segments=[segment]
+        )
+        document = Document(source="m", title="T", language=language, blocks=[], content_hash="h")
+        translation = Translation(
+            name="English",
+            document_hash="h",
+            source_language=language,
+            target_language="en",
+            provider="null",
+            segments={segment.id: "Tolstoy wrote the book."},
+        )
+        annotation = Annotation(
+            document_hash="h",
+            language=language,
+            annotator="t",
+            method="frequency",
+            method_note="note",
+            tokens={segment.id: tokens},
+        )
+        html = render(document, segmented, [translation], tmp_path / folder, annotation=annotation)[
+            0
+        ].read_text(encoding="utf-8")
+        found = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+        assert found is not None
+        loaded: dict[str, Any] = json.loads(found.group(1))
+        return html, loaded
+
+    html, data = page("ru", "ru")
+    lines = [data["grammar"][row[8]] for row in data["words"][segment.id]]
+    assert lines[2].endswith("|Order=VS"), lines
+    assert not any("Order=" in line for line in lines[:2]), lines
+    assert re.search(r"<button[^>]*data-order-lens[^>]*hidden", html), "a lens waits"
+    assert "<dt>w</dt>" in html
+    html, data = page("uk", "uk")
+    assert not any("Order=" in line for line in data["grammar"])
+    assert not re.search(r"<button[^>]*data-order-lens", html) and "<dt>w</dt>" not in html
+
+
+def test_the_word_order_lens_is_one_lens_among_the_others() -> None:
+    """`w` toggles it, only where the page has it and offers it, and turning it or another
+    on turns the rest off (design.md §12, "Lenses wait for a second read")."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    keys = script[script.index("switch (key) {") :]
+    assert 'case "w":\n        if (!toggleOrder()) return;' in keys
+    toggle = script[script.index("function toggleOrder() {") :]
+    assert "if (!orderLens || orderLens.hidden) return false;" in toggle
+    case = script[script.index("function showCase(name) {") :]
+    assert "showOrder(false, true);" in case[: case.index("\n  }\n")]
+    style = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    assert 'body[data-lens="order"] .w.late-subject' in style
+
+
 def test_a_reader_carries_its_own_words_only_in_a_language_other_than_english(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

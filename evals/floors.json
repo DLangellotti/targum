@@ -417,6 +417,22 @@
   },
   {
     "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "inverted_subject_precision",
+    "system": "ru-local",
+    "at_least": 0.93,
+    "why": "on 2026-10-13: 0.9514 over all 8,906 dev sentences (1,624 said); the word-order hard spot, annotate/word_order.py, which the lens lights"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "inverted_subject_recall",
+    "system": "ru-local",
+    "at_least": 0.68,
+    "why": "on 2026-10-13: 0.7077 over all 8,906 dev sentences (2,183 in gold)"
+  },
+  {
+    "stage": "lemma",
     "corpus": "ud-fr-gsd",
     "metric": "gender_accuracy",
     "system": "model-lemma",

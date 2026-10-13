@@ -2933,6 +2933,9 @@ var targumReader = function () {
       var governedLine = token.length > 8 ? grammarTable[token[8]] || "" : "";
       if (feat(governedLine, "Takes")) classes.push("gov-verb");
       if (feat(governedLine, "Governor")) classes.push("gov-arg");
+      // And a Russian subject standing after its verb, for the word-order lens
+      // (`annotate/word_order.py`).
+      if (feat(governedLine, "Order") === "VS") classes.push("late-subject");
       var status = statusOf(lemma);
       layers.push({
         start: at(token[0]),
@@ -5279,6 +5282,7 @@ var targumReader = function () {
     if (chosen) {
       body.setAttribute("data-case", chosen);
       showGoverned(false, true);
+      showOrder(false, true);
     } else body.removeAttribute("data-case");
     if (caseLens) caseLens.value = chosen;
     say(
@@ -5325,18 +5329,24 @@ var targumReader = function () {
     return count;
   }
 
-  function showGoverned(on, quietly) {
-    if (!governedLens) return false;
-    if (on) {
-      body.setAttribute("data-lens", "governed");
+  // One lens at a time: turning one on turns the case and the other switch off, and every
+  // switch says whether it is the one on.
+  function lensOn(name) {
+    if (name) {
+      body.setAttribute("data-lens", name);
       if (body.getAttribute("data-case")) {
         body.removeAttribute("data-case");
         if (caseLens) caseLens.value = "";
       }
-    } else if (body.getAttribute("data-lens") === "governed") {
-      body.removeAttribute("data-lens");
-    }
-    governedLens.setAttribute("aria-pressed", on ? "true" : "false");
+    } else body.removeAttribute("data-lens");
+    if (governedLens) governedLens.setAttribute("aria-pressed", name === "governed" ? "true" : "false");
+    if (orderLens) orderLens.setAttribute("aria-pressed", name === "order" ? "true" : "false");
+  }
+
+  function showGoverned(on, quietly) {
+    if (!governedLens) return false;
+    if (on) lensOn("governed");
+    else if (body.getAttribute("data-lens") === "governed") lensOn("");
     if (quietly) return true;
     say(
       on
@@ -5347,6 +5357,47 @@ var targumReader = function () {
         : t("reader.lens.none", "No lens shown.")
     );
     return true;
+  }
+
+  /* The word-order lens: a Russian subject that comes after its verb, lit (design.md §12,
+   * "Subjects after their verb, on a lens", 2026-10-13). Russian says who did it with the
+   * ending, so "Книгу написал Толстой" is Tolstoy writing the book, and a reader who takes
+   * the first noun for the subject reads it backwards. */
+  var orderLens = document.querySelector("[data-order-lens]");
+  function orderCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Order") === "VS") count++;
+      });
+    });
+    return count;
+  }
+
+  function showOrder(on, quietly) {
+    if (!orderLens) return false;
+    if (on) lensOn("order");
+    else if (body.getAttribute("data-lens") === "order") lensOn("");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce("order", t("reader.lens.order-cue", "Each word lit is the subject of a verb before it.")) ||
+            t("reader.lens.order-said", "Subjects after their verb, {n} here.", { n: orderCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (orderLens) {
+    orderLens.addEventListener("click", function () {
+      showOrder(body.getAttribute("data-lens") !== "order");
+    });
+  }
+
+  // `w` turns the word-order lens on and off, where the page has it and it is offered.
+  function toggleOrder() {
+    if (!orderLens || orderLens.hidden) return false;
+    return showOrder(body.getAttribute("data-lens") !== "order");
   }
 
   if (openedBefore || finishedAt()) offerLenses();
@@ -10837,6 +10888,9 @@ var targumReader = function () {
         return;
       case "r":
         if (!toggleGoverned()) return;
+        break;
+      case "w":
+        if (!toggleOrder()) return;
         break;
       case "c":
         if (!nextCase()) return;

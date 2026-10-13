@@ -3769,5 +3769,10 @@
   "reader.lens.governed-cue": "Each verb lit takes the preposition lit beside it, in this line.",
   "reader.lens.governed-said": "Prepositions verbs take, {n} here.",
   "reader.lens.none": "No lens shown.",
+  "reader.page.show-subjects-after-their-verb-w": "Show subjects after their verb (w)",
+  "reader.page.subjects-after-their-verb": "Subjects after their verb",
+  "reader.page.subjects-after-their-verb-lower": "subjects after their verb",
+  "reader.lens.order-cue": "Each word lit is the subject of a verb before it.",
+  "reader.lens.order-said": "Subjects after their verb, {n} here.",
   "practice.page.lens": "Practised with a lens in the reader: Aa, then Prepositions verbs take, once you've finished a part."
 }
