@@ -616,8 +616,8 @@ def test_every_section_carries_its_own_done(tmp_path: Path) -> None:
     first = pages[1].read_text(encoding="utf-8")
     last = pages[2].read_text(encoding="utf-8")
 
-    assert 'id="done-mark"' in first, "the first chapter can be finished on its own"
-    assert 'id="done-mark"' in last
+    assert 'id="done-go"' in first, "the first chapter can be finished on its own"
+    assert 'id="done-go"' in last
 
     # And each page says which part of the document it is, because that is what gets
     # marked: the section number the filename, the contents page and the pager all use.

@@ -304,7 +304,7 @@ process.stdout.write(
       tally: reader.finishedCount(),
       language:
         (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).language || "",
-      button: byId["done-mark"].textContent,
+      button: byId["done-go"].textContent,
       // Whether the ink block of a finish is up, which holds the Undo.
       shown: !byId.finished.hidden,
       said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
@@ -380,7 +380,7 @@ process.stdout.write(
     // share. Marked words only (design.md §12, "Known means marked", 2026-10-11).
     counted: { bar: byId.known.textContent, list: byId["list-stats"].textContent },
     // The foot's one block (design.md §12, "The foot is one block"): what the press says,
-    // the quiet way under it, and whether the ink block of a finish is up.
+    // the quiet press under it that marks the rest, and whether the ink block of a finish is up.
     foot: reader.footSays(),
     // Every word list in the browser, by language, after every level above was said.
     stores: Object.fromEntries(

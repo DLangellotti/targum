@@ -906,7 +906,7 @@
     var often = filter.often && facts.loaded;
     var rows = entry.words
       .filter(function (word) {
-        // A name or a number is not vocabulary (`charts.kept`): the finish press clears
+        // A name or a number is not vocabulary (`charts.kept`): the marking press clears
         // them with the rest and they are never called words (design.md §12, "The foot is
         // one block"). So the tabs list what the head counts, and "Done, and mark 79
         // words known" is 79 rows under Known, not 119 with 2008 and חולון among them

@@ -369,6 +369,32 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Done marks nothing; knowing them all is a choice — 2026-10-13
+
+David, 2026-10-13, of the press at the foot that marked every word never marked: "they
+shouldn't become real marks - if they want to mark that they know all words, let them!"
+and "if they know all the words they know all the words - let them decide that as they
+like". This amends "The press says both halves" in "The foot is one block" (2026-09-25,
+below), and the line in "No word is assumed known" (2026-10-12, above) that the finish
+press marks every word with the rest.
+
+- **The press finishes and marks nothing.** It says "Done", or "Next" and "Finish" in a
+  playlist, and nothing more. It is what walking past the last word puts the keyboard on,
+  and what Enter then presses, so a reader who walks to the end and presses on has
+  marked only what they marked.
+- **Marking the rest is its own press, under it**: "Done, and mark 12 words known" (or
+  Next or Finish), "Done, I know it" for one word, in the quiet link style. It is shown
+  only while there are words left to mark. It finishes and marks, with the one Undo, as
+  the old press did. The question and its chips above ("12 words here you haven't
+  marked. Do you know them?") now introduce this choice.
+- **Names and numbers are cleared only by the marking press.** The plain press marks
+  nothing at all.
+- **"…without marking" is gone**, in both languages: finishing without marking is now
+  what the press does, so there is nothing to say it apart from.
+- **Gestures are unchanged.** A swipe, an arrow or a video key still finishes without
+  marking.
+- The ids say what they do: `#done-go` finishes, `#done-mark` finishes and marks.
+
 ### A shared link shows the mark — 2026-10-13
 
 David, 2026-10-13. The public pages carried no `og:image`, so a link to targum shared
@@ -460,7 +486,8 @@ the commonest bands plain on a Hebrew page for a reader who named a rung from be
 
 - **Every word on a page is asked about until the reader marks it**, whatever rung they
   named. It is drawn by its own mark or as new, it is in the queue the arrows walk and in
-  "N left", and the finish press marks it with the rest.
+  "N left", and the finish press marks it with the rest. *(Since 2026-10-13 only the
+  marking press under it does: "Done marks nothing; knowing them all is a choice".)*
 - **The card no longer says "assumed known"**, and the string is gone in both languages.
 - **The rung itself stays.** The arrival still asks it, and "Your Hebrew" on the You page
   still changes it, because it still seeds the first text, the Library's band and how hard
@@ -4660,6 +4687,9 @@ section is finished in place.
 
 
 ### The foot is one block — 2026-09-25
+
+*The press no longer marks anything; marking the rest is a separate press under it since
+2026-10-13 ("Done marks nothing; knowing them all is a choice", at the head of this section).*
 
 David, on a phone at the end of the second text of a playlist: "This positioning of buttons
 at end of Playlist lesson does not feel intuitive to me." The foot of a section was three

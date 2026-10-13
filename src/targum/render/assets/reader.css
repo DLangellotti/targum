@@ -1544,7 +1544,8 @@ body.film-ended:not(.in-list):has(#film-next) .foot-go {
 body.film-beside:not(.in-list):has(#film-next) .foot-go:hover,
 body.film-ended:not(.in-list):has(#film-next) .foot-go:hover { filter: none; color: var(--ink); }
 .foot-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-/* The same press without the marking: a text link under it, never a second button. */
+/* The press that also marks the rest known (design.md §12, "Done marks nothing",
+   2026-10-13): quiet, under or beside the press, never a second primary. */
 .foot-plain {
   appearance: none;
   border: 0;
@@ -5838,7 +5839,7 @@ body.list-ended .list-end .list-end-over {
   align-items: center;
   gap: 0.75rem;
 }
-/* The plain finish beside the press, a line press (`.btn.ghost.outline`'s look). */
+/* The marking finish beside the press, a line press (`.btn.ghost.outline`'s look). */
 .foot .foot-plain:not(.foot-more) {
   display: inline-flex;
   align-items: center;
@@ -5855,7 +5856,7 @@ body.list-ended .list-end .list-end-over {
 .foot-more { color: var(--teal); text-decoration: none; }
 body.film-theatre .film-end { margin-inline: auto; }
 /* On a phone the card is as short as it can be, because the last page holds it whole
-   with the credits under it: the plain finish is the quiet line it was, under the press. */
+   with the credits under it: the marking finish is a quiet line under the press. */
 @media (max-width: 40rem) {
   .foot,
   .film-end { margin: 0.75rem 0; padding: 0.875rem 1rem; }

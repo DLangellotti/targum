@@ -446,17 +446,17 @@ def test_a_reader_with_words_already_is_not_told_how_to_mark_one() -> None:
 # -- the offer at the foot of a part ---------------------------------------------
 
 
-def test_the_press_says_both_halves_and_does_both() -> None:
-    """design.md §12, "The foot is one block" (2026-09-25). The words you never marked are
-    offered with the finish, in one press that says both halves before it is pressed —
-    offered, never done for you — and a quiet link under it that finishes alone. The ones
-    you are working on are left alone."""
+def test_the_marking_press_says_both_halves_and_does_both() -> None:
+    """design.md §12, "Done marks nothing; knowing them all is a choice" (2026-10-13). The
+    press says Done and marks nothing; the words you never marked are offered under it, in
+    a quiet press that says both halves before it is pressed — offered, never done for
+    you. The ones you are working on are left alone."""
     words, lemmas = chapter(["a", "b", "c"])
     before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
     assert before["foot"] == {
-        "press": "Done, and mark 2 words known",
+        "press": "Done",
         "pressHidden": False,
-        "plain": "Done without marking",
+        "mark": "Done, and mark 2 words known",
         "finished": False,
     }
     after = run(
@@ -472,7 +472,7 @@ def test_the_press_says_both_halves_and_does_both() -> None:
     assert after["foot"]["finished"] is True and after["foot"]["pressHidden"] is True
 
 
-def test_the_quiet_link_finishes_without_marking() -> None:
+def test_done_finishes_without_marking() -> None:
     words, lemmas = chapter(["a", "b"])
     done = run([], chapter=words, lemmas=lemmas, vocab={}, presses=[False])
     assert done["finished"]["at"] > 0
@@ -484,7 +484,7 @@ def test_one_undo_takes_back_the_finish_and_the_words() -> None:
     done = run([], chapter=words, lemmas=lemmas, vocab={}, presses=[True, "undo"])
     assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
     assert done["finished"]["at"] == 0
-    assert done["foot"]["press"] == "Done, and mark 4 words known"
+    assert done["foot"]["mark"] == "Done, and mark 4 words known"
 
 
 def test_the_batch_still_has_its_own_undo() -> None:
@@ -498,7 +498,7 @@ def test_the_press_takes_the_names_with_it_but_never_counts_them() -> None:
     counts for nothing, so the press does not call it a word."""
     rows = {"s0": [[0, 1, 3, 0, 0, 0, 0], [2, 3, 0, 0, 1, 0, 1], [4, 5, 3, 0, 2, 0, 0]]}
     before = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={})
-    assert before["foot"]["press"] == "Done, and mark 2 words known"
+    assert before["foot"]["mark"] == "Done, and mark 2 words known"
     done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, presses=[True])
     assert done["queue"] == [], "nothing left lit"
     assert done["list"] == [], "and nothing on the list"
@@ -558,17 +558,25 @@ def test_chapters_finished_in_the_book_show_the_aliyah_finished_and_write_nothin
 def test_nothing_left_to_mark_is_plain_done() -> None:
     words, lemmas = chapter(["a"])
     done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
-    assert done["foot"]["plain"] == ""
+    assert done["foot"]["press"] == "Done" and done["foot"]["mark"] == ""
+
+
+def test_one_word_left_is_asked_as_the_word() -> None:
+    words, lemmas = chapter(["a", "b"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
+    assert done["foot"]["press"] == "Done" and done["foot"]["mark"] == "Done, I know it"
+    nexts = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}}, footWay="next")
+    assert nexts["foot"]["press"] == "Next" and nexts["foot"]["mark"] == "Next, I know it"
 
 
 def test_in_a_playlist_the_press_is_next_and_on_the_last_item_finish() -> None:
     words, lemmas = chapter(["a", "b"])
     middle = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next")["foot"]
-    assert middle["press"] == "Next, and mark 2 words known"
-    assert middle["plain"] == "Next without marking"
+    assert middle["press"] == "Next"
+    assert middle["mark"] == "Next, and mark 2 words known"
     last = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="finish")["foot"]
-    assert last["press"] == "Finish, and mark 2 words known"
-    assert last["plain"] == "Finish without marking"
+    assert last["press"] == "Finish"
+    assert last["mark"] == "Finish, and mark 2 words known"
     # Finished, the press is still the way on in a playlist, and marks nothing.
     finished = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[False])
     assert finished["foot"]["press"] == "Next" and finished["foot"]["pressHidden"] is False
@@ -672,7 +680,7 @@ def test_done_is_said_once_however_often_it_is_pressed() -> None:
     words, lemmas = chapter(["a"])
     fresh = run([], chapter=words, lemmas=lemmas)["finished"]
     assert fresh["at"] == 0 and fresh["said"] == ""
-    assert fresh["button"] == "Done, I know it"
+    assert fresh["button"] == "Done", "the press marks nothing, so it says only Done"
     assert fresh["shown"] is False, "the ink block waits for the finish"
 
     done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
@@ -1949,4 +1957,4 @@ def test_an_advanced_reader_is_asked_about_every_word_too() -> None:
         done = banded(declared)
         assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"], declared
         assert done["counted"]["bar"].startswith("0 of 4 known"), done["counted"]
-        assert done["foot"]["press"] == "Done, and mark 4 words known"
+        assert done["foot"]["mark"] == "Done, and mark 4 words known"

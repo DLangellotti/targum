@@ -1132,13 +1132,14 @@ var targumReader = function () {
   // takes it back, so a text is finished once however often the button is pressed —
   // and the count on the progress page can only ever move by one.
   var finishedBox = document.getElementById("finished");
-  var finishedMark = document.getElementById("done-mark");
+  var finishedGo = document.getElementById("done-go");
   var finishedSaid = document.getElementById("done-said");
   var finishedUndo = document.getElementById("done-undo");
-  // The rest of the foot (design.md §12, "The foot is one block", 2026-09-25): the press
-  // and the quiet way to press it without marking, and the block they stand in.
+  // The rest of the foot (design.md §12, "The foot is one block", 2026-09-25): the press,
+  // which marks nothing, and the quiet press under it that marks the rest known
+  // (design.md §12, "Done marks nothing", 2026-10-13), and the block they stand in.
   var footPress = document.getElementById("foot-press");
-  var footPlain = document.getElementById("done-plain");
+  var footMark = document.getElementById("done-mark");
   // The words the press would mark, before it is pressed (design review, 2026-10-09):
   // the ones met most as chips with what each means, and the rest one press away.
   var footWords = document.getElementById("foot-words");
@@ -1208,7 +1209,7 @@ var targumReader = function () {
      hook in the markup, so a new control is counted the day it is drawn. */
   var PRESSABLE =
     ".bar button, .bar select, .bar a, #player button, #player [role=slider], .video button, " +
-    ".turn button, #list-tab, #list button, #done-mark, #done-plain, #done-undo, #arrived-undo, " +
+    ".turn button, #list-tab, #list button, #done-go, #done-mark, #done-undo, #arrived-undo, " +
     "#practice-next, #next-up-else, .say";
   function nameOf(control) {
     var attributes = control.attributes || [];
@@ -1636,22 +1637,24 @@ var targumReader = function () {
     return lemmasHere(false).filter(asksAbout).length;
   }
 
-  /* The press and the line under it, as they stand. One press, saying both halves of
-     what it does — "Done, and mark 12 words known" — and a text link under it that does
-     the first half alone. Nothing left to mark: "Done", and no link. Finished, the press
-     goes: the ink block says so and holds the Undo — except in a playlist, where the
-     press is still the way on, and moving on from a finished item marks nothing. */
+  /* The press and the line under it, as they stand (design.md §12, "Done marks nothing;
+     knowing them all is a choice", 2026-10-13). The press finishes and marks nothing:
+     "Done". Under it, while words are left, a quiet press that finishes and marks them
+     all: "Done, and mark 12 words known". David: "if they know all the words they know
+     all the words - let them decide that as they like". Finished, the press goes: the ink
+     block says so and holds the Undo — except in a playlist, where the press is still the
+     way on, and moving on from a finished item marks nothing. */
   function renderFoot() {
     countShabbatAhead();
-    if (!footDrawn || !footPress || !finishedMark) return;
+    if (!footDrawn || !footPress || !finishedGo) return;
     var when = finishedAt();
     var verb = footWay ? footWay.verb : "done";
     var left = when ? 0 : leftToMark();
     footPress.hidden = !!when && !footWay;
-    finishedMark.textContent = pressSays(verb, left);
-    if (footPlain) {
-      footPlain.hidden = !left;
-      footPlain.textContent = left ? plainSays(verb) : "";
+    finishedGo.textContent = goSays(verb);
+    if (footMark) {
+      footMark.hidden = !left;
+      footMark.textContent = left ? markSays(verb, left) : "";
     }
     paintFootWords(left);
   }
@@ -1721,30 +1724,26 @@ var targumReader = function () {
       "{n} words here you haven't marked. Do you know them?"
     );
   }
-  function pressSays(verb, left) {
+  // The press: finishes, marks nothing.
+  function goSays(verb) {
+    if (verb === "next") return t("reader.list.next", "Next");
+    if (verb === "finish") return t("reader.list.done", "Finish");
+    return t("reader.page.done", "Done");
+  }
+  // The press under it: finishes, and marks the words left (never with none left).
+  function markSays(verb, left) {
     if (left === 1) {
       if (verb === "next") return t("reader.foot.next-single", "Next, I know it");
       if (verb === "finish") return t("reader.foot.finish-single", "Finish, I know it");
       return t("reader.foot.done-single", "Done, I know it");
     }
     if (verb === "next") {
-      return left
-        ? tn("reader.foot.next-mark", left, "Next, and mark {n} word known", "Next, and mark {n} words known")
-        : t("reader.list.next", "Next");
+      return tn("reader.foot.next-mark", left, "Next, and mark {n} word known", "Next, and mark {n} words known");
     }
     if (verb === "finish") {
-      return left
-        ? tn("reader.foot.finish-mark", left, "Finish, and mark {n} word known", "Finish, and mark {n} words known")
-        : t("reader.list.done", "Finish");
+      return tn("reader.foot.finish-mark", left, "Finish, and mark {n} word known", "Finish, and mark {n} words known");
     }
-    return left
-      ? tn("reader.foot.done-mark", left, "Done, and mark {n} word known", "Done, and mark {n} words known")
-      : t("reader.page.done", "Done");
-  }
-  function plainSays(verb) {
-    if (verb === "next") return t("reader.foot.next-plain", "Next without marking");
-    if (verb === "finish") return t("reader.foot.finish-plain", "Finish without marking");
-    return t("reader.foot.done-plain", "Done without marking");
+    return tn("reader.foot.done-mark", left, "Done, and mark {n} word known", "Done, and mark {n} words known");
   }
   renderFinished();
 
@@ -2267,7 +2266,7 @@ var targumReader = function () {
     return { already: already, lemmas: taken, counted: taken.length ? counted : 0 };
   }
 
-  /* The press, from the button or the link under it. Inside a playlist `list.js` has said
+  /* The press, from the button (marking nothing) or the one under it (marking the rest). Inside a playlist `list.js` has said
      what moving on is, and does it after the press; on its own the press is the whole of
      it, and the ink block and the next section appear. */
   function footGo(marking) {
@@ -9518,7 +9517,7 @@ var targumReader = function () {
     applyPractice();
     if (kind === "verse") {
       showPracticeVerse();
-      var done = document.getElementById("done-mark");
+      var done = document.getElementById("done-go");
       if (record.verse === PRACTICE_DONE && done && typeof done.focus === "function") {
         done.focus();
       } else if (practiceLine) {
@@ -9986,12 +9985,12 @@ var targumReader = function () {
         showList(!!(listBox && listBox.hidden));
         return;
       }
-      if (button.id === "done-mark") {
-        footGo(true);
+      if (button.id === "done-go") {
+        footGo(false);
         return;
       }
-      if (button.id === "done-plain") {
-        footGo(false);
+      if (button.id === "done-mark") {
+        footGo(true);
         return;
       }
       if (button.id === "done-undo") {
@@ -10505,8 +10504,8 @@ var targumReader = function () {
     // word of the last page, so nothing is skipped. Done and the next chapter never
     // meet: Done is only on the last part, and a part with a next has no Done.
     if (!entry) {
-      if (forward && place && finishedMark && !finishedAt() && finishedMark.focus) {
-        finishedMark.focus();
+      if (forward && place && finishedGo && !finishedAt() && finishedGo.focus) {
+        finishedGo.focus();
       } else if (forward && place && paged() && current !== pageWas) {
         // The way to the end turned the page — to the last line's last piece and the foot
         // under it, where the foot did not fit beside the line (the end of a part is a
@@ -11145,9 +11144,9 @@ var targumReader = function () {
     undoLanding: undoLanding,
     footSays: function () {
       return {
-        press: finishedMark ? finishedMark.textContent : "",
+        press: finishedGo ? finishedGo.textContent : "",
         pressHidden: footPress ? Boolean(footPress.hidden) : true,
-        plain: footPlain && !footPlain.hidden ? footPlain.textContent : "",
+        mark: footMark && !footMark.hidden ? footMark.textContent : "",
         finished: finishedBox ? !finishedBox.hidden : false,
       };
     },

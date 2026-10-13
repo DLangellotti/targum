@@ -1098,11 +1098,12 @@
     the offer of the words never marked, and Done — stacked in the order the code happened
     to append them, so moving on came first and finishing came last.
 
-    The press finishes the section and, where words were never marked, marks them known:
-    "Done, and mark 12 words known". Offered, never done for you — the press says what it
-    does before it is pressed, and "Done without marking" under it finishes the section
-    alone. "Words should be marked as known automatically when I'm done with the article",
-    said the first alpha reader; this is still the honest version of that.
+    The press finishes the section and marks nothing (design.md §12, "Done marks nothing;
+    knowing them all is a choice", 2026-10-13). Under it, where words were never marked,
+    a quiet press finishes the section and marks them known: "Done, and mark 12 words
+    known". Offered, never done for you — it says what it does before it is pressed, and
+    the reader decides it: "if they know all the words they know all the words - let them
+    decide that as they like" (David).
 
     At the foot of every section rather than only the last (targum-internal#173): a
     chapter is a chapter however short, the structure decides and there is no floor.
@@ -1125,8 +1126,8 @@
     <ul class="film-end-words foot-chips" lang="{{ source_language }}" dir="{{ source_direction }}"></ul>
   </div>{% endif %}
   <div class="foot-press" id="foot-press">
-    <button type="button" class="foot-go" id="done-mark">{{ t("reader.page.done", "Done") }}</button>
-    {% if words %}<button type="button" class="foot-plain" id="done-plain" hidden></button>{% endif %}
+    <button type="button" class="foot-go" id="done-go">{{ t("reader.page.done", "Done") }}</button>
+    {% if words %}<button type="button" class="foot-plain" id="done-mark" hidden></button>{% endif %}
   </div>
   <p class="foot-next" id="foot-next" hidden></p>
 </div>

@@ -386,7 +386,7 @@ def test_beside_has_one_primary_at_the_end_of_a_part(browser, tmp_path) -> None:
     Done is the pill it always was."""
     reader = two_parts(tmp_path)
     looks = (
-        "() => { const s = getComputedStyle(document.getElementById('done-mark'));"
+        "() => { const s = getComputedStyle(document.getElementById('done-go'));"
         " return { bg: s.backgroundImage + ' ' + s.backgroundColor, line: s.textDecorationLine }; }"
     )
     context, page, _asked = film_page(
@@ -422,7 +422,7 @@ END = """
     footShown: shown(foot),
     footBottom: foot ? foot.getBoundingClientRect().bottom : null,
     line: shown(document.getElementById('film-sub')),
-    press: document.getElementById('done-mark').textContent.trim(),
+    press: document.getElementById('done-go').textContent.trim(),
     finished: !document.getElementById('finished').hidden,
   };
 }
@@ -431,7 +431,7 @@ END = """
 
 def test_theatre_ends_a_part_with_the_foot_under_the_picture(browser, tmp_path) -> None:  # noqa: F811
     """Played to its end in Theatre, the line under the picture gives way to "End of part 1
-    of 2" and the text's own foot — Done, the press that marks the rest known — moved in,
+    of 2" and the text's own foot — Done, and the press that marks the rest known — moved in,
     so a part can be finished without opening the transcript. Next part is still there.
     Moving the film again puts the foot back under the transcript."""
     reader = two_parts(tmp_path)
@@ -466,7 +466,7 @@ def test_theatre_ends_a_part_with_the_foot_under_the_picture(browser, tmp_path) 
         assert glosses == ["coins", ""], "its first meaning beside it, where it has one"
         assert page.locator("#film-next").is_visible(), "and the next part is still the way on"
         shot(page, "theatre-end-block")
-        page.click("#done-mark")
+        page.click("#done-go")
         assert page.evaluate(END)["finished"], "the part is finished from here"
         page.evaluate("() => window.TargumPlayer.seek(0.1)")
         page.wait_for_timeout(150)
