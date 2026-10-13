@@ -31,17 +31,28 @@ def spots_of(token: dict[str, Any]) -> dict[str, list[Candidate]]:
     return out
 
 
-def test_every_hebrew_spot_but_the_lens_has_a_registered_practice() -> None:
-    """The register is what the stage standard reads; governed prepositions wait for their
-    lens (design.md §12)."""
+def test_every_hebrew_spot_has_a_registered_practice() -> None:
+    """The register is what the stage standard reads; governed prepositions are
+    practised by their lens (design.md §12, "Lenses wait for a second read")."""
     names = [spot.name for spot in stages.HARD_SPOTS["he"]]
     registered = practices.REGISTERED["he"]
-    assert set(registered) <= set(names)
-    assert set(names) - set(registered) == {"governed prepositions and et"}
+    assert set(registered) == set(names)
+    assert registered["governed prepositions and et"].kind == "lens"
     known = stages.facts("he")
-    assert [name for name, done in known.practices.items() if not done] == [
-        "governed prepositions and et"
-    ]
+    assert all(known.practices.values()), known.practices
+
+
+def test_the_lens_spot_is_counted_from_the_syntax() -> None:
+    stored = [
+        {"start": 0, "end": 4, "surface": "דיבר", "lemma": "דיבר", "band": 0, "pos": "VERB",
+         "syntax": {"head": -1, "relation": "root", "prefixes": [], "lead": 0}},
+        {"start": 5, "end": 7, "surface": "עם", "lemma": "עם", "band": 0, "pos": "ADP",
+         "syntax": {"head": 2, "relation": "case", "prefixes": [], "lead": 0}},
+        {"start": 8, "end": 13, "surface": "המנהל", "lemma": "מנהל", "band": 0, "pos": "NOUN",
+         "syntax": {"head": 0, "relation": "obl", "prefixes": ["DET"], "lead": 1}},
+    ]  # fmt: skip
+    (one,) = practices._governed(stored, "s")
+    assert (one.spot, one.start, one.end, one.answer) == ("governed", 0, 4, "עם")
 
 
 def test_a_verb_asks_its_binyan_and_its_tense_and_person() -> None:

@@ -3766,5 +3766,6 @@
   "reader.case.cue": "Every word lit is in the {case}.",
   "reader.lens.governed-cue": "Each verb lit takes the preposition lit beside it, in this line.",
   "reader.lens.governed-said": "Prepositions verbs take, {n} here.",
-  "reader.lens.none": "No lens shown."
+  "reader.lens.none": "No lens shown.",
+  "practice.page.lens": "Practised with a lens in the reader: Aa, then Prepositions verbs take, once you've finished a part."
 }
