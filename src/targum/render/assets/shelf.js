@@ -280,7 +280,7 @@
     if (!kind) {
       line.removeAttribute("aria-hidden");
       line.setAttribute("role", "img");
-      var said = t("shelf.known", "You know {share}%", { share: Math.round(share * 100) });
+      var said = t("shelf.known", "You know {share}% of the whole text", { share: Math.round(share * 100) });
       line.setAttribute("aria-label", said);
       line.title = said;
     }

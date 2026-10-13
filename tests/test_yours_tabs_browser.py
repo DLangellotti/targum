@@ -113,7 +113,7 @@ def test_a_continue_card_s_bar_is_the_share_it_says_you_know(browser, tmp_path: 
     )
     context.close()
     by = {card["title"]: card for card in cards}
-    assert "You know 40%" in by["ידוע"]["facts"] and by["ידוע"]["done"] == "0.4"
+    assert "You know 40% of the whole text" in by["ידוע"]["facts"] and by["ידוע"]["done"] == "0.4"
     assert by["לא נמדד"]["done"] is None, "no figure, no bar"
     assert not thrown
 
