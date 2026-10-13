@@ -67,6 +67,8 @@ from .remembered import Remembered
 from .render.builder import (
     CONTENTS,
     LEGAL,
+    LINK_PREVIEW,
+    LINK_PREVIEW_ROUTE,
     about_page,
     approve_page,
     back_office_page,
@@ -7913,6 +7915,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _icon(), "image/png")
         if route == "/robots.txt":
             return self._send(200, self._robots().encode("utf-8"), "text/plain; charset=utf-8")
+        # The picture a shared link shows (design.md §12, "A shared link shows the mark",
+        # 2026-10-13). Before the key check: a crawler has no account, and the picture is
+        # the same for everybody.
+        if route == LINK_PREVIEW_ROUTE:
+            picture = LINK_PREVIEW.read_bytes()
+            return self._send(200, picture, "image/png", cache="public, max-age=86400")
         # The worker that keeps what a reader saved for offline (design.md §12, 2026-10-09).
         # Before the account check: the browser asks for it again on its own, now and then,
         # to see whether it changed, and it holds nothing that is anybody's.

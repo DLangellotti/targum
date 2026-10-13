@@ -369,6 +369,23 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A shared link shows the mark — 2026-10-13
+
+David, 2026-10-13. The public pages carried no `og:image`, so a link to targum shared
+anywhere showed a bare line of text, and Meta's crawler asked for `/null`. Every public
+page now names one picture: the lockup on paper and "Learn Hebrew from anything." under
+it, 1200 × 630, in §4's paper and ink and §5's reading face (`brand/link-preview.png`,
+drawn by `scripts/link_preview.py` from the lockup's own geometry).
+
+- **One picture, for every page that has a public head**: the front page, the Library, a
+  text's page, a series, the weekly, the guides. A page's own cover is not used: one
+  picture is the identity, and a text's cover is the reader's, not the link's.
+- **English on every language's page.** No Russian motto exists in the strings, and a
+  line is not invented for a picture.
+- **Served at `/link-preview.png`**, before any account check, since a crawler has none.
+  A meta tag is read by a crawler and never fetched by the page, so "readers fetch
+  nothing" holds: no reader's page loads it.
+- **A page with no address names no picture**, rather than a relative one a crawler drops.
 ### Each share says what it is a share of — 2026-10-13
 
 David, 2026-10-13. After a finish, home's card said "You know 34%" and the line above it
