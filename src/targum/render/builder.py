@@ -524,6 +524,8 @@ def _environment() -> Environment:
     # line above it, so a template cannot be rendered against a stale answer.
     env.globals["connector_is_open"] = _connector_is_open
     env.globals["social"] = SOCIAL
+    env.globals["link_preview"] = _link_preview
+    env.globals["link_preview_size"] = LINK_PREVIEW_SIZE
     # The foot offers the waitlist only while it takes an address, read at call time
     # for the reason `connector_is_open` is (design.md §12, 2026-09-28).
     env.globals["front_door_is_open"] = _front_door_is_open
@@ -2228,6 +2230,30 @@ LEGAL = {
         "The procedure for deleting a targum or closing an account, and the consequences of each.",
     ),
 }
+
+
+#: Where the picture a shared link shows is served (design.md §12, "A shared link shows
+#: the mark", 2026-10-13). One file, for every public page; `serve` answers it.
+LINK_PREVIEW_ROUTE = "/link-preview.png"
+LINK_PREVIEW = Path(__file__).parent / "assets" / "brand" / "link-preview.png"
+LINK_PREVIEW_SIZE = (1200, 630)
+
+
+def _link_preview(canonical: str = "") -> str:
+    """The absolute address of the picture a shared link shows, or nothing.
+
+    A crawler takes `og:image` only as a full address, so it is the page's own origin,
+    read off its canonical, or the deployment's public address where a page names none.
+    A local build with neither carries no picture rather than a broken one. A meta tag
+    is read by a crawler and never fetched by the page, so a reader's page loads nothing
+    more for it.
+    """
+    parts = urlparse(canonical or "")
+    if parts.scheme in ("http", "https") and parts.netloc:
+        origin = f"{parts.scheme}://{parts.netloc}"
+    else:
+        origin = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip().rstrip("/")
+    return f"{origin}{LINK_PREVIEW_ROUTE}" if origin else ""
 
 
 def _front_door_is_open() -> bool:
