@@ -278,3 +278,52 @@ def test_a_model_with_no_usable_blank_says_so() -> None:
         _blank({"|": 0, "a": 1}, 2)
     with pytest.raises(TargumError, match="blank"):
         _blank({"<pad>": 9, "|": 0}, 2)
+
+
+# -- a long reading in pieces (2026-10-14) ----------------------------------------------
+
+
+def _spoken(targets: list[int], blank: int, frames_per: int, gap: int, classes: int) -> object:
+    """Log probabilities for a reading that says `targets` in order, each held for
+    `frames_per` frames with `gap` blank frames between: what a clean recording of the
+    text would make the model emit, so the right alignment is known."""
+    import torch
+
+    rows: list[int] = []
+    for token in targets:
+        rows += [token] * frames_per + [blank] * gap
+    probs = torch.full((len(rows), classes), 0.01)
+    for t, token in enumerate(rows):
+        probs[t, token] = 1.0
+    return torch.log_softmax(torch.log(probs), dim=-1)
+
+
+def test_a_reading_too_long_for_one_pass_is_aligned_in_pieces_to_the_same_frames(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 26-minute story killed the process on an 8 GB laptop, because `forced_align` holds
+    every frame against every letter. In pieces, the answer must be the one the whole pass
+    gives: the same first and last frame for every letter."""
+    pytest.importorskip("torch")
+    pytest.importorskip("torchaudio")
+    import random
+
+    from targum.audio.align import in_pieces
+
+    # Letters drawn at random, so no stretch of the reading looks like another and the
+    # right alignment is the only good one, as in speech.
+    draw = random.Random(7)
+    blank, divider, classes = 0, 1, 32
+    words = [[draw.randrange(2, classes) for _ in range(draw.randint(1, 6))] for _ in range(150)]
+    targets: list[int] = []
+    for word in words:
+        if targets:
+            targets.append(divider)
+        targets += word
+    log_probs = _spoken(targets, blank, frames_per=3, gap=2, classes=classes)
+    whole = in_pieces(log_probs, targets, blank, divider, per_frame=0.02)
+    monkeypatch.setattr(align_module, "CELLS", 20_000)
+    monkeypatch.setattr(align_module, "PIECE_PAD_S", 0.5)
+    pieces = in_pieces(log_probs, targets, blank, divider, per_frame=0.02)
+    assert len(pieces) == len(targets) == len(whole)
+    assert [(a, b) for a, b, _ in pieces] == [(a, b) for a, b, _ in whole]

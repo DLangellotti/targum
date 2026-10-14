@@ -31,6 +31,15 @@ that follow or precede a pause, the path started words 15-70 ms after the voice 
 ended them 25-220 ms before it stopped, on chanted Torah (six PocketTorah aliyot) and on
 read speech (two LibriVox readers) alike. `to_the_voice` widens each span into the blank
 frames either side, as far as the audio stays voiced. See its docstring for the rule.
+
+**A long reading is aligned in pieces** (2026-10-14). `forced_align` keeps a cell for every
+frame against every letter, so its memory grows with the square of the reading: a
+26-minute LibriVox story asked for about 3 GB of it beside the model's 2.4, and the
+process was killed without a word on an 8 GB laptop. `in_pieces` aligns a stretch of
+letters at a time against the audio they should fall in, keeps all but the last quarter,
+and starts the next stretch where the kept words end, so no word is decided near the
+edge of what was heard. A reading small enough to align whole is aligned whole, so every
+result made before this is unchanged.
 """
 
 from __future__ import annotations
@@ -62,6 +71,20 @@ RATE = 16000
 WINDOW_S = 30
 CONTEXT_S = 2
 BATCH = 4
+
+#: The most `forced_align` is asked to hold at once, in frames times letters. Readings at
+#: or under it are aligned whole, exactly as before; a 21-minute part (about 1.3 billion)
+#: aligned on the laptop and a 34-minute one segfaulted, so the line sits well below both.
+CELLS = 400_000_000
+
+#: A piece hears this much more audio than its share of what is left would give it, plus
+#: `PIECE_PAD_S`, because a reader's pace changes and the piece must not run out of voice.
+PIECE_SLACK = 1.3
+PIECE_PAD_S = 20.0
+
+#: And keeps all but this share of its words: the end of a piece is aligned against audio
+#: that holds the next piece's words too, so it is the part least to be trusted.
+PIECE_TAIL = 0.25
 
 #: A word the aligner scored below this is trimmed from a window's edges; a part whose
 #: mean score sits below the floor gets no spans at all. Measured against a real clip
@@ -265,6 +288,70 @@ def to_the_voice(
     return [(span[0], span[1]) if span else None for span in placed]
 
 
+def in_pieces(
+    log_probs: Any, targets: list[int], blank: int, divider: int, per_frame: float
+) -> list[tuple[int, int, float]]:
+    """One (first frame, last frame, score) per target, by `forced_align`, in pieces where
+    the whole would not fit in `CELLS` (see the module's last paragraph).
+
+    A piece is cut at a word divider, so a word is never split between two; it is heard
+    from where the last kept word ended to its share of the frames left, times
+    `PIECE_SLACK`, plus `PIECE_PAD_S`; and the divider that opens the next piece is where
+    the kept words stop. A piece the model cannot fit in its frames is heard again with
+    twice as many, up to the end of the reading.
+    """
+    import torch
+    import torchaudio.functional as alignment
+
+    def aligned(frames: Any, piece: list[int]) -> list[tuple[int, int, float]]:
+        paths, scores = alignment.forced_align(
+            frames.unsqueeze(0), torch.tensor([piece], dtype=torch.int32), blank=blank
+        )
+        spans = alignment.merge_tokens(paths[0], scores[0], blank=blank)
+        return [(int(span.start), int(span.end), float(span.score)) for span in spans]
+
+    total = log_probs.size(0)
+    if total * len(targets) <= CELLS:
+        return aligned(log_probs, targets)
+
+    pad = round(PIECE_PAD_S / per_frame)
+    dividers = [i for i, token in enumerate(targets) if token == divider]
+    out: list[tuple[int, int, float]] = []
+    at_frame, at = 0, 0
+
+    def placed(spans: list[tuple[int, int, float]]) -> list[tuple[int, int, float]]:
+        return [(a + at_frame, b + at_frame, c) for a, b, c in spans]
+
+    while at < len(targets):
+        left_frames, left = total - at_frame, len(targets) - at
+        if left_frames * left <= CELLS:
+            out += placed(aligned(log_probs[at_frame:], targets[at:]))
+            break
+        rate = left_frames / left
+        size = max(1, int((CELLS / (rate * PIECE_SLACK)) ** 0.5))
+        end = next((d for d in dividers if d >= at + size), len(targets))
+        hear = min(left_frames, int(rate * (end - at) * PIECE_SLACK) + pad)
+        while True:
+            try:
+                spans = aligned(log_probs[at_frame : at_frame + hear], targets[at:end])
+                break
+            except RuntimeError:
+                if hear >= left_frames:
+                    raise
+                hear = min(left_frames, hear * 2)
+        if end == len(targets):
+            out += placed(spans)
+            break
+        # Keep up to a divider a quarter of the piece from its end; the next piece opens
+        # on that divider. A piece too short to have one is kept whole.
+        trusted = at + int((end - at) * (1 - PIECE_TAIL))
+        keep = next((d for d in reversed(dividers) if at < d <= trusted), end) - at
+        out += placed(spans[:keep])
+        at_frame += spans[keep - 1][1] + 1
+        at += keep
+    return out
+
+
 class CtcAligner:
     """Word timings for a recording, in a language `MODELS` has an acoustic model for."""
 
@@ -370,9 +457,6 @@ class CtcAligner:
             # decode of the audio to find out.
             return [(0.0, 0.0, SCORE_FLOOR) for _ in words]
 
-        import torch
-        import torchaudio.functional as alignment
-
         log_probs, per_frame, processor, voiced = self._emissions(audio)
         vocab = processor.tokenizer.get_vocab()
         blank = _blank(vocab, log_probs.size(-1))
@@ -392,19 +476,16 @@ class CtcAligner:
         if not targets:
             return [(0.0, 0.0, SCORE_FLOOR) for _ in words]
 
-        paths, scores = alignment.forced_align(
-            log_probs.unsqueeze(0), torch.tensor([targets], dtype=torch.int32), blank=blank
-        )
-        merged = alignment.merge_tokens(paths[0], scores[0], blank=blank)
+        merged = in_pieces(log_probs, targets, blank, divider, per_frame)
 
         found: dict[int, list[int]] = {}
         heard: dict[int, list[float]] = {}
-        for span, who in zip(merged, owner, strict=True):
+        for (first, last, score), who in zip(merged, owner, strict=True):
             if who < 0:
                 continue
-            edges = found.setdefault(who, [span.start, span.end])
-            edges[1] = span.end
-            heard.setdefault(who, []).append(float(span.score))
+            edges = found.setdefault(who, [first, last])
+            edges[1] = last
+            heard.setdefault(who, []).append(score)
 
         # A spoken word with no letters the model knows, counted, for `share_the_gap`.
         spoken = [
