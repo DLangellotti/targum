@@ -45,11 +45,12 @@ def test_declared_is_earned_for_every_language_not_kept() -> None:
 
 
 def test_the_kept_exception_is_named_dated_and_its_shortfall_is_read() -> None:
-    """Hebrew keeps its Beta by decision (David, 2026-10-12). The entry has a date, a
-    review date not yet passed, and a reason, and this prints what the kept word still
-    owes so it is seen on every run. Past the review date the entry fails until renewed
-    with a new date and a design.md line, or removed."""
-    assert set(KEPT) == {"he"}, "a second kept language needs a design.md entry first"
+    """Hebrew kept its Beta by decision from 2026-10-12 and earned it on 2026-10-14, so
+    nothing is kept now. An entry has a date, a review date not yet passed, and a reason,
+    and this prints what the kept word still owes so it is seen on every run. Past the
+    review date the entry fails until renewed with a new date and a design.md line, or
+    removed."""
+    assert not set(KEPT), "a kept language needs a design.md entry first"
     for code, held in KEPT.items():
         assert held.stage == DECLARED[code]
         assert held.since <= dt.date.today(), code
@@ -63,6 +64,13 @@ def test_the_kept_exception_is_named_dated_and_its_shortfall_is_read() -> None:
             f"{code} wears {held.stage.value}, kept until {held.review}; still owes: {short}",
             stacklevel=1,
         )
+
+
+def test_hebrew_earns_the_beta_it_wears() -> None:
+    """The exception came out on 2026-10-14: the read-through of ten and the reading for
+    blockers went on record, and Hebrew is held to the facts like every other language."""
+    assert DECLARED["he"] is Stage.beta
+    assert stages.earned(stages.facts("he")) is Stage.beta
 
 
 def test_a_claim_that_outruns_the_facts_is_refused_with_the_criterion_named() -> None:
@@ -252,9 +260,15 @@ def test_the_shortfall_is_said_plainly() -> None:
             assert line == line.strip() and line[0].islower(), line
 
 
-def test_the_report_row_says_kept_and_review() -> None:
+def test_the_report_row_says_kept_and_review(monkeypatch: pytest.MonkeyPatch) -> None:
+    since, review = dt.date(2026, 10, 12), dt.date(2026, 12, 31)
+    held = stages.Kept(Stage.beta, since=since, review=review, why="x")
+    monkeypatch.setitem(stages.KEPT, "he", held)
     row = stages.report("he")
     assert row["declared"] == "beta" and row["kept"] is True and row["review"] == "2026-12-31"
+    monkeypatch.delitem(stages.KEPT, "he")
+    row = stages.report("he")
+    assert row["declared"] == "beta" and row["kept"] is False and row["shortfall"] == []
     row = stages.report("fr")
     assert row["declared"] == "experimental" and row["kept"] is False and row["shortfall"] == []
 

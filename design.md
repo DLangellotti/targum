@@ -2965,6 +2965,10 @@ entry makes the three words promises to the reader, in order, and makes a test k
   review 2026-12-31). The test prints what the kept word still owes instead of failing
   on it, and nothing else may be kept without an entry here first. **Nothing earns Beta
   on the day**, and Russian, Italian and French go to Experimental.
+  **Hebrew earned it on 2026-10-14** (David): the ten texts read end to end and the
+  known-issues list read clear of blockers went on record, and `KEPT` is empty. From
+  then on Hebrew's Beta fails CI like any other claim, including when the reading for
+  blockers is more than 45 days old.
 - The per-language record (read-through, known issues, the list with its evidence) lives
   in targum-internal `languages/<code>.md` and `known-issues.md`. **Since 2026-10-13 its
   dates are facts** (`stages.RECORDED`, David): the read-through names its ten texts and
