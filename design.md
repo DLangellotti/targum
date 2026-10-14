@@ -2985,6 +2985,47 @@ What it does not change: the badge's colours and placement above; the five word 
 what the chat may spend; the *into* languages' two words on the upload page, which are not
 a badge.
 
+### Past Beta, the badge drops — 2026-10-14
+
+David, 2026-10-14, the same day Hebrew earned Beta on the facts (targum#803): "A badge is a
+promise, checked" ordered the words Experimental, Alpha, Beta and then no badge, and said
+nothing about what earns the last. This entry says it. The promise past Beta is **depth**:
+a serious learner does not reach the edge of the language in targum, from the first
+sentence to a C1 newspaper and the Torah portion, in reading and in writing. It is a
+promise about what targum covers, not a measured learning effect; measuring that a hard
+spot was learned (targum-internal#442) stays open and is not a gate.
+
+A language drops its badge when all of these hold:
+
+- **Everything Beta asks**, still true.
+- **A longer hard-spot list, covered in both registers.** Hebrew's seven become eleven:
+  pronoun suffixes (שלו, אותך, לפניהם), weak roots (פ"נ, ע"ו, ל"ה), the vav-consecutive
+  (ויאמר is past), and idioms and fixed phrases (בכל זאת, על אף). "Covered" means what it
+  means for Beta, in **modern and Biblical** text each. A spot may be declared modern-only,
+  or Biblical-only, with the reason written beside it; governed prepositions are the
+  expected case, because Biblical text carries almost no syntax (199 of 20,753 tokens of
+  Genesis). Rabbinic Hebrew and liturgy are not required.
+- **The chat corrects writing on every spot writing shows** (targum-internal#441): a recast
+  only of an edit the analyser confirms, one per turn, asking for the line back, with a
+  precision floor per spot in the chat evals. Nikkud and stress are exempt, because typed
+  Hebrew carries neither.
+- **B2 and C1 are two levels.** "Native counted as one level" ends: the library's own ruler
+  gains a cut between B2 and C1, measured on the text (hard-word share, sentence length and
+  the like), and the Beta floors (90 texts, 35 recordings) hold at A1, A2, B1, B2 and C1.
+- **Five people other than David used it for four weeks**, each finishing sections in four
+  different weeks. Friendlies count. This line is earned once and recorded with its dates,
+  like the read-through; it is never re-tested. Every other line stays live in CI, and a
+  regression puts the badge back.
+- **The evidence is other readers'.** David's read-through belongs to Alpha and Beta; it is
+  not a line here.
+
+Hebrew aims to drop its badge **by Launch, 2027-03-04**. If it has not, Launch keeps its date
+and Hebrew launches wearing Beta. The work goes cheapest first: the vav-consecutive (OSHB
+already marks it, `annotate/scripture.py` already reads it), pronoun suffixes, weak roots,
+the B2/C1 cut, the chat's corrections, and idioms last, because they are the hardest to
+find gold for. Nothing here changes Russian, Italian or French, which have not reached
+Alpha. Cards: targum-internal#448 (the stage) and #449–#454.
+
 ### Listening plays on by itself, and reading still waits for a swipe — 2026-10-09
 
 David, 2026-10-08 (calmer surfaces, boards PlaylistSwipeDesk, PlaylistSwipePhone,
