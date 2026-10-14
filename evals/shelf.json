@@ -81,20 +81,20 @@
   },
   "ru": {
    "A1": {
-    "texts": 48,
-    "recordings": 25
+    "texts": 93,
+    "recordings": 75
    },
    "A2": {
-    "texts": 88,
-    "recordings": 56
+    "texts": 100,
+    "recordings": 85
    },
    "B1": {
     "texts": 124,
     "recordings": 94
    },
    "B2+": {
-    "texts": 63,
-    "recordings": 27
+    "texts": 100,
+    "recordings": 65
    }
   }
  },
