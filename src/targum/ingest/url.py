@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html as html_module
 import ipaddress
+import json
 import logging
 import os
 import re
@@ -17,7 +19,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from ..errors import TargumError, Unreachable
-from ..models import Document
+from ..models import BlockKind, Document
 from .base import (
     Paragraph,
     blocks_from_paragraphs,
@@ -775,12 +777,112 @@ def drop_link_languages(text: str) -> str:
     return _LINK_LANGUAGE.sub("", text).strip()
 
 
+# Where a page states its own article: schema.org's `articleBody`, in an ld+json script,
+# or — on a Next.js page, which writes its head from script — inside the JSON a
+# `self.__next_s.push` hands that script as `children`, a string of JSON in a string of
+# JSON. Maariv does the second (2026-10-14).
+_LD_SCRIPT = re.compile(r"<script[^>]*application/ld\+json[^>]*>(.*?)</script>", re.S | re.I)
+_LD_NEXT = re.compile(
+    r'"type"\s*:\s*"application/ld\+json"\s*,\s*"children"\s*:\s*"((?:[^"\\]|\\.)*)"'
+)
+
+#: How much of what a publisher says its article is an extraction may miss, and how
+#: much of an extraction may be text the publisher never called the article, before the
+#: publisher's own statement is read instead. Measured on 2026-10-14 over every news
+#: feed followed: where a page states an `articleBody`, Ynet, Israel Hayom, Mako and
+#: Haaretz all cover it whole, and Maariv covered between none and 79% of it — an
+#: article read as one paragraph of six, and a breaking-news flash read as nothing but
+#: the five other flashes listed under it.
+MAY_MISS = 0.1
+MAY_ADD = 0.5
+
+# The first letters of a paragraph identify it. Letters and digits only: a publisher's
+# `articleBody` and its page disagree about spacing, entities and punctuation — Mako's
+# drops every quotation mark and runs one paragraph into the next with no space — and
+# rarely about the words a sentence opens on.
+_KEY = 30
+_NOT_A_LETTER = re.compile(r"[\W_]+")
+
+
+def _flat(text: str) -> str:
+    return re.sub(r"\s+", " ", html_module.unescape(text)).strip()
+
+
+def _letters(text: str) -> str:
+    return _NOT_A_LETTER.sub("", html_module.unescape(text))
+
+
+def stated_body(html: str) -> str:
+    """The longest `articleBody` the page states, or "" where it states none."""
+    blobs = [match.group(1) for match in _LD_SCRIPT.finditer(html)]
+    for match in _LD_NEXT.finditer(html):
+        try:
+            blobs.append(json.loads(f'"{match.group(1)}"'))
+        except ValueError:
+            continue
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if isinstance(node.get("articleBody"), str):
+                found.append(node["articleBody"])
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    for blob in blobs:
+        try:
+            walk(json.loads(blob))
+        except ValueError:
+            continue
+    return max(found, key=len, default="")
+
+
+def article_paragraphs(html: str) -> list[Paragraph]:
+    """The article on a page: trafilatura's reading of it, unless the page says otherwise.
+
+    trafilatura decides what on the page is the article, and asking it for HTML rather
+    than text keeps the headings and paragraph boundaries. Where the page states its own
+    `articleBody` and the extraction has missed much of it, or is mostly something else,
+    the statement is read instead. Nothing compared the two before, and a reader opened
+    "Apple's new technology" on five unrelated headlines (2026-10-14).
+    """
+    import trafilatura
+
+    extracted: Any = trafilatura.extract(
+        html,
+        output_format="html",
+        include_comments=False,
+        include_tables=False,
+        include_formatting=False,
+        favor_recall=True,
+    )
+    paragraphs = paragraphs_from_html(extracted) if extracted else paragraphs_from_html(html)
+    stated = [_flat(line) for line in stated_body(html).split("\n") if line.strip()]
+    if not stated:
+        return paragraphs
+    read = _letters("".join(text for _, _, text in paragraphs))
+    whole = _letters("".join(stated))
+    missed = sum(len(line) for line in map(_letters, stated) if line[:_KEY] not in read)
+    added = sum(
+        len(own) for own in (_letters(text) for _, _, text in paragraphs) if own[:_KEY] not in whole
+    )
+    if missed > MAY_MISS * len(whole) or added > MAY_ADD * len(read):
+        return [(BlockKind.paragraph, None, line) for line in stated]
+    return paragraphs
+
+
 class UrlIngester:
     # 5: a line break reads as a space (`htmltext`), which moved one catalogue text of 54
     # measured — a he.wikinews reference line, "2022מסכי" — and a Global Voices edition
     # loses its translators' link-language notes, so the pages already on a shelf are read
     # again rather than kept as though somebody had edited them.
-    name = "url/5"
+    # 6: a page's stated `articleBody` overrules an extraction that missed it
+    # (`article_paragraphs`, 2026-10-14). Every Maariv page reads differently, and nothing
+    # measured elsewhere does.
+    name = "url/6"
 
     # An article read from its publisher's feed because its page is behind a bot check
     # (`page`, 2026-10-07): the same article, but not what a page's extractor found, and
@@ -849,19 +951,7 @@ class UrlIngester:
             # Yehuda serves its whole library this way, at /download/<id>.txt.
             return self._plain(source, got.text)
         html = got.text
-        # trafilatura decides what on the page is the article. Asking it for HTML
-        # rather than text keeps the headings and paragraph boundaries.
-        extracted: Any = trafilatura.extract(
-            html,
-            output_format="html",
-            include_comments=False,
-            include_tables=False,
-            include_formatting=False,
-            favor_recall=True,
-        )
-        paragraphs: list[Paragraph] = (
-            paragraphs_from_html(extracted) if extracted else paragraphs_from_html(html)
-        )
+        paragraphs = article_paragraphs(html)
         if not paragraphs:
             raise TargumError(
                 f"We couldn't find any text at {source}.",

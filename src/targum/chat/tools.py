@@ -2562,10 +2562,10 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "ingester will say whether it reads it.",
             "quote_with": url,
         }
-    from ..ingest.htmltext import paragraphs_from_html
-
-    # A paragraph here is `(kind, level, text)`, the ingester's own shape.
-    body = "\n".join(text for _, _, text in paragraphs_from_html(got.text))
+    # A paragraph here is `(kind, level, text)`, the ingester's own shape, and the article
+    # the ingester would read: measured on the whole page, the known share counted the
+    # menus and the other stories listed beside it (2026-10-14).
+    body = "\n".join(text for _, _, text in url_module.article_paragraphs(got.text))
     words = len(body.split())
     title_match = re.search(r"<title[^>]*>(.*?)</title>", got.text, re.S | re.I)
     title = re.sub(r"\s+", " ", title_match.group(1)).strip() if title_match else ""
