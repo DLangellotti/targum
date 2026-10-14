@@ -23,12 +23,12 @@ neither could be checked. This module is the one place the claim is made (`DECLA
 and `tests/test_stages.py` fails when a claim outruns the facts (`earned`). A promotion
 is a commit here; a regression anywhere in the pipeline fails CI.
 
-**Hebrew is the one exception, by decision and with a date** (`KEPT`). Under the letter
-of the rule it is Experimental today — one of its seven hard spots has no gold
-set yet — and it keeps the Beta it wore before the standard while its measurements, its
-read-through record and its practices catch up. The test prints its shortfall instead of
-failing on it, and `targum stages` says "Beta, kept". Nothing else may be added to `KEPT`
-without a design.md entry first.
+**An exception is named and dated** (`KEPT`). Hebrew kept the Beta it wore before the
+standard from 2026-10-12, while its measurements, its read-through record and its
+practices caught up, and the test printed its shortfall instead of failing on it. It
+earned Beta on 2026-10-14 and the entry came out, so `KEPT` is empty and Hebrew is held
+to the facts like every other language. Nothing may be added to `KEPT` without a
+design.md entry first.
 
 **The record is a fact here, its substance stays private** (`RECORDED`, 2026-10-13). The
 read-through, the known-issues list and the reading of that list for blockers live in
@@ -183,8 +183,22 @@ BLOCKERS_FRESH = 45
 #: The record per language. A language not here has none.
 RECORDED: dict[str, Record] = {
     "he": Record(
+        read=(
+            "scene-118-the-payslip",
+            "scene-74-the-group-chat",
+            "scene-191-working-from-home",
+            "mjb-egalat-habarzel",
+            "ruth",
+            "mjb-havera",
+            "gv-baloch-march",
+            "news-jaffa-conference",
+            "mishnah-bikkurim",
+            "parasha-tazria",
+        ),
+        read_through=date(2026, 10, 14),
         issues_listed=date(2026, 10, 12),
-        where="targum-internal a4d20a3 (known-issues.md)",
+        blockers_read=date(2026, 10, 14),
+        where="targum-internal ea4f23d (languages/he.md, known-issues.md)",
     ),
     "ru": Record(
         issues_listed=date(2026, 10, 13),
@@ -193,19 +207,9 @@ RECORDED: dict[str, Record] = {
 }
 
 
-#: The one exception the test tolerates (David, 2026-10-12). See the module docstring.
-KEPT: dict[str, Kept] = {
-    "he": Kept(
-        Stage.beta,
-        since=date(2026, 10, 12),
-        review=date(2026, 12, 31),
-        why=(
-            "the language targum was built for, read by its alpha readers since August; "
-            "measured on its own terms until the standard's evals, read-through record "
-            "and practices land"
-        ),
-    ),
-}
+#: The exception the test tolerates, named and dated. Empty since 2026-10-14, when Hebrew
+#: earned the Beta it had been kept at (David, 2026-10-12). See the module docstring.
+KEPT: dict[str, Kept] = {}
 
 _DICTA = "dicta/dicta-il/dictabert-joint"
 _MENAKED = "dicta-il/dictabert-large-char-menaked"
