@@ -679,3 +679,111 @@ def test_an_article_that_opens_through_the_proxy_does_not_mark_its_host_shut(
     row = store.db.execute("SELECT open, egress FROM reached WHERE host='ru.example'").fetchone()
     assert (row["open"], row["egress"]) == (1, "proxy")
     assert store.closed() == []
+
+
+# A news page shaped like Maariv's (2026-10-14): Next.js writes the article's ld+json
+# from script, the headline sits in a <header>, and the article's own sentences never
+# reach the markup at all — only the other stories listed under it do. The sentences
+# are made up; the shape is the publisher's.
+_ELSEWHERE = [
+    "החתול של השכנים טיפס שוב על הגג הגבוה בשכונה",
+    "מחר ירד גשם כבד בצפון ובמרכז הארץ לפי התחזית",
+    "התזמורת העירונית תנגן בפארק בערב החג הקרוב",
+    "מכירת הספרים השנתית נפתחה בכיכר העיר הבוקר",
+    "קבוצת הכדורסל המקומית ניצחה במשחק הפתיחה אמש",
+]
+_STATED = [
+    "החברה הציגה אתמול מסך חדש לבית, שמזהה מי עומד מולו ומדבר איתו בעברית פשוטה.",
+    'לדברי מנהלת המוצר, "המסך נועד לכל המשפחה", והוא יגיע לחנויות בחודש הבא.',
+]
+
+
+def _next_page(stated: list[str], headline: str = "מסך אחד לכל המשפחה") -> str:
+    import json
+
+    ld = json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "NewsArticle",
+            "articleBody": "\n".join(stated),
+        },
+        ensure_ascii=False,
+    )
+    push = json.dumps([0, {"type": "application/ld+json", "children": ld}], ensure_ascii=False)
+    listed = "".join(
+        f'<article class="category-article"><p class="category-article-title">{line}</p></article>'
+        for line in _ELSEWHERE
+    )
+    return (
+        f"<html><head><title>{headline}</title></head><body><main>"
+        f"<script>(self.__next_s=self.__next_s||[]).push({push})</script>"
+        f'<article class="breaking-news-page-container"><header><h1>{headline}</h1></header>'
+        f"<section>מבזקים - כתבות אחרונות</section>{listed}</article></main></body></html>"
+    )
+
+
+def test_a_stated_article_overrules_an_extraction_of_the_stories_beside_it(
+    monkeypatch: Any,
+) -> None:
+    """A reader asked for tech news and opened "Apple's new technology" on five unrelated
+    headlines: trafilatura read the list of other flashes, because the flash itself is
+    rendered by script, and nothing compared that with the `articleBody` the page states."""
+    page = _next_page(_STATED)
+    assert door.stated_body(page) == "\n".join(_STATED)
+    headers = {"content-type": "text/html; charset=utf-8"}
+    monkeypatch.setattr(door, "_session", Doors([Answer(200, headers, page.encode(), "utf-8")]))
+
+    document = door.UrlIngester().load("https://news.example/breaking-news/article-1")
+    read = [block.text for block in document.blocks]
+    assert read[0] == "מסך אחד לכל המשפחה", "the headline still opens the text"
+    assert read[1:] == _STATED
+    assert not any(line in " ".join(read) for line in _ELSEWHERE)
+    assert document.ingester == "url/6"
+
+
+def test_an_extraction_that_covers_the_stated_article_keeps_its_own_shape() -> None:
+    """Ynet, Israel Hayom and Mako state an `articleBody` their extraction already covers,
+    and the extraction has the subheadings the statement lacks. Mako's statement drops
+    every quotation mark and runs its paragraphs together; that is still a match."""
+    import json
+
+    said = '"זה יום חשוב לתושבים", אמר ראש העירייה בסוף הישיבה הארוכה.'
+    body = [
+        f"{opening} הוועדה התכנסה הבוקר כדי לדון בתוכנית לתחבורה ציבורית בעיר. "
+        "היא שמעה את נציגי השכונות ואת מהנדסת העיר. הדיון נמשך שעות רבות."
+        for opening in ("ביום שני", "בצהריים", "לקראת הערב")
+    ] + [f"{said} הוא הוסיף שהקווים החדשים יעברו גם בשכונות הוותיקות."]
+    ld = json.dumps(
+        {"@type": "NewsArticle", "articleBody": "".join(body).replace('"', "")},
+        ensure_ascii=False,
+    )
+    page = (
+        '<html><head><script type="application/ld+json">' + ld + "</script></head><body>"
+        "<article><h1>תוכנית חדשה לאוטובוסים</h1>"
+        + "".join(f"<p>{line}</p>" for line in body[:3])
+        + f"<h2>מה אמרו בעירייה</h2><p>{body[3]}</p>"
+        "</article></body></html>"
+    )
+    read = door.article_paragraphs(page)
+    assert "מה אמרו בעירייה" in [text for _, _, text in read], "the subheading survives"
+    assert [text for _, _, text in read][-1] == body[3]
+
+
+def test_the_known_share_is_counted_on_the_article_not_the_page(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The chat told a reader the flash was short and mostly words they knew, having
+    counted the menus and the other stories: `describe_source` read the whole page."""
+    page = _next_page(_STATED)
+    headers = {"content-type": "text/html; charset=utf-8"}
+    monkeypatch.setattr(door, "_session", Doors([Answer(200, headers, page.encode(), "utf-8")]))
+    ctx = tools.Ctx(
+        person=None,
+        home=tmp_path,
+        library=None,
+        store=Store(tmp_path / "t.db"),
+        chat_id="c",
+        level=level.EMPTY,
+    )
+    described = tools.describe_source(ctx, {"url": "https://news.example/breaking-news/a"})
+    assert described["words"] == sum(len(line.split()) for line in _STATED)
