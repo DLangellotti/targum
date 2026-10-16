@@ -5,6 +5,16 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-14
+The Russian Library holds over 400 texts across its four levels, most of them with a recording.
+Russian texts are no longer graded harder than they are, so the easy ones show as Easy.
+On a second read, a Russian page can show each subject that comes after its verb.
+
+2026-10-13
+A Grammar tab beside Words and Phrases practises Hebrew's hard spots on lines you have already read.
+A Hebrew verb's card says which preposition it takes, and its object's card names the verb it goes with.
+Done finishes a part and marks nothing; marking the words left as known is a press of its own.
+
 2026-10-12
 Every way into the Torah opens its weekly portion at the verse, and each portion leads on to the next.
 A Hebrew word's card spells its sound in letters a learner reads, in syllables, with the stress marked.
