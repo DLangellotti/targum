@@ -4290,6 +4290,35 @@ thirty days' visitors read as that many people. What counts as a visitor is `vis
 to say: a browser's own page load, signed out, not from an address signed in the same
 day, and not a crawler or a probe.
 
+### The back office says who to write to — 2026-10-15
+
+With the first readers in, David wanted the back office to say what people do, where
+they stop and what brings them back, and to be something that helps targum grow rather
+than a set of tables. People now opens on three things, in this order:
+
+- **Follow up.** The people worth a note from the operator today, oldest first, with
+  the reason in a line and the press beside it: someone let in who has not signed in
+  gets **Send again** (the invitation, once more); someone who joined, opened one text
+  and kept nothing, or who has not read for five days, gets **Write**, which opens a
+  mail from the operator's own address so a reply reaches a person. Only what clause
+  3.2 of the privacy notice holds is read for this — texts opened, words kept, days
+  read, signed in or not — never the record of use, the titles or the words.
+- **Each week's readers.** The people let in each week, and how many signed in, opened
+  a text, kept a word and came back on another day. Came back is "2 of 5" out of those
+  who have had the chance, and "too soon" for a week that has not.
+- **How far readers get.** Each part of targum, and how many readers have used it at
+  least once, as "3 of 8", never a percentage: one person is twenty points at this size.
+
+Below them the waitlist keeps only those still waiting in view, with everyone let in
+folded under **Let in (n)**, and the last thirty days became one row per reader with a
+cell per day, since a column per reader stopped fitting at ten.
+
+The operator's own addresses are counted nowhere on the page. They are a setting on the
+box, `TARGUM_OPERATORS`, compared with any `+tag` and Gmail's dots taken off, so the
+public code names nobody. The privacy notice changed first: clause 3.2 now says the
+operator may see those counts per account and write about them, and 3.7 that the reach
+and the weekly table are counted with no one in them.
+
 ### One foot, for the site and the app — 2026-09-28
 
 The site had two feet, the app's and the one the public pages wore, drawn by six

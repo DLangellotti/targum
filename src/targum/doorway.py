@@ -115,6 +115,39 @@ def let_in(
     return None
 
 
+def resend(store: Store, mailer: Mailer | None, address: str, email: str) -> Opened | None:
+    """Write the invitation again to somebody let in who has not signed in (2026-10-15).
+
+    Three of the first eleven let in never made an account, and a second mail is the
+    cheapest thing the operator can do about it. Only for an address on the guest list
+    that has never signed in — anything else answers None and sends nothing, so the form
+    cannot be made to mail an address the door never opened for, or to nag somebody who
+    is already reading. Nothing is stamped: the date they were let in stays the date.
+    """
+    wanted = email.strip().lower()
+    if wanted not in {each.lower() for each in store.invitations()}:
+        return None
+    signed_in = store.db.execute(
+        "SELECT 1 FROM session JOIN person ON person.id = session.person"
+        " WHERE lower(person.email) = ? LIMIT 1",
+        (wanted,),
+    ).fetchone()
+    if signed_in is not None:
+        return None
+    if mailer is None:
+        raise ValueError("No mailer configured, so nobody can be written to.")
+    if not address:
+        raise ValueError("No address for this install, so the mail would carry no link.")
+    row = store.db.execute("SELECT language FROM waiting WHERE email = ?", (wanted,)).fetchone()
+    language = str(row["language"] or "") if row is not None else ""
+    try:
+        letter = invitation(address, language)
+        mailer.notify(wanted, letter.subject, letter.text, None, letter.html)
+    except Exception as error:  # noqa: BLE001 — said on the page rather than raised
+        return Opened(wanted, language, failed=str(error) or error.__class__.__name__)
+    return Opened(wanted, language)
+
+
 def _let(
     store: Store,
     mailer: Mailer,

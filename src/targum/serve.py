@@ -7900,6 +7900,28 @@ class Handler(BaseHTTPRequestHandler):
             said = f"Let {email} in, and wrote to them."
         self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said[:300])}#people")
 
+    def _resend(self, form: dict[str, str]) -> None:
+        """Send the invitation again to somebody let in who never signed in, from their
+        row in the back office's follow-up list (2026-10-15). The same door as `_let_in`:
+        an admin session, and 404 for anyone else (`doorway.resend`)."""
+        from .doorway import resend
+
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        email = (form.get("email") or "").strip()
+        try:
+            row = resend(self.store, self.mailer, self.address, email)
+        except ValueError as error:
+            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
+        if row is None:
+            said = f"{email} was not let in, or has signed in already."
+        elif row.failed:
+            said = f"Could not write to {email}: {row.failed}"
+        else:
+            said = f"Sent {email} the invitation again."
+        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said[:300])}#people")
+
     def _balance(self, form: dict[str, str]) -> None:
         """Record what a service's console said was left, from the back office's form.
 
@@ -8604,6 +8626,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._open_the_door(self._form())
         if route == BACK_OFFICE_ROUTE + "/let-in":
             return self._let_in(self._form())
+        if route == BACK_OFFICE_ROUTE + "/resend":
+            return self._resend(self._form())
         if route == BACK_OFFICE_ROUTE + "/balance":
             return self._balance(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by

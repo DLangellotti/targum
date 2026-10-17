@@ -67,6 +67,19 @@
   .bo .bo-tabs a:hover { color: var(--ink); }
   .bo .bo-tabs a[aria-selected="true"] { color: var(--ink); border-block-end-color: var(--ink); }
   .bo .tab-panel > h2:first-child, .bo .tab-panel > p:first-child { margin-block-start: 0; }
+  /* The readers' days, one row each (2026-10-15). Thirty cells fit at desk width and
+     scroll in their own box on a phone, never the page. */
+  .bo .strip-wrap { overflow-x: auto; }
+  .bo .strip th, .bo .strip td { padding: 0.3rem 0.15rem; }
+  .bo .strip td:first-child, .bo .strip th:first-child { padding-inline-end: 0.6rem; white-space: nowrap; }
+  .bo .strip .d { text-align: center; inline-size: 1.1rem; font-size: 0.6875rem; }
+  .bo .strip .on, .bo .strip .off { display: inline-block; inline-size: 0.6rem; block-size: 0.6rem; border-radius: 2px; }
+  .bo .strip .on { background: var(--leaf); }
+  .bo .strip .off { background: var(--rule); }
+  .bo .reach td:first-child { inline-size: 70%; }
+  .bo details.let-in { margin-block-start: 1rem; }
+  .bo details.let-in summary { cursor: pointer; color: var(--ink-soft); font-weight: 600; }
+  .bo a.write { font-size: 0.8125rem; font-weight: 600; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -96,6 +109,80 @@
   </nav>
 
   <section class="tab-panel" id="tab-people" role="tabpanel" aria-label="People">
+  {#- First what to do, then how the weeks went, then where readers get to (2026-10-15).
+      The follow-up list names people, from what clause 3.2 already holds; the two
+      tables below it name nobody. -#}
+  <h2>Follow up</h2>
+  {%- if survey.follow_up %}
+  <table class="follow">
+    <thead><tr><th>Address</th><th>Why</th><th></th></tr></thead>
+    <tbody>
+      {% for who in survey.follow_up %}
+      <tr>
+        <td>{{ who.email }}</td>
+        <td class="quiet">{{ who.why }}</td>
+        <td>
+          {%- if who.action == 'resend' %}
+          <form method="post" action="/back-office/resend" class="decide">
+            <input type="hidden" name="email" value="{{ who.email }}">
+            <button type="submit" aria-label="Send {{ who.email }} the invitation again">Send again</button>
+          </form>
+          {%- else %}
+          {#- From the operator's own mail, so a reply comes back to a person. -#}
+          <a class="write" href="mailto:{{ who.email|urlencode }}?subject=targum">Write</a>
+          {%- endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="quiet">Nobody to follow up with today.</p>
+  {%- endif %}
+
+  {%- if survey.batches %}
+  <h2>Each week's readers</h2>
+  <div class="strip-wrap"><table>
+    <thead>
+      <tr>
+        <th>Let in the week of</th><th class="n">Let in</th><th class="n">Signed in</th>
+        <th class="n">Opened a text</th><th class="n">Kept a word</th><th class="n">Came back</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in survey.batches %}
+      <tr>
+        <td>{{ week.week }}</td>
+        <td class="n">{{ week.let_in }}</td>
+        <td class="n">{{ week.signed_in }}</td>
+        <td class="n">{{ week.opened }}</td>
+        <td class="n">{{ week.kept }}</td>
+        {#- Out of those who have had the chance, never out of everyone: a week let in
+            yesterday reads "too soon", not nought. -#}
+        <td class="n">{% if week.old_enough %}{{ week.came_back }} of {{ week.old_enough }}{% else %}<span class="quiet">too soon</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {%- endif %}
+
+  {%- if survey.readers %}
+  <h2>How far readers get</h2>
+  <table class="reach">
+    <tbody>
+      {% for part in survey.reach %}
+      <tr{% if not part.people %} class="empty"{% endif %}>
+        <td>{{ part.part }}</td>
+        {#- A count of a count, never a percentage: with a few readers, one person is a
+            swing of twenty points. -#}
+        <td class="n">{{ part.people }} of {{ survey.readers }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="quiet note">Your own addresses are not counted anywhere on this page.</p>
+  {%- endif %}
+
   {#- The front door's list (targum-internal#69). Three numbers, no addresses: the rest
       of this page names nobody either. `on` is the number that matters — an address
       that answered its confirmation — and `pending` is how many have not yet. -#}
@@ -113,15 +200,10 @@
   {%- endif %}
 
   {#- Who is waiting, oldest first, which is the order they would be let in. The counts
-      above answer "how many", which is the one question the operator does not have. -#}
-  {%- if survey.waiting_list %}
-  <h2>The waitlist</h2>
-  <table>
-    <thead>
-      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
-    </thead>
-    <tbody>
-      {% for who in survey.waiting_list %}
+      above answer "how many", which is the one question the operator does not have.
+      Those already let in fold away beneath (2026-10-15): with the door open, they were
+      most of the list, and the few still waiting were the rows to find. -#}
+  {%- macro waiting_row(who) %}
       <tr>
         <td>{{ who.email }}</td>
         <td class="quiet">{{ who.asked }}</td>
@@ -143,9 +225,37 @@
         <td class="quiet">{{ who.language or 'en' }}</td>
         <td class="quiet">{{ who.page or '—' }}{% if who.link %}<br><a href="{{ who.link }}" rel="noopener noreferrer" target="_blank">{{ who.link|truncate(48, true, '…') }}</a>{% endif %}</td>
       </tr>
-      {% endfor %}
+  {%- endmacro %}
+  {%- macro waiting_head() %}
+    <thead>
+      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
+    </thead>
+  {%- endmacro %}
+  {%- if survey.waiting_list %}
+  {%- set still = survey.waiting_list|rejectattr('invited')|list %}
+  {%- set done = survey.waiting_list|selectattr('invited')|list %}
+  <h2>The waitlist</h2>
+  {%- if still %}
+  <table>
+    {{ waiting_head() }}
+    <tbody>
+      {% for who in still %}{{ waiting_row(who) }}{% endfor %}
     </tbody>
   </table>
+  {%- else %}
+  <p class="quiet">Everybody who joined has been let in.</p>
+  {%- endif %}
+  {%- if done %}
+  <details class="let-in">
+    <summary>Let in ({{ done|length }})</summary>
+    <table>
+      {{ waiting_head() }}
+      <tbody>
+        {% for who in done %}{{ waiting_row(who) }}{% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {%- endif %}
   {#- The press that keeps the front door's promise (targum-internal#292): the oldest
       confirmed addresses that have not been let in yet, each put on the guest list and
       each written to in the language they joined in. Safe to press again — an address
@@ -188,38 +298,36 @@
   </table>
 
   <h2>The last {{ days }} days</h2>
-  {#- Words saved and texts opened, per account per day, with a mark for a day the
-      reader's own record says they read on — which is the only one that knows about an
-      evening that saved nothing. -#}
-  <table>
+  {#- One row a reader and one cell a day, oldest on the left (2026-10-15). It was a
+      column a reader, which stopped fitting at ten. A filled cell is a day they kept a
+      word, opened a text or read; its title says which. Most recently active first. -#}
+  {%- set columns = survey.days|reverse|list %}
+  <div class="strip-wrap">
+  <table class="strip">
     <thead>
       <tr>
-        <th>Day</th>
-        {% for who in survey.accounts %}<th class="n">{{ who.email.split('@')[0] }}</th>{% endfor %}
+        <th>Reader</th>
+        {% for day in columns %}<th class="d" title="{{ day.day }}">{{ day.day[8:]|int }}</th>{% endfor %}
       </tr>
     </thead>
     <tbody>
-      {% for day in survey.days %}
-      <tr{% if not day.busy() %} class="empty"{% endif %}>
-        <td>{{ day.day }}</td>
-        {% for who in survey.accounts %}
-        <td class="n">
+      {% for who in survey.accounts|sort(attribute='last_active', reverse=True) %}
+      <tr>
+        <td>{{ who.email.split('@')[0] }}</td>
+        {% for day in columns -%}
           {%- set words = day.words.get(who.id, 0) -%}
           {%- set opened = day.opened.get(who.id, 0) -%}
           {%- if words or opened or who.id in day.read -%}
-            {% if words %}{{ words }} word{{ '' if words == 1 else 's' }}{% endif %}
-            {%- if words and opened %} &middot; {% endif -%}
-            {% if opened %}{{ opened }} text{{ '' if opened == 1 else 's' }}{% endif %}
-            {%- if who.id in day.read %} <span class="read" title="read on this day"></span>{% endif -%}
+          <td class="d"><span class="on" title="{{ day.day }}: {% if words %}{{ words }} word{{ '' if words == 1 else 's' }}{% endif %}{% if words and opened %} · {% endif %}{% if opened %}{{ opened }} text{{ '' if opened == 1 else 's' }}{% endif %}{% if not words and not opened %}read{% endif %}"></span></td>
           {%- else -%}
-            <span class="nothing">&middot;</span>
+          <td class="d"><span class="off"></span></td>
           {%- endif -%}
-        </td>
-        {% endfor %}
+        {%- endfor %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
 
   </section>
 
