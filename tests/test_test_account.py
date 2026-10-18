@@ -40,7 +40,7 @@ def test_every_table_that_holds_a_reader_is_emptied_by_the_wipe(tmp_path: Path) 
     so a test account never carries something into its next first visit."""
     Store(tmp_path / "words.db")
     held = person_tables(tmp_path / "words.db")
-    named = set(accounts.WIPED) | set(accounts.WIPE_BY_HAND)
+    named = set(accounts.WIPED) | set(accounts.WIPE_BY_HAND) | set(accounts.KEPT_BY_A_WIPE)
     assert held - named == set(), f"not wiped: {sorted(held - named)}"
 
 

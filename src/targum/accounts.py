@@ -81,6 +81,20 @@ ACCESS_MINUTES = 60
 # and "never existed" stay tellable apart for as long as that is worth anything.
 TOKEN_SWEEP_DAYS = 30
 
+#: How long a message sent through Tell us is kept once its matter is fixed or declined
+#: (privacy notice clause 3.14; the retention schedule says twelve months). An open one
+#: is kept until it is closed: it is still being answered.
+TOLD_KEEP_DAYS = 365
+#: What a Tell us message may hold, and how many one account may send in an hour. Enough
+#: for somebody who hit three things in a row; not a way to fill the operator's inbox.
+TOLD_LENGTH = 4000
+TOLD_PER_HOUR = 10
+#: What `Store.settle` accepts. Fixed and won't close a message; open and asked do not.
+TOLD_STATES = ("open", "fixed", "won't", "asked")
+TOLD_CLOSED = ("fixed", "won't")
+#: How long a fault report is kept (clause 3.14; the schedule says thirty days).
+FAULT_KEEP_DAYS = 30
+
 #: How many prompts one reader may keep, and how long each may be. Enough for somebody
 #: who has worked out a handful of ways they like to be asked; not a place to keep an
 #: essay, because what is here is said to a model on every listing.
@@ -285,10 +299,14 @@ REGISTRATIONS_PER_HOUR = 60
 #    when the next round is due, the last answers and the lines already asked about. A new
 #    table, so it needs no MIGRATIONS entry.
 #
+# 46→47: told and fault — what a reader writes to us through Tell us, and what a page
+#    that broke in a browser said about itself (targum-internal#456, #457; privacy notice
+#    clause 3.14, 2026-10-18). Two new tables, so they need no MIGRATIONS entry.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 46
+SCHEMA_VERSION = 47
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -361,9 +379,16 @@ WIPED = (
     "prompt",
     "session",
     "link",
+    # What its browser reported about pages that broke (targum-internal#457).
+    "fault",
 )
 #: Keyed by person and emptied by hand in `Store.wipe`, their children first.
 WIPE_BY_HAND = ("chat", "playlist", "subscription")
+#: Keyed by person and deliberately left by a wipe. What a test account wrote to us
+#: through Tell us (#456) is a finding of whoever was testing, addressed to the operator,
+#: and the wipe exists to give the account a fresh first visit, not to lose the findings;
+#: it still goes with the account in `purge`.
+KEPT_BY_A_WIPE = ("told",)
 
 #: What can be subscribed to (design.md §12, "A subscription is the account's",
 #: 2026-10-09): targum's series, a news topic, one outlet, a YouTube channel, a podcast.
@@ -1421,6 +1446,40 @@ CREATE INDEX IF NOT EXISTS sub_item_state ON sub_item (state);
 
 CREATE INDEX IF NOT EXISTS oauth_token_person ON oauth_token (person, kind, revoked);
 CREATE INDEX IF NOT EXISTS oauth_grant_person ON oauth_grant (person);
+
+-- What a reader wrote to us through Tell us (targum-internal#456, privacy notice clause
+-- 3.14): the words, the page it was sent from without its query, the window's size, the
+-- page's language, the build that drew it and who sent it. `state` is the operator's:
+-- open, fixed, won't or asked. `closed` is when it became fixed or won't, and nought while
+-- it is not; a closed message goes `TOLD_KEEP_DAYS` after that (`Store.sweep`), and every
+-- message goes with its account (`Store.purge`).
+CREATE TABLE IF NOT EXISTS told (
+  id       INTEGER PRIMARY KEY,
+  person   INTEGER,
+  at       INTEGER NOT NULL,
+  said     TEXT    NOT NULL,
+  page     TEXT    NOT NULL DEFAULT '',
+  build    TEXT    NOT NULL DEFAULT '',
+  viewport TEXT    NOT NULL DEFAULT '',
+  language TEXT    NOT NULL DEFAULT '',
+  state    TEXT    NOT NULL DEFAULT 'open',
+  closed   INTEGER NOT NULL DEFAULT 0
+);
+
+-- What a page said when it broke in a browser (targum-internal#457, clause 3.14): the
+-- error's message, the place in our script, the page's path, the build and, signed in,
+-- whose browser. Never the text being read and never a cookie. One row per report, kept
+-- `FAULT_KEEP_DAYS`; the back office counts them by message and page.
+CREATE TABLE IF NOT EXISTS fault (
+  id      INTEGER PRIMARY KEY,
+  person  INTEGER,
+  at      INTEGER NOT NULL,
+  message TEXT    NOT NULL,
+  place   TEXT    NOT NULL DEFAULT '',
+  page    TEXT    NOT NULL DEFAULT '',
+  build   TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS fault_message ON fault (message, at);
 """
 
 
@@ -3636,6 +3695,10 @@ class Store:
                     "slip",
                     # Where they are with each practice: a record of how they learn.
                     "practised",
+                    # What they wrote to us, and what their browser reported about a
+                    # page that broke (clause 3.14): theirs, so it goes with them.
+                    "told",
+                    "fault",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 # Conversations too: half of every one is what the person said.
@@ -5834,6 +5897,117 @@ class Store:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    # -- what readers tell us, and what broken pages say ------------------------------
+    #
+    # Clause 3.14 of the privacy notice. Both are kept for a stated time and swept by
+    # `sweep` at start-up, and both go with the account in `purge`.
+
+    def tell(
+        self,
+        person: Person | None,
+        said: str,
+        page: str = "",
+        build: str = "",
+        viewport: str = "",
+        language: str = "",
+    ) -> int:
+        """Keep one message written to us, and answer its id."""
+        text = str(said).strip()[:TOLD_LENGTH]
+        if not text:
+            raise ValueError("empty")
+        with self.write() as db:
+            row = db.execute(
+                "INSERT INTO told (person, at, said, page, build, viewport, language)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    person.id if person is not None else None,
+                    now(),
+                    text,
+                    str(page)[:300],
+                    str(build)[:40],
+                    str(viewport)[:20],
+                    str(language)[:12],
+                ),
+            )
+            return int(row.lastrowid or 0)
+
+    def told(self, limit: int = 100) -> list[dict[str, Any]]:
+        """The messages, newest first, each with the address of whoever sent it."""
+        rows = self.db.execute(
+            "SELECT t.id, t.person, t.at, t.said, t.page, t.build, t.viewport, t.language,"
+            " t.state, t.closed, p.email FROM told t LEFT JOIN person p ON p.id = t.person"
+            " ORDER BY t.at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def settle_told(self, told_id: int, state: str) -> bool:
+        """Mark a message open, fixed, won't or asked. Closing it starts its year."""
+        if state not in TOLD_STATES:
+            raise ValueError(state)
+        closed = now() if state in TOLD_CLOSED else 0
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE told SET state = ?,"
+                " closed = CASE WHEN ? = 0 THEN 0 WHEN closed > 0 THEN closed ELSE ? END"
+                " WHERE id = ?",
+                (state, closed, closed, int(told_id)),
+            )
+            return done.rowcount > 0
+
+    def sweep_told(self, days: int = TOLD_KEEP_DAYS) -> int:
+        """Delete the messages closed more than `days` ago."""
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        with self.write() as db:
+            return int(
+                db.execute("DELETE FROM told WHERE closed > 0 AND closed < ?", (cutoff,)).rowcount
+            )
+
+    def fault(
+        self, person: Person | None, message: str, place: str = "", page: str = "", build: str = ""
+    ) -> int:
+        """Keep one report of a page that broke, and answer how many times its message
+        has been reported in the last hour, this one included."""
+        text = " ".join(str(message).split())[:300]
+        if not text:
+            raise ValueError("empty")
+        hour = now() - 60 * 60 * 1000
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO fault (person, at, message, place, page, build)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    person.id if person is not None else None,
+                    now(),
+                    text,
+                    str(place)[:300],
+                    str(page)[:300],
+                    str(build)[:40],
+                ),
+            )
+            row = db.execute(
+                "SELECT COUNT(*) AS n FROM fault WHERE message = ? AND at >= ?", (text, hour)
+            ).fetchone()
+            return int(row["n"])
+
+    def faults(self, days: int = FAULT_KEEP_DAYS, limit: int = 50) -> list[dict[str, Any]]:
+        """The reports counted by message and page, the most often first."""
+        since = now() - days * 24 * 60 * 60 * 1000
+        rows = self.db.execute(
+            "SELECT message, page, COUNT(*) AS count, COUNT(DISTINCT person) AS people,"
+            " MIN(at) AS first, MAX(at) AS last, MAX(place) AS place, MAX(build) AS build"
+            " FROM fault WHERE at >= ? GROUP BY message, page"
+            " ORDER BY count DESC, last DESC LIMIT ?",
+            (since, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def sweep_faults(self, days: int = FAULT_KEEP_DAYS) -> int:
+        """Delete the reports older than `days`."""
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        with self.write() as db:
+            return int(db.execute("DELETE FROM fault WHERE at < ?", (cutoff,)).rowcount)
+
     # -- what the services have left ---------------------------------------------
 
     def balance_read(self, service: str, said: str) -> None:
@@ -5862,6 +6036,8 @@ class Store:
                 (now() - SESSION_DAYS * 24 * 60 * 60 * 1000,),
             )
             db.execute("DELETE FROM asked WHERE made < ?", (now() - 60 * 60 * 1000,))
+        self.sweep_told()
+        self.sweep_faults()
 
     # -- the work queue ---------------------------------------------------------
 
