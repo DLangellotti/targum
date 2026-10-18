@@ -13,6 +13,7 @@ import json
 import pytest
 from test_fault_browser import browser, json_answer, served  # noqa: F401
 
+from targum import about
 from targum.render.builder import not_found_page
 
 pytest.importorskip("playwright.sync_api", reason="Playwright is not installed")
@@ -42,7 +43,7 @@ def test_an_uncaught_error_is_reported_without_its_query(browser) -> None:  # no
     report = reports[0]
     assert "boom" in report["message"]
     assert report["page"] == "/nowhere"
-    assert report["build"] == "dev"
+    assert report["build"] == about.build()
     assert "?" not in json.dumps(report)
 
 
@@ -109,7 +110,7 @@ def test_tell_us_is_one_box_send_and_a_line_of_thanks(browser, width: int) -> No
     assert body["said"] == "The card covers the line"
     assert body["page"] == "/nowhere"
     assert body["viewport"].startswith(f"{width}x")
-    assert body["build"] == "dev" and body["language"] == "en"
+    assert body["build"] == about.build() and body["language"] == "en"
 
 
 def test_a_refusal_from_the_server_is_said_under_the_box(browser) -> None:  # noqa: F811

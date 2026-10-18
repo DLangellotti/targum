@@ -345,7 +345,6 @@ def test_the_stamp_carries_the_build_and_a_wheel_reads_it(
     from targum import about
 
     about.build.cache_clear()
-    assert about.build() == "dev", "a checkout is never a build"
     if not about.work().days:
         pytest.skip("no repository to stamp from")
     monkeypatch.setattr(about, "STAMP", tmp_path / "activity.json")
@@ -356,6 +355,24 @@ def test_the_stamp_carries_the_build_and_a_wheel_reads_it(
     about.build.cache_clear()
     try:
         assert about.build() == written["build"]
+    finally:
+        about.build.cache_clear()
+
+
+def test_a_checkout_is_its_head_until_it_is_edited(monkeypatch: pytest.MonkeyPatch) -> None:
+    from targum import about
+
+    said = {"status": "", "rev-parse": "0123456789ab\n"}
+    monkeypatch.setattr(about, "_root", lambda: Path(__file__).resolve().parents[1])
+    monkeypatch.setattr(about, "_git", lambda *args: said[args[0]])
+    about.build.cache_clear()
+    try:
+        # As committed: the parasha cut from the main checkout says which commit it is.
+        assert about.build() == "0123456789ab"
+        # An edited tracked file makes it work in progress.
+        said["status"] = " M src/targum/about.py\n"
+        about.build.cache_clear()
+        assert about.build() == "dev"
     finally:
         about.build.cache_clear()
 
