@@ -33,7 +33,7 @@
     <div class="sub-confirm-head">
       {%- set firsts = (playlist['items'] or [])[:4] %}
       <span class="sub-confirm-tile is-mosaic set-mosaic{% if firsts|length < 2 %} is-one{% endif %}" aria-hidden="true">
-        {%- for item in firsts %}<span class="tone-set"><span class="glyph" lang="he">{{ (item.title or "?")[:1] }}</span></span>{% endfor %}</span>
+        {%- for item in firsts %}<span class="tone-set"><span class="glyph" lang="he" dir="rtl">{{ (item.title or "?")[:1] }}</span></span>{% endfor %}</span>
       <div class="sub-confirm-names">
         <p class="sub-confirm-kicker">{{ t("set.page.a-playlist", "A playlist") }}</p>
         <h1 class="sub-confirm-title"><bdi dir="auto">{{ playlist.name }}</bdi></h1>
@@ -67,7 +67,7 @@
             {%- else %}
             <input type="checkbox" disabled{% if row.job is none %} checked{% endif %}>
             {%- endif %}
-            <span class="thumb is-letter tone-set set-tile" aria-hidden="true"><span class="glyph" lang="he">{{ (row.item.title or "?")[:1] }}</span></span>
+            <span class="thumb is-letter tone-set set-tile" aria-hidden="true"><span class="glyph" lang="he" dir="rtl">{{ (row.item.title or "?")[:1] }}</span></span>
             <span class="set-row-names">
               <bdi class="set-title" dir="auto">{{ row.item.title }}</bdi>
               {%- if row.job and row.job.known_line %}<span class="set-meta">{{ row.job.known_line }}</span>{% endif %}
@@ -93,7 +93,7 @@
     <ul class="set-rows">
     {%- for row in rows %}
       <li class="set-row"><span class="set-row-label">
-        <span class="thumb is-letter tone-set set-tile" aria-hidden="true"><span class="glyph" lang="he">{{ (row.item.title or "?")[:1] }}</span></span>
+        <span class="thumb is-letter tone-set set-tile" aria-hidden="true"><span class="glyph" lang="he" dir="rtl">{{ (row.item.title or "?")[:1] }}</span></span>
         <span class="set-row-names"><bdi class="set-title" dir="auto">{{ row.item.title }}</bdi></span>
         <span class="set-cost">{{ state(row) }}</span>
       </span></li>

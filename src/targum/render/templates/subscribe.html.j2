@@ -51,7 +51,7 @@
       {%- if offer.kind in ('channel', 'podcast') %}
       <span class="sub-confirm-tile is-mosaic" aria-hidden="true">{% for _ in range(4) %}<span><svg viewBox="0 0 16 16" focusable="false"><path d="M6 4.5v7l5.5-3.5z"/></svg></span>{% endfor %}</span>
       {%- else %}
-      <span class="sub-confirm-tile thumb is-letter tone-{{ tone }}" aria-hidden="true"><span class="glyph" lang="he">{{ (offer.hebrew or name)[:1] }}</span></span>
+      <span class="sub-confirm-tile thumb is-letter tone-{{ tone }}" aria-hidden="true"><span class="glyph" lang="he" dir="rtl">{{ (offer.hebrew or name)[:1] }}</span></span>
       {%- endif %}
       <div class="sub-confirm-names">
         <p class="sub-confirm-kicker">{{ t("subscribe.page.subscribe-to-kicker", "Subscribe to") }}</p>

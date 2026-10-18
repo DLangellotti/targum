@@ -93,8 +93,8 @@
         <li>
           <span class="whole" lang="he" dir="rtl">{{ word.word }}</span>
           <span class="pieces" dir="rtl">
-            {% for part in word.parts %}<span class="piece"><span lang="he">{{ part.letters }}</span> <small lang="en">{{ part.means }}</small></span>{% endfor %}
-            <span class="piece stem"><span lang="he">{{ word.stem }}</span>{% if word.suffix %} <small>{{ t("how.prefixes.ending", "with an ending") }}</small>{% endif %}</span>
+            {% for part in word.parts %}<span class="piece"><span lang="he" dir="rtl">{{ part.letters }}</span> <small lang="en">{{ part.means }}</small></span>{% endfor %}
+            <span class="piece stem"><span lang="he" dir="rtl">{{ word.stem }}</span>{% if word.suffix %} <small>{{ t("how.prefixes.ending", "with an ending") }}</small>{% endif %}</span>
           </span>
           <span class="lemma"><span lang="he" dir="rtl">{{ word.lemma }}</span> <span lang="en">{{ word.meaning }}</span></span>
         </li>

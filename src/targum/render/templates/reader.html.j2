@@ -123,7 +123,7 @@
       <button type="button" class="bar-tool marks" data-nikkud-toggle aria-pressed="false" aria-label="{{ t("reader.page.vowel-points", "Vowel points") }}"
               {%- if mark_guessed %} title="{{ t("reader.page.vowel-points-n-where-this-text-left", "Vowel points (n). Where this text left a word bare, we guessed — about 90% right on modern Hebrew, less on classical. We mark the sentences we guessed.") }}"
               {%- elif source_pointed %} title="{{ t("reader.page.vowel-points-as-this-text-writes-them", "Vowel points, as this text writes them (n)") }}"
-              {%- else %} title="{{ t("reader.page.vowel-points-our-best-guess-about-90", "Vowel points, our best guess — about 90% right on modern Hebrew, less on classical (n)") }}"{% endif %}><span class="marks-glyph" lang="he" aria-hidden="true">אָ</span></button>
+              {%- else %} title="{{ t("reader.page.vowel-points-our-best-guess-about-90", "Vowel points, our best guess — about 90% right on modern Hebrew, less on classical (n)") }}"{% endif %}><span class="marks-glyph" lang="he" dir="rtl" aria-hidden="true">אָ</span></button>
       {% elif said %}
       <button type="button" class="bar-tool marks" data-said-toggle aria-pressed="false" aria-label="{{ t("said.switch", "As said") }}"
               title="{{ t("said.switch-title", "As said (n). The liaisons every speaker makes, the elisions, and the final letters nobody says.") }}"><span class="marks-glyph said-glyph" aria-hidden="true">/ə/</span></button>
