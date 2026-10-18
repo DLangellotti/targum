@@ -369,6 +369,24 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### On a phone, EN · RU is a row of the account's sheet — 2026-10-18
+
+David, 2026-10-18, after the home finish pass (targum-internal#463). In the phone bar EN
+and RU were 44px tall but 28px wide, short of §8. Widening them pushed the Russian bar
+32px off a 390px screen, and the bar has nothing left to give up.
+
+- **Under 40rem the bar leaves them out** and the account's sheet carries them: a row
+  that names the choice ("Interface language") with the two keys at its end, each 44px
+  across and up, above Your account. The same readers see it as saw the bar's, and a
+  press does what the bar's did.
+- **At a desk nothing moves.** The bar keeps EN · RU beside the language menu, and the
+  sheet draws no row.
+- **The pages in front of the door keep their own.** The front door, its foot, the
+  connector's page and the arrival draw EN / RU as links in their own bars, which a
+  phone still reaches; this changes only the desk's bar.
+
+This departs from "Russian has a switch in the bar" (2026-10-12) on a phone only.
+
 ### Tell us is a row in the menu and a press on every fault — 2026-10-18
 
 Batch one is in, and what they find is the backlog (David, 2026-10-14); until this the
@@ -7198,7 +7216,8 @@ primary, the bell and the account as round buttons; the reader keeps its own bar
 phone (under 40rem) the four places — Your targums, Library, Your Progress, Upload (2026-10-08, §12) — are a bar at
 the foot of the window on glass, a glyph over each word, and at a desk only Upload keeps its
 glyph, a `+` before the word; the top bar keeps the mark, the language (its name and badge; no flag since 2026-10-09), the
-bell and the account, with find as a row in the account's sheet; the pill
+bell and the account, with find as a row in the account's sheet, and EN · RU too
+(2026-10-18, §12, "On a phone, EN · RU is a row of the account's sheet"); the pill
 that opens the conversation stands above the bar and says Talk (board HomePhone; it was a
 round glyph until 2026-10-09), and every panel comes up
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus

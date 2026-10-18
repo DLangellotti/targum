@@ -717,6 +717,31 @@ button:active:not(:disabled) { transform: scale(0.98); }
    stand side by side and a reach of one would take the other's taps. */
 @media (hover: none) and (pointer: coarse) {
   .ui-tongue-key { min-block-size: 44px; }
+  .account-tongue .ui-tongue-key { min-inline-size: 44px; }
+}
+/* On a phone EN · RU is a row of the account's sheet (design.md §13, 2026-10-18): the
+   name of the choice, then the two keys, each 44px across and up. Widened in the bar
+   they pushed the Russian bar 32px off a 390px screen, so the bar leaves them out
+   under 40rem. At a desk the row is not drawn and the bar keeps them. */
+.account-panel .account-tongue { display: none; }
+@media (max-width: 40rem) {
+  .site-head-row > .ui-tongue { display: none; }
+  .account-panel .account-tongue:not([hidden]) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0 0.75rem 0 1.125rem;
+    color: var(--ink);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+  .account-tongue .ui-tongue { font-size: 0.875rem; }
+  .account-tongue .ui-tongue-key {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    padding: 0 0.5rem;
+  }
 }
 .lang-panel {
   border: 0;

@@ -131,6 +131,14 @@
             <p class="rate" id="account-rate" hidden></p>
           </div>
           <div class="menu-rows">
+            {#- EN · RU on a phone (design.md §13, 2026-10-18): the bar's two keys were
+                28px wide, and widening them pushed the Russian bar off the screen, so
+                under 40rem they are a row here at 44px and the bar no longer draws
+                them. Filled by `lang.js` for the same readers as the bar's. -#}
+            <div class="account-tongue" id="account-tongue" hidden>
+              <span class="account-tongue-name" id="account-tongue-name">{{ t("nav.interface-language", "Interface language") }}</span>
+              <div class="ui-tongue" id="account-tongue-keys" aria-labelledby="account-tongue-name"></div>
+            </div>
             <a class="menu-row" href="/you">{{ t("nav.your-account", "Your account") }}</a>
             <a class="menu-row" href="/you/saved">{{ t("nav.saved-on-this-device", "Saved on this device") }}</a>
             {#- A fourth row since 2026-10-18 (design.md §12, "Tell us is a row in the menu

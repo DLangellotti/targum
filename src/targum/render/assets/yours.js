@@ -418,6 +418,16 @@
     ]);
   }
 
+  /* Home drawn again in place once the account has answered (2026-10-18). A browser that
+     had never synced reloaded the whole page when `/sync` came back, and with a big shelf
+     that made a first visit about five seconds: two loads, the second of everything the
+     first had just drawn. What the answer changes is in this browser's own store (which
+     texts were opened, the places, the words), so the shelf, Continue and the counts are
+     drawn again from it, and nothing the server already answered is asked again. Set
+     once home is drawn; an answer that comes before then is kept for it. */
+  var redrawHome = null;
+  var owedRedraw = false;
+
   function drawTexts() {
     var opened = stored("targum:opened");
     var jobs = function () {
@@ -649,6 +659,27 @@
 
       show(lang.current(codes));
 
+      redrawHome = function () {
+        readers = gather(both[0], stored("targum:opened"), theirPlaces);
+        elsewhere = away(theirPlaces, readers);
+        var found = [lang.HOME];
+        readers.concat(building, elsewhere).forEach(function (thing) {
+          var code = shelf.base(thing.language);
+          if (code && found.indexOf(code) < 0) found.push(code);
+        });
+        codes = lang.order(found, names);
+        nothingYet = !readers.length && !building.length && !elsewhere.length;
+        if (tabStrip) tabStrip.hidden = nothingYet && view.tab !== "subscriptions";
+        document.getElementById("shelf-panel").hidden = nothingYet;
+        if (grid) grid.classList.toggle("is-empty", nothingYet);
+        // In the language the account last chose, as the reload opened in.
+        return show(lang.current(codes));
+      };
+      if (owedRedraw) {
+        owedRedraw = false;
+        redrawHome();
+      }
+
       /* While anything is building, ask again every three seconds, and only while: a page
          left open overnight should not ask a question every three seconds until morning.
          When a build finishes, `/readers` has the text it became, so both are asked for
@@ -808,7 +839,17 @@
 
   if (window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
-      if (changed) location.reload();
+      if (!changed) return;
+      // Your Words and Your Phrases are drawn again by the load, as they were.
+      if (which !== "texts") return location.reload();
+      if (redrawHome) return redrawHome();
+      // Home has not drawn yet, and draws again once it has. If it could not draw at
+      // all, the page is the refusal, and the load asks again, as it did before.
+      owedRedraw = true;
+      drawing.catch(function () {
+        owedRedraw = false;
+        location.reload();
+      });
     });
     (window.TargumSync.settled ? window.TargumSync.settled() : window.TargumSync.start()).then(
       function () {
