@@ -404,6 +404,13 @@ THUMBED = (
     ".see-menu-item",
     ".claim-table label",
     ".chat-claim label",
+    # The arrival's own (QA 2026-10-18): EN and RU in its head, the conversation's Mark
+    # known and Skip, and the sign-in door's way back to the field and its lockup.
+    ".arrival-switch-key",
+    ".chat-claim .claim-yes",
+    ".chat-claim .claim-no",
+    ".gate .sent-again",
+    ".gate .brand",
     # A post's one way home (design.md §12, "A post keeps its shape", 2026-09-27).
     ".post-home",
     # "inferred" after a reading on a word card (design.md §12, 2026-09-27).

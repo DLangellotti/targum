@@ -372,6 +372,9 @@ table.rows tr.editor-row td {
 .claim-no:disabled { opacity: 0.5; cursor: default; }
 .claim-said { font-size: 0.8125rem; color: var(--ink-soft); }
 .claim[hidden] { display: none; }
+/* The table and its presses step aside while the list could not be fetched. */
+.claim .table-wrap[hidden],
+.claim .claim-actions[hidden] { display: none; }
 
 /* §8: a control a thumb presses answers a tap over 44px. */
 @media (hover: none) and (pointer: coarse) {

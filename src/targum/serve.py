@@ -618,6 +618,12 @@ OPEN_TO_STRANGERS = frozenset(
         "/account/enter",
         "/account/sign-in",
         "/account/me",
+        # Google's two halves (targum-internal#304), for the reason the sign-in page is
+        # here: somebody signing in has no account yet. Missing from this list, a hosted
+        # box answered "Continue with Google" with a 404 the moment it had a client
+        # (arrival QA, 2026-10-18). Both still answer 404 where no client is configured.
+        "/account/google",
+        "/account/google/back",
         "/health",
         # The door out of a series, followed from an email with no account at hand
         # (2026-09-11): its token is the whole of what it needs.
@@ -8354,14 +8360,20 @@ class Handler(BaseHTTPRequestHandler):
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
             back = safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0])
             person = self.store.peek_sign_in(token) if token else None
+            # In the language the link was asked for in, where it was asked for in one
+            # (`lang=`, which `_signing_in` writes into the link): a Russian invitee who
+            # asked in Russian was handed this page, and the arrival after it, in the
+            # browser's English (arrival QA, 2026-10-18).
+            spoken = self._public_language()
+            pressed = self._asked()
             if person is None and token and self.store.leaving_link(token):
-                page = signin_page(language=self._page_language(), closing=True)
+                page = signin_page(language=spoken, closing=True)
                 return self._send(200, page.encode("utf-8"), HTML)
             if person is None:
                 return self._send(
                     200,
                     # The new link it asks for still goes back to the same room.
-                    signin_page(expired=True, language=self._page_language(), back=back).encode(
+                    signin_page(expired=True, language=spoken, asked=pressed, back=back).encode(
                         "utf-8"
                     ),
                     HTML,
@@ -8373,7 +8385,8 @@ class Handler(BaseHTTPRequestHandler):
             page = signin_page(
                 landing=person.email,
                 token=token,
-                language=self._page_language(),
+                language=spoken,
+                asked=pressed,
                 connecting=self._finishing(self._connecting_client(waiting)) if waiting else "",
                 lost=marked and not waiting,
                 back=back,
@@ -11576,6 +11589,13 @@ class Handler(BaseHTTPRequestHandler):
         back = safe_next(payload.get("next"))
         if back:
             link += f"&next={quote(back, safe='')}"
+        # And the language the mail is written in, where it is not English, so the page
+        # the link opens speaks it too: a link opened on another device has no other way
+        # to know (arrival QA, 2026-10-18).
+        from .strings import languages
+
+        if language != "en" and language in set(languages()):
+            link += f"&lang={language}"
         if self._connecting():
             # Marked, so the page the link opens can tell a connect that is waiting from
             # one that was lost on the way — the link opened in another browser, or after
@@ -11646,13 +11666,20 @@ class Handler(BaseHTTPRequestHandler):
         if not google_module.configured() or not self._host_is_ours() or not self.address:
             return self._send(404, b"not found", "text/plain")
 
-        def refuse(said: str, again: str = "") -> None:
-            page = signin_page(language=self._page_language(), said=said, again=again)
-            return self._send(200, page.encode("utf-8"), HTML)
-
         state = (query.get("state") or [""])[0]
         begun = self._google_begun.pop(state, None) if state else None
         back = self._google_next.pop(state, "") if state else ""
+
+        def refuse(said: str, again: str = "") -> None:
+            # The room they were turned away from stays with them through a refusal
+            # (arrival QA, 2026-10-18): on the form underneath, on Google's button and on
+            # Sign in again. It was dropped here, so a cancelled Google sign-in that was
+            # tried again landed on home rather than on the page they had asked for.
+            if again and back:
+                again += "?next=" + quote(back, safe="/")
+            page = signin_page(language=self._page_language(), said=said, again=again, back=back)
+            return self._send(200, page.encode("utf-8"), HTML)
+
         if begun is None or google_module.stale(begun):
             # Also what an abandoned tab looks like an hour later, so it is said the way
             # a spent link is: not an error, just start again.
@@ -11700,10 +11727,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, page.encode("utf-8"), HTML)
         if got is None:
             # Not an error: a spent or stale link is what a second press looks like,
-            # and the way out of it is to ask for another, which that page offers.
-            return self._send(
-                200, signin_page(expired=True, language=self._page_language()).encode("utf-8"), HTML
+            # and the way out of it is to ask for another, which that page offers — and
+            # the new link it asks for still goes back to the same room (arrival QA,
+            # 2026-10-18; the page a link opens kept it, the press on it did not).
+            page = signin_page(
+                expired=True, language=self._public_language(), asked=self._asked(), back=back
             )
+            return self._send(200, page.encode("utf-8"), HTML)
         _, session = got
         from .accounts import SESSION_DAYS
 

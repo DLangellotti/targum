@@ -1089,12 +1089,50 @@
 
   var opened = stored("targum:opened");
 
+  var waitingLine = document.getElementById("arrival-waiting");
+
+  /* Past three seconds the wait is said (design.md §14, line 1): "Opening…" alone on an
+     empty page reads as a page that has stopped. */
+  var slowly = setTimeout(function () {
+    if (waitingLine && !waitingLine.hidden) {
+      waitingLine.textContent = t("welcome.still-opening", "We're still loading the library.");
+    }
+  }, 3000);
+
+  /* The one question this page asks the server failed: no connection, or an answer that
+     was not one. It went home in silence, which skipped the questions for the rest of the
+     visit and landed a new reader on a page that said it could not load (arrival QA,
+     2026-10-18). It says so here instead, with the press that asks again. */
+  function couldNot() {
+    clearTimeout(slowly);
+    if (!waitingLine) return home();
+    waitingLine.textContent = "";
+    var fault = window.TargumFault;
+    var sentence = t("welcome.unreachable", "We couldn't load this page. Check your connection and try again.");
+    if (fault && fault.line) {
+      // Inline: the waiting line is a paragraph already.
+      waitingLine.appendChild(
+        fault.line(
+          sentence,
+          function () {
+            if (window.location.reload) window.location.reload();
+          },
+          true
+        )
+      );
+    } else {
+      waitingLine.textContent = sentence;
+    }
+    waitingLine.hidden = false;
+  }
+
   var whoAsked = ask("/account/me").catch(function () {
     return null;
   });
 
   ask("/readers")
     .then(function (data) {
+      clearTimeout(slowly);
       return whoAsked.then(function (me) {
         who = me;
         adopt(me);
@@ -1149,11 +1187,9 @@
         window.location.href = hrefOf(target, via);
       });
     })
-    .catch(function () {
-      // Signed out on a box that wants an account, or the server went away: there is
-      // nothing to ask with, and home says what it can.
-      home();
-    });
+    // Signed out on a box that wants an account answers in words, not by failing, so
+    // what lands here is the connection or the server.
+    .catch(couldNot);
 
   // Exposed for the tests and for nothing else: the picks the last answer opens.
   window.TargumArrival = {

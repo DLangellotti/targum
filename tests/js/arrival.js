@@ -121,6 +121,14 @@ global.fetch = (path, options) => {
     body: options && options.body ? JSON.parse(options.body) : null,
   });
   let answer = { id: "j1" }; // enough for `/prepare` to hand `/build` an id
+  // The shelf's question failing (arrival QA, 2026-10-18): no connection at all, or one
+  // that never answers, for the page's slow line.
+  if (String(path).indexOf("/readers") === 0 && payload.readersFail) {
+    return Promise.reject(new TypeError("Failed to fetch"));
+  }
+  if (String(path).indexOf("/readers") === 0 && payload.readersPending) {
+    return new Promise(() => {});
+  }
   if (String(path).indexOf("/readers") === 0) {
     answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
   } else if (String(path).indexOf("/series") === 0) {
@@ -218,7 +226,7 @@ setTimeout(() => {
   (payload.do || []).forEach(act);
   /* Read a beat later, not in the same tick as the last press (2026-09-20): choosing a
      language tells the account first and goes on when the account has answered. */
-  setTimeout(() => setTimeout(report, 10), 10);
+  setTimeout(() => setTimeout(report, payload.reportAfter || 10), 10);
 }, 30);
 
 function report() {
@@ -228,6 +236,9 @@ function report() {
     JSON.stringify({
       asked: asked,
       went: global.location.href,
+      // The line that stands while the shelf is asked for, and what it says when the asking
+      // is slow or fails (arrival QA, 2026-10-18).
+      waiting: at("arrival-waiting").hidden ? "" : at("arrival-waiting").textContent,
       // Home, where the page sent a reader it had nothing to ask (or who finished with
       // nothing the shelf could open).
       home: replaced,

@@ -596,6 +596,10 @@ body.embed > .chat-main > .composer {
   .chat-claim label { display: flex; align-items: center; min-block-size: 44px; }
   .chat-claim label.claim-all-reach { justify-content: center; min-inline-size: 44px; }
   .chat-claim .claim-check { inline-size: 1.5rem; block-size: 1.5rem; }
+  /* Mark known and Skip, drawn smaller here than on Your Words, answered at 40px under a
+     thumb until the arrival QA of 2026-10-18. */
+  .chat-claim .claim-yes,
+  .chat-claim .claim-no { min-block-size: 44px; }
 }
 
 /* --- the drawer's conversation, as boards ChatDesk and ChatPhone draw it (design.md

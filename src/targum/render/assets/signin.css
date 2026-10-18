@@ -148,6 +148,27 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
 
 .gate .sent { margin-block-start: 1rem; margin-block-end: 0; color: var(--ink); }
 .gate .sent[hidden] { display: none; }
+/* What to do once the link has gone, and the way back to the field (arrival QA,
+   2026-10-18): a line in the voice of the rest, and a text press in the primary. */
+.gate .sent-next[hidden] { display: none; }
+.gate .sent-next .said { margin-block: 0.5rem 0; }
+.gate .sent-again {
+  margin-block-start: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--teal);
+  cursor: pointer;
+}
+.gate .sent-again:hover { text-decoration: underline; }
+.gate .sent-again:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+/* §8 under a thumb: the way back and the lockup, the door's one way out. */
+@media (hover: none) and (pointer: coarse) {
+  .gate .sent-again { min-block-size: 44px; }
+  .gate .brand { min-block-size: 44px; }
+}
 
 
 

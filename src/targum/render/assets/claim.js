@@ -308,8 +308,32 @@
           draw(gathered);
         })
         .catch(function () {
-          draw(gathered);
+          // The list could not be fetched at all. As the conversation's first exchange
+          // it simply goes, as an empty list does; where it is a panel of its own, it
+          // says so and offers to ask again rather than vanishing with no word (arrival
+          // QA, 2026-10-18: offline, Your Words drew no panel and no reason).
+          var fault = window.TargumFault;
+          if (options.once || gathered.length || drewSomething || !fault || !fault.line) {
+            return draw(gathered);
+          }
+          unreachable(fault, from);
         });
+    }
+
+    var failed = null;
+    function unreachable(fault, from) {
+      if (failed && failed.parentNode) failed.parentNode.removeChild(failed);
+      wrap.hidden = true;
+      actions.hidden = true;
+      failed = fault.line(t("claim.unreachable", "We couldn't load the list."), function () {
+        if (failed && failed.parentNode) failed.parentNode.removeChild(failed);
+        failed = null;
+        wrap.hidden = false;
+        actions.hidden = false;
+        load(from);
+      });
+      host.appendChild(failed);
+      panel.hidden = false;
     }
 
     // After a press: the next page, or — mounted once, as the first exchange — done.
