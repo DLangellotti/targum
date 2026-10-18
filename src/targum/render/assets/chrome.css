@@ -282,6 +282,11 @@ body {
 }
 .account-panel .menu-row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
 .account-panel .menu-row:focus-visible { outline-offset: -2px; }
+/* §8 under a thumb (home QA, 2026-10-18): a row was 0.625rem twice and a line of 1.5,
+   43px at a phone's rem, a pixel short. */
+@media (hover: none) and (pointer: coarse) {
+  .account-panel .menu-row { min-block-size: 44px; }
+}
 /* account.js writes both outcomes here, so accent painted a failure in the hue §4
    reserves for the primary action. Ink for both: a refusal about the address goes under
    its field with the clay mark (`fault.js`, design.md §12, 2026-10-09). */
@@ -707,6 +712,12 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .ui-tongue-key[aria-pressed="true"] { color: var(--ink); font-weight: 600; cursor: default; }
 .ui-tongue-key[aria-pressed="false"]:hover { color: var(--ink); background: var(--teal-wash); }
 .ui-tongue-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* §8 under a thumb (home QA, 2026-10-18): EN and RU were 28px keys in the bar. Each is
+   drawn at 44px wide and tall rather than given an overlapping reach, since the two
+   stand side by side and a reach of one would take the other's taps. */
+@media (hover: none) and (pointer: coarse) {
+  .ui-tongue-key { min-block-size: 44px; }
+}
 .lang-panel {
   border: 0;
   border-radius: var(--radius-sheet);

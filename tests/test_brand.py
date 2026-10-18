@@ -468,6 +468,10 @@ THUMBED = (
     ".seg > *",
     ".tab",
     ".well",
+    # Home's QA (targum-internal#463, 2026-10-18): the account menu's rows, Tell us among
+    # them, and the bar's EN and RU.
+    ".account-panel .menu-row",
+    ".ui-tongue-key",
 )
 
 

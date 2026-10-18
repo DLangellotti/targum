@@ -9780,6 +9780,12 @@ class Handler(BaseHTTPRequestHandler):
         if rows:
             # Said on Learn, in the page's language (targum-internal#287).
             rows[0]["because"] = chat_tools.because_in(rows[0], self._page_language())
+            # "You know 0% of its words" is true of every text for a reader with no
+            # words yet, and it was the first thing home said under the first text it
+            # offered (home QA, 2026-10-18). Nothing is said instead.
+            reason = rows[0].get("reason") or {}
+            if reason.get("key") == "suggest.known" and not reason.get("share"):
+                rows[0]["because"] = ""
         # Whether the library has anything in this language at all: home says so plainly
         # where it has nothing, in place of a suggestion (board YiHome, P4 2026-10-09).
         from . import catalogue as catalogue_module
