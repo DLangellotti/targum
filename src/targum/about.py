@@ -161,13 +161,16 @@ DEV = "dev"
 def build() -> str:
     """The commit this targum was built from, or "dev".
 
-    Read off the stamp a deploy writes, and only where there is no repository: a checkout
-    is somebody's work in progress rather than a build, so a page rendered from one is
-    "dev" whatever its HEAD says or whatever stamp an old deploy left beside it. Cached,
-    because every page that carries the fault reporter asks.
+    Read off the stamp a deploy writes where there is no repository. In a checkout the
+    stamp an old deploy left beside it is never read: a checkout whose tracked files are
+    as committed is its HEAD, and that is how the parasha and the daily window are cut
+    for the box (2026-10-18), while one with edits is somebody's work in progress and is
+    "dev". Cached, because every page that carries the fault reporter asks.
     """
     if (_root() / ".git").exists():
-        return DEV
+        if _git("status", "--porcelain", "--untracked-files=no").strip():
+            return DEV
+        return _git("rev-parse", "--short=12", "HEAD").strip() or DEV
     try:
         raw = json.loads(STAMP.read_text(encoding="utf-8"))
     except (OSError, ValueError):
