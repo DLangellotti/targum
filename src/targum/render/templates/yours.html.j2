@@ -307,9 +307,13 @@
     blank until `/readers` answered, or said "Nothing here yet" to a reader with a shelf
     whose connection dropped, was saying the wrong thing. -#}
 <p class="learn-waiting" id="home-waiting" role="status">{{ t("learn.page.opening-your-texts", "Opening your texts…") }}</p>
+{#- Home QA (2026-10-18; design.md §14, line 1): the wait is said again past three
+    seconds, and a page that could not load offers the press that asks again rather than
+    telling the reader to reload. Offline says so in its own words; `yours.js` picks. -#}
 <section class="nothing" id="nothing" role="alert" hidden>
-  <p class="lede">{{ t("learn.page.we-couldn-t-load-your-texts", "We couldn't load your texts.") }}</p>
-  <p>{{ t("learn.page.reload-the-page-to-try-again-everything", "Reload the page to try again. Everything you've read is still here.") }}</p>
+  <p class="lede" id="nothing-lede">{{ t("learn.page.we-couldn-t-load-your-texts", "We couldn't load your texts.") }}</p>
+  <p id="nothing-says">{{ t("home.failed.says", "Everything you've read is still here. Try again in a moment.") }}</p>
+  <p><button type="button" class="btn tonal" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button></p>
 </section>
 {%- else %}
 <section class="nothing" id="nothing" hidden>

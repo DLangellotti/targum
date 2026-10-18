@@ -59,6 +59,7 @@
     glyph.className = "glyph";
     glyph.textContent = letter;
     glyph.setAttribute("lang", settings.language || "und");
+    glyph.setAttribute("dir", "auto");
     // Decorative: the title is already beside it in text, and a screen reader that
     // announced the first letter of it twice would be reading the page wrong.
     glyph.setAttribute("aria-hidden", "true");

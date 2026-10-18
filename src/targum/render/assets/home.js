@@ -322,6 +322,26 @@
     return el("span", "tag home-tag" + (kind ? " is-" + kind : ""), text);
   }
 
+  /* "New · <name>": the name is what the reader subscribed under, a Hebrew channel's
+     own name as often as not, so it stands in an isolate of its own direction inside
+     the tag's English (design.md §14, line 3; home QA, 2026-10-18). */
+  function newTag(name, language) {
+    var said = t("home.card.new-from", "New · {name}");
+    var span = el("span", "tag home-tag is-new");
+    var parts = said.split("{name}");
+    span.appendChild(document.createTextNode(parts[0]));
+    if (parts.length > 1) {
+      var who = el("bdi", "", name || "");
+      who.setAttribute("dir", "auto");
+      // A name in Hebrew letters is in the language subscribed to; a series' name is
+      // the catalogue's own, in the desk's language, and keeps the tag's.
+      if (/[\u0590-\u05FF]/.test(name || "")) who.setAttribute("lang", language || "he");
+      span.appendChild(who);
+      span.appendChild(document.createTextNode(parts.slice(1).join("{name}")));
+    }
+    return span;
+  }
+
   function bar(share, building) {
     var line = el("span", "meter home-bar" + (building ? " is-building" : ""));
     line.setAttribute("aria-hidden", "true");
@@ -439,7 +459,7 @@
     link.href = keyed(follow.readerOf(one));
     var title = inst.hebrew || inst.title;
     item.appendChild(coverFor(null, title, "he", follow.readerOf(one)));
-    item.appendChild(tag(t("home.card.new-from", "New · {name}", { name: one.name }), "new"));
+    item.appendChild(newTag(one.name, "he"));
     link.appendChild(titled(title, inst.hebrew ? "he" : "und"));
     item.appendChild(link);
     var when = /\d/.test(title || "") ? "" : follow.whenSaid(inst.when);
@@ -479,7 +499,7 @@
     link.href = keyed(item.door);
     var reader = /^\/reader\//.test(item.door) ? null : undefined;
     card.appendChild(coverFor(reader, item.title, item.language, item.door));
-    card.appendChild(tag(t("home.card.new-from", "New · {name}", { name: name }), "new"));
+    card.appendChild(newTag(name, item.language));
     link.appendChild(titled(item.title, item.language));
     card.appendChild(link);
     var facts = [];

@@ -57,9 +57,18 @@
     }
   );
 
+  /* A refusal is not an answer (home QA, 2026-10-18): a 500 whose body happened to be
+     JSON was read as a shelf with nothing on it, and home told a reader with six texts
+     "Nothing here yet". Every caller catches, so a refusal lands where a dropped
+     connection does. */
   function ask(path) {
     return fetch(keyed(path), { headers: keyHeaders({ "Content-Type": "application/json" }) }).then(
       function (response) {
+        if (!response.ok) {
+          var refused = new Error(String(response.status));
+          refused.answered = true;
+          throw refused;
+        }
         return response.json();
       }
     );
@@ -118,9 +127,22 @@
   /* Everything of yours (design.md §12, "Yours and everyone's", 2026-09-25): what you
      built, what you brought, what is being built right now, and the shared texts this
      browser has opened. The builds come from `/jobs`, the same answer the bell reads. */
-  function gather(data, opened) {
+  function gather(data, opened, places) {
     var readers = ((data && data.readers) || []).slice();
     var have = {};
+    /* Opened on another device counts as opened here (home QA, 2026-10-18): Continue
+       said "Pick up at chapter 3" from the account's place while the row under it said
+       New, because "opened" was only ever this browser's record. The account's place is
+       when it was last read, so it orders Recent too. */
+    var read = {};
+    (places || []).forEach(function (place) {
+      if (!place || !place.hash) return;
+      read[place.hash] = Math.max(read[place.hash] || 0, Number(place.at || 0));
+    });
+    opened = Object.assign({}, opened);
+    Object.keys(read).forEach(function (hash) {
+      opened[hash] = Math.max(Number(opened[hash] || 0), read[hash]);
+    });
     readers.forEach(function (reader) {
       reader.opened = opened[reader.document] || 0;
       have[reader.document] = true;
@@ -406,7 +428,8 @@
     return Promise.all([caughtUp().then(function () {
       return ask("/readers");
     }), jobs(), accountPlaces()]).then(function (both) {
-      var readers = gather(both[0], opened);
+      var theirPlaces = both[2];
+      var readers = gather(both[0], opened, theirPlaces);
       var trash = (both[0] && both[0].trash) || [];
       var building = shelf.building((both[1] && both[1].jobs) || []);
       // Portions and daily pages, for Recent only: home draws its own Continue from the
@@ -651,7 +674,7 @@
               return follow();
             }
             return ask("/readers").then(function (data) {
-              readers = gather(data, stored("targum:opened"));
+              readers = gather(data, stored("targum:opened"), theirPlaces);
               trash = (data && data.trash) || trash;
               render();
               // Continue's card for the build becomes the text it built.
@@ -726,12 +749,62 @@
   // corrected lines a moment later.
   drawing.then(drawRewrote).catch(function () {});
 
-  drawing.catch(function () {
+  drawing.catch(function (why) {
     // Signed out, or the server went away. The nav is still there to leave by.
+    clearTimeout(slowly);
     var waiting = document.getElementById("home-waiting");
     if (waiting) waiting.hidden = true;
+    if (which === "texts") couldNot(why);
     document.getElementById("nothing").hidden = false;
   });
+
+  /* Home's wait, said again past three seconds (design.md §14, line 1; home QA,
+     2026-10-18): "Opening your texts…" alone for twenty seconds on a cold box read as a
+     page that had stopped. */
+  var slowly =
+    which === "texts"
+      ? setTimeout(function () {
+          var waiting = document.getElementById("home-waiting");
+          if (waiting && !waiting.hidden) {
+            waiting.textContent = t("home.still-opening", "We're still opening your texts.");
+          }
+        }, 3000)
+      : 0;
+  drawing.then(function () {
+    clearTimeout(slowly);
+  }, function () {});
+
+  /* What home says when it could not load, and the press that asks again. Offline says
+     so, and asks again by itself once the connection is back; a server that answered
+     with a refusal, or did not answer at all, is ours to own (§6). */
+  function couldNot(why) {
+    var lede = document.getElementById("nothing-lede");
+    var says = document.getElementById("nothing-says");
+    var again = document.getElementById("nothing-again");
+    var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    if (lede && says) {
+      if (offline) {
+        lede.textContent = t("home.offline.lede", "You're offline.");
+        says.textContent = t(
+          "home.offline.says",
+          "Your texts will open when you're back online. Everything you've read is still here."
+        );
+      } else if (!(why && why.answered)) {
+        lede.textContent = t("home.unreachable.lede", "We can't reach targum right now.");
+      }
+    }
+    function retry() {
+      if (window.location && window.location.reload) window.location.reload();
+    }
+    if (again && !again.getAttribute("data-bound")) {
+      again.setAttribute("data-bound", "1");
+      again.addEventListener("click", retry);
+    }
+    // Offline, the bar's banner (`fault.js`) already says so with its own Try again, and
+    // one press is enough; the page asks again by itself when the connection is back.
+    if (again) again.hidden = offline;
+    if (offline) window.addEventListener("online", retry, { once: true });
+  }
 
   if (window.TargumSync) {
     window.TargumSync.onChange(function (changed) {

@@ -720,6 +720,26 @@ def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch
     assert catalogue
 
 
+def test_home_says_nothing_of_a_share_of_none(chatting, monkeypatch: Any) -> None:
+    """Home QA, 2026-10-18 (targum-internal#463): "You know 0% of its words" is true of
+    every text for a reader with no words yet, and it was the first thing home said under
+    the first text it offered. A share of none is left unsaid; any other is said."""
+    from targum.chat import tools
+
+    port, key, _store, _chats = chatting
+
+    def picking(share: int):
+        row = {"id": "ruth", "title": "רות", "because": f"You know {share}% of its words."}
+        row["reason"] = {"key": "suggest.known", "share": share}
+        return lambda ctx, args: {"suggestions": [dict(row)]}
+
+    monkeypatch.setattr(tools, "suggest_next", picking(0))
+    assert call(port, "GET", f"/suggest?k={key}")[1]["suggestion"]["because"] == ""
+    monkeypatch.setattr(tools, "suggest_next", picking(40))
+    said = call(port, "GET", f"/suggest?k={key}")[1]["suggestion"]["because"]
+    assert said == "You know 40% of its words."
+
+
 def test_a_turn_that_searched_carries_what_it_found_to_the_page(chatting) -> None:
     """targum-internal#253. Add draws the results of a description itself rather than
     reading them out of the model's prose, so the turn's state carries them.
