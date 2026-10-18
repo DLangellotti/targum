@@ -133,6 +133,10 @@
           <div class="menu-rows">
             <a class="menu-row" href="/you">{{ t("nav.your-account", "Your account") }}</a>
             <a class="menu-row" href="/you/saved">{{ t("nav.saved-on-this-device", "Saved on this device") }}</a>
+            {#- A fourth row since 2026-10-18 (design.md §12, "Tell us is a row in the menu
+                and a press on every fault"): what went wrong, or what would help, from
+                any page. `fault.js` opens the box. -#}
+            <button type="button" class="menu-row" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>
             <button type="button" class="menu-row" id="account-out">{{ t("nav.sign-out", "Sign out") }}</button>
           </div>
         </div>
@@ -175,6 +179,7 @@
 {%- endif %}
 {#- How a refusal is drawn (design.md §12, 2026-10-09): under a field, a line, a panel,
     and the connection's banner, which `fault.js` puts at the foot of this header. -#}
+<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
 <script>{{ asset('fault.js') }}</script>
 {%- if here != 'door' %}
 {#- Talk to targum, from anywhere (2026-09-11): one pill fixed at the foot of every page

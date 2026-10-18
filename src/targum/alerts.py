@@ -332,3 +332,72 @@ def credit_ran_out(provider: str, detail: str, *, now: datetime | None = None) -
     except Exception:  # noqa: BLE001 - see above
         return False
     return True
+
+
+# -- a page that breaks in readers' browsers -------------------------------------------
+#
+# A reader who meets a broken page usually leaves without telling anyone
+# (targum-internal#457). Each browser now reports the error to `/errors`, and the
+# operator is mailed when one message is reported `FAULT_THRESHOLD` times within an hour:
+# once, and not again about the same message for `FAULT_REMIND`, so a page broken for
+# everybody is one mail rather than one per reader.
+
+#: Reports of one message within an hour before anybody is told.
+FAULT_THRESHOLD = 5
+
+#: Once told about a message, quiet about it this long.
+FAULT_REMIND = timedelta(hours=24)
+
+#: Where a fault alert goes: hosted only, configured beside `CREDIT` (`serve.start`).
+FAULTS = CreditWatch()
+
+
+def page_broke(
+    message: str, count: int, page: str = "", place: str = "", *, now: datetime | None = None
+) -> bool:
+    """Tell the operator a page keeps breaking, once `count` reaches the threshold.
+
+    True if a mail went. Never raises: this runs inside the request that carried the
+    report, and the browser that sent it is owed a plain answer whatever the mail did."""
+    if count < FAULT_THRESHOLD:
+        return False
+    if FAULTS.state is None or FAULTS.send is None or not recipient():
+        return False
+    moment = now or datetime.now(UTC)
+    key = message[:300]
+    # What was told long enough ago to be told again is forgotten, so the file stays small.
+    told: dict[str, str] = {}
+    for each, when in load_told(FAULTS.state).items():
+        seen = _when(when)
+        if seen is not None and moment - seen < FAULT_REMIND:
+            told[each] = when
+    if key in told:
+        return False
+    told[key] = moment.isoformat()
+    try:
+        save_json(FAULTS.state, told)
+    except OSError:
+        pass  # better a second mail than none
+    try:
+        FAULTS.send(
+            "targum: a page is breaking in readers' browsers",
+            f"This has been reported {count} times in the last hour, as of "
+            f"{moment.strftime(STAMP)}.\n\n"
+            f"Message: {message[:300]}\n"
+            f"Page: {page[:300] or 'not said'}\n"
+            f"Where in the script: {place[:300] or 'not said'}\n\n"
+            "Every report is counted under Operations in the back office. No more mail "
+            f"about this message for {int(FAULT_REMIND.total_seconds() // 3600)} hours.\n",
+        )
+    except Exception:  # noqa: BLE001 - see above
+        return False
+    return True
+
+
+def load_told(path: Path) -> dict[str, str]:
+    """What has been told and when, or nothing if the file cannot be read."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(k): str(v) for k, v in raw.items()} if isinstance(raw, dict) else {}

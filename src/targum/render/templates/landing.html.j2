@@ -368,6 +368,7 @@
 
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
+<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
 <script>{{ asset('landing.js') }}</script>
 </body>
 </html>

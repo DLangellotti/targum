@@ -103,7 +103,7 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 <script>{{ asset('speak.js') }}</script>
 <script>{{ asset('claim.js') }}</script>
 {#- The nav carries `fault.js` everywhere but the drawer, which has no nav. -#}
-{% if embed %}<script>{{ asset('fault.js') }}</script>
+{% if embed %}<script data-build="{{ build() }}">{{ asset('report.js') }}</script><script>{{ asset('fault.js') }}</script>
 {% endif %}<script>{{ asset('chat.js') }}</script>
 </body>
 </html>

@@ -535,7 +535,16 @@ def _environment() -> Environment:
     # The English, for any template that says a catalogued sentence and is not told
     # another language; a reader's render passes its own (`page_words`).
     env.globals["t"] = page_words("en")
+    # Which build drew the page, for what `fault.js` reports when the page breaks and
+    # for Tell us (targum-internal#456, #457): "dev" anywhere but a stamped wheel.
+    env.globals["build"] = _build
     return env
+
+
+def _build() -> str:
+    from ..about import build
+
+    return build()
 
 
 def _page_language(language: str) -> str:
@@ -2215,7 +2224,7 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "15 October 2026"
+LEGAL_CHANGED = "18 October 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
@@ -2314,6 +2323,8 @@ def back_office_page(
     incidents: list[Any] | None = None,
     balances: dict[str, dict[str, Any]] | None = None,
     visits: object | None = None,
+    told: list[dict[str, Any]] | None = None,
+    faults: list[dict[str, Any]] | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -2322,6 +2333,7 @@ def back_office_page(
     `backoffice.Survey`; it is typed loosely to keep the import one way, since nothing
     in the renderer should need the store.
     """
+    from ..accounts import TOLD_STATES
     from ..catalogue import Kind, Register
     from ..services import SAID_MAX, SERVICES
 
@@ -2359,6 +2371,12 @@ def back_office_page(
             # Waitlist sign-ups by the day they asked, beside that day's visitors: the
             # one conversion the front door has.
             asked=Counter(who.asked for who in getattr(found, "waiting_list", [])),
+            # What readers wrote to us, newest first, and what broke in their browsers,
+            # counted by message and page (targum-internal#456, #457).
+            told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],
+            told_open=sum(1 for row in told or [] if row.get("state") in ("open", "asked")),
+            told_states=TOLD_STATES,
+            faults=[dict(row, when=_as_of(int(row["last"]))) for row in faults or []],
         )
     )
 

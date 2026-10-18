@@ -23,6 +23,7 @@ import subprocess
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from functools import cache
 from pathlib import Path
 
 # Thirty, not ninety. Ninety days of mostly-empty squares says "abandoned" about a
@@ -142,11 +143,37 @@ def stamp(today: date | None = None) -> Path | None:
     found = _from_git(today)
     if not found.days:
         return None
-    STAMP.write_text(
-        json.dumps({"days": [list(day) for day in found.days]}, indent=1) + "\n",
-        encoding="utf-8",
-    )
+    written: dict[str, object] = {"days": [list(day) for day in found.days]}
+    # Which commit the wheel was built from, so a fault report and a Tell us message say
+    # which targum the reader was looking at (targum-internal#456, #457).
+    head = _git("rev-parse", "--short=12", "HEAD").strip()
+    if head:
+        written["build"] = head
+    STAMP.write_text(json.dumps(written, indent=1) + "\n", encoding="utf-8")
     return STAMP
+
+
+#: What `build()` says where no wheel was stamped: a checkout somebody is working in.
+DEV = "dev"
+
+
+@cache
+def build() -> str:
+    """The commit this targum was built from, or "dev".
+
+    Read off the stamp a deploy writes, and only where there is no repository: a checkout
+    is somebody's work in progress rather than a build, so a page rendered from one is
+    "dev" whatever its HEAD says or whatever stamp an old deploy left beside it. Cached,
+    because every page that carries the fault reporter asks.
+    """
+    if (_root() / ".git").exists():
+        return DEV
+    try:
+        raw = json.loads(STAMP.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return DEV
+    said = raw.get("build") if isinstance(raw, dict) else None
+    return str(said)[:40] if isinstance(said, str) and said.strip() else DEV
 
 
 # -- what was built, day by day --------------------------------------------------------

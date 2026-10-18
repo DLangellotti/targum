@@ -21,6 +21,13 @@ notes they wrote. Counts of those things, and no more. A back office that shows 
 operator what a reader wrote is a back office that has to be justified to that reader,
 and there is no version of "how much are they reading" that needs it.
 
+**One exception: what a reader writes to us (2026-10-18, targum-internal#456).** A message
+sent through Tell us is addressed to the operator, so showing it to the operator is the
+whole of what the reader asked for; clause 3.14 of the privacy notice says so, and how
+long it is kept. It is listed under People with its page, window, language and build, and
+nothing else a reader wrote ever joins it. Fault reports from browsers (#457) are counted
+under Operations by message and page, never per reader.
+
 **What it is for, since the first readers came in (2026-10-15).** Three questions: who
 should I write to, did this week's people come back, and which parts of targum does
 nobody reach. The first is asked of each account, and only of what clause 3.2 of the

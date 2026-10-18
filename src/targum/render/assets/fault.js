@@ -10,6 +10,7 @@
  *   TargumFault.upgrade(sentence, fact?)  the panel where a free reader reaches for the plan
  *   TargumFault.unreachable(retry?)      the connection banner, under the top bar
  *   TargumFault.reached()                and gone again
+ *   TargumFault.tellUs()                 the Tell us box, which `[data-tell-us]` opens too
  *
  * The whole page is a template (`missing.html.j2`, the sign-in page's expired and closing
  * doors), because there is nothing on it for a script to do.
@@ -140,9 +141,184 @@
       quiet.textContent = fact;
       row.appendChild(quiet);
     }
+    // And a way to say what happened (targum-internal#456): on every panel that is a
+    // fault, which a reader out of credits is not, and only where there is a targum to
+    // say it to.
+    if (!options.topUp && options.tellUs !== false && served) row.appendChild(tellUsButton());
     if (row.childNodes.length) box.appendChild(row);
     return box;
   }
+
+  /* 6 · Tell us (targum-internal#456; privacy notice clause 3.14). One box, Send, and a
+     line of thanks: in the account menu, on every panel above and on the whole page for
+     an address with nothing at it. Anything carrying `data-tell-us` opens it. What is
+     sent is what was written, the page's path, the window's size, the page's language
+     and the build; the server adds the account. */
+  var served = /^https?:$/.test(location.protocol);
+  var asking = null;
+
+  function tellUsButton() {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "fault-act";
+    button.setAttribute("data-tell-us", "");
+    button.textContent = t("fault.tell-us", "Tell us");
+    return button;
+  }
+
+  function tellUsBox() {
+    var box = document.createElement("dialog");
+    box.className = "tell-us";
+    box.setAttribute("aria-labelledby", "tell-us-title");
+    var form = document.createElement("form");
+    form.className = "tell-us-form";
+    var title = document.createElement("h2");
+    title.id = "tell-us-title";
+    title.className = "tell-us-title";
+    title.textContent = t("fault.tell-us", "Tell us");
+    form.appendChild(title);
+    var label = document.createElement("label");
+    label.className = "tell-us-label";
+    label.setAttribute("for", "tell-us-said");
+    label.textContent = t("fault.tell-us.label", "What happened, or what would help?");
+    form.appendChild(label);
+    var said = document.createElement("textarea");
+    said.id = "tell-us-said";
+    said.className = "tell-us-said";
+    said.rows = 5;
+    said.maxLength = 4000;
+    // A message in Hebrew stands right to left from its first letter.
+    said.setAttribute("dir", "auto");
+    form.appendChild(said);
+    var fact = document.createElement("p");
+    fact.className = "fault-fact tell-us-fact";
+    fact.textContent = t("fault.tell-us.fact", "We'll see which page you were on.");
+    form.appendChild(fact);
+    var row = document.createElement("div");
+    row.className = "fault-panel-row";
+    var send = document.createElement("button");
+    send.type = "submit";
+    send.className = "fault-go";
+    send.textContent = t("fault.tell-us.send", "Send");
+    row.appendChild(send);
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "fault-act";
+    cancel.textContent = t("fault.tell-us.cancel", "Cancel");
+    cancel.addEventListener("click", function () {
+      closeTellUs();
+    });
+    row.appendChild(cancel);
+    form.appendChild(row);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      sendTellUs(form, said, send);
+    });
+    box.appendChild(form);
+    box.addEventListener("click", function (event) {
+      // A press on the dimmed page around the box, which is the dialog itself.
+      if (event.target === box) closeTellUs();
+    });
+    box.addEventListener("close", function () {
+      if (asking === box && box.parentNode) box.parentNode.removeChild(box);
+      if (asking === box) asking = null;
+    });
+    return box;
+  }
+
+  function sendTellUs(form, said, send) {
+    var text = said.value.trim();
+    if (!text) return field(said, t("fault.tell-us.empty", "Write something first."));
+    clear(said);
+    send.disabled = true;
+    var build = (window.TargumReport && window.TargumReport.build) || "";
+    fetch(keyed("/tell-us"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        said: text,
+        page: location.pathname,
+        build: build,
+        viewport: window.innerWidth + "x" + window.innerHeight,
+        language: document.documentElement.getAttribute("lang") || "",
+      }),
+    })
+      .then(function (answer) {
+        return answer.json().then(
+          function (body) {
+            return { ok: answer.ok, body: body || {} };
+          },
+          function () {
+            return { ok: false, body: {} };
+          }
+        );
+      })
+      .then(function (got) {
+        if (got.ok) return thankTellUs(form);
+        // The server's own sentence where it sent one: sign in first, or too many.
+        refuseTellUs(said, send, typeof got.body.error === "string" ? got.body.error : "");
+      })
+      .catch(function () {
+        refuseTellUs(said, send, "");
+      });
+  }
+
+  function refuseTellUs(said, send, sentence) {
+    send.disabled = false;
+    field(said, sentence || t("fault.tell-us.failed", "We couldn't send that. Try again in a minute."));
+  }
+
+  function thankTellUs(form) {
+    form.innerHTML = "";
+    var thanks = document.createElement("p");
+    thanks.className = "tell-us-thanks";
+    thanks.setAttribute("role", "status");
+    thanks.textContent = t("fault.tell-us.thanks", "Thanks for telling us. We read every message.");
+    form.appendChild(thanks);
+    var row = document.createElement("div");
+    row.className = "fault-panel-row";
+    var done = document.createElement("button");
+    done.type = "button";
+    done.className = "fault-go";
+    done.textContent = t("fault.tell-us.close", "Close");
+    done.addEventListener("click", function () {
+      closeTellUs();
+    });
+    row.appendChild(done);
+    form.appendChild(row);
+    done.focus();
+  }
+
+  function tellUs() {
+    if (!served) return null;
+    if (asking) return asking;
+    asking = tellUsBox();
+    document.body.appendChild(asking);
+    if (typeof asking.showModal === "function") asking.showModal();
+    else asking.setAttribute("open", "");
+    var said = asking.querySelector("textarea");
+    if (said) said.focus();
+    return asking;
+  }
+
+  function closeTellUs() {
+    var box = asking;
+    if (!box) return;
+    if (typeof box.close === "function" && box.open) box.close();
+    else {
+      asking = null;
+      if (box.parentNode) box.parentNode.removeChild(box);
+    }
+  }
+
+  document.addEventListener("click", function (event) {
+    var opener = event.target && event.target.closest && event.target.closest("[data-tell-us]");
+    if (!opener) return;
+    event.preventDefault();
+    event.stopPropagation();
+    tellUs();
+  });
 
   /* A refusal the server sent with what its panel draws beside it (`serve.Refusal`):
      `fact`, the quiet line of what still works, and `act`, the one way on — Top up
@@ -359,5 +535,6 @@
     unreachable: unreachable,
     reached: reached,
     tryAgain: tryAgain,
+    tellUs: tellUs,
   };
 })();

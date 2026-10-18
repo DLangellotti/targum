@@ -3774,5 +3774,16 @@
   "reader.page.subjects-after-their-verb-lower": "subjects after their verb",
   "reader.lens.order-cue": "Each word lit is the subject of a verb before it.",
   "reader.lens.order-said": "Subjects after their verb, {n} here.",
-  "practice.page.lens": "Practised with a lens in the reader: Aa, then Prepositions verbs take, once you've finished a part."
+  "practice.page.lens": "Practised with a lens in the reader: Aa, then Prepositions verbs take, once you've finished a part.",
+  "fault.tell-us": "Tell us",
+  "fault.tell-us.label": "What happened, or what would help?",
+  "fault.tell-us.fact": "We'll see which page you were on.",
+  "fault.tell-us.send": "Send",
+  "fault.tell-us.cancel": "Cancel",
+  "fault.tell-us.thanks": "Thanks for telling us. We read every message.",
+  "fault.tell-us.close": "Close",
+  "fault.tell-us.empty": "Write something first.",
+  "fault.tell-us.failed": "We couldn't send that. Try again in a minute.",
+  "serve.tell-us.empty": "Write something first.",
+  "serve.tell-us.too-often": "That's a lot for one hour. Write to hello@targum.page and we'll read it there."
 }

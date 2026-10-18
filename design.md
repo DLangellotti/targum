@@ -369,6 +369,45 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Tell us is a row in the menu and a press on every fault — 2026-10-18
+
+Batch one is in, and what they find is the backlog (David, 2026-10-14); until this the
+only way to say something went wrong was an email nobody would write. targum-internal#456
+and #457, built together because they answer one question from two sides: what a reader
+meets, said by the reader and said by the page.
+
+- **Tell us opens one box.** A title, one field, Send in the primary and Cancel as text,
+  then "Thanks for telling us. We read every message." It is a floating panel, so it
+  takes the sheet's corner and the floating shadow, over the shared scrim. The field is
+  the reading size, so a phone does not zoom into it, and it stands `dir="auto"`, so a
+  message in Hebrew runs right to left from its first letter. What is sent with it is
+  the page's path, the window's size, the page's language and the build; the account
+  comes from the session. No picture of the page in this first version (David, the same
+  day): a screenshot is a copy of whatever the reader was reading, and the notice would
+  have to say so.
+- **It is reached from three places.** A fourth row in the account menu, between Saved
+  on this device and Sign out, which departs from "three rows" (2026-10-09) on purpose:
+  it is the one row that is not navigation, and nowhere else carries it. Then a Tell us
+  text press on every fault panel (`fault.js`), except the out-of-credits one, which is
+  not a fault; and the page for an address with nothing at it, beside Go to the library,
+  for anybody signed in. A stranger is not offered it, since there is no account to
+  answer.
+- **The back office holds these words.** Its rule was "no words, no texts, no notes",
+  and a message to us is words a reader wrote. It is the one exception, and it is said
+  in `backoffice.py` and at the foot of the page: a message addressed to the operator,
+  shown to the operator, is what the reader asked for. Each is listed under People with
+  a state, open, fixed, won't or asked, which only an admin can change. A closed one is
+  deleted a year after it closed, and every one goes with its account.
+- **A page that breaks says so itself.** `report.js` runs before every page's other
+  scripts and posts an uncaught error, an unheard refusal or a 5xx from targum to
+  `/errors`, with the message, the first frames of our script, the path and the build:
+  never the text on the page, never a query, never a cookie. It does nothing off a disk.
+  Operations counts them by message and page, and five of one message in an hour mails
+  the operator once a day at most.
+
+The privacy notice changed first: clause 3.14 is both, and the schedule keeps a message
+twelve months after it closes and a fault report thirty days.
+
 ### "With" is not "people" — 2026-10-13
 
 David, 2026-10-13 (known issues 1.21). A handful of unpointed spellings stand for a
@@ -2106,7 +2145,8 @@ title and the refusal that sends a reader there.
   to edge, a hairline between the head and the rows, each row a full-width line of ink at
   the body size. **Your account** (/you), **Saved on this device** (/you/saved, which
   belongs to the browser and so is a row signed out too) and **Sign out**, a plain row in
-  ink where it was a tonal pill.
+  ink where it was a tonal pill. *(A fourth, Tell us, since 2026-10-18: "Tell us is a row
+  in the menu and a press on every fault".)*
 - **Gone from the menu**: Your words and phrases (reached from Your Progress since the
   same day, and from ⌘K), Your subscriptions (a tab of Your targums since 2026-10-08, and
   ⌘K) and Your playlists (the Playlists tab of Your targums). Each was a second copy of
