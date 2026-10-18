@@ -552,20 +552,22 @@ def test_a_french_reply_read_as_hebrew_has_no_lines() -> None:
         ("a", "he", False),
         ("ש״ח", "he", True),
         ("את", "he", True),
-        ("в", "ru", False),
+        ("в", "ru", True),
+        ("ж", "ru", False),
         ("http", "ru", False),
         ("на", "ru", True),
-        ("à", "fr", False),
+        ("à", "fr", True),
+        ("x", "fr", False),
         ("°", "fr", False),
         ("de", "fr", True),
-        ("è", "it", False),
+        ("è", "it", True),
         ("perché", "it", True),
     ],
 )
 def test_the_claim_list_offers_words_not_tokens(word: str, language: str, offered: bool) -> None:
     """David, 2026-10-18: the claim grid offered "1", "0" and lone letters as words a
     reader may know. No digits, nothing of one character, and nothing without a letter of
-    the language's own script."""
+    the language's own script; but a language's own one-letter words stay."""
     assert hebrew.claimable(word, language) is offered
 
 

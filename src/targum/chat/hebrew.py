@@ -1065,6 +1065,14 @@ _WORD = re.compile(r"[\u05d0-\u05ea][\u05b0-\u05c7\u05d0-\u05ea\u05f3\u05f4\"']*
 _LATIN_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")
 
 
+#: The words of one letter `claimable` keeps, by language.
+ONE_LETTER_WORDS: dict[str, frozenset[str]] = {
+    "ru": frozenset("вияскоуа"),
+    "fr": frozenset({"à", "a", "y"}),
+    "it": frozenset({"è", "e", "a", "o", "i"}),
+}
+
+
 def claimable(word: str, language: str = "he") -> bool:
     """Whether a word from the common list may be offered as a word the reader may know.
 
@@ -1072,12 +1080,16 @@ def claimable(word: str, language: str = "he") -> bool:
     "0", the prefix letters ב and ה on their own, and "the". The claim grid offered them
     as words a reader might know (David, 2026-10-18), so it is offered only a token of two
     characters or more, not all digits, with a letter of the language's own script in it.
-    Russian's в and и, and French's à, go with the rest: one letter is not a word to mark.
+    Except the languages' own one-letter words, which are among the first a beginner
+    meets and so worth marking (David, 2026-10-18): Russian's в and и, French's à,
+    Italian's è. Hebrew has none; its lone letters are prefixes.
     """
     form = word.strip()
+    code = (language or "he").split("-")[0].lower()
+    if form.lower() in ONE_LETTER_WORDS.get(code, frozenset()):
+        return True
     if len(form) < 2 or form.isdigit():
         return False
-    code = (language or "he").split("-")[0].lower()
     if code in HEBREW_SCRIPT:
         return any("\u05d0" <= ch <= "\u05ea" for ch in form)
     if code in CYRILLIC_SCRIPT:
