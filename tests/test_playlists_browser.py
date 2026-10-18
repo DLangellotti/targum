@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from targum.render.builder import list_page, playlists_page
+from targum.render.builder import carried, list_page, playlists_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -116,7 +116,7 @@ def browser():
 def opened(browser, tmp_path: Path, query: str = "", width: int = 390):
     """The page over FAKE: the tab, or with `?playlist=1` the one playlist."""
     page_file = tmp_path / "playlists.html"
-    page_file.write_text(playlists_page(TOKEN), encoding="utf-8")
+    page_file.write_text(carried(playlists_page(TOKEN)), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 844})
     page = context.new_page()
     thrown: list[str] = []
@@ -223,7 +223,7 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
     """Board PlaylistsTab: the first four for its cover, whose hand made it, how long,
     how much is known, and the one the reader is in marked."""
     page_file = tmp_path / "playlists.html"
-    page_file.write_text(playlists_page(TOKEN), encoding="utf-8")
+    page_file.write_text(carried(playlists_page(TOKEN)), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 844})
     page = context.new_page()
     thrown: list[str] = []
@@ -287,7 +287,7 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
 
 def test_a_shelf_row_opens_the_sheet_for_its_text(browser, tmp_path: Path) -> None:
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page(TOKEN, "texts")), encoding="utf-8")
     readers = [{"name": "jonah", "document": "jonah", "title": "יונה", "language": "he"}]
     # At a desk, where the row draws its + (a phone keeps it in ⋯, audit Q7).
     context = browser.new_context(viewport={"width": 1280, "height": 844})
@@ -306,7 +306,7 @@ def test_a_shelf_row_opens_the_sheet_for_its_text(browser, tmp_path: Path) -> No
 
 def shelf_with_fake(browser, tmp_path: Path, extra: str = "", width: int = 1280):
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page(TOKEN, "texts")), encoding="utf-8")
     readers = [{"name": "jonah", "document": "jonah", "title": "יונה", "language": "he"}]
     context = browser.new_context(viewport={"width": width, "height": 844})
     page = context.new_page()
@@ -451,7 +451,7 @@ def test_play_next_is_only_offered_in_the_texts_own_language(browser, tmp_path: 
 def opened_with(browser, tmp_path: Path, extra: str, wait: str = "#playlists .pl-card", query=""):
     """The page over FAKE, with `extra` run after it to change what the server says."""
     page_file = tmp_path / "playlists.html"
-    page_file.write_text(playlists_page(TOKEN), encoding="utf-8")
+    page_file.write_text(carried(playlists_page(TOKEN)), encoding="utf-8")
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page()
     thrown: list[str] = []
@@ -561,7 +561,7 @@ def test_a_long_name_wraps_inside_its_press(browser, tmp_path: Path, query: str)
     in its heading rather than running the page off the side (2026-09-24)."""
     long = "A playlist of kitchen conversations and market mornings, kept for Sundays"
     page_file = tmp_path / "playlists.html"
-    page_file.write_text(playlists_page(TOKEN), encoding="utf-8")
+    page_file.write_text(carried(playlists_page(TOKEN)), encoding="utf-8")
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page()
     page.add_init_script(fake({**KITCHEN, "name": long}, {**CARD, "name": long}))

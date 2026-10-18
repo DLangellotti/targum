@@ -22,12 +22,21 @@ from test_serve import Postbox, call, sign_in
 
 from targum import catalogue, coverage
 from targum.render import builder
-from targum.render.builder import tanakh_map, tanakh_map_page
+from targum.render.builder import carried, tanakh_map
+from targum.render.builder import tanakh_map_page as _tanakh_map_page
 from targum.serve import Handler
 
 KNOWN = 9
 
 served = test_serve.served
+
+
+def tanakh_map_page(token: str, language: str = "en") -> str:
+    """The map page with the files it names put back inside it (`carried`): these checks
+    read and open what the page runs, and the fake origin below serves only the page."""
+    return carried(_tanakh_map_page(token, language=language))
+
+
 postbox = test_serve.postbox
 
 

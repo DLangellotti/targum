@@ -363,11 +363,66 @@ the reader and the desk both draw — the word's card, the thumb's reach, a refu
 `shared.css`; the Hebrew reading faces are
 `src/targum/render/assets/fonts/`; the enforced rules are `tests/test_brand.py`.
 
+How a page carries them (2026-10-18, §12 "A desk page loads its files once and keeps
+them"): a reader and every page that can be opened off a disk, framed by a host, printed
+or kept for offline bakes each file into itself and fetches nothing. A desk page (the
+pages in `DESK_PAGES`, `render/builder.py`) names them instead, by address under
+`/assets/<name>.<hash>.<ext>`, and the browser keeps them. Templates say which files a
+page wants with `styles(...)` and `script(...)`, and the page decides how they ride, so
+a template never inlines a file by hand.
+
 ## 12 · Where the code departs, and why
 
 Each entry below was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
+
+### A desk page loads its files once and keeps them — 2026-10-18
+
+David, 2026-10-18 (targum-internal#484, found by the #463 home pass). Every page carried
+every stylesheet and script inline, which is what lets a reader open off a disk and fetch
+nothing. The desk paid for that rule without needing it. Home was 712 kB, 201 kB gzipped,
+nearly all of it the same files Library and Progress carry again, and nothing was kept
+between pages. So on §14's phone profile every desk page paid for its files again.
+
+- **A desk page names its files by address.** Its stylesheets, its scripts and its faces
+  are served from this origin as `/assets/<name>.<hash>.<ext>`, with `Cache-Control:
+  public, max-age=31536000, immutable`. The hash is of the bytes served, so a changed file
+  is a new address and nothing stale is ever kept. An address `serve` does not hold, an
+  old hash included, is a 404. The files are read and hashed once at start-up and answered
+  from memory, gzipped like a page. Home is now 21 kB, 7 kB gzipped.
+- **The scripts run as they did.** Each is a classic script where the inline one stood,
+  not `defer` and not `async`, so the order a page's scripts run in has not moved, and
+  the small inline blocks between them (the key, the stages, the strings) still run where
+  they are written. `strings.js` stays inline beside the strings it reads. So does every
+  page's TARGUM_STRINGS, because it is said in the page's language, along with the rest
+  of a page's own data. A key a linked script calls still rides in the page's strings.
+- **The faces are files too.** Each face is `@font-face` with the font inside it as a
+  `data:` URI, now in a stylesheet of its own, so `font-src` is still `data:`.
+- **The policy gains `'self'` for scripts and styles, and only on a page that names a
+  file under `/assets/`.** It is read off the page as written, like the frames. Inline
+  blocks are still named by hash on every page, and nothing is `'unsafe-inline'`.
+  `default-src 'none'`, `frame-ancestors 'none'` and `form-action 'self'` are unchanged.
+- **The desk is a list, and a page not on it inlines** (`DESK_PAGES` in
+  `render/builder.py`). It is home and the lists, Library, the Tanakh map, Progress,
+  Upload, the conversation (framed or not), the arrival, your account, playlists,
+  subscriptions, plans, the connector's confirm pages and its signed-in /connect, sign-in,
+  and the 404.
+
+What it does not overturn: *readers must fetch nothing*. A reader, a contents page, a
+built index, the shelf and a text's public page, the weekly and the series pages, a print,
+a card in a host's frame, the front door and every page in front of it still carry their
+files inline, and `test_render.py` holds a reader to that unchanged. **Saved on this
+device stays inline too.** It is the one desk page the worker keeps for offline, and its
+saved copy must open with nothing else in the cache.
+
+What it cost: a device's first visit pays a little more. Over HTTP/2, home's thirty files
+arrive together and then run one after another, where inline they ran while the page was
+still arriving. Measured on the phone profile through an HTTP/2 front: home's first visit
+1.53 s → 1.94 s, home again 1.50 s → 0.62 s, Library after home 2.72 s → 2.30 s. After a
+deploy, only a file that changed is fetched again. Inlining on a device's first visit and
+linking after it would need a cookie that says the files are kept. The privacy notice
+says targum sets no cookie but the session's, so that waits on a decision.
 
 ### On a phone, EN · RU is a row of the account's sheet — 2026-10-18
 
@@ -2411,7 +2466,9 @@ and a reader on a plane with no copy of their text has nothing. A reader page al
 needs nothing once it is loaded, but the browser had no way to open one again without a
 network. targum now has a service worker, `/sw.js`.
 
-- **It is one file at the root, and the one script that is not inline.** A worker is
+- **It is one file at the root, and the one script that is not inline.** (Since
+  2026-10-18 a desk page's own files are by address too, under `/assets/`, and the
+  worker never answers them; this is still the one script outside that.) A worker is
   named by an address and cannot be baked into a page, so the page policy gains
   `worker-src 'self'`: that one file from this origin, and nothing from anywhere else. The
   hashes still cover every page's own blocks. The worker's own policy is

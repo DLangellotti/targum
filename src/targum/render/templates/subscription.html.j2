@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("subs.page.title", "Subscription — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}{{ asset('subs.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'library.css', 'you.css', 'subs.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="subs-page">
@@ -17,7 +17,7 @@
     "‹ Subscriptions" is the way back. -#}
 {% set here = 'texts' %}{% set title = '' %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 
 <main>
   <section class="panel" id="stranger" hidden>
@@ -41,10 +41,10 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('subs.js') }}</script>
+{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('subs.js') }}
 </body>
 </html>

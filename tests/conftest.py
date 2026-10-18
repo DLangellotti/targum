@@ -249,6 +249,67 @@ class Chromium:
             self._driver.stop()
 
 
+def _answering_desk_files(handler: Callable[..., Any]) -> Callable[..., Any]:
+    """A route handler that answers `/assets/<name>.<hash>.<ext>` as `targum serve` does,
+    and hands every other request to `handler` as Playwright would have.
+
+    A desk page names its stylesheets and scripts by address since 2026-10-18 (design.md
+    §12, "A desk page loads its files once and keeps them"). A browser test serves its
+    page from a made-up origin through a route, and each route answers what the test is
+    about and nothing else, so without this every desk page in a browser test would load
+    without its files. Answered from `asset_files()`, the server's own map, so the page
+    under test runs exactly the files it names, by the addresses it names them at."""
+    import inspect
+    from urllib.parse import urlparse
+
+    from targum.render.builder import asset_files
+
+    parameters = inspect.signature(handler).parameters.values()
+    takes = (
+        2
+        if any(parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in parameters)
+        else sum(
+            parameter.kind
+            in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            for parameter in parameters
+        )
+    )
+
+    def answering(route: Any, request: Any) -> Any:
+        found = asset_files().get(urlparse(request.url).path)
+        if found is not None:
+            body, kind, _ = found
+            return route.fulfill(status=200, content_type=kind, body=body)
+        return handler(*(route, request)[:takes])
+
+    return answering
+
+
+@pytest.fixture(autouse=True, scope="session")
+def desk_files_in_routed_browsers() -> Iterator[None]:
+    """Every `route` a browser test sets answers the desk's files (`_answering_desk_files`)."""
+    try:
+        from playwright.sync_api import BrowserContext, Page
+    except ImportError:  # pragma: no cover - no browser tests without it
+        yield
+        return
+    originals = {kind: kind.route for kind in (Page, BrowserContext)}
+
+    def wrapped(original: Callable[..., Any]) -> Callable[..., Any]:
+        def route(self: Any, url: Any, handler: Callable[..., Any], **options: Any) -> Any:
+            return original(self, url, _answering_desk_files(handler), **options)
+
+        return route
+
+    for kind, original in originals.items():
+        kind.route = wrapped(original)  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        for kind, original in originals.items():
+            kind.route = original  # type: ignore[method-assign]
+
+
 @pytest.fixture(scope="module")
 def chromium() -> Iterator[Chromium]:
     """The file's Chromium, for `test_reader_browser.browser` and the files importing it."""

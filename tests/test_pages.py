@@ -20,6 +20,7 @@ import pytest
 
 from targum.render.builder import (
     add_page,
+    carried,
     chat_page,
     library_page,
     list_page,
@@ -30,20 +31,26 @@ from targum.render.builder import (
 
 TEMPLATES = Path(__file__).resolve().parents[1] / "src" / "targum" / "render" / "templates"
 
+#: Read with their files put back inside them (`carried`): a desk page names its scripts
+#: and stylesheets by address since 2026-10-18, and what these check is what the page
+#: runs and draws, wherever it is kept.
 PAGES = {
-    "welcome": welcome_page("k"),
-    "you": you_page("k"),
-    "library": library_page("k"),
-    "progress": progress_page("k"),
-    "texts": list_page("k", "texts"),
-    "words": list_page("k", "words"),
-    "phrases": list_page("k", "phrases"),
-    "add": add_page("k"),
-    "chat": chat_page("k"),
+    name: carried(page)
+    for name, page in {
+        "welcome": welcome_page("k"),
+        "you": you_page("k"),
+        "library": library_page("k"),
+        "progress": progress_page("k"),
+        "texts": list_page("k", "texts"),
+        "words": list_page("k", "words"),
+        "phrases": list_page("k", "phrases"),
+        "add": add_page("k"),
+        "chat": chat_page("k"),
+    }.items()
 }
 #: The conversation page framed in the front page (2026-09-11): not a place of its own,
 #: so not in the table every-page tests walk — it has no bar to walk.
-EMBED = chat_page("k", embed=True)
+EMBED = carried(chat_page("k", embed=True))
 
 
 # -- nothing was lost in the move ---------------------------------------------
@@ -1200,5 +1207,5 @@ def test_every_desk_page_says_who_is_signed_in() -> None:
             continue
         if page.name == "signin.html.j2":
             continue  # the expired link's bar is the door's: no account, no places
-        assert "asset('sync.js')" in text, f"{page.name} cannot hear who is signed in"
-        assert "asset('account.js')" in text, f"{page.name} cannot draw who is signed in"
+        assert "script('sync.js')" in text, f"{page.name} cannot hear who is signed in"
+        assert "script('account.js')" in text, f"{page.name} cannot draw who is signed in"

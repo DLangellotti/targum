@@ -22,15 +22,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('subs.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'subs.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="press">
 {% set here = 'press' %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 <main class="sub-gate">
   <div class="card sub-confirm press-confirm">
   <p class="sub-via"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>{{ t("press.page.from-an-assistant", "From an assistant") }}</p>
@@ -141,10 +141,10 @@
 {% include '_foot.html.j2' %}
 <script>window.TARGUM_LANGUAGES = { {% for code, name in names %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('press.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('press.js') }}
 </body>
 </html>

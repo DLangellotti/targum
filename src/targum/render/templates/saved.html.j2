@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("saved.page.title-targum", "Saved on this device — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('you.css') }}{{ asset('saved.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'you.css', 'saved.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="saved">
@@ -19,7 +19,7 @@
 {% set here = 'you' %}{% set title = t("saved.page.title", "Saved on this device") %}
 {% set crumbs = [(t("saved.page.your-account", "Your account"), "/you")] %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 
 <main class="saved-page">
   <p class="saved-lede">{{ t("saved.page.lede", "These open, play and show their word cards without a connection.") }}</p>
@@ -120,13 +120,13 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
+{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
 {#- The account's corner asks `sync.js` who is signed in and `account.js` draws them, as
     on every desk page. Without it the corner said "Sign in" to a reader who was (board
     OffSavedDesk, 2026-10-09; the Tanakh map's bug, #677). -#}
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('saved.js') }}</script>
+{{ script('account.js') }}
+{{ script('saved.js') }}
 </body>
 </html>

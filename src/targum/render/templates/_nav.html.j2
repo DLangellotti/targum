@@ -183,12 +183,12 @@
 {#- What a reader follows, on every page (2026-09-11): the bell says when a followed
     series' instalment lands, and home puts it first under Continue. Before `building.js`, which
     every page includes after this header and which asks it. -#}
-<script>{{ asset('follow.js') }}</script>
+{{ script('follow.js') }}
 {%- endif %}
 {#- How a refusal is drawn (design.md §12, 2026-10-09): under a field, a line, a panel,
     and the connection's banner, which `fault.js` puts at the foot of this header. -#}
-<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
-<script>{{ asset('fault.js') }}</script>
+{{ script('report.js', data_build=build()) }}
+{{ script('fault.js') }}
 {%- if here != 'door' %}
 {#- Talk to targum, from anywhere (2026-09-11): one pill fixed at the foot of every page
     opens the conversation as a drawer — the conversation page framed without its bar.
@@ -208,13 +208,13 @@
   </div>
   <iframe class="talk-frame" id="talk-frame" title="{{ t("nav.talk-to-targum", "Talk to targum") }}" allow="microphone" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
 </aside>
-<script>{{ asset('talk.js') }}</script>
+{{ script('talk.js') }}
 {#- One search, everywhere (design.md §12, "One search, everywhere", 2026-10-09): the
     bar's door, ⌘K and / open it, and the Library's own box opens it held to the Library.
     The field, the language it searches in, the filters, and what it found, grouped.
     Drawn by `palette.js`, from `/search.json`. Every row's picture is `covers.js`'s,
     which every page with this bar carries from here. -#}
-<script>{{ asset('covers.js') }}</script>
+{{ script('covers.js') }}
 <div class="scrim palette-scrim" id="palette-scrim" hidden></div>
 <div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="{{ t("nav.search-targum", "Search targum") }}" hidden>
   <div class="palette-top">
@@ -233,8 +233,8 @@
   <div class="tabs palette-filters" id="palette-filters" role="tablist" aria-label="{{ t("nav.search-where", "Where to look") }}"></div>
   <div class="palette-body" id="palette-body" aria-live="polite"></div>
 </div>
-<script>{{ asset('palette.js') }}</script>
+{{ script('palette.js') }}
 {#- Saving for offline, and the worker that answers what was saved when the network is
     not there (design.md §12, 2026-10-09). -#}
-<script>{{ asset('offline.js') }}</script>
+{{ script('offline.js') }}
 {%- endif %}

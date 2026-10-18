@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from targum.render.builder import list_page
+from targum.render.builder import carried, list_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -63,7 +63,7 @@ def browser():
 
 def home(browser, tmp_path: Path, days_away: float, due: int = 18, width: int = 1440):
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 1600})
     page = context.new_page()
     thrown: list[str] = []

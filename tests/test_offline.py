@@ -246,9 +246,9 @@ def test_signing_out_takes_the_saved_texts_too() -> None:
 def test_every_page_with_the_bar_and_every_reader_carries_the_saving() -> None:
     from targum.render.builder import TEMPLATES
 
-    assert "asset('offline.js')" in (TEMPLATES / "_nav.html.j2").read_text(encoding="utf-8")
+    assert "script('offline.js')" in (TEMPLATES / "_nav.html.j2").read_text(encoding="utf-8")
     reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
-    assert reader.index("asset('sync.js')") < reader.index("asset('offline.js')")
+    assert reader.index("script('sync.js')") < reader.index("script('offline.js')")
 
 
 def test_save_for_offline_is_the_first_thing_about_this_text_in_its_menu() -> None:

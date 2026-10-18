@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("library.page.library-targum", "Library — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'library.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
     the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
     once as they load; it was set in a script at the foot of the body, so on a local serve
@@ -18,7 +18,7 @@
 <body class="shelf">
 {% set here = 'library' %}{% set title = t("nav.library", "Library") %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 
 <main>
   {#- One list, not two. What the reader has built and what is waiting to be built are
@@ -101,13 +101,13 @@ window.TARGUM_COLLECTIONS = {{ collections|tojson }};
 window.TARGUM_SETS = {{ sets|tojson }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('charts.js') }}</script>
-<script>{{ asset('scenes.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('subscribe.js') }}</script>
-<script>{{ asset('library.js') }}</script>
+{{ script('strings.js') }}
+{{ script('charts.js') }}
+{{ script('scenes.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('subscribe.js') }}
+{{ script('library.js') }}
 </body>
 </html>

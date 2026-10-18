@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("holding.page.not-found", "Not found") }} — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="missing">
@@ -17,7 +17,7 @@
     frame until then, the mark alone on the ground. -#}
 {% set here = 'door' if stranger else 'missing' %}
 {% include '_nav.html.j2' %}
-{% if not stranger %}<script>{{ asset('building.js') }}</script>{% endif %}
+{% if not stranger %}{{ script('building.js') }}{% endif %}
 
 <main class="fault-page">
   {#- The board's line icon (NotFound): a page with its corner turned, in the well's
@@ -34,9 +34,9 @@
 
 <script>window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
 </body>
 </html>
