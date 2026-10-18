@@ -50,6 +50,8 @@ from .accounts import (
     MOST_PLAYLISTS,
     MOST_PROMPTS,
     SUB_BUILDS,
+    TOLD_PER_HOUR,
+    TOLD_STATES,
     Person,
     Store,
     digest,
@@ -632,6 +634,9 @@ OPEN_TO_STRANGERS = frozenset(
         # The front page's box (targum-internal#399): a stranger pastes a link and is
         # told what it is. Describes and builds nothing.
         "/try",
+        # What a page reports about itself when it breaks (targum-internal#457): a page
+        # can break for somebody signed out, and that is still ours to know.
+        "/errors",
         # The connector (targum-internal#80). A client registering itself, asking for
         # tokens or giving one back has no account and is not a person; the reader is,
         # and `/oauth/authorize` finds them by cookie or signs them in on the spot.
@@ -948,6 +953,18 @@ SUBSCRIBE_ASKS_PER_HOUR = 3
 #: address itself.
 TRIES_PER_HOUR = 5
 TRIES_PER_HOUR_FOR_EVERYBODY = 120
+
+#: How many fault reports one browser may send in an hour, by its account or, signed
+#: out, by a digest of its address (privacy notice clause 3.14), and how many everybody
+#: together may. A page sends at most five itself (`report.js`); this is for a page that
+#: is not ours pretending to be one, and for a loop nobody meant.
+FAULTS_PER_HOUR = 30
+FAULTS_PER_HOUR_FOR_EVERYBODY = 600
+#: The largest fault report the door reads. A real one is a few hundred bytes.
+FAULT_BODY = 4096
+#: A build as the stamp writes it (`about.build`), and a window's size as a page says it.
+BUILD_SAID = re.compile(r"[0-9A-Za-z._-]{1,40}")
+WINDOW_SAID = re.compile(r"\d{2,5}x\d{2,5}")
 
 #: The longest link the box will hold for somebody waiting. A real address is a few
 #: hundred characters; anything past this is not one.
@@ -5159,6 +5176,22 @@ CONNECT_MINUTES = 10
 #: address with its query is a few hundred characters; anything longer is not one.
 NEXT_LONGEST = 1024
 
+#: A query or a fragment after an address, in a message or a stack: where a start-up key
+#: or a sign-in token could ride, and so never kept (clause 3.14).
+QUERY_AFTER = re.compile(r"(/[^\s?#)'\"]*)[?#][^\s)'\":]*")
+
+
+def _without_queries(said: object) -> str:
+    """A fault's message or place, on one line, with every address's query taken off."""
+    return QUERY_AFTER.sub(r"\1", " ".join(str(said or "").split()))[:300]
+
+
+def _path_only(page: object) -> str:
+    """The path of a page a browser named, and nothing else: no origin, query or
+    fragment, whatever it sent."""
+    path = urlparse(str(page or "")[:600]).path
+    return path[:300] if path.startswith("/") else ""
+
 
 def safe_next(asked: object) -> str:
     """The page a sign-in returns to, if it is one of ours, else "" (QA 2026-10-11, D2).
@@ -7830,6 +7863,9 @@ class Handler(BaseHTTPRequestHandler):
             balances=self.store.balances(),
             # Counted off the access log by `targum roll-visits`, beside the store.
             visits=visits.survey(self.store.path.parent / visits.FILE, days=DAYS),
+            # What readers wrote to us, and what broke in their browsers (#456, #457).
+            told=self.store.told(),
+            faults=self.store.faults(),
         )
         self._send(200, page.encode("utf-8"), HTML)
 
@@ -7972,6 +8008,22 @@ class Handler(BaseHTTPRequestHandler):
             said = f"{error.message} {error.hint or ''}".strip()
             return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}#shelf")
         self._go(f"{BACK_OFFICE_ROUTE}#shelf")
+
+    def _settle_told(self, form: dict[str, str]) -> None:
+        """Mark a message a reader sent open, fixed, won't or asked, from its row in the
+        back office (targum-internal#456). The same door as `_promote`: an admin session,
+        and 404 for anyone else. Fixed and won't start the year it is kept for."""
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        state = form.get("state", "")
+        try:
+            told_id = int(form.get("id", ""))
+        except ValueError:
+            return self._send(400, b"bad request", "text/plain")
+        if state not in TOLD_STATES or not self.store.settle_told(told_id, state):
+            return self._send(400, b"bad request", "text/plain")
+        self._go(f"{BACK_OFFICE_ROUTE}#people")
 
     def do_GET(self) -> None:  # noqa: N802
         self._answer(self._get)
@@ -8630,6 +8682,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._resend(self._form())
         if route == BACK_OFFICE_ROUTE + "/balance":
             return self._balance(self._form())
+        if route == BACK_OFFICE_ROUTE + "/told":
+            return self._settle_told(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by
         # necessity: somebody who reads an issue signed out has no account and is not
         # going to open one to be told when the next is out. Plain forms, before the
@@ -8643,6 +8697,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._waitlist_post(route, self._form())
         if route == "/try" and front_door_is_open():
             return self._try_post(self._form())
+        # Before the account check: a page breaks for strangers too (targum-internal#457).
+        if route == "/errors":
+            return self._fault_report()
         if route == "/series/stop":
             return self._series_stop(self._form())
         if route == "/subscriptions/stop":
@@ -8806,6 +8863,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._accept_grant()
         if route == "/correction":
             return self._propose_correction(payload)
+        if route == "/tell-us":
+            return self._tell_us(payload)
         if route == "/account/languages":
             return self._languages(payload)
         if route == "/account/language":
@@ -11060,6 +11119,101 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
         self._json({"signedIn": True, "interest": list(kept)})
+
+    def _fault_report(self) -> None:
+        """What a page said when it broke in a browser (targum-internal#457, clause 3.14).
+
+        Signed out too, because a page breaks for strangers as well: then the report
+        carries no account and is counted against a digest of the address, for the hour
+        `asked` keeps anything. The page's path and the place in our script lose any
+        query on the way in, whatever the page sent, and a message that has come in
+        `alerts.FAULT_THRESHOLD` times in an hour mails the operator once. Nothing here
+        answers the page with more than whether it was kept.
+        """
+        from . import alerts
+
+        store = self.store
+        if store is None:
+            return self._json({"error": "not found"}, 404)
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > FAULT_BODY:
+            return self._json({"error": "bad request"}, 400)
+        try:
+            payload = json.loads(self.rfile.read(length))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return self._json({"error": "bad request"}, 400)
+        if not isinstance(payload, dict):
+            return self._json({"error": "bad request"}, 400)
+        person = self._person()
+        who = f"fault:{person.id}" if person is not None else "fault:" + digest(self._visitor())
+        if store.asking_too_often(who, limit=FAULTS_PER_HOUR) or store.asking_too_often(
+            "fault:everybody", limit=FAULTS_PER_HOUR_FOR_EVERYBODY
+        ):
+            return self._json({"kept": False}, 429)
+        message = _without_queries(payload.get("message"))
+        place = _without_queries(payload.get("place"))
+        page = _path_only(payload.get("page"))
+        build = str(payload.get("build") or "")
+        build = build if BUILD_SAID.fullmatch(build) else ""
+        try:
+            count = store.fault(person, message, place, page, build)
+        except ValueError:
+            return self._json({"error": "bad request"}, 400)
+        alerts.page_broke(message, count, page, place)
+        self._json({"kept": True})
+
+    def _tell_us(self, payload: dict[str, Any]) -> None:
+        """A message a reader wrote to us from any page (targum-internal#456, clause 3.14).
+
+        Kept with the page it was sent from, the window's size, the page's language, the
+        build and the account, listed in the back office, and mailed to whoever
+        `TARGUM_ALERT_TO` names. The mail is a courtesy and never the record: one that
+        fails is logged, and the reader is still told it reached us, because it did.
+        """
+        from . import alerts
+
+        person = self._person()
+        said = str(payload.get("said") or "").strip()
+        if not said:
+            return self._json(
+                {"error": self._say("serve.tell-us.empty", "Write something first.")}, 400
+            )
+        who = f"tell:{person.id}" if person is not None else "tell:" + digest(self._visitor())
+        if self.store.asking_too_often(who, limit=TOLD_PER_HOUR):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.tell-us.too-often",
+                        "That's a lot for one hour. Write to hello@targum.page and we'll "
+                        "read it there.",
+                    )
+                },
+                429,
+            )
+        page = _path_only(payload.get("page"))
+        build = str(payload.get("build") or "")
+        build = build if BUILD_SAID.fullmatch(build) else ""
+        window = str(payload.get("viewport") or "")
+        window = window if WINDOW_SAID.fullmatch(window) else ""
+        language = str(payload.get("language") or "")[:12] or self._page_language()
+        told_id = self.store.tell(person, said, page, build, window, language)
+        sender = person.email if person is not None else "somebody signed out"
+        account = f" (account {person.id})" if person is not None else ""
+        listed = f"{self.address}{BACK_OFFICE_ROUTE}#people"
+        try:
+            alerts.tell(
+                f"targum: {sender} told us something",
+                f"{said}\n\n"
+                f"From: {sender}{account}\n"
+                f"Page: {page or 'not said'}\n"
+                f"Window: {window or 'not said'} · Language: {language or 'not said'} · "
+                f"Build: {build or 'not said'}\n\n"
+                f"It is message {told_id} in the back office: {listed}\n",
+                mailer=self.mailer,
+            )
+        except Exception:  # noqa: BLE001 - the message is kept; the mail is a courtesy
+            log.exception("could not mail Tell us message %s", told_id)
+        self._json({"kept": True})
 
     def _declared(self, payload: dict[str, Any]) -> None:
         """The rung a reader named on arrival (targum-internal#306, 2026-09-19).
@@ -14932,6 +15086,9 @@ def start(
 
         alerts.CREDIT.state = keeping.path.parent / "credit-watch.json"
         alerts.CREDIT.send = partial(alerts.tell, mailer=delivering)
+        # And a page breaking in readers' browsers (targum-internal#457), the same way.
+        alerts.FAULTS.state = keeping.path.parent / "fault-watch.json"
+        alerts.FAULTS.send = partial(alerts.tell, mailer=delivering)
     public = (public_address or f"http://127.0.0.1:{port}").rstrip("/")
     library = Library(
         out,

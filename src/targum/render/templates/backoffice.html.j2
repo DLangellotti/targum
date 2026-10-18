@@ -80,6 +80,8 @@
   .bo details.let-in { margin-block-start: 1rem; }
   .bo details.let-in summary { cursor: pointer; color: var(--ink-soft); font-weight: 600; }
   .bo a.write { font-size: 0.8125rem; font-weight: 600; }
+  .bo .told .said-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .bo .told .told-where { margin: 0.25rem 0 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -92,6 +94,7 @@
     {% if visits and visits.any() %}{{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot; {% endif %}
     {{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
     {{ survey.active() }} active in the last {{ days }} days &middot;
+    {{ told_open }} message{{ '' if told_open == 1 else 's' }} waiting on us &middot;
     {{ incidents|length }} incident{{ '' if incidents|length == 1 else 's' }} &middot; taken {{ survey.taken }}</p>
 
   {#- Four tabs on one page (David, 2026-09-28: "so much going on now"), switched in
@@ -138,6 +141,48 @@
   </table>
   {%- else %}
   <p class="quiet">Nobody to follow up with today.</p>
+  {%- endif %}
+
+  {#- What readers wrote to us through Tell us (targum-internal#456, clause 3.14): the
+      one place this page holds words somebody wrote, because they wrote them to us.
+      Open and asked first; fixed and won't fold away, and go a year after closing. -#}
+  <h2 id="told">Tell us</h2>
+  {%- set waiting_on_us = told|selectattr('state', 'in', ['open', 'asked'])|list %}
+  {%- set settled = told|rejectattr('state', 'in', ['open', 'asked'])|list %}
+  {%- macro told_rows(rows) %}
+  <table class="told">
+    <thead><tr><th>When</th><th>From</th><th>What they said</th><th>State</th></tr></thead>
+    <tbody>
+      {% for one in rows %}
+      <tr>
+        <td class="quiet">{{ one.when }}</td>
+        <td>{% if one.email %}{{ one.email }}<br><a class="write" href="mailto:{{ one.email|urlencode }}?subject=targum">Write</a>{% else %}<span class="quiet">no account</span>{% endif %}</td>
+        <td><p class="said-text" dir="auto">{{ one.said }}</p>
+          <p class="quiet told-where">{{ one.page or 'no page' }} &middot; {{ one.viewport or 'no window' }} &middot; {{ one.language or 'no language' }} &middot; {{ one.build or 'no build' }}</p></td>
+        <td>
+          <form method="post" action="/back-office/told" class="decide">
+            <input type="hidden" name="id" value="{{ one.id }}">
+            <select name="state" aria-label="State of message {{ one.id }}">
+              {% for state in told_states %}<option value="{{ state }}"{% if one.state == state %} selected{% endif %}>{{ state }}</option>{% endfor %}
+            </select>
+            <button type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {%- endmacro %}
+  {%- if waiting_on_us %}
+  {{ told_rows(waiting_on_us) }}
+  {%- else %}
+  <p class="quiet">Nothing waiting on us.</p>
+  {%- endif %}
+  {%- if settled %}
+  <details class="let-in">
+    <summary>Closed ({{ settled|length }})</summary>
+    {{ told_rows(settled) }}
+  </details>
   {%- endif %}
 
   {%- if survey.batches %}
@@ -495,6 +540,30 @@
     </tbody>
   </table>
 
+  {#- What broke in readers' browsers (targum-internal#457, clause 3.14), counted by
+      message and page over thirty days: how often, for how many accounts, and where in
+      the script. A message reported five times in an hour has mailed the operator. -#}
+  <h2 id="faults">Broken in browsers</h2>
+  {% if not faults %}
+  <p class="nothing">No page has broken in a browser lately.</p>
+  {% else %}
+  <table>
+    <thead><tr><th>Last</th><th>Page</th><th>What</th><th class="n">Times</th><th class="n">Accounts</th></tr></thead>
+    <tbody>
+      {% for one in faults %}
+      <tr>
+        <td class="quiet">{{ one.when }}</td>
+        <td>{{ one.page or 'not said' }}</td>
+        <td>{{ one.message }}
+          {%- if one.place or one.build %}<details class="trace"><summary class="quiet">Where</summary><pre>{{ one.place or 'not said' }}{% if one.build %} &middot; {{ one.build }}{% endif %}</pre></details>{% endif %}</td>
+        <td class="n">{{ one.count }}</td>
+        <td class="n">{{ one.people }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   <h2>Incidents</h2>
   {#- What went wrong, other than in the journal (targum-internal#24): a request that
       raised, a build that died, a look-up that failed. The type and the message, the
@@ -521,8 +590,9 @@
 
   </section>
 
-  <p class="note">Counts only. This page holds no words, no texts and no notes — see
-    <code>backoffice.py</code> for why that is a rule rather than a first version.</p>
+  <p class="note">Counts only. This page holds no words, no texts and no notes, save the
+    messages readers write to us through Tell us. See <code>backoffice.py</code> for why
+    that is a rule rather than a first version, and why those are the exception.</p>
 </main>
 <script>{{ asset('backoffice.js') }}</script>
 </body>

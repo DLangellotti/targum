@@ -165,7 +165,7 @@ def test_targum_out_of_reach_is_one_band_under_the_top_bar(browser) -> None:
 @pytest.mark.parametrize("width", [390, 1280])
 def test_an_address_with_nothing_at_it_is_a_whole_page(browser, width: int) -> None:
     """A whole page: the desk's top bar stays, then a heading in the reading serif, one
-    sentence and one button."""
+    sentence and one button, and Tell us beside it for anybody signed in."""
     context, page, thrown = served(
         browser, not_found_page(), "/nowhere", lambda route, request: json_answer(route, {}), width
     )
@@ -180,7 +180,7 @@ def test_an_address_with_nothing_at_it_is_a_whole_page(browser, width: int) -> N
             serif: getComputedStyle(main.querySelector('h1')).fontFamily.includes('Iowan'),
             said: main.querySelector('p').textContent,
             go: [go.textContent, go.getAttribute('href')],
-            presses: main.querySelectorAll('a, button').length,
+            presses: [...main.querySelectorAll('a, button')].map((b) => b.textContent),
             sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
           };
         }"""
@@ -194,7 +194,8 @@ def test_an_address_with_nothing_at_it_is_a_whole_page(browser, width: int) -> N
         "serif": True,
         "said": "There's nothing at this address.",
         "go": ["Go to the library", "/library"],
-        "presses": 1,
+        # And Tell us, quiet, for anybody signed in (design.md §12, 2026-10-18).
+        "presses": ["Go to the library", "Tell us"],
         "sideways": False,
     }
 

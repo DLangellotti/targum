@@ -54,6 +54,7 @@
 {% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
+<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
 <script>{{ asset('connect.js') }}</script>
 </body>
 </html>

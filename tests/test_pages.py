@@ -371,7 +371,10 @@ def test_the_account_menu_is_who_what_is_left_and_three_rows() -> None:
         panel = page[page.index('id="account-panel"') : page.index('id="account-said"')]
         signed_in = panel[panel.index('class="signed-in"') :]
         rows = re.findall(r'class="menu-row"[^>]*>([^<]+)<', signed_in)
-        assert rows == ["Your account", "Saved on this device", "Sign out"], (name, rows)
+        # Tell us since 2026-10-18 (design.md §12, "Tell us is a row in the menu and a
+        # press on every fault"): the one row that is not navigation.
+        assert rows == ["Your account", "Saved on this device", "Tell us", "Sign out"], (name, rows)
+        assert 'class="menu-row" data-tell-us' in signed_in, name
         assert 'class="menu-row" href="/you"' in signed_in, name
         assert 'class="menu-row" href="/you/saved"' in signed_in, name
         assert 'class="menu-row" id="account-out"' in signed_in, name
