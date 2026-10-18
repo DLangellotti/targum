@@ -2,9 +2,9 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'reader.css', 'public.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 </head>
 <body class="public">
 {#- A page about a text, not a page about targum. Somebody arriving here searched for

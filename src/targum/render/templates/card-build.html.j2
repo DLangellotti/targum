@@ -15,7 +15,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>{{ t("card.build.title", "Where a text has got to") }}</title>
-<style>{{ asset('card.css') }}</style>
+{{ styles('card.css') }}
 </head>
 <body>
 <article class="card" id="card" aria-live="polite"
@@ -31,7 +31,7 @@
   {#- The foot, once there is a door: where the text is kept, and Open (board ConnCards). -#}
   <p class="card-foot" id="foot" hidden><span>{{ t("card.build.kept", "In Your targums") }}</span><a class="card-door" id="door" target="_blank" rel="noopener" hidden>{{ t("card.build.open", "Open") }}<svg class="card-arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.5 3.5h6v6M12.5 3.5 4 12"></path></svg></a></p>
 </article>
-<script>{{ asset('card-bridge.js') }}</script>
-<script>{{ asset('card.js') }}</script>
+{{ script('card-bridge.js') }}
+{{ script('card.js') }}
 </body>
 </html>

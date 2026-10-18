@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("playlists.page.title-targum", "Your playlists — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}{{ asset('playlists.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'library.css', 'you.css', 'playlists.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="playlists">
@@ -16,7 +16,7 @@
     chosen, so the three read as one place though this is a page of its own. -#}
 {% set here = 'texts' %}{% set title = t("yours.page.your-targums", "Your targums") %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 
 {#- A playlist is the reader's (targum-internal#364; design.md §12, "A playlist is swiped,
     and one press takes the set", 2026-09-23): texts kept in an order, to go through one
@@ -90,10 +90,10 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('playlists.js') }}</script>
+{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('playlists.js') }}
 </body>
 </html>

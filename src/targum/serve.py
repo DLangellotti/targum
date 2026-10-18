@@ -67,12 +67,14 @@ from .models import Document, Segment, SegmentedDocument, Style, glossary_path, 
 from .pipeline import Build, Result
 from .remembered import Remembered
 from .render.builder import (
+    ASSET_ROUTE,
     CONTENTS,
     LEGAL,
     LINK_PREVIEW,
     LINK_PREVIEW_ROUTE,
     about_page,
     approve_page,
+    asset_files,
     back_office_page,
     connect_page,
     connect_refused_page,
@@ -5671,13 +5673,31 @@ class Handler(BaseHTTPRequestHandler):
             policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
         if re.search(rb"<iframe\b", body):
             policy = policy + "; frame-src 'self'"
-        return f"{policy}; script-src {allowed}; style-src {allowed}"
+        # A desk page names its own stylesheets and scripts under `/assets/` (design.md
+        # §12, 2026-10-18), and `'self'` is what lets it load them. Read off the page as
+        # written, like the frames: a page that names none — every reader, every public
+        # page — is held to its hashes alone, exactly as before. Inline blocks are still
+        # hashed on every page, and nothing anywhere is `'unsafe-inline'`.
+        scripts = styles = allowed
+        if re.search(rb'<script\b[^>]*\bsrc="' + ASSET_ROUTE.encode() + rb"[^\"]+\"", body):
+            scripts = f"'self' {allowed}".rstrip()
+        if re.search(rb'<link\b[^>]*\bhref="' + ASSET_ROUTE.encode() + rb"[^\"]+\"", body):
+            styles = f"'self' {allowed}".rstrip()
+        return f"{policy}; script-src {scripts}; style-src {styles}"
 
     # A reader page is around 180 kB, most of it the same stylesheet and script every
     # other page carries, and gzip takes it to a third of that. In front of the deployed
     # server Caddy already does this, so this is for the copy running on a laptop, which
     # has nothing in front of it at all. Below a packet there is nothing to win.
-    COMPRESSIBLE = ("text/html", "application/json", "text/plain", "image/svg+xml")
+    COMPRESSIBLE = (
+        "text/html",
+        "application/json",
+        "text/plain",
+        "image/svg+xml",
+        # A desk page's own files (`_asset_file`).
+        "text/css",
+        "text/javascript",
+    )
     COMPRESS_OVER = 1400
 
     def _worth_zipping(self, body: bytes, kind: str) -> bool:
@@ -8111,6 +8131,12 @@ class Handler(BaseHTTPRequestHandler):
         # to see whether it changed, and it holds nothing that is anybody's.
         if route == WORKER_ROUTE:
             return self._worker()
+        # A desk page's own stylesheets and scripts (design.md §12, "A desk page loads its
+        # files once and keeps them", 2026-10-18). Before the account check: they are the
+        # same files for everybody, the sign-in page names them too, and none holds
+        # anything of anybody's.
+        if route.startswith(ASSET_ROUTE):
+            return self._asset_file(route)
         # A text card's recording, played from a host's frame on another origin, where
         # the session cookie never arrives (design.md §12, 2026-10-06). Before the account
         # check, because the token is the whole of the permission: it opens one file for
@@ -14365,6 +14391,25 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    #: A year, and never asked about again: the address names the bytes by their hash,
+    #: so a file that changes is a file at a new address.
+    ASSET_CACHE = "public, max-age=31536000, immutable"
+
+    def _asset_file(self, route: str) -> None:
+        """One of a desk page's files, out of the map built at start-up (`asset_files`).
+
+        Only an address the map holds answers, so a hash that is not the current one is
+        the same 404 as a name that was never there: an old page asking for last week's
+        file is told so rather than handed this week's under the old name.
+        """
+        if not self._host_is_ours():
+            return self._send(404, b"not found", "text/plain")
+        found = asset_files().get(route)
+        if found is None:
+            return self._send(404, b"not found", "text/plain")
+        body, kind, _ = found
+        return self._send(200, body, kind, cache=self.ASSET_CACHE)
+
     def _offline_files(self) -> None:
         """What saving a text for offline would keep: every page of it and every sidecar
         beside them, with their sizes, so the menu can say how much room it takes before
@@ -15208,6 +15253,8 @@ def start(
             "catalogue": library_page(token),
         },
     )
+    # The desk pages' own files, read and hashed once, so each is answered from memory.
+    asset_files()
     try:
         server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     except OSError as error:

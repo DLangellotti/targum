@@ -9,9 +9,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>⁨{{ title }}⁩{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('reader.css') }}</style>{% if said %}<style>{{ asset('said.css') }}</style>{% endif %}
+{{ styles('tokens.css', 'shared.css', 'reader.css') }}{% if said %}{{ styles('said.css') }}{% endif %}
 {%- if preread %}
-<style>{{ asset('preread.css') }}</style>
+{{ styles('preread.css') }}
 {% endif %}
 {#- The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
     script has no Hebrew to draw with it (2026-09-13). Every Hebrew-script text carries
@@ -20,8 +20,8 @@
 {#- The chrome's face, upright only, for the reader's own menus (design.md §12,
     2026-10-09, "The reader's menus are the board's"). -#}
 {{ chrome_face(false) }}
-<script>{{ asset('durable.js') }}</script>
-<script>{{ asset('keep.js') }}</script>
+{{ script('durable.js') }}
+{{ script('keep.js') }}
 </head>
 <body class="reader mode-parallel{% if post %} is-post{% endif %}{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}{% if verse_by_verse %} verses{% endif %}">
 <header class="bar">
@@ -1397,32 +1397,32 @@
 {#- The ledger's arithmetic, shared with Learn and /progress: the foot of a finished
     section says what moved (targum-internal#175), and the longest run of days is
     counted in one place so three pages cannot disagree about it. -#}
-<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
-<script>{{ asset('charts.js') }}</script>
-<script>{{ asset('vocab.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
+{{ script('report.js', data_build=build()) }}
+{{ script('charts.js') }}
+{{ script('vocab.js') }}
+{{ script('sync.js') }}
 {#- Saving for offline and the worker that answers it (design.md §12, 2026-10-09). Nothing
     runs off a disk: there is no origin there to keep anything for. -#}
-<script>{{ asset('offline.js') }}</script>
-<script>{{ asset('events.js') }}</script>
-<script>{{ asset('playlist-menu.js') }}</script>
-<script>{{ asset('fault.js') }}</script>
-<script>{{ asset('landed.js') }}</script>
-<script>{{ asset('reader.js') }}</script>{% if said %}<script>{{ asset('said.js') }}</script>{% endif %}
+{{ script('offline.js') }}
+{{ script('events.js') }}
+{{ script('playlist-menu.js') }}
+{{ script('fault.js') }}
+{{ script('landed.js') }}
+{{ script('reader.js') }}{% if said %}{{ script('said.js') }}{% endif %}
 {%- if preread %}
-<script>{{ asset('preread.js') }}</script>
+{{ script('preread.js') }}
 {% endif %}
 {#- The listening view (design.md §12, "Listening is a view of its own", 2026-10-10): only
     on a text with a recording, after the player it drives and before the playlist. -#}
-{% if spoken_audio %}<script>{{ asset('listen.js') }}</script>{% endif %}
+{% if spoken_audio %}{{ script('listen.js') }}{% endif %}
 {#- A reader opened from a playlist: Next, Back and the swipe (targum-internal#366). Does
     nothing unless the page was served with `?list=`, so a reader off a disk is as it was. -#}
-<script>{{ asset('list.js') }}</script>
-<script>{{ asset('talk.js') }}</script>
+{{ script('list.js') }}
+{{ script('talk.js') }}
 {% if false_friends %}
 {#- A French word's false friend on its card (targum-internal#267), only on a page written
     with `TARGUM_FALSE_FRIENDS` on; without it the page ends as it did. #}
-<script>{{ asset('false-friends.js') }}</script>
+{{ script('false-friends.js') }}
 {% endif %}
 </body>
 </html>

@@ -13,15 +13,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("plans.page.title-tab", "Plans — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('plans.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'plans.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="plans">
 {% set here = 'plans' %}{% set title = t("plans.page.title", "Plans") %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 <main class="plans-main">
   <p class="plans-lede">{{ t("plans.page.lede", "Reading on targum is free, and it stays free. The plan is for the videos, podcasts and recordings you want to learn from.") }}</p>
 
@@ -113,9 +113,9 @@
 {% include '_foot.html.j2' %}
 <script>window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };</script>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
 </body>
 </html>

@@ -18,7 +18,7 @@
     and the weekly began declaring theirs too. That file's own header says a head kept in
     four copies is four copies that drift, and this was the copy. -#}
 {% include '_public_head.html.j2' %}
-<style>{{ asset('landing.css') }}</style>
+{{ styles('landing.css') }}
 {{ hebrew_face() }}
 {#- The Torah's own face, beside the modern one: the ta'amim are boxes without it. -#}
 {{ scripture_face() }}
@@ -367,8 +367,8 @@
 {% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
 
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
-<script>{{ asset('landing.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('report.js', data_build=build()) }}
+{{ script('landing.js') }}
 </body>
 </html>

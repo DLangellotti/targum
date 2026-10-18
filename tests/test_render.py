@@ -1252,7 +1252,14 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
     the front door had already gone that way on 2026-09-16. What is pinned here is the
     absence: no second palette, no switch, no stamp, and no page that reads the old key.
     """
-    from targum.render.builder import ASSETS, add_page, library_page, progress_page, welcome_page
+    from targum.render.builder import (
+        ASSETS,
+        add_page,
+        carried,
+        library_page,
+        progress_page,
+        welcome_page,
+    )
 
     assert not (ASSETS / "theme.js").exists(), "what was left of it is keep.js"
     keep = (ASSETS / "keep.js").read_text(encoding="utf-8")
@@ -1270,11 +1277,12 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
         provider="null",
         segments={segments[0].id: "tr"},
     )
+    # The desk pages read with the files they name put back inside them (`carried`).
     pages = {
-        "add": add_page("k"),
-        "welcome": welcome_page("k"),
-        "library": library_page("k"),
-        "progress": progress_page("k"),
+        "add": carried(add_page("k")),
+        "welcome": carried(welcome_page("k")),
+        "library": carried(library_page("k")),
+        "progress": carried(progress_page("k")),
         "reader": render(document, segmented, [translation], tmp_path / "r")[0].read_text(
             encoding="utf-8"
         ),
@@ -1703,7 +1711,7 @@ def test_every_page_that_reads_hebrew_carries_a_face() -> None:
     missing = [
         path.name
         for path in templates
-        if "asset('tokens.css')" in path.read_text(encoding="utf-8")
+        if "'tokens.css'" in path.read_text(encoding="utf-8")
         and "hebrew_face(" not in path.read_text(encoding="utf-8")
     ]
     assert not missing, f"these carry the stylesheet but no Hebrew face: {', '.join(missing)}"
@@ -2100,9 +2108,10 @@ def test_every_page_shares_one_language_choice() -> None:
     the module that keeps that choice has to be on every page that offers it. Hebrew
     is the default and the only one not marked beta.
     """
-    from targum.render.builder import add_page, library_page, list_page, progress_page
+    from targum.render.builder import add_page, carried, library_page, list_page, progress_page
 
-    for html in (add_page("k"), list_page("k", "texts"), progress_page("k"), library_page("k")):
+    for page in (add_page("k"), list_page("k", "texts"), progress_page("k"), library_page("k")):
+        html = carried(page)
         assert "TargumLang" in html, "the shared language choice is missing"
         assert 'HOME = "he"' in html
 

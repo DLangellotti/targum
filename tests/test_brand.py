@@ -895,7 +895,13 @@ def _page_sheets(template: Path, seen: set[str] | None = None) -> list[str]:
         return []
     seen.add(template.name)
     text = template.read_text(encoding="utf-8")
-    sheets = re.findall(r"asset\('([\w-]+\.css)'\)", text)
+    # `styles('tokens.css', ...)` since 2026-10-18 (a desk page names them by address,
+    # the rest still inline them), and `asset()` wherever a sheet is baked in by hand.
+    sheets = [
+        name
+        for call in re.findall(r"\b(?:styles|asset)\(([^)]*)\)", text)
+        for name in re.findall(r"'([\w-]+\.css)'", call)
+    ]
     for partial in re.findall(r"""\{%-?\s*include\s+['"]([^'"]+)['"]""", text):
         sheets += _page_sheets(TEMPLATES / partial, seen)
     return sheets

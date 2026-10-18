@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 {% include '_public_head.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'reader.css', 'public.css') }}
 {{ hebrew_face() }}
 </head>
 <body class="public legal">

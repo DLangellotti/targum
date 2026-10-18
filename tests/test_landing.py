@@ -338,8 +338,8 @@ def test_the_page_loads_one_stylesheet_and_it_is_its_own() -> None:
     template = (
         Path(__file__).resolve().parents[1] / "src/targum/render/templates/landing.html.j2"
     ).read_text(encoding="utf-8")
-    assert "asset('landing.css')" in template
-    assert "asset('reader.css')" not in template, "both sheets collide on .lines and .thread"
+    assert "styles('landing.css')" in template
+    assert "'reader.css'" not in template, "both sheets collide on .lines and .thread"
 
 
 # -- the two languages ----------------------------------------------------------------

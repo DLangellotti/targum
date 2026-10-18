@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from targum.render.builder import list_page
+from targum.render.builder import carried, list_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -103,7 +103,7 @@ def _readers() -> list[dict]:
 
 def shelf(browser, tmp_path: Path, width: int):
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     # Tall enough that the shelf under home's Continue is on screen without a scroll: a
     # scroll closes an open ⋯, which is right for a reader and not what these are about.
     context = browser.new_context(viewport={"width": width, "height": 2000})
@@ -258,7 +258,7 @@ def test_a_video_with_a_poster_shows_its_picture(browser, tmp_path: Path) -> Non
         "ABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q=="
     )
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     page = context.new_page()
     drawn = [{**_readers()[0], "drawn": True}]

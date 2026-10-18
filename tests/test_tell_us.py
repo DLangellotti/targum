@@ -388,6 +388,6 @@ def test_every_page_with_the_fault_script_carries_the_reporter_first() -> None:
         "chat.html.j2",
     ):
         text = (TEMPLATES / name).read_text(encoding="utf-8")
-        assert "asset('report.js')" in text, name
-        assert text.index("asset('report.js')") < text.index("asset('fault.js')"), name
-        assert 'data-build="{{ build() }}"' in text, name
+        assert "script('report.js'" in text, name
+        assert text.index("script('report.js'") < text.index("script('fault.js')"), name
+        assert "data_build=build()" in text, name

@@ -9,12 +9,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1{% if desk %}, viewport-fit=cover{% endif %}">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{% if desk %}{{ asset('chrome.css') }}{% endif %}{{ asset('signin.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css' if desk else '', 'signin.css') }}
 {{ hebrew_face() }}
 {%- if not desk %}
 {{ chrome_face() }}
 {%- endif %}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 </head>
 <body class="signin"{% if desk %} data-shell="desk"{% endif %}>
 {%- if desk %}
@@ -148,9 +148,9 @@
     one another. -#}
 {% if desk %}{% include '_foot.html.j2' %}{% else %}{% include '_public_foot.html.j2' %}{% endif %}
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
-<script>{{ asset('fault.js') }}</script>
-<script>{{ asset('signin.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('report.js', data_build=build()) }}
+{{ script('fault.js') }}
+{{ script('signin.js') }}
 </body>
 </html>
