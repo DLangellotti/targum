@@ -119,6 +119,10 @@ body.arriving .arrival-waiting { display: none; }
 .arrival-switch-key[aria-pressed="true"] { color: var(--ink); cursor: default; }
 .arrival-switch-key:hover:not([aria-pressed="true"]) { background: var(--teal-wash); color: var(--teal); }
 .arrival-switch-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* §8 under a thumb: EN and RU were 32px tall (arrival QA, 2026-10-18). */
+@media (hover: none) and (pointer: coarse) {
+  .arrival-switch-key { min-block-size: 44px; min-inline-size: 44px; }
+}
 
 /* --- the column -------------------------------------------------------------- */
 
@@ -298,6 +302,9 @@ body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
   .arrival-head:has(.arrival-back-mark[hidden]) .arrival-step { line-height: 20px; }
 
   .arrival { padding: 6px 16px 104px; }
+  /* The waiting line, and what it says when the page could not load, keep the column's
+     gutter: they stood against the window's edge (arrival QA, 2026-10-18). */
+  .arrival-waiting { margin: 24px 16px; }
   body[data-step="learning"] .arrival { max-inline-size: none; }
   .arrival-asks { font-size: 1.75rem; margin-block-end: 14px; }
   .arrival-asks:has(+ .arrival-hint) { margin-block-end: 6px; }

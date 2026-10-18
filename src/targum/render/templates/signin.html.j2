@@ -65,7 +65,7 @@
   <svg class="fault-icon lost" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.25"/><path d="M8 4.75v3.75M8 10.9v.1"/></svg>
   <h1>{{ t("signin.page.connect-lost-title", "We couldn't finish connecting") }}</h1>
   <p class="said">{{ t("signin.page.connect-lost-why", "You started in another browser, or too long ago. Sign in, then connect again from Claude or ChatGPT.") }}</p>
-  <form method="post" action="/account/enter">
+  <form method="post" action="/account/enter{% if asked %}?lang={{ asked }}{% endif %}" class="enter"{% if asked %} data-asked="{{ asked }}"{% endif %}>
     <input type="hidden" name="t" value="{{ token }}">
     {%- if back %}
     <input type="hidden" name="next" value="{{ back }}">
@@ -81,7 +81,7 @@
       heading; nothing is sent from it. -#}
   <h1>{{ t("signin.page.sign-in-as", "Sign in as {address}", address=landing.replace("@", "\u200b@")) }}</h1>
   <p class="said">{{ t("signin.page.press-to-sign-in-on-this-browser", "Press to sign in on this browser.") }}</p>
-  <form method="post" action="/account/enter">
+  <form method="post" action="/account/enter{% if asked %}?lang={{ asked }}{% endif %}" class="enter"{% if asked %} data-asked="{{ asked }}"{% endif %}>
     <input type="hidden" name="t" value="{{ token }}">
     {%- if back %}
     <input type="hidden" name="next" value="{{ back }}">

@@ -181,3 +181,15 @@ def test_words_claimed_before_get_their_meanings_back_and_are_asked_once() -> No
         pages=PAGES, ledger=claimed, stored={"targum:claim-asked": {"עם": 1, "היא": 1, "גם": 1}}
     )
     assert not [a for a in again["asked"] if "forms=" in a], "asked once"
+
+
+def test_a_list_that_cannot_be_fetched_says_so_and_asks_again() -> None:
+    """Offline, Your Words drew no panel and no reason: the list simply was not there
+    (arrival QA, 2026-10-18). It says so, and Try again asks for the same page."""
+    failed = run(pages=PAGES, fail=1)
+    assert failed["fault"] == "We couldn't load the list."
+    assert not failed["hidden"], "the panel stands, to say so"
+    assert failed["tableHidden"] and failed["rows"] == []
+    again = run(pages=PAGES, fail=1, do=[{"type": "retry"}])
+    assert again["fault"] == "" and not again["tableHidden"]
+    assert [row["form"] for row in again["rows"]][:3] == FIRST[:3]

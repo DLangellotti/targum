@@ -623,3 +623,34 @@ def test_the_arrival_opens_a_book_at_its_first_chapter_not_its_contents() -> Non
         "went"
     ]
     assert "/reader/holon/reader/index.html" in went, went
+
+
+# -- the states around the questions (design.md §14, arrival QA 2026-10-18) -------------
+
+
+def test_a_shelf_that_cannot_be_reached_is_said_and_not_skipped() -> None:
+    """Offline, or the server answering with something that is not an answer, the page
+    went home in silence: the questions were skipped for the rest of the visit and a new
+    reader landed on a page saying it could not load. It stays, says so, and offers to
+    ask again."""
+    failed = draw([], {}, shared=seeded(), readersFail=True)
+    assert failed["home"] == "", "it does not go home"
+    assert failed["arrival"] == [], "and asks nothing it cannot answer"
+    assert failed["waiting"] == "We couldn't load this page. Check your connection and try again."
+    assert "targum:arrival-over" not in failed["visit"], "the questions are still to come"
+
+
+def test_a_slow_shelf_says_it_is_still_loading() -> None:
+    """Past three seconds the wait is said (§14, line 1): "Opening…" alone on an empty
+    page reads as a page that has stopped."""
+    early = draw([], {}, shared=seeded(), readersPending=True)
+    assert "still" not in early["waiting"], "not before three seconds"
+    late = draw([], {}, shared=seeded(), readersPending=True, reportAfter=3300)
+    assert late["waiting"] == "We're still loading the library."
+
+
+def test_the_slow_line_never_outlives_the_answer() -> None:
+    """A shelf that answers in time leaves no timer to say otherwise afterwards."""
+    quick = draw([], {}, shared=seeded(), reportAfter=3300)
+    assert quick["arrival"], "a new reader is asked"
+    assert "still loading" not in quick["waiting"]

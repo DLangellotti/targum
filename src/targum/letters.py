@@ -653,7 +653,14 @@ def invitation(address: str, language: str = "en", connector: bool | None = None
 
     code = _code(language)
     base = address.rstrip("/")
-    link = f"{base}/account/signin"
+    # In the language they joined in, so the page the button opens is the language the
+    # mail was (arrival QA, 2026-10-18): a Russian invitation opened an English sign-in
+    # page, sent an English link and asked the arrival's questions in English. `?lang=`
+    # is the sign-in page's own switch, and a press it carries on.
+    from .strings import languages
+
+    spoken = code != "en" and code in set(languages())
+    link = f"{base}/account/signin" + (f"?lang={code}" if spoken else "")
     said: list[Any] = [
         Heading(text("mail.invitation.heading", code)),
         Para(text("mail.invitation.lead", code)),
