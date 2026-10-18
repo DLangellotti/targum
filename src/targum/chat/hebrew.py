@@ -1065,8 +1065,32 @@ _WORD = re.compile(r"[\u05d0-\u05ea][\u05b0-\u05c7\u05d0-\u05ea\u05f3\u05f4\"']*
 _LATIN_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")
 
 
-def common_words(n: int = COMMON, language: str = "he") -> list[str]:
+def claimable(word: str, language: str = "he") -> bool:
+    """Whether a word from the common list may be offered as a word the reader may know.
+
+    wordfreq's lists are tokens, not words: near the top of the Hebrew one stand "1",
+    "0", the prefix letters ב and ה on their own, and "the". The claim grid offered them
+    as words a reader might know (David, 2026-10-18), so it is offered only a token of two
+    characters or more, not all digits, with a letter of the language's own script in it.
+    Russian's в and и, and French's à, go with the rest: one letter is not a word to mark.
+    """
+    form = word.strip()
+    if len(form) < 2 or form.isdigit():
+        return False
+    code = (language or "he").split("-")[0].lower()
+    if code in HEBREW_SCRIPT:
+        return any("\u05d0" <= ch <= "\u05ea" for ch in form)
+    if code in CYRILLIC_SCRIPT:
+        return any("\u0400" <= ch <= "\u04ff" for ch in form)
+    return any(ch.isalpha() and (ch.isascii() or "\u00c0" <= ch <= "\u024f") for ch in form)
+
+
+def common_words(n: int = COMMON, language: str = "he", *, claim: bool = False) -> list[str]:
     """The commonest words of the language at bands 1 and 2, most common first.
+
+    With `claim`, only the ones `claimable` lets through, cut at `n` after they are left
+    out: the list "Words you may already know" is drawn from (`/words/common`). The
+    other callers measure against the list as wordfreq has it, and keep it so.
 
     From wordfreq, the same table the reader's bands come from, so "common" here means
     the same thing it means on their word cards. Empty where the `difficulty` extra is
@@ -1097,6 +1121,7 @@ def common_words(n: int = COMMON, language: str = "he") -> list[str]:
             word
             for word in top_n_list(code, n * 2)
             if zipf_frequency(word, code) >= BAND_FLOOR_ZIPF
+            and (not claim or claimable(word, code))
         ][:n]
     except LookupError:
         return []

@@ -37,8 +37,16 @@ def browser():
     driver.stop()
 
 
-def home(browser, locale: str, reads: list[str], signed_in: bool = True, width: int = 1280):
-    html = list_page(TOKEN, "texts")
+def home(
+    browser,
+    locale: str,
+    reads: list[str],
+    signed_in: bool = True,
+    width: int = 1280,
+    language: str = "en",
+    phone: bool = False,
+):
+    html = list_page(TOKEN, "texts", language=language)
     told: list[dict[str, Any]] = []
     loads: list[str] = []
 
@@ -69,11 +77,13 @@ def home(browser, locale: str, reads: list[str], signed_in: bool = True, width: 
             body = {"readers": [], "shared": [], "trash": [], "covers": False}
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
+    extra = {"is_mobile": True, "has_touch": True} if phone else {}
     context = browser.new_context(
         viewport={"width": width, "height": 800},
         locale=locale,
         reduced_motion="reduce",
         color_scheme="light",
+        **extra,
     )
     page = context.new_page()
     # Answered the arrival already, so home is home and not `/welcome`.
@@ -121,5 +131,65 @@ def test_signed_out_sees_nothing(browser) -> None:
     context, page, _, _ = home(browser, "ru-RU", ["en"], signed_in=False)
     try:
         assert page.is_hidden("#ui-tongue")
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_on_a_phone_it_is_a_row_of_the_account_sheet_and_the_bar_fits(browser, language) -> None:
+    """design.md §13, 2026-10-18: EN and RU were 28px keys in the phone bar, and widening
+    them pushed the Russian bar 32px off the screen. Under 40rem they are a row of the
+    account's sheet at 44px, and the bar at 390 fits in English and in Russian."""
+    context, page, told, loads = home(
+        browser, "ru-RU", ["en"], width=390, language=language, phone=True
+    )
+    try:
+        assert page.is_hidden("#ui-tongue"), "the bar leaves them out on a phone"
+        sideways = page.evaluate(
+            "() => { const row = document.querySelector('.site-head-row');"
+            " return Math.max(row.scrollWidth - row.clientWidth,"
+            " row.getBoundingClientRect().right - window.innerWidth,"
+            " document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth); }"
+        )
+        assert sideways <= 0, f"the bar is {sideways}px too wide"
+        for child in page.locator(".site-head-row > *:visible").all():
+            box = child.bounding_box()
+            assert box and box["x"] >= 0 and box["x"] + box["width"] <= 390, child
+
+        page.click("#account-open")
+        page.wait_for_selector("#account-panel:not([hidden])")
+        assert page.is_visible("#account-tongue")
+        assert page.inner_text("#account-tongue-keys").split() == ["EN", "·", "RU"]
+        for code in ("en", "ru"):
+            key = page.locator(f"#account-tongue-keys .ui-tongue-key[lang={code}]")
+            box = key.bounding_box()
+            assert box and box["width"] >= 44 and box["height"] >= 44, (code, box)
+        other = "ru" if language == "en" else "en"
+        page.click(f"#account-tongue-keys .ui-tongue-key[lang={other}]")
+        page.wait_for_timeout(600)
+        assert told == [{"learning": ["he"], "reads": [other]}]
+        assert len(loads) == 2, "the page is drawn again in the language chosen"
+    finally:
+        context.close()
+
+
+def test_at_a_desk_the_sheet_has_no_row_and_the_bar_keeps_them(browser) -> None:
+    context, page, _, _ = home(browser, "ru-RU", ["en"])
+    try:
+        assert page.is_visible("#ui-tongue")
+        page.click("#account-open")
+        page.wait_for_selector("#account-panel:not([hidden])")
+        assert page.is_hidden("#account-tongue")
+    finally:
+        context.close()
+
+
+def test_on_a_phone_nobody_else_has_the_row(browser) -> None:
+    context, page, _, _ = home(browser, "en-US", ["en"], width=390, phone=True)
+    try:
+        page.click("#account-open")
+        page.wait_for_selector("#account-panel:not([hidden])")
+        assert page.is_hidden("#account-tongue")
+        assert page.inner_text("#account-tongue-keys") == ""
     finally:
         context.close()

@@ -472,6 +472,9 @@ THUMBED = (
     # them, and the bar's EN and RU.
     ".account-panel .menu-row",
     ".ui-tongue-key",
+    # And EN and RU as the account sheet's row on a phone (design.md §13, 2026-10-18),
+    # 44px across as well as up, since there they are the row's whole press.
+    ".account-tongue .ui-tongue-key",
 )
 
 

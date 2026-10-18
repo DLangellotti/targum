@@ -255,3 +255,53 @@ def test_nothing_yet_says_what_will_appear(browser) -> None:
     assert page.is_hidden("#shelf-panel") and page.is_visible(".upload-card")
     context.close()
     assert not thrown, thrown
+
+
+def test_a_first_sync_draws_home_again_in_place_rather_than_reloading(browser) -> None:
+    """On a browser that had never synced, home reloaded the whole page once `/sync`
+    came back, and with a big shelf a first visit took about five seconds (2026-10-18).
+    The answer is drawn in place: a shared text opened on another device joins the shelf
+    as Started, Continue picks it up, and the page is loaded once."""
+    shared = reader_row(1, chapters=3, document=HASH)
+    now = int(time.time() * 1000)
+    answers = {
+        "/readers": {"readers": [reader_row(2)], "shared": [shared], "trash": []},
+        "/sync": "hold",
+    }
+    context, page, thrown, held, documents = home(browser, answers)
+    page.goto(SITE + "/")
+    page.wait_for_function("() => document.querySelectorAll('#library-list > li').length === 1")
+    for _ in range(50):
+        if held:
+            break
+        page.wait_for_timeout(100)
+    assert held, "home asks the account for its record"
+    page.evaluate("() => { window.__drawn = document.getElementById('page'); }")
+    record = {
+        "signedIn": True,
+        "revision": 1,
+        "docs": [{"hash": HASH, "title": "ספר 1", "language": "he", "updated": 1, "opened": now}],
+        "places": [
+            {
+                "hash": HASH,
+                "section": "2",
+                "path": "/reader/text-1-he/reader/sec-0002.html",
+                "segment": "",
+                "seconds": 0,
+                "at": now - 3_600_000,
+            }
+        ],
+    }
+    held[0].fulfill(status=200, content_type="application/json", body=json.dumps(record))
+    page.wait_for_function("() => document.querySelectorAll('#library-list > li').length === 2")
+    page.wait_for_selector("#continue:not([hidden]) .home-card")
+    assert "Pick up at chapter 2" in page.inner_text("#continue")
+    first = page.locator("#library-list > li").nth(0).inner_text()
+    assert "ספר 1" in first and "Started" in first
+    page.wait_for_timeout(300)
+    assert documents == ["/"], "the page is loaded once"
+    assert page.evaluate("() => window.__drawn === document.getElementById('page')"), (
+        "the same page, drawn again"
+    )
+    context.close()
+    assert not thrown, thrown

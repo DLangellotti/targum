@@ -604,10 +604,17 @@
     });
   }
 
+  /* Whether this reader is shown EN · RU at all: signed in, and Russian is theirs. */
+  function offersTongue(who) {
+    if (!who || !who.signedIn) return false;
+    var reads = who.reads || [];
+    return reads.indexOf("ru") >= 0 || browserMayReadRussian();
+  }
+
+  /* The two keys, into `host`: the bar's group, or the account sheet's row on a phone
+     (design.md §13, 2026-10-18), which is the same press in a place a thumb reaches. */
   function drawTongue(host, who) {
-    var reads = (who && who.reads) || [];
-    if (!who || !who.signedIn) return;
-    if (reads.indexOf("ru") < 0 && !browserMayReadRussian()) return;
+    if (!offersTongue(who)) return false;
     var now = pageSpeaks() === "ru" ? "ru" : "en";
     host.textContent = "";
     [
@@ -642,16 +649,22 @@
       host.appendChild(press);
     });
     host.setAttribute("role", "group");
-    host.setAttribute("aria-label", t("nav.interface-language", "Interface language"));
+    if (!host.getAttribute("aria-labelledby")) {
+      host.setAttribute("aria-label", t("nav.interface-language", "Interface language"));
+    }
     host.hidden = false;
+    return true;
   }
 
   function mountTongue() {
-    var host = document.getElementById("ui-tongue");
-    if (!host || typeof fetch !== "function") return;
+    var bar = document.getElementById("ui-tongue");
+    var row = document.getElementById("account-tongue");
+    var keys = document.getElementById("account-tongue-keys");
+    if ((!bar && !(row && keys)) || typeof fetch !== "function") return;
     askAccount("/account/me")
       .then(function (who) {
-        drawTongue(host, who);
+        if (bar) drawTongue(bar, who);
+        if (row && keys && drawTongue(keys, who)) row.hidden = false;
       })
       .catch(function () {
         /* signed out, or no server: nothing to switch */

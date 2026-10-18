@@ -538,3 +538,46 @@ def test_a_french_reply_read_as_hebrew_has_no_lines() -> None:
     assert hebrew.pairs(FRENCH_REPLY) == []
     assert hebrew.pairs(RUSSIAN_REPLY) == []
     assert hebrew.pairs(YIDDISH_REPLY, "yi") == hebrew.pairs(YIDDISH_REPLY, "he")
+
+
+@pytest.mark.parametrize(
+    ("word", "language", "offered"),
+    [
+        ("1", "he", False),
+        ("0", "he", False),
+        ("2024", "he", False),
+        ("ב", "he", False),
+        ("ה", "he", False),
+        ("the", "he", False),
+        ("a", "he", False),
+        ("ש״ח", "he", True),
+        ("את", "he", True),
+        ("в", "ru", False),
+        ("http", "ru", False),
+        ("на", "ru", True),
+        ("à", "fr", False),
+        ("°", "fr", False),
+        ("de", "fr", True),
+        ("è", "it", False),
+        ("perché", "it", True),
+    ],
+)
+def test_the_claim_list_offers_words_not_tokens(word: str, language: str, offered: bool) -> None:
+    """David, 2026-10-18: the claim grid offered "1", "0" and lone letters as words a
+    reader may know. No digits, nothing of one character, and nothing without a letter of
+    the language's own script."""
+    assert hebrew.claimable(word, language) is offered
+
+
+@pytest.mark.skipif(
+    shutil.which("python3") is None or not hebrew.common_words(5), reason="wordfreq missing"
+)
+@pytest.mark.parametrize("code", ["he", "ru", "fr", "it"])
+def test_the_claim_list_is_cut_after_the_junk_is_left_out(code: str) -> None:
+    raw = hebrew.common_words(300, language=code)
+    assert any(not hebrew.claimable(word, code) for word in raw), "wordfreq still has junk"
+    picked = hebrew.common_words(300, language=code, claim=True)
+    assert len(picked) == 300, "a page is still a page"
+    assert all(hebrew.claimable(word, code) for word in picked)
+    kept = [word for word in raw if hebrew.claimable(word, code)]
+    assert picked[: len(kept)] == kept, "in the same order"

@@ -3223,6 +3223,9 @@ def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
     status, payload = get(port, f"/words/common?k={token}")
     assert status == 200 and len(payload["words"]) == 50 and payload["offset"] == 0
     assert payload["next"] == 50 and payload["into"] == "en"
+    # Words, not wordfreq's tokens (2026-10-18): no "1", no "0", no lone ב or ה.
+    forms = [row["form"] for row in payload["words"]]
+    assert not [form for form in forms if len(form) < 2 or form.isdigit()], forms
     first = payload["words"][0]
     assert set(first) == {"form", "band", "meaning"} and first["band"] in ("easy", "fairly easy")
     status, second = get(port, f"/words/common?offset=50&limit=10&k={token}")

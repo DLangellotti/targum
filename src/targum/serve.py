@@ -9881,8 +9881,10 @@ class Handler(BaseHTTPRequestHandler):
         # In the language the page is in (2026-09-13). wordfreq has lists for French,
         # Russian and Italian as well as Hebrew; a language with none gets an empty page.
         spoken = self._asked_language(query.get("language", [""])[0])
+        # No digits, no lone letters, no word in another script (2026-10-18): picked out
+        # before the page is cut, so a page is still fifty words and the offsets agree.
         forms = hebrew_module.common_words(
-            n=min(self.COMMON_REACH, offset + limit), language=spoken
+            n=min(self.COMMON_REACH, offset + limit), language=spoken, claim=True
         )
         page = forms[offset : offset + limit]
         asked = [form for form in query.get("forms", [""])[0].split(",") if form.strip()][
