@@ -7251,3 +7251,46 @@ nothing — the drawer in a served reader (2026-09-11) has no address until it i
 phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
 page's lines keep §8 as written.
 
+
+## 14 · Finished — what done means for a surface
+
+Every surface that is live stays live through Launch (David, 2026-10-14, targum-internal#488),
+so the work from here is finishing them, and "finished" needs one meaning or it becomes
+whatever the last session thought. This is that meaning. A surface's card
+(targum-internal#462–#477) is closed when every line below holds, with the evidence on the
+card: screenshots for 1, 2 and 7, test names for 8. Added 2026-10-18 (targum-internal#455).
+
+1. **Every state is drawn.** First visit, empty, loading, slow (past 3 s), error, offline,
+   signed out, and a reader with a lot: 500 texts, 5,000 words. Each one says what to do
+   next, in a line and, where there is one, a press (§8). A state nobody has seen on a
+   screen is not drawn, whatever the template says.
+2. **Desk 1440 and phone 390.** A screenshot of each state at both widths. No control covers
+   text (§13, the band), nothing scrolls sideways, and a control a thumb presses answers
+   over 44px (§8).
+3. **Keyboard and screen reader.** Every control is reached by Tab, has a name a screen
+   reader says, and shows the one focus ring (§4). A Hebrew, Aramaic or Yiddish run
+   carries its `lang` and its `dir`.
+4. **Copy.** Active and plain, we to you (§6), no word from the data layer, every string
+   keyed in the catalogue, and Russian present for each of them.
+5. **Speed.** On a phone profile the surface is useful in under 1.5 s, and nothing on it
+   waits for a model without saying so (§8, slow).
+6. **No open P0 or P1** that a beta reader found on this surface (`beta-found`).
+7. **One look.** It matches this file, and a design review of it leaves nothing above
+   polish.
+8. **Pinned.** The states in 1 have tests, so the next change cannot quietly undo them.
+
+**What a machine holds.** Lines 2 to 4 are partly checkable and the checks are named
+here, so a check that is renamed or deleted fails the bar rather than leaving it pointing
+at nothing (`test_brand.py`, `test_the_finish_bar_names_checks_that_exist`):
+
+- 44px: `test_every_thumbed_control_reaches_44px`, measured in a browser by
+  `test_nothing_covers_a_line_while_it_plays`.
+- The focus ring: `test_the_focus_ring_is_one_colour`.
+- `lang` and `dir`: `test_every_hebrew_run_says_its_direction`.
+- Keyed strings: `test_no_script_says_english_without_a_key`.
+- Russian present: `test_every_word_a_page_draws_is_said_in_russian`.
+- No data-layer words: `test_no_word_from_the_data_layer_reaches_the_screen`.
+
+The rest (whether a state is drawn well, whether a page is quick on a real phone, whether
+it looks like one product) is a person's call, made with the screenshots on the card. A
+surface is never finished by a test passing.

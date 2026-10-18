@@ -45,7 +45,7 @@
 {%- macro tile(src, letter, tone, size='') -%}
   {%- if src == '@pic' %}<span class="series-tile has-pic {{ size }}" aria-hidden="true"></span>
   {%- elif src %}<span class="series-tile {{ size }}"><img src="{{ src }}" alt=""></span>
-  {%- else %}<span class="series-tile thumb is-letter tone-{{ tone }} {{ size }}" aria-hidden="true"><span class="glyph" lang="he">{{ letter }}</span></span>{% endif -%}
+  {%- else %}<span class="series-tile thumb is-letter tone-{{ tone }} {{ size }}" aria-hidden="true"><span class="glyph" lang="he" dir="rtl">{{ letter }}</span></span>{% endif -%}
 {%- endmacro %}
 
 <main class="series-main">
@@ -175,7 +175,7 @@
           <li>
             {%- if cell.href %}<a class="series-day{% if cell.here %} is-here{% endif %}{% if cell.read %} is-read{% endif %}" href="{{ cell.href }}" title="{{ cell.title }}"{% if cell.here %} aria-current="page"{% endif %}>
             {%- else %}<span class="series-day is-later" title="{{ cell.title }}">{% endif %}
-              <span class="series-day-n" lang="he">{{ cell.letter }}</span>
+              <span class="series-day-n" lang="he" dir="rtl">{{ cell.letter }}</span>
               <span class="series-day-ref" dir="ltr">{{ cell.short }}</span>
               {%- if cell.read %}<svg class="series-day-tick" viewBox="0 0 16 16" aria-label="{{ t("series.mark.read", "Read") }}" focusable="false"><path d="M3.5 8.5l3 3 6-7"/></svg>{% endif %}
             {%- if cell.href %}</a>{% else %}</span>{% endif %}

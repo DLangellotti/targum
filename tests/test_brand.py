@@ -1264,3 +1264,40 @@ def test_the_word_card_and_the_end_of_a_part_are_cards() -> None:
     assert any("background: var(--card)" in b and "var(--radius-card)" in b for b in foot), foot
     reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
     assert 'class="foot-title"' in reader
+
+
+def test_the_finish_bar_names_checks_that_exist() -> None:
+    """§14: the bar a surface is finished against names the tests that hold its
+    checkable lines. A test renamed or deleted would leave the bar citing nothing while
+    still reading as enforced, so every name it cites must be a test in this suite.
+    """
+    text = DESIGN.read_text(encoding="utf-8")
+    at = text.find("## 14 ·")
+    assert at != -1, "design.md has no §14, the bar a surface is finished against"
+    section = text[at:]
+    lines = re.findall(r"^(\d)\. \*\*", section, re.M)
+    assert lines == [str(n) for n in range(1, 9)], "§14's bar is eight numbered lines"
+
+    cited = set(re.findall(r"`(test_\w+)`", section))
+    assert cited, "§14 names no check, so nothing a machine can hold is held"
+    suite = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "tests").glob("test_*.py"))
+    defined = set(re.findall(r"^def (test_\w+)\(", suite, re.M))
+    missing = sorted(cited - defined)
+    assert not missing, "§14 cites checks the suite no longer has: " + ", ".join(missing)
+
+
+def test_every_hebrew_run_says_its_direction() -> None:
+    """§14, line 3: a run in a right-to-left language carries `dir` with its `lang`.
+
+    `lang` alone picks the face and the voice; the direction comes from `dir`. Inside an
+    English line, a Hebrew word without it is ordered by the line's direction, which is
+    right for one bare word and wrong as soon as a mark, a number or a second word joins.
+    Read at the templates, where the runs are written by hand.
+    """
+    loose = []
+    for page in PAGES:
+        written = page.read_text(encoding="utf-8")
+        for tag in re.findall(r'<[a-z]+\b[^>]*\blang="(?:he|arc|yi)"[^>]*>', written):
+            if not re.search(r'\bdir="', tag):
+                loose.append(f"{page.name}: {tag[:80]}")
+    assert not loose, "§14: Hebrew runs with no direction:\n" + "\n".join(loose)
