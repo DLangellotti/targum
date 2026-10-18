@@ -64,6 +64,10 @@ QUIET_AFTER = 5
 #: How old a week's people must be before "came back" is counted for them: until then
 #: nobody has had the chance, and a nought reads as a failure that has not happened.
 CAME_BACK_AFTER = 2
+#: The days after the day they were let in that are a reader's first week and fourth
+#: (targum-internal#458): the beta's gate reads the first, Launch's go/no-go the fourth.
+WEEK_ONE = (1, 7)
+WEEK_FOUR = (22, 28)
 
 GMAIL = frozenset({"gmail.com", "googlemail.com"})
 
@@ -184,6 +188,16 @@ class Batch:
     #: a nought from people let in yesterday is not a nought.
     old_enough: int = 0
     came_back: int = 0
+    #: Of the same, how many came back to a second text: two texts opened, one of them
+    #: last on a day after they were let in. `doc.opened` keeps only the latest opening,
+    #: so this is as near to "returned to a second document" as their record goes.
+    second_text: int = 0
+    #: Of those let in long enough ago for the whole week to have passed, how many read
+    #: on some day of it.
+    week_one_over: int = 0
+    week_one: int = 0
+    week_four_over: int = 0
+    week_four: int = 0
 
 
 @dataclass
@@ -459,6 +473,12 @@ def _staff(db: sqlite3.Connection, operators: frozenset[str]) -> set[str]:
     return staff
 
 
+def _read_in(days: set[str], start: date, week: tuple[int, int]) -> bool:
+    """Whether any of a reader's days falls in a week counted from the day they began."""
+    first, last = week
+    return any((start + timedelta(days=n)).isoformat() in days for n in range(first, last + 1))
+
+
 def _people_with(db: sqlite3.Connection, sql: str) -> set[int]:
     """The ids a query returns, or none where the store predates its table."""
     with contextlib.suppress(sqlite3.Error):
@@ -497,6 +517,12 @@ def _growth(
     opened = {
         int(row["person"]): int(row["n"])
         for row in _rows(db, "SELECT person, COUNT(*) n FROM doc WHERE opened > 0 GROUP BY person")
+    }
+    last_opened = {
+        int(row["person"]): _day(int(row["at"]))
+        for row in _rows(
+            db, "SELECT person, MAX(opened) AS at FROM doc WHERE opened > 0 GROUP BY person"
+        )
     }
     kept = _people_with(db, "SELECT DISTINCT person FROM word WHERE source != 'claimed'")
     # Signed in: a session now, or anything of their own at all. Sessions are pruned, and
@@ -567,6 +593,14 @@ def _growth(
         if (now - when).days >= CAME_BACK_AFTER and who in signed_in:
             batch.old_enough += 1
             batch.came_back += len(days.get(who, ())) >= 2
+            batch.second_text += opened.get(who, 0) >= 2 and last_opened.get(who, "") > str(when)
+        # A week counts for those who have had the whole of it.
+        if (now - when).days > WEEK_ONE[1] and who in signed_in:
+            batch.week_one_over += 1
+            batch.week_one += _read_in(days.get(who, set()), when, WEEK_ONE)
+        if (now - when).days > WEEK_FOUR[1] and who in signed_in:
+            batch.week_four_over += 1
+            batch.week_four += _read_in(days.get(who, set()), when, WEEK_FOUR)
     found.batches = sorted(weeks.values(), key=lambda each: each.week, reverse=True)
 
     # How far readers reach. Counted across everybody and naming nobody (clause 3.7).

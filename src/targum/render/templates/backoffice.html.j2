@@ -192,6 +192,7 @@
       <tr>
         <th>Let in the week of</th><th class="n">Let in</th><th class="n">Signed in</th>
         <th class="n">Opened a text</th><th class="n">Kept a word</th><th class="n">Came back</th>
+        <th class="n">A second text</th><th class="n">Week 1</th><th class="n">Week 4</th>
       </tr>
     </thead>
     <tbody>
@@ -204,7 +205,9 @@
         <td class="n">{{ week.kept }}</td>
         {#- Out of those who have had the chance, never out of everyone: a week let in
             yesterday reads "too soon", not nought. -#}
-        <td class="n">{% if week.old_enough %}{{ week.came_back }} of {{ week.old_enough }}{% else %}<span class="quiet">too soon</span>{% endif %}</td>
+        {%- for n, over in [(week.came_back, week.old_enough), (week.second_text, week.old_enough), (week.week_one, week.week_one_over), (week.week_four, week.week_four_over)] %}
+        <td class="n">{% if over %}{{ n }} of {{ over }}{% else %}<span class="quiet">too soon</span>{% endif %}</td>
+        {%- endfor %}
       </tr>
       {% endfor %}
     </tbody>

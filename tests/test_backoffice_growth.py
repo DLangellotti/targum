@@ -139,12 +139,40 @@ def test_each_week_counts_only_who_has_had_the_chance(db: sqlite3.Connection) ->
     first = weeks["2026-10-05"]
     assert (first.let_in, first.signed_in, first.opened, first.kept) == (2, 2, 2, 2)
     assert (first.came_back, first.old_enough) == (2, 2)
+    # Both opened a second text on a later day, and both read in their first week; the
+    # fourth week has not ended for anybody.
+    assert first.second_text == 2
+    assert (first.week_one, first.week_one_over) == (2, 2)
+    assert first.week_four_over == 0
     this = weeks["2026-10-12"]
     # never, once and new, but not the operator.
     assert (this.let_in, this.signed_in, this.opened, this.kept) == (3, 2, 2, 0)
     # `new` was let in yesterday and does not count either way.
     assert (this.came_back, this.old_enough) == (0, 1)
+    # `once` opened one text: not a second.
+    assert this.second_text == 0
+    assert this.week_one_over == 0
     assert [week.week for week in found(db).batches] == ["2026-10-12", "2026-10-05"]
+
+
+def test_a_second_text_needs_a_later_day_and_the_fourth_week_counts_its_own_days(
+    db: sqlite3.Connection,
+) -> None:
+    # Two texts on the day they were let in is one visit, not a return.
+    let_in(db, "one-sitting@example.com", date(2026, 9, 7))
+    person(db, 6, "one-sitting@example.com", date(2026, 9, 7))
+    opened(db, 6, "a", date(2026, 9, 7))
+    opened(db, 6, "b", date(2026, 9, 7))
+    # Back on day 25, in the fourth week, to a word.
+    kept(db, 6, "w3", date(2026, 10, 2))
+    let_in(db, "gone@example.com", date(2026, 9, 7))
+    person(db, 7, "gone@example.com", date(2026, 9, 7))
+    opened(db, 7, "a", date(2026, 9, 9))
+    db.commit()
+    week = {week.week: week for week in found(db).batches}["2026-09-07"]
+    assert week.second_text == 0
+    assert (week.week_one, week.week_one_over) == (1, 2)
+    assert (week.week_four, week.week_four_over) == (1, 2)
 
 
 def test_reach_is_counted_with_no_one_in_it(db: sqlite3.Connection) -> None:
