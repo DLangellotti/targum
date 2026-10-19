@@ -10,9 +10,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ heading }} — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('yours.css') }}{% if which == 'texts' %}{{ asset('home.css') }}{{ asset('subs.css') }}{% endif %}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'library.css', 'yours.css', 'home.css' if which == 'texts' else '', 'subs.css' if which == 'texts' else '') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
     the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
     once as they load; it was set in a script at the foot of the body, so on a local serve
@@ -32,7 +32,7 @@
     (2026-09-14). -#}
 {% set here = 'texts' if which == 'texts' else 'yours' %}{% set title = heading %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 
 <main id="page" hidden>
   {%- if which == 'texts' %}
@@ -330,28 +330,28 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 window.TARGUM_LIST = "{{ which }}";
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('charts.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('vocab.js') }}</script>
-<script>{{ asset('lists.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('playlist-menu.js') }}</script>
+{{ script('strings.js') }}
+{{ script('charts.js') }}
+{{ script('lang.js') }}
+{{ script('vocab.js') }}
+{{ script('lists.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('playlist-menu.js') }}
 {%- if which == 'texts' %}
-<script>{{ asset('subs.js') }}</script>
+{{ script('subs.js') }}
 {%- endif %}
-<script>{{ asset('shelf.js') }}</script>
+{{ script('shelf.js') }}
 {%- if which == 'words' %}
-<script>{{ asset('claim.js') }}</script>
+{{ script('claim.js') }}
 {%- endif %}
 {%- if which == 'grammar' %}
-<script>{{ asset('grammar.js') }}</script>
+{{ script('grammar.js') }}
 {%- endif %}
 {%- if which == 'texts' %}
-<script>{{ asset('landed.js') }}</script>
-<script>{{ asset('home.js') }}</script>
+{{ script('landed.js') }}
+{{ script('home.js') }}
 {%- endif %}
-<script>{{ asset('yours.js') }}</script>
+{{ script('yours.js') }}
 </body>
 </html>

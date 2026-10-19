@@ -35,6 +35,7 @@ from targum.render.builder import (
     LISTS,
     about_page,
     add_page,
+    carried,
     chat_page,
     holding_page,
     library_page,
@@ -105,7 +106,7 @@ def test_a_page_runs_its_scripts_without_throwing(browser, tmp_path: Path, name:
     at all, not even the line telling somebody where to sign in.
     """
     page_file = tmp_path / f"{name.replace(':', '-')}.html"
-    page_file.write_text(pages()[name], encoding="utf-8")
+    page_file.write_text(carried(pages()[name]), encoding="utf-8")
 
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     open_page = context.new_page()
@@ -127,7 +128,7 @@ def test_the_add_page_wires_its_button(browser, tmp_path: Path) -> None:
     the button a reader presses does nothing at all — no upload, no pasted text, no link.
     """
     page_file = tmp_path / "add.html"
-    page_file.write_text(add_page(TOKEN), encoding="utf-8")
+    page_file.write_text(carried(add_page(TOKEN)), encoding="utf-8")
 
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     open_page = context.new_page()
@@ -425,7 +426,7 @@ def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -
     (board SeeAllPhone; design.md §12, "The Library stands on the ground", 2026-10-09).
     """
     page_file = tmp_path / "library.html"
-    page_file.write_text(library_page(TOKEN), encoding="utf-8")
+    page_file.write_text(carried(library_page(TOKEN)), encoding="utf-8")
 
     shared = [
         {
@@ -512,7 +513,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     a cascade bug is invisible in the file and obvious on a phone, which is why this is
     measured rather than read."""
     page_file = tmp_path / "home.html"
-    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page(TOKEN, "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 844})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
@@ -1103,7 +1104,7 @@ def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
     in a panel further down. The row stays, says it is in Trash, and Undo is where Delete
     was (targum-internal#278)."""
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page(TOKEN, "texts")), encoding="utf-8")
     chapters = [{"number": 1, "title": "א", "ready": True, "file": "1.html"}]
     readers = [
         {
@@ -1256,7 +1257,7 @@ def test_the_header_never_runs_past_a_tablet(
     account sat past the edge. Two lines start under 56rem now; at a laptop the header is
     still the one line it always was."""
     page_file = tmp_path / "home.html"
-    page_file.write_text(list_page(TOKEN, "texts", language), encoding="utf-8")
+    page_file.write_text(carried(list_page(TOKEN, "texts", language)), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 1024})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
@@ -1289,7 +1290,7 @@ def test_a_menu_chevron_points_down_in_either_direction(browser, tmp_path: Path)
     sides, so the same turn pointed the language menu's chevron sideways. (The doors'
     menu, which had one too, went with Learn on 2026-10-08.)"""
     page_file = tmp_path / "home.html"
-    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page(TOKEN, "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
@@ -2058,7 +2059,7 @@ def test_the_pages_in_front_of_the_door_stand_on_the_desk(browser, tmp_path: Pat
     seen = {}
     for name, html in pages.items():
         page_file = tmp_path / f"{name}.html"
-        page_file.write_text(html, encoding="utf-8")
+        page_file.write_text(carried(html), encoding="utf-8")
         open_page = context.new_page()
         open_page.goto(page_file.as_uri())
         open_page.wait_for_timeout(100)
@@ -3184,7 +3185,7 @@ def test_no_card_sits_in_a_card_and_no_tab_is_underlined(
     Every desk page as the server draws it, hidden parts included: a computed style is
     computed whether or not the part is showing."""
     page_file = tmp_path / f"{name.replace(':', '-')}.html"
-    page_file.write_text(pages()[name], encoding="utf-8")
+    page_file.write_text(carried(pages()[name]), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1440, "height": 900})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
@@ -3206,7 +3207,7 @@ TEAL = "rgb(31, 111, 107)"
 @pytest.mark.parametrize("name", ["library", "progress", "you"])
 def test_a_desk_page_rings_its_focus_in_teal(browser, tmp_path: Path, name: str) -> None:
     page_file = tmp_path / f"{name}.html"
-    page_file.write_text(pages()[name], encoding="utf-8")
+    page_file.write_text(carried(pages()[name]), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())

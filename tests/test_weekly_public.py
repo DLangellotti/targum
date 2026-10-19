@@ -20,6 +20,7 @@ import pytest
 
 from targum import serve
 from targum.accounts import Store
+from targum.render.builder import carried
 
 PUBLIC = "https://targum.page"
 HOST = "targum.page"
@@ -200,7 +201,8 @@ def test_the_weekly_is_shut_with_the_shelves(
     port, _ = weekly_server
     monkeypatch.delenv("TARGUM_PUBLIC_SHELVES", raising=False)
     _, body, _ = ask(port, f"/weekly/{WEEK}/bet")
-    page = body.decode()
+    # Read with the files the door names put back inside it: its words are in its script.
+    page = carried(body.decode())
     assert "ועדה ציבורית" not in page, "the Hebrew is not served with the shelves shut"
     assert "Compiled by a model" not in page
     assert "sign in" in page.lower() or "invitation" in page.lower()

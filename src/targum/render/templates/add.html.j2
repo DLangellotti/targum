@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("add.page.upload-targum", "Upload — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('add.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'add.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
     the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
     once as they load; it was set in a script at the foot of the body, so on a local serve
@@ -18,7 +18,7 @@
 <body class="add">
 {% set here = 'add' %}{% set title = t("add.page.upload", "Upload") %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 <main class="add-main">
   {#- The board's two columns (UploadDesk; design.md §12, "Upload is the board's", 2026-10-09):
       the box and what works on the left, and on the right the card a link or a file is
@@ -266,15 +266,15 @@ window.TARGUM_READING = {{ reading|tojson }};
 window.TARGUM_INTO = {{ into|tojson }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('bring.js') }}</script>
+{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('bring.js') }}
 {#- The recorder the composer's Speak uses, so a voice note can be made here rather than
     only brought (targum-internal#254). Before `add.js`, which asks it whether this
     browser can record before drawing Record. -#}
-<script>{{ asset('speak.js') }}</script>
-<script>{{ asset('add.js') }}</script>
+{{ script('speak.js') }}
+{{ script('add.js') }}
 </body>
 </html>

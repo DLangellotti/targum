@@ -20,7 +20,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>{{ t("card.text.title", "Something to read") }}</title>
-<style>{{ asset('card.css') }}</style>
+{{ styles('card.css') }}
 </head>
 <body>
 <main class="cards" id="cards" aria-live="polite"
@@ -73,7 +73,7 @@
     page of ours. Cloned after the door's word, so the word stays the door's whole text. -#}
 <template id="arrow"><svg class="card-arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.5 3.5h6v6M12.5 3.5 4 12"></path></svg></template>
 <audio id="ear" preload="none"></audio>
-<script>{{ asset('card-bridge.js') }}</script>
-<script>{{ asset('card-text.js') }}</script>
+{{ script('card-bridge.js') }}
+{{ script('card-text.js') }}
 </body>
 </html>

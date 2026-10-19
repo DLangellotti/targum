@@ -11,20 +11,20 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('series.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'series.css') }}
 {%- if picture_uri %}
 {#- The series' one picture, once: every tile that wears it names the class, so a page
     of past days does not carry the photograph a row at a time. -#}
 <style>.series-tile.has-pic { background-image: url({{ picture_uri }}); }</style>
 {%- endif %}
 {{ hebrew_face(scripture) }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="series-page" data-series-kind="{{ kind }}">
 {% set here = 'library' %}{% set title = '' %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 {%- set kept = ('lang=' ~ asked) if asked else '' %}
 
 {#- A reading's mark: Read, Started, or where the reader stopped. Never "missed": a
@@ -277,11 +277,11 @@
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('subscribe.js') }}</script>
-<script>{{ asset('series.js') }}</script>
+{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('subscribe.js') }}
+{{ script('series.js') }}
 </body>
 </html>

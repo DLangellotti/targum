@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from targum.render.builder import list_page, playlists_page
+from targum.render.builder import carried, list_page, playlists_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -70,7 +70,7 @@ def shelf(
     browser, tmp_path: Path, width: int = 1280, html: str | None = None, mine: list | None = None
 ):
     page_file = tmp_path / "texts.html"
-    page_file.write_text(html or list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(html or list_page("test-key", "texts")), encoding="utf-8")
     # Tall enough that the shelf under home's Continue is on screen (2026-10-08).
     context = browser.new_context(viewport={"width": width, "height": 2000})
     page = context.new_page()
@@ -312,7 +312,7 @@ def test_a_reader_with_nothing_is_told_what_will_appear_here(browser, tmp_path: 
     says what will appear here and offers the upload; the tabs and the shelf, which have
     nothing to show, stay away."""
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 390, "height": 900})
     page = context.new_page()
     page.add_init_script(
@@ -372,7 +372,7 @@ def test_subscriptions_is_a_tab_that_draws_the_series_in_place(browser, tmp_path
     2026-09-26, amended 2026-10-08). Subscriptions is answered in place: the series with
     their switches, subscribed first, and the address says the tab."""
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 2000})
     page = context.new_page()
     series = [
@@ -437,7 +437,7 @@ def test_subscriptions_takes_the_page_s_width_under_the_title(browser, tmp_path:
 def _home_in(browser, tmp_path: Path, language: str, answers: dict, mine: list):
     """Home in `language`, every address answered from `answers` by its path's end."""
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 1600})
     page = context.new_page()
     thrown: list[str] = []

@@ -13,7 +13,7 @@
 <head>
 <meta charset="utf-8">
 <title>{{ title }}{% if english %} · {{ english }}{% endif %}</title>
-<style>{{ asset('print.css') }}</style>
+{{ styles('print.css') }}
 <style>@page { size: {{ size }}; @top-center { font-family: "{{ hebrew_family }}", "Iowan Old Style", Palatino, Georgia, serif; } @bottom-left { content: element(foot); } }</style>
 {{ hebrew_face }}
 {{ chrome_face }}

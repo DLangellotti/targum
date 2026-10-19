@@ -9,9 +9,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>⁨{{ title }}⁩</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('reader.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'reader.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 </head>
 <body class="contents">
 <header class="bar">
@@ -95,9 +95,9 @@
   {% if not has_audio %}<p class="whole" hidden><button type="button" id="prepare">{{ t("contents.page.prepare-all", "Prepare all") }}</button> <span class="get-cost" id="prepare-cost" hidden></span></p>{% endif %}
 </main>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
-<script>{{ asset('fault.js') }}</script>
-<script>{{ asset('contents.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('report.js', data_build=build()) }}
+{{ script('fault.js') }}
+{{ script('contents.js') }}
 </body>
 </html>

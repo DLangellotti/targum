@@ -19,7 +19,7 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-<style>{{ asset('landing-classic.css') }}{{ asset('connect.css') }}</style>
+{{ styles('landing-classic.css', 'connect.css') }}
 {{ hebrew_face() }}
 {{ chrome_face() }}
 </head>
@@ -53,8 +53,8 @@
 
 {% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script data-build="{{ build() }}">{{ asset('report.js') }}</script>
-<script>{{ asset('connect.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('report.js', data_build=build()) }}
+{{ script('connect.js') }}
 </body>
 </html>

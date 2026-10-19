@@ -12,12 +12,12 @@
 <meta name="referrer" content="no-referrer">
 <title>back office</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'reader.css', 'public.css') }}
 {#- Carried because a `name` on an account is whatever the person typed, and on this box
     that is as likely to be Hebrew as not. Without it the page falls back to whatever the
     machine has, which for Hebrew on a stock Mac is a font with no accents in it. -#}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <style>
   .bo { max-inline-size: 60rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
   .bo h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
@@ -597,6 +597,6 @@
     messages readers write to us through Tell us. See <code>backoffice.py</code> for why
     that is a rule rather than a first version, and why those are the exception.</p>
 </main>
-<script>{{ asset('backoffice.js') }}</script>
+{{ script('backoffice.js') }}
 </body>
 </html>

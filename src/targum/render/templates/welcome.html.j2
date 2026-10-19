@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("welcome.page.title", "Welcome — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('tokens.css') }}{{ asset('shared.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('arrival.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'arrival.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 {#- The arrival, on a page of its own: three questions, one a screen, as the FirstRun
@@ -19,7 +19,7 @@
 {% set here = 'welcome' %}
 {% set title = '' %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 
 <main id="page">
   {#- The bare head the FirstRun boards draw (David, 2026-10-09: the boards win): the
@@ -88,16 +88,16 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 window.TARGUM_STAGES = {{ stage_table()|safe }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('charts.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
+{{ script('strings.js') }}
+{{ script('charts.js') }}
+{{ script('lang.js') }}
 {#- What was pressed on the way in (targum-internal#127): a `control` event carries a name
     and the window's width, never which text. Silent signed out and where turned off. -#}
-<script>{{ asset('events.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('shelf.js') }}</script>
-<script>{{ asset('scenes.js') }}</script>
-<script>{{ asset('arrival.js') }}</script>
+{{ script('events.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('shelf.js') }}
+{{ script('scenes.js') }}
+{{ script('arrival.js') }}
 </body>
 </html>

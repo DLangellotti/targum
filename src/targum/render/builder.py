@@ -24,7 +24,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlencode, urlparse
 
-from jinja2 import Environment, FileSystemLoader, Template
+from jinja2 import Environment, FileSystemLoader, Template, pass_context
+from jinja2.runtime import Context
 from jinja2.utils import htmlsafe_json_dumps
 
 if TYPE_CHECKING:  # imported for types only; the real import is inside each function,
@@ -483,7 +484,9 @@ def _with_called_strings(html: str) -> str:
     known = catalogue(code)
     missing = {
         key: known[key]
-        for key in dict.fromkeys(_CALLED.findall(html))
+        # A desk page's scripts are files of their own since 2026-10-18, and a key they
+        # call is still the page's to carry.
+        for key in dict.fromkeys(_CALLED.findall(html + linked_scripts(html)))
         if key in known and key not in said
     }
     if not missing:
@@ -496,6 +499,8 @@ class _Page(Template):
     """A template whose rendered page carries every sentence its scripts ask for."""
 
     def render(self, *args: Any, **kwargs: Any) -> str:
+        if self.name in DESK_PAGES:
+            kwargs.setdefault("linked_assets", True)
         return _with_called_strings(super().render(*args, **kwargs))
 
 
@@ -512,10 +517,14 @@ def _environment() -> Environment:
     env.template_class = _Page
     env.filters["isolate"] = isolate
     env.globals["asset"] = _asset
+    # A page's own files: by address on a desk page, inline everywhere else (`DESK_PAGES`).
+    env.globals["script"] = _script
+    env.globals["styles"] = _styles
     env.globals["data_uri"] = _data_uri
-    env.globals["hebrew_face"] = _hebrew_face
-    env.globals["scripture_face"] = _scripture_face
-    env.globals["chrome_face"] = _chrome_face
+    # The faces likewise: a stylesheet by address on a desk page, a `<style>` elsewhere.
+    env.globals["hebrew_face"] = _page_hebrew_face
+    env.globals["scripture_face"] = _page_scripture_face
+    env.globals["chrome_face"] = _page_chrome_face
     env.globals["legal_is_public"] = legal_is_public
     # How far along each language is, for the menu's badge (design.md §12, 2026-10-12).
     env.globals["stage_table"] = _stage_table
@@ -829,6 +838,192 @@ def worker_script() -> str:
     script that is a file of its own rather than baked into a page, because a worker is
     named by an address and cannot be inline."""
     return _strip("sw.js", (ASSETS / "sw.js").read_text(encoding="utf-8"))
+
+
+# A desk page's own files, loaded by address and kept (design.md §11 and §12, "A desk page
+# loads its files once and keeps them", 2026-10-18, targum-internal#484).
+#
+# Every page carried every stylesheet and script inline, which is what lets a reader open
+# off a disk and fetch nothing. The desk paid for the same rule without needing it: home
+# was 206 kB gzipped, nearly all of it the same files Library and Progress carry again, and
+# nothing was kept between pages, so a phone on a slow line waited about two seconds for
+# every page. A desk page is only ever served, so it now names its files under
+# `/assets/<name>.<hash>.<ext>` and the browser keeps them for a year. The hash is of the
+# file as served, so a changed file is a new address and nothing stale is ever kept.
+#
+# Everything else still carries its files inline: readers, contents pages, the shelf and
+# the public pages, a card in a host's frame, a printed page, and the one desk page a
+# worker keeps for offline (Saved on this device), whose saved copy must open with nothing
+# else in the cache. A page is linked only when it is named here; one left out is inline.
+ASSET_ROUTE = "/assets/"
+
+#: The desk pages that load their files by address. Template names, so a page that is
+#: not named keeps inlining.
+DESK_PAGES = frozenset(
+    {
+        "add.html.j2",
+        "chat.html.j2",
+        "connect-desk.html.j2",
+        "library.html.j2",
+        "missing.html.j2",
+        "plans.html.j2",
+        "playlists.html.j2",
+        "press.html.j2",
+        "progress.html.j2",
+        "set.html.j2",
+        "signin.html.j2",
+        "subscribe.html.j2",
+        "subscription.html.j2",
+        "tanakh.html.j2",
+        "welcome.html.j2",
+        "you.html.j2",
+        "yours.html.j2",
+    }
+)
+
+#: What a desk page still carries inline: `strings.js` is a few lines, and it is the one
+#: every page's own TARGUM_STRINGS is read through, so it stays beside them.
+CARRIED = frozenset({"strings.js"})
+
+ASSET_KINDS = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8"}
+
+
+def _faces() -> dict[str, Markup]:
+    """The faces a page carries, as the stylesheets a desk page names instead (each is
+    `@font-face` with the font inside it as a `data:` URI, so `font-src` is unchanged)."""
+    return {
+        "face-hebrew.css": _hebrew_face(),
+        "face-hebrew-biblical.css": _hebrew_face(biblical=True),
+        "face-scripture.css": _scripture_face(),
+        "face-chrome.css": _chrome_face(),
+        "face-chrome-upright.css": _chrome_face(italic=False),
+    }
+
+
+@cache
+def _asset_text(name: str) -> str:
+    """One linkable file's text: an asset as baked, or a face without its `<style>`."""
+    face = _faces().get(name)
+    if face is not None:
+        return str(face).removeprefix("<style>").removesuffix("</style>")
+    return str(_asset(name))
+
+
+@cache
+def asset_address(name: str) -> str:
+    """Where one asset is served, named by a hash of what is served there."""
+    import hashlib
+
+    digest = hashlib.sha256(_asset_text(name).encode("utf-8")).hexdigest()[:16]
+    stem, _, kind = name.rpartition(".")
+    return f"{ASSET_ROUTE}{stem}.{digest}.{kind}"
+
+
+@cache
+def asset_files() -> dict[str, tuple[bytes, str, str]]:
+    """Every file a desk page may name, by its address: the bytes, their type and the
+    asset they are. Built once, so `targum serve` answers from memory; an address that
+    is not here is a 404. The worker is left out: it is served from the root, and only
+    there (`worker_script`)."""
+    names = [
+        path.name
+        for path in sorted(ASSETS.iterdir())
+        if path.suffix in ASSET_KINDS
+        and path.is_file()
+        and not path.name.startswith(".")
+        and path.name != "sw.js"
+    ]
+    return {
+        asset_address(name): (
+            _asset_text(name).encode("utf-8"),
+            ASSET_KINDS[name[name.rindex(".") :]],
+            name,
+        )
+        for name in [*names, *_faces()]
+    }
+
+
+def _attributes(given: Mapping[str, Any]) -> str:
+    return "".join(f' {key.replace("_", "-")}="{escape(value)}"' for key, value in given.items())
+
+
+@pass_context
+def _script(context: Context, name: str, **attributes: Any) -> Markup:
+    """One script: named by address on a desk page, inline everywhere else. Either way
+    it is a classic script that runs where it stands, so the order the page's scripts
+    run in is the order they are written in."""
+    said = _attributes(attributes)
+    if context.get("linked_assets") and name not in CARRIED:
+        return Markup(f'<script{said} src="{asset_address(name)}"></script>')
+    return Markup(f"<script{said}>") + _asset(name) + Markup("</script>")
+
+
+@pass_context
+def _styles(context: Context, *names: str) -> Markup:
+    """Stylesheets, in order: one `<link>` each on a desk page, one `<style>` holding
+    them all everywhere else. An empty name is skipped, so a template can leave one out
+    with a condition."""
+    wanted = [name for name in names if name]
+    if context.get("linked_assets"):
+        return Markup(
+            "".join(f'<link rel="stylesheet" href="{asset_address(name)}">' for name in wanted)
+        )
+    return Markup("<style>") + Markup("").join(_asset(name) for name in wanted) + Markup("</style>")
+
+
+def _sheet(context: Context, name: str, inline: Markup) -> Markup:
+    if context.get("linked_assets"):
+        return Markup(f'<link rel="stylesheet" href="{asset_address(name)}">')
+    return inline
+
+
+@pass_context
+def _page_hebrew_face(context: Context, biblical: bool = False) -> Markup:
+    name = "face-hebrew-biblical.css" if biblical else "face-hebrew.css"
+    return _sheet(context, name, _hebrew_face(biblical))
+
+
+@pass_context
+def _page_scripture_face(context: Context) -> Markup:
+    return _sheet(context, "face-scripture.css", _scripture_face())
+
+
+@pass_context
+def _page_chrome_face(context: Context, italic: bool = True) -> Markup:
+    name = "face-chrome.css" if italic else "face-chrome-upright.css"
+    return _sheet(context, name, _chrome_face(italic))
+
+
+#: A script a page names by address.
+_LINKED = re.compile(r'<script\b[^>]*\bsrc="(' + re.escape(ASSET_ROUTE) + r'[^"]+)"')
+
+
+_FILE_TAG = re.compile(
+    r'<script\b([^>]*?) src="(' + re.escape(ASSET_ROUTE) + r'[^"]+)"></script>'
+    r'|<link rel="stylesheet" href="(' + re.escape(ASSET_ROUTE) + r'[^"]+)">'
+)
+
+
+def carried(html: str) -> str:
+    """A desk page with every file it names put back inside it, in the same places: what
+    the page runs and draws, read as one document (the checks read pages this way)."""
+    files = asset_files()
+
+    def inline(match: re.Match[str]) -> str:
+        if match.group(2):
+            return f"<script{match.group(1)}>{files[match.group(2)][0].decode()}</script>"
+        return f"<style>{files[match.group(3)][0].decode()}</style>"
+
+    return _FILE_TAG.sub(inline, html)
+
+
+def linked_scripts(html: str) -> str:
+    """The scripts a page names under `/assets/`, as their text, in order — what the page
+    runs that is not written in it."""
+    files = asset_files()
+    return "".join(
+        files[address][0].decode("utf-8") for address in _LINKED.findall(html) if address in files
+    )
 
 
 # The Hebrew faces, one per register, and why they are in the page rather than named.
