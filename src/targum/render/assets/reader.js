@@ -4001,6 +4001,11 @@ var targumReader = function () {
     residents().forEach(function (thing) {
       if (thing) watcher.observe(thing);
     });
+    // And the strip, which is not a resident but stands on the band: a recording that
+    // will not play says so on a row of its own on a phone, and the arrows and the
+    // last lines stood behind the taller strip until something else moved (reader QA,
+    // 2026-10-19).
+    if (scenePlayer) watcher.observe(scenePlayer);
   }
 
   /* --- what a word means --------------------------------------------------- */
@@ -4729,7 +4734,7 @@ var targumReader = function () {
     var button = document.createElement("button");
     button.type = "button";
     button.className = "hear";
-    button.title = "Hear";
+    button.title = label;
     button.setAttribute("aria-label", label);
     button.innerHTML = HEAR_GLYPH;
     button.addEventListener("click", function (event) {
@@ -4776,8 +4781,8 @@ var targumReader = function () {
     var button = document.createElement("button");
     button.type = "button";
     button.className = "hear";
-    button.title = "Hear";
-    button.setAttribute("aria-label", t("reader.card.hear-word", "Hear this word"));
+    button.title = t("reader.card.hear-word", "Hear this word");
+    button.setAttribute("aria-label", button.title);
     button.innerHTML = HEAR_GLYPH;
     var key = tongue + ":" + text;
     function play(clip) {
@@ -6082,6 +6087,13 @@ var targumReader = function () {
           ask.disabled = true;
           ask.classList.add("looking");
           ask.textContent = t("reader.card.looking", "looking…");
+          // Past three seconds it says it is still at it (design.md §14, slow), so a
+          // look-up the model is slow over does not read as one that died.
+          setTimeout(function () {
+            if (ask.isConnected && ask.classList.contains("looking")) {
+              ask.textContent = t("reader.card.still-looking", "still looking…");
+            }
+          }, 3000);
           lookUp(index, sentenceOf(word), function () {
             if (lookedUp === word) showCard(word);
           });
@@ -7408,7 +7420,7 @@ var targumReader = function () {
           : editing.field(function () {
               showPick(picked);
             }),
-      action: existing > -1 ? "Remove" : "Keep",
+      action: existing > -1 ? t("reader.pick.remove", "Remove") : t("reader.pick.keep", "Keep"),
       onclick: function () {
         var list = picks[picked.segmentId] || (picks[picked.segmentId] = []);
         // A meaning typed into the field has kept the phrase already, under a card still
@@ -11191,7 +11203,7 @@ var targumReader = function () {
   /* --- what a test can reach ------------------------------------------------ */
 
   /* Every other script here already hangs its module off `window` — TargumLang,
-     TargumCovers, TargumCharts — so this is the same shape rather than a hatch cut for
+     TargumCovers, TargumVocab — so this is the same shape rather than a hatch cut for
      tests. Two things in this file are worth checking without a browser, and both have
      shipped a bug: where a card lands beside a word, which is arithmetic, and whether a
      hover survives the keypress that marked the word under it, which is a two-state
@@ -11827,18 +11839,22 @@ var targumReader = function () {
   var costs = document.getElementById("waiting-cost");
   if (costs) costs.hidden = false;
   var pressWord = press.textContent;
+  // What went wrong is a line, and the press under it says Try again. A book's chapter
+  // used to put the sentence on the button itself, so the reason became the label of a
+  // press that only asked again (reader QA, 2026-10-19).
   function fail(text) {
     press.disabled = false;
-    if (!hearing) {
-      press.textContent = text;
-      return;
+    if (status) {
+      status.textContent = text;
+      status.classList.add("fault-marked");
     }
-    if (status) status.textContent = text;
     press.textContent = said.t("reader.film.next-part-again", "Try again");
     press.hidden = false;
   }
   press.onclick = function () {
     press.disabled = true;
+    if (status) status.classList.remove("fault-marked");
+    if (status && !hearing) status.textContent = "";
     if (hearing) {
       press.hidden = true;
       if (status) status.textContent = said.t("reader.film.next-part-making", "We're getting it ready.");
@@ -12223,6 +12239,11 @@ var targumReader = function () {
           halt();
           return;
         }
+        // Interrupted, not refused: a pause, or the film loaded again after an error
+        // ("A film that errors after a picture is loaded again"), cuts the promise off
+        // while what follows plays on. Said as a failure, "We couldn't play this
+        // recording" stood under a film that was playing (reader QA, 2026-10-19).
+        if (why && why.name === "AbortError") return;
         // Chrome rejects here when the tab is not allowed to make a sound — a site muted
         // in the address bar, or a policy about autoplay — and the promise is the only
         // place it says so. Silently stopping made that indistinguishable from a broken
@@ -12404,12 +12425,31 @@ var targumReader = function () {
   /* The fill, the clock and what the slider tells a screen reader all read off the same
      two numbers, and all three are wanted when the reader drags the bar with nothing
      playing — which `timeupdate` never says. */
+  /* Where it is, and of how long, as two pieces: on a phone the strip has room for the
+     first only, and the whole clock ran under the play button beside it (reader QA,
+     2026-10-19). The track beside it already says how far along. */
+  function drawClock(now, whole) {
+    var at = clock.querySelector(".clock-now");
+    var of = clock.querySelector(".clock-whole");
+    if (!at || !of) {
+      clock.textContent = "";
+      at = document.createElement("span");
+      at.className = "clock-now";
+      of = document.createElement("span");
+      of.className = "clock-whole";
+      clock.appendChild(at);
+      clock.appendChild(of);
+    }
+    at.textContent = now;
+    of.textContent = " / " + whole;
+  }
+
   function paint() {
     var length = span();
     if (!length) return;
     var now = audio.currentTime;
     if (fill) fill.style.inlineSize = (now / length) * 100 + "%";
-    if (clock) clock.textContent = clocked(now) + " / " + clocked(length);
+    if (clock) drawClock(clocked(now), clocked(length));
     // The bar's player (#421): the same line, thinner, and only where the voice is.
     if (barFill) barFill.style.inlineSize = (now / length) * 100 + "%";
     // At the start the pill says how long it is, and from the first second where it is
@@ -14573,7 +14613,7 @@ else targumReader();
           );
         }
         if (state.stage === "done") {
-          tell("Ready.");
+          tell(S.t("reader.voice.ready", "Ready."));
           location.reload();
           return;
         }

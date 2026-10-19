@@ -462,8 +462,10 @@
     band.className = "fault-banner";
     band.setAttribute("role", "status");
     // Its words are the interface's, not the text's: in a Hebrew reader the band stood
-    // right to left, with its full stop at the start of the sentence.
-    band.setAttribute("dir", "auto");
+    // right to left, with its full stop at the start of the sentence. Said outright:
+    // every language the interface speaks runs left to right, and the stylesheet no
+    // longer hands the band the page's direction over this (reader QA, 2026-10-19).
+    band.setAttribute("dir", "ltr");
     band.hidden = true;
     var bar = document.querySelector("body > header.bar, .site-head");
     if (bar && bar.classList.contains("bar")) {

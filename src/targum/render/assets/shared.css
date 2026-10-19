@@ -1201,7 +1201,9 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   font-family: var(--chrome);
   font-size: 0.9375rem;
   line-height: 1.45;
-  direction: inherit;
+  /* No `direction` here: the band says its own (`fault.js`). An inherited one beat the
+     attribute, and on a Hebrew reader the band ran right to left, its full stop first
+     and Try again at the far end (reader QA, 2026-10-19). */
 }
 .fault-banner[hidden] { display: none; }
 .fault-banner .fault-cloud {

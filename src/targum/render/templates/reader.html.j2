@@ -766,13 +766,13 @@
   {#- An imported recording's part that nobody has bought is waiting on a transcript,
       not on a translation, and a button that names the wrong work makes a promise the
       click will not keep. -#}
-  <p>{% if audio_waiting %}We haven't transcribed this part yet.{% else %}We haven't translated this chapter yet.{% endif %}</p>
+  <p>{% if audio_waiting %}{{ t("reader.chapter.not-transcribed", "We haven't transcribed this part yet.") }}{% else %}{{ t("reader.chapter.not-translated", "We haven't translated this chapter yet.") }}{% endif %}</p>
   {#- A recording's part has no press since 2026-10-07 (design.md §12, "One press gets the
       whole video, a part at a time"): opening it starts it, the line under says it is
       being made, and the page opens itself when it is. The button is only the way to
       try again after a failure. Off a disk nothing runs, and the line above stands. -#}
-  {% if audio_waiting %}<p class="waiting-said" id="waiting-said" role="status"></p>{% endif %}
-  <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}{{ t("reader.film.next-part-again", "Try again") }}{% else %}Translate{% endif %}</button>
+  <p class="waiting-said" id="waiting-said" role="status"></p>
+  <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}{{ t("reader.film.next-part-again", "Try again") }}{% else %}{{ t("reader.chapter.translate", "Translate") }}{% endif %}</button>
   {#- What the press spends, beside it and shown with it (copy audit, 2026-09-28): a
       translation none. A part of a recording none either since 2026-10-07: the press on
       its quote took the whole recording's credits, and said so (design.md §12, "One
@@ -1215,12 +1215,14 @@
 
 {% if not standalone %}
 <nav class="pager" data-chapter="{{ section.number }}" data-document="{{ document.content_hash }}"{% if by_part %} data-by-part{% endif %}>
-  {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>
+  {#- A part's name is the text's, in its language and its direction, like the portions'
+      beside it: bare, a Hebrew name stood in an English run (reader QA, 2026-10-19). -#}
+  {% if previous %}<a class="prev" href="{{ previous.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ previous.title }}</bdi></a>
   {%- elif beyond_before %}<a class="prev beyond" href="{{ beyond_before.href }}" data-page="{{ beyond_before.page }}"><bdi lang="{{ source_language }}" dir="auto">{{ beyond_before.hebrew }}</bdi></a>{% endif %}
   {#- Past the last aliyah, the next portion's first, with no `data-next`: that names a
       section of this text, to buy ahead and to turn to off the last page, and the next
       portion is another text (targum-internal#446). -#}
-  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}"{% if following_ready %} data-ready{% endif %}>{{ following.title }}</a>
+  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}"{% if following_ready %} data-ready{% endif %}><bdi lang="{{ source_language }}" dir="auto">{{ following.title }}</bdi></a>
   {%- elif beyond_after %}<a class="next beyond" href="{{ beyond_after.href }}" data-page="{{ beyond_after.page }}"><bdi lang="{{ source_language }}" dir="auto">{{ beyond_after.hebrew }}</bdi></a>{% endif %}
 </nav>
 {% endif %}
@@ -1394,11 +1396,10 @@
   <iframe class="talk-frame" id="talk-frame" title="{{ t("reader.page.talk-to-targum", "Talk to targum") }}" allow="microphone"></iframe>
 </aside>
 <script type="application/json" id="targum-data">{{ data }}</script>
-{#- The ledger's arithmetic, shared with Learn and /progress: the foot of a finished
-    section says what moved (targum-internal#175), and the longest run of days is
-    counted in one place so three pages cannot disagree about it. -#}
+{#- `charts.js`, the ledger's arithmetic, left the reader on 2026-10-19: the finished box
+    stopped reading it when it became three figures of this section (#429), and every
+    reader still carried its 25 kB, on every page of every book (reader QA). -#}
 {{ script('report.js', data_build=build()) }}
-{{ script('charts.js') }}
 {{ script('vocab.js') }}
 {{ script('sync.js') }}
 {#- Saving for offline and the worker that answers it (design.md §12, 2026-10-09). Nothing

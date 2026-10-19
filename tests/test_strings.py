@@ -165,6 +165,12 @@ _UNKEYED = (
     r'\?\s*"[A-Z][a-z]+\s[^"]*"\s*:\s*"[A-Z][^"]*"',
     r'\|\|\s*"[A-Z][a-z]+\s[^"]*[.]"',
     r'textContent\s*=\s*"[A-Z][a-z]+\s[^"]*"',
+    # The reader's QA pass (targum-internal#464, 2026-10-19): a one-word tooltip ("Hear"),
+    # a one-word line told ("Ready."), and the two words of the phrase card's press
+    # ("Keep", "Remove") all slipped past the patterns above, which want a space.
+    r'\btitle\s*=\s*"[A-Z][a-z]+',
+    r'\btell\(\s*"[A-Z][a-z]+\.?"\s*\)',
+    r'\baction:\s*[^\n]*\?\s*"[A-Z][a-z]+"\s*:\s*"[A-Z]',
 )
 
 

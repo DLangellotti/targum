@@ -142,9 +142,6 @@ byId.first = Object.assign(element("p"), {
 
 // The page loads this first and the reader leans on it: the level names it announces
 // and the steps the card draws are both `TargumVocab.STEPS`.
-// And the ledger's arithmetic before either, as the template ships it: the foot of a
-// finished section counts the longest run of days through `TargumCharts`.
-require(path.join(assets, "charts.js"));
 require(path.join(assets, "vocab.js"));
 /* targum's own server, where a test gives it an answer (`ask`): the page is then one
  * served with a key, and `/known-ahead` answers with what the test said — a JSON body, or
