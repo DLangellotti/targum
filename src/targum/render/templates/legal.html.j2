@@ -177,8 +177,17 @@
       no record of the conduct of a Data Subject is kept save as stated at clauses 3.6,
       3.7 and 3.14. The Service transmits no data to any provider of analytics, employs no
       third-party script, and sets no cookie other than that which maintains an
-      authenticated session and, while an assistant is being connected to the account,
-      one which holds that request for no more than ten minutes. A generated targum opened from a file makes no network
+      authenticated session; while an assistant is being connected to the account,
+      one which holds that request for no more than ten minutes; and one, named
+      targum_kept, which records only which version of the Service's own
+      stylesheets and scripts the browser last fetched in full. That cookie is set for
+      every visitor, whether signed in or not, once a page of the Service has fetched
+      those files. Its value is the same for every visitor to the same version of the
+      Service: it contains no identifier and nothing unique to any person or browser,
+      it is not used to recognise or follow anyone, and no record of it is kept by the
+      Controller. Its purpose is that the first visit receives each page whole, and
+      later visits use the copies of those files which the browser already holds. It
+      lasts for one year, and is superseded whenever those files change. A generated targum opened from a file makes no network
       request whatsoever; served to an authenticated Data Subject, it communicates with
       the Service alone.</li>
     <li><b>Messages and fault reports.</b> Namely, where the Data Subject writes to the

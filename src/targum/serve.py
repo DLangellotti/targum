@@ -5180,6 +5180,15 @@ SESSION_COOKIE = "targum_session"
 CONNECT_COOKIE = "targum_connect"
 CONNECT_MINUTES = 10
 
+# Which set of the desk's own files this browser last fetched in full (design.md §12, "A
+# first visit gets the page whole", 2026-10-19; Privacy Notice clause 3.13). Its value is
+# the set's hash, the same for every visitor to the same build: no identifier, nothing
+# unique to anybody. A page that finds it naming the current set names its files by
+# address; one that does not is sent whole and fetches them after it has loaded. A year,
+# the life of the files it vouches for.
+KEPT_COOKIE = "targum_kept"
+KEPT_DAYS = 365
+
 #: The longest page a sign-in carries back to (QA 2026-10-11, decision D2). A reader's
 #: address with its query is a few hundred characters; anything longer is not one.
 NEXT_LONGEST = 1024
