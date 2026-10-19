@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-18
+Tell us sits in the account menu, so a reader can write to targum from any page.
+Home says when it cannot open your texts, with Try again, and a text begun on another device continues here.
+Words you may already know includes a language's one-letter words, such as Russian в and я.
+
 2026-10-14
 The Russian Library holds over 400 texts across its four levels, most of them with a recording.
 Russian texts are no longer graded harder than they are, so the easy ones show as Easy.
