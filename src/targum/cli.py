@@ -456,6 +456,23 @@ def catalogue_lemmas(
         )
 
 
+@app.command()
+def triage(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    days: Annotated[int, typer.Option("--days", help="How far back faults count.")] = 7,
+) -> None:
+    """Sunday's triage: the open Tell us messages and the week's browser faults.
+
+    Each comes with a draft `beta-found` card to finish and file (targum-internal#459).
+    Reads the database and writes nothing. On the box, `deploy/triage.sh` runs it against
+    the site's own database, where the messages are.
+    """
+    from . import triage as triaging
+    from .serve import default_store
+
+    print(triaging.report(store or default_store(), days=days), end="")
+
+
 @app.command(name="test-account")
 def test_account(
     email: Annotated[str | None, typer.Argument(help="The address to make a test account.")] = None,
