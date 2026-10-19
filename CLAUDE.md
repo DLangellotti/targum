@@ -101,10 +101,10 @@ runs *on the box* after the ship, against `/var/lib/targum/targum.db`: the site'
 subscribers live there, and an announce from the laptop reads the laptop's database, where
 they never are (targum-internal#346). A subscription made on the laptop is not mailed.
 
-## The beta keeps a week: triage on Sunday, release on Tuesday
+## The beta keeps a week: triage on Sunday
 
-From batch one (targum-internal#459, #488) outsiders are reading, and every deploy is a
-chance to break what they were using, so the rate of change has a rhythm until Launch.
+From batch one (targum-internal#459, #488) outsiders are reading, so what they tell us
+has a day of its own until Launch.
 
 - **Sunday, triage.** `TARGUM_HOST=root@targum.page ./deploy/triage.sh` prints the open
   Tell us messages and the week's browser faults, read-only, off the box's own database.
@@ -112,10 +112,10 @@ chance to break what they were using, so the rate of change has a rhythm until L
   settled as asked or won't in the back office. A draft names a message by number, page
   and build only: the reader's words and address stay in our database (clause 3.14), so
   the card says what is wrong in our words.
-- **Tuesday, release.** One deploy a week, in a quiet hour, from master as it stands. A
-  P0 ships the same day; nothing else does. Merging stays as it is; it is the deploy that
-  waits.
-- **After a release, a note to the readers** saying what changed because of them, in two
+- **Deploys go out as work lands** (David, 2026-10-19: no weekly release train). What a
+  reader was using is protected by the checks, the database backup before each deploy,
+  and the browser faults the next triage counts, not by waiting.
+- **A note to the readers, now and then,** saying what changed because of them, in two
   or three lines. David writes it.
 - **New work waits.** A new feature, medium or language starts only when a beta reader
   asked for it or a surface's finish bar (design.md §14) needs it. Everything else is a
