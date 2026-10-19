@@ -9,6 +9,7 @@ Saved on this device, the one desk page a worker keeps for offline."""
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import re
 from http.client import HTTPConnection
@@ -135,7 +136,9 @@ def test_the_files_are_named_by_their_bytes() -> None:
     files = asset_files()
     assert files, "nothing to serve"
     for address, (body, kind, name) in files.items():
-        assert address == asset_address(name)
+        stem, _, ext = name.rpartition(".")
+        digest = hashlib.sha256(body).hexdigest()[:16]
+        assert address == f"{ASSET_ROUTE}{stem}.{digest}.{ext}", "named by its own bytes"
         assert re.fullmatch(r"/assets/[a-z0-9-]+\.[0-9a-f]{16}\.(js|css)", address), address
         assert kind.startswith("text/javascript" if address.endswith(".js") else "text/css")
         assert body
