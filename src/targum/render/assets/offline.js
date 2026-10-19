@@ -1427,6 +1427,8 @@
       band = element("p", "offline-back");
       band.id = "offline-back";
       band.setAttribute("role", "status");
+      // The interface's words, left to right on a Hebrew page too (see `fault.js`).
+      band.setAttribute("dir", "ltr");
       var fault = document.getElementById("fault-banner");
       if (fault && fault.parentNode) {
         fault.parentNode.insertBefore(band, fault.nextSibling);

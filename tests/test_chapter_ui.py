@@ -690,3 +690,41 @@ def test_a_chapter_already_translated_is_not_asked_for_ahead(tmp_path: Path) -> 
             )
         finally:
             browser.close()
+
+
+def test_the_waiting_note_is_said_through_the_catalogue(tmp_path: Path) -> None:
+    """Reader QA, 2026-10-19 (targum-internal#464): the note and its press were written
+    into the template in English, so a Russian reader said them in English."""
+    from targum.render.builder import TEMPLATES
+
+    reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
+    note = reader[reader.index('id="waiting-note"') : reader.index('id="waiting-cost"')]
+    for key in (
+        "reader.chapter.not-translated",
+        "reader.chapter.not-transcribed",
+        "reader.chapter.translate",
+    ):
+        assert f't("{key}"' in note, key
+    assert ">Translate<" not in note and "yet.{%" not in note
+    # Both kinds of waiting page have a line for what went wrong, not only a recording's.
+    assert '<p class="waiting-said" id="waiting-said" role="status"></p>' in note
+
+
+def test_the_pager_says_a_part_in_the_text_s_own_language(tmp_path: Path) -> None:
+    """A part's name is the text's: bare in the pager, a Hebrew name stood in the page's
+    English run (reader QA, 2026-10-19)."""
+    pages = _render_book(tmp_path, translated=2)
+    assert '<a class="next" href="sec-0002.html" data-next="2"' in pages[1]
+    after = pages[1][pages[1].index('<a class="next" href="sec-0002.html"') :]
+    assert after.split(">", 1)[1].startswith('<bdi lang="he" dir="auto">')
+    before = pages[2][pages[2].index('<a class="prev" href="sec-0001.html">') :]
+    assert before.split(">", 1)[1].startswith('<bdi lang="he" dir="auto">')
+
+
+def test_a_reader_carries_no_charts(tmp_path: Path) -> None:
+    """`charts.js` left the reader on 2026-10-19: nothing in it had read the ledger's
+    arithmetic since the finished box became three figures (#429), and every page of every
+    book carried it anyway."""
+    pages = _render_book(tmp_path, translated=2)
+    for html in pages.values():
+        assert "TargumCharts" not in html

@@ -20,9 +20,10 @@
  *   policy, hashes and all. When the page is a saved one and the network did answer, the
  *   saved copy is replaced by the bytes that just arrived, so a saved text is never older
  *   than the last time it was opened.
- * - **A recording or a film beside a reader** answers from the cache when it was saved,
- *   in slices: a player asks for ranges, and Safari opens every film with `bytes=0-1` and
- *   will not play unless that comes back as a real 206. What was not saved is not touched.
+ * - **A recording or a film beside a reader** goes to the network first too, and answers
+ *   from the cache when it was saved and the network is not there, in slices: a player
+ *   asks for ranges, and Safari opens every film with `bytes=0-1` and will not play unless
+ *   that comes back as a real 206. What was not saved is not touched.
  * - **Everything else** is the browser's own business: never answered from here.
  *
  * The cache key drops what does not name the file. A reader is a file on disk, and the
@@ -164,12 +165,20 @@ function fromStore(request) {
   });
 }
 
+/* The network first, as a page is, and the saved copy only when there is no network
+   (reader QA, 2026-10-19). Answered from the cache while online, a film broke a few lines
+   in: the reader opens it, its first ranges come from the network, the copy the page keeps
+   of an opened text lands, and the next range comes from here. Chrome will not splice a
+   range the worker made onto ranges the network sent — the player calls it a data source
+   error — and that was the picture going away "after the first few lines" (design.md
+   §12, "A film that errors after a picture is loaded again", 2026-10-12). One source for
+   the whole of a play: the network while there is one, the copy when there is not. */
 function media(request) {
-  return fromStore(request).then(function (whole) {
-    // Not saved after all — the index was not read yet when this was asked. The network,
-    // exactly as the browser would have asked it.
-    if (!whole) return fetch(request);
-    return sliced(request, whole);
+  return fetch(request).catch(function (offline) {
+    return fromStore(request).then(function (whole) {
+      if (!whole) throw offline;
+      return sliced(request, whole);
+    });
   });
 }
 

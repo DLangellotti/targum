@@ -2532,7 +2532,12 @@ network. targum now has a service worker, `/sw.js`.
   saved page that opens online is saved again as it is now. A film or a recording beside a
   saved reader answers from the cache in slices, as a 206 for each range asked, because
   Safari opens every film with `bytes=0-1` and will not play otherwise. Anything else is
-  never answered by the worker.
+  never answered by the worker. *(Since 2026-10-19 a film or a recording goes to the
+  network first as a page does, and the cache answers only when there is no network:
+  Chrome will not join a range the worker made to ranges the network sent, and a film
+  opened online broke a few lines in, once the copy kept of the opened text had landed.
+  That was the cause of "A film that errors after a picture is loaded again", 2026-10-12.
+  Reader QA, targum-internal#464.)*
 - **A file is kept under its address without the key.** A reader's own files lose their
   whole query, which the page reads and the server ignores (`?k=`, `?list=`). Every other
   address loses `k` only, because it is the start-up key, a bearer token, and has no place

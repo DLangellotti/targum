@@ -228,6 +228,39 @@ def test_a_saved_film_answers_in_slices_without_the_network(browser, served: Ser
         context.close()
 
 
+def test_a_saved_film_is_asked_of_the_network_while_there_is_one(browser, served: Served) -> None:  # noqa: F811
+    """Reader QA, 2026-10-19 (targum-internal#464): a film opened online is kept for
+    offline as it plays, and once the copy landed the worker answered the next range from
+    it. Chrome will not join a range the worker made to ranges the network sent, so the
+    film broke a few lines in. Online, every range goes to the network; the copy is for
+    when there is none."""
+    folder = served.out / "local" / "talk-he"
+    folder.mkdir(parents=True)
+    video_reader(folder, spans=[[0.05, 0.45], [0.5, 0.95]])
+    film = next((folder / "reader" / "video").iterdir())
+    whole = film.read_bytes()
+    context, page = opened(browser, served, "/reader/talk-he/reader/index.html")
+    try:
+        saved = page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert saved["item"]["withFilm"], saved
+        address = f"/reader/talk-he/reader/video/{film.name}"
+        before = sum(1 for asked in served.asked if asked.startswith(address))
+        # With the key, as the page's own film asks: the network answers only a reader
+        # it can tell is allowed. And past the browser's own cache, which kept the whole
+        # file the save fetched, so that what is counted is the server being asked.
+        probe = page.evaluate(
+            RANGE.replace("{ headers:", "{ cache: 'no-store', headers:"),
+            {"url": served.url(address), "range": "bytes=2-5"},
+        )
+        after = sum(1 for asked in served.asked if asked.startswith(address))
+    finally:
+        context.close()
+
+    assert probe["status"] == 206 and probe["head"] == list(whole[2:6])
+    assert probe["range"] == f"bytes 2-5/{len(whole)}"
+    assert after == before + 1, "the range went to the network, not to the saved copy"
+
+
 def test_sound_and_text_leaves_the_picture_behind(browser, served: Served) -> None:  # noqa: F811
     folder = served.out / "local" / "talk-he"
     folder.mkdir(parents=True)

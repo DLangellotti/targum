@@ -215,6 +215,18 @@ def test_the_worker_fetches_nothing_by_itself() -> None:
     assert "saved && saved[key]" in code, "and only a page that was saved"
 
 
+def test_a_film_goes_to_the_network_first_and_to_the_copy_without_one() -> None:
+    """Reader QA, 2026-10-19 (targum-internal#464): answered from the cache while online,
+    a film opened online broke a few lines in, because Chrome will not join a range the
+    worker made to ranges the network sent. The network first, the copy only when it
+    fails, as a page is."""
+    code = worker_source()
+    media = code[code.index("function media(request) {") :]
+    media = media[: media.index("\n}\n") + 2]
+    assert media.index("fetch(request)") < media.index("fromStore(request)")
+    assert ".catch(function (offline)" in media and "throw offline" in media
+
+
 def test_the_page_and_the_worker_key_a_file_the_same_way() -> None:
     """Written twice because the two never share a scope; a difference would be a saved
     file nobody can find."""

@@ -3505,6 +3505,13 @@ html:fullscreen { background: var(--paper); }
   /* One line, whatever the width: inside the weekly's front-page frame the strip is
      narrower than a phone, and a label on three lines is a strip three lines tall. */
   .player-said { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Except a recording that will not play: it says why in words, on a row of its own
+     over the strip's presses, with Try again beside it. In the clock's 37px it was the
+     clay mark and an ellipsis (reader QA, 2026-10-19; §6, an error says in words what
+     went wrong). */
+  .player.refused { flex-wrap: wrap; }
+  .player.refused .player-body { order: -1; flex: 1 0 100%; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 0.75rem; }
+  .player.refused .player-said { white-space: normal; overflow: visible; }
   .player-rate-now { border: 1px solid var(--rule); padding: 0.15rem 0.5rem; }
   /* The foot bar (board ReaderPhone; design.md §12, 2026-10-09): play, the track, the
      speed and the view. The step, Hear first and the picture are rows of ⋯ on a phone,
@@ -5055,6 +5062,9 @@ body.practice-section .beside-add { display: none; }
 }
 @media (max-width: 40rem) {
   .bar-title .known { display: none; }
+  /* The strip's clock says where it is and leaves how long to the track: "0:09 / 10:58"
+     is twice the room the strip has beside its play button (reader QA, 2026-10-19). */
+  .player-clock .clock-whole { display: none; }
 }
 /* A window just wider than the band keeps every desktop control in the bar, and with
    both titles and the count beside them the bar wrapped to two rows from 961px to about
