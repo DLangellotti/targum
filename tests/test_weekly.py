@@ -587,6 +587,9 @@ def test_a_date_it_cannot_read_is_left_off() -> None:
 
     assert dated_title("מבט השבוע", "") == "מבט השבוע"
     assert dated_title("מבט השבוע", "later this week") == "מבט השבוע"
+    # Dating a dated title is a no-op: the issue and its markdown both date it.
+    once = dated_title("מבט שבועי", "2026-10-19")
+    assert dated_title(once, "2026-10-19") == once == "מבט שבועי · 19 באוקטובר 2026"
 
 
 def test_the_composed_markdown_is_dated_in_both_places() -> None:

@@ -320,14 +320,19 @@ def dated_title(title: str, dated: str) -> str:
     to, which is what `Issue.dated` holds.
 
     A date it cannot read is left off rather than guessed at or shown as a stray ISO
-    string in the middle of Hebrew.
+    string in the middle of Hebrew. A title already carrying it is returned as it is: the
+    issue and its markdown each date the same title, and three issues in a row went out
+    saying the date twice (2026-w40, w42, w43).
     """
     try:
         year, month, day = (int(part) for part in dated.split("-", 2))
         named = HEBREW_MONTHS[month - 1]
     except (ValueError, IndexError):
         return title
-    return f"{title} · {day} {named} {year}"
+    suffix = f" · {day} {named} {year}"
+    if title.endswith(suffix):
+        return title
+    return f"{title}{suffix}"
 
 
 def markdown(written: Written, byline: str, dated: str = "") -> str:
