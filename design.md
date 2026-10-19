@@ -369,13 +369,60 @@ or kept for offline bakes each file into itself and fetches nothing. A desk page
 pages in `DESK_PAGES`, `render/builder.py`) names them instead, by address under
 `/assets/<name>.<hash>.<ext>`, and the browser keeps them. Templates say which files a
 page wants with `styles(...)` and `script(...)`, and the page decides how they ride, so
-a template never inlines a file by hand.
+a template never inlines a file by hand. A page's data that rides as a file, such as the
+Library's shelf, is `data_script(...)`. A browser that has not kept the files is sent
+the desk page whole (2026-10-19, §12 "A first visit gets the page whole").
 
 ## 12 · Where the code departs, and why
 
 Each entry below was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
+
+### A first visit gets the page whole — 2026-10-19
+
+David, 2026-10-19, on the cost the entry below left open: a device's first visit to a desk
+page had become 0.4 s slower, because thirty files arriving together then ran one after
+another. He chose a cookie that says the files are kept, with the privacy notice changed
+first (clause 3.13, dated 19 October 2026).
+
+- **A desk page has two forms, and the browser decides which it gets.** A browser whose
+  `targum_kept` cookie names the current set of files gets the page that names them by
+  address. Any other gets the page whole, every file inside it as before 2026-10-18, so
+  nothing on it waits for a file. That covers a browser with no cookie, and one whose
+  cookie names a set from before the last change. The page varies with the cookie and
+  says so (`Vary: Cookie`), and stays `no-store`, so no cache can hand one browser the
+  other's form. Each form's policy is read off it as sent: the whole one names its blocks
+  by hash and has no `'self'` for scripts or styles. The other gains `'self'` as the entry
+  below describes.
+- **The whole page fetches the files once it is up** (`warm.js`, inline on that form
+  only). It waits for `load` and 1.5 s more, then asks for three at a time at low
+  priority, never ahead of anything the page itself asks for. It fetches this page's files
+  first and then the desk's others, the Library's shelf among them. The last fetch is
+  `/assets/kept?set=…`, which gives the cookie. So the cookie is given only once every
+  file has arrived. A page left before then gives none, and the next page is sent whole
+  and tries again. A fetch that fails stops it, for the same reason. Off a disk it does
+  nothing.
+- **The cookie identifies nobody.** Its value is the set's hash, the same for every
+  visitor to the same build, signed in or not. It is `HttpOnly`, `SameSite=Lax`, `Path=/`,
+  `Secure` where the site is https, and lasts a year. No record of it is kept. A deploy
+  that changes any file changes the set, so the next visit is whole again and fetches the
+  new files.
+- **The Library's shelf is a file of its own.** The catalogue, its collections and its
+  sets were written into the page, 1.8 MB of it. They are now
+  `/assets/catalogue.<hash>.js`, named by what they say and kept like the rest. It is a
+  classic script just before `library.js`, so the page has the shelf where it had it,
+  with no new state to wait in or fail. It is a script rather than JSON for that reason:
+  `library.js` reads it on its first lines, as it always did. On a whole page it is
+  inside the page again.
+
+Measured on the same phone profile through an HTTP/2 front, against #820:
+
+- home's first visit: 1.93 s → 1.54 s, which is 1.53 s before any of this;
+- home again: 0.61 s → 0.71 s, once the warm-up has finished, about six seconds after
+  the first page loads;
+- Library after home: 2.27 s → 0.56 s;
+- the Library as the first page: 3.05 s → 2.71 s.
 
 ### A desk page loads its files once and keeps them — 2026-10-18
 
@@ -420,9 +467,8 @@ What it cost: a device's first visit pays a little more. Over HTTP/2, home's thi
 arrive together and then run one after another, where inline they ran while the page was
 still arriving. Measured on the phone profile through an HTTP/2 front: home's first visit
 1.53 s → 1.94 s, home again 1.50 s → 0.62 s, Library after home 2.72 s → 2.30 s. After a
-deploy, only a file that changed is fetched again. Inlining on a device's first visit and
-linking after it would need a cookie that says the files are kept. The privacy notice
-says targum sets no cookie but the session's, so that waits on a decision.
+deploy, only a file that changed is fetched again. *Answered the next day: a first visit
+gets the page whole (the entry above).*
 
 ### On a phone, EN · RU is a row of the account's sheet — 2026-10-18
 

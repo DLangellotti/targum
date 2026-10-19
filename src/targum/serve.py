@@ -69,22 +69,26 @@ from .remembered import Remembered
 from .render.builder import (
     ASSET_ROUTE,
     CONTENTS,
+    KEPT_ROUTE,
     LEGAL,
     LINK_PREVIEW,
     LINK_PREVIEW_ROUTE,
     about_page,
     approve_page,
     asset_files,
+    asset_set,
     back_office_page,
     connect_page,
     connect_refused_page,
     credits_of,
     daily_page,
+    first_visit,
     front_page,
     holding_page,
     how_page,
     legal_is_public,
     legal_page,
+    names_files,
     not_found_page,
     parasha_page,
     press_page,
@@ -5180,6 +5184,26 @@ SESSION_COOKIE = "targum_session"
 CONNECT_COOKIE = "targum_connect"
 CONNECT_MINUTES = 10
 
+# Which set of the desk's own files this browser last fetched in full (design.md §12, "A
+# first visit gets the page whole", 2026-10-19; Privacy Notice clause 3.13). Its value is
+# the set's hash, the same for every visitor to the same build: no identifier, nothing
+# unique to anybody. A page that finds it naming the current set names its files by
+# address; one that does not is sent whole and fetches them after it has loaded. A year,
+# the life of the files it vouches for.
+KEPT_COOKIE = "targum_kept"
+KEPT_DAYS = 365
+
+
+def kept_cookie(value: str, address: str) -> str:
+    """The kept-files cookie, in the session cookie's style: HttpOnly (no script reads
+    it), SameSite=Lax, the whole site, and Secure where the site is served over https."""
+    secure = "; Secure" if address.startswith("https://") else ""
+    return (
+        f"{KEPT_COOKIE}={value}; HttpOnly; SameSite=Lax; Path=/; "
+        f"Max-Age={KEPT_DAYS * 24 * 60 * 60}{secure}"
+    )
+
+
 #: The longest page a sign-in carries back to (QA 2026-10-11, decision D2). A reader's
 #: address with its query is a few hundred characters; anything longer is not one.
 NEXT_LONGEST = 1024
@@ -5723,12 +5747,20 @@ class Handler(BaseHTTPRequestHandler):
             # typed or followed the address gets the site's own page instead; a script's
             # fetch still gets the short answer it reads.
             return self._not_found()
+        # A desk page names its files by address only for a browser that has kept them
+        # (design.md §12, "A first visit gets the page whole", 2026-10-19). Any other is
+        # sent the page whole, with the few lines that fetch the files once it is up.
+        # Either way the page varies with the cookie, and says so.
+        two_ways = kind.startswith("text/html") and names_files(body)
+        if two_ways and self._cookie(KEPT_COOKIE) != asset_set():
+            body = first_visit(body.decode("utf-8")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", kind)
         if cookie:
             self.send_header("Set-Cookie", cookie)
         # Read off the page as written. The policy names this page's own inline blocks
-        # by their hash, so it has to be taken before the bytes are compressed.
+        # by their hash, so it has to be taken before the bytes are compressed. It is
+        # taken from whichever of the two pages is sent, so each is named exactly.
         policy = self._policy(body, frames, forms) if kind.startswith("text/html") else None
         zipped = self._worth_zipping(body, kind)
         if zipped:
@@ -5741,6 +5773,8 @@ class Handler(BaseHTTPRequestHandler):
         varies = "Accept-Encoding"
         if getattr(self, "_said_by_browser", False):
             varies += ", Accept-Language"
+        if two_ways:
+            varies += ", Cookie"
         self.send_header("Vary", varies)
         self.send_header("Cache-Control", cache)
         # Set by the weekly's entry points while the deployment keeps it unindexed:
@@ -8135,6 +8169,8 @@ class Handler(BaseHTTPRequestHandler):
         # files once and keeps them", 2026-10-18). Before the account check: they are the
         # same files for everybody, the sign-in page names them too, and none holds
         # anything of anybody's.
+        if route == KEPT_ROUTE:
+            return self._kept()
         if route.startswith(ASSET_ROUTE):
             return self._asset_file(route)
         # A text card's recording, played from a host's frame on another origin, where
@@ -14394,6 +14430,28 @@ class Handler(BaseHTTPRequestHandler):
     #: A year, and never asked about again: the address names the bytes by their hash,
     #: so a file that changes is a file at a new address.
     ASSET_CACHE = "public, max-age=31536000, immutable"
+
+    def _kept(self) -> None:
+        """A page sent whole has fetched every file it was told to (`first_visit`), so
+        the browser is given the kept-files cookie, and its next desk page names its files
+        by address (design.md §12, 2026-10-19; Privacy Notice clause 3.13).
+
+        Only for the set as it is now: a page that loaded before a deploy and finished
+        warming after it has kept the old files, and is told nothing. The cookie holds the
+        set's hash and nothing else, the same for everybody on this build.
+        """
+        if not self._host_is_ours():
+            return self._send(404, b"not found", "text/plain")
+        asked = parse_qs(urlparse(self.path).query).get("set", [""])[0]
+        current = asset_set()
+        self.send_response(204)
+        if asked == current:
+            self.send_header("Set-Cookie", kept_cookie(current, self.address))
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
 
     def _asset_file(self, route: str) -> None:
         """One of a desk page's files, out of the map built at start-up (`asset_files`).

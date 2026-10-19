@@ -96,11 +96,9 @@
 <script>
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
-window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
-window.TARGUM_COLLECTIONS = {{ collections|tojson }};
-window.TARGUM_SETS = {{ sets|tojson }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
+{{ data_script('catalogue.js', shelf) }}
 {{ script('strings.js') }}
 {{ script('charts.js') }}
 {{ script('scenes.js') }}

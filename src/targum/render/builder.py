@@ -520,6 +520,7 @@ def _environment() -> Environment:
     # A page's own files: by address on a desk page, inline everywhere else (`DESK_PAGES`).
     env.globals["script"] = _script
     env.globals["styles"] = _styles
+    env.globals["data_script"] = _data_script
     env.globals["data_uri"] = _data_uri
     # The faces likewise: a stylesheet by address on a desk page, a `<style>` elsewhere.
     env.globals["hebrew_face"] = _page_hebrew_face
@@ -919,12 +920,39 @@ def asset_address(name: str) -> str:
     return f"{ASSET_ROUTE}{stem}.{digest}.{kind}"
 
 
-@cache
+#: Files made rather than read: the Library's shelf data (`_data_script`), by address.
+#: Filled as pages are rendered, which `targum serve` does at start-up.
+_GENERATED: dict[str, tuple[bytes, str, str]] = {}
+
+#: Every address a desk page has named, in the order first named: what a page sent whole
+#: fetches after it has loaded, so the next desk page finds them kept (`first_visit`).
+_DESK_NAMED: dict[str, None] = {}
+
+
+def _named(address: str) -> str:
+    _DESK_NAMED.setdefault(address, None)
+    return address
+
+
 def asset_files() -> dict[str, tuple[bytes, str, str]]:
     """Every file a desk page may name, by its address: the bytes, their type and the
-    asset they are. Built once, so `targum serve` answers from memory; an address that
-    is not here is a 404. The worker is left out: it is served from the root, and only
-    there (`worker_script`)."""
+    asset they are. Read once, so `targum serve` answers from memory; an address that is
+    not here is a 404. The worker is left out: it is served from the root, and only there
+    (`worker_script`)."""
+    return {**_read_files(), **_GENERATED}
+
+
+def asset_set() -> str:
+    """One name for every file there is to keep, as they are now: what the kept-files
+    cookie holds (design.md §12, 2026-10-19). Any file changing changes it, so a browser
+    that kept the old ones is sent its next page whole and fetches the new ones."""
+    import hashlib
+
+    return hashlib.sha256("\n".join(sorted(asset_files())).encode("utf-8")).hexdigest()[:16]
+
+
+@cache
+def _read_files() -> dict[str, tuple[bytes, str, str]]:
     names = [
         path.name
         for path in sorted(ASSETS.iterdir())
@@ -954,8 +982,25 @@ def _script(context: Context, name: str, **attributes: Any) -> Markup:
     run in is the order they are written in."""
     said = _attributes(attributes)
     if context.get("linked_assets") and name not in CARRIED:
-        return Markup(f'<script{said} src="{asset_address(name)}"></script>')
+        return Markup(f'<script{said} src="{_named(asset_address(name))}"></script>')
     return Markup(f"<script{said}>") + _asset(name) + Markup("</script>")
+
+
+@pass_context
+def _data_script(context: Context, name: str, text: str) -> Markup:
+    """A script made from a page's data, such as the Library's shelf: by address on a
+    desk page, named by the hash of what it says, so it is kept until the data changes;
+    inline everywhere else. A classic script like the rest, so a page reads its data
+    where it stands, as it did when the data was written into it."""
+    if not context.get("linked_assets"):
+        return Markup("<script>") + Markup(text) + Markup("</script>")
+    import hashlib
+
+    body = text.encode("utf-8")
+    stem, _, kind = name.rpartition(".")
+    address = f"{ASSET_ROUTE}{stem}.{hashlib.sha256(body).hexdigest()[:16]}.{kind}"
+    _GENERATED[address] = (body, ASSET_KINDS[f".{kind}"], name)
+    return Markup(f'<script src="{_named(address)}"></script>')
 
 
 @pass_context
@@ -966,14 +1011,16 @@ def _styles(context: Context, *names: str) -> Markup:
     wanted = [name for name in names if name]
     if context.get("linked_assets"):
         return Markup(
-            "".join(f'<link rel="stylesheet" href="{asset_address(name)}">' for name in wanted)
+            "".join(
+                f'<link rel="stylesheet" href="{_named(asset_address(name))}">' for name in wanted
+            )
         )
     return Markup("<style>") + Markup("").join(_asset(name) for name in wanted) + Markup("</style>")
 
 
 def _sheet(context: Context, name: str, inline: Markup) -> Markup:
     if context.get("linked_assets"):
-        return Markup(f'<link rel="stylesheet" href="{asset_address(name)}">')
+        return Markup(f'<link rel="stylesheet" href="{_named(asset_address(name))}">')
     return inline
 
 
@@ -1015,6 +1062,52 @@ def carried(html: str) -> str:
         return f"<style>{files[match.group(3)][0].decode()}</style>"
 
     return _FILE_TAG.sub(inline, html)
+
+
+#: Where a page sent whole says it has fetched every file, so the browser is given the
+#: kept-files cookie (design.md §12, 2026-10-19). Its query names the set it fetched.
+KEPT_ROUTE = f"{ASSET_ROUTE}kept"
+
+#: How long after `load` a page sent whole waits before it fetches the files, and how
+#: many it asks for at once: late and few enough that what the page itself fetches once
+#: it is up (the reader's words, the covers) is never queued behind them.
+WARM_AFTER_MS = 1500
+WARM_LANES = 3
+
+
+_FILE_TAG_BYTES = re.compile(_FILE_TAG.pattern.encode("utf-8"))
+
+
+def names_files(html: str | bytes) -> bool:
+    """Whether a page names any file under `/assets/`: a desk page, linked."""
+    if isinstance(html, bytes):
+        return _FILE_TAG_BYTES.search(html) is not None
+    return _FILE_TAG.search(html) is not None
+
+
+def first_visit(html: str) -> str:
+    """A desk page for a browser that has not kept its files: whole, as every page was
+    before 2026-10-18, so nothing waits on a file. Once it has loaded, and a moment after,
+    it fetches the files it carried and the desk's others, a few at a time and never
+    ahead of anything the page asks for. When the last arrives it asks `KEPT_ROUTE`,
+    which gives the browser the kept-files cookie, so the next desk page names its files
+    by address and finds them kept. A page left before then has no cookie, and the next
+    one is sent whole too (design.md §12, "A first visit gets the page whole")."""
+    named = (match.group(2) or match.group(3) for match in _FILE_TAG.finditer(html))
+    own = list(dict.fromkeys(named))
+    files = [*own, *(address for address in _DESK_NAMED if address not in own)]
+    said = _attributes(
+        {
+            "data_files": json.dumps(files),
+            "data_kept": f"{KEPT_ROUTE}?set={asset_set()}",
+            "data_after": WARM_AFTER_MS,
+            "data_lanes": WARM_LANES,
+        }
+    )
+    tag = f"<script{said}>{_asset('warm.js')}</script>"
+    whole = carried(html)
+    at = whole.rfind("</body>")
+    return whole[:at] + tag + whole[at:] if at >= 0 else whole + tag
 
 
 def linked_scripts(html: str) -> str:
@@ -2419,7 +2512,7 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "18 October 2026"
+LEGAL_CHANGED = "19 October 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
@@ -4542,12 +4635,21 @@ def read_as_portions(entry: Any) -> bool:
     return bool(corpus.readable())
 
 
+def _shelf_script(**data: Any) -> str:
+    """`window.TARGUM_CATALOGUE = …;` and the rest, as `library.js` reads them."""
+    return "".join(
+        f"window.TARGUM_{name.upper()} = {htmlsafe_json_dumps(value, sort_keys=True)};\n"
+        for name, value in data.items()
+    )
+
+
 def library_page(token: str, language: str = "en") -> str:
     """Texts worth reading, and the ones you have already built.
 
-    The catalogue is baked in rather than fetched: it is a handful of entries that
-    ship with targum, and a page that has to ask the server for them would be a page
-    that can be empty.
+    The catalogue ships with targum rather than being asked for: a page that has to ask
+    the server for it would be a page that can be empty. Since 2026-10-19 it is a script
+    of its own beside the page (`_data_script`), run where it stands like any other, so
+    the page has it before `library.js` starts, exactly as when it was written inside.
     """
     from ..catalogue import collections, everything, swipe_sets
 
@@ -4558,15 +4660,20 @@ def library_page(token: str, language: str = "en") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             token=token,
-            catalogue=[entry.state() for entry in everything() if not read_as_portions(entry)],
-            # Which texts the page meets as one thing. Baked in beside the catalogue and
-            # for the same reason — and only the members actually on the shelf, so a
-            # collection can never open onto a row that is not there.
-            collections=[group.state() for group in collections()],
-            # targum's own playlists, a shelf of their own (design.md §12, 2026-10-09).
-            # The page offers only the ones with members built on the shared shelf, as
-            # `Library.targum_sets` does, from what `/readers` says is there.
-            sets=[group.state() for group in swipe_sets()],
+            # The shelf, as a script of its own: a file the desk keeps, named by what it
+            # says, so it is fetched again only when the catalogue changes (design.md
+            # §12, 2026-10-19). It is the same in every language.
+            shelf=_shelf_script(
+                catalogue=[entry.state() for entry in everything() if not read_as_portions(entry)],
+                # Which texts the page meets as one thing. Beside the catalogue and for
+                # the same reason, and only the members actually on the shelf, so a
+                # collection can never open onto a row that is not there.
+                collections=[group.state() for group in collections()],
+                # targum's own playlists, a shelf of their own (design.md §12,
+                # 2026-10-09). The page offers only the ones with members built on the
+                # shared shelf, as `Library.targum_sets` does, from what `/readers` says.
+                sets=[group.state() for group in swipe_sets()],
+            ),
             languages=_language_names(language),
             strings=script_strings(language, "library."),
         )

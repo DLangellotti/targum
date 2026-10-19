@@ -1972,7 +1972,7 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
     Words are checked because Wikisource is full of index pages that look like texts.
     """
     from targum.catalogue import CATALOGUE, by_id
-    from targum.render.builder import library_page
+    from targum.render.builder import carried, library_page
 
     assert CATALOGUE, "an empty catalogue is a page with nothing on it"
     for entry in CATALOGUE:
@@ -1988,8 +1988,9 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
         assert entry.words > 100, entry.id  # an index page, not a text
 
     # The cards are drawn in the browser, from the payload, so that picking a language
-    # can filter them. What the page has to carry is the payload itself.
-    html = library_page("k")
+    # can filter them. What the page has to carry is the payload itself: since
+    # 2026-10-19 in a file of its own beside the page, so read with it put back inside.
+    html = carried(library_page("k"))
     payload = html.split("window.TARGUM_CATALOGUE = ", 1)[1].split("\n", 1)[0].rstrip(";")
     shipped = json.loads(payload)
     assert [entry["id"] for entry in shipped] == [entry.id for entry in CATALOGUE]

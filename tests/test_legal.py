@@ -175,6 +175,24 @@ def test_the_privacy_page_carries_what_a_notice_has_to_carry() -> None:
         assert article in page, f"13(2)(b): the right under {article}"
 
 
+def test_every_cookie_the_server_sets_is_named_in_the_notice() -> None:
+    """The notice promises no cookie but the ones it names (clause 3.13). The third, the
+    kept-files cookie (design.md §12, 2026-10-19), is said with what it holds, who gets
+    it, why, and for how long, and that it identifies nobody."""
+    from targum.serve import CONNECT_COOKIE, KEPT_COOKIE, KEPT_DAYS, SESSION_COOKIE
+
+    page = " ".join(said(legal_page("privacy")).split())
+    assert "sets no cookie other than that which maintains an authenticated session" in page
+    assert "ten minutes" in page, CONNECT_COOKIE
+    assert SESSION_COOKIE.startswith("targum_") and KEPT_COOKIE == "targum_kept"
+    assert "named targum_kept" in page
+    assert "whether signed in or not" in page, "set for every visitor"
+    assert "contains no identifier and nothing unique to any person or browser" in page
+    assert "not used to recognise or follow anyone" in page
+    assert "first visit receives each page whole" in page, "why"
+    assert KEPT_DAYS == 365 and "lasts for one year" in page, "how long"
+
+
 #: The four documents by the name each is cited under, so that a cross-reference like
 #: "clause 6.1 of the Terms of Service" resolves against the document it points into.
 BY_NAME = {
