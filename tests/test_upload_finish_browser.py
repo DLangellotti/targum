@@ -202,6 +202,23 @@ def test_a_link_without_its_scheme_is_priced_as_a_link(browser) -> None:
     assert not thrown, thrown
 
 
+def test_once_a_price_offers_confirm_upload_steps_back(browser) -> None:
+    """design.md §13: one filled press per view. Upload is filled until a priced card
+    offers Confirm, then tonal, and filled again when the card goes."""
+    doors = Doors(add_page(TOKEN), _prepare=QUOTE)
+    context, page, thrown = opened(browser, doors)
+    classes = "() => document.getElementById('go').className"
+    assert "filled" in page.evaluate(classes).split()
+    page.fill("#given", QUOTE["source"])
+    page.click("#go")
+    page.wait_for_selector("#status .confirm")
+    assert page.evaluate(classes).split().count("filled") == 0
+    assert "tonal" in page.evaluate(classes).split()
+    assert page.locator(".btn.filled:visible").count() == 1
+    context.close()
+    assert not thrown, thrown
+
+
 @pytest.mark.parametrize(
     ("typed", "said"),
     [
