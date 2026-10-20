@@ -14938,6 +14938,15 @@ class Handler(BaseHTTPRequestHandler):
                 # Framed by the front page as a picture of itself (design.md §13,
                 # 2026-09-11), and by nothing else on the web: `'self'`, not `'*'`.
                 return self._send(200, target.read_bytes(), kind, frames="out")
+        # A part the text does not have — an old link, or a number typed by hand — opens
+        # the text's first part, and the page says the part asked for is not there
+        # (`gone=`, read by `reader.js`), rather than a page that says only that nothing is
+        # at this address (reader QA, targum-internal#464, 2026-10-20).
+        first = _first_part_of(roots, wanted)
+        if first is not None:
+            where, asked = first
+            query = urlparse(self.path).query
+            return self._sent_on(f"{where}?{query + '&' if query else ''}gone={asked}")
         # A door the model wrote by hand. It is told to copy a path exactly as the tool
         # returned it, and it copied בסטארטאפ as בסטארטאף — twice in one conversation
         # (2026-09-08) — because a final letter is how Hebrew is spelled and a folder
@@ -14953,6 +14962,24 @@ class Handler(BaseHTTPRequestHandler):
                     where = f"/reader/{quote(real)}/{quote(rest)}" + (f"?{query}" if query else "")
                     return self._sent_on(where)
         return self._not_found()
+
+
+def _first_part_of(roots: tuple[Path, ...], wanted: str) -> tuple[str, int] | None:
+    """For `<folder>/reader/sec-NNNN.html` where the folder's reader is there and that part
+    is not: the address of its first part, under the folder as asked, and the number asked
+    for. None for anything else, so every other missing address is still not found."""
+    found = re.fullmatch(r"([^/]+)/reader/sec-(\d{4})\.html", wanted)
+    if not found or found.group(1).startswith("."):
+        return None
+    for root in roots:
+        reader = (root / found.group(1) / "reader").resolve()
+        if root not in reader.parents or not reader.is_dir():
+            continue
+        for first in ("sec-0001.html", "index.html"):
+            if (reader / first).is_file():
+                return f"/reader/{quote(found.group(1))}/reader/{first}", int(found.group(2))
+        return None
+    return None
 
 
 def _read_contents(path: Path) -> dict[str, Any] | None:

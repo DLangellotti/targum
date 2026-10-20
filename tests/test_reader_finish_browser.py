@@ -216,3 +216,47 @@ def test_a_chapter_that_cannot_be_started_says_why_on_a_line(browser, tmp_path: 
         context.close()
 
     assert seen == {"said": refusal, "marked": True, "press": "Try again", "pressable": True}
+
+
+def test_only_a_reader_with_a_recording_carries_the_player(
+    built: Path, tmp_path, monkeypatch
+) -> None:
+    """Reader QA, 2026-10-20: the player's closure waited for a recording and returned at
+    once without one, and every reader carried it anyway. A text with a recording carries
+    `player.js` before `reader.js`, which runs it; a text without one carries neither the
+    file nor anything it would have done. Both stay whole: nothing is fetched."""
+    plain = built.read_text(encoding="utf-8")
+    assert "var targumPlayer = function" not in plain
+    assert 'if (typeof targumPlayer === "function") targumPlayer();' in plain
+
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    heard = dialogue(tmp_path / "dialogues", tmp_path / "reader").read_text(encoding="utf-8")
+    assert heard.index("var targumPlayer = function") < heard.index("var targumReader = function")
+    for page in (plain, heard):
+        assert page.index("var targumReader = function") < page.index("TargumOffline = {"), (
+            "saving for offline is read after the reader"
+        )
+        assert "<script src=" not in page and '<link rel="stylesheet"' not in page
+
+
+def test_a_part_that_was_not_there_says_so_on_the_first(browser, built: Path) -> None:
+    """Sent on from a part the text does not have, the first part says which, once."""
+    context, page = served_page(browser, built.read_text(encoding="utf-8"))
+    try:
+        page.goto(ORIGIN + "/reader/a-build/reader/index.html?k=test&gone=42")
+        page.wait_for_selector("#arrived:not([hidden])")
+        seen = page.evaluate(
+            """() => ({
+              said: document.getElementById('arrived-said').textContent,
+              undo: document.getElementById('arrived-undo').hidden,
+              search: location.search,
+            })"""
+        )
+    finally:
+        context.close()
+
+    assert seen == {
+        "said": "Part 42 isn't in this text, so we opened the first part.",
+        "undo": True,
+        "search": "?k=test",
+    }

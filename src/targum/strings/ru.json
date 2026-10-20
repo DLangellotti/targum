@@ -160,6 +160,7 @@
   "reader.card.could-not-say": "Не получилось произнести это слово.",
   "reader.card.look-up": "посмотреть",
   "reader.card.looking": "ищем…",
+  "reader.page.part-gone": "Части {n} в этом тексте нет, поэтому мы открыли первую часть.",
   "reader.card.still-looking": "всё ещё ищем…",
   "reader.card.nothing-saved": "ничего не сохранено",
   "reader.card.other-aspect": "другой вид: ",
