@@ -1241,6 +1241,11 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   font-variant-numeric: tabular-nums;
 }
 .fault-banner .offline-owed[hidden] { display: none; }
+/* §8: Saved texts was 22px tall under a thumb (Library QA, 2026-10-20). Taller rather
+   than reached by an `::after`, which would cross the top bar above the band. */
+@media (hover: none) and (pointer: coarse) {
+  .fault-banner .offline-to-saved { display: inline-flex; align-items: center; min-block-size: 44px; }
+}
 .offline-why,
 .offline-back {
   margin: 0;

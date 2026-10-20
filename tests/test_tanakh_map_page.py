@@ -463,7 +463,24 @@ def test_on_a_phone_a_tap_shows_the_card_and_read_is_the_press(browser: Any, she
     page.wait_for_timeout(100)
     assert page.url == "http://map.test/tanakh-map", "the tap did not leave the map"
     assert "Genesis 2" in page.inner_text("#tanakh-card")
-    reach = page.evaluate("document.getElementById('card-read').getBoundingClientRect().height")
-    assert reach >= 44
+    # Hit-tested, not measured (design.md §8): a tap anywhere in the 44px box around
+    # Read's middle lands on Read. It was drawn 44px tall and sat under the band of
+    # places at the foot, so a tap on it landed on them (Library QA, 2026-10-20). The
+    # year strip's ticks stay a chart, pointed at rather than pressed.
+    missed = page.evaluate(
+        """() => {
+          const read = document.getElementById('card-read');
+          const r = read.getBoundingClientRect();
+          const x = r.left + r.width / 2, y = r.top + r.height / 2;
+          const missed = [];
+          // Across and up through the middle: a pill's rounded corners are not its reach.
+          for (const [dx, dy] of [[0, 0], [-21, 0], [21, 0], [0, -21], [0, 21]]) {
+            const at = document.elementFromPoint(x + dx, y + dy);
+            if (!at || !(at === read || read.contains(at))) missed.push([dx, dy]);
+          }
+          return missed;
+        }"""
+    )
+    assert not missed, f"a tap this far from Read's middle missed it: {missed}"
     assert page.evaluate("document.documentElement.scrollWidth") <= 390
     opened.close()

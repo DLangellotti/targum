@@ -244,6 +244,52 @@ def test_the_tab_draws_every_subscription_in_its_chips(browser, tmp_path: Path) 
     assert not thrown, thrown
 
 
+def test_the_library_s_news_opens_the_tab_on_its_topics(browser) -> None:
+    """The Library's News says "Follow a topic" and sends the reader here, `?chip=news`,
+    with News chosen (2026-10-20). An address naming no chip is All, as before."""
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    own = {
+        "name": "own",
+        "document": "own",
+        "title": "כתבה",
+        "language": "he",
+        "entry": "",
+        "built": 1,
+        "minutes": 3,
+        "seconds": 0,
+        "sections": 1,
+        "chapters": [],
+    }
+    serve(
+        page,
+        {
+            "/": list_page("", "texts"),
+            "/readers": {"readers": [own], "shared": [], "trash": []},
+            "/subscriptions.json": {"signedIn": True, "subscriptions": ROWS, "series": SERIES},
+        },
+        [],
+    )
+    for asked, kinds, pressed in (
+        ("news", ["topic"], "News 1"),
+        ("nonsense", ["series", "channel", "topic", "podcast"], "All 4"),
+    ):
+        page.goto(f"{SITE}/?show=subscriptions&chip={asked}")
+        page.wait_for_selector("#subs-rows .sub-row")
+        got = page.evaluate(
+            """() => ({
+              rows: [...document.querySelectorAll('#subs-rows .sub-row')]
+                .map((li) => li.dataset.kind),
+              pressed: document.querySelector('#subs-chips .chip[aria-pressed="true"]').textContent,
+            })"""
+        )
+        assert got == {"rows": kinds, "pressed": pressed}, got
+    context.close()
+    assert not thrown, thrown
+
+
 def test_one_subscription_lists_what_it_brought_and_pauses(browser) -> None:
     context = browser.new_context(viewport={"width": 1280, "height": 2000})
     page = context.new_page()

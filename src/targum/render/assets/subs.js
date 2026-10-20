@@ -195,7 +195,23 @@
 
   /* --- the tab ------------------------------------------------------------------------ */
 
-  var tabView = { chip: "all", language: "" };
+  /* The chip an address asks for, `?chip=news`: the Library's News sends a reader here
+     for the topics (2026-10-20). Anything that is not a chip is All. */
+  function chipAsked() {
+    var asked = "";
+    try {
+      asked = new URLSearchParams(location.search).get("chip") || "";
+    } catch (e) {
+      asked = "";
+    }
+    return CHIPS.some(function (pair) {
+      return pair[0] === asked;
+    })
+      ? asked
+      : "all";
+  }
+
+  var tabView = { chip: chipAsked(), language: "" };
 
   function row(one, back) {
     var item = el("li", "sub-row" + (one.state === "paused" ? " is-paused" : ""));

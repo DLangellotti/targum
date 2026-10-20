@@ -2633,6 +2633,9 @@
       if (back) back.hidden = shelving;
       var titleHost = document.getElementById("see-title");
       if (titleHost) titleHost.hidden = !seeing;
+      // News, opened from its door: the way to the topics on Subscriptions.
+      var topicsLine = document.getElementById("see-topics");
+      if (topicsLine) topicsLine.hidden = !(seeing && signedIn && view.kind === "article");
       var menus = document.getElementById("see-menus");
       if (menus) {
         menus.hidden = !seeing;
