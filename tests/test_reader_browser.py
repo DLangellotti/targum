@@ -7287,7 +7287,8 @@ def test_here_says_what_this_occurrence_is_and_nothing_else(browser, tmp_path: P
             feats="UPOS=VERB",
         ),
         Token(
-            start=7, end=13, surface="להוסיף", lemma="הוסיף", band=2, pos="VERB", feats="UPOS=VERB|VerbForm=Inf"
+            start=7, end=13, surface="להוסיף", lemma="הוסיף", band=2, pos="VERB",
+            feats="UPOS=VERB|VerbForm=Inf",
         ),
         Token(
             start=14, end=18, surface="האלה", lemma="אלה", band=1, pos="PRON",
