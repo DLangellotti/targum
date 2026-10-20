@@ -219,8 +219,8 @@ def test_with_nothing_new_to_make_the_line_under_the_box_does_not_say_press_uplo
 ) -> None:
     """QA 2026-10-11: on a box that can make nothing new, Upload is drawn disabled under
     a banner that says so, and the line under the field still said "Press Upload and
-    we'll look for it" and "We'll work out how long it'll take". It says what the
-    banner says now."""
+    we'll look for it" and "We'll work out how long it'll take". It says what still
+    works now; the banner says what doesn't, once (QA 2026-10-20, targum-internal#466)."""
     html = add_page(TOKEN, no_key="We can't get anything new ready right now.")
 
     def answer(route, request):
@@ -243,7 +243,7 @@ def test_with_nothing_new_to_make_the_line_under_the_box_does_not_say_press_uplo
     assert disabled
     for line in said:
         assert "Press Upload" not in line and "work out how long" not in line, said
-        assert line.startswith("We can't get anything new ready right now."), said
+        assert line == "Everything you have still opens.", said
 
 
 def test_a_link_in_the_box_is_priced_as_a_link(browser) -> None:
@@ -2338,7 +2338,7 @@ def test_progress_without_a_total_says_no_percentage(browser, tmp_path: Path) ->
         elif "/prepare" in request.url:
             route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
         elif "/job/" in request.url:
-            body = {"stage": "transcribe", "done": 3, "total": 0, "message": ""}
+            body = {"stage": "working", "done": 3, "total": 0, "message": ""}
             route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
         elif request.url.endswith(("/add", "/add.html")):
             route.fulfill(status=200, content_type="text/html", body=html)
@@ -2352,7 +2352,7 @@ def test_progress_without_a_total_says_no_percentage(browser, tmp_path: Path) ->
     open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
     open_page.click("#go")
     open_page.click("#status button.filled", timeout=4000)
-    open_page.wait_for_selector("#status .bar", timeout=4000)
+    open_page.wait_for_selector("#status .wait-meter", timeout=4000)
     open_page.wait_for_timeout(1200)  # past the first poll
     status = open_page.inner_text("#status")
     context.close()

@@ -11,6 +11,9 @@
   var tn = window.TargumStrings.tn;
   var CHANGE_LANGUAGE = t("add.change-language.beside", "Choose the language it's in beside Upload.");
   var WE_TRANSLATE = t("add.summary.we-translate", "we translate");
+  function BROKEN_SAID() {
+    return t("add.link.broken", "That isn't a whole link. Copy it again from the address bar.");
+  }
 
   var key = window.TARGUM_KEY;
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
@@ -88,14 +91,22 @@
   function say(html, bad) {
     // Under the box, where the two columns are one (a phone): the card is brought into
     // view the first time it is drawn, so a press is never answered off the screen.
-    var appearing = status.hidden;
+    //
+    // Every time it is drawn, not only the first: the waiting line appeared first and the
+    // price replaced it in place, so the price itself was never brought up (QA
+    // 2026-10-20). "nearest" leaves a card that is already in view where it is. Where the
+    // card has a press, it is the press that is brought into view, clear of the places
+    // and Talk at the foot (`scroll-margin` in add.css).
     status.hidden = false;
-    if (appearing && window.matchMedia && window.matchMedia("(max-width: 60rem)").matches && status.scrollIntoView) {
+    if (window.matchMedia && window.matchMedia("(max-width: 60rem)").matches && status.scrollIntoView) {
       var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       setTimeout(function () {
-        status.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+        var confirm = status.querySelector(".confirm");
+        var press = (confirm && confirm.parentNode) || status.querySelector(".row, .fault-panel") || status;
+        if (press.scrollIntoView) press.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
       }, 0);
     }
+    if (bad) answered();
     status.className = "card status" + (bad ? " bad" : "");
     status.innerHTML = "";
     status.appendChild(html);
@@ -109,9 +120,21 @@
      left in it (design.md §12, 2026-10-09). The card under the box steps aside, since
      the refusal is about what is in the box and not about anything priced. */
   function refuseBox(text) {
+    answered();
     if (!window.TargumFault) return say(line(text), true);
     status.hidden = true;
     window.TargumFault.field(given, text, givenWell || drop);
+  }
+  //: The name the press's own refusals go by.
+  var refused = refuseBox;
+
+  /* The line under the box ("Thanks for the link. We'll work out how long it'll take.")
+     is a promise, and a refusal is the answer to it: it stood over "We couldn't open that
+     page" saying it was still being worked out (QA 2026-10-20). Put away until the box
+     holds something else, as a price puts it away. */
+  function answered() {
+    quoted = holding();
+    if (understood) understood.hidden = true;
   }
 
   /* targum out of reach: the connection's banner, whose Try again presses again. */
@@ -148,6 +171,11 @@
   var TEXTUAL = /\.(txt|md|markdown)$/i;
   var MOVING = /\.(mp4|m4v|mov|webm|mkv)$/i;
   var LINK = /^https?:\/\/\S+$/i;
+  //: A web address without its scheme: a host of letters, digits and hyphens with a
+  //: top-level name of letters, and a path if it has one. One word, no spaces.
+  var BARE = /^(?:www\.)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#]\S*)?$/i;
+  //: One word that is meant as an address and is not a whole one.
+  var BROKEN = /^(?:h?t?t?p?s?:?\/\/|www\.|ht+ps?\b|https?:)\S*$/i;
   //: A source targum reads directly, by its id (`ingest/fetch/__init__.py` FETCHERS).
   var IDENTIFIER = /^(gutenberg|sefaria|siddur|wikisource|dialogue|weekly|video):\S+$/i;
   //: Under this many words, a text is as likely a request as a text to read.
@@ -215,6 +243,13 @@
     var text = given ? given.value.trim() : "";
     if (!text) return { kind: "empty", text: "" };
     if (LINK.test(text) || IDENTIFIER.test(text)) return { kind: "link", text: text };
+    // An address copied without its https:// — "www.ynet.co.il/news/…" — is still a link.
+    // It was read as a description, and Upload then spent a turn of the conversation
+    // looking for what it already was (QA 2026-10-20).
+    if (BARE.test(text)) return { kind: "link", text: "https://" + text };
+    // One word that is plainly meant as an address and is not one ("htps//ynet…"): said
+    // under the box, rather than looked for as if it were a request.
+    if (BROKEN.test(text)) return { kind: "broken", text: text };
     // A link with a few words after it — "https://… the article about the election" —
     // is still the link (2026-09-14). It was read as a description, and Continue then
     // said the same sentence again, as an error.
@@ -230,6 +265,9 @@
   }
 
   function medium(file) {
+    // A voice note is a recording whatever its container: Chrome records into webm,
+    // which is also a film's, and the line said "Thanks for the video." (QA 2026-10-20).
+    if (file && file.recordedSeconds) return "recording";
     if (isAudio(file)) return MOVING.test(file.name) ? "video" : "recording";
     if (SUBTITLES.test(file.name)) return "subtitles";
     if (bringing.isPicture(file)) return "picture";
@@ -422,15 +460,30 @@
   // 2026-10-11), so it says what the banner says instead.
   var SHUT = !!(go && go.disabled);
 
+  // With no connection the line under the box says why Upload is greyed (design.md §12,
+  // "With no connection, a page says what still works"): `offline.js` greys the press,
+  // and the reason stood only in a tooltip nobody on a phone could see (QA 2026-10-20).
+  function away() {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+    var root = document.documentElement;
+    return !!(root && root.classList && root.classList.contains("is-away"));
+  }
+  if (window.addEventListener) {
+    window.addEventListener("offline", function () {
+      setTimeout(settle, 0);
+    });
+    window.addEventListener("online", function () {
+      setTimeout(settle, 0);
+    });
+  }
+
   // What targum thinks it was given, in a sentence.
   function understanding() {
+    if (away()) return t("offline.upload-needs", "Uploading needs the connection.");
     if (SHUT) {
-      return (
-        t("job.no-key", "We can't get anything new ready right now.") +
-        " " +
-        t("job.no-key.fact", "Everything you have still opens") +
-        "."
-      );
+      // The notice above the box already says that nothing new can be made; said here
+      // too, the page told it twice (QA 2026-10-20). The line keeps what still works.
+      return t("add.no-key.fact", "Everything you have still opens.");
     }
     if (chosen) {
       var kind = medium(chosen[0]);
@@ -460,6 +513,7 @@
     }
     var read = readGiven();
     if (read.kind === "link") return t("add.thanks.link", "Thanks for the link. We'll work out how long it'll take.");
+    if (read.kind === "broken") return BROKEN_SAID();
     if (read.kind === "text") {
       return tn("add.words", read.words, "That's {n} word of {language}.", "That's {n} words of {language}.", {
         language: named(adding()),
@@ -1342,6 +1396,9 @@
   // One blocking request covers fetching the text, reading it through, and the first
   // time a language is used, some setting up that only ever happens once. A single
   // unchanging line for all of that reads as a hang, so it keeps talking.
+  //: Seconds before a wait says it is still going (design.md §14: slow is past 3 s).
+  var SLOW = 3;
+
   function waiting() {
     var box = document.createDocumentFragment();
     var text = line(t("add.fetching", "We're reading it…"));
@@ -1354,8 +1411,10 @@
     var timer = setInterval(function () {
       var seconds = Math.round((Date.now() - started) / 1000);
       if (!status.contains(note)) return clearInterval(timer);
+      // Past three seconds a wait says so (design.md §14, slow): at twelve, a video's
+      // first seconds of reading stood as one unchanging line (QA 2026-10-20).
       note.textContent =
-        seconds < 12
+        seconds < SLOW
           ? ""
           : t("add.still-working", "Still working. A long text, or the first in a new language, takes us longer.");
     }, 1000);
@@ -1481,16 +1540,16 @@
       // one either.
       if (read.kind !== "link") {
         go.disabled = false;
-        // What to do instead, not the line under the box said a second time in red.
-        say(
-          line(
-            read.kind === "description"
-              ? t("add.continue.upload", "Upload reads a link, a file or the text itself. Paste one of those here.")
-              : read.kind === "foreign"
-                ? t("add.continue.foreign.beside", "Choose the language it's in beside Upload, then press Upload.")
-                : t("add.continue.empty", "Paste a link or some {language}, or drop a file.", { language: named(adding()) })
-          ),
-          true
+        // What to do instead, not the line under the box said a second time in red. It is
+        // about what is in the box, so it is said under the box, the box outlined and
+        // focus left in it (design.md §12, 2026-10-09). It was a card in the right-hand
+        // column, which on a phone stood under the bar at the foot (QA 2026-10-20).
+        refused(
+          read.kind === "broken"
+            ? BROKEN_SAID()
+            : read.kind === "foreign"
+              ? t("add.continue.foreign.beside", "Choose the language it's in beside Upload, then press Upload.")
+              : t("add.continue.empty", "Paste a link or some {language}, or drop a file.", { language: named(adding()) })
         );
         return;
       }
@@ -1803,6 +1862,7 @@
 
   // Too long or too expensive to translate, said plainly rather than by failing.
   function refuse(job) {
+    answered();
     var box = document.createDocumentFragment();
     var head = titled(job);
     box.appendChild(head);
@@ -1900,7 +1960,7 @@
         .then(function (state) {
           if (state.error) return say(line(state.error), true);
           if (state.blocked) return refuse(state);
-          watch(job);
+          watch(job, state);
         })
         .catch(function () {
           // The card stays, so the press can be tried again where it was.
@@ -1993,6 +2053,8 @@
         way.className = "row";
         var bring = document.createElement("button");
         bring.type = "button";
+        // The desk's tonal press: it was a bare <button>, drawn by the browser.
+        bring.className = "btn tonal";
         bring.textContent = t("add.page.bring-a-post", "Bring a post");
         var link = cameFrom;
         bring.onclick = function () {
@@ -2017,48 +2079,144 @@
     return bringing.plain(message);
   }
 
-  function watch(job) {
+  /* The wait for a build, on the card it was priced on (QA 2026-10-20, targum-internal#466).
+
+     It was a line and a bar: the title went the moment Confirm was pressed, a build
+     waiting its turn said "We're getting it ready…" with nothing behind it, a build the
+     rails stopped mid-way (`blocked`) was asked after every 700 ms for ever, and a
+     dropped connection threw on every ask. It is now what a pressed card in the
+     conversation is (design.md §12, "A pressed card follows its build", 2026-10-10),
+     followed by the same `TargumBring.follow`: the title kept, the stage in words or the
+     queue it is in, the desk's building meter, the server's own line about it (`said`,
+     the one `check_job` gives a host), and where it will be. Done, it opens by itself,
+     as Upload always has. Failed or refused, it says so on the card, with the way on. */
+  function watch(job, first) {
+    answered();
     var box = document.createDocumentFragment();
-    var text = line(t("add.getting-ready", "We're getting it ready…"));
-    var bar = document.createElement("div");
-    bar.className = "bar";
-    bar.appendChild(document.createElement("i"));
-    box.appendChild(text);
-    box.appendChild(bar);
+    box.appendChild(titled(job, false, true));
+
+    var progress = document.createElement("div");
+    progress.className = "wait";
+    var stage = document.createElement("p");
+    stage.className = "wait-stage";
+    // Said when the stage changes; the meter carries the count.
+    stage.setAttribute("aria-live", "polite");
+    progress.appendChild(stage);
+    var bar = document.createElement("span");
+    bar.className = "meter is-building wait-meter";
+    bar.setAttribute("role", "progressbar");
+    bar.setAttribute("aria-label", t("building.stage.progress", "How much is ready"));
+    bar.setAttribute("aria-valuemin", "0");
+    bar.setAttribute("aria-valuemax", "100");
+    var fill = document.createElement("span");
+    bar.appendChild(fill);
+    progress.appendChild(bar);
+    var said = document.createElement("p");
+    said.className = "wait-said";
+    said.hidden = true;
+    progress.appendChild(said);
+    box.appendChild(progress);
+
+    var note = document.createElement("p");
+    note.className = "wait-note";
+    note.textContent = t("add.wait.note", "We'll open it here when it's ready. It'll be in Your targums too.");
+    box.appendChild(note);
     say(box);
 
-    var timer = setInterval(function () {
-      ask("/job/" + job.id).then(function (state) {
-        if (state.error) {
-          clearInterval(timer);
-          return say(line(state.error), true);
-        }
-        // The pipeline narrates itself in its own vocabulary. This is the reader's.
-        // A stage can count what it has done before it knows the total, and done over
-        // nothing read "Infinity%": no total, no percentage.
-        var share = state.total > 0 ? Math.min(1, (state.done || 0) / state.total) : 0;
-        text.textContent =
-          state.done && state.total > 0
-            ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
-                share: Math.round(share * 100),
-              })
+    function draw(state) {
+      var behind = Number(state.behind) || 0;
+      // A stage can count what it has done before it knows the total, and done over
+      // nothing read "Infinity%": no total, no percentage.
+      var total = Number(state.total) || 0;
+      var done = Math.min(Number(state.done) || 0, total);
+      stage.textContent =
+        state.stage === "queued" && behind > 0
+          ? tn("add.wait.behind", behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+          : done && total > 0
+            ? t("add.getting-ready.share", "We're getting it ready… {share}%", { share: Math.round((done / total) * 100) })
             : plain(state.message) || t("add.getting-ready", "We're getting it ready…");
-        status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";
-        if (state.stage === "done") {
-          clearInterval(timer);
-          // A cover, always, and after the text is readable rather than before it: it is
-          // a picture for the shelf and nobody should wait on a picture to start reading.
-          // Asked for and left running — the server has the job either way.
-          var name = String(state.reader || "").split("/")[0];
-          var drawing = name
-            ? ask("/cover", { name: name }).catch(function () {})
-            : Promise.resolve();
-          drawing.then(function () {
-            window.location.href = keyed("/reader/" + state.reader.split("/").map(encodeURIComponent).join("/"));
-          });
-        }
+      // A sliver while nothing is counted yet, as the card in the conversation draws
+      // it, so the meter reads as begun rather than as empty.
+      var share = total > 0 ? Math.max(0.04, done / total) : 0.04;
+      fill.style.setProperty("--done", String(share));
+      bar.setAttribute("aria-valuenow", String(Math.round(share * 100)));
+      said.textContent = state.said || "";
+      said.hidden = !state.said;
+    }
+
+    function stop(state) {
+      progress.textContent = "";
+      note.textContent = "";
+      note.hidden = true;
+      var sentence = state.blocked || state.said || state.error || t("bring.cannot", "We can't get this ready right now.");
+      if (window.TargumFault && state.blocked && (state.fact || state.act)) {
+        progress.appendChild(window.TargumFault.refusal(state.blocked, state.fact, state.act));
+        return;
+      }
+      var why = line(sentence);
+      why.className = "fault-marked";
+      progress.appendChild(why);
+      // The way on: price it again, which spends nothing until Confirm.
+      var row = document.createElement("div");
+      row.className = "row";
+      var again = document.createElement("button");
+      again.type = "button";
+      again.className = "btn tonal";
+      again.textContent = t("fault.try-again", "Try again");
+      again.onclick = function () {
+        quoted = null;
+        go.click();
+      };
+      row.appendChild(again);
+      progress.appendChild(row);
+    }
+
+    function opening(state) {
+      var door = keyed("/reader/" + String(state.reader).split("/").map(encodeURIComponent).join("/"));
+      progress.textContent = "";
+      var ready = line(t("add.wait.opening", "It's ready. We're opening it…"));
+      ready.className = "wait-stage";
+      ready.setAttribute("role", "status");
+      progress.appendChild(ready);
+      // In case the page is slow to go: the press is there too.
+      var open = document.createElement("a");
+      open.className = "btn filled";
+      open.href = door;
+      open.textContent = t("add.wait.open", "Open it");
+      progress.appendChild(open);
+      note.hidden = true;
+      // A cover, always, and after the text is readable rather than before it: it is
+      // a picture for the shelf and nobody should wait on a picture to start reading.
+      // Asked for and left running — the server has the job either way.
+      var name = String(state.reader || "").split("/")[0];
+      var drawing = name ? ask("/cover", { name: name }).catch(function () {}) : Promise.resolve();
+      drawing.then(function () {
+        window.location.href = door;
       });
-    }, 700);
+    }
+
+    draw(first && first.stage ? first : { stage: "queued" });
+    if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+    return bringing
+      .follow(job.id, function (state) {
+        if (bringing.underWay(state)) draw(state);
+      })
+      .then(function (end) {
+        if (end.stage === "done" && end.reader) return opening(end);
+        if (end.error || end.blocked || end.stage === "failed" || end.stage === "blocked") return stop(end);
+        // Lost sight of it: the connection went, or the server stopped answering. The
+        // build goes on without this page, and the note says where it will be.
+        progress.textContent = "";
+        var lost = line(t("add.wait.lost", "We can't see how it's going right now. It's still being made, and it'll be in Your targums."));
+        lost.className = "wait-stage";
+        progress.appendChild(lost);
+        var yours = document.createElement("a");
+        yours.className = "btn text";
+        yours.href = keyed("/");
+        yours.textContent = t("add.wait.yours", "Your targums");
+        progress.appendChild(yours);
+        note.hidden = true;
+      });
   }
 
   /* --- a post, brought by hand ---------------------------------------------

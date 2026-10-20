@@ -1318,7 +1318,9 @@
       },
     },
     {
-      find: 'a[href="/add"], a[href^="/add?"], .site-nav a[href*="/add"]',
+      // And Upload's own presses, on its page: Upload, a post's Continue and the priced
+      // card's Confirm stood ready while only the place in the bar was greyed (QA 2026-10-20).
+      find: 'a[href="/add"], a[href^="/add?"], .site-nav a[href*="/add"], body.add #go, body.add #post-go, body.add #status .confirm',
       why: function () {
         return t("offline.upload-needs", "Uploading needs the connection.");
       },
