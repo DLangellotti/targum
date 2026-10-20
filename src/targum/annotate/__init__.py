@@ -37,7 +37,7 @@ from .frequency import available as frequency_available
 from .lemma import StanzaLemmatizer
 from .moves import letters as _letters
 from .moves import shared as _shared
-from .pronounce import PhonikudPronouncer
+from .pronounce import PhonikudPronouncer, as_prefixed
 from .pronounce import supports as pronounceable
 
 __all__ = [
@@ -437,6 +437,10 @@ class Annotator:
                     continue
                 start, end = map_span(bare_start, bare_end, to_pointed)
                 word = pointed[start:end]
+                # One letter of prefix, as DICTA cut it, is the one a shva can sit on:
+                # לְ in לְהוֹסִיף is said, and the reading has to be told it is a prefix.
+                if token.syntax is not None and token.syntax.lead == 1:
+                    word = as_prefixed(word)
                 found.append(word)
                 distinct.add(word)
             surfaces[segment_id] = found
