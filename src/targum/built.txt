@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-19
+A film keeps playing past its first lines, and a recording that will not start says why.
+The Library opens in about half a second after Home, and a first visit loads sooner.
+A slow look-up says it is still looking, and a chapter that cannot open offers Try again.
+
 2026-10-18
 Tell us sits in the account menu, so a reader can write to targum from any page.
 Home says when it cannot open your texts, with Try again, and a text begun on another device continues here.
