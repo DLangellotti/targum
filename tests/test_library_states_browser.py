@@ -63,6 +63,7 @@ def library(
     offline: bool = False,
     hash: str = "",
     lose_shelf: bool = False,
+    language: str = "he",
 ):
     """The Library, with `answers` by path: a dict is JSON, an int a bare status, "abort"
     a dropped connection and "hold" an answer that never comes."""
@@ -93,8 +94,11 @@ def library(
     extra = {"is_mobile": True, "has_touch": True} if phone else {}
     context = browser.new_context(viewport=size, reduced_motion="reduce", **extra)
     unplugged = "Object.defineProperty(Navigator.prototype, 'onLine', {get: () => false});"
+    # The languages the account says are learned, as `sync.js` mirrors them.
+    learning = json.dumps(sorted({"he", language}))
     context.add_init_script(
-        "localStorage.setItem('targum:language', 'he');" + (unplugged if offline else "")
+        f"localStorage.setItem('targum:language', '{language}');"
+        f"localStorage.setItem('targum:learning', '{learning}');" + (unplugged if offline else "")
     )
     page = context.new_page()
     thrown: list[str] = []
@@ -302,5 +306,49 @@ def test_a_refused_press_on_a_shelf_card_is_read_whole_on_a_phone(browser, page_
     )
     assert state.inner_text() == refused
     assert state.evaluate("(e) => e.scrollWidth <= e.clientWidth + 1")
+    # And a redraw of the shelves keeps it: it vanished a second after it was said, when
+    # the account's sync landed and the shelves were drawn again.
+    page.evaluate("() => { location.hash = '#see'; }")
+    page.locator("#catalogue > li").first.wait_for()
+    page.evaluate("() => { history.back(); }")
+    page.locator("#shelves .band-card").first.wait_for()
+    page.wait_for_function(
+        "(said) => [...document.querySelectorAll('#shelves .row-state')]"
+        ".some((e) => e.textContent === said)",
+        arg=refused,
+    )
+    assert not thrown
+    context.close()
+
+
+def test_words_in_one_language_do_not_measure_another_shelf(browser, page_html) -> None:
+    """A reader with Hebrew words who opened another language's shelf met every text in
+    it on A stretch, "You know 75–90% of their words", each one "Not measured yet"."""
+    assert [e for e in everything() if e.language == "arc"], "the fixture has Aramaic texts"
+    mine = {
+        "name": "mine-arc",
+        "document": "f" * 64,
+        "title": "טקסט",
+        "language": "arc",
+        "entry": "",
+        "known": 0,
+        "words": 10,
+        "sections": 1,
+        "chapters": [],
+    }
+    answers = {"/readers": {"readers": [mine], "shared": built(0.95), "signedIn": True}}
+    context, page, thrown, _, url = library(browser, page_html, answers, language="arc")
+    page.goto(url)
+    page.locator("#shelves .band-card").first.wait_for()
+    shelves = page.locator("#shelves").inner_text()
+    assert "Until you mark words you know" in shelves
+    assert "You know 75" not in shelves
+    assert not thrown
+    context.close()
+    # And the Hebrew shelf is still measured by the Hebrew words.
+    context, page, thrown, _, url = library(browser, page_html, answers, language="he")
+    page.goto(url)
+    page.locator("#shelves .band-card").first.wait_for()
+    assert "Until you mark words you know" not in page.locator("#shelves").inner_text()
     assert not thrown
     context.close()

@@ -290,6 +290,8 @@
      first page. There the page falls back to the text's own hard-word share, which is
      what it filtered on before any of this (design.md §12, 2026-09-17). */
   var anyKnown = false;
+  //: Which languages this reader has marked words in, so far as their texts say.
+  var knownIn = {};
 
   function fitOf(row) {
     if (anyKnown) {
@@ -937,7 +939,7 @@
     /* Where a build narrates itself — and, on a text this reader has finished, the one
        word that says so, in leaf. Empty until there is something to say; `build()`
        writes into it, so every row has one. */
-    var state = el("span", "row-state");
+    var state = stateCell(row.id);
     if (row.built && finishedDocs[row.built.document] && finishedDocs[row.built.document].done) {
       state.className = "row-state finished";
       state.textContent = t("library.finished", "finished");
@@ -1430,7 +1432,7 @@
           )
         : el("span", "band-known unmeasured", t("library.known.unmeasured", "Not measured yet"))
     );
-    open.appendChild(el("span", "row-state"));
+    open.appendChild(stateCell(row.id));
     item.appendChild(open);
     return item;
   }
@@ -1913,6 +1915,27 @@
   function tell(state, text) {
     state.textContent = text;
     state.classList.toggle("said", !!text);
+    // Kept by the row, so a redraw does not wipe it (Library QA, 2026-10-20): the page
+    // draws its shelves again when the account's sync lands, and a refusal said a second
+    // earlier vanished with nothing in its place.
+    var row = state.closest ? state.closest("[data-row]") : null;
+    var id = row && row.getAttribute("data-row");
+    if (!id) return;
+    if (text) saidOn[id] = text;
+    else delete saidOn[id];
+  }
+
+  //: What a press last said on each row, by its id, while the page is open.
+  var saidOn = {};
+
+  /* The cell a press speaks in, carrying what it last said. */
+  function stateCell(id) {
+    var state = el("span", "row-state");
+    if (id && saidOn[id]) {
+      state.textContent = saidOn[id];
+      state.className = "row-state said";
+    }
+    return state;
   }
 
   function watch(id, state, open) {
@@ -2235,7 +2258,8 @@
     // The verses: the whole of the blurb on this week's card, which has the room; the
     // range alone on the rest.
     var span = el("span", "portion-span", (thisWeek && blurbIn(entry)) || one.summary || "");
-    span.setAttribute("lang", thisWeek && entry && blurbIn(entry) ? uiLanguage : "en");
+    // The range is said in the reader's names of the books by `/portions` (2026-10-20).
+    span.setAttribute("lang", uiLanguage);
     open.appendChild(span);
     item.appendChild(open);
     return item;
@@ -2373,15 +2397,26 @@
        is a measure of. With words marked it is the share of a text this reader knows;
        with none, every row would answer 0% and the page would open on an empty list —
        so the text's own difficulty stands in instead (see `fitOf`). */
-    anyKnown = Object.keys(catalogueKnown).some(function (id) {
-      var one = catalogueKnown[id];
-      return one && typeof one.known === "number" && one.known > 0;
+    /* And per language (Library QA, 2026-10-20): a reader with Hebrew words who opened
+       the Russian shelf met every Russian text on A stretch, "You know 75–90% of their
+       words", each one "Not measured yet". Words marked in one language say nothing
+       about another, so each shelf asks its own; `show` picks the one on screen. */
+    var languageOf = {};
+    catalogue.forEach(function (entry) {
+      languageOf[entry.id] = base(entry.language);
     });
-    if (!anyKnown) {
-      anyKnown = (readers || []).concat(shared || []).some(function (reader) {
-        return typeof reader.known === "number" && reader.known > 0;
-      });
-    }
+    Object.keys(catalogueKnown).forEach(function (id) {
+      var one = catalogueKnown[id];
+      if (one && typeof one.known === "number" && one.known > 0 && languageOf[id]) {
+        knownIn[languageOf[id]] = true;
+      }
+    });
+    (readers || []).concat(shared || []).forEach(function (reader) {
+      if (typeof reader.known === "number" && reader.known > 0) {
+        knownIn[base(reader.language || (reader.entry && languageOf[reader.entry]) || "")] = true;
+      }
+    });
+    anyKnown = !!knownIn[lang.HOME];
     // The rung they named on arrival, while it is all the page has to go on. `charts.seed`
     // answers "" once their marked words reach a rung of their own.
     seeded = "";
@@ -2950,6 +2985,7 @@
 
     function show(code) {
       chosen = code;
+      anyKnown = !!knownIn[base(code)];
       view = viewFor(code);
       page = PAGE;
       /* Where the page stands: the shelves where the address names nothing, the list under

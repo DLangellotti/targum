@@ -201,3 +201,20 @@ def test_the_russian_reader_reads_on_into_the_next_portions_russian_reader(servi
     assert 'class="prev beyond" href="/parasha/read/vzot-haberachah-ru/reader/' in back
     english = get(serving, f"/parasha/read/{SLUG}/reader/sec-0007.html")[1]
     assert 'href="/parasha/read/vzot-haberachah/reader/sec-0001.html"' in english
+
+
+def test_the_librarys_portions_say_their_verses_in_the_readers_names_of_the_books(
+    serving: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Library QA, 2026-10-20: under the Russian interface this week's card on the
+    Library's Weekly portion shelf said «Бытие 12:1…» and every other card "Genesis …"."""
+    import json
+
+    english = json.loads(get(serving, "/portions?k=test-key")[1])["portions"]
+    said = [one["summary"] for one in english if one.get("summary")]
+    assert said and any("Deuteronomy" in one for one in said)
+    monkeypatch.setattr(Handler, "_ui_language", lambda self: "ru")
+    russian = json.loads(get(serving, "/portions?k=test-key")[1])["portions"]
+    said = [one["summary"] for one in russian if one.get("summary")]
+    assert said and not [one for one in said if "Deuteronomy" in one]
+    assert any("Второзаконие" in one for one in said)
