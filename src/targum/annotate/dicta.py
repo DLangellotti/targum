@@ -81,7 +81,12 @@ REVISION = "3c3c27067bb73a45e99c36bd90b3b3dbc10fda12"
 # check now runs there, on the pointed word (`mend_pointed`); and היא, הם and הן as the
 # copula, which DICTA tags AUX and files under הוא, go on their own cards like the
 # pronouns they are.
-FEATURES = "roots+everyword+entities+syntax+grammar/6"
+#
+# "grammar/7" (targum-internal#491, 2026-10-20): a lemma that does not share the word's
+# letters is refused (`unrelated`), so לטחון is no longer "slipped" and לעבוד no longer
+# "enslaved". The same rename re-reads every word's pronunciation, which is what carries
+# the first-letter shva of targum-internal#492 to texts already on the shelf.
+FEATURES = "roots+everyword+entities+syntax+grammar/7"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
 # longest, so asking for a whole book in one go builds a tensor the size of the longest
@@ -674,9 +679,68 @@ def _lemma(lex: str, surface: str, base: str, pos: str | None = None) -> str:
         return VERBS[base]
     if base in SURFACES:
         return SURFACES[base].lower()
+    if pos in GUARDED and unrelated(lemma, base):
+        # A gap on the card rather than the wrong word's meaning, said with confidence.
+        return surface.lower()
     if pos == "NOUN":
         lemma = _man_or_woman(lemma, base)
     return OVERRIDES.get(lemma, lemma).lower()
+
+
+# A lemma DICTA picks from its vocabulary when it has not seen the word, and the pick is
+# a near neighbour rather than the word: לטחון "to grind" came back החליק "slipped",
+# לעבוד "to work" שעבד "enslaved", ללכת הסתכל and לחשוב החליט (targum-internal#491,
+# measured over 311,905 nouns, verbs and adjectives on 2026-10-20). Each is a confident
+# wrong meaning on the card, which is worse than none. So a lemma is refused where its
+# strong letters do not all appear, in order, in the word it is the lemma of. What may
+# drop between a lemma and its forms is not counted as a letter:
+# - the weak letters, which come and go with the vowels;
+# - a nun, which assimilates: יִתֵּן, נָתַתִּי and לָתֵת are נתן's;
+# - the second of a doubled root letter: וַיָּסֶב is סבב's;
+# - a plural ending on a lemma filed in the plural: פני is פנים's;
+# - the lamed of לקח, which assimilates like a nun: קַח and וַיִּקַּח;
+# - a participle's מ left on the lemma.
+GUARDED = frozenset({"NOUN", "VERB", "ADJ"})
+WEAK = frozenset("אהוי")
+# Compared after the final forms are written as plain letters, so ים is ימ here.
+PLURAL_LEMMAS = ("ימ", "ות")
+# Lemmas that are their forms' by a change no rule here states: אחת is אחד's and שתי
+# שניים's. Kept short; anything else is refused.
+SUPPLETIVE = frozenset({"אחד", "שנים", "שניים", "שתיים", "מים", "לקח"})
+
+
+def _strong(lemma: str) -> str:
+    letters = lemma.translate(FINALS)
+    if len(letters) > 3 and letters.endswith(PLURAL_LEMMAS):
+        letters = letters[:-2]
+    if len(letters) > 2 and letters[-1] == letters[-2]:
+        letters = letters[:-1]
+    return "".join(char for char in letters if char not in WEAK and "א" <= char <= "ת")
+
+
+def unrelated(lemma: str, base: str) -> bool:
+    """Whether `lemma` cannot be the lemma of `base`, the word under its prefixes."""
+    if " " in lemma or lemma in SUPPLETIVE or not base or '"' in base or "'" in base:
+        return False
+    strong = _strong(lemma)
+    # And once more with every nun dropped, since any of them may have assimilated, and
+    # once without a participle's מ that DICTA left on the lemma: התעורר filed under
+    # מתעורר is the wrong headword but the right meaning (targum-internal#490). Not a
+    # relative ש: without it שעבד is עבד, and לעבוד is "enslaved" again.
+    tries = {strong, strong.replace("נ", ""), strong[1:] if strong[:1] == "מ" else strong}
+    if any(len(letters) < 2 for letters in tries):
+        return False
+    word = base.translate(FINALS)
+    return not any(_in_order(letters, word) for letters in tries)
+
+
+def _in_order(letters: str, word: str) -> bool:
+    at = 0
+    for char in letters:
+        at = word.find(char, at) + 1
+        if not at:
+            return False
+    return True
 
 
 def _man_or_woman(lemma: str, base: str) -> str:

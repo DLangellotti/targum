@@ -1406,6 +1406,39 @@ def test_a_verb_spelled_so_that_it_can_only_be_one_verb_is_that_verb() -> None:
     assert _lemma("עולה", "עולה", "עולה", "NOUN") == "עולה", "the immigrant stays himself"
 
 
+def test_a_lemma_that_shares_nothing_with_its_word_is_refused() -> None:
+    """DICTA picks an unseen word's lemma from its vocabulary and lands on a neighbour:
+    לטחון "slipped", לעבוד "enslaved" (targum-internal#491). The word stands in, as it
+    does where DICTA declines, so the card says nothing rather than something wrong."""
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma("החליק", "לטחון", "לטחון", "VERB") == "לטחון"
+    assert _lemma("שעבד", "לעבוד", "לעבוד", "VERB") == "לעבוד"
+    assert _lemma("מחרוזת", "הגיוזות", "גיוזות", "NOUN") == "הגיוזות"
+    assert _lemma("הסתכל", "ללכת", "ללכת", "VERB") == "ללכת"
+
+
+@pytest.mark.parametrize(
+    ("lemma", "base", "pos"),
+    [
+        ("נתן", "יתן", "VERB"),  # an assimilated nun
+        ("נתן", "לתת", "VERB"),
+        ("סבב", "ויסב", "VERB"),  # a doubled root letter
+        ("פנים", "פני", "NOUN"),  # a lemma filed in the plural
+        ("עיניים", "עיניו", "NOUN"),
+        ("לקח", "קח", "VERB"),
+        ("אחד", "אחת", "ADJ"),
+        ("מתעורר", "התעורר", "VERB"),  # a participle's מ: the right meaning
+        ("ביקש", "מבקש", "VERB"),
+        ("לוקח", "לוקחים", "VERB"),
+    ],
+)
+def test_a_lemma_whose_letters_come_and_go_by_rule_is_kept(lemma: str, base: str, pos: str) -> None:
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma(lemma, base, base, pos) == lemma
+
+
 def test_the_card_line_is_built_from_dictas_own_segmentation() -> None:
     """Same shape `hebrew.pieces_of` gives for Stanza — the clitics carry their gloss and
     the content word stands bare — from a segmentation that hands the prefixes back as one
