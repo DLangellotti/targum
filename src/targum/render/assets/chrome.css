@@ -909,10 +909,14 @@ button:active:not(:disabled) { transform: scale(0.98); }
   .palette-back,
   .palette-lang,
   .palette-lang-row,
-  .palette-level-pick {
+  .palette-level-pick,
+  .palette-foot-all {
     min-height: 44px;
   }
   .notices-list .notices-x { min-width: 44px; }
+  /* The search's Close and × were 36 and 28px wide on a phone (Library QA, 2026-10-20). */
+  .palette-clear,
+  .palette-back { min-width: 44px; }
   /* The initials stay a circle: the 44px above made it an oval 30px wide. Drawn a little
      larger instead, and its reach is the 44px `::after` that `reader.css` gives every
      `.account > button`. */

@@ -705,6 +705,8 @@ body.public {
     min-block-size: 44px;
     line-height: 1.75rem;
   }
+  /* Sign in in the corner was 36px tall on the signed-out Library (QA, 2026-10-20). */
+  .public .corner .enter { min-block-size: 44px; display: inline-flex; align-items: center; }
 }
 
 /* The band is the parasha's, unchanged: two equal columns, words then picture, so no
