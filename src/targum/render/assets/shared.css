@@ -1339,10 +1339,9 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   .fault-go {
     min-block-size: 44px;
   }
-  /* See plans on the upgrade panel, and Saved texts in the banner (errors QA,
-     targum-internal#468): 20 and 22px under a thumb, beside presses that had 44. */
-  .fault-see,
-  .fault-banner .offline-to-saved {
+  /* See plans on the upgrade panel (errors QA, targum-internal#468): 20px under a thumb,
+     beside presses that had 44. */
+  .fault-see {
     display: inline-flex;
     align-items: center;
     min-block-size: 44px;

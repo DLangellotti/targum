@@ -488,10 +488,8 @@ THUMBED = (
     # banner, and the one button of a panel or a whole page.
     ".fault-act",
     ".fault-go",
-    # And the two that stood beside them short (errors QA, targum-internal#468): See
-    # plans on the upgrade panel and Saved texts in the connection's banner.
+    # And See plans, which stood short beside them (errors QA, targum-internal#468).
     ".fault-see",
-    ".fault-banner .offline-to-saved",
     # The components (design.md §12, "The desk's controls are one layer", 2026-10-09):
     # a button, a part of a choice of a few, a tab, and a field's well.
     ".btn",
