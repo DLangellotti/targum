@@ -487,6 +487,16 @@ THUMBED = (
     # And EN and RU as the account sheet's row on a phone (design.md §13, 2026-10-18),
     # 44px across as well as up, since there they are the row's whole press.
     ".account-tongue .ui-tongue-key",
+    # Your Words' QA (targum-internal#467, 2026-10-20): the way back, the exports, the
+    # practice card's Next and coming words, the way to the Library on an empty list,
+    # Undo on an ignored row and the stage tabs' narrowest, All.
+    ".words-back",
+    ".words-exports .link-quiet",
+    ".practise-next",
+    ".practise-go",
+    ".empty-go",
+    ".held-undo",
+    ".stage-tabs .tab",
 )
 
 

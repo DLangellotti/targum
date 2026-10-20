@@ -729,14 +729,44 @@
     var codes = lang.order(Object.keys(data), names);
     if (!codes.length) {
       // Not before the account has answered (2026-10-10): on a browser just signed in,
-      // the words are on their way, and "nothing yet" read as everything deleted. A
-      // change reloads the page (below), which draws it with them.
+      // the words are on their way, and "nothing yet" read as everything deleted.
       var sync = window.TargumSync;
       var answered = sync && sync.settled ? sync.settled() : Promise.resolve(false);
+      awaitingAccount = true;
       return answered.then(function (changed) {
-        if (!changed) document.getElementById("nothing").hidden = false;
+        awaitingAccount = false;
+        /* What the account brought is in this browser now, so it is drawn from here
+           rather than by loading the page again: on a phone the reload took a first visit
+           to Your Words from 1.3 s to 3.2 s (Your Words QA, 2026-10-20). */
+        if (changed) {
+          var brought = lang.order(Object.keys(charts.collect()), names);
+          if (brought.length) return drawLists(brought);
+        }
+        /* Your Words QA (2026-10-20): the account answered and holds nothing in any
+           language, which is every new reader — the page itself, empty, with the line
+           that says what fills it and the commonest words to start from. Where the
+           account never answered (a refusal, a dropped connection, offline), the list
+           is not known to be empty, and the page says it could not load. */
+        if (sync && !sync.reached) {
+          var failed = new Error("unanswered");
+          failed.answered = true; // said as ours to load, whichever way it failed
+          throw failed;
+        }
+        var learning = (sync && sync.who && sync.who.learning) || [];
+        var first = lang.current(learning.length ? lang.order(learning, names) : ["he"]);
+        return drawLists([first]);
       });
     }
+    return drawLists(codes);
+  }
+
+  //: True while a page with nothing in this browser waits on the account's first answer,
+  //: which it draws itself; a change announced meanwhile is not a reason to reload.
+  var awaitingAccount = false;
+
+  function drawLists(codes) {
+    var waiting = document.getElementById("home-waiting");
+    if (waiting) waiting.hidden = true;
     document.getElementById("page").hidden = false;
 
     lists.mount({
@@ -764,7 +794,7 @@
       // Re-collected rather than sliced out of `data`: which language the meanings are
       // in is a question about the language being shown, and the answer changes with it.
       var into = charts.meaningLanguage(code);
-      lists.draw(code, charts.collect(into)[code]);
+      lists.draw(code, charts.collect(into)[code] || { words: [], phrases: [] });
       drawFacts(code, into);
     }
 
@@ -775,7 +805,11 @@
   // The Grammar tab draws itself (`grammar.js`) from the server: there is nothing of it in
   // the browser's lists to draw first.
   var drawing =
-    which === "grammar" ? Promise.resolve() : which === "texts" ? drawTexts() : drawKept();
+    which === "grammar"
+      ? (window.TargumGrammar && window.TargumGrammar.loaded) || Promise.resolve()
+      : which === "texts"
+        ? drawTexts()
+        : drawKept();
   // After the lists, and never in their way: the phrases appear first and the record of
   // corrected lines a moment later.
   drawing.then(drawRewrote).catch(function () {});
@@ -785,22 +819,24 @@
     clearTimeout(slowly);
     var waiting = document.getElementById("home-waiting");
     if (waiting) waiting.hidden = true;
-    if (which === "texts") couldNot(why);
+    couldNot(why);
     document.getElementById("nothing").hidden = false;
   });
 
   /* Home's wait, said again past three seconds (design.md §14, line 1; home QA,
      2026-10-18): "Opening your texts…" alone for twenty seconds on a cold box read as a
-     page that had stopped. */
-  var slowly =
-    which === "texts"
-      ? setTimeout(function () {
-          var waiting = document.getElementById("home-waiting");
-          if (waiting && !waiting.hidden) {
-            waiting.textContent = t("home.still-opening", "We're still opening your texts.");
-          }
-        }, 3000)
-      : 0;
+     page that had stopped. The lists say theirs the same way (Your Words QA, 2026-10-20). */
+  // Each said through a literal t(), which is how a page's strings are found for it.
+  function stillOpening() {
+    if (which === "texts") return t("home.still-opening", "We're still opening your texts.");
+    if (which === "phrases") return t("lists.still-opening.phrases", "We're still opening your phrases.");
+    if (which === "grammar") return t("practice.page.still-opening", "We're still opening your practice.");
+    return t("lists.still-opening.words", "We're still opening your words.");
+  }
+  var slowly = setTimeout(function () {
+    var waiting = document.getElementById("home-waiting");
+    if (waiting && !waiting.hidden) waiting.textContent = stillOpening();
+  }, 3000);
   drawing.then(function () {
     clearTimeout(slowly);
   }, function () {});
@@ -816,10 +852,15 @@
     if (lede && says) {
       if (offline) {
         lede.textContent = t("home.offline.lede", "You're offline.");
-        says.textContent = t(
-          "home.offline.says",
-          "Your texts will open when you're back online. Everything you've read is still here."
-        );
+        says.textContent =
+          which === "texts"
+            ? t(
+                "home.offline.says",
+                "Your texts will open when you're back online. Everything you've read is still here."
+              )
+            : which === "grammar"
+              ? t("practice.page.offline", "Your practice opens when you're back online.")
+              : t("lists.offline.says", "Your list opens when you're back online. Everything you've marked is still here.");
       } else if (!(why && why.answered)) {
         lede.textContent = t("home.unreachable.lede", "We can't reach targum right now.");
       }
@@ -841,7 +882,7 @@
     window.TargumSync.onChange(function (changed) {
       if (!changed) return;
       // Your Words and Your Phrases are drawn again by the load, as they were.
-      if (which !== "texts") return location.reload();
+      if (which !== "texts") return awaitingAccount ? undefined : location.reload();
       if (redrawHome) return redrawHome();
       // Home has not drawn yet, and draws again once it has. If it could not draw at
       // all, the page is the refusal, and the load asks again, as it did before.

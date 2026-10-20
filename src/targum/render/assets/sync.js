@@ -1021,6 +1021,10 @@
     // Whoever is signed in, or null. Resolved once and reused.
     who: null,
 
+    // Whether the first start reached the account and finished: false while it is asked,
+    // and after a refusal or a dropped connection.
+    reached: false,
+
     // True once the server has said this browser is signed out where an account is
     // needed: hosted, or a machine with an account on it. A fresh install with nobody to
     // sign into is never signed out, and works as it did.
@@ -1052,6 +1056,10 @@
           return adopt(me, asked);
         })
         .then(function (changed) {
+          // The account answered and this browser holds what it said (Your Words QA,
+          // 2026-10-20): a page with nothing in this browser can tell an empty list from
+          // one it could not fetch.
+          api.reached = true;
           announce(!!changed);
           return changed;
         })

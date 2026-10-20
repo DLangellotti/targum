@@ -226,6 +226,7 @@
     var note = el("span", "held-note");
     var term = el("bdi", "term", word.term);
     term.setAttribute("lang", code);
+    term.setAttribute("dir", DIRECTION[code] || "ltr");
     // The word wherever the sentence puts it: `{word}` marks the place.
     var sentence = t("lists.ignored.gone", "{word} is in Ignored");
     var at = Math.max(0, sentence.indexOf("{word}"));
@@ -364,6 +365,11 @@
     }
     var title = el("bdi", "practise-title", item.title || "");
     title.setAttribute("dir", "auto");
+    // A Hebrew title is a Hebrew run, with its lang (design.md §14, line 3).
+    if (/[֐-׿]/.test(item.title || "")) {
+      title.setAttribute("lang", DIRECTION[language] ? language : "he");
+      title.setAttribute("dir", "rtl");
+    }
     var said = el("span", "practise-place");
     said.appendChild(document.createTextNode(t("lists.practise.from", "From") + " "));
     said.appendChild(title);
@@ -454,6 +460,7 @@
         var go = el("button", "practise-go", one.word || one.lemma);
         go.type = "button";
         go.setAttribute("lang", one.language || code);
+        go.setAttribute("dir", DIRECTION[one.language || code] || "ltr");
         go.addEventListener("click", function () {
           practising.at += n + 1;
           practising.shown = false;
@@ -979,6 +986,9 @@
           })
       );
       table.classList.toggle("is-rtl", DIRECTION[code] === "rtl");
+      // No words at all: no column heads over nothing, only the line that says what fills
+      // the list (Your Words QA, 2026-10-20).
+      table.hidden = !entry.words.length;
     }
     drawing.forEach(function (word) {
       if (word === held) {
@@ -1072,9 +1082,19 @@
           // Nothing at all, which is every new account: say what fills the list and
           // where, rather than naming a stage the reader has not met.
           : t("lists.no-words", "Nothing yet. Tap a word as you go and tell us how well you know it.");
+    // A reader with no words at all is a press from where words are met (Your Words QA,
+    // 2026-10-20; design.md §14, line 1: each state says what to do next).
+    if (!rows.length && !entry.words.length && !search.value.trim()) {
+      var go = el("a", "empty-go", t("lists.empty.find", "Find something to read"));
+      go.href = keyed("/library");
+      wordsEmpty.appendChild(document.createTextNode(" "));
+      wordsEmpty.appendChild(go);
+    }
     // Capped, there is no paging: the rest of the list is a page away, not a press away.
     moreButton.hidden = cap ? true : rows.length <= shown;
-    moreButton.textContent = t("lists.show-more", "Show {n} more", { n: Math.min(PAGE, rows.length - shown) });
+    if (!moreButton.hidden) {
+      moreButton.textContent = t("lists.show-more", "Show {n} more", { n: Math.min(PAGE, rows.length - shown) });
+    }
     seeAll("words-more", cap && rows.length > cap ? rows.length : 0);
   }
 
@@ -1310,10 +1330,19 @@
   }
 
   /** Show the export buttons, or do not. Called again whenever sync resolves. */
+  /* And not over an empty list (Your Words QA, 2026-10-20): a new reader was offered an
+     Anki deck of nothing. Remembered, so a redraw in another language asks again. */
+  var exportable = false;
   function offerExports(signedIn) {
-    ["export-words", "export-anki", "export-phrases"].forEach(function (id) {
+    exportable = !!signedIn;
+    var have = {
+      "export-words": entry.words.length,
+      "export-anki": entry.words.length,
+      "export-phrases": entry.phrases.length,
+    };
+    Object.keys(have).forEach(function (id) {
       var button = at(id);
-      if (button) button.hidden = !signedIn;
+      if (button) button.hidden = !exportable || !have[id];
     });
   }
 
@@ -1372,6 +1401,8 @@
     }
     drawStageTabs = function () {
       host.textContent = "";
+      // Stages of nothing are not a choice to offer a reader with no words yet.
+      host.hidden = !entry.words.length;
       stages().forEach(function (pair) {
         tab(pair[0], pair[1], chosen.value === pair[0], function () {
           choose(pair[0]);
@@ -1439,8 +1470,9 @@
       }
       summary.textContent = parts.join(" · ");
     }
-    if (at("count-words")) at("count-words").textContent = String(sums.saved);
-    if (at("count-phrases")) at("count-phrases").textContent = String(sums.phrases);
+    // Grouped as the head groups them: "4,560 on your list" over a tab that said 4560.
+    if (at("count-words")) at("count-words").textContent = grouped(sums.saved).n;
+    if (at("count-phrases")) at("count-phrases").textContent = grouped(sums.phrases).n;
   }
 
   function mount(options) {
@@ -1520,6 +1552,7 @@
       if (redrawing) redrawing(into);
     });
     drawHead();
+    offerExports(exportable);
     drawStageTabs();
     renderRecord();
     renderWords();

@@ -61,21 +61,42 @@
 
   var state = { round: null, at: 0, chosen: -1, right: 0, asked: 0 };
 
-  function load(spot) {
+  /* The first answer is the page's (Your Words QA, 2026-10-20; design.md §14, line 1):
+     `yours.js` says the wait, says it again past three seconds, and draws the refusal
+     with Try again from `loaded`. A refusal is not an answer: a 500 with a JSON body was
+     drawn as "Grammar practice is in Hebrew for now". A later press that fails is said
+     in place, and the press is the way to ask again. */
+  function ask(spot) {
     var path =
       "/account/practice?language=" +
       encodeURIComponent(language) +
       "&into=" +
       encodeURIComponent(into) +
       (spot ? "&spot=" + encodeURIComponent(spot) : "");
-    return fetch(keyed(path), { headers: headers() })
-      .then(function (response) {
-        if (response.status === 401) return { signedIn: false };
-        return response.json();
-      })
+    return fetch(keyed(path), { headers: headers() }).then(function (response) {
+      if (response.status === 401) return { signedIn: false };
+      if (!response.ok) {
+        var refused = new Error(String(response.status));
+        refused.answered = true;
+        throw refused;
+      }
+      return response.json();
+    });
+  }
+
+  /* Whether the reader just pressed something in the round (Your Words QA, 2026-10-20).
+     The page's first draw took focus to the worked example's Start, which scrolled a
+     phone past the list to the card before anybody had touched the page. Only a press
+     moves the keyboard: to Start or Next once an answer is shown, to the first answer
+     when a new item asks. */
+  var moved = false;
+
+  function load(spot) {
+    moved = true;
+    return ask(spot)
       .then(draw)
       .catch(function () {
-        say(t("practice.page.unreachable", "We couldn't load your practice. Reload the page to try again."));
+        say(t("practice.page.round-failed", "We couldn't open that practice. Press Practise to try again."));
       });
   }
 
@@ -98,6 +119,8 @@
   function draw(data) {
     var page = at("page");
     if (page) page.hidden = false;
+    var waiting = at("home-waiting");
+    if (waiting) waiting.hidden = true;
     if (!data || data.signedIn === false) {
       say(t("practice.page.signed-out", "Sign in to practise with the texts you've read."));
       return;
@@ -147,6 +170,8 @@
       if (spot.ready && spot.kind === "choice") {
         var go = el("button", "btn grammar-go", t("practice.page.practise", "Practise"));
         go.type = "button";
+        // Four presses all called Practise read as one to a screen reader: each says its spot.
+        go.setAttribute("aria-label", t("practice.page.practise-spot", "Practise {spot}", { spot: t(name[0], name[1]) }));
         go.addEventListener("click", function () {
           load(spot.key);
         });
@@ -169,10 +194,37 @@
     return line;
   }
 
-  function answerText(text) {
-    var node = el("bdi", "grammar-answer", text);
-    node.setAttribute("dir", "auto");
+  // An answer is a word of the text's language (a binyan's name, a form) or of the
+  // reader's (masculine, past): said with the language its letters are in, so a Hebrew
+  // one carries its lang and reads in the Hebrew face (design.md §14, line 3).
+  var HEBREW = /[֐-׿]/;
+  function answerText(text, className) {
+    var node = el("bdi", className || "grammar-answer", text);
+    if (HEBREW.test(String(text || ""))) {
+      node.setAttribute("lang", language === "yi" || language === "arc" ? language : "he");
+      node.setAttribute("dir", "rtl");
+    } else {
+      node.setAttribute("dir", "auto");
+    }
     return node;
+  }
+
+  // A sentence of the page's with a word of the answer's inside it: "Yes, {said}." Said
+  // through a literal t() at each call, with the place kept, which is how the page's
+  // strings are found for it (a key passed in a variable reached no catalogue, and the
+  // Russian round said "It's פעל here").
+  var KEEP = { said: "{said}" };
+  function sentence(whole, said, className) {
+    var line = el("p", className);
+    var cut = whole.indexOf("{said}");
+    if (cut < 0) {
+      line.textContent = whole;
+      return line;
+    }
+    line.appendChild(document.createTextNode(whole.slice(0, cut)));
+    line.appendChild(answerText(said, "grammar-said"));
+    line.appendChild(document.createTextNode(whole.slice(cut + "{said}".length)));
+    return line;
   }
 
   function drawRound() {
@@ -201,6 +253,10 @@
         load("");
       });
       body.appendChild(again);
+      // Next had the keyboard and is gone now: it goes on to the way on, not back to the
+      // top of the page (Your Words QA, 2026-10-20).
+      if (moved && again.focus) again.focus();
+      moved = false;
       return;
     }
 
@@ -212,8 +268,7 @@
     var well = el("div", "practise-well");
     if (item.title) {
       var from = el("p", "practise-from");
-      var title = el("bdi", "practise-title", item.title);
-      title.setAttribute("dir", "auto");
+      var title = answerText(item.title, "practise-title");
       from.appendChild(document.createTextNode(t("lists.practise.from", "From") + " "));
       from.appendChild(title);
       well.appendChild(from);
@@ -245,17 +300,16 @@
 
     if (shown) {
       var said = el("div", "grammar-feedback");
-      var verdict = item.example
-        ? t("practice.page.example-said", "Here it's {said}.", { said: item.said })
-        : state.chosen === item.answer
-          ? t("practice.page.right", "Yes, {said}.", { said: item.said })
-          : t("practice.page.wrong", "It's {said} here.", { said: item.said });
-      said.appendChild(el("p", "grammar-verdict", verdict));
+      said.appendChild(
+        item.example
+          ? sentence(t("practice.page.example-said", "Here it's {said}.", KEEP), item.said, "grammar-verdict")
+          : state.chosen === item.answer
+            ? sentence(t("practice.page.right", "Yes, {said}.", KEEP), item.said, "grammar-verdict")
+            : sentence(t("practice.page.wrong", "It's {said} here.", KEEP), item.said, "grammar-verdict")
+      );
       said.appendChild(el("p", "grammar-rule", item.rule));
       if (item.contrast) {
-        said.appendChild(
-          el("p", "grammar-other", t("practice.page.other", "Where it's {said}:", { said: item.contrast.said }))
-        );
+        said.appendChild(sentence(t("practice.page.other", "Where it's {said}:", KEEP), item.contrast.said, "grammar-other"));
         said.appendChild(lineOf(item.contrast, "practise-line grammar-other-line"));
       }
       well.appendChild(said);
@@ -275,10 +329,15 @@
         if (state.at >= items.length && state.asked) {
           post({ spot: round.spot, done: [state.right, state.asked] });
         }
+        moved = true;
         drawRound();
       });
       body.appendChild(next);
-      next.focus();
+    }
+    if (moved) {
+      moved = false;
+      var to = shown ? next : options.querySelector("button");
+      if (to && to.focus) to.focus();
     }
   }
 
@@ -288,8 +347,9 @@
     state.asked += 1;
     if (right) state.right += 1;
     post({ spot: state.round.spot, key: item.key, right: right });
+    moved = true;
     drawRound();
   }
 
-  load("");
+  window.TargumGrammar = { loaded: ask("").then(draw) };
 })();
