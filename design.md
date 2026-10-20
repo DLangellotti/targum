@@ -379,6 +379,28 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A reader carries only what its text uses, and a missing part opens the first — 2026-10-20
+
+David, 2026-10-20, on the reader's finish (targum-internal#464): readers still fetch
+nothing, so the first tap is bought by trimming what one reader carries.
+
+- **The player is its own file, carried only by a text with a recording.** Its closure
+  (the recording, the film, Beside and Theatre, the transcript that follows) waited for
+  `speech.audio` and returned at once without it, and every reader carried it anyway.
+  `player.js` stands before `reader.js` and only defines `targumPlayer`, which
+  `reader.js` runs where the closure stood, so nothing starts in another order. A reader
+  with a film or a recording carries it whole, saved or opened off a disk.
+- **What a first tap does not need is read after `reader.js`.** A word answers once
+  `reader.js` has run, and a page runs its scripts in order as they arrive, so the
+  faults, saving for offline, the playlist menu and the closures that stood at the foot of
+  `reader.js` (now `reader-after.js`) come after it.
+- **The stylesheet is not split.** The film's, the listening view's, the portion's and the
+  post's rules came to about 4 kB gzipped, interleaved with rules every reader uses.
+- **A part the text does not have opens its first part.** `sec-0042.html` of a four-part
+  text answered the site's 404. It is sent on to the first part with `gone=42`, and the
+  page says "Part 42 isn't in this text, so we opened the first part." on the line a
+  finished part lands on, then takes `gone` off the address.
+
 ### A first visit gets the page whole — 2026-10-19
 
 David, 2026-10-19, on the cost the entry below left open: a device's first visit to a desk

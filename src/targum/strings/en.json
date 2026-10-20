@@ -178,6 +178,7 @@
   "reader.card.could-not-say": "We couldn't say this word.",
   "reader.card.look-up": "look it up",
   "reader.card.looking": "looking…",
+  "reader.page.part-gone": "Part {n} isn't in this text, so we opened the first part.",
   "reader.card.still-looking": "still looking…",
   "reader.card.nothing-saved": "nothing saved",
   "reader.card.other-aspect": "the other aspect: ",

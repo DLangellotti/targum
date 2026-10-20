@@ -1402,14 +1402,25 @@
 {{ script('report.js', data_build=build()) }}
 {{ script('vocab.js') }}
 {{ script('sync.js') }}
-{#- Saving for offline and the worker that answers it (design.md §12, 2026-10-09). Nothing
-    runs off a disk: there is no origin there to keep anything for. -#}
-{{ script('offline.js') }}
 {{ script('events.js') }}
-{{ script('playlist-menu.js') }}
-{{ script('fault.js') }}
 {{ script('landed.js') }}
-{{ script('reader.js') }}{% if said %}{{ script('said.js') }}{% endif %}
+{#- The player, only where the text has a recording (reader QA, 2026-10-20): it defines
+    `targumPlayer`, which `reader.js` runs where the player's closure used to stand, so it
+    has to be here before it. A reader with a film or a recording carries it whole, saved
+    or opened off a disk; a reader with neither never needed it. -#}
+{% if spoken_audio %}{{ script('player.js') }}{% endif %}
+{{ script('reader.js') }}
+{#- After `reader.js`, since 2026-10-20 (reader QA): a word answers a tap once `reader.js` has
+    run, and the page reads its scripts in order as they arrive, so what a first tap does not
+    need comes after it. Saving for offline and the worker that answers it (design.md §12,
+    2026-10-09) settle when the page has loaded, and nothing in `reader.js` asks them before
+    a tap; the playlist menu is read only by the ⋯ row in `reader-after.js`; and the faults'
+    lines and band are drawn when something has gone wrong, which a page still arriving has
+    not yet asked. Nothing runs off a disk: there is no origin there to keep anything for. -#}
+{{ script('fault.js') }}
+{{ script('offline.js') }}
+{{ script('playlist-menu.js') }}
+{{ script('reader-after.js') }}{% if said %}{{ script('said.js') }}{% endif %}
 {%- if preread %}
 {{ script('preread.js') }}
 {% endif %}

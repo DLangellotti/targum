@@ -3082,6 +3082,67 @@ def test_a_door_spelled_with_the_wrong_final_letter_still_opens(
     assert status == 404, "a folder with nothing under it is not a door"
 
 
+def test_a_part_the_text_does_not_have_opens_its_first_part(
+    served: tuple[int, str, Path],
+) -> None:
+    """Reader QA, 2026-10-20 (targum-internal#464): `sec-0042.html` of a four-part text
+    answered the site's "We can't find that page". It opens the text's first part now,
+    query and all, with `gone=` naming the part asked for so the page can say so. A text
+    that is not there, or an address that is not a part, is still not found."""
+    from urllib.parse import quote
+
+    port, key, out = served
+    reader = out / "local" / "רות-he" / "reader"
+    reader.mkdir(parents=True)
+    for n in range(1, 5):
+        (reader / f"sec-{n:04d}.html").write_text(f"<p>part {n}</p>", encoding="utf-8")
+    (reader / "index.html").write_text("<p>contents</p>", encoding="utf-8")
+    single = out / "local" / "one-page-he" / "reader"
+    single.mkdir(parents=True)
+    (single / "index.html").write_text("<p>the page</p>", encoding="utf-8")
+
+    def fetch(path: str) -> tuple[int, bytes, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read(), response.getheader("Location") or ""
+        finally:
+            connection.close()
+
+    name = quote("רות-he")
+    status, _, where = fetch(f"/reader/{name}/reader/sec-0042.html?k={key}")
+    assert status == 302
+    assert where == f"/reader/{name}/reader/sec-0001.html?k={key}&gone=42"
+    status, body, _ = fetch(where)
+    assert status == 200 and body == b"<p>part 1</p>"
+
+    status, body, _ = fetch(f"/reader/{name}/reader/sec-0003.html?k={key}")
+    assert status == 200 and body == b"<p>part 3</p>", "a part that is there is served"
+    status, _, where = fetch(f"/reader/one-page-he/reader/sec-0002.html?k={key}")
+    assert status == 302 and where == f"/reader/one-page-he/reader/index.html?k={key}&gone=2"
+
+    status, _, where = fetch(f"/reader/{quote('אין-כזה-he')}/reader/sec-0002.html?k={key}")
+    assert status == 404 and not where, "a text that is not there is still not found"
+    status, _, where = fetch(f"/reader/{name}/reader/notes.html?k={key}")
+    assert status == 404 and not where, "only a part's address is a part"
+
+
+def test_the_reader_says_which_part_was_not_there() -> None:
+    """The line the first part shows, keyed and said in Russian; and the address is put
+    back as the part's own, so a reload is the first part plainly."""
+    from targum.strings import catalogue
+
+    source = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "reader.js"
+    ).read_text(encoding="utf-8")
+    english = "Part {n} isn't in this text, so we opened the first part."
+    assert f't(\n      "reader.page.part-gone",\n      "{english}"' in source
+    assert catalogue("en")["reader.page.part-gone"] == english
+    assert "{n}" in catalogue("ru")["reader.page.part-gone"]
+    assert 'query.delete("gone")' in source and "history.replaceState" in source
+
+
 def test_one_readers_cover_is_not_served_to_another(served: tuple[int, str, Path]) -> None:
     """The route puts the asker's own home on the name. Asking for a name that already
     carries one is asking for a file by somebody else's key, and `thumbs/` being one
