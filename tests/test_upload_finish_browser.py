@@ -277,6 +277,27 @@ def test_on_a_phone_the_priced_card_comes_before_what_works(browser) -> None:
     assert not thrown, thrown
 
 
+def test_on_a_phone_a_long_link_wraps_in_the_box(browser) -> None:
+    """A Shorts link is one unbroken word, and it used to widen the box past the
+    screen and scroll the page sideways (targum-internal#493)."""
+    doors = Doors(add_page(TOKEN))
+    context, page, thrown = opened(browser, doors, width=393, phone=True)
+    page.fill("#given", "https://www.youtube.com/shorts/0zIhpFW_4EY?feature=share&si=xx")
+    page.wait_for_timeout(300)
+    where = page.evaluate(
+        """() => ({
+          page: document.documentElement.scrollWidth,
+          width: innerWidth,
+          box: document.getElementById('bring-box').getBoundingClientRect().right,
+          go: document.getElementById('go').getBoundingClientRect().right,
+        })"""
+    )
+    assert where["page"] <= where["width"], where
+    assert where["box"] <= where["width"] and where["go"] <= where["width"], where
+    context.close()
+    assert not thrown, thrown
+
+
 def test_a_wait_past_three_seconds_says_it_is_still_going(browser) -> None:
     doors = Doors(add_page(TOKEN))
 
