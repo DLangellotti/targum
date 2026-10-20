@@ -413,6 +413,20 @@ THUMBED = (
     ".elsewhere a",
     ".series-pdf",
     ".palette-foot-all",
+    # And wider than the Library, from its QA (2026-10-20): the connection banner's Saved
+    # texts, All among the search's tabs (39px wide), every link in the one foot, and
+    # News's way to its topics. The bar's bell and account are above, and reached 44px
+    # already; `test_chrome_reach_browser.py` hit-tests all of them.
+    ".fault-banner .offline-to-saved",
+    ".palette-filters .tab",
+    ".site-footer .sf-mark",
+    ".site-footer .sf-join",
+    ".site-footer .sf-signin",
+    ".site-footer .sf-col ul:not(.sf-social) a",
+    ".site-footer .sf-social a",
+    ".site-footer .sf-small a",
+    ".site-footer .sf-tongue a",
+    ".see-topics a",
     ".public .corner .enter",
     ".claim-table label",
     ".chat-claim label",

@@ -917,6 +917,9 @@ button:active:not(:disabled) { transform: scale(0.98); }
   /* The search's Close and × were 36 and 28px wide on a phone (Library QA, 2026-10-20). */
   .palette-clear,
   .palette-back { min-width: 44px; }
+  /* And All among the search's tabs was 39px wide (Library QA, 2026-10-20); the word
+     stays in the middle of the wider pill. */
+  .palette-filters .tab { min-inline-size: 44px; justify-content: center; }
   /* The initials stay a circle: the 44px above made it an oval 30px wide. Drawn a little
      larger instead, and its reach is the 44px `::after` that `reader.css` gives every
      `.account > button`. */

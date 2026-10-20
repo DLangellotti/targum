@@ -112,8 +112,32 @@
   .site-footer .sf-inner { grid-template-columns: minmax(0, 1fr); }
   .site-footer .sf-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: stretch; }
 }
-/* §8: a thumb gets 44px, and the links in a column sit further apart to give it. */
+/* §8: a thumb gets 44px. The links were drawn 20px tall, with 12px between them in a
+   column (Library QA, 2026-10-20), so each is now 44px tall and a column's are 44px
+   apart, middle to middle, with no gap to add. A word narrower than 44px — About, Terms,
+   RU — reaches across with a centred `::after`, over the margin beside it. */
 @media (hover: none) and (pointer: coarse) {
   .site-footer .sf-social a { inline-size: 44px; block-size: 44px; }
-  .site-footer .sf-col ul { gap: 0.75rem; }
+  .site-footer .sf-col ul { gap: 0; }
+  .site-footer .sf-col ul:not(.sf-social) li { display: flex; }
+  .site-footer .sf-mark,
+  .site-footer .sf-join,
+  .site-footer .sf-signin,
+  .site-footer .sf-col ul:not(.sf-social) a,
+  .site-footer .sf-small a,
+  .site-footer .sf-tongue a {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+  .site-footer .sf-col ul:not(.sf-social) a::after,
+  .site-footer .sf-small a::after,
+  .site-footer .sf-tongue a::after,
+  .site-footer .sf-signin::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline: min(0px, calc(50% - 22px));
+  }
 }
