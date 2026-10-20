@@ -88,6 +88,17 @@
     });
   }
 
+  // One filled press per view (design.md §13): once a priced card offers Confirm, the
+  // box's own Upload steps back to tonal, and comes forward again when the card goes.
+  function oneFilled() {
+    var offered = !status.hidden && !!status.querySelector(".confirm");
+    [go, document.getElementById("post-go")].forEach(function (press) {
+      if (!press) return;
+      press.classList.toggle("filled", !offered);
+      press.classList.toggle("tonal", offered);
+    });
+  }
+
   function say(html, bad) {
     // Under the box, where the two columns are one (a phone): the card is brought into
     // view the first time it is drawn, so a press is never answered off the screen.
@@ -110,6 +121,7 @@
     status.className = "card status" + (bad ? " bad" : "");
     status.innerHTML = "";
     status.appendChild(html);
+    oneFilled();
     // A refusal's first line wears the clay mark and stays ink (design.md §12,
     // 2026-10-09): it was a clay sentence.
     var first = bad && status.querySelector("p");
@@ -123,6 +135,7 @@
     answered();
     if (!window.TargumFault) return say(line(text), true);
     status.hidden = true;
+    oneFilled();
     window.TargumFault.field(given, text, givenWell || drop);
   }
   //: The name the press's own refusals go by.
@@ -140,6 +153,7 @@
   /* targum out of reach: the connection's banner, whose Try again presses again. */
   function unreachable(again) {
     status.hidden = true;
+    oneFilled();
     if (window.TargumFault) window.TargumFault.unreachable(again);
   }
 
@@ -1980,6 +1994,7 @@
     cancel.textContent = t("add.cancel", "Cancel");
     cancel.onclick = function () {
       status.hidden = true;
+      oneFilled();
       status.textContent = "";
       quoted = null;
       go.disabled = false;
@@ -2274,6 +2289,7 @@
       open.setAttribute("aria-expanded", on ? "true" : "false");
       if (on) {
         status.hidden = true;
+        oneFilled();
         handle.focus();
       } else {
         open.focus();

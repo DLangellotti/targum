@@ -57,6 +57,16 @@
       how much you'd follow", 2026-10-09): one row of texts for each band — Read it now,
       A stretch, Hard for now — and targum's own playlists, each a row of cards on the
       ground with a See all that is the list under that band. Drawn by `library.js`. -#}
+  {#- While the shelf is asked for, and when it could not be (design.md §14, line 1;
+      Library QA, 2026-10-20). The page stood empty under its search box until `/readers`
+      answered, said nothing at all when it never did, and drew the shelves as if the
+      reader had marked no words when it was refused. `library.js` says which. -#}
+  <p class="lib-waiting" id="lib-waiting" role="status">{{ t("library.waiting", "Opening the Library…") }}</p>
+  <section class="card lib-fault" id="lib-fault" role="alert" hidden>
+    <p class="lede" id="lib-fault-lede">{{ t("library.fault.lede", "We couldn't open the Library.") }}</p>
+    <p id="lib-fault-says">{{ t("library.fault.says", "Your words and texts are safe. Try again in a moment.") }}</p>
+    <p><button type="button" class="btn tonal" id="lib-fault-again">{{ t("fault.try-again", "Try again") }}</button></p>
+  </section>
   <div class="shelves" id="shelves" hidden></div>
   {#- The Weekly portion (targum-internal#411): this Shabbat's first, then the year onward
       from it. Among the Library's shelves, because "which portion is it this week" is

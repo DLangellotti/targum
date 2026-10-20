@@ -8662,8 +8662,18 @@ class Handler(BaseHTTPRequestHandler):
             # rather than baked into the page, which is rendered once at start-up and
             # would go on saying the week it was started in.
             from .parasha import build as parasha_corpus
+            from .strings import said_reference
 
-            return self._json(parasha_corpus.shelf())
+            answer = parasha_corpus.shelf()
+            # Each card's verses in the reader's own names of the books: under the Russian
+            # interface this week's card said «Бытие 12:1…» from its blurb and every other
+            # card "Genesis 18:1-22:24" (Library QA, 2026-10-20).
+            language = self._ui_language()
+            cards = answer.get("portions")
+            for one in cards if isinstance(cards, list) else []:
+                if isinstance(one, dict) and one.get("summary"):
+                    one["summary"] = said_reference(str(one["summary"]), language)
+            return self._json(answer)
         if route == "/series":
             # What comes out on its own clock, and where each is this week (2026-09-11):
             # the page draws the row to follow, and Learn puts a new instalment of a

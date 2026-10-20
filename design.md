@@ -1882,7 +1882,10 @@ results. And "The Library is shelved by how much you'd follow" (2026-10-09) kept
 Library's box and its fold "until search has its own slice": this is that slice, and **a
 search typed over the shelves no longer opens the list unbanded** — it opens the search,
 held to the Library. A search stored with a Library view from before is dropped, so it
-cannot go on narrowing a shelf with nothing on the page saying so.
+cannot go on narrowing a shelf with nothing on the page saying so. *(2026-10-20, Library
+QA, targum-internal#465: the box opens the search when it is pressed, typed in, or given
+Enter or the down arrow, and no longer when Tab merely reaches it. Opening on focus kept
+the keyboard inside the search, so nothing under the box could be reached by Tab.)*
 
 What it does not overturn: nothing in it spends — a Library row opens its door
 (`/open/`), never a build; a reader still fetches nothing, and the sentence it opens at

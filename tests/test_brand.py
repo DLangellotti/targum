@@ -402,6 +402,18 @@ THUMBED = (
     ".lib-door",
     ".see-menu-press",
     ".see-menu-item",
+    # And the Library's own from its QA (2026-10-20): Try again when the shelf could not
+    # open, the way to every text from an empty band, See all's column heads, the Tanakh
+    # list's way to the map and Subscribe on a row.
+    "#lib-fault-again",
+    ".lib-empty-go",
+    ".see-list > .rows-head button",
+    ".crumbs .crumb-map",
+    ".see-rows .sub-subscribe",
+    ".elsewhere a",
+    ".series-pdf",
+    ".palette-foot-all",
+    ".public .corner .enter",
     ".claim-table label",
     ".chat-claim label",
     # The arrival's own (QA 2026-10-18): EN and RU in its head, the conversation's Mark
