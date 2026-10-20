@@ -206,8 +206,20 @@ def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -
     assert len(marked["words"]) == 4, "collected again, not drawn stale"
 
 
-def test_a_browser_with_nothing_kept_is_told_so() -> None:
+def test_a_browser_with_nothing_kept_gets_the_empty_list() -> None:
+    """Your Words QA (2026-10-20): a reader with no words is given the page, with the
+    line that says what fills it, rather than "Nothing here yet" in place of it."""
     drawn = draw({})
+    assert drawn["shown"] and not drawn["nothing"]
+    assert drawn["wordsEmpty"].startswith("Nothing yet. Tap a word as you go")
+    signed = draw({}, who={"name": "David", "email": "d@example.com"})
+    assert signed["shown"] and not signed["nothing"]
+
+
+def test_an_account_never_reached_is_not_an_empty_list() -> None:
+    """A refusal or a dropped connection on a browser holding nothing: the list is not
+    known to be empty, so the page says it could not load rather than "Nothing yet"."""
+    drawn = draw({}, who={"name": "David", "email": "d@example.com"}, unreached=True)
     assert drawn["nothing"] and not drawn["shown"]
 
 
@@ -777,7 +789,9 @@ def test_the_anki_button_appears_with_the_others_or_not_at_all() -> None:
         vocabulary(word("ספר", "book", status=2, at=100)),
         who={"name": "David", "email": "d@example.com"},
     )
-    assert signed["exports"] == {"words": False, "anki": False, "phrases": False}
+    # Hidden, each of these, and none over an empty list (Your Words QA, 2026-10-20): a
+    # reader with no phrases is not offered a CSV of none.
+    assert signed["exports"] == {"words": False, "anki": False, "phrases": True}
 
 
 def test_the_anki_deck_is_what_the_filter_is_showing() -> None:
@@ -925,4 +939,8 @@ def test_a_browser_just_signed_in_is_not_told_it_has_nothing_before_the_account_
     brought = draw(which="words", who=who, brought=True)
     assert not brought["nothing"], "and not when it brought something: the page reloads"
     empty = draw(which="words", who=who)
-    assert empty["nothing"], "said once the account answered with nothing"
+    # Said once the account answered with nothing, as the empty list itself since Your
+    # Words QA (2026-10-20), with the line that says what fills it.
+    assert empty["shown"] and not empty["nothing"]
+    assert empty["wordsEmpty"].startswith("Nothing yet")
+    assert not waiting["shown"], "and not drawn empty while the account is answering"

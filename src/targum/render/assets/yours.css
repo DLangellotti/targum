@@ -363,6 +363,45 @@ table.words-table .copy.copied { opacity: 1; }
 .grammar-other { margin: 0 0 0.2rem; font-size: 0.8125rem; color: var(--ink-soft); }
 .grammar-other-line { font-size: 1.0625rem; margin-block-end: 0; }
 .grammar-done { margin: 0 0 1rem; }
+.grammar-said:lang(he) { font-family: var(--reading-hebrew); }
+/* Start and Next are the round's one way on, a `.btn` like Practise: the practice card's
+   text-link Next, which they also wear, took the button's padding away and left "Start"
+   squeezed into a 30px circle (Your Words QA, 2026-10-20). */
+.btn.grammar-next { padding: 0 1.125rem; }
 @media (max-width: 40rem) {
   .grammar-options { grid-template-columns: 1fr; }
+}
+
+/* A reader with no words: the line, and the way to where words are met, without stage
+   tabs or column heads over nothing. */
+body.yours .stage-tabs[hidden],
+body.yours table.words-table[hidden] { display: none; }
+.empty-go { color: var(--teal); font-weight: 600; text-decoration: none; }
+.empty-go:hover { text-decoration: underline; }
+
+/* §8 under a thumb (Your Words QA, 2026-10-20): the way back, the two exports, the find
+   field, the practice card's Next and its coming words, and Undo on an ignored row were
+   21-40px on a phone. Drawn at 44px rather than given a reach: each stands a line from
+   text, and a reach would cross it. */
+@media (hover: none) and (pointer: coarse) {
+  .words-back,
+  .words-exports .link-quiet:not([hidden]),
+  .practise-go,
+  .empty-go {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+  .words-exports .link-quiet:not([hidden]),
+  .practise-go { min-inline-size: 44px; justify-content: center; }
+  .practise-next {
+    display: flex;
+    align-items: center;
+    inline-size: fit-content;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+  .words-card-head .find { min-block-size: 44px; }
+  .stage-tabs .tab { min-inline-size: 44px; justify-content: center; }
+  .held-undo { min-inline-size: 44px; }
 }

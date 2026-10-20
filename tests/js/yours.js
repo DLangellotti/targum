@@ -40,6 +40,8 @@ install({
   TargumSync: payload.who
     ? {
         who: payload.who,
+        // Whether the account was reached; `unreached` is a refusal or a dropped line.
+        reached: !payload.unreached,
         touched: () => {},
         onChange: () => {},
         start: () => Promise.resolve(),

@@ -2,6 +2,7 @@
   "texts": t("yours.page.your-targums", "Your targums"),
   "words": t("yours.page.your-words", "Your Words"),
   "phrases": t("yours.page.your-phrases", "Your Phrases"),
+  "grammar": t("lists.work.grammar", "Grammar"),
 }[which] -%}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
@@ -316,9 +317,27 @@
   <p><button type="button" class="btn tonal" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button></p>
 </section>
 {%- else %}
-<section class="nothing" id="nothing" hidden>
-  <p class="lede">{{ t("yours.page.nothing-here-yet", "Nothing here yet.") }}</p>
-  <p><a href="/library">{{ t("yours.page.find-something-in-the-library", "Find something in the Library.") }}</a></p>
+{#- Your Words QA (2026-10-20; design.md §14, line 1): Words, Phrases and Grammar stood
+    blank under the bar until the account answered, and a refusal or a dropped connection
+    said "Nothing here yet" to a reader with a list. The wait is said, and said again past
+    three seconds; a page that could not load says so and offers Try again. A reader with
+    nothing yet gets the page itself, with what fills it (`lists.js`). -#}
+<p class="learn-waiting" id="home-waiting" role="status">
+  {%- if which == 'grammar' %}{{ t("practice.page.waiting", "Opening your practice…") }}
+  {%- elif which == 'phrases' %}{{ t("lists.waiting.phrases", "Opening your phrases…") }}
+  {%- else %}{{ t("lists.waiting.words", "Opening your words…") }}{% endif -%}
+</p>
+<section class="nothing" id="nothing" role="alert" hidden>
+  <p class="lede" id="nothing-lede">
+    {%- if which == 'grammar' %}{{ t("practice.page.failed", "We couldn't load your practice.") }}
+    {%- elif which == 'phrases' %}{{ t("lists.failed.phrases", "We couldn't load your phrases.") }}
+    {%- else %}{{ t("lists.failed.words", "We couldn't load your words.") }}{% endif -%}
+  </p>
+  <p id="nothing-says">
+    {%- if which == 'grammar' %}{{ t("practice.page.failed-says", "What you've practised is still here. Try again in a moment.") }}
+    {%- else %}{{ t("lists.failed.says", "Everything you've marked and saved is still here. Try again in a moment.") }}{% endif -%}
+  </p>
+  <p><button type="button" class="btn tonal" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button></p>
 </section>
 {%- endif %}
 
