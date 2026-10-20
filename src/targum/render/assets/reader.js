@@ -4630,7 +4630,9 @@ var targumReader = function () {
         return kept ? role + " · " + kept : role;
       }
       var person = personWord(line);
-      if (!inCase) return person;
+      // Without a case or a role a pronoun's person is its meaning again, and a bare
+      // "they" under "these" reads as a mistranslation (targum-internal#489).
+      if (!inCase) return "";
       return (person || gt("reader.grammar.pronoun", "pronoun")) + " · " + inCase;
     }
     var headword = (lemma || "").toLowerCase().replace("\u2019", "'");
@@ -6380,7 +6382,10 @@ var targumReader = function () {
       // keeps in front of a verb's parsing, the lying plural after a noun's gender.
       var cite = citations[index] || "";
       var lying = plurals[index] || "";
-      if (cite) usage = usage ? cite + " · " + usage : cite;
+      // The citation leads a parse and is never the whole line: alone, "Here: לקחת" names
+      // the infinitive as if it were the word in front of you, and on an infinitive it
+      // only says the word again (targum-internal#489).
+      if (cite && usage && bareOf(cite) !== bareOf(word.textContent)) usage = cite + " · " + usage;
       var rule = endingLine(grammarHere, endings[index]);
       if (rule) usage = usage ? usage + " · " + rule : rule;
       if (lying) {
