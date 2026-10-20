@@ -400,7 +400,12 @@ class Door:
         was = self.store.stop_telegram(chat_id)
         if was is None:
             return self._reply(
-                chat_id, said_in(ui, "telegram.not-linked", "This chat isn't linked to targum.")
+                chat_id,
+                said_in(
+                    ui,
+                    "telegram.not-linked",
+                    "This chat isn't linked to targum, so there's nothing to stop.",
+                ),
             )
         self._reply(
             chat_id,

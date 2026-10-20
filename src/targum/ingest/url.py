@@ -87,7 +87,7 @@ def _reachable(url: str) -> None:
     if parsed.scheme not in ("http", "https"):
         raise TargumError(
             f"We only read web pages, and {url} isn't one.",
-            "Paste an http:// or https:// address, or drop in a file.",
+            "Paste a link to a web page, or upload a file.",
             key="fetch.not-a-web-page",
             url=url,
         )

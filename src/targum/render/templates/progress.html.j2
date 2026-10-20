@@ -103,6 +103,18 @@
       link went to the upload page, which was neither. Both have their own page now. -#}
   {{ t("progress.page.nothing-yet", "Your progress starts with the first word you mark.") }} <a id="library-link" href="/library">{{ t("progress.page.open-something-from-the-library", "Open something from the Library.") }}</a>
 </p>
+{#- Where the account never answered (errors QA, targum-internal#468): a refusal, a dropped
+    connection or no connection at all said "Your progress starts with the first word you
+    mark" to a reader with a record, which reads as everything gone. The panel is the one
+    home and Your Words draw. -#}
+<section class="fault-panel page-fault" id="progress-fault" role="alert" hidden>
+  <p class="fault-panel-said" id="progress-fault-lede">{{ t("progress.page.failed", "We couldn't load your progress.") }}</p>
+  <div class="fault-panel-row">
+    <button type="button" class="fault-go" id="progress-fault-again">{{ t("fault.try-again", "Try again") }}</button>
+    <span class="fault-fact" id="progress-fault-says">{{ t("progress.page.failed-says", "Everything you've marked is still here.") }}</span>
+    <button type="button" class="fault-act" id="progress-fault-tell" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>
+  </div>
+</section>
 {% include '_foot.html.j2' %}
 
 

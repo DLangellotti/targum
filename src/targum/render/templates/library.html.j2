@@ -66,10 +66,13 @@
       answered, said nothing at all when it never did, and drew the shelves as if the
       reader had marked no words when it was refused. `library.js` says which. -#}
   <p class="lib-waiting" id="lib-waiting" role="status">{{ t("library.waiting", "Opening the Library…") }}</p>
-  <section class="card lib-fault" id="lib-fault" role="alert" hidden>
-    <p class="lede" id="lib-fault-lede">{{ t("library.fault.lede", "We couldn't open the Library.") }}</p>
-    <p id="lib-fault-says">{{ t("library.fault.says", "Your words and texts are safe. Try again in a moment.") }}</p>
-    <p><button type="button" class="btn tonal" id="lib-fault-again">{{ t("fault.try-again", "Try again") }}</button></p>
+  <section class="fault-panel page-fault lib-fault" id="lib-fault" role="alert" hidden>
+    <p class="fault-panel-said" id="lib-fault-lede">{{ t("library.fault.lede", "We couldn't open the Library.") }}</p>
+    <div class="fault-panel-row">
+      <button type="button" class="fault-go" id="lib-fault-again">{{ t("fault.try-again", "Try again") }}</button>
+      <span class="fault-fact" id="lib-fault-says">{{ t("library.fault.says", "Your words and texts are still here.") }}</span>
+      <button type="button" class="fault-act" id="lib-fault-tell" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>
+    </div>
   </section>
   <div class="shelves" id="shelves" hidden></div>
   {#- The Weekly portion (targum-internal#411): this Shabbat's first, then the year onward

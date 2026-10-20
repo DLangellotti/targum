@@ -2351,7 +2351,7 @@
         "The Library opens when you're back online. Texts saved on this device still open."
       );
     } else if (why && why.unreached) {
-      lede.textContent = t("library.unreachable.lede", "We can't reach targum right now.");
+      lede.textContent = t("library.unreachable.lede", "We can't reach targum.");
     }
     function retry() {
       if (window.location && window.location.reload) window.location.reload();
@@ -2361,6 +2361,8 @@
       again.addEventListener("click", retry);
     }
     if (again) again.hidden = offline;
+    var tell = document.getElementById("lib-fault-tell");
+    if (tell) tell.hidden = offline;
     if (offline) window.addEventListener("online", retry, { once: true });
     fault.hidden = false;
     var doorsHost = document.getElementById("lib-doors");

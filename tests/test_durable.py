@@ -607,6 +607,6 @@ def test_a_text_missing_from_the_shelf_names_no_path_and_offers_no_paste() -> No
     with pytest.raises(OffHere) as raised:
         index.load("no-such-dialogue-at-all")
     hosted = told("en", raised.value, hosted=True)
-    assert hosted == "We can't open this one right now. Try another for now."
+    assert hosted == "We can't open this one right now. Try another text."
     assert "/" not in told("ru", raised.value, hosted=True)
     assert "Looked in" in told("en", raised.value, hosted=False)

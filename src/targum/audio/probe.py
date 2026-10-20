@@ -74,7 +74,7 @@ def examine(path: Path, *, allow_video: bool = False) -> Probe:
     ]
     if not sound and moving:
         raise TargumError(
-            "There's nothing to transcribe in a silent video.", key="recording.silent-video"
+            "This video is silent, so there's nothing to write down.", key="recording.silent-video"
         )
     if not sound or (moving and not allow_video):
         # A film with a soundtrack is not a recording, and extracting one from the

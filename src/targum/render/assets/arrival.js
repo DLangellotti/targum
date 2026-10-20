@@ -1108,7 +1108,7 @@
     if (!waitingLine) return home();
     waitingLine.textContent = "";
     var fault = window.TargumFault;
-    var sentence = t("welcome.unreachable", "We couldn't load this page. Check your connection and try again.");
+    var sentence = t("welcome.unreachable", "We couldn't load this page.");
     if (fault && fault.line) {
       // Inline: the waiting line is a paragraph already.
       waitingLine.appendChild(

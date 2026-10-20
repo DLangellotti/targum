@@ -219,8 +219,13 @@ def test_a_refusal_is_said_with_try_again_not_as_nothing_yet(browser, phone: boo
     assert "Nothing here yet" not in nothing.inner_text()
     again = page.locator("#nothing-again")
     assert again.is_visible()
+    # The panel every surface draws (errors QA, targum-internal#468), with Tell us.
+    assert "fault-panel" in (nothing.get_attribute("class") or "")
+    tell = page.locator("#nothing-tell")
+    assert tell.is_visible()
     if phone:
         assert again.bounding_box()["height"] >= 44
+        assert tell.bounding_box()["height"] >= 44
     assert page.locator("#home-waiting").is_hidden()
     assert not thrown
     context.close()

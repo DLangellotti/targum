@@ -314,3 +314,158 @@ def test_a_refusal_from_a_rail_is_a_panel_in_place_of_the_price(browser) -> None
         "fact": "Your texts still open",
         "title": "A text",
     }
+
+
+# -- one product (errors QA, targum-internal#468) --------------------------------------
+
+
+def test_a_machine_word_is_never_the_sentence(browser) -> None:
+    """Many routes answer what they could not serve with a word from the inside ("not
+    found", "bad request", "invalid_grant"), and a page that hands `error` on would draw
+    it as the refusal. The kit says ours instead; a sentence, in any language, passes."""
+    context, page, thrown = served(
+        browser, not_found_page(), "/nowhere", lambda route, request: json_answer(route, {})
+    )
+    page.wait_for_timeout(200)
+    drawn = page.evaluate(
+        """() => {
+          const F = window.TargumFault;
+          const said = (node) => node.querySelector('.fault-said, .fault-panel-said').textContent;
+          return {
+            line: said(F.line("not found", () => {})),
+            panel: said(F.panel("bad request", { onAct: () => {} })),
+            refusal: said(F.refusal("invalid_grant", "", "")),
+            empty: said(F.line("", () => {})),
+            sentence: said(F.line("That PDF is protected, so we can't read it.")),
+            russian: said(F.line("Не удаётся связаться с targum.")),
+            words: F.words("no word", "Ours."),
+          };
+        }"""
+    )
+    context.close()
+
+    assert not thrown, thrown
+    ours = "We couldn't do that just now."
+    assert drawn["line"] == drawn["panel"] == drawn["refusal"] == drawn["empty"] == ours
+    assert drawn["sentence"] == "That PDF is protected, so we can't read it."
+    assert drawn["russian"] == "Не удаётся связаться с targum."
+    assert drawn["words"] == "Ours."
+
+
+def test_focus_moves_to_the_panels_press_when_the_press_that_asked_is_gone(browser) -> None:
+    """A refusal that takes the place of the button that asked leaves the keyboard on
+    nothing. The kit moves focus to the new press, and only then: a panel drawn while the
+    reader is on something else, or with no press behind it, takes nothing."""
+    context, page, thrown = served(
+        browser, not_found_page(), "/nowhere", lambda route, request: json_answer(route, {})
+    )
+    page.wait_for_timeout(200)
+    page.evaluate(
+        """() => {
+          const main = document.querySelector('main');
+          const ask = document.createElement('button');
+          ask.id = 'ask';
+          ask.textContent = 'Confirm';
+          ask.addEventListener('click', () => {
+            const box = window.TargumFault.panel("We couldn't get it ready.", { onAct: () => {} });
+            box.id = 'refused';
+            ask.replaceWith(box);
+          });
+          main.appendChild(ask);
+          const stay = document.createElement('input');
+          stay.id = 'stay';
+          main.appendChild(stay);
+        }"""
+    )
+    page.focus("#ask")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#refused")
+    page.wait_for_timeout(50)
+    rescued = page.evaluate("() => document.activeElement.className")
+
+    # A second panel while the reader is in a field leaves them there.
+    page.focus("#stay")
+    page.evaluate(
+        """() => document.querySelector('main').appendChild(
+          window.TargumFault.panel("We couldn't do that.", { onAct: () => {} }))"""
+    )
+    page.wait_for_timeout(50)
+    kept = page.evaluate("() => document.activeElement.id")
+    context.close()
+
+    assert not thrown, thrown
+    assert rescued == "fault-go"
+    assert kept == "stay"
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_a_page_that_could_not_load_is_the_one_panel(browser, width: int) -> None:
+    """Progress said "Your progress starts with the first word you mark" when the account
+    never answered, which reads as a record gone. It says it could not load, in the panel
+    home, the Library and Your Words draw: the sentence, Try again, what is still here,
+    and Tell us."""
+    from targum.render.builder import progress_page
+
+    def answer(route, request):
+        if "/account/me" in request.url:
+            route.fulfill(status=500, content_type="application/json", body="{}")
+        else:
+            json_answer(route, {})
+
+    context, page, thrown = served(browser, progress_page(TOKEN), "/progress", answer, width)
+    page.wait_for_selector("#progress-fault", state="visible")
+    drawn = page.evaluate(
+        """() => {
+          const box = document.getElementById('progress-fault');
+          return {
+            panel: box.classList.contains('fault-panel'),
+            said: box.querySelector('.fault-panel-said').textContent,
+            presses: [...box.querySelectorAll('button')].map((b) => [b.className, b.textContent]),
+            fact: box.querySelector('.fault-fact').textContent,
+            empty: !document.getElementById('nothing').hidden,
+          };
+        }"""
+    )
+    context.close()
+
+    assert not thrown, thrown
+    assert drawn == {
+        "panel": True,
+        "said": "We couldn't load your progress.",
+        "presses": [["fault-go", "Try again"], ["fault-act", "Tell us"]],
+        "fact": "Everything you've marked is still here.",
+        "empty": False,
+    }
+
+
+def test_a_press_that_could_not_start_says_why_beside_it_and_says_try_again(browser) -> None:
+    """A book's Translate and Prepare all put the reason on the button, where a sentence
+    reads as the thing to press. The reason is a line after the press now, the press says
+    Try again, and pressing it takes the line away (errors QA, targum-internal#468)."""
+    from pathlib import Path
+
+    contents = Path(__file__).parents[1] / "src/targum/render/assets/contents.js"
+    context, page, thrown = served(
+        browser, not_found_page(), "/nowhere", lambda route, request: json_answer(route, {})
+    )
+    page.wait_for_timeout(200)
+    page.add_script_tag(content=contents.read_text(encoding="utf-8"))
+    drawn = page.evaluate(
+        """() => {
+          const row = document.createElement('p');
+          const press = document.createElement('button');
+          press.textContent = 'Translate';
+          row.appendChild(press);
+          document.querySelector('main').appendChild(row);
+          refusedAt(press, "We've hit our limit for today. Try again in 24 hours.");
+          refusedAt(press, "We couldn't start that.");
+          const lines = row.querySelectorAll('.fault-line');
+          const before = [press.textContent, lines.length, lines[0].textContent];
+          press.click();
+          return { before, after: row.querySelectorAll('.fault-line').length };
+        }"""
+    )
+    context.close()
+
+    assert not thrown, thrown
+    assert drawn == {"before": ["Try again", 1, "We couldn't start that."], "after": 0}

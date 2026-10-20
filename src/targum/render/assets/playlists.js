@@ -36,9 +36,9 @@
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "list=" + id + "&at=" + position;
   }
 
-  var UNREACHED = t("playlists.unreached", "We couldn't reach targum. Try again in a moment.");
+  var UNREACHED = t("playlists.unreached", "We can't reach targum. Try again in a moment.");
   var FAILED = t("playlists.failed", "We couldn't do that. Try again.");
-  var GONE = t("playlists.gone", "We couldn't find that playlist.");
+  var GONE = t("playlists.gone", "We couldn't find that playlist. Your others are under Playlists.");
 
   /* What the server said, as a line for the reader. A refusal written for a reader
      ("A playlist holds up to 20 texts.") is passed on; the protocol's own words — "not

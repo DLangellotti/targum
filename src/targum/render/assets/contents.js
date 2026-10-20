@@ -23,6 +23,32 @@ function unreachable(retry) {
   if (window.TargumFault) window.TargumFault.unreachable(retry);
 }
 
+/* A press that could not start says why in a line after it, and the press itself says
+   Try again (errors QA, targum-internal#468). The reason stood on the button, where a
+   sentence is read as the thing to press — the chapter's own note in the reader was
+   mended the same way (reader QA, 2026-10-19). */
+function refusedAt(button, sentence) {
+  var fault = window.TargumFault;
+  var next = button.nextElementSibling;
+  if (next && next.classList.contains("contents-fault")) next.parentNode.removeChild(next);
+  button.disabled = false;
+  if (!fault) {
+    button.textContent = sentence;
+    return;
+  }
+  button.textContent = fault.tryAgain();
+  var said = fault.line(sentence, "", null, true);
+  said.classList.add("contents-fault");
+  button.parentNode.insertBefore(said, button.nextSibling);
+  button.addEventListener(
+    "click",
+    function () {
+      if (said.parentNode) said.parentNode.removeChild(said);
+    },
+    { once: true }
+  );
+}
+
 /* The parts of a recording a row holds, as the page writes them on `data-parts`. */
 function partsOf(row) {
   return (row.getAttribute("data-parts") || "").split(" ").filter(Boolean);
@@ -322,8 +348,7 @@ function partsOf(row) {
             // A refusal carries an id too, and watching a job that was never kept
             // spun for ever (2026-09-14).
             if (job.blocked || job.stage === "blocked" || !job.id) {
-              get.disabled = false;
-              get.textContent = job.blocked || job.error || t("contents.could-not", "We couldn't start that. Try again.");
+              refusedAt(get, job.blocked || job.error || t("contents.could-not", "We couldn't start that."));
               return;
             }
             watch(job.id, get);
@@ -369,7 +394,7 @@ function partsOf(row) {
       if (!job) {
         line.textContent = t("contents.part-waiting", "Ready when you open it.");
       } else if (job.stage === "failed" || job.stage === "blocked") {
-        line.textContent = job.said || job.blocked || job.error || t("contents.could-not", "We couldn't start that. Try again.");
+        line.textContent = job.said || job.blocked || job.error || t("contents.could-not", "We couldn't start that.");
       } else {
         var making = t("contents.part-making", "Getting ready.");
         line.textContent = job.said ? making + " " + job.said : making;
@@ -427,8 +452,7 @@ function partsOf(row) {
             location.reload();
           } else if (job.stage === "failed" || job.blocked || (job.error && !job.stage)) {
             clearInterval(timer);
-            button.disabled = false;
-            button.textContent = job.error || job.blocked || t("contents.could-not", "We couldn't start that. Try again.");
+            refusedAt(button, job.error || job.blocked || t("contents.could-not", "We couldn't start that."));
           }
         })
         .catch(function () {
@@ -513,8 +537,7 @@ function partsOf(row) {
       })
       .then(function (job) {
         if (job.blocked || job.stage === "blocked") {
-          press.disabled = false;
-          press.textContent = job.blocked || job.error;
+          refusedAt(press, job.blocked || job.error || t("contents.could-not-prepare", "We couldn't prepare it."));
           return;
         }
         if (!job.id) return location.reload();
@@ -529,8 +552,7 @@ function partsOf(row) {
                 location.reload();
               } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
-                press.disabled = false;
-                press.textContent = state.error || state.blocked || t("contents.could-not-prepare", "We couldn't prepare it. Try again.");
+                refusedAt(press, state.error || state.blocked || t("contents.could-not-prepare", "We couldn't prepare it."));
               }
             })
             .catch(function () {

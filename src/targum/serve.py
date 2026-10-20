@@ -205,7 +205,9 @@ def tried_for(job: Any, ui: str) -> dict[str, Any]:
         # person, "That isn't a link." and the like, carry neither and still stand.
         refused = job.error
         if not refused or "://" in refused or re.search(r"\bHTTP \d{3}\b", refused):
-            refused = said_in(ui, "door.no-answer", "We couldn't open that link.")
+            refused = said_in(
+                ui, "door.no-answer", "We couldn't open that link. Check it and try again."
+            )
         return {"refused": refused}
     door = str(job.options.get("door") or "page")
     seen = max(1, round(job.usually / 60)) if job.usually else 0
@@ -370,11 +372,17 @@ def ran_out(ui: str, detail: str) -> str:
 
 def broke(ui: str, error: BaseException) -> str:
     """What a reader is told when a build failed on something nobody wrote a sentence
-    for: the plain apology, unless it was a provider out of credit, which has its own."""
+    for: the plain sentence, unless it was a provider out of credit, which has its own.
+    Said in the reader's language since the errors QA (targum-internal#468): it was the
+    one build failure a Russian reader met in English."""
     detail = f"{error} {error.__cause__ or ''}"
     if out_of_credit(detail):
         return ran_out(ui, detail)
-    return "Something went wrong on our side, and we've noted it. Try again later."
+    return said_in(
+        ui,
+        "job.broke",
+        "We couldn't finish this on our side, and we've been told. Try again later.",
+    )
 
 
 def told(ui: str, error: TargumError, *, hosted: bool) -> str:
@@ -3226,7 +3234,7 @@ class Library:
                         job.ui,
                         "job.video-host-closed",
                         "{service} doesn't let us fetch its videos. Download the video "
-                        "there and drop the file here.",
+                        "there and upload the file here.",
                         service=host.name,
                     )
                     job.stage = "failed"
@@ -3414,7 +3422,7 @@ class Library:
                 job.error = said_in(
                     ui,
                     "door.host-closed",
-                    "{service} doesn't let us fetch its videos.",
+                    "{service} doesn't let us fetch its videos. Try a link to an article instead.",
                     service=host.name,
                 )
                 job.stage = "failed"
@@ -6882,7 +6890,8 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "error": self._say(
                             "serve.we-couldn-t-tell-which-series",
-                            "We couldn't tell which series you meant.",
+                            "We couldn't tell which series you meant. "
+                            "Reload the page and try again.",
                         )
                     },
                     400,
@@ -8460,6 +8469,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/account/me" and self._host_is_ours() and self._person() is None:
             if not self._authorised():
                 return self._json({"signedIn": False, "signedOut": True})
+        # The address the sign-in form posts to reads like the door, and typed into the bar
+        # it met the stale-key page: English only, a brown button and the Terminal of a
+        # machine somebody runs themselves (errors QA, targum-internal#468). Where there
+        # are accounts it is the door.
+        if route == "/account/sign-in" and self.require_account and not self._authorised():
+            query = urlparse(self.path).query
+            return self._go("/account/signin" + (f"?{query}" if query else ""))
         if not self._authorised():
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
@@ -10211,7 +10227,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._subscriptions_get(str(sub_id))
         if action not in states:
             return self._json(
-                {"error": self._say("serve.subscription-what", "We couldn't tell what to change.")},
+                {
+                    "error": self._say(
+                        "serve.subscription-what",
+                        "We couldn't tell what to change. Reload the page and try again.",
+                    )
+                },
                 400,
             )
         if (

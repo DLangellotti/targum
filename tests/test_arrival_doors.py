@@ -93,6 +93,19 @@ def client(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(google.CLIENT_SECRET_ENV, "a-secret")
 
 
+def test_the_address_the_form_posts_to_is_the_door_when_typed(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """`/account/sign-in` reads like the door, and opened in the bar it met the stale-key
+    page: English only, a brown button and "the Terminal window", on a hosted box with no
+    Terminal (errors QA, targum-internal#468). It goes to the door, room and all."""
+    port, _ = _box(tmp_path, free_port, [])
+    status, headers, page = _exchange(port, "GET", "/account/sign-in?next=%2Fprogress")
+    assert status == 303, status
+    assert headers["location"] == "/account/signin?next=%2Fprogress"
+    assert "Terminal" not in page
+
+
 # -- Google ------------------------------------------------------------------------------
 
 

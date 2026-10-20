@@ -759,6 +759,8 @@
       get.onclick = function () {
         get.disabled = true;
         get.textContent = t("shelf.translating", "Translating…");
+        var refused = get.nextElementSibling;
+        if (refused && refused.classList.contains("fault-line")) refused.parentNode.removeChild(refused);
         // In the language the reader reads into, so a Russian reader's press never buys
         // the folder's English (targum-internal#287).
         var into = window.TargumLang && window.TargumLang.into ? window.TargumLang.into() : "";
@@ -784,7 +786,18 @@
         } else if (job.stage === "failed" || job.blocked) {
           clearInterval(timer);
           button.disabled = false;
-          button.textContent = job.error || job.blocked || t("shelf.translate-failed", "We couldn't translate it. Try again.");
+          var why = job.error || job.blocked || t("shelf.translate-failed", "We couldn't translate it.");
+          // The reason in a line after the press, and the press says Try again (errors QA,
+          // targum-internal#468): a sentence on a button is read as the thing to press.
+          var fault = window.TargumFault;
+          if (!fault) {
+            button.textContent = why;
+            return;
+          }
+          var was = button.nextElementSibling;
+          if (was && was.classList.contains("fault-line")) was.parentNode.removeChild(was);
+          button.textContent = fault.tryAgain();
+          button.parentNode.insertBefore(fault.line(why, "", null, true), button.nextSibling);
         }
       });
     }, 1500);

@@ -114,7 +114,7 @@ def test_sources_lists_files_urls_and_identifiers() -> None:
 
 
 def test_missing_file(tmp_path: Path) -> None:
-    with pytest.raises(TargumError, match="No such file"):
+    with pytest.raises(TargumError, match="We can.t find"):
         ingest.load(str(tmp_path / "nope.txt"))
 
 

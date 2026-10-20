@@ -1873,18 +1873,8 @@ body.is-seeing .page-head { display: none; }
   font-size: 0.9375rem;
 }
 .lib-waiting[hidden], .lib-fault[hidden] { display: none; }
-.lib-fault {
-  margin: 2rem 0;
-  padding: 1.5rem 1.25rem;
-  color: var(--ink-soft);
-}
-.lib-fault p { margin: 0 0 0.75rem; }
-.lib-fault p:last-child { margin-block-end: 0; }
-.lib-fault .lede {
-  font-family: var(--reading);
-  font-size: 1.5rem;
-  color: var(--ink);
-}
+/* The panel itself is `.fault-panel` (shared.css), as on home and Your Words. */
+.lib-fault { margin: 2rem 0; }
 .lib-empty-go { margin-inline-start: 0.35rem; color: var(--teal); font-weight: 600; }
 .lib-empty-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
 @media (hover: none) and (pointer: coarse) {

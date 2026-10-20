@@ -11850,7 +11850,7 @@ var targumReader = function () {
 
   // The reader's own words (targum-internal#184), where the page is read in another language.
   var said = window.TargumStrings || { t: function (key, english) { return english; } };
-  var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that. Try again.");
+  var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that.");
 
   // A part of an imported recording is not pressed for (David, 2026-10-07; design.md §12,
   // "One press gets the whole video, a part at a time"): the press on the recording's

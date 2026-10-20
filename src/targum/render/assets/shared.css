@@ -1113,6 +1113,15 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   font-family: var(--chrome);
   text-align: start;
 }
+/* A page's own panel, where the whole page is the thing that could not load: home, the
+   Library, Your Words and Progress (errors QA, targum-internal#468). Each had a card of
+   its own with a serif lede and a tonal Try again; they are the one panel now. */
+.page-fault {
+  max-inline-size: 34rem;
+  margin: 3rem auto;
+}
+.page-fault[hidden],
+.fault-panel-row > [hidden] { display: none; }
 .fault-panel-said {
   margin: 0;
   font-size: 1.0625rem;
@@ -1328,6 +1337,14 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
 @media (hover: none) and (pointer: coarse) {
   .fault-act,
   .fault-go {
+    min-block-size: 44px;
+  }
+  /* See plans on the upgrade panel, and Saved texts in the banner (errors QA,
+     targum-internal#468): 20 and 22px under a thumb, beside presses that had 44. */
+  .fault-see,
+  .fault-banner .offline-to-saved {
+    display: inline-flex;
+    align-items: center;
     min-block-size: 44px;
   }
 }
