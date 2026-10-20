@@ -36,7 +36,7 @@
     );
   }
 
-  var UNREACHED = t("subs.unreached", "We couldn't reach targum. Try again in a moment.");
+  var UNREACHED = t("subs.unreached", "We can't reach targum. Try again in a moment.");
   var FAILED = t("subs.failed", "We couldn't do that. Try again.");
 
   function ask(path, body) {

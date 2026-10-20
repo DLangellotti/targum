@@ -308,7 +308,7 @@ def thread(url: str) -> Thread:
     if found is None:
         raise TargumError(
             "X wouldn't show us that post.",
-            "It may be deleted, private or age-restricted. Copy its words and paste them here.",
+            "It may be deleted or private. Copy its words and paste them here.",
             key="x.not-shown",
         )
     earlier = [found]

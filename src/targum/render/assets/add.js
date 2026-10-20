@@ -978,7 +978,7 @@
               state.n = n;
               return settle(state);
             }
-            if (++tries > 90) return fail(new Error(t("add.looking.slow", "That took too long. Try again.")));
+            if (++tries > 90) return fail(new Error(t("add.looking.slow", "We took too long looking for that. Try again.")));
             setTimeout(poll, 800);
           })
           .catch(fail);

@@ -115,6 +115,32 @@ def home(browser, answers: dict[str, Any], *, phone: bool = False, offline: bool
     return context, page, thrown, held, documents
 
 
+def test_the_connections_band_never_covers_the_title_on_a_phone(browser) -> None:
+    """The band grows the sticky header, and on the hosted copy the page was scrolled by
+    as much, so on a phone the title stood under the band: in Russian, covered (errors
+    QA, targum-internal#468). A page at its top stays there, its title under the band."""
+    context, page, thrown, _, _ = home(
+        browser,
+        {"/readers": "abort", "/jobs": "abort", "/account/places": "abort"},
+        phone=True,
+        offline=True,
+    )
+    page.goto(SITE + "/")
+    page.wait_for_selector("#nothing:not([hidden])")
+    page.wait_for_timeout(500)
+    drawn = page.evaluate(
+        """() => ({
+          y: window.scrollY,
+          head: document.querySelector('.site-head').getBoundingClientRect().bottom,
+          title: document.querySelector('h1').getBoundingClientRect().top,
+        })"""
+    )
+    context.close()
+    assert not thrown, thrown
+    assert drawn["y"] == 0
+    assert drawn["title"] >= drawn["head"], drawn
+
+
 def test_a_slow_shelf_is_said_again_after_three_seconds(browser) -> None:
     context, page, thrown, held, _ = home(browser, {"/readers": "hold"})
     page.clock.install()
@@ -136,6 +162,9 @@ def test_a_refusal_is_not_an_empty_shelf(browser) -> None:
     assert "Everything you've read is still here." in page.inner_text("#nothing-says")
     assert page.is_hidden("#first-home") and page.is_hidden("#page")
     assert page.is_visible("#nothing-again")
+    # The panel every surface draws (errors QA, targum-internal#468), with Tell us.
+    assert "fault-panel" in (page.get_attribute("#nothing", "class") or "")
+    assert page.is_visible("#nothing-tell")
     page.click("#nothing-again")
     page.wait_for_function("() => true")
     page.wait_for_timeout(300)
@@ -147,7 +176,7 @@ def test_no_answer_at_all_is_ours_to_own(browser) -> None:
     context, page, thrown, _, _ = home(browser, {"/readers": "abort"})
     page.goto(SITE + "/")
     page.wait_for_selector("#nothing:not([hidden])")
-    assert page.inner_text("#nothing-lede") == "We can't reach targum right now."
+    assert page.inner_text("#nothing-lede") == "We can't reach targum."
     assert page.is_visible("#nothing-again")
     context.close()
 
@@ -161,6 +190,7 @@ def test_offline_says_offline_and_leaves_the_press_to_the_banner(browser) -> Non
     assert page.inner_text("#nothing-lede") == "You're offline."
     assert "when you're back online" in page.inner_text("#nothing-says")
     assert page.is_hidden("#nothing-again"), "the bar's banner carries the one Try again"
+    assert page.is_hidden("#nothing-tell"), "Tell us needs the connection too"
     context.close()
 
 

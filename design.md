@@ -2418,6 +2418,21 @@ What this departs from, and why:
   `act` (`serve.Refusal`). Where nothing draws a panel, a chat tool or the Telegram bot,
   the sentence is said with its fact after it.
 
+- **A page that could not load is the same panel** (errors QA, 2026-10-20,
+  targum-internal#468). Home, the Library, Your Words and Progress each drew a card of
+  their own, a serif lede and a tonal Try again, with "Try again in a moment" in the
+  sentence as well. They are `.fault-panel` now: the sentence, Try again, the quiet line of
+  what is still here, and Tell us. Offline, the panel says "You're offline." and leaves the
+  one press to the banner. "We can't reach targum." is the one wording for out of reach.
+- **A machine's word is never the sentence.** A route that answers "not found" or "bad
+  request" is said through the kit as "We couldn't do that just now.", with its press.
+- **A reason never stands on a button.** Where a refusal took the button's label (a
+  book's Translate and Prepare all), the reason is a line after the press, and the press
+  says Try again.
+- **Focus follows the press.** When a refusal takes the place of the button that asked,
+  focus moves to the refusal's press. It never moves on a page's first draw, and never away
+  from a field the reader is in.
+
 What it does not overturn: offline. "You're offline" and the saved-for-offline lines are
 their own slice and are not drawn here; the banner says only that targum is out of reach.
 

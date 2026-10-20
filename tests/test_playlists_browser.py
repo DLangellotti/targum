@@ -523,7 +523,7 @@ def test_no_connection_is_not_a_sign_in(browser, tmp_path: Path) -> None:
     stranger = page.locator("#stranger").is_hidden()
     context.close()
     assert not thrown, thrown
-    assert said == "We couldn't reach targum. Try again in a moment."
+    assert said == "We can't reach targum. Try again in a moment."
     assert stranger, "a network that failed is not a reader who is signed out"
 
 

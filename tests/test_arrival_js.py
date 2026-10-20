@@ -636,7 +636,7 @@ def test_a_shelf_that_cannot_be_reached_is_said_and_not_skipped() -> None:
     failed = draw([], {}, shared=seeded(), readersFail=True)
     assert failed["home"] == "", "it does not go home"
     assert failed["arrival"] == [], "and asks nothing it cannot answer"
-    assert failed["waiting"] == "We couldn't load this page. Check your connection and try again."
+    assert failed["waiting"] == "We couldn't load this page."
     assert "targum:arrival-over" not in failed["visit"], "the questions are still to come"
 
 

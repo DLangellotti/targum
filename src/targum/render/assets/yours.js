@@ -862,7 +862,7 @@
               ? t("practice.page.offline", "Your practice opens when you're back online.")
               : t("lists.offline.says", "Your list opens when you're back online. Everything you've marked is still here.");
       } else if (!(why && why.answered)) {
-        lede.textContent = t("home.unreachable.lede", "We can't reach targum right now.");
+        lede.textContent = t("home.unreachable.lede", "We can't reach targum.");
       }
     }
     function retry() {
@@ -875,6 +875,9 @@
     // Offline, the bar's banner (`fault.js`) already says so with its own Try again, and
     // one press is enough; the page asks again by itself when the connection is back.
     if (again) again.hidden = offline;
+    // Tell us goes with it: what it sends needs the connection too.
+    var tell = document.getElementById("nothing-tell");
+    if (tell) tell.hidden = offline;
     if (offline) window.addEventListener("online", retry, { once: true });
   }
 

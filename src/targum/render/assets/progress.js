@@ -128,6 +128,31 @@
   // pages never disagree about which language you are in.
   var codes = window.TargumLang.order(Object.keys(data), names);
 
+  /* The account never answered, so the record is not known to be empty (errors QA,
+     targum-internal#468): the panel home and Your Words draw, with Try again, and offline
+     its own line, leaving the press to the bar's banner and asking again once back. */
+  function couldNot() {
+    var fault = document.getElementById("progress-fault");
+    if (!fault) return;
+    var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    var retry = function () {
+      location.reload();
+    };
+    if (offline) {
+      document.getElementById("progress-fault-lede").textContent = t("progress.offline", "You're offline.");
+      document.getElementById("progress-fault-says").textContent = t(
+        "progress.offline.says",
+        "Your progress opens when you're back online."
+      );
+      window.addEventListener("online", retry, { once: true });
+    }
+    var again = document.getElementById("progress-fault-again");
+    again.hidden = offline;
+    again.onclick = retry;
+    document.getElementById("progress-fault-tell").hidden = offline;
+    fault.hidden = false;
+  }
+
   if (!codes.length) {
     document.getElementById("library-link").href = keyed("/library");
     wireNav();
@@ -138,6 +163,7 @@
     if (window.TargumSync && window.TargumSync.settled) {
       window.TargumSync.settled().then(function (changed) {
         if (changed) location.reload();
+        else if (window.TargumSync.reached === false) couldNot();
         else document.getElementById("nothing").hidden = false;
       });
     } else {
@@ -579,7 +605,7 @@
       metEmpty.textContent =
         signedIn === false
           ? t("progress.next.words-signed-out", "Sign in and we'll find the words you keep meeting.")
-          : t("progress.next.words-none", "None yet.");
+          : t("progress.next.words-none", "None yet. They show up as you read.");
       metEmpty.hidden = false;
     }
 

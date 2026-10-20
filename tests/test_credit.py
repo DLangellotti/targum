@@ -138,4 +138,4 @@ def test_an_exception_nobody_wrapped_is_checked_for_credit_too(
     mailed: list[tuple[str, str]],
 ) -> None:
     assert serve.broke("en", RuntimeError(ANTHROPIC)).startswith("Our account")
-    assert serve.broke("en", RuntimeError("boom")).startswith("Something went wrong")
+    assert serve.broke("en", RuntimeError("boom")).startswith("We couldn't finish this on our side")

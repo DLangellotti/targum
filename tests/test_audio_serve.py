@@ -664,7 +664,7 @@ def test_a_host_we_name_and_cannot_fetch_says_so_by_name(tmp_path: Path, monkeyp
         library.prepare(job)
         assert job.stage == "failed", address
         assert job.error.startswith(f"{name} doesn't let us fetch"), job.error
-        assert "drop the file here" in job.error
+        assert "upload the file here" in job.error
 
 
 def test_a_dropped_video_keeps_the_link_it_was_refused_at(tmp_path: Path) -> None:

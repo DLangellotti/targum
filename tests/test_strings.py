@@ -360,6 +360,26 @@ def test_a_refusal_with_no_key_is_said_as_it_always_was() -> None:
     assert refused_in("ru", TargumError("No hint here.")) == "No hint here."
 
 
+def test_a_build_that_broke_on_nothing_written_is_said_in_the_readers_language() -> None:
+    """`broke()` is what a build says when it failed on something nobody wrote a sentence
+    for, and it was the one build failure said in English to everyone (errors QA,
+    targum-internal#468). A picture that would not open says what to try, too."""
+    from targum.errors import TargumError
+    from targum.serve import broke, refused_in
+
+    assert broke("en", RuntimeError("x")) == strings.catalogue("en")["job.broke"]
+    assert broke("ru", RuntimeError("x")) == strings.catalogue("ru")["job.broke"]
+    picture = TargumError(
+        "We couldn't read that picture.",
+        "Try a clearer photo or a screenshot.",
+        key="pictures.unreadable",
+    )
+    ru = strings.catalogue("ru")
+    assert refused_in("ru", picture) == (
+        f"{ru['pictures.unreadable']} {ru['pictures.unreadable.hint']}"
+    )
+
+
 def test_the_english_is_never_formatted_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

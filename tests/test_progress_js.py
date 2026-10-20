@@ -626,7 +626,7 @@ def test_what_next_names_the_words_with_their_own_meanings_and_the_texts() -> No
 
 def test_nothing_met_twice_is_one_quiet_line() -> None:
     drawn = story(words=[], texts=[])["next"]
-    assert drawn["met"] == [] and drawn["metEmpty"] == "None yet."
+    assert drawn["met"] == [] and drawn["metEmpty"] == "None yet. They show up as you read."
     assert drawn["levelEmpty"].startswith("Nothing is quite at your level yet")
 
 

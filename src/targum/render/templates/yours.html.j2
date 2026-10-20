@@ -311,10 +311,15 @@
 {#- Home QA (2026-10-18; design.md §14, line 1): the wait is said again past three
     seconds, and a page that could not load offers the press that asks again rather than
     telling the reader to reload. Offline says so in its own words; `yours.js` picks. -#}
-<section class="nothing" id="nothing" role="alert" hidden>
-  <p class="lede" id="nothing-lede">{{ t("learn.page.we-couldn-t-load-your-texts", "We couldn't load your texts.") }}</p>
-  <p id="nothing-says">{{ t("home.failed.says", "Everything you've read is still here. Try again in a moment.") }}</p>
-  <p><button type="button" class="btn tonal" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button></p>
+{#- A panel in place, drawn as `fault.js` draws one (errors QA, targum-internal#468): the
+    sentence, Try again, the quiet line of what is still here, and Tell us. -#}
+<section class="fault-panel page-fault" id="nothing" role="alert" hidden>
+  <p class="fault-panel-said" id="nothing-lede">{{ t("learn.page.we-couldn-t-load-your-texts", "We couldn't load your texts.") }}</p>
+  <div class="fault-panel-row">
+    <button type="button" class="fault-go" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button>
+    <span class="fault-fact" id="nothing-says">{{ t("home.failed.says", "Everything you've read is still here.") }}</span>
+    <button type="button" class="fault-act" id="nothing-tell" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>
+  </div>
 </section>
 {%- else %}
 {#- Your Words QA (2026-10-20; design.md §14, line 1): Words, Phrases and Grammar stood
@@ -327,17 +332,20 @@
   {%- elif which == 'phrases' %}{{ t("lists.waiting.phrases", "Opening your phrases…") }}
   {%- else %}{{ t("lists.waiting.words", "Opening your words…") }}{% endif -%}
 </p>
-<section class="nothing" id="nothing" role="alert" hidden>
-  <p class="lede" id="nothing-lede">
+<section class="fault-panel page-fault" id="nothing" role="alert" hidden>
+  <p class="fault-panel-said" id="nothing-lede">
     {%- if which == 'grammar' %}{{ t("practice.page.failed", "We couldn't load your practice.") }}
     {%- elif which == 'phrases' %}{{ t("lists.failed.phrases", "We couldn't load your phrases.") }}
     {%- else %}{{ t("lists.failed.words", "We couldn't load your words.") }}{% endif -%}
   </p>
-  <p id="nothing-says">
-    {%- if which == 'grammar' %}{{ t("practice.page.failed-says", "What you've practised is still here. Try again in a moment.") }}
-    {%- else %}{{ t("lists.failed.says", "Everything you've marked and saved is still here. Try again in a moment.") }}{% endif -%}
-  </p>
-  <p><button type="button" class="btn tonal" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button></p>
+  <div class="fault-panel-row">
+    <button type="button" class="fault-go" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button>
+    <span class="fault-fact" id="nothing-says">
+      {%- if which == 'grammar' %}{{ t("practice.page.failed-says", "What you've practised is still here.") }}
+      {%- else %}{{ t("lists.failed.says", "Everything you've marked and saved is still here.") }}{% endif -%}
+    </span>
+    <button type="button" class="fault-act" id="nothing-tell" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button>
+  </div>
 </section>
 {%- endif %}
 

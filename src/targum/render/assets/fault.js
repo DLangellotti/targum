@@ -11,6 +11,8 @@
  *   TargumFault.unreachable(retry?)      the connection banner, under the top bar
  *   TargumFault.reached()                and gone again
  *   TargumFault.tellUs()                 the Tell us box, which `[data-tell-us]` opens too
+ *   TargumFault.words(said, fallback?)   the server's sentence, or ours where it sent a
+ *                                        machine's word ("not found", "bad request")
  *
  * The whole page is a template (`missing.html.j2`, the sign-in page's expired and closing
  * doors), because there is nothing on it for a script to do.
@@ -56,8 +58,54 @@
   function said(sentence) {
     var span = document.createElement("span");
     span.className = "fault-said";
-    span.textContent = sentence;
+    span.textContent = words(sentence);
     return span;
+  }
+
+  /* What a refusal says, never a word from the inside (design.md §14, line 4; errors QA,
+     targum-internal#468). Many routes answer what they could not serve with a machine's
+     word ("not found", "bad request", "no word", "invalid_grant"), and a page that
+     hands the server's `error` straight on would draw it as the sentence. A sentence
+     written for a person ends in its stop; a machine's word is lowercase letters and
+     nothing else. That one is said as ours instead, with its press still beside it. */
+  var MACHINE = /^[a-z_ ]+$/;
+  function words(sentence, fallback) {
+    var text = typeof sentence === "string" ? sentence.trim() : "";
+    if (text && !MACHINE.test(text)) return text;
+    return fallback || t("fault.went-wrong", "We couldn't do that just now.");
+  }
+
+  /* Where the press that led here is gone. A refusal often takes the place of the button
+     that asked (Confirm on a priced card, Translate on a chapter), and the keyboard was
+     left on nothing: the next Tab started again at the top of the page. So when a panel,
+     or a line with a press, is drawn within a moment of a press and focus has fallen to
+     the page, focus moves to the new press. It never takes focus from anything the reader
+     is still on, and never on a page's first draw (§14, line 3). */
+  var pressedAt = 0;
+  document.addEventListener(
+    "click",
+    function () {
+      pressedAt = Date.now();
+    },
+    true
+  );
+  document.addEventListener(
+    "keydown",
+    function (event) {
+      if (event.key === "Enter" || event.key === " ") pressedAt = Date.now();
+    },
+    true
+  );
+  function rescueFocus(box) {
+    var asked = pressedAt;
+    if (!asked) return;
+    setTimeout(function () {
+      if (Date.now() - asked > 10000 || !box.isConnected) return;
+      var on = document.activeElement;
+      if (on && on !== document.body && on !== document.documentElement && on.isConnected) return;
+      var press = box.querySelector("button:not([disabled]), a[href]");
+      if (press) press.focus();
+    }, 0);
   }
 
   function tryAgain() {
@@ -88,6 +136,7 @@
         onAct(event);
       });
       p.appendChild(button);
+      rescueFocus(p);
     }
     return p;
   }
@@ -102,7 +151,7 @@
     box.setAttribute("role", "status");
     var p = document.createElement("p");
     p.className = "fault-panel-said";
-    p.textContent = sentence;
+    p.textContent = words(sentence);
     box.appendChild(p);
     var row = document.createElement("div");
     row.className = "fault-panel-row";
@@ -146,6 +195,7 @@
     // say it to.
     if (!options.topUp && options.tellUs !== false && served) row.appendChild(tellUsButton());
     if (row.childNodes.length) box.appendChild(row);
+    rescueFocus(box);
     return box;
   }
 
@@ -257,7 +307,8 @@
       .then(function (got) {
         if (got.ok) return thankTellUs(form);
         // The server's own sentence where it sent one: sign in first, or too many.
-        refuseTellUs(said, send, typeof got.body.error === "string" ? got.body.error : "");
+        var why = typeof got.body.error === "string" ? got.body.error.trim() : "";
+        refuseTellUs(said, send, why && !MACHINE.test(why) ? why : "");
       })
       .catch(function () {
         refuseTellUs(said, send, "");
@@ -350,7 +401,7 @@
     box.setAttribute("role", "status");
     var p = document.createElement("p");
     p.className = "fault-panel-said";
-    p.textContent = sentence;
+    p.textContent = words(sentence);
     box.appendChild(p);
     var row = document.createElement("div");
     row.className = "fault-panel-row";
@@ -379,6 +430,7 @@
       foot.textContent = fact;
       box.appendChild(foot);
     }
+    rescueFocus(box);
     return box;
   }
 
@@ -509,7 +561,18 @@
       var bar = band.previousElementSibling;
       band.style.insetBlockStart = (bar ? bar.offsetHeight : 0) + "px";
     }
+    // A page at its top stays at its top (errors QA, targum-internal#468). The band grows
+    // the sticky header, and the browser's scroll anchoring scrolled the page by as much
+    // to keep the heading where it was, which is under the header: on a phone in Russian
+    // the band covered the page's title.
+    var atTop = (window.scrollY || window.pageYOffset || 0) < 1;
     band.hidden = false;
+    if (atTop) {
+      window.scrollTo(0, 0);
+      requestAnimationFrame(function () {
+        if ((window.scrollY || 0) > 0 && window.scrollY <= band.offsetHeight + 2) window.scrollTo(0, 0);
+      });
+    }
   }
 
   function reached() {
@@ -538,5 +601,6 @@
     reached: reached,
     tryAgain: tryAgain,
     tellUs: tellUs,
+    words: words,
   };
 })();

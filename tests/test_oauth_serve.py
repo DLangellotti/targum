@@ -328,7 +328,7 @@ def test_a_request_we_cannot_read_is_a_page_and_never_a_redirect(
     assert "location" not in headers
     assert b"couldn't finish" in body
     assert b"We don't know that client" not in body, "the client's detail stays in the log"
-    assert b"Your app sent a request we couldn't check." in body
+    assert b"We couldn't check what your app sent." in body
 
 
 def test_an_unregistered_redirect_never_receives_anything(

@@ -152,6 +152,9 @@ def test_a_refusal_is_said_with_try_again_not_drawn_as_empty_shelves(
     assert page.locator("#lib-fault-lede").inner_text() == "We couldn't open the Library."
     again = page.locator("#lib-fault-again")
     assert again.is_visible()
+    # The panel every surface draws (errors QA, targum-internal#468), with Tell us.
+    assert "fault-panel" in (fault.get_attribute("class") or "")
+    assert page.locator("#lib-fault-tell").is_visible()
     # Not a first visit's shelves, which is what a 500 with a JSON body used to draw.
     assert page.locator("#shelves").is_hidden()
     assert page.locator("#lib-waiting").is_hidden()
@@ -167,7 +170,7 @@ def test_no_answer_is_said_as_unreachable(browser, page_html) -> None:
     context, page, thrown, _, url = library(browser, page_html, {"/readers": "abort"})
     page.goto(url)
     page.locator("#lib-fault").wait_for(state="visible")
-    assert page.locator("#lib-fault-lede").inner_text() == "We can't reach targum right now."
+    assert page.locator("#lib-fault-lede").inner_text() == "We can't reach targum."
     assert page.locator("#lib-fault-again").is_visible()
     assert not thrown
     context.close()
@@ -289,7 +292,7 @@ def test_see_all_presses_reach_44px_under_a_thumb(browser, page_html) -> None:
 def test_a_refused_press_on_a_shelf_card_is_read_whole_on_a_phone(browser, page_html) -> None:
     """A card that is not built asks first; when it is refused, the sentence was cut to
     one line on a phone ("We can't open this one ri…")."""
-    refused = "We can't open this one right now. Try another for now."
+    refused = "We can't open this one right now. Try another text."
     answers = {
         "/readers": {"readers": [], "shared": [], "signedIn": True},
         "/prepare": {"error": refused},
