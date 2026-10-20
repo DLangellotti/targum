@@ -1425,6 +1425,9 @@
 .band-known.near { color: var(--leaf); font-weight: 600; }
 .band-card .row-state:empty { display: none; }
 .band-card .row-state { font-size: 0.8125rem; color: var(--ink); }
+/* What a press says on a card is read whole: "We can't open this one ri…" was all a
+   phone showed of a refusal (Library QA, 2026-10-20). */
+.band-card .row-state { white-space: normal; overflow: visible; }
 .band-item .row-go,
 .band-item .row-not { align-self: start; }
 .see-back { margin: 0 0 0.6rem; font-size: 0.8125rem; }
@@ -1852,4 +1855,37 @@ body.is-seeing .page-head { display: none; }
   .lib-door,
   .see-menu-press,
   .see-menu-item { min-block-size: 44px; }
+}
+
+/* --- waiting, and a shelf that could not be opened (Library QA, 2026-10-20) -----------
+   One quiet line where the shelves will stand, said again past three seconds; and, when
+   `/readers` or the shelf's own file did not come, a card that says so with the one
+   press that asks again (design.md §14, line 1). */
+.lib-waiting {
+  margin: 2rem 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.lib-waiting[hidden], .lib-fault[hidden] { display: none; }
+.lib-fault {
+  margin: 2rem 0;
+  padding: 1.5rem 1.25rem;
+  color: var(--ink-soft);
+}
+.lib-fault p { margin: 0 0 0.75rem; }
+.lib-fault p:last-child { margin-block-end: 0; }
+.lib-fault .lede {
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+.lib-empty-go { margin-inline-start: 0.35rem; color: var(--teal); font-weight: 600; }
+.lib-empty-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+@media (hover: none) and (pointer: coarse) {
+  #lib-fault-again { min-block-size: 44px; }
+  .lib-empty-go { display: inline-flex; align-items: center; min-block-size: 44px; }
+  .see-list > .rows-head button,
+  .crumbs .crumb-map,
+  .see-rows .sub-subscribe { min-block-size: 44px; }
+  .elsewhere a { display: inline-block; padding-block: 0.7rem; }
 }

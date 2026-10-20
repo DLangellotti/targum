@@ -35,8 +35,10 @@
         <bdi lang="{{ entry.language }}">{{ entry.title }}</bdi>
         {% if entry.english %}<span class="english" lang="en" dir="ltr">{{ entry.english }}</span>{% endif %}
       </a>
-      <span class="byline">{{ entry.author }}</span>
-      <span class="blurb">{{ entry.blurb }}</span>
+      {#- A byline or a blurb in Hebrew letters says so, with its own direction (design.md
+          §14, line 3; Library QA, 2026-10-20): "אברהם מאפו, 1853" stood in an English run. -#}
+      <span class="byline"{% if entry.author and 'א' <= entry.author[:1] <= 'ת' %} lang="{{ entry.language if entry.language in ('arc', 'yi') else 'he' }}" dir="auto"{% endif %}>{{ entry.author }}</span>
+      <span class="blurb"{% if entry.blurb and 'א' <= entry.blurb[:1] <= 'ת' %} lang="{{ entry.language if entry.language in ('arc', 'yi') else 'he' }}" dir="auto"{% endif %}>{{ entry.blurb }}</span>
     </li>
     {%- endfor %}
   </ul>

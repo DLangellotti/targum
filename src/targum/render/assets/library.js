@@ -196,6 +196,39 @@
     });
   }
 
+  /* The shelf itself, where a refusal is not an answer (Library QA, 2026-10-20): a 500
+     with a JSON body was read as a reader with no texts and no words, and the shelves were
+     drawn as a first visit's. `ask` stays as it is for the presses, whose refusals carry
+     the sentence to show in their `error`. */
+  function askShelf(path) {
+    return fetch(keyed(path), { headers: keyHeaders({ "Content-Type": "application/json" }) }).then(
+      function (response) {
+        if (!response.ok) throw new Error(String(response.status));
+        return response.json();
+      },
+      function (dropped) {
+        // Nothing answered at all, which is a different sentence from a refusal.
+        var unreached = new Error(String(dropped && dropped.message));
+        unreached.unreached = true;
+        throw unreached;
+      }
+    );
+  }
+
+  /* A run in Hebrew letters says so (design.md §14, line 3; Library QA, 2026-10-20). A
+     byline, a blurb or a portion's book the catalogue wrote in Hebrew stood in an English
+     run, and a screen reader said it in English; its direction came from its neighbours.
+     `language` is the row's, kept where it is one of the Hebrew-letter languages. */
+  //: Its first letter is a Hebrew one: an English sentence naming one Hebrew word stays English.
+  var HEBREW_LETTERS = /^[^A-Za-z\u00c0-\u024f\u0400-\u04ff\u0590-\u05ff]*[\u0590-\u05ff]/;
+  function hebrewRun(node, text, language) {
+    if (!node || !HEBREW_LETTERS.test(text || "")) return node;
+    var code = String(language || "").split("-")[0];
+    node.setAttribute("lang", code === "arc" || code === "yi" ? code : "he");
+    node.setAttribute("dir", "auto");
+    return node;
+  }
+
   function el(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
@@ -728,6 +761,8 @@
   function knownCell(row) {
     var share = knownOf(row);
     var cell = el("span", "see-known");
+    // As on a shelf's card: before any word is marked, a nought is not a share.
+    if (!anyKnown && share === 0) share = null;
     if (typeof share !== "number") {
       cell.className = "see-known unmeasured";
       cell.appendChild(el("span", "see-known-say", t("library.known.unmeasured", "Not measured yet")));
@@ -880,6 +915,7 @@
       meta.appendChild(el("span", null, named(KIND_ONE, row.kind) ? " · " : ""));
       var who = el("bdi", "row-by", row.author);
       who.setAttribute("dir", "auto");
+      hebrewRun(who, row.author, row.language);
       meta.appendChild(who);
     }
     what.appendChild(meta);
@@ -890,6 +926,7 @@
     if (blurb) {
       var about = el("span", "row-blurb", blurb);
       about.setAttribute("lang", row.entry.blurbs && row.entry.blurbs[uiLanguage] ? uiLanguage : "en");
+      hebrewRun(about, blurb, row.language);
       what.appendChild(about);
     }
     open.appendChild(what);
@@ -971,6 +1008,7 @@
     if (blurb) {
       var about = el("span", "row-blurb", blurb);
       about.setAttribute("lang", group.blurbs && group.blurbs[uiLanguage] ? uiLanguage : "en");
+      hebrewRun(about, blurb, row.language);
       what.appendChild(about);
     }
     open.appendChild(what);
@@ -1378,6 +1416,10 @@
     // How much of it the reader knows, always (board Library: "[93%] known"); a text
     // nobody has measured says so rather than claiming a nought.
     var share = knownOf(row);
+    // Before any word is marked every built text knows 0%, and "0% known" in leaf under
+    // Read it now contradicted its own shelf (Library QA, 2026-10-20): the shelves go by
+    // the texts' own words then, as the line above them says, so a nought is not a share.
+    if (!anyKnown && share === 0) share = null;
     open.appendChild(
       typeof share === "number"
         ? el(
@@ -2253,11 +2295,67 @@
      never disagree about what is happening. A build is no longer a row here (2026-09-25:
      it is on Your targums), but a catalogue text being built somewhere else still turns
      into a built row here when it finishes, which is what `follow()` watches for. */
+  /* The wait, said, and said again past three seconds (design.md §14, line 1). */
+  var waiting = document.getElementById("lib-waiting");
+  var slowly = setTimeout(function () {
+    if (waiting && !waiting.hidden) {
+      waiting.textContent = t("library.still-opening", "We're still opening the Library.");
+    }
+  }, 3000);
+  function waited() {
+    clearTimeout(slowly);
+    if (waiting) waiting.hidden = true;
+  }
+
+  /* What the Library says when it could not open, and the press that asks again. Offline
+     says so, leaves the one press to the bar's banner (`fault.js`), and asks again by
+     itself once the connection is back; a refusal, or no answer, is ours to own (§6).
+     The shelf's own file failing is the same card: without it the page used to say
+     "No Hebrew texts in the library yet", which was untrue. */
+  function couldNot(why) {
+    waited();
+    var fault = document.getElementById("lib-fault");
+    if (!fault) return;
+    var lede = document.getElementById("lib-fault-lede");
+    var says = document.getElementById("lib-fault-says");
+    var again = document.getElementById("lib-fault-again");
+    var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    if (offline) {
+      lede.textContent = t("library.offline.lede", "You're offline.");
+      says.textContent = t(
+        "library.offline.says",
+        "The Library opens when you're back online. Texts saved on this device still open."
+      );
+    } else if (why && why.unreached) {
+      lede.textContent = t("library.unreachable.lede", "We can't reach targum right now.");
+    }
+    function retry() {
+      if (window.location && window.location.reload) window.location.reload();
+    }
+    if (again && !again.getAttribute("data-bound")) {
+      again.setAttribute("data-bound", "1");
+      again.addEventListener("click", retry);
+    }
+    if (again) again.hidden = offline;
+    if (offline) window.addEventListener("online", retry, { once: true });
+    fault.hidden = false;
+    var doorsHost = document.getElementById("lib-doors");
+    if (doorsHost) doorsHost.hidden = true;
+  }
+
+  // The shelf's file is a script of its own on a page whose files are kept (#823). When
+  // it did not arrive there is nothing true to draw.
+  if (!window.TARGUM_CATALOGUE) {
+    couldNot("shelf");
+    return;
+  }
+
   Promise.all([
-    ask("/readers"),
+    askShelf("/readers"),
     ask("/jobs").catch(function () { return {}; }),
     ask("/portions").catch(function () { return {}; }),
   ]).then(function (both) {
+    waited();
     var data = both[0] || {};
     buildingNow = (both[1] && both[1].jobs) || [];
     portionShelf = both[2] && both[2].portions ? both[2] : null;
@@ -2598,6 +2696,24 @@
           return inLanguage(row, chosen) && row.entry;
         });
         empty.textContent = emptySaid(here.length);
+        /* A band with nothing in it, opened from its address or its menu, is not a search
+           that missed (Library QA, 2026-10-20): "Try another search or fewer filters" was
+           said to a reader who had typed nothing. It says the band is empty, and offers
+           every text in the language. */
+        if (seeing && here.length && view.fit && !view.find && !view.kind) {
+          empty.textContent =
+            view.fit === "now"
+              ? t("library.empty.band-now", "Nothing you can read now yet. Texts come here as you mark the words you know.")
+              : t("library.empty.band", "Nothing at this level right now.");
+          var everyText = el("a", "lib-empty-go", t("library.empty.see-every", "See every text"));
+          everyText.href = "#" + SEE;
+          everyText.addEventListener("click", function (event) {
+            if (event && event.preventDefault) event.preventDefault();
+            seeBand("");
+          });
+          empty.appendChild(document.createTextNode(" "));
+          empty.appendChild(everyText);
+        }
       }
       more.hidden = shown.length >= showing.length;
       // Texts, not rows: a collection is one row over many, and "13 of 720" counts texts.
@@ -2759,9 +2875,15 @@
       if (find.blur) find.blur();
       palette.show(true, { scope: "library", q: typed });
     }
-    find.addEventListener("focus", search);
+    /* Not on focus (Library QA, 2026-10-20): Tab landed on the box, the search opened
+       over the page and kept the keyboard inside it, so nothing under the box — the
+       doors, the shelves, See all — could be reached by Tab at all. A press, a letter
+       typed, Enter or the down arrow opens it; Tab passes on. */
     find.addEventListener("click", search);
     find.addEventListener("input", search);
+    find.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === "ArrowDown") search(event);
+    });
 
     /* One handler over both shapes. A card and a row carry the same three things that
        can be pressed — draw a cover, fold a collection, start a build — so the listener
@@ -2935,7 +3057,8 @@
       window.TargumSync.start();
     }
   })
-    // Nothing to list, because nothing could be asked. The catalogue is still drawn from
-    // what the page was built with; what fails here is only which of it you already have.
-    .catch(function () {});
+    // Nothing to list, because nothing could be asked: said, with the press that asks
+    // again (Library QA, 2026-10-20). It was swallowed, and the page stood empty under
+    // its search box with nothing to say why.
+    .catch(couldNot);
 })();
