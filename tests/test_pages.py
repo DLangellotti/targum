@@ -1038,14 +1038,13 @@ def test_a_cover_is_drawn_for_an_upload_without_being_asked() -> None:
     assert "draw-cover" not in add, "the tick nobody was going to untick"
 
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
-    drawing = source[source.index('if (state.stage === "done")') :][:600]
+    # Where the wait ends with a reader (`opening`, since the finish pass of
+    # targum-internal#466): after the text is readable, never before it. Nobody waits on
+    # a picture to read.
+    drawing = source[source.index("function opening(state)") :][:1600]
     assert 'ask("/cover"' in drawing, "asked for every time"
     assert "checked" not in drawing, "and not off a control"
-
-    source = (ASSETS / "add.js").read_text(encoding="utf-8")
-    # After the text is readable, never before it. Nobody waits on a picture to read.
-    drawing = source[source.index('if (state.stage === "done")') :][:800]
-    assert 'ask("/cover"' in drawing
+    assert 'end.stage === "done" && end.reader) return opening(end)' in source
 
 
 def test_the_upload_page_offers_only_the_pairs_that_have_been_taken_end_to_end() -> None:

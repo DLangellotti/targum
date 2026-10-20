@@ -258,15 +258,15 @@
 .quote-until { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
 .status .row .confirm { flex: 1 1 auto; }
 .status .hint.plain { margin: 0; }
-.status .bar { height: 4px; background: var(--field); border-radius: 999px; overflow: hidden; }
-.status .bar i {
-  display: block;
-  height: 100%;
-  width: 0;
-  border-radius: 999px;
-  background: var(--leaf);
-  transition: width var(--in) var(--ease);
-}
+/* The wait for a build, on the card it was priced on (QA 2026-10-20): the stage in words,
+   the desk's building meter (chrome.css), the server's own line, and where it will be. */
+.wait { display: grid; gap: 0.6rem; }
+.wait-stage { margin: 0; color: var(--ink); font-size: 0.9375rem; }
+.wait-meter > span { transition: inline-size var(--in) var(--ease); }
+.wait-said { margin: 0; color: var(--ink-soft); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.wait-note { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.wait > .fault-panel { padding: 0; background: none; box-shadow: none; }
+.wait > .btn { justify-self: start; }
 .status .row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-start: 0.25rem; }
 .status .cmd {
   display: block;
@@ -341,7 +341,16 @@
 /* Below the board's desk width the two columns become one, the priced card after the
    box. */
 @media (max-width: 60rem) {
-  .add-grid { grid-template-columns: minmax(0, 1fr); }
+  .add-grid { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  /* The priced card straight after the box and before What works, as board UploadPhone
+     draws it: in source order it came after the list, so on a phone a press was
+     answered below the fold, under the bar at the foot (QA 2026-10-20). */
+  .add-left { display: contents; }
+  .add-left > .works { order: 2; }
+  /* Scrolled into view clear of the sticky bar above and the places and Talk below. */
+  .status,
+  .status .row,
+  .status .fault-panel { scroll-margin-block: 5rem 12rem; }
 }
 
 @media (max-width: 40rem) {
@@ -380,14 +389,17 @@
   .add .status button,
   .post-where .segment,
   .given-file-x,
-  .drop.small button {
+  .drop.small button,
+  .from-field select,
+  .add .status .btn {
     min-height: 44px;
   }
-  .given-file-x { min-width: 44px; }
+  .given-file-x,
+  .post-where .segment { min-width: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status .bar i,
+  .wait-meter > span,
   .bring > .drop,
   .given-well,
   .drop.small { transition: none; }
