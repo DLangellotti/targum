@@ -31,7 +31,9 @@
 .notice { margin: 0; font-size: 0.875rem; line-height: 1.55; }
 
 /* --- the box: one card, a field, a dashed place to drop, the language and Upload -- */
-.bring { display: grid; gap: 1.25rem; padding: 2.25rem 2.25rem 2rem; }
+/* The track starts at nothing, or `field-sizing: content` lets one unbroken link set its
+   width and the page scrolls sideways on a phone (targum-internal#493). */
+.bring { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; padding: 2.25rem 2.25rem 2rem; }
 .given-field[hidden] { display: none; }
 .given-label {
   display: block;
