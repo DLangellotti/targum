@@ -78,6 +78,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   keeps by the word, so a word anybody has heard is free after. Only in the languages the
   voice reads (Hebrew, French, Russian, Italian) and only on a served page.
   `TargumVocab.hearButton` is the shared control.
+- Governed prepositions are declared modern-only (targum-internal#454). The spot reads
+  the stored syntax, and Biblical text has almost none: 199 of Genesis's 20,753 tokens have
+  a parse. So `targum stages` now says "modern only, not Biblical" with that reason, the
+  practice offers no Biblical sentence for it (`practices.VERSION` 4), and a Biblical page
+  draws no prepositions lens. No rename and no rebuild: the lens follows each page's next
+  render.
 - Your Words' "Met in" opens the text at the word (targum-internal#497, a beta reader:
   "link the full text here … context is king"). "2 texts" is a press that lists the texts
   under the row, finished latest first, eight at most and "And 3 more texts."; each opens

@@ -5958,7 +5958,10 @@ def render(
             cases=any("Case=" in line for line in grammar),
             # The prepositions lens, on a page whose verbs say what they take — a Hebrew
             # one with DICTA's syntax (design.md §12, "Lenses wait for a second read").
-            governs=any("Takes=" in line for line in grammar),
+            # Not on a Biblical page, where the spot is declared out (targum-internal#454):
+            # the few verses DICTA's fallback parsed would light a lens the register does
+            # not claim.
+            governs=not is_biblical(document.source) and any("Takes=" in line for line in grammar),
             # The word-order lens, on a Russian page with a subject after its verb
             # (design.md §12, "Subjects after their verb, on a lens").
             orders=any("Order=VS" in line for line in grammar),

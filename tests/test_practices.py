@@ -55,6 +55,31 @@ def test_the_lens_spot_is_counted_from_the_syntax() -> None:
     assert (one.spot, one.start, one.end, one.answer) == ("governed", 0, 4, "עם")
 
 
+def test_a_biblical_text_offers_no_governed_preposition(tmp_path: Path) -> None:
+    """targum-internal#454: the spot is declared out of Biblical text, so a verse whose
+    few words DICTA's fallback parsed offers nothing to practise; the same line in a
+    modern text does."""
+    import json
+
+    words = [
+        {"surface": "דיבר", "lemma": "דיבר", "pos": "VERB",
+         "syntax": {"head": -1, "relation": "root", "prefixes": [], "lead": 0}},
+        {"surface": "עם", "lemma": "עם", "pos": "ADP",
+         "syntax": {"head": 2, "relation": "case", "prefixes": [], "lead": 0}},
+        {"surface": "המנהל", "lemma": "מנהל", "pos": "NOUN",
+         "syntax": {"head": 0, "relation": "obl", "prefixes": ["DET"], "lead": 1}},
+    ]  # fmt: skip
+    folder = text(tmp_path / "t", {1: [("דיבר עם המנהל", words)]})
+    modern = practices.count_text(folder)
+    assert modern is not None and [c for c in modern.by_section[1] if c.spot == "governed"]
+    said = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    said["source"] = "sefaria:Genesis 1"
+    (folder / "document.json").write_text(json.dumps(said), encoding="utf-8")
+    biblical = practices.count_text(folder)
+    assert biblical is not None
+    assert not [c for c in biblical.by_section[1] if c.spot == "governed"]
+
+
 def test_a_verb_asks_its_binyan_and_its_tense_and_person() -> None:
     found = spots_of(verb("כתבתי", "כתב", "UPOS=VERB|Tense=Past|Person=1|Number=Sing"))
     binyan = {(c.answer, c.contrast, c.hard) for c in found["binyan"]}
