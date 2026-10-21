@@ -740,9 +740,14 @@ def test_play_on_moves_on_by_itself_with_the_screen_on(browser, tmp_path) -> Non
         page.goto(at(one, 0))
         ready_to_play(page)
         switch = page.locator("#video .list-play-on")
-        assert switch.get_attribute("aria-pressed") == "false", "off until turned on"
+        # One setting, one name, one drawing (targum-internal#474, polish 2): the switch
+        # Up next draws, under the name Up next gives it.
+        assert switch.get_attribute("role") == "switch"
+        assert switch.inner_text().strip() == "Play in order"
+        assert switch.locator(".list-sw").count() == 1
+        assert switch.get_attribute("aria-checked") == "false", "off until turned on"
         switch.click()
-        assert switch.get_attribute("aria-pressed") == "true"
+        assert switch.get_attribute("aria-checked") == "true"
         page.evaluate(PLAY)
         page.wait_for_url("**/two/**go=1&listen=1", timeout=10000)
         page.wait_for_selector("#list-nav", state="attached")

@@ -808,6 +808,10 @@ table.rows tr:hover .copy,
 .playlist-menu .pm-choice:focus-visible { background: var(--teal-wash); }
 .playlist-menu .pm-what { display: flex; flex-direction: column; flex: 1; min-inline-size: 0; }
 .playlist-menu .pm-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Said to a screen reader and not drawn: the " · " between a playlist's name and its
+   count, in the menu and on the playlists page's sheet (targum-internal#474). */
+.playlist-menu .unseen,
+.named .unseen { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .playlist-menu .pm-count { color: var(--ink-soft); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
 .playlist-menu .pm-in { display: inline-flex; align-items: center; gap: 0.25rem; flex: none; color: var(--leaf); font-size: 0.8125rem; }
 .playlist-menu .pm-in svg { inline-size: 0.875rem; block-size: 0.875rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }

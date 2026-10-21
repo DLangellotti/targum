@@ -33,9 +33,12 @@
       one column, the room first (OffSavedPhone). -#}
   <div class="saved-grid">
     <div class="saved-main">
-      {#- Nothing saved yet is said inside the card the rows would be in. -#}
+      {#- Nothing saved yet is said inside the card the rows would be in. Its line is about
+          saving by hand, so the card is Saved by you: headed Saved automatically it stood
+          beside Saving automatically, two headings a letter apart (targum-internal#474,
+          polish 1). -#}
       <section class="card saved-group" id="saved-none" hidden>
-        <h2 class="section-title">{{ t("saved.page.on-their-own", "Saved automatically") }}</h2>
+        <h2 class="section-title">{{ t("saved.page.by-you", "Saved by you") }}</h2>
         <p class="note">{{ t("saved.page.none", "Nothing is saved on this device yet. Before you go, choose Save for offline in a text's ⋯ menu.") }}</p>
       </section>
 

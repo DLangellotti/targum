@@ -5,6 +5,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Fixed
+- Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
+  order were one setting under two names and two drawings: both say "Play in order" and
+  are the same switch. An empty Saved page heads its line "Saved by you", not "Saved
+  automatically" beside "Saving automatically". Your targums' four tabs fit a phone in
+  Russian. Deleting a playlist says "Deleted {name}." on the tab, and only after this tab's
+  own Delete: the link carries the id, the name comes from a note the press left, so a
+  crafted link says nothing. A screen reader hears a
+  playlist's name and count apart in the sheet and the menu. Recent texts' 3, 5 and 10
+  and the playlist switch are 44px across under a thumb. From targum's known share keeps
+  to one line at a desk. Offline, the tab says where the saved playlists are, in one
+  quiet line instead of a second fault, with its link underlined, and asks again when the
+  connection is back. A length keeps its number and unit on one line ("25 min").
+
 ### Changed
 - Your account's finish polish (targum-internal#469, design's polish 1, 3–7 and 10):
   What's connected is drawn with nothing connected, with one quiet line and Connect an

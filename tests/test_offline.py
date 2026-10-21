@@ -343,3 +343,27 @@ def test_persist_is_asked_only_from_its_button() -> None:
     assert code.count(".persist()") == 1
     handler = code[code.index('at("saved-ask").addEventListener') :]
     assert handler.index(".persist()") < handler.index("});")
+
+
+def test_the_empty_saved_card_is_not_a_second_saved_automatically() -> None:
+    """targum-internal#474, polish 1: "Nothing is saved on this device yet. Before you go,
+    choose Save for offline…" is about saving by hand, and it sat under "Saved
+    automatically", beside a card headed "Saving automatically"."""
+    from targum.render.builder import saved_page
+
+    page = saved_page(TOKEN)
+    empty = page[page.index('id="saved-none"') :]
+    empty = empty[: empty.index("</section>")]
+    assert re.search(r"<h2[^>]*>Saved by you</h2>", empty), empty
+    assert "Saved automatically" not in empty
+
+
+def test_the_saved_page_s_narrow_presses_are_44px_across_under_a_thumb() -> None:
+    """targum-internal#474, polish 6 (§8): Recent texts' 3, 5 and 10 were 36px wide and the
+    playlist switch 42px under a coarse pointer."""
+    css = (ASSETS / "saved.css").read_text(encoding="utf-8")
+    coarse = css[css.index("@media (hover: none) and (pointer: coarse)") :]
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", coarse)
+    across = [sel for sel, body in rules if "min-inline-size: 44px" in body]
+    joined = " ".join(across)
+    assert ".saved-segment button" in joined and ".saved-switch" in joined, across

@@ -544,6 +544,8 @@ THUMBED = (
     ".pl-add-link",
     ".pl-sheet-shut",
     ".lv-track",
+    # And its polish (targum-internal#474): the link to Saved on this device offline.
+    ".pl-away a",
 )
 
 
