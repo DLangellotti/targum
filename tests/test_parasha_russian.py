@@ -217,4 +217,4 @@ def test_the_librarys_portions_say_their_verses_in_the_readers_names_of_the_book
     russian = json.loads(get(serving, "/portions?k=test-key")[1])["portions"]
     said = [one["summary"] for one in russian if one.get("summary")]
     assert said and not [one for one in said if "Deuteronomy" in one]
-    assert any("Второзаконие" in one for one in said)
+    assert any("Дварим" in one for one in said)

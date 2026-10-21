@@ -190,7 +190,7 @@ def said_on(when: date, language: str = SOURCE) -> str:
 #
 # Hebcal writes a reading as "Numbers 4:21-7:89" and a Hebrew date as "19 Elul 5786", in
 # English whatever page they land on. The numbers are the same in every language and the
-# names are not: a Russian reader knows the book as «Числа» and the month as «элуля».
+# names are not: a Russian reader knows the book as «Бемидбар» and the month as «элуля».
 # So the names are catalogue keys — `reference.*` for a book, `hebrew-month.*` for a
 # month — and these swap them in, leaving the numbers, and every name the catalogue has
 # no key for (a Mishnah tractate, a special Shabbat), exactly as the calendar wrote them.
@@ -227,7 +227,7 @@ def _said_names(prefix: str, said: str, language: str) -> str:
 
 
 def said_reference(reference: str, language: str = SOURCE) -> str:
-    """A reading as `language` names its books: «Числа 4:21-7:89» for "Numbers 4:21-7:89".
+    """A reading as `language` names its books: «Бемидбар 4:21-7:89» for "Numbers 4:21-7:89".
 
     English is returned untouched, so nothing already on an English page moves.
     """
