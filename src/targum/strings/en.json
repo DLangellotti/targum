@@ -3941,7 +3941,6 @@
   "mail.ready.gift": "You're getting this because you saved this link on targum's front page, and we got it ready for you.",
   "mail.weekly.label": "Weekly News Digest",
   "mail.weekly.level-note": "If you know {figure} words",
-  "progress.story.working": "We're working out where you are.",
   "progress.story.failed": "We couldn't load this part.",
   "progress.count.learned.note": "“Learned on targum” counts the words you saved as new and have since marked known.",
   "progress.where.loading": "We're working out where you are.",
