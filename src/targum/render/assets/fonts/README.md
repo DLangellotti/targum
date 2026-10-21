@@ -132,11 +132,15 @@ keeps. They are a second `@font-face` of the same family with that `unicode-rang
 Latin glyphs still come from the Latin file. Same licence as the Latin cut (SIL OFL 1.1,
 Adobe's, Reserved Font Name "Source"; `LICENSE.sourcesans3`), from Adobe's 3.052 release:
 
+In a scratch folder of its own, never the checkout (a downloaded archive is untrusted until
+its sum is checked, and its files are not the repository's):
+
 ```
-curl -sSL -o VF-source-sans-3.052R.zip \
+work="$(mktemp -d)"
+curl -sSL -o "$work/VF-source-sans-3.052R.zip" \
   'https://github.com/adobe-fonts/source-sans/releases/download/3.052R/VF-source-sans-3.052R.zip'
-shasum -a 256 VF-source-sans-3.052R.zip
+shasum -a 256 "$work/VF-source-sans-3.052R.zip"
 # d8e2ac355e06e6a0f0e0a0b1ac0c2451afa707584d7bb9d6b11ef9e4b749904c
-unzip VF-source-sans-3.052R.zip
-.venv/bin/python scripts/cyrillic_face.py VF
+unzip -q "$work/VF-source-sans-3.052R.zip" -d "$work"
+.venv/bin/python scripts/cyrillic_face.py "$work/VF"
 ```

@@ -543,7 +543,9 @@ def _page(
         chrome_direction=direction_for(chrome),
         hebrew_face=_hebrew_face(biblical=accented),
         hebrew_family=(BIBLICAL_FACE if accented else MODERN_FACE)[0],
-        chrome_face=_chrome_face(),
+        # A page whose own words are Russian carries the chrome's Cyrillic cut beside its
+        # Latin one, as a desk page does (design.md §13, "Russian is carried too").
+        chrome_face=_chrome_face(cyrillic=chrome.split("-")[0] == "ru"),
         size=SIZES.get(size, "A4"),
         under=under,
         # Tanakh is continuous text that happens to be numbered, and the reader sets it

@@ -556,3 +556,21 @@ def test_the_sheet_on_paper_reads_portion_then_haftarah_then_words(
     order = ["Nitzavim-Vayeilech", "Isaiah 61:10-63:9", "Isaiah 61 verse 10", "peace"]
     positions = [text.index(line) for line in order]
     assert positions == sorted(positions)
+
+
+def test_a_page_printed_in_russian_carries_the_cyrillic_cut(jonah: Path) -> None:
+    """qa on #867: a printed page's own words in Russian set their Cyrillic in the
+    platform's face beside Source Sans 3's Latin. The print gate is the desk's: the
+    Cyrillic cut where the page is Russian, nothing where it is English."""
+    english = print_html(jonah)
+    assert "unicode-range" not in english
+    Translation(
+        name="fixture",
+        document_hash="h",
+        source_language="he",
+        target_language="ru",
+        provider="fake",
+        segments={},
+    ).write(jonah / "translations" / "fake.natural.ru.json")
+    russian = print_html(jonah, into="ru")
+    assert russian.count("unicode-range:U+0400-04FF,U+2011,U+2116") == 2
