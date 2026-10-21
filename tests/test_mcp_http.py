@@ -869,7 +869,7 @@ def test_a_reader_cannot_shadow_one_of_ours(box: tuple[int, str]) -> None:
     listed = rpc(port, token, "prompts/list")["result"]["prompts"]
     assert [one["name"] for one in listed].count("drill") == 1
     got = rpc(port, token, "prompts/get", {"name": "drill"})["result"]
-    assert "my_vocabulary" in got["messages"][0]["content"]["text"], "ours"
+    assert "still learning" in got["messages"][0]["content"]["text"], "ours"
 
 
 def test_a_prompt_is_gone_from_the_host_when_it_is_removed(box: tuple[int, str]) -> None:
@@ -1375,12 +1375,15 @@ def test_without_the_record_find_text_will_not_open_the_shelf(box: tuple[int, st
 
 
 def test_the_prompts_send_a_host_to_find_text(box: tuple[int, str]) -> None:
+    """Through `needs`, which the host is given beside the prompt, rather than in the
+    reader's own words (ling-en on targum-internal#473)."""
     port, _ = box
     token = a_token(port, "library record")
     for name in ("what-next", "read-with-me"):
+        (one,) = [p for p in mcp_http.PROMPTS if p["name"] == name]
+        assert "find_text" in one["needs"], name
         got = rpc(port, token, "prompts/get", {"name": name})["result"]
         text = got["messages"][0]["content"]["text"]
-        assert "find_text" in text, name
         assert not any(old in text for old in ("search_library", "search_my_shelf", "suggest"))
 
 
