@@ -1155,3 +1155,11 @@ def test_a_verb_the_source_holds_twice_is_one_candidate(shipped: Table) -> None:
     """The source holds קִבֵּל twice; two candidates was a refusal (ling-he on #841)."""
     found = shipped.of("קיבל")
     assert found is not None and bare(found.lemma) == "קבל"
+
+
+def test_a_hifil_with_a_consonant_vav_is_not_filed_under_a_yod_first_root(shipped: Table) -> None:
+    """הִוְרִיד "turned pink" is ורד's; under ירד beside הוֹרִיד it made ירד in hif'il,
+    "brought down", two candidates and a refusal (ling-he on #841)."""
+    found = shipped.of("ירד", binyan="הפעיל")
+    assert found is not None and bare(found.lemma) == "הוריד"
+    assert "ו" not in found.lemma.split("ְ")[0][-1:], found.lemma

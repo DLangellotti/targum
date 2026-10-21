@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import re
 import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -634,6 +635,10 @@ class Paradigm:
     forms: tuple[Form, ...]
 
 
+#: A hif'il lemma whose vav after the ה carries a shva: הִוְרִיד.
+_CONSONANT_VAV = re.compile("^ה[\u0591-\u05c7]*ו\u05b0")
+
+
 @dataclass(frozen=True)
 class Table:
     """Every verb, and the index from a bare form to the verbs that spell it that way."""
@@ -832,6 +837,11 @@ class Table:
             for lid, paradigm in self.verbs.items():
                 named = self.binyan_of(lid)
                 root = root_of(bare(paradigm.lemma), named) if named else None
+                # A hif'il whose ו carries a shva has a consonantal vav, not a yod-first
+                # root: הִוְרִיד "turned pink" is ורד's, and filed under ירד beside הוֹרִיד
+                # it made ירד in hif'il two candidates (ling-he on #841).
+                if named == "הפעיל" and _CONSONANT_VAV.match(paradigm.lemma):
+                    root = "".join(c for c in bare(paradigm.lemma)[1:] if c != "י")[:3]
                 if named and root:
                     self._roots.setdefault((root, named), []).append(lid)
         return self._roots
