@@ -4264,7 +4264,6 @@
   "mail.weekly.label": "Недельный обзор новостей",
   "mail.weekly.level-note": "Если вы знаете {figure} слов",
   "progress.story.working": "Определяем, где вы сейчас.",
-  "progress.story.failed": "Не удалось загрузить эту часть."
   "progress.story.failed": "Не удалось загрузить эту часть.",
   "progress.count.learned.note": "«Выучено в targum» — это слова, которые вы сохранили как новые и потом отметили как знакомые.",
   "progress.where.loading": "Определяем, где вы сейчас.",
