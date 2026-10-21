@@ -281,6 +281,8 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   /* The phone board's three: on your list, known, finished; the rest are the desk's. */
   .progress .ledger .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .progress .ledger .counts > :not(.count-saved, .count-known, .count-finished) { display: none; }
+  /* "Learned on targum" is one of the desk's, so its line goes with it (qa on #858). */
+  .progress .ledger-note { display: none; }
   .progress .spent-amount, .progress .ledger .counts b { font-size: 1.5rem; }
 }
 

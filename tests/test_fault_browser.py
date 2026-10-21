@@ -492,9 +492,10 @@ REACH = """
 
 
 def test_tell_us_in_a_panel_row_answers_a_thumb(browser) -> None:
-    """targum-internal#471, B4, measured on qa's ask (#858): Tell us drew 23px tall in a
-    panel row whose line box decides its height, so its reach is given round it. A rule
-    in the stylesheet is a promise; this is what a thumb lands on, at 390 under touch."""
+    """targum-internal#471, B4, measured on qa's ask (#858): what a thumb lands on, at
+    390 under touch, not what the stylesheet promises. The coarse block's 44px is what
+    holds it in this row today (24px tall without it); the `::after` reach is for a row
+    whose line box would clip the button, and this test does not claim to pin it."""
     from targum.render.builder import progress_page
 
     context = browser.new_context(

@@ -166,6 +166,18 @@ def test_the_progress_page_says_what_its_figures_count_on_the_page() -> None:
     assert progress.index('id="ledger"') < note.start() < progress.index('id="where"')
 
 
+def test_the_learned_note_goes_where_the_learned_figure_goes() -> None:
+    """qa on #858: a phone shows three of the totals and "learned on targum" is not one of
+    them, so the line explaining it goes at the same width."""
+    css = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "progress.css"
+    ).read_text(encoding="utf-8")
+    phone = re.search(r"@media \(max-width: 40rem\) \{(.*?)\n\}", css, re.S)
+    assert phone is not None
+    assert ":not(.count-saved, .count-known, .count-finished) { display: none; }" in phone.group(1)
+    assert ".progress .ledger-note { display: none; }" in phone.group(1)
+
+
 def test_the_progress_page_says_it_is_empty_above_its_foot() -> None:
     """The empty state was drawn after the foot's include, so a reader with nothing
     marked saw the site's foot and then, under it, the page's one line (2026-09-28)."""
