@@ -461,6 +461,34 @@ Gives me context and context is king." (targum-internal#497)
   same meetings the column counts, off builds already on the machine, and is asked on the
   first press for a word, never with the page.
 
+### The reading face may arrive just after the first paint — 2026-10-21
+
+David, 2026-10-21, on the portion's first tap (targum-internal#409): a portion page on a
+phone made a word wait for everything before `reader.js`, and on Ki Tavo's sixth aliyah
+that was 2.3 seconds.
+
+- **The two faces come after `reader.js`, on every reader.** The Hebrew face and the
+  chrome's face are about sixty kilobytes the page took before a word could answer. The
+  first frame may set its letters in the platform's face for a moment, which on a short
+  page is too brief to see; `reader.js` lays the page out again, in place, when they
+  load, so nothing the reader is looking at moves under a tap. Readers still fetch
+  nothing: the faces are in the page, later.
+- **The commentaries' words come after it too.** Rashi's and Rashi in English's lines
+  are in the markup from the first paint; their data (the words to tap, their tables)
+  rides in a second block after `reader.js`, and their words answer once it has
+  arrived. The rendering drawn in the column and Onkelos, which the verse walk and
+  practice ask for as the page opens, stay in the first.
+- **So does the player.** `player.js` comes after `reader.js` and runs itself on arrival
+  when the reader got there first, so it starts where it always did relative to
+  everything else.
+- **Measured, not guessed, on the page as shipped, with its recordings.**
+  `scripts/measure_tap.py` times the first working tap on slow 4G with a 4x slower CPU:
+  Bereshit's first aliyah 2.14 s → 1.39 s, its third 1.91 s → 1.34 s, Nasso's fourth
+  2.26 s → 1.58 s, Ki Tavo's sixth, the longest, 2.30 s → 1.74 s. The longest aliyot are
+  still over a second and a half: what is left in front of a tap is `reader.js` itself
+  (71 kB gzipped, about a third of a second to run on that phone) and the page's own
+  text, which a later slice has to split.
+
 ### A reader carries only what its text uses, and a missing part opens the first — 2026-10-20
 
 David, 2026-10-20, on the reader's finish (targum-internal#464): readers still fetch

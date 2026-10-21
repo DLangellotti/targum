@@ -262,8 +262,10 @@ def test_a_part_being_made_says_so_and_opens_when_it_is_ready(
 
         page.route("**/job/*", done)
         page.wait_for_url("**/sec-0002.html", timeout=10000)
-        posts = [one for one in asked if one["path"] == "/chapter"]
-        assert len(posts) == 1 and posts[0]["body"]["ahead"] is True, posts
+        # The asks part one made: once on the URL changing, part two's own page may ask
+        # for itself (a part opened is a part started), which is not this door's.
+        posts = [one for one in asked if one["path"] == "/chapter" and one["body"].get("ahead")]
+        assert len(posts) == 1, posts
     finally:
         context.close()
 
@@ -619,8 +621,10 @@ def test_next_part_in_the_row_waits_for_a_part_being_made(browser, tmp_path) -> 
             ),
         )
         page.wait_for_url("**/sec-0002.html", timeout=10000)
-        posts = [one for one in asked if one["path"] == "/chapter"]
-        assert len(posts) == 1 and posts[0]["body"]["ahead"] is True, posts
+        # The asks part one made: once on the URL changing, part two's own page may ask
+        # for itself (a part opened is a part started), which is not this door's.
+        posts = [one for one in asked if one["path"] == "/chapter" and one["body"].get("ahead")]
+        assert len(posts) == 1, posts
     finally:
         context.close()
 
