@@ -9607,9 +9607,9 @@ var targumReader = function () {
 
   /* The commentaries beside the verse — Rashi, and Rashi in English — ride in a second
      block after this script (targum-internal#409): parsing them and their word tables
-     before the page could answer a tap cost about half a second on a phone. When the
-     block has arrived, their lines go into their cells and their words become
-     tappable; a word in the verse answers before then. */
+     before the page could answer a tap cost about half a second on a phone. Their lines
+     are in the markup from the first paint; when the block has arrived, their words
+     become tappable. A word in the verse answers before then. */
   function adoptLate() {
     var node = document.getElementById("targum-data-late");
     if (!node || node.__targumAdopted) return;
@@ -12175,8 +12175,11 @@ var targumReader = function () {
 })();
 
 /* The player, from `player.js`, where a reader whose text has a recording carries it.
-   Run here, where its closure stood, so nothing starts in another order. */
+   Run here, where its closure stood, so nothing starts in another order. `player.js`
+   comes after this script since 2026-10-21 (targum-internal#409), so where it has not
+   arrived yet it is asked to run itself when it does. */
 if (typeof targumPlayer === "function") targumPlayer();
+else window.targumPlayerWanted = true;
 
 };
 

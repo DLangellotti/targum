@@ -5605,6 +5605,22 @@ def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: P
     assert html.index("@font-face") > script_at, "the faces come after reader.js"
 
 
+#: What a portion page may carry, gzipped, before `reader.js` (targum-internal#409): its
+#: stylesheet, the small scripts a tap needs, and this two-verse page's markup and data,
+#: 55.7 kB at 2026-10-21, with a margin. A face (about 30 kB each) or the
+#: commentaries back in front of `reader.js` breaks it.
+BEFORE_READER_GZ = 60_000
+
+
+def test_a_word_waits_for_no_more_than_its_budget(tmp_path: Path) -> None:
+    import gzip
+
+    html = _genesis(tmp_path, [_english(), _onkelos(), _rashi_beside("he", "פירוש")])
+    start = html.index("<script>var targumReader = function")
+    before = len(gzip.compress(html[:start].encode("utf-8"), 6))
+    assert before <= BEFORE_READER_GZ, f"{before} bytes gzipped before reader.js"
+
+
 def test_a_text_without_a_commentary_has_no_late_block(tmp_path: Path) -> None:
     html = _genesis(tmp_path, [_english(), _onkelos()])
     assert 'id="targum-data-late"' not in html

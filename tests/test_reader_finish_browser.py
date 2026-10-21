@@ -223,15 +223,22 @@ def test_only_a_reader_with_a_recording_carries_the_player(
 ) -> None:
     """Reader QA, 2026-10-20: the player's closure waited for a recording and returned at
     once without one, and every reader carried it anyway. A text with a recording carries
-    `player.js` before `reader.js`, which runs it; a text without one carries neither the
-    file nor anything it would have done. Both stay whole: nothing is fetched."""
+    `player.js`, which `reader.js` runs; a text without one carries neither the file nor
+    anything it would have done. Both stay whole: nothing is fetched. Since 2026-10-21 the
+    player comes after `reader.js` (targum-internal#409), so a word answers a tap before
+    it is parsed, and before saving for offline, which follows it."""
     plain = built.read_text(encoding="utf-8")
     assert "var targumPlayer = function" not in plain
     assert 'if (typeof targumPlayer === "function") targumPlayer();' in plain
 
     monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
     heard = dialogue(tmp_path / "dialogues", tmp_path / "reader").read_text(encoding="utf-8")
-    assert heard.index("var targumPlayer = function") < heard.index("var targumReader = function")
+    assert (
+        heard.index("var targumReader = function")
+        < heard.index("var targumPlayer = function")
+        < heard.index("TargumOffline = {")
+    )
+    assert "if (window.targumPlayerWanted) {" in heard, "it runs itself when it lands late"
     for page in (plain, heard):
         assert page.index("var targumReader = function") < page.index("TargumOffline = {"), (
             "saving for offline is read after the reader"
