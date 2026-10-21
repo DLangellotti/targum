@@ -169,9 +169,12 @@ def test_alpha_floors_are_under_betas_at_every_level() -> None:
         assert floor.texts < above.texts and floor.recordings < above.recordings, level
 
 
-def test_every_hard_spot_list_is_five_to_seven_or_empty_and_ranked_names_are_distinct() -> None:
+def test_every_hard_spot_list_is_five_to_eleven_or_empty_and_ranked_names_are_distinct() -> None:
+    """Five to seven from the research of 2026-10-11, and up to eleven since design.md §12
+    lengthened the list past Beta ("Past Beta, the badge drops", 2026-10-14: Hebrew's seven
+    become eleven)."""
     for code, spots in HARD_SPOTS.items():
-        assert len(spots) in (0, 5, 6, 7), (code, len(spots))
+        assert len(spots) == 0 or 5 <= len(spots) <= 11, (code, len(spots))
         assert len({spot.name for spot in spots}) == len(spots), code
     assert HARD_SPOTS["yi"] == () and HARD_SPOTS["arc"] == ()
 
@@ -192,9 +195,10 @@ def test_a_covered_hard_spot_names_a_floor_that_exists() -> None:
 
 
 def test_hebrews_hard_spots_are_all_covered() -> None:
-    """All seven of Hebrew's are computed, shown and measured with a floor: six since
-    2026-10-12, and governed prepositions and et since 2026-10-13, read off the stored
-    syntax and scored against the IAHLT treebank's case-marked arguments."""
+    """All of Hebrew's are computed, shown and measured with a floor: six since
+    2026-10-12, governed prepositions and et since 2026-10-13, read off the stored
+    syntax and scored against the IAHLT treebank's case-marked arguments, and the
+    vav-consecutive since 2026-10-21 (targum-internal#449)."""
     known = stages.facts("he")
     uncovered = [name for name, done in known.covered.items() if not done]
     assert uncovered == [], uncovered
@@ -324,3 +328,62 @@ def test_the_second_medium_is_video_and_not_a_text_read_aloud() -> None:
     assert stages.facts("he", videos={"he": 3}).second_medium is True
     assert stages.facts("he", videos={"he": 0}).second_medium is False
     assert stages.facts("he", videos={}).second_medium is None
+
+
+# -- registers (design.md §12, "Past Beta, the badge drops", 2026-10-14) ---------------
+
+
+def _vav() -> stages.HardSpot:
+    (spot,) = [one for one in HARD_SPOTS["he"] if one.name == "the vav-consecutive"]
+    return spot
+
+
+def test_the_vav_consecutive_is_covered_for_biblical_text_and_declared_out_of_modern() -> None:
+    """targum-internal#449: ויאמר is past. Claimed in Biblical text, declared out of modern
+    with the reason beside it, and covered: read off the pointing, on the card and a lens,
+    with precision and recall floors against Open Scriptures' own tag."""
+    spot = _vav()
+    assert spot.registers == ("biblical",)
+    ((register, why),) = spot.declared_out
+    assert register == "modern" and "modern Hebrew does not use" in why
+    assert spot.lens and spot.shown == "card"
+    assert stages.facts("he").covered["the vav-consecutive"]
+    limits = evals.floors(stages.FLOORS)
+    for metric in ("vav_precision", "vav_recall"):
+        assert any(
+            f.system == "vav-rule/1" and f.corpus == "oshb-wlc" and f.metric == metric
+            for f in limits
+        ), metric
+    held = evals.breaches(evals.read(stages.LEDGER), limits)
+    assert not [b for b in held if b.floor.corpus == "oshb-wlc"], held
+
+
+def test_a_declaration_without_a_reason_or_out_of_every_register_is_not_covered() -> None:
+    from dataclasses import replace
+
+    limits = evals.floors(stages.FLOORS)
+    spot = _vav()
+    assert stages._covered(spot, limits)
+    assert not stages._covered(replace(spot, declared_out=(("modern", " "),)), limits)
+    everywhere = (("modern", "not here"), ("biblical", "nor here"))
+    assert not stages._covered(replace(spot, declared_out=everywhere), limits)
+    assert not stages._covered(replace(spot, declared_out=(("rabbinic", "a reason"),)), limits)
+    assert replace(spot, declared_out=()).registers == stages.REGISTERS
+
+
+def test_targum_stages_prints_each_spot_and_where_it_is_claimed() -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    result = CliRunner().invoke(app, ["stages"], env={"COLUMNS": "400"})
+    assert result.exit_code == 0, result.output
+    assert "he: hard spots" in result.output
+    (line,) = [one for one in result.output.splitlines() if "the vav-consecutive" in one]
+    assert "yes" in line
+    assert "Biblical only, not modern: modern Hebrew does not use the form" in line
+    (root,) = [one for one in result.output.splitlines() if "root and binyan" in one]
+    assert "modern and Biblical" in root
+    # Registers are Hebrew's; Russian's spots say none.
+    (aspect,) = [one for one in result.output.splitlines() if "│ aspect " in one]
+    assert "Biblical" not in aspect

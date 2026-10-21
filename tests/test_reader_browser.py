@@ -7969,3 +7969,137 @@ def test_the_word_order_lens_lights_the_late_subject_and_gives_way_to_a_case(
     said = page.evaluate("() => document.getElementById('spoken').textContent")
     assert said == "Subjects after their verb, 1 here.", "the cue is said once"
     context.close()
+
+
+# -- the vav-consecutive ---------------------------------------------------------------
+#
+# targum-internal#449, 2026-10-21: Hebrew's eighth hard spot. ויאמר is past.
+
+GEN_1_3 = "וַיֹּ֥אמֶר אֱלֹהִ֖ים יְהִ֣י א֑וֹר וַֽיְהִי־אֽוֹר׃"
+
+
+def genesis_1_3(out: Path, source: str = "sefaria:Genesis 1", tagged: bool = True) -> Path:
+    """Genesis 1:3 as the shelf builds it: the verse pointed as its edition writes it, the
+    offsets into the pointed text, and וַיֹּ֥אמֶר with Open Scriptures' own morphology.
+    וַֽיְהִי carries none, as a verse the tagging could not line up would, so the build's
+    reading of the pointing is what marks it."""
+    from targum.annotate.scripture import features
+
+    segment = Segment(
+        id="0000.000-aaaaaa",
+        block_id="b0000",
+        block_index=0,
+        index=0,
+        kind=BlockKind.verse,
+        text=GEN_1_3,
+        ref="Genesis 1:3",
+    )
+    tokens = [
+        Token(
+            start=found.start(),
+            end=found.end(),
+            surface=found.group(),
+            lemma=found.group(),
+            band=2,
+            pos="VERB" if found.start() == 0 else None,
+            feats=features("Vqw3ms") if tagged and found.start() == 0 else None,
+        )
+        for found in re.finditer(r"[^\s׃־]+", GEN_1_3)
+    ]
+    pages = render(
+        Document(
+            source=source,
+            title="Genesis 1:3",
+            language="he",
+            blocks=[Block(id="b0000", kind=BlockKind.verse, text=GEN_1_3)],
+            content_hash="v",
+        ),
+        SegmentedDocument(document_hash="v", language="he", segmenter="test/1", segments=[segment]),
+        [
+            Translation(
+                name="English",
+                document_hash="v",
+                source_language="he",
+                target_language="en",
+                provider="null",
+                segments={segment.id: "God said, Let there be light, and there was light."},
+            )
+        ],
+        out,
+        annotation=Annotation(
+            document_hash="v",
+            language="he",
+            annotator="test/1",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: tokens},
+        ),
+    )
+    return pages[0]
+
+
+CARD_FACTS = """
+() => [...document.querySelectorAll('#gloss-card .card-facts dt, #gloss-card .card-facts dd')]
+  .map((el) => el.textContent)
+"""
+
+
+def test_the_card_on_vayomer_in_genesis_1_says_the_vav_makes_it_past(
+    browser, tmp_path: Path
+) -> None:
+    """The acceptance of targum-internal#449: the card opens on ויאמר in Genesis 1, says
+    past, and says why; and the verse's second, read off the pointing, says it too."""
+    context, page = open_reader(browser, genesis_1_3(tmp_path / "genesis"))
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(150)
+    facts = page.evaluate(CARD_FACTS)
+    assert facts[-2:] == ["Past", "the vav turns the future form into narrative past"], facts
+    page.evaluate(TAP_NTH, 4)
+    page.wait_for_timeout(150)
+    assert page.evaluate(CARD_FACTS)[-2:] == [
+        "Past",
+        "the vav turns the future form into narrative past",
+    ]
+    # And not on a word that is not one.
+    page.evaluate(TAP_NTH, 1)
+    page.wait_for_timeout(150)
+    assert "Past" not in page.evaluate(CARD_FACTS)
+    context.close()
+
+
+def test_the_vav_lens_lights_the_narrative_past_and_is_one_lens_at_a_time(
+    browser, tmp_path: Path
+) -> None:
+    """Hidden on a first read like every lens; `y` lights both of the verse's narrative
+    pasts, the tagged one and the one read off the pointing, and says once what it shows."""
+    context, page = open_reader(browser, genesis_1_3(tmp_path / "genesis"))
+    lens = "[data-vav-lens]"
+    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    page.keyboard.press("y")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.click("#done-go")
+    page.keyboard.press("y")
+    assert len(page.evaluate(GOVERNED_SHOWN)) == 2
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each word lit is a future form the vav turns into the past."
+    assert page.evaluate(LENS_STATE, lens) == ["vav", None, "true"]
+    page.keyboard.press("y")
+    assert page.evaluate(LENS_STATE, lens) == [None, None, "false"]
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.keyboard.press("y")
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "The narrative past, 2 here.", "the cue is said once"
+    context.close()
+
+
+def test_a_modern_text_has_no_vav_lens_and_no_vav_line(browser, tmp_path: Path) -> None:
+    """Declared Biblical only: the same pointed words in a text that is not scripture are
+    a verse quoted, and nothing marks them."""
+    page_path = genesis_1_3(tmp_path / "modern", source="memory", tagged=False)
+    context, page = open_reader(browser, page_path)
+    assert page.evaluate("() => document.querySelector('[data-vav-lens]')") is None
+    for n in (0, 4):
+        page.evaluate(TAP_NTH, n)
+        page.wait_for_timeout(150)
+        assert "Past" not in page.evaluate(CARD_FACTS)
+    context.close()

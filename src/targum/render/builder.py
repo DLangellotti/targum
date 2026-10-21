@@ -2751,6 +2751,26 @@ def _governed_lines(tokens: Sequence[Token]) -> dict[int, str]:
     return {key: "|".join(parts) for key, parts in out.items()}
 
 
+def _vav_line(biblical: bool, token: Token, text: str) -> str:
+    """`Vav=Cons` for a Biblical word that opens with the narrative vav, which the card
+    says and the vav lens lights: Hebrew's eighth hard spot (targum-internal#449,
+    2026-10-21). Read off the pointed text the page carries (`annotate.vav_consecutive`),
+    so a text annotated before the rule shows it without being annotated again, and a
+    verse Open Scriptures could not line up shows it too.
+
+    Biblical only, as the spot is declared: modern Hebrew does not use the form. Where
+    the annotator says the word is something other than a verb, it is not marked: the
+    rule's misses are nouns paired with ו (וָאָרֶץ, וָאֵפֶר), so the floor, which scores
+    the rule alone, is the lower bound of what ships."""
+    if not biblical or token.pos not in (None, "", "VERB", "AUX"):
+        return ""
+    if "Vav=Cons" in (token.feats or ""):
+        return ""
+    from ..annotate.vav_consecutive import consecutive
+
+    return "Vav=Cons" if consecutive(text[token.start : token.end]) else ""
+
+
 def _order_lines(text: str, tokens: Sequence[Token]) -> dict[int, str]:
     """The grammar-line addition for a Russian subject that comes after its verb, keyed by
     `id(token)`: `Order=VS`, which the word-order lens lights (design.md §12, "Subjects
@@ -5595,7 +5615,13 @@ def render(
                         built_at[token.built] = len(builts)
                         builts.append(token.built)
                     line = "|".join(
-                        part for part in (token.feats or "", said_with.get(id(token), "")) if part
+                        part
+                        for part in (
+                            token.feats or "",
+                            said_with.get(id(token), ""),
+                            _vav_line(biblical, token, as_written.get(sid, "")),
+                        )
+                        if part
                     )
                     if line and line not in grammar_at:
                         grammar_at[line] = len(grammar)
@@ -5862,6 +5888,9 @@ def render(
             # The word-order lens, on a Russian page with a subject after its verb
             # (design.md §12, "Subjects after their verb, on a lens").
             orders=any("Order=VS" in line for line in grammar),
+            # The vav lens, on a Biblical page with a vav-consecutive on it
+            # (targum-internal#449).
+            vavs=any("Vav=Cons" in line for line in grammar),
             # CC BY asks to be named where the work is used, and the words are used in
             # the reader, so the naming goes in the reader rather than in a file about
             # the reader. Keyed off what actually ran: a text annotated before the swap

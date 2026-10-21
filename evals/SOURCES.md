@@ -232,6 +232,9 @@ off and asking where the stress falls has an answer on the page (`pronounce.stre
   tagger's morphology instead of OSHB's. Its small tagger is trained on OSHB's tags for
   words 3,001 to 23,000 of the sample's order and never on the 3,000 it is scored on;
   nothing trained there ships.
+- **And by:** `scripts/eval_vav_consecutive.py` (`lemma/oshb-wlc`, targum-internal#449),
+  which scores the vav-consecutive rule's reading of the pointing against OSHB's `w` tag
+  outside the Torah. Nothing is trained.
 
 ## Wiktionary Russian examples
 

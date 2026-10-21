@@ -154,8 +154,12 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
         ("Vqp3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
         # The waw-consecutive, which is the form biblical narrative is told in. Read as
         # the imperfect it is spelled as, the card would tell a learner that ויאמר is
-        # "he will say".
-        ("Vqw3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
+        # "he will say". And it says it is one, for the card's line and the vav lens
+        # (targum-internal#449, 2026-10-21).
+        (
+            "Vqw3ms",
+            "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin|Vav=Cons",
+        ),
         ("Vqi3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Fut|VerbForm=Fin"),
         # A participle writes no person, so its gender and number sit two places earlier.
         # On the finite layout this came out with no morphology at all.
