@@ -128,8 +128,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   אָמַרְתִּי is ʔamˈaʁti, שֶׁלָּנוּ ʃelˈanu, אֵלֶיךָ ʔelˈexa. The annotator now asks a reading
   per form and class, since בָּנוּ "in us" and בָּנוּ "they built" are pointed the same, and
   neither rule runs on a word that carries accents, so no Biblical text's stress changes.
-  Scored on the Tanakh as `stress-rule/3`. The card still says "inferred" on these until
-  ling-he's modern hand-read floor is in. The shelf survey (`versions.current_name`) now
+  Scored on the Tanakh as `stress-rule/3`. A segolate the rule placed is no longer
+  "inferred" on the card: ling-he's hand-read modern gold (`evals/stress-modern-gold.tsv`,
+  300 firings) scores it at 0.9899 with הַחַג and שֶׁאֶת listed, and the stress spot
+  claims both registers with a floor each. The suffix rule's words stay "inferred" until
+  its modern gold is read. The shelf survey (`versions.current_name`) now
   carries the pronouncer's version, so a phonikud bump shows as behind; `rebuild --words`
   already compared whole names and re-reads the pronunciations either way.
 - `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front

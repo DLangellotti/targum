@@ -19,7 +19,7 @@ from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from functools import cache
+from functools import cache, lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlencode, urlparse
@@ -5677,7 +5677,12 @@ def render(
                         # well as at the reading, so a text read before the list
                         # existed says כָּל right without being annotated again.
                         ipa = qatan(said_as, token.ipa)
-                        sound = (ipa, guessed(said_as, ipa))
+                        sound = (
+                            ipa,
+                            guessed(
+                                said_as, ipa, pointed=_pointed_word(pointed, sid, token, to_bare)
+                            ),
+                        )
                     elif token.start in heard:
                         sound = (heard[token.start], 0)
                     if sound not in sound_at:
@@ -6761,3 +6766,27 @@ def contents_page(
 def _write(path: Path, html: str) -> Path:
     path.write_text(html, encoding="utf-8")
     return path
+
+
+def _pointed_word(
+    pointed: Mapping[str, str], sid: str, token: Token, to_bare: Mapping[str, list[int]]
+) -> str:
+    """The word as the reader shows it pointed, for `pronounce.guessed`; "" where the
+    segment has no pointing or the token falls outside it."""
+    line = pointed.get(sid)
+    if not line or sid not in to_bare:
+        return ""
+    start, end = map_span(token.start, token.end, to_bare[sid])
+    positions = _positions(line)
+    if end >= len(positions):
+        return ""
+    first, last = map_span(start, end, positions)
+    return line[first:last]
+
+
+@lru_cache(maxsize=256)
+def _positions(line: str) -> list[int]:
+    """Kept for the few lines being rendered now, not the whole shelf (the box is 7.7 GB)."""
+    from ..vocalize import pointed_positions
+
+    return pointed_positions(line)

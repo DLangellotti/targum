@@ -311,6 +311,12 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "stage:stress",
             "marks",
             ("stress-rule/1", "tanakh-taamim-v2", "rule_accuracy"),
+            # A floor for each register since the segolate rule (targum-internal#454): the
+            # Tanakh's accents, and ling-he's hand-read modern gold.
+            floors=(
+                ("biblical", ("stress-rule/1", "tanakh-taamim-v2", "rule_accuracy")),
+                ("modern", ("stress-rule/2", "modern-stress-handread", "modern_milel_precision")),
+            ),
         ),
         # The first of the four design.md §12 adds past Beta (targum-internal#449,
         # 2026-10-21). ויאמר is past: read off the pointing on every Biblical text

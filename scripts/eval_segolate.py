@@ -18,8 +18,9 @@ syllable the accent stresses (read the way `pronounce` reads it, through phoniku
   singular, -nu on anything but a verb, -cha, -ájich — that the accents stress there.
 
 The existing `stress-rule/1` row (`scripts/eval_hebrew_stress.py`) is a different rule and
-is not touched. The modern half, a hand-read gold of rule firings on the shelf, is
-ling-he's to read (`modern-stress-handread`).
+is not touched. The modern half is ling-he's hand-read gold of 300 segolate firings on
+the shelf's modern texts (`evals/stress-modern-gold.tsv`), as `modern_milel_precision` on
+`modern-stress-handread`.
 
     .venv/bin/python scripts/eval_segolate.py
 
@@ -47,6 +48,7 @@ STAGE = "stress"
 CORPUS = "tanakh-taamim-v2"
 SYSTEM = "stress-rule/2"
 SUFFIX_SYSTEM = "stress-rule/3"
+MODERN = "modern-stress-handread"
 
 
 def _in_class(word: str, key: str) -> bool:
@@ -140,6 +142,17 @@ def main(argv: list[str] | None = None) -> None:
     suffix_p = round(counts["suffix_tp"] / max(1, counts["suffix_fired"]), 4)
     suffix_r = round(counts["suffix_class_hit"] / max(1, counts["suffix_class"]), 4)
     print("suffix wrong:", suffix_wrong.most_common(15))
+    # The modern half: ling-he's hand-read gold, 300 firings drawn from the shelf's modern
+    # texts as the menaked pointed them, frequency-weighted (evals/stress-modern-gold.tsv).
+    modern_fired = modern_right = 0
+    gold_file = ROOT / "evals" / "stress-modern-gold.tsv"
+    for line in gold_file.read_text(encoding="utf-8").splitlines()[1:]:
+        cells = line.split("\t")
+        if len(cells) < 5 or segolate.penult(cells[1]) is None:
+            continue
+        modern_fired += 1
+        modern_right += cells[4].strip() == "2"
+    modern_p = round(modern_right / max(1, modern_fired), 4)
     precision = round(counts["tp"] / max(1, counts["fired"]), 4)
     recall = round(counts["nouns_hit"] / max(1, counts["nouns"]), 4)
     print(dict(counts))
@@ -167,6 +180,10 @@ def main(argv: list[str] | None = None) -> None:
         evals.Row(
             today, STAGE, SUFFIX_SYSTEM, SUFFIX_SYSTEM, "suffix_recall", suffix_r,
             counts["suffix_class"], CORPUS, note,
+        ),
+        evals.Row(
+            today, STAGE, SYSTEM, SYSTEM, "modern_milel_precision", modern_p, modern_fired,
+            MODERN, evals.pinned(f"fired={modern_fired} right={modern_right}", [gold_file]),
         ),
     ]  # fmt: skip
     for row in rows:

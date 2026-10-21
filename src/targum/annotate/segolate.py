@@ -50,6 +50,11 @@ HATAMA = "֫"
 
 #: Words no pattern states, by their letters after the prefixes: always the last syllable.
 FINAL_ENDINGS = ("אחת", "אחר", "אחד", "מעל", "שעל")
+#: One-syllable words behind a prefix, which a CéCeC or CáCaC reading would take for a
+#: segolate: הַחַג is the article and חַג, שֶׁאֶת is ש and אֶת (ling-he's modern hand-read,
+#: 2026-10-21). Always the last syllable.
+FINAL_STEMS = {"חג": PATAH, "חד": PATAH, "חמ": PATAH, "את": SEGOL}
+FINAL_PREFIXES = frozenset("ובכלמשה")
 #: And on the penult, by their letters, where the pointing is the listed one.
 PENULT_LETTERS = frozenset({"תשע"})
 PENULT_POINTED = frozenset(
@@ -149,6 +154,17 @@ def penult(word: str) -> int | None:
         return None  # a doubled or hardened letter: not a segolate
     if any(letters.endswith(ending) for ending in FINAL_ENDINGS):
         return None
+    for cut in range(1, min(4, len(letters) - 1)):
+        stem = letters[cut:]
+        # The stem as one closed syllable: חַג with its patah, אֶת with its segol, and
+        # nothing on its last letter. לֶחֶם is ל + חֶם only by its letters.
+        if (
+            set(letters[:cut]) <= FINAL_PREFIXES
+            and stem in FINAL_STEMS
+            and FINAL_STEMS[stem] in clusters[cut][1]
+            and not any(v in clusters[last][1] for v in _ANY_VOWEL)
+        ):
+            return None
     # The pronoun endings -hem, -hen, -khem, -khen and the past's -tem, -ten are final.
     if (
         clusters[last][0] in "םן"

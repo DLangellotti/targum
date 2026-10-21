@@ -146,3 +146,22 @@ def test_a_modern_reading_says_a_segolate_on_its_first_syllable() -> None:
     assert said["רַכֶּבֶת"] == "ʁakˈevet"
     assert said["סְפָרִים"] == "sfaʁˈim", "a plural keeps the last"
     assert said["מָלַךְ"] == "malˈaχ", "the verb keeps the last"
+
+
+def test_a_one_syllable_word_behind_a_prefix_is_not_a_segolate() -> None:
+    """ling-he's modern hand-read (2026-10-21): הַחַג is the article and חַג, שֶׁאֶת is ש
+    and אֶת, and both keep the last syllable."""
+    for word in ("הַחַג", "שֶׁאֶת", "בַּחַג", "וְהַחַם"):
+        assert segolate.penult(word) is None, word
+    assert segolate.penult("הַבַּיִת") is not None, "a segolate behind the article still is"
+
+
+def test_a_segolate_placed_by_the_rule_is_not_inferred() -> None:
+    from targum.annotate.pronounce import STRESS_GUESSED, guessed
+
+    # The source bare, the menaked's pointing, and the rule's reading: the vowels were
+    # guessed, the stress was placed and measured.
+    assert not guessed("כסף", "kˈesef", pointed="כֶּסֶף") & STRESS_GUESSED
+    assert guessed("כסף", "kesˈef", pointed="כֶּסֶף") & STRESS_GUESSED, "the reading disagrees"
+    assert guessed("ספרים", "sfaʁˈim", pointed="סְפָרִים") & STRESS_GUESSED, "not the rule's word"
+    assert guessed("כסף", "kˈesef") & STRESS_GUESSED, "no pointing given, no claim"

@@ -910,5 +910,13 @@
     "system": "stress-rule/3",
     "at_least": 0.98,
     "why": "0.9849 on 2026-10-21, first scored: the past's first and second person, -nu, -cha and -ájich the accents stress on the penult that the rule reaches (targum-internal#500)"
+  },
+  {
+    "stage": "stress",
+    "corpus": "modern-stress-handread",
+    "metric": "modern_milel_precision",
+    "system": "stress-rule/2",
+    "at_least": 0.97,
+    "why": "first scored 2026-10-21 against ling-he's hand-read gold of 300 segolate firings on the shelf's modern texts (evals/stress-modern-gold.tsv; 0.983 before הַחַג and שֶׁאֶת were listed) (targum-internal#454)"
   }
 ]

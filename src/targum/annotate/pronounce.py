@@ -175,6 +175,7 @@ def guessed(
     *,
     stress_confidence: float | None = None,
     stress_threshold: float | None = None,
+    pointed: str = "",
 ) -> int:
     """Which parts of this reading we guessed, as `STRESS_GUESSED | VOWELS_GUESSED` bits.
 
@@ -203,7 +204,15 @@ def guessed(
         and stress_threshold is not None
         and stress_confidence >= stress_threshold
     )
-    if not placed and not calibrated and syllables(reading) > 1:
+    # A segolate's stress placed from its pointing (`segolate`), where the reading says
+    # what the rule said: measured against ling-he's hand-read modern gold, at the floor
+    # in `evals/floors.json` (targum-internal#454). `pointed` is the word as the reader
+    # shows it. The suffix rule has no modern floor yet, so its words stay inferred.
+    ruled = bool(pointed) and not has_taamim(pointed) and segolate.penult(pointed) is not None
+    if ruled:
+        at = reading.find(STRESS_MARK)
+        ruled = at >= 0 and syllables(reading[at:]) == 2
+    if not placed and not calibrated and not ruled and syllables(reading) > 1:
         flags |= STRESS_GUESSED
     return flags
 
