@@ -42,6 +42,12 @@
   <section class="panel story" id="where" aria-labelledby="where-title">
     <p class="story-step">{{ t("progress.story.where", "1 · Where you are") }}</p>
     <h2 id="where-title" class="section-title story-head"></h2>
+    {#- Until the account answers, one quiet line, and on a failure Try again: an empty
+        card said nothing, and What next said "None yet" to a reader with a record
+        (targum-internal#471, B2). -#}
+    <p class="quiet-line story-wait" id="where-wait" role="status">{{ t("progress.story.working", "We're working out where you are.") }}</p>
+    <p class="quiet-line story-failed" id="where-failed" hidden>{{ t("progress.story.failed", "We couldn't load this part.") }}
+      <button type="button" class="btn ghost outline story-again" id="story-again">{{ t("fault.try-again", "Try again") }}</button></p>
     <ol class="touchstones" id="touchstones" aria-label="{{ t("progress.touch.ladder", "Kinds of text, easiest first") }}" hidden></ol>
     <p class="note" id="where-note" hidden></p>
 
@@ -51,9 +57,12 @@
         fall, said as a count in ten and never a percentage (§6, §12 2026-09-27). Read from
         the account, so absent signed out. Drawn by `progress.js`. -#}
     <div class="reading" id="reading" hidden>
-      <h3 class="story-sub" title="{{ t("progress.reading.note", "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}">{{ t("progress.reading.title", "How much of what you read you knew, month by month") }}</h3>
+      <h3 class="story-sub">{{ t("progress.reading.title", "How much of what you read you knew, month by month") }}</h3>
       <div id="reading-line"></div>
       <div class="reading-words" id="reading-said"></div>
+      {#- Said under the line, not hidden in a title a phone never shows (§14.3;
+          targum-internal#471, B1). -#}
+      <p class="note">{{ t("progress.reading.note", "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}</p>
     </div>
   </section>
 
@@ -65,9 +74,10 @@
     <h2 id="how-title" class="section-title story-head"></h2>
     <div class="spent" id="spent" hidden>
       <div class="chips" id="spent-period" role="group" aria-label="{{ t("progress.spent.when", "When") }}"></div>
-      {#- What counts as read rides on the figures as a title: the board has no line under
-          them (§12, "The mockups win on Your Progress", 2026-10-09). -#}
-      <div class="spent-figures" id="spent-figures" title="{{ t("progress.spent.note", "A word counts as read when you turn past its page or mark its section done.") }}"></div>
+      {#- What counts as read, under the figures as a quiet line: it rode on them as a
+          title, which a phone and a keyboard never show (targum-internal#471, B1). -#}
+      <div class="spent-figures" id="spent-figures"></div>
+      <p class="note">{{ t("progress.spent.note", "A word counts as read when you turn past its page or mark its section done.") }}</p>
     </div>
     <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "Time and words aren't shown because recording is stopped. You can start it again on your account page.") }}</p>
     <h3 class="story-sub" id="weeks-title">{{ t("progress.weeks.title", "The words you took up, week by week") }}</h3>

@@ -1361,6 +1361,18 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
     align-items: center;
     min-block-size: 44px;
   }
+  /* Tell us measured 23px inside a panel row whose line box decides its height
+     (targum-internal#471, B4): the reach is given round it, centred, crossing no text. */
+  .fault-act { position: relative; }
+  .fault-act::after {
+    content: "";
+    position: absolute;
+    inset-inline: -0.25rem;
+    inset-block: 50% auto;
+    block-size: 44px;
+    min-inline-size: 44px;
+    transform: translateY(-50%);
+  }
 }
 /* The 404's line icon (board NotFound, 2026-10-09): 40px, in the well's grey, a §7
    stroke. */

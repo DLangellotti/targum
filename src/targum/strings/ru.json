@@ -2546,7 +2546,6 @@
   "signin.page.sign-in-to-targum": "Вход в targum",
   "progress.basis.ulpan": "Классы ульпана в Израиле идут от алефа, для начинающих, до вава. Это ориентир, а не результат теста.",
   "progress.basis.cefr": "Европейская шкала идёт от A1, для начинающих, до C2. Это ориентир, а не результат теста.",
-  "progress.count.learned.title": "Сохранено как новое и с тех пор отмечено как знакомое.",
   "progress.count.read.one": "слово прочитано",
   "progress.count.read.few": "слова прочитано",
   "progress.count.read.many": "слов прочитано",
@@ -4264,5 +4263,7 @@
   "mail.ready.open": "Открыть",
   "mail.ready.gift": "Вы получили это письмо, потому что сохранили эту ссылку на главной странице targum, и мы подготовили по ней текст для вас.",
   "mail.weekly.label": "Недельный обзор новостей",
-  "mail.weekly.level-note": "Если вы знаете {figure} слов"
+  "mail.weekly.level-note": "Если вы знаете {figure} слов",
+  "progress.story.working": "Определяем, где вы сейчас.",
+  "progress.story.failed": "Не получилось загрузить эту часть."
 }

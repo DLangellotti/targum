@@ -281,3 +281,16 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .progress .ledger .counts > :not(.count-saved, .count-known, .count-finished) { display: none; }
   .progress .spent-amount, .progress .ledger .counts b { font-size: 1.5rem; }
 }
+
+/* What next's presses under a thumb (targum-internal#471, B4): "Practise these words",
+   "More in the Library" and "All your uploads" were 22px tall, and a row's link 30px
+   inside its 44px row. */
+@media (hover: none) and (pointer: coarse) {
+  .next-more { display: inline-flex; align-items: center; min-block-size: 44px; }
+  .next-link { flex: 1; align-self: stretch; min-block-size: 2.75rem; }
+}
+.next-more[hidden] { display: none; }
+.story-wait[hidden],
+.story-failed[hidden] { display: none; }
+/* Polish 6: a time figure on one line at 390. */
+.spent-amount { white-space: nowrap; }

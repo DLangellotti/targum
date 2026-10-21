@@ -2361,7 +2361,6 @@
   "signin.page.sign-in-to-targum": "Sign in to targum",
   "progress.basis.ulpan": "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement.",
   "progress.basis.cefr": "The European scale runs from A1, for beginners, to C2. A guide, not a placement.",
-  "progress.count.learned.title": "Saved as new and since marked known.",
   "progress.count.read.one": "word read",
   "progress.count.read.other": "words read",
   "progress.story.where": "1 · Where you are",
@@ -3942,5 +3941,7 @@
   "mail.ready.open": "Open",
   "mail.ready.gift": "You're getting this because you saved this link on targum's front page, and we got it ready for you.",
   "mail.weekly.label": "Weekly News Digest",
-  "mail.weekly.level-note": "If you know {figure} words"
+  "mail.weekly.level-note": "If you know {figure} words",
+  "progress.story.working": "We're working out where you are.",
+  "progress.story.failed": "We couldn't load this part."
 }

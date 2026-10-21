@@ -46,6 +46,8 @@ def draw(
     reading: dict[str, Any] | None = None,
     story: dict[str, Any] | None = None,
     totals: list[dict[str, Any]] | None = None,
+    story_fails: bool = False,
+    story_held: bool = False,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -58,6 +60,8 @@ def draw(
                     "strings": strings,
                     "reading": reading,
                     "story": story,
+                    "storyFails": story_fails,
+                    "storyHeld": story_held,
                     "totals": totals,
                 }
             ),
@@ -616,6 +620,8 @@ def test_what_next_names_the_words_with_their_own_meanings_and_the_texts() -> No
         story=LADDER,
     )["next"]
     assert drawn["met"][0]["text"].startswith("מושלים")
+    # With its meaning, in the language meanings are read in (targum-internal#471, B3).
+    assert "rulers" in drawn["met"][0]["text"]
     assert drawn["met"][0]["text"].endswith("met in 4 texts")
     # A word the server met that this browser has not seen yet is still named.
     assert drawn["met"][1]["text"] == "elsewhere | met in 2 texts"
@@ -676,3 +682,22 @@ def test_words_read_joins_the_totals_where_the_account_keeps_a_record() -> None:
     drawn = draw({"targum:vocab:he": vocab(known=3)}, totals=totals)
     assert drawn["counts"]["words read"] == 1200
     assert "words read" not in draw({"targum:vocab:he": vocab(known=3)})["counts"]
+
+
+def test_while_the_story_is_asked_nothing_false_is_said() -> None:
+    """targum-internal#471, B2: before the account answers, one quiet line, and What next
+    does not say "None yet" to a reader who may have a record."""
+    drawn = draw({"targum:vocab:he": vocab(known=3, learning=2)}, story_held=True)
+    assert drawn["next"]["waiting"]
+    assert drawn["next"]["metEmpty"] == "" and drawn["next"]["levelEmpty"] == ""
+
+
+def test_a_story_that_cannot_be_reached_says_so_with_try_again() -> None:
+    drawn = draw({"targum:vocab:he": vocab(known=3, learning=2)}, story_fails=True)
+    assert drawn["next"]["failed"] and not drawn["next"]["waiting"]
+    assert drawn["next"]["metEmpty"] == ""
+
+
+def test_nothing_to_practise_offers_no_practise_press() -> None:
+    drawn = story(words=[], texts=[])["next"]
+    assert not drawn["practise"]

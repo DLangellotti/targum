@@ -179,7 +179,13 @@
 
   // 1,000 rather than 1000. The counts are the point of the page and they get read.
   function grouped(count) {
-    return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    // In the page's language: 11 385 in Russian, 11,385 in English (polish 7, #471).
+    var page = (document.documentElement && document.documentElement.lang) || "en";
+    try {
+      return Number(count).toLocaleString(page);
+    } catch (e) {
+      return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
   }
 
   /* --- the totals ------------------------------------------------------------
@@ -210,11 +216,13 @@
     // The board's labels (§12, "The mockups win on Your Progress", 2026-10-09).
     count(sums.known, tn("progress.count.known", sums.known, "word known", "words known"), "leaf", null, "known");
     // What targum carried up to known, rather than what a reader arrived already having.
+    // No title: a phone and a keyboard never show one, and the label says it (§14.3;
+    // targum-internal#471, B1).
     count(
       sums.learned,
       tn("progress.count.learned", sums.learned, "learned on targum", "learned on targum"),
       "sun",
-      t("progress.count.learned.title", "Saved as new and since marked known."),
+      null,
       "learned"
     );
     count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris", null, "phrases");
@@ -311,11 +319,25 @@
     list.hidden = false;
   }
 
+  // Whether the story for a language has answered, and whether its asking failed.
+  var storyFailed = {};
+
+  function storyState(code) {
+    var wait = document.getElementById("where-wait");
+    var failed = document.getElementById("where-failed");
+    var answered = signedIn === false || !!story[code];
+    if (wait) wait.hidden = answered || !!storyFailed[code];
+    if (failed) failed.hidden = answered || !storyFailed[code];
+  }
+
   function askStory(code) {
     if (!window.fetch || storyAsked[code]) return;
     storyAsked[code] = true;
+    storyFailed[code] = false;
+    storyState(code);
     fetch(keyed("/account/story?language=" + encodeURIComponent(code)), { credentials: "same-origin" })
       .then(function (answer) {
+        if (answer.ok === false && answer.status !== 401) throw new Error(String(answer.status));
         return answer.json();
       })
       .then(function (said) {
@@ -326,12 +348,19 @@
           story[code] = said;
         }
         if (code === currentCode) {
+          storyState(code);
           drawWhere(code);
           drawNext(code);
         }
       })
       .catch(function () {
-        /* nothing to say is a part that says nothing, which is how the page already stood */
+        // Said, with Try again, rather than a card holding only its heading.
+        storyFailed[code] = true;
+        storyAsked[code] = false;
+        if (code === currentCode) {
+          storyState(code);
+          drawNext(code);
+        }
       });
   }
 
@@ -543,8 +572,13 @@
 
   /* --- 3 · what next ------------------------------------------------------------ */
 
+  // What next draws a word with its meaning, in the language the reader reads meanings
+  // in: `collect()` with no target gathered none, and every row was a bare Hebrew word
+  // (targum-internal#471, B3). Gathered once a language, again when the store changes.
+  var meant = {};
   function meaningOf(code, lemma) {
-    var entry = data[code];
+    if (!meant[code]) meant[code] = collect(charts.meaningLanguage(code));
+    var entry = meant[code][code] || data[code];
     if (!entry) return null;
     for (var n = 0; n < entry.words.length; n++) {
       if (entry.words[n].lemma === lemma) return entry.words[n];
@@ -582,13 +616,17 @@
     level.textContent = "";
     metEmpty.hidden = true;
     levelEmpty.hidden = true;
-    document.getElementById("practise").href = keyed("/words");
+    var practise = document.getElementById("practise");
+    practise.href = keyed("/words");
 
     wordsTitle.textContent =
       code === "arc"
         ? t("progress.next.words-arc", "Words you keep meeting, from your Aramaic list (kept apart from your Hebrew one)")
         : t("progress.next.words", "Words you keep meeting and haven't learned");
 
+    // Nothing is said about what is missing until the account has answered: "None yet"
+    // to a reader with six such words was false (targum-internal#471, B2).
+    var answered = signedIn === false || !!said;
     var found = (said && said.words) || [];
     found.forEach(function (one) {
       var word = meaningOf(code, one.lemma);
@@ -601,13 +639,17 @@
       );
     });
     // With none, one quiet line rather than a paragraph (§12, 2026-10-09).
-    if (!found.length) {
+    if (!found.length && answered) {
       metEmpty.textContent =
         signedIn === false
           ? t("progress.next.words-signed-out", "Sign in and we'll find the words you keep meeting.")
           : t("progress.next.words-none", "None yet. They show up as you read.");
       metEmpty.hidden = false;
     }
+
+    // Nothing to practise, no press to practise (polish 3; §12 2026-10-10 left Home's
+    // Practise line out in the same case).
+    practise.hidden = !found.length;
 
     // A language with no library offers what the reader brought (board ProgressYi).
     var library = !said || said.library !== false;
@@ -648,7 +690,7 @@
         true
       );
     });
-    if (!texts.length) {
+    if (!texts.length && answered) {
       levelEmpty.textContent =
         signedIn === false
           ? t("progress.next.texts-signed-out", "Sign in and we'll find the texts at your level.")
@@ -896,6 +938,13 @@
     askStory(code);
   }
 
+  var again = document.getElementById("story-again");
+  if (again) {
+    again.addEventListener("click", function () {
+      askStory(currentCode);
+    });
+  }
+
   show(currentCode);
   askSpent();
   askReading();
@@ -907,6 +956,7 @@
     window.TargumSync.onChange(function (changed) {
       if (!changed) return;
       data = collect();
+      meant = {};
       readingDays = charts.days();
       codes = window.TargumLang.order(Object.keys(data), names);
       document.getElementById("nothing").hidden = codes.length > 0;
