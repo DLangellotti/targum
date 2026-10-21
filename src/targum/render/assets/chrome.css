@@ -1742,7 +1742,7 @@ textarea.well { min-block-size: 5rem; resize: vertical; }
 .field input:focus,
 .field select:focus,
 .field textarea:focus,
-.well:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.well:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 2px var(--focus); }
 
 /* --- how far: `.meter` ----------------------------------------------------------------
    A 6px rail in the rule's grey with a fill in leaf, because green is progress (§4): how

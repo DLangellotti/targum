@@ -123,6 +123,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   slot and spreading the Hebrew line apart, and a meaning keeps up to 26 characters
   (it was cut at 16: "something…" is now "something waited for").
 
+### Changed
+- Your account, to the finish bar (targum-internal#469): ling-en's twenty lines (credits
+  are "of audio or video", the export holds chats and not uploads, Delete says what goes at
+  once and that we email when the rest is gone, and the plan and languages rows say what
+  they mean), and design's eight blockers. A slow account says "We're getting your
+  account." and, past three seconds, that it is taking longer, with Try again; an account
+  that cannot be reached, or a reader offline, is no longer told to sign in, and the corner
+  keeps the initials it held. A sign-in refused for an account inside its seven days now
+  shows the server's sentence, the one way to keep it. Nearly out and out say what still
+  works and when the credits come back. Delete ends on a card that says what happened,
+  focused and heard, with Go to targum, and no redirect on a timer. Export says when it is
+  done and when the session has gone. Selects and fields carry the 2px focus ring, which a
+  brand test now holds against any focus wash, and four small controls reach 44px under a
+  thumb. Every line the page says back is a status.
+
 ### Added
 - Your Words' Anki export carries each word's sound (targum-internal#496, a beta reader's
   ask). The deck is an `.apkg` built on the server (`targum.anki`, Anki's schema 11),

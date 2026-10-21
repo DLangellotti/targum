@@ -23,7 +23,33 @@
 <main class="account">
   {#- Signed out there is nothing here to show, and saying so beats an empty form. -#}
   <section class="card" id="stranger" hidden>
-    <p class="note">{{ t("you.page.sign-in-from-the-corner-and-we", "Sign in from the corner and we'll fill this page in.") }}</p>
+    <p class="note">{{ t("you.page.sign-in-to-see", "Sign in to see your account.") }}</p>
+  </section>
+
+  {#- The three answers that are not the account (targum-internal#469, B1 and B2): still
+      asking, which is drawn at first paint and says more past three seconds; not reached;
+      and offline. None of them says "sign in": the reader may well be signed in. -#}
+  <section class="card" id="you-loading" role="status">
+    <p class="note">{{ t("you.page.getting-your-account", "We're getting your account.") }}</p>
+    <p class="note" id="you-slow" hidden>{{ t("you.page.taking-longer", "This is taking longer than usual.") }}
+      <button type="button" class="btn ghost outline" id="you-slow-again">{{ t("fault.try-again", "Try again") }}</button></p>
+  </section>
+  <section class="card" id="you-unreachable" role="alert" hidden>
+    <p class="note">{{ t("you.page.could-not-reach", "We couldn't reach your account just now.") }}</p>
+    <p class="ending-row"><button type="button" class="btn tonal" id="you-reach-again">{{ t("fault.try-again", "Try again") }}</button></p>
+  </section>
+  <section class="card" id="you-offline" role="status" hidden>
+    <p class="note">{{ t("you.page.offline", "You're offline. Your account needs a connection. Texts saved on this device still open.") }}</p>
+    <p class="ending-row"><a class="btn tonal" href="/you/saved">{{ t("you.page.open", "Open") }}</a></p>
+  </section>
+
+  {#- After Delete (targum-internal#469, B5): one card that says what happened, heard by a
+      screen reader, and a way on. It replaces the others; nothing redirects on a timer. -#}
+  <section class="card" id="you-closed" role="status" tabindex="-1" hidden>
+    <h2 class="section-title">{{ t("you.page.closing-title", "Your account is closing") }}</h2>
+    <p class="note" id="you-closed-said"></p>
+    <p class="note">{{ t("you.page.we-wait-seven-days-before-deleting", "Your connections, playlists, subscriptions and prompts go at once, and so does the Weekly News Digest. We delete the rest after seven days and email you when it's done. To change your mind before then, email hello@targum.page.") }}</p>
+    <p class="ending-row"><a class="btn tonal" href="/">{{ t("you.page.go-to-targum", "Go to targum") }}</a></p>
   </section>
 
   {#- Your account as the boards draw it (AccountDesk, AccountPhone, PlanAccount, ConnYou;
@@ -38,6 +64,7 @@
     <p class="credits-big"><span class="credits-n" id="hours-line"></span> <span class="credits-unit">{{ t("you.page.left-this-month", "left this month") }}</span></p>
     <p class="credits-rate" id="credits-rate"></p>
     <span class="meter is-spent credits-meter" id="credits-meter" aria-hidden="true"><span></span></span>
+    <p class="credits-low" id="credits-low" hidden></p>
     <p class="note">{{ t("you.page.credits-rate-reading", "One credit is a minute of audio or video. Reading uses none.") }}</p>
   </section>
 
@@ -56,15 +83,15 @@
       <li class="row">
         <span class="row-main">
           <span class="acct-name">{{ t("you.page.top-up", "Top up") }}</span>
-          <span class="acct-says">{{ t("you.page.top-up-says", "Credits you buy stay until you use them") }}</span>
+          <span class="acct-says">{{ t("you.page.top-up-says", "Credits you top up stay until you use them") }}</span>
         </span>
         <span class="acct-end">
-          <button type="button" class="btn ghost outline" disabled>{{ t("you.page.top-up-60", "60 credits") }}</button>
-          <button type="button" class="btn ghost outline" disabled>{{ t("you.page.top-up-180", "180 credits") }}</button>
+          <button type="button" class="btn ghost outline" disabled aria-describedby="soon-plan">{{ t("you.page.top-up-60", "60 credits") }}</button>
+          <button type="button" class="btn ghost outline" disabled aria-describedby="soon-plan">{{ t("you.page.top-up-180", "180 credits") }}</button>
         </span>
       </li>
     </ul>
-    <p class="acct-soon"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</p>
+    <p class="acct-soon" id="soon-plan"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</p>
   </section>
 
   {#- The plan, with plans on (board PlanAccount; design.md §12, "Free and Plan, behind a
@@ -95,8 +122,8 @@
       </ul>
       <p class="plan-offer" id="plan-offer"></p>
       <p class="plan-pay-row">
-        <button type="button" class="btn soon" disabled>{{ t("fault.start-a-plan", "Start a plan") }}</button>
-        <span class="acct-soon"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</span>
+        <button type="button" class="btn soon" disabled aria-describedby="soon-free">{{ t("fault.start-a-plan", "Start a plan") }}</button>
+        <span class="acct-soon" id="soon-free"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</span>
       </p>
     </div>
     <div id="plan-paid" hidden>
@@ -120,7 +147,7 @@
           </span>
           <span class="acct-end">
             <span class="seg plan-top-ups" id="plan-top-ups"></span>
-            <button type="button" class="btn soon" disabled>{{ t("you.page.top-up", "Top up") }}</button>
+            <button type="button" class="btn soon" disabled aria-describedby="soon-paid">{{ t("you.page.top-up", "Top up") }}</button>
           </span>
         </li>
         <li class="row">
@@ -128,17 +155,17 @@
             <span class="acct-name">{{ t("you.page.plan-quarterly", "Pay every 3 months instead") }}</span>
             <span class="acct-says">{{ t("you.page.plan-quarterly-says", "From your next renewal") }}</span>
           </span>
-          <span class="acct-end"><button type="button" class="btn ghost outline" disabled>{{ t("you.page.plan-switch", "Switch") }}</button></span>
+          <span class="acct-end"><button type="button" class="btn ghost outline" disabled aria-describedby="soon-paid">{{ t("you.page.plan-switch", "Switch") }}</button></span>
         </li>
         <li class="row">
           <span class="row-main">
             <span class="acct-name">{{ t("you.page.plan-cancel", "Cancel your plan") }}</span>
-            <span class="acct-says">{{ t("you.page.plan-cancel-says", "You're on Free from the end of the month. Your channel and podcast subscriptions pause, and you can start them again any time.") }}</span>
+            <span class="acct-says">{{ t("you.page.plan-cancel-says", "You move to Free when the time you've paid for ends. Your channel and podcast subscriptions pause, and you can start them again any time.") }}</span>
           </span>
-          <span class="acct-end"><button type="button" class="btn ghost outline" disabled>{{ t("you.page.plan-cancel-press", "Cancel plan") }}</button></span>
+          <span class="acct-end"><button type="button" class="btn ghost outline" disabled aria-describedby="soon-paid">{{ t("you.page.plan-cancel-press", "Cancel plan") }}</button></span>
         </li>
       </ul>
-      <p class="acct-soon"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</p>
+      <p class="acct-soon" id="soon-paid"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.75"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</p>
     </div>
   </section>
 
@@ -155,8 +182,8 @@
       </li>
       <li class="row">
         <label class="row-main" for="you-reads">
-          <span class="acct-name">{{ t("you.page.translate-into", "Read and translate into") }}</span>
-          <span class="acct-says">{{ t("you.page.translate-into-says", "Meanings, translations, menus and buttons") }}</span>
+          <span class="acct-name">{{ t("you.page.translate-into", "Translate into") }}</span>
+          <span class="acct-says">{{ t("you.page.translate-into-says", "Meanings and translations, and the menus and buttons too") }}</span>
         </label>
         <select class="acct-pick" id="you-reads"></select>
       </li>
@@ -166,7 +193,7 @@
       <li class="row">
         <label class="row-main" for="you-level">
           <span class="acct-name">{{ t("you.page.your-hebrew", "Your Hebrew") }}</span>
-          <span class="acct-says">{{ t("you.page.level-note", "Where the Library starts you, and how hard we talk") }}</span>
+          <span class="acct-says">{{ t("you.page.level-note", "Where the Library starts you, and how simple our Hebrew is in chat") }}</span>
         </label>
         <select class="acct-pick" id="you-level"></select>
       </li>
@@ -185,7 +212,7 @@
         </span>
       </li>
     </ul>
-    <p class="said" id="you-languages-said" hidden></p>
+    <p class="said" id="you-languages-said" role="status" hidden></p>
   </section>
 
   {#- What is connected, and the way to end it (targum-internal#80; board ConnYou): one
@@ -199,7 +226,7 @@
     </div>
     <p class="note">{{ t("you.page.connections-says", "Apps you've connected targum to, and what each one may do. Disconnecting takes effect at once.") }}</p>
     <ul class="acct-conns" id="connection-rows"></ul>
-    <p class="said" id="connections-said" hidden></p>
+    <p class="said" id="connections-said" role="status" hidden></p>
   </section>
 
   {#- What a reader wrote for their connector to offer (targum-internal#80, note 17;
@@ -219,7 +246,7 @@
     <p class="ending-row">
       <button type="button" class="btn filled" id="prompt-save">{{ t("you.page.prompt-save", "Save") }}</button>
     </p>
-    <p class="said" id="prompts-said" hidden></p>
+    <p class="said" id="prompts-said" role="status" hidden></p>
   </section>
 
   {#- Telegram (targum-internal#328): hidden unless the deployment has a bot. -#}
@@ -230,7 +257,7 @@
     <p class="ending-row">
       <button type="button" class="btn tonal" id="telegram-go">{{ t("you.telegram.link", "Link Telegram") }}</button>
     </p>
-    <p class="said" id="telegram-said" hidden></p>
+    <p class="said" id="telegram-said" role="status" hidden></p>
   </section>
 
   {#- Account (AccountDesk): the address, what is saved on this device, the export, the
@@ -257,7 +284,7 @@
       <li class="row">
         <span class="row-main">
           <span class="acct-name">{{ t("you.page.export", "Export your data") }}</span>
-          <span class="acct-says"><span class="acct-wide">{{ t("you.page.export-says", "Your word list, your uploads and your reading record, in one file") }}</span><span class="acct-narrow">{{ t("you.page.export-says-short", "Word list, uploads and reading record") }}</span></span>
+          <span class="acct-says"><span class="acct-wide">{{ t("you.page.export-says", "Your word list, your chats and your reading record, in one file") }}</span><span class="acct-narrow">{{ t("you.page.export-says-short", "Word list, chats and reading record") }}</span></span>
         </span>
         <a class="btn ghost outline acct-end" id="you-export" href="/account/export" download>{{ t("you.page.download", "Download") }}</a>
       </li>
@@ -272,19 +299,19 @@
           <button type="button" class="btn ghost outline" id="record-switch" aria-pressed="true"></button>
           <button type="button" class="btn ghost outline danger" id="record-erase">{{ t("you.page.record-erase", "Erase what's recorded") }}</button>
         </span>
-        <p class="said" id="record-said" hidden></p>
+        <p class="said" id="record-said" role="status" hidden></p>
       </li>
       {#- Correcting a meaning (targum-internal#164, door 3): a thing agreed to once, so
           it is here and not in the reader. -#}
       <li class="row acct-wrap" id="correcting">
         <span class="row-main">
           <span class="acct-name">{{ t("you.page.correcting", "Correcting a meaning") }}</span>
-          <span class="acct-says">{{ t("you.page.correcting-short", "Tell us from a word's card when its meaning is wrong. A person looks before anything changes, under the contribution grant.") }} <a class="acct-inline" href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md#correcting-a-meaning-and-what-that-grants">{{ t("you.page.correcting-read", "Read the grant") }}</a></span>
+          <span class="acct-says">{{ t("you.page.correcting-short", "Tell us from a word's card when its meaning is wrong. A person checks it before anything changes. You share your correction under our contribution grant.") }} <a class="acct-inline" href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md#correcting-a-meaning-and-what-that-grants">{{ t("you.page.correcting-read", "Read the grant") }}</a></span>
         </span>
         <span class="acct-end">
           <button type="button" class="btn ghost outline" id="grant-go"></button>
         </span>
-        <p class="said" id="grant-said" hidden></p>
+        <p class="said" id="grant-said" role="status" hidden></p>
       </li>
       <li class="row">
         <button type="button" class="btn ghost outline" id="you-out">{{ t("you.page.sign-out", "Sign out") }}</button>
@@ -292,8 +319,8 @@
       <li class="row acct-wrap acct-delete">
         <span class="row-main">
           <span class="acct-name acct-clay">{{ t("you.page.delete-your-account", "Delete your account") }}</span>
-          <span class="acct-says">{{ t("you.page.delete-says", "Removes your uploads, word list and record. This can't be undone.") }}
-            {{ t("you.page.we-wait-seven-days-before-deleting", "We wait seven days before deleting. To change your mind, email hello@targum.page.") }}
+          <span class="acct-says">{{ t("you.page.delete-says", "This deletes your texts and uploads, your word list, your chats and your record.") }}
+            {{ t("you.page.we-wait-seven-days-before-deleting", "Your connections, playlists, subscriptions and prompts go at once, and so does the Weekly News Digest. We delete the rest after seven days and email you when it's done. To change your mind before then, email hello@targum.page.") }}
             {%- if legal_is_public() %} <a class="acct-inline" href="/deletion">{{ t("you.page.what-that-means", "What that means") }}</a>.{%- endif %}</span>
         </span>
         <span class="acct-end">
@@ -302,7 +329,7 @@
         </span>
       </li>
     </ul>
-    <p class="said" id="you-ending-said" hidden></p>
+    <p class="said" id="you-ending-said" role="status" hidden></p>
   </section>
 </main>
 {% include '_foot.html.j2' %}

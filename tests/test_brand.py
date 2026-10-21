@@ -208,6 +208,19 @@ def test_the_focus_ring_is_one_colour() -> None:
             )
 
 
+def test_no_focus_ring_is_a_wash() -> None:
+    """§8: focus is a 2px ring in `--focus`. A 9% teal wash round a field with no border
+    showed nothing, and a keyboard reader could not see where they were on the account
+    page's selects and fields (targum-internal#469, B7). No focus rule draws a wash."""
+    for sheet in STYLESHEETS:
+        css = re.sub(r"/\*.*?\*/", "", sheet.read_text(encoding="utf-8"), flags=re.S)
+        for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+            if ":focus" not in selector:
+                continue
+            for shadow in re.findall(r"box-shadow:\s*([^;]+)", body):
+                assert "-wash" not in shadow, f"{sheet.name}: {selector.strip()} rings in a wash"
+
+
 def test_no_focus_ring_is_the_gold() -> None:
     """The gold measured 2.31:1 on the ground and 2.71:1 on paper, under 1.4.11's 3:1
     (§12, "The focus ring is teal everywhere", 2026-10-11). It stays the mark's and is
@@ -516,6 +529,10 @@ THUMBED = (
     # The "Met in" press and the texts it lists (targum-internal#497).
     ".met-open",
     ".met-text",
+    # Your account (targum-internal#469, B8): the Hebrew address segments, its links.
+    "#you-address > button",
+    ".acct-link",
+    ".acct-inline",
 )
 
 

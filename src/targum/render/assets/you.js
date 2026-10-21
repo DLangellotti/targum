@@ -52,6 +52,13 @@
     });
   }
 
+  // One card on show, every other card in `main` put away: the states that are not the
+  // account (loading, unreachable, offline) and the one after Delete.
+  function only(id) {
+    var cards = document.querySelectorAll("main.account > section");
+    for (var n = 0; n < cards.length; n++) cards[n].hidden = cards[n].id !== id;
+  }
+
   function say(where, message, bad, again) {
     var node = at(where);
     node.hidden = !message;
@@ -130,7 +137,7 @@
         gone.textContent = t("you.remove", "Remove");
         gone.setAttribute("aria-label", t("you.remove-named", "Remove {language}", { language: row.name }));
         gone.addEventListener("click", function () {
-          if (learning.length <= 1) return say("you-languages-said", t("you.keep-one-language", "Keep at least one language."));
+          if (learning.length <= 1) return say("you-languages-said", t("you.keep-one-language", "This is your only language, so it stays. Start another to remove this one."));
           learning = learning.filter(function (code) {
             return code !== row.code;
           });
@@ -397,7 +404,7 @@
       var last = app.made.length > 1 ? day(app.made[app.made.length - 1]) : "";
       var said =
         last && last !== first
-          ? t("you.connections.connected-again", "Connected {made}, again {again}", { made: first, again: last })
+          ? t("you.connections.connected-again", "Connected {made}, reconnected {again}", { made: first, again: last })
           : t("you.connections.connected-on", "Connected {made}", { made: first });
       if (app.seen) said += t("you.connections.last-used", ", last used {seen}", { seen: day(app.seen) });
       return said;
@@ -490,7 +497,7 @@
             }, Promise.resolve())
             .then(function () {
               paint(last && last.connections, true);
-              tell(t("you.connections.disconnected-app", "Disconnected. {app} can't reach your targum any more.", { app: name }));
+              tell(t("you.connections.disconnected-app", "Disconnected. {app} can't reach your account any more.", { app: name }));
             })
             .catch(function () {
               press.disabled = false;
@@ -668,7 +675,7 @@
 
   function rungLabels() {
     return {
-      "": t("you.level.none", "Not said"),
+      "": t("you.level.none", "Not set"),
       aleph: t("learn.level.aleph", "Just starting"),
       "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
       bet: t("learn.level.bet", "I can hold a simple conversation"),
@@ -715,8 +722,48 @@
 
   /* --- ending it -------------------------------------------------------------- */
 
+  /* Export says when it fails and when it is done (targum-internal#469, B6). Fetched
+     here rather than followed, so a session that has gone is said, not saved as a file
+     named "export"; the href stays for a page with no script. */
+  function wireExport() {
+    var link = at("you-export");
+    link.href = keyed("/account/export");
+    link.addEventListener("click", function (event) {
+      if (typeof fetch !== "function" || typeof Blob !== "function") return;
+      event.preventDefault();
+      var failed = function () {
+        say("you-ending-said", t("you.export.failed", "We couldn't make the file. Try again."), true, function () {
+          say("you-ending-said", "");
+          link.click();
+        });
+      };
+      fetch(keyed("/account/export"), {
+        credentials: "same-origin",
+        headers: key ? { "X-Targum-Key": key } : {},
+      })
+        .then(function (response) {
+          if (response.status === 401) return say("you-ending-said", SIGNED_OUT, true);
+          if (!response.ok) return failed();
+          return response.blob().then(function (blob) {
+            var url = URL.createObjectURL(blob);
+            var save = document.createElement("a");
+            save.href = url;
+            save.download = "targum.json";
+            document.body.appendChild(save);
+            save.click();
+            document.body.removeChild(save);
+            setTimeout(function () {
+              URL.revokeObjectURL(url);
+            }, 1000);
+            say("you-ending-said", t("you.export.done", "Downloaded targum.json."));
+          });
+        })
+        .catch(failed);
+    });
+  }
+
   function ending() {
-    at("you-export").href = keyed("/account/export");
+    wireExport();
     at("you-out").addEventListener("click", function () {
       // Through sync, not straight at the endpoint: signing out empties this browser's
       // store as well as ending the session, and only sync knows how to do both.
@@ -732,10 +779,12 @@
         // And a way back beside it (2026-09-14): the second question had no answer but
         // reloading the page.
         press.setAttribute("data-sure", "yes");
-        press.textContent = t("you.forget.sure", "Delete my account and words");
+        press.textContent = t("you.forget.sure", "Yes, delete my account");
         var keep = at("you-keep");
         if (keep) {
           keep.hidden = false;
+          // The safe choice first: the focus goes to Keep my account (§14.3).
+          keep.focus();
           keep.onclick = function () {
             press.removeAttribute("data-sure");
             press.textContent = t("you.forget", "Delete account");
@@ -749,16 +798,21 @@
       if (keeping) keeping.hidden = true;
       ask("/account/forget", {})
         .then(function (answer) {
-          say("you-ending-said", answer.message || t("you.closing", "We're closing your account."));
+          // Success ends the session too, and answers signed out; only an error is one.
+          if (answer && answer.error) {
+            press.disabled = false;
+            return say("you-ending-said", answer.error, true);
+          }
+          // One card that says what happened, focused so a screen reader hears it, and a
+          // way on that the reader presses: no redirect on a timer (targum-internal#469,
+          // B5). It was one line for a second and a half, then the front door.
+          only("you-closed");
+          at("you-closed-said").textContent =
+            answer.message || t("you.closing", "We'll delete your account in seven days. We've signed you out.");
+          at("you-closed").focus();
           // The words were left in this browser and the page went on showing the profile
           // (2026-09-14). Signed out here too, the way Sign out empties the browser.
-          if (window.TargumSync && window.TargumSync.signOut) {
-            window.TargumSync.signOut().then(function () {
-              setTimeout(function () {
-                location.href = keyed("/");
-              }, 1500);
-            });
-          }
+          if (window.TargumSync && window.TargumSync.signOut) window.TargumSync.signOut();
         })
         .catch(function () {
           press.disabled = false;
@@ -876,13 +930,13 @@
       );
       document.getElementById("plan-offer").textContent = t(
         "you.plan.offer",
-        "A plan gives you {n} credits a month, which is {hours} hours of audio or video, and lets you subscribe to YouTube channels and podcasts.",
+        "A plan gives you {n} credits a month, which is {hours} hours of audio or video. It also lets you subscribe to YouTube channels and podcasts.",
         { n: plan.planCredits, hours: hours }
       );
       if (plan.words) {
         document.getElementById("plan-words").textContent = t(
           "you.plan.words",
-          "{n} of {cap} words being learned. Known words don't count.",
+          "{n} of {cap} saved words. Known words don't count.",
           { n: plan.listed || 0, cap: plan.words }
         );
         document.getElementById("plan-words-row").hidden = false;
@@ -909,8 +963,33 @@
 
   /* --- putting it together ---------------------------------------------------- */
 
-  ask("/account/me")
+  /* Three answers that are not the account, told apart (targum-internal#469, B1, B2):
+     still asking, with a line past three seconds; offline; and not reached, with Try
+     again. Only the server saying nobody is signed in draws the line to sign in. */
+  var slow = setTimeout(function () {
+    var line = at("you-slow");
+    if (line && !at("you-loading").hidden) line.hidden = false;
+  }, 3000);
+  ["you-slow-again", "you-reach-again"].forEach(function (id) {
+    var press = at(id);
+    if (press) {
+      press.addEventListener("click", function () {
+        location.reload();
+      });
+    }
+  });
+
+  fetch(keyed("/account/me"), {
+    credentials: "same-origin",
+    headers: key ? { "X-Targum-Key": key } : {},
+  })
+    .then(function (response) {
+      if (!response.ok && response.status !== 401) throw new Error(String(response.status));
+      return response.json();
+    })
     .then(function (who) {
+      clearTimeout(slow);
+      at("you-loading").hidden = true;
       show(!!who.signedIn);
       if (!who.signedIn) return;
       drawWho(who);
@@ -928,11 +1007,11 @@
       ending();
       if (window.TargumSync) window.TargumSync.start();
     })
-    // A server that cannot be reached is a reader who is not signed in as far as this
-    // page can tell, and saying so is the whole of what it can do. Without this the
-    // request failed, nothing was shown, and the page sat blank — not even the line that
-    // tells somebody where to sign in.
+    // A server that cannot be reached is not a reader who is signed out, and telling a
+    // signed-in reader on a train to sign in was the old answer here. Offline says what
+    // still works; anything else says the account could not be reached, with Try again.
     .catch(function () {
-      show(false);
+      clearTimeout(slow);
+      only(typeof navigator !== "undefined" && navigator.onLine === false ? "you-offline" : "you-unreachable");
     });
 })();
