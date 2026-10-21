@@ -54,6 +54,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   tap on slow 4G with a 4x slower CPU, on pages built with their recordings: Bereshit's
   first aliyah 2.14 s to 1.39 s, Ki Tavo's sixth 2.30 s to 1.74 s.
   `scripts/measure_tap.py` takes the figure.
+- The portion's PDF press says more than "Preparing PDF…" (targum-internal#409): past
+  three seconds it says "Still making your PDF…", and offline it says the PDF is made on
+  targum and needs a connection rather than "try again in a minute". On the reader's ⋯
+  and on the series page, in English and Russian.
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
   rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
