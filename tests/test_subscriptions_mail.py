@@ -130,7 +130,8 @@ def test_a_reader_hears_once_that_something_waits(tmp_path: Path) -> None:
         "мы подготовим это 1 ноября" in mail["text"]
         and f"/subscriptions/{kan}#sub-cap" in mail["text"]
     )
-    assert mail["subject"] == "Kan: ⁨первое⁩", "one thing, named"
+    # The name isolated as well as the title (targum-internal#470, polish 4).
+    assert mail["subject"] == "⁨Kan⁩: ⁨первое⁩", "one thing, named"
     store.add_sub_items(kan, [{"key": "v2", "title": "второе", "link": "https://youtu.be/v2"}])
     store.set_sub_item(kan, "v2", state="waiting", why="cap")
     subs.daily(store, box, SITE, now_ms=NOW, month_from=NOW - 1000, pause=0)
