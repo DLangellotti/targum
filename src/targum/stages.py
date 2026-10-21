@@ -26,9 +26,9 @@ is a commit here; a regression anywhere in the pipeline fails CI.
 **An exception is named and dated** (`KEPT`). Hebrew kept the Beta it wore before the
 standard from 2026-10-12, while its measurements, its read-through record and its
 practices caught up, and the test printed its shortfall instead of failing on it. It
-earned Beta on 2026-10-14 and the entry came out, so `KEPT` is empty and Hebrew is held
-to the facts like every other language. Nothing may be added to `KEPT` without a
-design.md entry first.
+earned Beta on 2026-10-14 and the entry came out. Russian is kept at Alpha from 2026-10-21,
+short only of its read-through (David). Nothing may be added to `KEPT` without a design.md
+entry first, and the entry's name is in its `why`.
 
 **The record is a fact here, its substance stays private** (`RECORDED`, 2026-10-13). The
 read-through, the known-issues list and the reading of that list for blockers live in
@@ -187,7 +187,7 @@ class Kept:
 #: The claim. One word per language targum reads; a language not here wears nothing.
 DECLARED: dict[str, Stage] = {
     "he": Stage.beta,
-    "ru": Stage.experimental,
+    "ru": Stage.alpha,
     "it": Stage.experimental,
     "fr": Stage.experimental,
     "arc": Stage.experimental,
@@ -242,9 +242,20 @@ RECORDED: dict[str, Record] = {
 }
 
 
-#: The exception the test tolerates, named and dated. Empty since 2026-10-14, when Hebrew
-#: earned the Beta it had been kept at (David, 2026-10-12). See the module docstring.
-KEPT: dict[str, Kept] = {}
+#: The exception the test tolerates, named and dated. Hebrew earned the Beta it had been
+#: kept at on 2026-10-14 (David, 2026-10-12); Russian is kept at Alpha from 2026-10-21
+#: while its read-through is done. See the module docstring.
+KEPT: dict[str, Kept] = {
+    "ru": Kept(
+        stage=Stage.alpha,
+        since=date(2026, 10, 21),
+        review=date(2026, 11, 30),
+        why=(
+            'design.md §12, "Russian wears Alpha while its read-through is done" '
+            "(David, 2026-10-21): short only of the read-through of ten texts on record."
+        ),
+    ),
+}
 
 _DICTA = "dicta/dicta-il/dictabert-joint"
 _MENAKED = "dicta-il/dictabert-large-char-menaked"

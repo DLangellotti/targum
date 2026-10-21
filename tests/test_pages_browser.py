@@ -749,9 +749,10 @@ def test_the_arrival_is_the_screen_on_a_phone(browser, width: int) -> None:
     assert got["footFixed"] == "fixed" and got["footInView"], got
     assert got["filled"] == ["arrival-done"], f"Continue is the one filled press: {got}"
     assert got["cards"] == 6 and got["tall"] and got["clearOfFoot"], got
-    # Hebrew keeps its Beta by decision; the rest wear what they have earned (design.md
-    # §12, "A badge is a promise, checked", 2026-10-12).
-    assert got["badges"] == ["Beta"] + ["Experimental"] * 5
+    # Hebrew wears the Beta it earned and Russian the Alpha it is kept at (design.md §12,
+    # "Russian wears Alpha while its read-through is done", 2026-10-21); the rest wear what
+    # they have earned (§12, "A badge is a promise, checked", 2026-10-12).
+    assert got["badges"] == ["Beta", "Alpha"] + ["Experimental"] * 4
     assert got["chrome"] == [], got
     assert not got["sideways"]
 

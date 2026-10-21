@@ -379,6 +379,17 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Russian wears Alpha while its read-through is done — 2026-10-21
+
+David, 2026-10-21: Russian's badge in the language menu says Alpha, to match what its card
+already says. By the facts (`stages.facts("ru")`) Russian is short of Alpha by one thing
+only, the read-through of ten texts on record; every hard spot is covered, the shelf is
+measured and the known issues are listed (targum#798). So Alpha is **kept**, by decision,
+in `stages.KEPT` with this entry's name, dated 2026-10-21 and reviewed by 2026-11-30: the
+test prints what it still owes on every run, and past the review date it fails until the
+read-through is on record (and the entry comes out) or this line is renewed with a new
+date.
+
 ### The scale reads by name and colour — 2026-10-21
 
 A beta reader, 2026-10-21, on the word card's 1 · 2 · 3 · known: "for rating how you know
