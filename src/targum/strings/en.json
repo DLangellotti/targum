@@ -3939,9 +3939,7 @@
   "you.page.closed-says": "Your connections, playlists, subscriptions and prompts have gone, and so has the Weekly News Digest. We'll delete the rest in {grace} days and email you when it's done. To change your mind before then, email hello@targum.page.",
   "you.page.open-saved": "Open saved texts",
   "mail.invitation.connect-link": "Connect targum to Claude or ChatGPT",
-  "mail.ready.button.read": "Read",
-  "mail.ready.button.listen": "Listen",
-  "mail.ready.button.watch": "Watch",
+  "mail.ready.open": "Open",
   "mail.ready.gift": "You're getting this because you saved this link on targum's front page, and we got it ready for you.",
   "mail.weekly.label": "Weekly News Digest",
   "mail.weekly.level-note": "If you know {figure} words"

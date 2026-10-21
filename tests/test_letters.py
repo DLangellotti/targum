@@ -223,8 +223,8 @@ def test_a_ready_mail_is_a_tile_the_title_and_open() -> None:
         parts=4,
         seconds=24 * 60,
     )
-    # Read, Listen or Watch, since the item is known (§6; targum-internal#470).
-    assert ">Watch<" in film.html and ">Open<" not in film.html
+    # Open, as design.md §12 has it (David, 2026-10-21: the button stays Open).
+    assert ">Open<" in film.html and ">Watch<" not in film.html
     assert "Ready to watch" in film.html
     assert 'dir="rtl" lang="he"' in film.html, "the title in its own direction"
     assert ">ה</span>" in film.html, "the tile carries its first letter"
@@ -234,7 +234,7 @@ def test_a_ready_mail_is_a_tile_the_title_and_open() -> None:
     for absent in ("words", "vocabulary", "Words"):
         assert absent not in film.text, "no vocabulary strip"
     book = letters.build_ready("Отец Сергий", f"{SITE}/r", SITE, "ru", asked=False, listen=True)
-    assert ">Слушать<" in book.html and "&#9654;" not in book.html
+    assert ">Открыть<" in book.html and "&#9654;" not in book.html
     assert "Загружено вами · Запись" in book.text
 
 

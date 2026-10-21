@@ -877,8 +877,7 @@ def build_ready(
             Title(title, title_language),
             Meta(" · ".join(facts)),
             Para(text("mail.ready.lead", code)),
-            # Read, Listen or Watch: the item is known, so the button says which (§6).
-            Button(text(f"mail.ready.button.{verb}", code), link),
+            Button(text("mail.ready.open", code), link),
         ],
         # A link a stranger saved on the front page and we got ready when they were let
         # in: they never started it, and "your text took more than a few minutes" says

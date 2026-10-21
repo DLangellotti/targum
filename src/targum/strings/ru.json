@@ -4261,9 +4261,7 @@
   "you.page.closed-says": "Подключения, плейлисты, подписки и подсказки уже удалены, как и рассылка Weekly News Digest. Остальное мы удалим через {grace} дней и напишем вам, когда всё будет готово. Если передумаете до этого, напишите на hello@targum.page.",
   "you.page.open-saved": "Открыть сохранённое",
   "mail.invitation.connect-link": "Подключить targum к Claude или ChatGPT",
-  "mail.ready.button.read": "Читать",
-  "mail.ready.button.listen": "Слушать",
-  "mail.ready.button.watch": "Смотреть",
+  "mail.ready.open": "Открыть",
   "mail.ready.gift": "Вы получили это письмо, потому что сохранили эту ссылку на главной странице targum, и мы подготовили по ней текст для вас.",
   "mail.weekly.label": "Недельный обзор новостей",
   "mail.weekly.level-note": "Если вы знаете {figure} слов"
