@@ -3381,7 +3381,7 @@ Saving for offline is the next slice's; the card and the page leave it a place.
 
 David, 2026-10-08, deciding the calmer home and Library: they lean on pictures, and the
 laptop had drawn covers for 40 of 1,155 catalogue rows. targum-internal#429. A text's picture
-comes from three places, in this order.
+comes from four places, in this order.
 
 - **Its own.** A video's frame or poster, an article's lead image (`og:image`), a book's
   cover in its EPUB, a PDF's first page, the first of a reader's pictures. An upload's is
@@ -3394,14 +3394,18 @@ comes from three places, in this order.
   when the image bank's own table says CC BY. A news row's lead image is not taken, whatever
   the article's own terms: the picture is often somebody else's. NonCommercial and
   NoDerivatives pictures are not taken either. Each picture's origin and licence is written
-  in `thumbs/sources.json`.
-- **Drawn, for everything else.** The first letter on a colour by kind: teal news, iris
-  sets (the scenes, the liturgy, the rabbinic shelf), clay things said (a talk, a video),
-  muted for books, in card white. It costs no model, and no file is written for it. This
+  in `thumbs/sources.json` (not yet for the drawn covers, targum-internal#429).
+- **A drawn cover, for a library row with no picture of its own.** David approved one
+  estimated batch on 2026-10-08, drawn with the image model at about $0.04 a cover
+  (`catalogue.cover_prompt`, the same rules as every cover). It drew 735 covers on
+  2026-10-08 and 10-10. The 152 rows it missed, 151 filed after it and one it skipped,
+  were drawn on 2026-10-21, also on David's approval (targum-internal#429).
+- **The letter tile, until then.** For a row filed but not yet drawn, and for an upload
+  with no picture of its own. The first letter on a colour by kind: teal news, iris sets
+  (the scenes, the liturgy, the rabbinic shelf), clay things said (a talk, a video), muted
+  for books, in card white. It costs no model, and no file is written for it. This
   departs from §4 on purpose: teal is the desk's door and clay is cost and errors, and
-  here both colour a tile. One hue per tile, flat, and never on text. The earlier plan was
-  to draw the missing covers with an image model at about $0.03 each. That is not
-  done; the letter tile is the fallback.
+  here both colour a tile. One hue per tile, flat, and never on text.
 
 What it does not overturn: readers fetch nothing (every picture is fetched at most once,
 by the server, and then carried in the page or served from the box), and covers already
