@@ -156,6 +156,7 @@ setImmediate(() => setImmediate(() => process.stdout.write(
             state: String(link.className).replace("touch-", ""),
             href: link.href,
             current: link.getAttribute("aria-current") || "",
+            label: link.getAttribute("aria-label") || "",
             ticked: Boolean(link.innerHTML),
           };
         }),

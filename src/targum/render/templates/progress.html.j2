@@ -36,6 +36,10 @@
   <section class="ledger" id="ledger" aria-label="{{ t("progress.page.what-you-have-built", "Your totals") }}">
     <div class="counts" id="counts"></div>
   </section>
+  {#- What "learned on targum" counts, said under the totals wherever the figure is: it sat
+      in part 2's time and words, which is hidden signed out, with recording stopped or
+      with no record, while the figure always shows (qa on #858; targum-internal#471, B1). -#}
+  <p class="note ledger-note" id="learned-note">{{ t("progress.count.learned.note", "“Learned on targum” counts the words you saved as new and have since marked known.") }}</p>
 
   {#- 1 · Where you are: the touchstones, a ladder of kinds of text from the language's
       own library, each a link to its shelf; then what you knew of what you read. -#}
@@ -78,7 +82,6 @@
           title, which a phone and a keyboard never show (targum-internal#471, B1). -#}
       <div class="spent-figures" id="spent-figures"></div>
       <p class="note">{{ t("progress.spent.note", "We count a word as read when you turn past its page or mark its section done.") }}</p>
-      <p class="note">{{ t("progress.count.learned.note", "“Learned on targum” counts the words you saved as new and have since marked known.") }}</p>
     </div>
     <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "We're not showing time and words because recording is stopped. You can start it again in Your account.") }}</p>
     <h3 class="story-sub" id="weeks-title">{{ t("progress.weeks.title", "The words you saved, week by week") }}</h3>

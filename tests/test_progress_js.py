@@ -524,6 +524,17 @@ def test_where_you_are_names_the_hardest_kind_you_would_follow() -> None:
     assert drawn["rungs"][2]["current"] == "step"
 
 
+def test_every_rung_says_its_share_and_where_it_goes_to_a_screen_reader() -> None:
+    """targum-internal#471 polish 1, pinned on qa's ask (#858): the share of a passed or
+    ahead rung is drawn nowhere, so it is said in the link's name, not in a title alone,
+    which a phone and a keyboard never show (design.md §14)."""
+    labels = [rung["label"] for rung in story()["where"]["rungs"]]
+    assert labels[0] == "A dialogue: you know 99% of its words. Open this shelf in the Library."
+    assert labels[4] == "A novel: you know 70% of its words. Open this shelf in the Library."
+    # A rung with no share still says where it goes.
+    assert labels[5] == "Open this shelf in the Library"
+
+
 def test_every_touchstone_opens_its_shelf_in_the_library() -> None:
     rungs = story()["where"]["rungs"]
     assert rungs[3]["href"] == "/library?k=k#see/kind/story"

@@ -146,6 +146,26 @@ def test_the_progress_page_is_only_the_numbers() -> None:
         assert gone not in progress, f"{gone} left with the story (§12, 2026-10-09)"
 
 
+def test_the_progress_page_says_what_its_figures_count_on_the_page() -> None:
+    """targum-internal#471, B1, pinned on qa's ask (#858): what a figure counts is a line
+    on the page, never a title a phone and a keyboard never show. "Learned on targum" is
+    explained under the totals and outside part 2's time and words, which is hidden
+    signed out, with recording stopped or with no record, while the figure always shows."""
+    progress = PAGES["progress"]
+    for said in (
+        "We check each section you finish against the words",
+        "We count a word as read when you turn past its page",
+        "counts the words you saved as new and have since marked known.",
+    ):
+        assert said in progress, said
+    spent = re.search(r'<div class="spent" id="spent" hidden>.*?\n    </div>', progress, re.S)
+    assert spent is not None
+    assert 'id="learned-note"' not in spent.group(0)
+    note = re.search(r'<p class="note ledger-note" id="learned-note"[^>]*>', progress)
+    assert note is not None and "hidden" not in note.group(0)
+    assert progress.index('id="ledger"') < note.start() < progress.index('id="where"')
+
+
 def test_the_progress_page_says_it_is_empty_above_its_foot() -> None:
     """The empty state was drawn after the foot's include, so a reader with nothing
     marked saw the site's foot and then, under it, the page's one line (2026-09-28)."""

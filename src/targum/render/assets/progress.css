@@ -86,6 +86,8 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .spent-amount { font-family: var(--reading); font-size: 1.9375rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .spent-label { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
 .spent .note { margin-block-start: 1rem; }
+/* Under the totals, in the paper: the ledger alone inverts (§9). */
+.progress .ledger-note { margin: 0.5rem 0 0; }
 /* The period as three tinted pills, the chosen one filled teal (the board's, over §4's
    quiet ink for a chosen filter, on this page). */
 .progress .spent .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-end: 1rem; }
