@@ -348,7 +348,8 @@ def test_a_busy_day_draws_thirty_rows_and_says_how_many_more() -> None:
     russian = letters.subscriptions_daily(
         [{"name": "Feed", "stop": "s", "rows": rows}], SITE, "t=s", "ru"
     )
-    assert "«Ваши подписки».:" in russian.text or "«Ваши подписки»." in russian.text
+    assert "в разделе «Ваши подписки»: https://" in russian.text, "quoted, no full stop"
+    assert ".:" not in russian.text and ".:" not in mail.text
 
 
 def test_a_long_recording_says_hours() -> None:

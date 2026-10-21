@@ -432,7 +432,9 @@ class Small:
     text_link: str = ""
 
     def as_text(self) -> str:
-        return f"{self.words} {self.text_link or self.link}{self.after}: {self.href}".strip()
+        # The text half ends on its address, so a sentence's full stop is the drawing's
+        # alone: "…«Ваши подписки».: https://…" read as a typo (ling-ru on #866).
+        return f"{self.words} {self.text_link or self.link}: {self.href}".strip()
 
     def _link_html(self) -> str:
         said = _e(self.link)
