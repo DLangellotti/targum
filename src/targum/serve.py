@@ -2171,7 +2171,10 @@ class Library:
         # 14" on Learn); "1 October" beside it was a second convention on one screen.
         english = datetime(year, month, 1, tzinfo=UTC).strftime("%B")
         named = said_in(ui, f"date.month.{month}", english)
-        return said_in(ui, "date.month-day", "{month} {day}", month=named, day=1)
+        # Never broken from its month at the end of a line: "resets / on 1 November" and
+        # «обновится 1 / ноября» at 390 (targum-internal#469, polish 4).
+        said = said_in(ui, "date.month-day", "{month} {day}", month=named, day=1)
+        return said.replace(" ", "\u00a0")
 
     def settle(self, job: Job) -> None:
         """Swap what a build reserved for what it spent — and, for a turn of

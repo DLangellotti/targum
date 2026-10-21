@@ -41,8 +41,9 @@ def opened(
     forget: Any = None,
     width: int = 1280,
     held: str = "",
+    language: str = "en",
 ):
-    html = you_page(TOKEN)
+    html = you_page(TOKEN, language)
     asked: list[str] = []
 
     def answer(route, request):
@@ -199,3 +200,108 @@ def test_a_refused_sign_in_says_why_under_the_field(browser) -> None:
     text = page.evaluate("document.getElementById('account-panel').innerText")
     context.close()
     assert "To keep it, email hello@targum.page." in text
+
+
+# --- design's polish (targum-internal#469) -----------------------------------------
+
+POLISHED = {
+    **ME,
+    "hours": {"used": 2, "allowed": 8, "ends": "November 1"},
+    "connections": [{"client": "c", "name": "Claude", "scopes": "library", "made": 1, "seen": 0}],
+    "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs in every tense. " * 12}],
+}
+
+NOTES = """() => {
+  const seen = (el) => el.offsetParent !== null;
+  const all = [...document.querySelectorAll('main.account .note, main.account .acct-says')]
+    .filter(seen)
+    .filter((el) => !el.closest('#you-loading, #you-unreachable, #you-offline, #you-closed'));
+  const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return {
+    sizes: [...new Set(all.map((el) => parseFloat(getComputedStyle(el).fontSize) / root))],
+    colours: [...new Set(all.map((el) => getComputedStyle(el).color))],
+    soft: getComputedStyle(document.documentElement).getPropertyValue('--ink-soft').trim(),
+    count: all.length,
+  };
+}"""
+
+
+def test_every_quiet_line_is_one_note_at_meta_size(browser) -> None:
+    """Polish 5: the notes under What's connected and Your prompts were 0.9375rem in full
+    ink, the credits note and a row's line 0.8125rem. §13's meta is 0.875rem."""
+    context, page, _ = opened(browser, me=POLISHED)
+    try:
+        page.wait_for_selector("#prompt-rows .row")
+        got = page.evaluate(NOTES)
+        assert got["count"] > 5
+        assert got["sizes"] == [0.875], got
+        assert len(got["colours"]) == 1, got
+    finally:
+        context.close()
+
+
+def test_a_long_prompt_is_held_to_two_lines_on_a_phone(browser) -> None:
+    """Polish 6: a long prompt ran six lines at 390. It is a `.row` now, its text clamped."""
+    context, page, _ = opened(browser, me=POLISHED, width=390)
+    try:
+        page.wait_for_selector("#prompt-rows .row")
+        lines = page.evaluate(
+            """() => {
+              const says = document.querySelector('#prompt-rows .acct-says');
+              return says.getBoundingClientRect().height
+                / parseFloat(getComputedStyle(says).lineHeight);
+            }"""
+        )
+        assert lines <= 2.05, lines
+    finally:
+        context.close()
+
+
+def test_a_long_prompt_opens_on_a_press_and_closes_on_another(browser) -> None:
+    """qa-claude on #871: clamped to two lines, a long prompt had nowhere to show the rest.
+    The text opens on a press or a key and closes again; a short one is plain text."""
+    short = {"id": 2, "name": "short", "says": "Drill my verbs."}
+    me = {**POLISHED, "prompts": [*POLISHED["prompts"], short]}
+    context, page, _ = opened(browser, me=me, width=390)
+    try:
+        page.wait_for_selector("#prompt-rows .row")
+        says = page.locator("#prompt-rows .acct-says")
+        lines = """(el) => el.getBoundingClientRect().height
+          / parseFloat(getComputedStyle(el).lineHeight)"""
+        first = says.nth(0)
+        assert first.get_attribute("role") == "button"
+        assert first.get_attribute("aria-expanded") == "false"
+        assert says.nth(1).get_attribute("role") is None, "a short prompt has nothing to open"
+        first.click()
+        assert first.get_attribute("aria-expanded") == "true"
+        assert first.evaluate(lines) > 3, "the whole prompt shows"
+        first.focus()
+        page.keyboard.press("Enter")
+        assert first.get_attribute("aria-expanded") == "false"
+        assert first.evaluate(lines) <= 2.05
+    finally:
+        context.close()
+
+
+def test_every_rung_fits_the_your_hebrew_select_in_russian_on_a_phone(browser) -> None:
+    """Polish 7: a native select can't wrap, and «Могу поддержать простой разгово…» was
+    cut at 390. Every rung's label fits the select's own width in Russian."""
+    context, page, _ = opened(browser, language="ru", width=390)
+    try:
+        page.wait_for_selector("#you-level option", state="attached")
+        over = page.evaluate(
+            """() => {
+              const pick = document.getElementById('you-level');
+              const style = getComputedStyle(pick);
+              const room = pick.clientWidth - parseFloat(style.paddingInlineStart)
+                - parseFloat(style.paddingInlineEnd);
+              const pen = document.createElement('canvas').getContext('2d');
+              pen.font = style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily;
+              return [...pick.options]
+                .filter((o) => pen.measureText(o.textContent).width > room)
+                .map((o) => o.textContent);
+            }"""
+        )
+        assert over == [], over
+    finally:
+        context.close()

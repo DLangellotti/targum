@@ -196,11 +196,39 @@ CONNECTED = {
 }
 
 
-def test_nothing_connected_draws_no_panel() -> None:
-    """A panel saying "nothing is connected" would be a panel advertising connecting."""
+def test_nothing_connected_says_so_with_a_way_to_connect() -> None:
+    """design's §14 pass (targum-internal#469, polish 1): with no card at all, the account
+    never said apps could be connected. One quiet line and "Connect an app" instead."""
     page = run()
-    assert page["connectionsPanel"] is True, "hidden"
+    assert page["connectionsPanel"] is False, "drawn"
     assert page["connections"] == []
+    assert page["connectionsNone"] is False and page["connectionsSays"] is True
+    assert page["connectLink"] == "Connect an app"
+
+
+def test_something_connected_keeps_its_note_and_connect_another() -> None:
+    page = run(who=CONNECTED)
+    assert page["connectionsNone"] is True and page["connectionsSays"] is False
+    assert page["connectLink"] == "Connect another app"
+
+
+def test_a_date_is_the_day_and_the_month_in_full_unbroken() -> None:
+    """Polish 3 and 4: one form of date on the page, as credits say "November 1", with
+    the year only when it isn't this one, and a no-break space so it never splits."""
+    import time
+
+    now = int(time.time() * 1000)
+    page = run(
+        who={
+            **SIGNED_IN,
+            "connections": [{"client": "a", "name": "Claude", "scopes": "library", "made": now}],
+        }
+    )
+    when = page["connections"][0]["when"]
+    year = time.strftime("%Y")
+    month = time.strftime("%B")
+    assert when.startswith("Connected " + month + "\u00a0"), when
+    assert year not in when and " " not in when.removeprefix("Connected ")
 
 
 def test_each_connector_says_what_it_may_do_in_the_approval_page_s_words() -> None:
@@ -332,6 +360,22 @@ def test_what_a_reader_wrote_is_listed_with_a_way_to_remove_it() -> None:
     assert page["prompts"] == [{"name": "my-verbs", "says": "Drill my verbs."}]
 
 
+def test_a_prompt_and_a_telegram_chat_are_rows_like_the_languages() -> None:
+    """Polish 6: they were bare items, the name in plain body and the text a size up in
+    ink. Now a `.row` with its name over a quiet line, the prompt's held to two lines."""
+    page = run(
+        who={
+            **CONNECTED,
+            "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs.", "made": 1}],
+            "telegram": {"chats": [{"chat": 7, "linked": 1758700800000}]},
+        }
+    )
+    assert page["promptRows"] == [{"className": "row", "clamped": True, "press": "Remove"}]
+    assert page["telegram"][0]["className"] == "row"
+    assert page["telegram"][0]["name"] == "A Telegram chat"
+    assert page["telegram"][0]["says"].startswith("Linked September")
+
+
 def test_saving_one_posts_both_fields_and_says_what_it_was_called() -> None:
     """The server narrows the name; the page says what it actually saved rather than
     what was typed."""
@@ -371,7 +415,7 @@ def test_removing_one_posts_its_name_and_redraws() -> None:
             **CONNECTED,
             "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs."}],
         },
-        do=[{"type": "press", "id": "prompt-rows:0:2"}],
+        do=[{"type": "press", "id": "prompt-rows:0:1:0"}],
         answers={"/account/prompts": {"prompts": []}},
     )
     posted = [one for one in page["posted"] if one["path"] == "/account/prompts"]
@@ -386,7 +430,7 @@ def test_a_remove_that_fails_says_remove() -> None:
             **CONNECTED,
             "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs."}],
         },
-        do=[{"type": "press", "id": "prompt-rows:0:2"}],
+        do=[{"type": "press", "id": "prompt-rows:0:1:0"}],
         answers={"/account/prompts": "fail"},
     )
     assert page["promptsSaid"]["text"] == "We couldn't remove that. Try again."
@@ -492,6 +536,26 @@ def test_on_free_says_what_it_holds_and_what_a_plan_gives() -> None:
     )
     assert "A plan gives you 480 credits a month, which is 8 hours" in drawn["offer"]
     assert drawn["words"].startswith("120 of 300 saved words") and drawn["wordsHidden"] is False
+    assert drawn["wordsMore"] is True, "far from the cap, no See plans in the row"
+    assert drawn["see"] is False, "the head's See plans instead"
+
+
+@pytest.mark.parametrize(
+    ("listed", "said"),
+    [
+        (287, "287 of 300 saved words. You can save 13 more on Free"),
+        (300, "300 of 300 saved words, as many as Free keeps."),
+    ],
+)
+def test_near_the_free_word_cap_says_how_many_are_left(listed: int, said: str) -> None:
+    """Polish 10: past nine in ten of the cap, the row says how many more fit and points
+    to See plans; 287 of 300 used to read like 12 of 300."""
+    plan = {"on": True, "plan": "free", "credits": 60, "planCredits": 480, "words": 300}
+    page = run(who={**SIGNED_IN, "plan": {**plan, "listed": listed, "topUps": []}})
+    assert page["plan"]["words"].startswith(said)
+    assert page["plan"]["wordsMore"] is False, "See plans shown"
+    # Once (qa-claude on #871): the row's link says why, so the head's goes.
+    assert page["plan"]["see"] is True, "See plans twice"
 
 
 def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
@@ -504,3 +568,4 @@ def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
     assert drawn["paidSays"] == "480 credits a month, which is 8 hours of audio or video"
     assert drawn["back"] == "Your credits reset on November 1"
     assert drawn["topUps"] == ["60 credits", "180 credits", "300 credits"]
+    assert drawn["see"] is False, "on the plan, the head's See plans"

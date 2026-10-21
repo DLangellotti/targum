@@ -103,7 +103,7 @@
   <section class="card plan plan-on" id="plan-on" aria-labelledby="plan-on-title" hidden>
     <div class="acct-head">
       <h2 class="section-title" id="plan-on-title">{{ t("you.page.plan", "Plan") }}</h2>
-      <a class="acct-link" href="/plans">{{ t("fault.see-plans", "See plans") }}</a>
+      <a class="acct-link" id="plan-see" href="/plans">{{ t("fault.see-plans", "See plans") }}</a>
     </div>
     <div id="plan-free" hidden>
       <ul class="rows acct-rows">
@@ -118,6 +118,7 @@
             <span class="acct-name">{{ t("you.page.plan-word-list", "Your word list") }}</span>
             <span class="acct-says" id="plan-words"></span>
           </span>
+          <a class="acct-link acct-end" id="plan-words-more" href="/plans" hidden>{{ t("fault.see-plans", "See plans") }}</a>
         </li>
       </ul>
       <p class="plan-offer" id="plan-offer"></p>
@@ -218,13 +219,15 @@
   {#- What is connected, and the way to end it (targum-internal#80; board ConnYou): one
       row an app, what it may do, and Disconnect. Here because design.md §12 ("A scope is
       a press that lasts") rests on the grant being visible somewhere a reader can take it
-      back. Hidden until there is one. -#}
+      back. With nothing connected it says so in one quiet line, with "Connect an app"
+      (targum-internal#469, polish 1). -#}
   <section class="card" id="connections" aria-labelledby="connections-title" hidden>
     <div class="acct-head">
       <h2 class="section-title" id="connections-title">{{ t("you.page.what-s-connected", "What's connected") }}</h2>
-      <a class="acct-link" href="/connect">{{ t("you.page.connect-another", "Connect another app") }}</a>
+      <a class="acct-link" id="connect-link" href="/connect">{{ t("you.page.connect-another", "Connect another app") }}</a>
     </div>
-    <p class="note">{{ t("you.page.connections-says", "Apps you've connected targum to, and what each one may do. Disconnecting takes effect at once.") }}</p>
+    <p class="note" id="connections-none" hidden>{{ t("you.page.connections-none", "Nothing is connected yet. Connect Claude, ChatGPT or another app to use targum from inside it.") }}</p>
+    <p class="note" id="connections-says">{{ t("you.page.connections-says", "Apps you've connected targum to, and what each one may do. Disconnecting takes effect at once.") }}</p>
     <ul class="acct-conns" id="connection-rows"></ul>
     <p class="said" id="connections-said" role="status" hidden></p>
   </section>
