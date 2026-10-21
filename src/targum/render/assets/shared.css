@@ -696,6 +696,8 @@ table.rows tr:hover .copy,
 
 /* What the pressed step means, under the scale. Secondary by §9. */
 .vocab-editor .level-legend { font-size: 0.8125rem; color: var(--ink-soft); }
+/* What ignore is for, said under the scale (targum-internal#476, B4). */
+.vocab-editor .level-ignore-says { color: var(--ink-soft); }
 
 
 /* On a phone the card is the occupant of the foot: a sheet that rises from the bottom of

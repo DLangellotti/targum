@@ -120,3 +120,23 @@ from fontTools.varLib import instancer
 f = instancer.instantiateVariableFont(TTFont("FrankRuhlLibre.ttf"), {"wght": 400})
 f.flavor = "woff2"; f.save("FrankRuhlLibre-Regular.woff2")'
 ```
+
+### Source Sans 3's Cyrillic subset
+
+The chrome's face carries a second cut on a page rendered in Russian (design.md §13,
+"Russian is carried too", 2026-10-21; targum-internal#476): `SourceSans3-Cyrillic.woff2`
+(upright, variable 200–900, 21.9 kB) and `SourceSans3-Cyrillic-Italic.woff2` (italic,
+instanced at 400 as the carried Latin italic is, 11.3 kB), each subset to U+0400–04FF with
+the non-breaking hyphen (U+2011) and № (U+2116), keeping the layout features the Latin cut
+keeps. They are a second `@font-face` of the same family with that `unicode-range`, so the
+Latin glyphs still come from the Latin file. Same licence as the Latin cut (SIL OFL 1.1,
+Adobe's, Reserved Font Name "Source"; `LICENSE.sourcesans3`), from Adobe's 3.052 release:
+
+```
+curl -sSL -o VF-source-sans-3.052R.zip \
+  'https://github.com/adobe-fonts/source-sans/releases/download/3.052R/VF-source-sans-3.052R.zip'
+shasum -a 256 VF-source-sans-3.052R.zip
+# d8e2ac355e06e6a0f0e0a0b1ac0c2451afa707584d7bb9d6b11ef9e4b749904c
+unzip VF-source-sans-3.052R.zip
+.venv/bin/python scripts/cyrillic_face.py VF
+```

@@ -355,3 +355,39 @@ def test_words_in_one_language_do_not_measure_another_shelf(browser, page_html) 
     assert "Until you mark words you know" not in page.locator("#shelves").inner_text()
     assert not thrown
     context.close()
+
+
+def test_a_language_with_no_shelf_is_one_card_with_upload(browser, page_html) -> None:
+    """targum-internal#476, B3: the Yiddish shelf drew a search over nothing, an empty card
+    in three bands and "Not here? Upload your own", which answers a search nobody made. A
+    language with no shelf is one card: there is none yet, Upload, and what works."""
+    assert not [e for e in everything() if e.language == "yi"], "the fixture has no Yiddish"
+    answers = {"/readers": {"readers": [], "shared": built(0.5, 20), "signedIn": True}}
+    context, page, thrown, _, url = library(browser, page_html, answers, language="yi")
+    page.goto(url)
+    page.locator("#no-shelf").wait_for()
+    got = page.evaluate(
+        """() => ({
+          said: document.getElementById('no-shelf-said').textContent,
+          go: document.querySelector('#no-shelf .no-shelf-go').getAttribute('href'),
+          find: document.getElementById('lib-find').hidden,
+          list: document.getElementById('picked').hidden,
+          elsewhere: document.getElementById('elsewhere').hidden,
+        })"""
+    )
+    assert got == {
+        "said": "There's no Yiddish shelf yet.",
+        "go": "/add",
+        "find": True,
+        "list": True,
+        "elsewhere": True,
+    }
+    assert not thrown
+    context.close()
+    # The Hebrew shelf keeps its search and has no such card.
+    context, page, thrown, _, url = library(browser, page_html, answers, language="he")
+    page.goto(url)
+    page.locator("#shelves .band-card").first.wait_for()
+    assert page.locator("#no-shelf").is_hidden() and page.locator("#lib-find").is_visible()
+    assert not thrown
+    context.close()

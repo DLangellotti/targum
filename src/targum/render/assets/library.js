@@ -2475,6 +2475,27 @@
             });
     }
 
+    /* A language with no shelf (targum-internal#476, B3): the card that says so and
+       offers Upload stands in place of the search, the list's card and "Not here?". */
+    function noShelf(on) {
+      var card = document.getElementById("no-shelf");
+      if (!card) return;
+      card.hidden = !on;
+      var finder = document.getElementById("lib-find");
+      if (finder) finder.hidden = on;
+      var elsewhere = document.getElementById("elsewhere");
+      if (elsewhere) elsewhere.hidden = on;
+      if (!on) return;
+      var uploaded = yoursAlone.filter(function (reader) {
+        return inLanguage(reader, chosen);
+      }).length;
+      document.getElementById("no-shelf-said").textContent = uploaded
+        ? emptySaid(0)
+        : t("library.no-shelf.said", "There's no {language} shelf yet.", {
+            language: names[chosen] || chosen,
+          });
+    }
+
     /* See all: the one list, under the band its shelf is, a page at a time. */
     function seeBand(band) {
       view.fit = band || "";
@@ -2670,20 +2691,22 @@
           return matches(row, chosen, unbanded);
         });
         var standing = shelvesHost ? drawShelves(shelvesHost, pool, sharedNow, chosen, seeBand) : 0;
+        var inLanguageAtAll = everything.filter(function (row) {
+          return inLanguage(row, chosen) && row.entry;
+        }).length;
+        // No shelf at all in this language (B3): one upload-first card, no search over
+        // nothing and no empty list's card.
+        var bare = !standing && !inLanguageAtAll;
+        noShelf(bare);
         // Nothing to shelve is said in the list's card, which is otherwise down.
-        picked.hidden = standing > 0;
+        picked.hidden = standing > 0 || bare;
         empty.hidden = standing > 0;
         if (head) head.hidden = true;
         tally.textContent = "";
-        if (!standing) {
-          empty.textContent = emptySaid(
-            everything.filter(function (row) {
-              return inLanguage(row, chosen) && row.entry;
-            }).length
-          );
-        }
+        if (!standing && !bare) empty.textContent = emptySaid(inLanguageAtAll);
         return;
       }
+      noShelf(false);
 
       var surviving = everything.filter(function (row) {
         return matches(row, chosen);

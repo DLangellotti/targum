@@ -898,6 +898,8 @@ def _faces() -> dict[str, Markup]:
         "face-scripture.css": _scripture_face(),
         "face-chrome.css": _chrome_face(),
         "face-chrome-upright.css": _chrome_face(italic=False),
+        "face-chrome-ru.css": _chrome_face(cyrillic=True),
+        "face-chrome-upright-ru.css": _chrome_face(italic=False, cyrillic=True),
     }
 
 
@@ -1037,8 +1039,10 @@ def _page_scripture_face(context: Context) -> Markup:
 
 @pass_context
 def _page_chrome_face(context: Context, italic: bool = True) -> Markup:
-    name = "face-chrome.css" if italic else "face-chrome-upright.css"
-    return _sheet(context, name, _chrome_face(italic))
+    # A page rendered in Russian carries the Cyrillic subset beside the Latin one.
+    cyrillic = str(context.get("page_language") or "").split("-")[0] == "ru"
+    name = ("face-chrome" if italic else "face-chrome-upright") + ("-ru" if cyrillic else "")
+    return _sheet(context, f"{name}.css", _chrome_face(italic, cyrillic))
 
 
 #: A script a page names by address.
@@ -1219,10 +1223,16 @@ def _scripture_face() -> Markup:
 #: would get whatever the machine has, which is the wall of text §12 records. Chrome
 #: pages carry both cuts; a reader carries the upright, for its menus (2026-10-09).
 CHROME_FACE = ("Source Sans 3", "fonts/SourceSans3.woff2", "fonts/SourceSans3-Italic.woff2")
+#: Its Cyrillic subset (design.md §13, "Russian is carried too", 2026-10-21;
+#: targum-internal#476, B1), carried only on a page in Russian, as a second face of the
+#: same family whose range is the Cyrillic block: the Latin still comes from the Latin
+#: file, and a page in English pays nothing. `scripts/cyrillic_face.py` cuts both.
+CHROME_CYRILLIC = ("fonts/SourceSans3-Cyrillic.woff2", "fonts/SourceSans3-Cyrillic-Italic.woff2")
+CYRILLIC_RANGE = "U+0400-04FF,U+2011,U+2116"
 
 
 @cache
-def _chrome_face(italic: bool = True) -> Markup:
+def _chrome_face(italic: bool = True, cyrillic: bool = False) -> Markup:
     """The chrome's face, in the page. `--chrome` in reader.css names it with its
     fallbacks; this is what makes the name true.
 
@@ -1240,6 +1250,19 @@ def _chrome_face(italic: bool = True) -> Markup:
             f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
             f'src:url({_data_uri(slanted)}) format("woff2");font-display:block}}'
         )
+    if cyrillic:
+        cyr_upright, cyr_slanted = CHROME_CYRILLIC
+        faces += (
+            f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:normal;'
+            f'src:url({_data_uri(cyr_upright)}) format("woff2");font-display:block;'
+            f"unicode-range:{CYRILLIC_RANGE}}}"
+        )
+        if italic:
+            faces += (
+                f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
+                f'src:url({_data_uri(cyr_slanted)}) format("woff2");font-display:block;'
+                f"unicode-range:{CYRILLIC_RANGE}}}"
+            )
     return Markup(f"<style>{faces}</style>")
 
 
