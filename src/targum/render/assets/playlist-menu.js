@@ -333,7 +333,7 @@
     var confirm = document.createElement("button");
     confirm.type = "submit";
     confirm.className = "pm-confirm";
-    confirm.textContent = say("playlist-menu.confirm", "Confirm");
+    confirm.textContent = say("playlist-menu.confirm", "Create");
     presses.appendChild(confirm);
     form.appendChild(presses);
     form.addEventListener("submit", function (event) {
