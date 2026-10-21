@@ -400,6 +400,31 @@ the stage's name sat small under the control, where "Just met" was read as "just
   legend asks "How well do you know it?".
 - The keys stay 1, 2, 3, 4 and k. "To work on" stays the name for steps 1 to 3 together.
 
+### The Anki deck carries each word's sound — 2026-10-21
+
+A beta reader, 2026-10-21: "I love the export to anki … but it doesn't export the sound."
+(targum-internal#496). David chose the same day:
+
+- **The deck is an `.apkg` the server builds**, in place of the text file the browser
+  wrote. A text import cannot bring media into Anki. The words are the account's own, at
+  the stages the page shows, never a list the page sends, so nothing but a saved word is
+  ever said; the page hands only each card's back as it draws it, which is escaped. The
+  note is the same as before: the word, its meaning, the level as a tag. A note keeps its
+  id across exports, so importing again updates it.
+- **Every word gets its sound, made where it has none**, the way a Hear press makes one
+  ("A word said from its card is on targum"): one `gift` job through `Library.claim_turn`
+  for the export, held to the box ceiling, settled to the seconds made, each clip kept by
+  what was said, under `/say-word`'s own guard and never past the claim. **At most 5,000
+  new sounds a reader a month, across exports**, so exporting again spends nothing past
+  it; a clip already made costs nothing. A word past the cap, or one the voice cannot say,
+  goes in the deck silent.
+- **The reader is told plainly while it is made**: "Making the sounds: 120 of 400 words.
+  Keep this page open." and then "Your deck is ready" with how many have no sound.
+  Where the server cannot make it, the text file comes as before, and the line says it
+  has no sound. Exports are only offered signed in, so there is always a server to ask.
+- The reader's own Anki button, inside a text, is unchanged: it is a file the reader
+  carries offline.
+
 ### Your Words says each word, as its card does — 2026-10-21
 
 A beta reader, 2026-10-21, on Your Words' word column: "And be able to play the sounds

@@ -168,6 +168,7 @@
         {%- if which == 'words' %}
         <button type="button" class="link-quiet" id="export-anki" hidden>{{ t("yours.page.export-anki", "Export as an Anki deck") }}</button>
         <button type="button" class="link-quiet" id="export-words" hidden>{{ t("yours.page.csv", "CSV") }}</button>
+        <span class="export-said" id="export-said" role="status" aria-live="polite" hidden></span>
         {%- else %}
         <button type="button" class="link-quiet" id="export-phrases" hidden>{{ t("yours.page.csv", "CSV") }}</button>
         {%- endif %}
