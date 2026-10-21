@@ -609,6 +609,14 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
             # The construct state, said where `kept_feats` and the card already look.
             feats = "|".join(part for part in (feats, "Definite=Cons") if part)
         binyan = binyan_of(feats) or (_binyan_of(lemma) if pos == "VERB" else None)
+        if (
+            binyan is None
+            and pos == "VERB"
+            # A future's נ is "we": נשמע, "we will hear", opens like a nif'al past.
+            and "Tense=Fut" not in (feats or "")
+            and nifal_shown(lemma, seg[-1] if seg else surface)
+        ):
+            binyan = BINYANIM["NIFAL"]
         out.append(
             Token(
                 start=int(offsets.get("start", 0)),
@@ -822,6 +830,26 @@ def active(lemma: str, base: str, present: bool = False) -> str:
     if word.startswith(letters[1]) or word.startswith("ל" + letters[1]):
         return lemma[1:]
     return lemma
+
+
+# Pi'els of four letters that open with נ and look like a nif'al past letter for letter:
+# נִטְרֵל, נִרְמֵל. Named, since nothing unpointed tells them apart.
+NIFAL_LOOKALIKES = frozenset({"נטרל", "נרמל", "נקטר", "נשנש"})
+
+
+def nifal_shown(lemma: str, base: str) -> bool:
+    """Whether a nif'al lemma's word spells the nif'al itself: נ before the root in the
+    past and the present (נאמר, נמצאים), or הי in the infinitive (להיכנס). Then the binyan
+    is נפעל, where `_binyan_of`, reading the lemma alone, refuses every נ + three because
+    נקבה is a noun (targum-internal#307, 2026-10-21: 965 bare נאמר tokens on the laptop's
+    shelf drew no table for want of it)."""
+    letters = lemma.translate(FINALS)
+    if len(letters) != 4 or letters[0] != "נ" or letters[1] in NIFAL_KEPT:
+        return False
+    if letters[:2] == letters[2:] or letters in NIFAL_LOOKALIKES:
+        return False
+    word = base.translate(FINALS)
+    return word.startswith(("נ" + letters[1], "הי" + letters[1], "להי" + letters[1]))
 
 
 NIFAL_PE_YOD = frozenset(

@@ -1485,6 +1485,20 @@ def test_a_future_is_told_from_its_nifal_by_the_marks(pointed: str, lemma: str, 
     assert mend_pointed(lemma, "VERB", pointed) == (said, "VERB")
 
 
+def test_a_nifal_that_spells_itself_is_given_its_binyan() -> None:
+    """נאמר, נמצאים and להיכנס show the nif'al's own letters before the root; the lemma
+    alone does not, so they had no binyan and no table (targum-internal#307)."""
+    from targum.annotate.dicta import nifal_shown
+
+    assert nifal_shown("נאמר", "נאמר")
+    assert nifal_shown("נמצא", "נמצאים")
+    assert nifal_shown("נכנס", "להיכנס")
+    assert not nifal_shown("נאמר", "יאמר"), "a future says nothing unpointed"
+    assert not nifal_shown("נטרל", "נטרל"), "a four-letter pi'el, letter for letter"
+    assert not nifal_shown("נמנם", "נמנם"), "a doubled root"
+    assert not nifal_shown("אמר", "נאמר"), "only a nif'al lemma"
+
+
 def test_a_present_is_read_from_either_way_dicta_says_one() -> None:
     """Tense=Pres, or every person at once with no tense: אוֹמְרִים came back the second
     way 822 times on the laptop's shelf and stayed under אומר (targum-internal#490)."""
