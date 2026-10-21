@@ -329,7 +329,7 @@ def test_a_russian_letter_is_russian_and_points_at_the_russian_edition() -> None
     mail = letter(_issue(), PUBLIC, "tok", "ru")
     subject, body = mail.subject, mail.text
     assert subject.startswith("Недельный обзор новостей")
-    assert "Лёгкий (1\u00a0000 слов)" in body
+    assert "Лёгкий (Если вы знаете 1\u00a0000 слов)" in body
     assert f"{PUBLIC}/weekly/{WEEK}/aleph?lang=ru" in body
     assert "/weekly/stop?t=tok&lang=ru" in body
     assert "Easy" not in body and "Read this week" not in body
@@ -339,7 +339,7 @@ def test_an_english_letter_is_the_letter_it_was() -> None:
     mail = letter(_issue(), PUBLIC, "tok")
     subject, body = mail.subject, mail.text
     assert subject == "Weekly News Digest · Monday, August 31, 2026"
-    assert "Easy (1,000 words)" in body
+    assert "Easy (If you know 1,000 words)" in body
     assert "lang=" not in body
     assert f"Unsubscribe: {PUBLIC}/weekly/stop?t=tok\n" in body
 
