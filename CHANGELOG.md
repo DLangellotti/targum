@@ -614,6 +614,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- The front door's English says what the app does now (targum-internal#477, from
+  ling-en's pass). "How you learn" no longer promises the ulpan ladder, which Your
+  Progress dropped: the card says Your Progress shows the kinds of text you can follow,
+  and its demo reads "2,140 words known · You'd follow most of a news article", the
+  page's own sentence. The library heading counts what the live Library links, more
+  than 700 Hebrew texts and videos (720 on 2026-10-21), where it said nearly 500, and
+  `/connect` says the same. "Cantillation marks" replaces the in-house "chanting marks"
+  on this page, the Aramaic chapters keep "a word list of their own", the phone's link
+  says "Save as a text" as the chat's button does, and four answers lose their colon
+  lists and passives. The cost answer names no price and promises no early word of one;
+  the tap card still says each vowel we add is marked (design.md, 2026-10-02). The expired sign-in link's heading is "That link no longer
+  works", since it may have been used rather than timed out. The link preview's alt is
+  a string key (`public.head.preview-alt`), so the Russian page can carry its own.
+  The Russian twins are stale until ling-ru re-reads them, so `test_strings` names them
+  until then.
+- The front door's lede is two plain sentences and an offer: "Everything here arrives
+  ready to read. Every word has its vowels (nikkud) and every line has its English
+  beside it. Tap any word and we'll explain it." It opened on an aphorism and carried a
+  colon list. The headline and the four points under the box are unchanged, as design.md
+  holds them (2026-10-02, amended here).
 - A video text has a viewer of its own (targum-internal#422, David's A + B + C from the
   mockups). **Beside**: the picture at the left with one thin row under it — play and
   pause, the time, a hairline of where the voice is (the line being said a faint band on

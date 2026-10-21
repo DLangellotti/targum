@@ -33,7 +33,7 @@
     <div class="hero">
       <div class="headline">
         <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
-          <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.") }}</p>
+          <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "Everything here arrives ready to read. Every word has its vowels (nikkud) and every line has its English beside it. Tap any word and we’ll explain it.") }}</p>
         {#- Try the door (targum-internal#399): paste a link and be told what it is, in
             the Add box's own sentence. A plain post, so it works with JavaScript off;
             the answer comes back on this page. Nothing is built and nothing is spent,
@@ -154,7 +154,7 @@
       <div class="part-head">
         <p class="label">{{ t("landing.page.your-own-hebrew", "Your own Hebrew") }}</p>
         <h2>{{ t("landing.page.if-it-s-in-hebrew-you-can-learn", "If it’s in Hebrew, you can learn from it here.") }}</h2>
-        <p>{{ t("landing.page.paste-a-link-or-drop-a-file-whatever", "Paste a link or drop a file. Recordings are written out word by word and timed to the voice, so each word lights up as it’s said.") }}</p>
+        <p>{{ t("landing.page.paste-a-link-or-drop-a-file-whatever", "Paste a link or drop a file. We write out every recording word by word and time it to the voice, so each word lights up as it’s said.") }}</p>
       </div>
       {#- What the box gives back once you're in (2026-10-02): the one sentence about the
           link, how much of it you already know, and when it's ready. Drawn, because a
@@ -195,7 +195,7 @@
         </li>
         <li class="how-card">
           <h3>{{ t("landing.page.tap-any-word", "Tap any word") }}</h3>
-          <p>{{ t("landing.page.tap-any-word-said", "Each word comes with its dictionary form, root and binyan. Missing vowels are filled in, and each one we add is marked.") }}</p>
+          <p>{{ t("landing.page.tap-any-word-said", "Each word comes with its dictionary form, its root and its verb pattern (binyan). Where a text has no vowels, we fill them in and mark each one we add.") }}</p>
           {#- "Every word" folded in here (2026-10-01): the reader at the top already shows
               a whole card, so this shows the one thing it cannot, the vowels going. -#}
           <div class="how-vis center">
@@ -207,9 +207,12 @@
         </li>
         <li class="how-card">
           <h3>{{ t("landing.page.watch-your-hebrew-grow", "Watch your Hebrew grow") }}</h3>
-          <p>{{ t("landing.page.every-word-you-learn-is-counted-and-moves", "Every word you learn is counted and moves you up the ulpan ladder, so you can see how far you’ve come.") }}</p>
+          <p>{{ t("landing.page.every-word-you-learn-is-counted-and-moves", "Every word you learn is counted, and Your Progress shows the kinds of text you can follow now.") }}</p>
           <div class="how-vis">
-            <div class="how-count"><span class="v">2,140</span><span>{{ t("landing.page.words-known", "words known ·") }} <span class="he">ב</span> {{ t("landing.page.bet", "bet") }}</span></div>
+            {#- The ladder Your Progress draws since 2026-10-09: six kinds of text, the bars its
+                rungs, two followed and the third, the news article, most of the way. The
+                headline is the page's own sentence, so it says what the app says. -#}
+            <div class="how-count"><span class="v">2,140</span><span>{{ t("landing.page.words-known", "words known ·") }} {{ t("progress.where.most.article", "You'd follow most of a news article") }}</span></div>
             <div class="how-bars"><i class="h30 on"></i><i class="h42 on"></i><i class="h54 part"></i><i class="h66"></i><i class="h78"></i><i class="h90"></i></div>
           </div>
         </li>
@@ -273,7 +276,7 @@
             </ol>
             <div class="ct-sum tnum">
               <span>{{ t("landing.page.2-new-words-on-your-list", "2 new words on your list") }}</span>
-              <a href="#reader">{{ t("landing.page.keep-as-a-text", "Keep as a text") }}</a>
+              <a href="#reader">{{ t("landing.page.keep-as-a-text", "Save as a text") }}</a>
             </div>
             <div class="composer" aria-hidden="true">
               <span>{{ t("chat.page.write-in-hebrew-or-english", "Write in Hebrew or English") }}</span>
@@ -290,8 +293,8 @@
     <div class="col">
       <div class="part-head">
         <p class="label">{{ t("landing.page.the-library", "The library") }}</p>
-        <h2>{{ t("landing.page.nearly-500-texts-and-videos-to-learn-from", "Nearly 500 texts and videos to learn from, free.") }}</h2>
-        <p>{{ t("landing.page.this-week-s-news-at-three-levels-videos", "This week’s news at three levels, graded stories, Bialik and the whole Tanakh, many with a published translation set beside the Hebrew sentence by sentence.") }}</p>
+        <h2>{{ t("landing.page.nearly-500-texts-and-videos-to-learn-from", "More than 700 texts and videos to learn from, free.") }}</h2>
+        <p>{{ t("landing.page.this-week-s-news-at-three-levels-videos", "This week’s news at three levels, graded stories, Bialik and the whole Tanakh. Many come with a published translation, sentence by sentence.") }}</p>
       </div>
       <div class="shelf">
         <div class="book"><span class="reg">{{ t("landing.page.video", "Video") }}</span><span class="t">{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span><span class="k tnum">{{ t("landing.page.80-of-words-known", "80% of words known") }}</span><span class="meter"><i class="p80"></i></span></div>
@@ -304,12 +307,12 @@
         Genesis as its centrepiece, rather than a part of its own. -#}
     <div class="col split torah-in" id="torah">
       <div class="part-head">
-        <h3>{{ t("landing.page.genesis-with-its-chanting-marks-and-onkelos-beside", "Genesis with its chanting marks, and Onkelos beside it.") }}</h3>
-        <p>{{ t("landing.page.the-hebrew-with-its-chanting-marks-an-english", "The Hebrew with its chanting marks, an English translation under every verse, and Targum Onkelos whenever you want the Aramaic.") }}</p>
+        <h3>{{ t("landing.page.genesis-with-its-chanting-marks-and-onkelos-beside", "Genesis with its cantillation marks, and Onkelos beside it.") }}</h3>
+        <p>{{ t("landing.page.the-hebrew-with-its-chanting-marks-an-english", "The Hebrew with its cantillation marks, an English translation under every verse, and Targum Onkelos whenever you want the Aramaic.") }}</p>
         <ul class="points">
-          <li>{{ t("landing.page.chanting-marks-on-or-off", "Chanting marks on or off.") }}</li>
+          <li>{{ t("landing.page.chanting-marks-on-or-off", "Cantillation marks on or off.") }}</li>
           <li>{{ t("landing.page.the-weekly-portion-read-aloud", "The weekly portion chanted, each word lit as it’s sung.") }}</li>
-          <li>{{ t("landing.page.daniel-and-ezra-s-aramaic-chapters-on-a", "Daniel and Ezra’s Aramaic chapters, on a list of their own.") }}</li>
+          <li>{{ t("landing.page.daniel-and-ezra-s-aramaic-chapters-on-a", "Daniel and Ezra’s Aramaic chapters, with a word list of their own.") }}</li>
         </ul>
       </div>
 
@@ -339,10 +342,10 @@
       </div>
       <div class="faq">
         <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
-        <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("landing.page.if-you-re-learning-hebrew-and-know-the", "If you’re learning Hebrew and know the alphabet, yes: whether you’re fresh out of an ulpan, a year into an app, studying for a degree or keeping up with the weekly portion. The library is sorted by the words you already know, so there’s always something you can learn from.") }}</p></details>
-        <details><summary>{{ t("landing.page.does-it-replace-a-course", "Does it replace a course?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "It’s the other half of one. A course teaches you the rules; targum gives you real Hebrew to practise them on, every day, and keeps count of every word you learn.") }}</p></details>
+        <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("landing.page.if-you-re-learning-hebrew-and-know-the", "Yes, if you’re learning Hebrew and know the alphabet. You might be fresh out of an ulpan, a year into an app, studying for a degree or keeping up with the weekly portion. The library is sorted by the words you already know, so there’s always something you can learn from.") }}</p></details>
+        <details><summary>{{ t("landing.page.does-it-replace-a-course", "Does it replace a course?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "No, it works beside one. A course teaches you the rules, and targum gives you real Hebrew to practise them on. It keeps count of every word you learn.") }}</p></details>
         <details><summary>{{ t("landing.page.biblical-or-modern", "Biblical or modern?") }}</summary><p>{{ t("landing.page.both-on-one-list-a-word-you-learn", "Both, on one list. A word you learn in Genesis is already yours when it turns up in the news.") }}</p></details>
-        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.") }}</p></details>
+        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. The free plan takes your own texts too, and a paid plan will give you more of your own audio and video each month.") }}</p></details>
         {%- if connector_is_open() %}
         <details><summary>{{ t("landing.page.can-i-use-it-in-claude-or-chatgpt", "Can I use it in Claude or ChatGPT?") }}</summary><p>{{ t("landing.page.yes-connect-targum-and-your-ai-talks", "Yes. Connect targum and your AI talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></p></details>
         {%- endif %}

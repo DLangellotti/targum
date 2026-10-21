@@ -4085,7 +4085,9 @@ and is sharpened (targum-internal#399):
 - **The hero is today's headline and lede, with one call to action**: the box, and under
   it the live page's own four points (start at any level, upload any text or media,
   hundreds of free texts and videos, no credit card required); written anew they read
-  as generated (David, 2026-10-02).
+  as generated (David, 2026-10-02). The lede was rewritten on 2026-10-21 (targum-internal#477) without its
+  aphorism opener and its colon list, the two tells ling-en found in it; the headline and
+  the four points stand as they were.
   The whole word card stands beside the headline; the reader runs the full width under
   both and, leaving the top, makes room for the card in one 400ms move, keeping its
   height so nothing under it rises, and the card stays beside it while the lines are read.
