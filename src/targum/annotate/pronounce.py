@@ -22,6 +22,7 @@ import logging
 import re
 
 from ..vocalize.base import LETTERS, TAAMIM, has_nikkud, has_taamim, strip_taamim
+from . import segolate
 
 LOG = logging.getLogger(__name__)
 
@@ -334,7 +335,10 @@ class PhonikudPronouncer:
     # The name rides in the annotator's name and so in what a built text records, which
     # is what lets a better reading reach a book already on the shelf: a file made before
     # this names something else, so it is redone. Redoing one is free.
-    name = "phonikud/2"
+    #
+    # `phonikud/3` (2026-10-21, targum-internal#454): a segolate's stress from its pointing,
+    # where no accent places it. Rides the grammar/7 re-read.
+    name = "phonikud/3"
 
     def available(self) -> tuple[bool, str]:
         try:
@@ -370,6 +374,10 @@ class PhonikudPronouncer:
             # removing them a translation rather than a loss.
             if has_taamim(word):
                 word = stressed(word) or strip_taamim(word)
+            if HATAMA not in word:
+                # No accent placed it: the segolate rule, from the pointing, where the
+                # vowels settle it (`segolate`, targum-internal#454) — כֶּסֶף is kˈesef.
+                word = segolate.place(word) or word
             word = vocal_shva(word.replace(METEG, ""), prefixed)
             try:
                 said = phonikud.phonemize(word)
