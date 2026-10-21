@@ -804,7 +804,7 @@ var targumReader = function () {
   // `targum:looked:`, which is a store `vocab.js` retired and still sweeps on load.
   var LOOKED = "targum:cards:" + language;
 
-  // What you have decided about a word. Learning runs 1 to 3, from just met to nearly
+  // What you have decided about a word. Learning runs 1 to 3, from new to you to almost
   // there; known and ignored are ends rather than steps. A word you have never marked
   // is not in the store at all, which is what makes "new" cost nothing to represent.
   var LEARNING = [1, 2, 3];
@@ -2135,9 +2135,9 @@ var targumReader = function () {
   // word: the ignore button reads "a name or a number", and hearing that back as the
   // answer to a keystroke tells you nothing about what happened.
   var SAID = {};
-  SAID[1] = t("reader.level.1", "just met");
-  SAID[2] = t("reader.level.2", "getting there");
-  SAID[3] = t("reader.level.3", "nearly there");
+  SAID[1] = t("reader.level.1", "new to you");
+  SAID[2] = t("reader.level.2", "still learning");
+  SAID[3] = t("reader.level.3", "almost known");
   SAID[KNOWN] = t("reader.level.known", "known");
   SAID[IGNORED] = t("reader.level.ignored", "ignored");
 
@@ -7678,9 +7678,9 @@ var targumReader = function () {
   }
 
   function statusName(status) {
-    if (status === 1) return gt("reader.grammar.status-1", "just met");
-    if (status === 2) return gt("reader.grammar.status-2", "getting there");
-    if (status === 3) return gt("reader.grammar.status-3", "nearly there");
+    if (status === 1) return gt("reader.grammar.status-1", "new to you");
+    if (status === 2) return gt("reader.grammar.status-2", "still learning");
+    if (status === 3) return gt("reader.grammar.status-3", "almost known");
     if (status === KNOWN) return gt("reader.grammar.status-known", "known");
     if (status === IGNORED) return gt("reader.grammar.status-ignored", "ignored");
     return "";

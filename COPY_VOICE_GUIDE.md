@@ -85,7 +85,6 @@ code that makes it true. The audit found these five failures most often:
 | One item in the library or a playlist | a text | a doc, a book (unless it is one) |
 | Making a text ready | get it ready, make it | build, built, quote |
 | Talking with targum, in the app or in Claude/ChatGPT | **chat**, chatting; the list is **Chats**; the button and drawer are **Talk to targum** | talk as a noun ("Talk needs the connection"), conversation (except where it means a dialogue in a scene), check, turn |
-| Setting a word's level | mark (just met · getting there · nearly there · known) | rate, score |
 | The `m` toggle that tints unlearned words | highlight | mark |
 | Words the reader has put on their list | **saved** words, save | kept, keep the words (David, 2026-10-18; still in `reader.page.what-you-have-kept-from-this-text` and `print.week.kept`) |
 | The allowance | credits | hours, minutes (as a pool), balance points |
@@ -95,6 +94,7 @@ code that makes it true. The audit found these five failures most often:
 | A unit of a text you read | section | chunk. (Add and the build card still say “part” for what a build makes first.) |
 | A series, news topic, channel or podcast whose new items come to the reader | **subscribe**, Subscribed, Unsubscribe; the list is **Subscriptions** (in the nav, **Your subscriptions**) | follow, Following (still in `library.see.follow-topic` and `connect.page.subscriptions-says`) |
 | The marks the Masorah wrote for singing the reading | **cantillation marks** | chanting marks (David, 2026-09-30: an in-house coinage; still in 11 `reader.*`, `parasha.*` and `landing.*` keys) |
+| How well a reader knows a word: the four steps and the mark | **New · Learning · Almost · Known** in the control; **new to you · still learning · almost known · known** in a sentence or a legend; marking a word is to **mark** it | 1 · 2 · 3, just met, getting there, nearly there (David, 2026-10-21) |
 | Something the reader brought: pasted, uploaded or linked | **Uploaded**, Uploaded by you; the tab is **Uploads**, the nav button **Upload** | Added, Add (David, 2026-10-21) |
 
 Capitalise named pages as they appear in the nav: Your targums, Your Progress, Library,

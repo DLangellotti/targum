@@ -1161,7 +1161,7 @@ class Returning:
     new: list[str]
     #: Status 2.
     learning: list[str]
-    #: Status 3: nearly there.
+    #: Status 3: almost known.
     nearly: list[str]
     #: Known, and marked known longest ago — the ones a reader stops meeting.
     known: list[str]

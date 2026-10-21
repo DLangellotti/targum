@@ -559,7 +559,7 @@ def test_the_table_says_where_each_word_was_met_most_met_first() -> None:
     assert [row["term"] for row in drawn["words"]] == ["ספר", "דרך", "עיר"]
     assert [row["met"] for row in drawn["words"]] == ["4 texts", "1 text", ""]
     assert drawn["order"] == "Most met first" and drawn["hasMet"]
-    assert drawn["words"][0]["status"] == "Getting there", "the stage by name"
+    assert drawn["words"][0]["status"] == "Still learning", "the stage by name"
 
 
 def test_met_often_keeps_to_the_words_met_in_two_texts_or_more() -> None:
@@ -902,9 +902,9 @@ def test_the_stages_are_chips_and_the_table_opens_on_what_to_work_on() -> None:
     drawn = draw(vocabulary(word("ספר", "book", status=9), word("דרך", "road", status=2)))
     assert drawn["chips"] == [
         "To work on",
-        "Just met",
-        "Getting there",
-        "Nearly there",
+        "New to you",
+        "Still learning",
+        "Almost known",
         "Known",
         "All",
     ]

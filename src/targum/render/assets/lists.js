@@ -1071,7 +1071,7 @@
   function stageName(status) {
     if (status === KNOWN) return t("vocab.step.known.title", "Known");
     if (status === 0) return t("lists.stage.ignored", "Ignored");
-    return t("vocab.step." + status, ["", "Just met", "Getting there", "Nearly there"][status] || "");
+    return t("vocab.step." + status, ["", "New to you", "Still learning", "Almost known"][status] || "");
   }
 
   function renderWords() {
@@ -1498,9 +1498,9 @@
   function stages() {
     return [
       ["learning", t("lists.stage.work", "To work on")],
-      ["1", t("vocab.step.1", "Just met")],
-      ["2", t("vocab.step.2", "Getting there")],
-      ["3", t("vocab.step.3", "Nearly there")],
+      ["1", t("vocab.step.1", "New to you")],
+      ["2", t("vocab.step.2", "Still learning")],
+      ["3", t("vocab.step.3", "Almost known")],
       [String(KNOWN), t("vocab.step.known.title", "Known")],
       ["all", t("lists.stage.all", "All")],
     ];

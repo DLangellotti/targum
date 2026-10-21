@@ -310,10 +310,10 @@ def test_the_scale_says_what_the_pressed_step_means() -> None:
     """ "Explain what the 1, 2, 3 stages of how well you know a word mean." The names were
     in the buttons' tooltips, which is nowhere on a phone. Since 2026-10-09 (§12, "The
     five stages are one control, on every card") the stage's own name, written once."""
-    assert run(status=2, legend=True)["legend"] == "Getting there"
+    assert run(status=2, legend=True)["legend"] == "Still learning"
     assert run(status=9, legend=True)["legend"] == "Known", "said once, not 'known · known'"
     assert run(status=0, legend=True)["legend"] == "Ignored: a name or a number"
-    assert run(legend=True)["legend"] == "1 just met · 2 getting there · 3 nearly there"
+    assert run(legend=True)["legend"] == "How well do you know it?"
     assert run(status=2)["legend"] is None, "the list beside the text has no room for it"
 
 

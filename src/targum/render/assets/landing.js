@@ -126,7 +126,7 @@
       "<p class=\"card-sense\">" + (w.inf ? "<span class=\"he inf\">" + w.inf + "</span> " : "") + w.sense + " <span class=\"pos\">· " + w.pos + "</span></p></div>";
     if (w.binyan) html += "<div class=\"binyanim\">" + w.binyan.map(function (b) { return "<span class=\"" + (b[2] ? "here" : "") + "\">" + b[0] + " <span class=\"he\">" + b[1] + "</span></span>"; }).join("") + "</div>";
     html += "<dl class=\"facts-list\">" + w.facts.map(function (f) { return "<dt>" + f[0] + "</dt><dd>" + f[1] + "</dd>"; }).join("") + "</dl>";
-    html += "<div class=\"card-actions\"><button class=\"btn tonal small\" type=\"button\" data-set=\"learning\" aria-pressed=\"" + (w.state === "learning") + "\">" + t("landing.demo.getting-there", "Getting there") + "</button>" +
+    html += "<div class=\"card-actions\"><button class=\"btn tonal small\" type=\"button\" data-set=\"learning\" aria-pressed=\"" + (w.state === "learning") + "\">" + t("landing.demo.learning", "Learning") + "</button>" +
       "<button class=\"btn tonal small\" type=\"button\" data-set=\"known\" aria-pressed=\"" + (w.state === "known") + "\">" + t("landing.demo.known", "Known") + "</button>" +
       "<button class=\"btn ghost small\" type=\"button\">" + t("landing.demo.ask", "Ask") + "</button></div>";
     var cardEl = document.getElementById("card");

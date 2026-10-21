@@ -58,8 +58,8 @@
 .vocab-editor .levels { display: flex; align-items: center; flex-wrap: wrap; }
 /* One segmented control on the knowledge ramp (design.md §12, "The five stages are one
    control, on every card", 2026-10-09; David, 2026-10-08: "why don't the word cards show
-   the stages of learning?"). Four segments joined — 1, 2, 3, known — the one a word is on
-   filled with its step of the ramp, the rest outlined; ignore after a gap, a quiet word
+   the stages of learning?"). Four segments joined — New, Learning, Almost, Known since
+   2026-10-21 — the one a word is on filled with its step of the ramp; ignore after a gap, a quiet word
    rather than a segment, because a name is not a step anybody climbs. */
 .vocab-editor {
   --ramp-1: color-mix(in srgb, var(--leaf) 32%, var(--paper));
@@ -88,6 +88,19 @@
   border-start-end-radius: var(--radius-control);
   border-end-end-radius: var(--radius-control);
 }
+/* The scale reads by name and colour (design.md §12, 2026-10-21; a beta reader: "do it
+   by colour", "1 2 3" was confusing). Every segment wears its own step of the ramp at
+   rest, as a wash, with its name in it — New, Learning, Almost, Known — so the colours
+   are learnt from the names; the one a word is on is filled with that step and ringed in
+   ink, so which one is pressed never rests on colour alone. */
+/* Each step's wash at the same share of its own step, so the ramp climbs: Known, whose
+   step is leaf itself, is the strongest at rest as it is when pressed. */
+.vocab-editor .level-1 { background: color-mix(in srgb, var(--ramp-1) 55%, var(--card)); }
+.vocab-editor .level-2 { background: color-mix(in srgb, var(--ramp-2) 55%, var(--card)); }
+.vocab-editor .level-3 { background: color-mix(in srgb, var(--ramp-3) 55%, var(--card)); }
+.vocab-editor .level-9 { background: color-mix(in srgb, var(--leaf) 55%, var(--card)); }
+.vocab-editor .level.on { box-shadow: inset 0 0 0 2px var(--ink); font-weight: 600; }
+.vocab-editor .level-0.on { box-shadow: none; }
 .vocab-editor .level-1.on { background: var(--ramp-1); border-color: var(--ramp-1); }
 .vocab-editor .level-2.on { background: var(--ramp-2); border-color: var(--ramp-2); }
 .vocab-editor .level-3.on { background: var(--ramp-3); border-color: var(--ramp-3); }
