@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import re
 import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -634,6 +635,10 @@ class Paradigm:
     forms: tuple[Form, ...]
 
 
+#: A hif'il lemma whose vav after the ה carries a shva: הִוְרִיד.
+_CONSONANT_VAV = re.compile("^ה[\u0591-\u05c7]*ו\u05b0")
+
+
 @dataclass(frozen=True)
 class Table:
     """Every verb, and the index from a bare form to the verbs that spell it that way."""
@@ -654,6 +659,11 @@ class Table:
     )
     #: Each verb's binyan as `binyan_of` gives it, worked out once per verb.
     _binyans: dict[str, str | None] = field(default_factory=dict, repr=False, compare=False)
+    #: Every verb by its root and binyan, for a lemma that is a root (`candidates`). Built
+    #: on first use.
+    _roots: dict[tuple[str, str], list[str]] = field(
+        default_factory=dict, repr=False, compare=False
+    )
 
     def of(
         self,
@@ -710,10 +720,16 @@ class Table:
         conjugation table is worse than no table, and the way out to Pealim is still on
         the card.
         """
-        found = self.by_form.get(bare(word)) or ()
+        found = self.candidates(word, binyan)
         if not found:
             return None
         if len(found) == 1:
+            # One candidate is the verb only where it is in the occurrence's binyan, or
+            # either says none: בוא in hif'il is "brought", and בָּא's table under it said
+            # "came" (ling-he on #841: 8,240 library tokens drew the wrong binyan's table).
+            named = self.binyan_of(found[0])
+            if binyan and named and named != binyan:
+                return None
             return self.verbs.get(found[0])
         pointed = [] if infinitive else self.pointed_as(found, seen)
         built = []
@@ -751,6 +767,84 @@ class Table:
         if self._read_otherwise(found, chosen, written) or self.dotted_otherwise(chosen, seen):
             return None
         return self.verbs.get(chosen)
+
+    def candidates(self, word: str, binyan: str | None = None) -> tuple[str, ...]:
+        """The verbs a lemma or form could be, by its letters.
+
+        And a pi'el lemma written plene, where the table has it only defective
+        (targum-internal#307, 2026-10-21). DICTA writes the modern spelling, דיבר, קיבל,
+        ביקש, with a yod for the hiriq; the source stores the pointed דִּבֵּר, whose letters
+        are דבר. So the commonest pi'els in the language had no table at all: דיבר alone
+        was 1,851 verb tokens on the laptop's shelf in "no candidate". Only where the
+        spelling as written finds nothing, and only the pi'el among what the defective
+        spelling finds, since דבר is also דֻּבַּר and קרב also קָרַב.
+        """
+        letters = bare(word)
+        found = self._distinct(self.by_form.get(letters) or ())
+        if found:
+            # A root that is also a qal lemma, with another binyan beside it: עלה in
+            # hif'il is הֶעֱלָה, לחם in nif'al נִלְחַם, not the qal the letters find. Where
+            # every verb the letters find is in a binyan other than the occurrence's, the
+            # verb of the root in that binyan is the one (ling-he on #841); and where the
+            # root has none, nothing, which `of` refuses.
+            if binyan and len(letters) == 3:
+                named = [self.binyan_of(lid) for lid in found]
+                if all(one and one != binyan for one in named):
+                    return self._distinct(tuple(self._root_index().get((letters, binyan), ())))
+            return found
+        # A plene pi'el, only for an occurrence that is a pi'el or says no binyan: ניתץ
+        # tagged nif'al is נִתַּץ, "was smashed", never the pi'el נִתֵּץ (qa on #841).
+        if (
+            len(letters) == 4
+            and letters[1] == "י"
+            and letters[0] != "י"
+            and binyan in (None, "", "פיעל")
+        ):
+            defective = self.by_form.get(letters[0] + letters[2:]) or ()
+            piel = self._distinct(tuple(lid for lid in defective if self.binyan_of(lid) == "פיעל"))
+            if piel:
+                return piel
+        # And a lemma that is a root, with the binyan beside it: Open Scriptures files
+        # הִשְׁלִיךְ under שלך and הוֹשִׁיעַ under ישע, and the table knows each verb only by
+        # its forms. Matched on the root `hebrew.root_of` reads off each verb's own lemma,
+        # in that binyan alone; a hollow root (רום for הֵרִים) it cannot read is left out
+        # (targum-internal#307, 2026-10-21).
+        if binyan and len(letters) == 3:
+            return self._distinct(tuple(self._root_index().get((letters, binyan), ())))
+        return ()
+
+    def _distinct(self, found: tuple[str, ...]) -> tuple[str, ...]:
+        """Candidates with one entry for each verb: the source holds קִבֵּל twice, as two
+        pi'els with one lemma, and two candidates was a refusal (ling-he on #841: 241
+        library tokens of קיבל drew no table). Kept in order; the first entry stands."""
+        if len(found) < 2:
+            return found
+        seen: set[tuple[str, str | None]] = set()
+        out: list[str] = []
+        for lid in found:
+            verb = self.verbs.get(lid)
+            key = (verb.lemma if verb else lid, self.binyan_of(lid))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(lid)
+        return tuple(out)
+
+    def _root_index(self) -> dict[tuple[str, str], list[str]]:
+        from .hebrew import root_of
+
+        if not self._roots:
+            for lid, paradigm in self.verbs.items():
+                named = self.binyan_of(lid)
+                root = root_of(bare(paradigm.lemma), named) if named else None
+                # A hif'il whose ו carries a shva has a consonantal vav, not a yod-first
+                # root: הִוְרִיד "turned pink" is ורד's, and filed under ירד beside הוֹרִיד
+                # it made ירד in hif'il two candidates (ling-he on #841).
+                if named == "הפעיל" and _CONSONANT_VAV.match(paradigm.lemma):
+                    root = "".join(c for c in bare(paradigm.lemma)[1:] if c != "י")[:3]
+                if named and root:
+                    self._roots.setdefault((root, named), []).append(lid)
+        return self._roots
 
     def dotted_otherwise(self, lid: str, seen: str) -> bool:
         """Whether the word was pointed with a שׂ where the verb's lemma has a שׁ, or the
