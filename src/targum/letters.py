@@ -669,7 +669,10 @@ def invitation(address: str, language: str = "en", connector: bool | None = None
         Button(text("mail.invitation.button", code), link),
     ]
     if connector_is_open() if connector is None else connector:
-        said.append(Para(text("mail.invitation.connector", code, link=f"{base}/connect")))
+        # The link as a link of its own: inside a paragraph it was escaped text, which only a
+        # client that autolinks made pressable (ling-en, targum-internal#470).
+        said.append(Para(text("mail.invitation.connector", code)))
+        said.append(Small("", text("mail.invitation.connect-link", code), f"{base}/connect"))
     return compose(
         code,
         text("mail.invitation.subject", code),
@@ -729,7 +732,8 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
     levels = [
         (
             text(f"weekly.level.{level.value}", code),
-            text("weekly.page.figure-words", code, figure=LEVELS[level].figure_in(code)),
+            # "If you know 1,000 words": a figure alone read like a length (ling-en, #470).
+            text("mail.weekly.level-note", code, figure=LEVELS[level].figure_in(code)),
             f"{where}/{level.value}{asked}",
         )
         for level in Level
@@ -738,7 +742,12 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
     # The masthead is מבט השבוע and the week's date, in Hebrew, as the reader's own title
     # is (design.md §12, "Every mail is the board's", 2026-10-09). The subject keeps the
     # public name.
-    blocks: list[Block] = [Label(dated), Hebrew(dated_title(MASTHEAD, issue.dated))]
+    # What the mail is, in the reader's language, over the masthead, which carries the
+    # date: the English date as the label said it twice (ling-en, #470).
+    blocks: list[Block] = [
+        Label(text("mail.weekly.label", code)),
+        Hebrew(dated_title(MASTHEAD, issue.dated)),
+    ]
     if issue.blurb:
         blocks.append(HebrewLine(issue.blurb))
     blocks.append(Button(text("mail.weekly.button", code), where + asked))
@@ -837,6 +846,7 @@ def build_ready(
     title_language: str = "",
     parts: int = 0,
     seconds: float = 0.0,
+    gift: bool = False,
 ) -> Letter:
     """A build finished while its reader was away. `asked` is whether they put the strip
     away and were promised this; otherwise the build simply took long enough. A film is
@@ -867,9 +877,24 @@ def build_ready(
             Title(title, title_language),
             Meta(" · ".join(facts)),
             Para(text("mail.ready.lead", code)),
-            Button(text("mail.ready.open", code), link),
+            # Read, Listen or Watch: the item is known, so the button says which (§6).
+            Button(text(f"mail.ready.button.{verb}", code), link),
         ],
-        [Foot(text("mail.ready.asked" if asked else "mail.ready.why", code))],
+        # A link a stranger saved on the front page and we got ready when they were let
+        # in: they never started it, and "your text took more than a few minutes" says
+        # otherwise (ling-en, targum-internal#470).
+        [
+            Foot(
+                text(
+                    "mail.ready.gift"
+                    if gift
+                    else "mail.ready.asked"
+                    if asked
+                    else "mail.ready.why",
+                    code,
+                )
+            )
+        ],
         address=address,
     )
 
@@ -911,7 +936,15 @@ def account_deleted(
         text("mail.deleted.preheader", code, gone=said_gone),
         [
             Heading(text("mail.deleted.heading", code)),
-            Para(text("mail.deleted.when", code, asked=said_asked, gone=said_gone)),
+            Para(
+                text(
+                    "mail.deleted.when",
+                    code,
+                    asked=said_asked,
+                    gone=said_gone,
+                    grace=str(grace_days),
+                )
+            ),
             Para(text("mail.deleted.what", code)),
             Para(text("mail.deleted.nothing", code, days=str(backups_kept), rolled=said_rolled)),
             Para(text("mail.deleted.no-copy", code)),

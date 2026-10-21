@@ -2038,6 +2038,7 @@ class Library:
                 title_language=job.language,
                 parts=max(job.parts, job.chapters),
                 seconds=job.seconds,
+                gift=bool(job.gift),
             )
             self.mailer.notify(
                 person.email, letter.subject, letter.text, letter.headers or None, letter.html

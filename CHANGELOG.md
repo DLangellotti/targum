@@ -137,6 +137,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   done and when the session has gone. Selects and fields carry the 2px focus ring, which a
   brand test now holds against any focus wash, and four small controls reach 44px under a
   thumb. Every line the page says back is a status.
+- Every mail's copy, from ling-en's pass (targum-internal#470): the sign-in mail no longer
+  tells an unknown address its account is unchanged; the invitation names the button and
+  carries its Claude and ChatGPT link as a link of its own rather than escaped text; a ready
+  mail's button says Read, Listen or Watch, and a link saved on the front page and got ready
+  on targum says so in its foot instead of "your text took more than a few minutes"; the
+  digest is named "Weekly News Digest" over its dated masthead, its button says "Read this
+  issue" and each level says "If you know {n} words"; the subscriptions mail says the cause
+  before the instruction; and the deleted-account mail takes its days from the grace period
+  and no longer says nothing remains before naming the backup that still holds it.
+  "Uploaded by you" stays (David, 2026-10-21).
 
 ### Added
 - Your Words' Anki export carries each word's sound (targum-internal#496, a beta reader's
