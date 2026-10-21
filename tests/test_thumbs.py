@@ -241,7 +241,7 @@ def test_a_row_filed_without_a_picture_is_named(
     said = run_thumbs(tmp_path, "--dry-run")
 
     lines = said.splitlines()
-    assert "1 rows without a picture" == lines[-1]
+    assert "1 row without a picture" == lines[-1]
     assert "1 own · 1 drawn · 1 tile" == lines[-2]
     assert any(line.strip() == "scene-ru-filed-later" for line in lines)
     assert not any(line.strip() in ("drawn-one", "own-one") for line in lines)
@@ -302,3 +302,33 @@ def test_a_drawn_cover_adds_its_own_line(tmp_path: Path) -> None:
     assert thumbs.origin(said["a"]) == thumbs.DRAWN
     assert thumbs.origin({"from": "book cover"}) == thumbs.OWN
     assert thumbs.origin(None) == thumbs.DRAWN
+
+
+def test_a_deploy_carries_only_the_librarys_pictures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum import catalogue
+
+    where = tmp_path / "thumbs"
+    where.mkdir()
+    for name in ("genesis", "genesis-c002", "p3-[115]-Yair-Lapid-he", "father-sergius"):
+        (where / f"{name}.webp").write_bytes(b"picture")
+    held = {
+        "genesis": {"from": "drawn", "model": "m", "date": "2026-10-08"},
+        "p3-[115]-Yair-Lapid-he": {"from": "drawn", "model": "m", "date": "2026-08-31"},
+    }
+    (where / thumbs.SOURCES).write_text(json.dumps(held), encoding="utf-8")
+    monkeypatch.setattr(catalogue, "CATALOGUE", shelf("genesis"))
+    carried = tmp_path / "carried"
+
+    run_thumbs(tmp_path, "--for-box", str(carried))
+
+    lines = thumbs.read_sources(carried)
+    assert set(lines) == {"genesis", "genesis-c002"}, (
+        "the library's lines, the chapter's backfilled"
+    )
+    assert (carried / "exclude").read_text(encoding="utf-8").splitlines() == [
+        "/father-sergius.webp",
+        "/p3-\\[115\\]-Yair-Lapid-he.webp",
+    ]
+    assert json.loads((where / thumbs.SOURCES).read_text("utf-8")) == held, "thumbs/ is only read"

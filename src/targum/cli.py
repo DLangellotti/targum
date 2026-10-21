@@ -2255,6 +2255,15 @@ def thumbs(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Count what would happen; write nothing.")
     ] = False,
+    box: Annotated[
+        Path | None,
+        typer.Option(
+            "--for-box",
+            help="Write what a deploy carries into this folder (sources.json, exclude); "
+            "nothing else.",
+            hidden=True,
+        ),
+    ] = None,
 ) -> None:
     """Give every library text its picture: its own where its licence allows, drawn if not.
 
@@ -2281,7 +2290,7 @@ def thumbs(
 
     root = out or Path.cwd() / "targum-out"
     where = root / "thumbs"
-    if not dry_run and not thumbs_module.can_keep():
+    if not dry_run and box is None and not thumbs_module.can_keep():
         fail(TargumError("Nothing here can shrink a picture.", "uv sync --extra covers"))
     sources = thumbs_module.read_sources(where)
     written = dict(sources)
@@ -2290,6 +2299,16 @@ def thumbs(
     unrecorded = thumbs_module.backfill(
         where, sources, covers_module.build().name, date.today().isoformat()
     )
+
+    if box is not None:
+        # deploy.sh's: the library's lines, and the pictures that are not the library's.
+        ids = {entry.id for entry in catalogue_module.CATALOGUE}
+        lines, behind = thumbs_module.for_box(where, sources, ids)
+        thumbs_module.write_sources(box, lines)
+        write_atomic(
+            box / "exclude", "".join(thumbs_module.rsync_pattern(n) + "\n" for n in behind)
+        )
+        return
 
     # A video's frame, from any copy of it built on this disk.
     frames: dict[str, Path] = {}
@@ -2365,7 +2384,7 @@ def thumbs(
         console.print(f"[dim]  {name}[/dim]", soft_wrap=True)
     # Plain lines, not Rich's: deploy.sh reads the last one.
     typer.echo(" · ".join(f"{origins[kind]} {kind}" for kind in kinds))
-    typer.echo(f"{len(bare)} rows without a picture")
+    typer.echo(f"{len(bare)} {'row' if len(bare) == 1 else 'rows'} without a picture")
 
 
 @app.command()

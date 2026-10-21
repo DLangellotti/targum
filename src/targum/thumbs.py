@@ -495,3 +495,30 @@ def record(where: Path, name: str, entry: dict[str, str]) -> None:
             write_sources(where, sources)
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+_CHAPTER = re.compile(r"^(?P<book>.+)-c\d{3}$")
+
+
+def is_library(name: str, ids: set[str]) -> bool:
+    """Whether a picture's name is a library row's, or one of its chapters'. Anything else
+    in `thumbs/` is an upload's cover (`<home>-<name>`) or a row since retired."""
+    chapter = _CHAPTER.match(name)
+    return name in ids or (chapter is not None and chapter.group("book") in ids)
+
+
+def for_box(
+    where: Path, sources: dict[str, dict[str, str]], ids: set[str]
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """What a deploy carries to the box: the library's lines of `sources.json`, and the
+    names of the picture files it leaves behind. The box draws its own upload covers; one
+    drawn on this machine under the same `<home>-<name>` would replace it, file and line."""
+    lines = {name: entry for name, entry in sources.items() if is_library(name, ids)}
+    behind = [found.name for found in pictures(where) if not is_library(found.stem, ids)]
+    return lines, behind
+
+
+def rsync_pattern(name: str) -> str:
+    """A file name as an rsync exclude anchored at the top: its wildcards escaped, since
+    an upload's name can hold brackets (`p3-[115]-…`)."""
+    return "/" + re.sub(r"([\[\]*?\\])", r"\\\1", name)

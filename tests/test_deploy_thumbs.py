@@ -33,10 +33,27 @@ case "$*" in
 esac
 """
 
-FAKE_THUMBS = """#!/usr/bin/env bash
-echo "thumbs $*" >> "$CALLS"
-echo "2 own · 1 drawn · 3 tile"
-echo "3 rows without a picture"
+# `targum thumbs`, stood in for: the dry run's two last lines, and for --for-box the
+# library's lines and what stays behind, where anything named home1-… is an upload's.
+FAKE_THUMBS = """#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+with open(os.environ["CALLS"], "a") as calls:
+    calls.write("thumbs " + " ".join(sys.argv[1:]) + "\\n")
+if "--for-box" in sys.argv:
+    box = Path(sys.argv[sys.argv.index("--for-box") + 1])
+    where = Path(os.environ["TARGUM_THUMBS"])
+    try:
+        lines = json.loads((where / "sources.json").read_text(encoding="utf-8"))
+    except OSError:
+        lines = {}
+    mine = {k: v for k, v in lines.items() if not k.startswith("home1-")}
+    (box / "sources.json").write_text(json.dumps(mine), encoding="utf-8")
+    behind = sorted(f.name for f in where.glob("home1-*.webp"))
+    (box / "exclude").write_text("".join("/" + n + "\\n" for n in behind), encoding="utf-8")
+else:
+    print("2 own · 1 drawn · 3 tile")
+    print("3 rows without a picture")
 """
 
 FAKE_RSYNC = """#!/usr/bin/env bash
@@ -174,3 +191,39 @@ def test_sources_are_merged_so_the_boxs_own_lines_stay(tmp_path: Path) -> None:
     assert merged == {**laptop, "home1-notes": upload}, (
         "this machine's lines win; the box keeps its own"
     )
+
+
+@pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync is what deploy.sh copies with")
+def test_a_laptop_upload_never_replaces_the_boxs(tmp_path: Path) -> None:
+    import json
+
+    thumbs = tmp_path / "thumbs"
+    thumbs.mkdir()
+    (thumbs / "genesis.webp").write_bytes(b"drawn")
+    (thumbs / "home1-notes.webp").write_bytes(b"the laptop's")
+    laptop = {"home1-notes": {"from": "drawn", "date": "2026-08-26"}}
+    (thumbs / "sources.json").write_text(json.dumps(laptop), encoding="utf-8")
+    box = tmp_path / "box"
+    box.mkdir()
+    (box / "home1-notes.webp").write_bytes(b"the box's")
+    theirs = {"from": "drawn", "date": "2026-10-20"}
+    (box / "sources.json").write_text(json.dumps({"home1-notes": theirs}), encoding="utf-8")
+
+    said, calls = run(tmp_path, thumbs, box)
+
+    assert (box / "home1-notes.webp").read_bytes() == b"the box's"
+    assert json.loads((box / "sources.json").read_text(encoding="utf-8")) == {"home1-notes": theirs}
+    assert (box / "genesis.webp").read_bytes() == b"drawn"
+    assert "   1 covers" in said.splitlines()
+
+
+def test_the_merge_waits_for_the_boxs_writers(tmp_path: Path) -> None:
+    """The box's covers write their lines under thumbs.record's lock, and the merge takes
+    the same one: a line written while a deploy merges is never lost."""
+    found = re.search(r"^MERGE_SOURCES='(.*?)'$", step(), re.M | re.S)
+    assert found
+    merge = found.group(1)
+    assert "fcntl.flock" in merge and '".sources.json.lock"' in merge
+    from targum import thumbs
+
+    assert f".{thumbs.SOURCES}.lock" == ".sources.json.lock"
