@@ -38,6 +38,7 @@ for (const name of ["signed-out", "signed-in"]) {
 }
 if (payload.ledgerLine !== false) document.getElementById("hours-line").hidden = true;
 document.getElementById("account-hours").hidden = true;
+document.getElementById("account-rate").hidden = true;
 
 for (const [name, value] of Object.entries(payload.stored || {})) localStorage.setItem(name, value);
 const corner = () => byId["account-open"].textContent;
@@ -52,6 +53,7 @@ process.stdout.write(
   JSON.stringify({
     ledger: line("hours-line"),
     panel: line("account-hours"),
+    rate: line("account-rate"),
     first: first,
     corner: corner(),
     held: localStorage.getItem("targum:initials"),

@@ -15,7 +15,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('signin.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'signin.css') }}
 {{ hebrew_face() }}
 {{ chrome_face() }}
 </head>
@@ -30,8 +30,9 @@
   </a>
 
   <div class="door">
+    <svg class="fault-icon lost" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.25"/><path d="M8 4.75v3.75M8 10.9v.1"/></svg>
     <h1>{{ t("connect.page.we-couldn-t-finish-that", "We couldn't finish that") }}</h1>
-    <p class="said">{{ t("connect.page.your-app-sent-a-request-we-couldn-t-check", "Your app sent a request we couldn't check. Try connecting again from the app.") }}</p>
+    <p class="said">{{ t("connect.page.your-app-sent-a-request-we-couldn-t-check", "We couldn't check what your app sent. Connect again from the app.") }}</p>
     <p class="aside"><a href="/connect">{{ t("connect.page.how-connecting-works", "How connecting works") }}</a></p>
   </div>
 </main>

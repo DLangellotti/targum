@@ -63,11 +63,23 @@
     return { next: next, back: back, waiting: waiting, last: next === null };
   }
 
-  /* Where an item is opened from inside the list. `go` only on the way forward. */
-  function addressOf(item, list, at, go) {
+  /* Where an item is opened from inside the list. `go` only on the way forward; `listen`
+   * where the reader is listening (design.md §12, 2026-10-09), so the item's recording
+   * starts as it arrives, and `seconds` where the voice already got to in it. */
+  function addressOf(item, list, at, go, listen, seconds) {
     var base = String(item.open);
     var join = base.indexOf("?") >= 0 ? "&" : "?";
-    return base + join + "list=" + encodeURIComponent(list) + "&at=" + at + (go ? "&go=1" : "");
+    return (
+      base +
+      join +
+      "list=" +
+      encodeURIComponent(list) +
+      "&at=" +
+      at +
+      (go ? "&go=1" : "") +
+      (listen ? "&listen=1" : "") +
+      (seconds > 0 ? "&t=" + Math.floor(seconds) : "")
+    );
   }
 
   /* The playlist, added up: how many of its texts were finished, the words that became
@@ -151,6 +163,78 @@
     return node;
   }
 
+  /* One word for what an item is, and its length and how much of it is known, as the
+     playlist's page says them: "Dialogue · 3 min · 91% known". */
+  function kindOf(facts) {
+    if (!facts) return "";
+    if (facts.video) return t("reader.list.kind.video", "Video");
+    var words = {
+      article: t("reader.list.kind.article", "Article"),
+      talk: t("reader.list.kind.video", "Video"),
+      dialogue: t("reader.list.kind.dialogue", "Dialogue"),
+      story: t("reader.list.kind.story", "Story"),
+      novel: t("reader.list.kind.book", "Book"),
+      essay: t("reader.list.kind.essay", "Essay"),
+      prose: t("reader.list.kind.tanakh", "Tanakh"),
+      poetry: t("reader.list.kind.poetry", "Poetry"),
+      play: t("reader.list.kind.play", "Play"),
+      liturgy: t("reader.list.kind.prayer", "Prayer"),
+      document: t("reader.list.kind.document", "Document"),
+    };
+    return words[facts.kind] || "";
+  }
+  function factsOf(item) {
+    var facts = (item && item.facts) || null;
+    var said = [];
+    var kind = kindOf(facts);
+    if (kind) said.push(kind);
+    var seconds = facts ? Number(facts.seconds || 0) || Number(facts.minutes || 0) * 60 : 0;
+    if (seconds > 0) said.push(minutesOf(Math.max(1, Math.round(seconds / 60))));
+    if (facts && typeof facts.known === "number") {
+      said.push(t("reader.list.known", "{share}% known", { share: Math.round(facts.known * 100) }));
+    }
+    return said.join(" · ");
+  }
+  // An item's picture at a thumb's size, resting on its letter until it has loaded.
+  function thumbOf(item, className) {
+    var box = document.createElement("span");
+    box.className = className;
+    box.setAttribute("aria-hidden", "true");
+    var letter = document.createElement("span");
+    letter.className = "list-thumb-letter";
+    letter.textContent = String((item && item.title) || "?").replace(/^[^\wא-תЀ-ӿ]+/, "").charAt(0);
+    box.appendChild(letter);
+    var src = pictureOf(item);
+    if (src) {
+      var picture = new Image();
+      picture.alt = "";
+      picture.onload = function () {
+        letter.remove();
+        box.appendChild(picture);
+      };
+      picture.src = src;
+    }
+    return box;
+  }
+  // A line drawing from 16×16 strokes, at the size of the words beside it.
+  function glyph(paths, className) {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.setAttribute("class", "list-glyph" + (className ? " " + className : ""));
+    paths.forEach(function (d) {
+      var path = document.createElementNS(ns, "path");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
+    });
+    return svg;
+  }
+  var DOWN = ["M8 3v10", "M4 9l4 4 4-4"];
+  var UP = ["M4 10l4-4 4 4"];
+  var PLAYING = ["M4 6v4", "M8 4v8", "M12 6.5v3"];
+
   var items = [];
   var setName = "";
   var near = { next: null, back: null, waiting: 0, last: true };
@@ -166,18 +250,18 @@
 
   /* Moving on finishes the item (design.md §12, "The foot is one block", 2026-09-25):
    * "Next" finished nothing, so a reader who went Next, Next, Next through a set had
-   * finished nothing on Your Progress. The press at the foot marks the words never marked
-   * when it says so; a swipe, the arrow and the Next among a video's keys finish without
+   * finished nothing on Your Progress. Next itself marks nothing; the quiet press under it
+   * marks the words never marked (design.md §12, "Done marks nothing", 2026-10-13); a swipe, the arrow and the Next among a video's keys finish without
    * marking, because marking words is never done by a gesture. The reader does the
    * finishing — it owns the record — and says where the reader lands what it did. */
-  function forward(how, marking) {
+  function forward(how, marking, listening) {
     var reader = window.TargumReader;
     var title = items[at] ? String(items[at].title || "") : "";
     if (near.next !== null) {
       note(how);
       if (reader && reader.leave) reader.leave(!!marking, title);
       keepFigures(reader);
-      location.href = keyed(addressOf(items[near.next], list, near.next, true));
+      location.href = keyed(addressOf(items[near.next], list, near.next, true, !!listening));
       return true;
     }
     if (reader && reader.press) reader.press(!!marking);
@@ -211,36 +295,6 @@
   }
 
 
-  function tile(figure, label) {
-    var box = document.createElement("span");
-    box.className = "tile";
-    var b = document.createElement("b");
-    b.textContent = figure;
-    box.appendChild(b);
-    var under = document.createElement("span");
-    under.textContent = label;
-    box.appendChild(under);
-    return box;
-  }
-
-  function drawFigures(end) {
-    var sum = addUp(tallies()[list]);
-    if (!sum) return;
-    var row = document.createElement("p");
-    row.className = "list-end-tiles";
-    row.appendChild(
-      tile(String(sum.texts), tn("reader.list.end-texts", sum.texts, "text finished", "texts finished"))
-    );
-    row.appendChild(
-      tile("+" + sum.known, tn("reader.finish.known", sum.known, "word known", "words known"))
-    );
-    row.appendChild(tile(sum.share + "%", t("reader.finish.known-here", "known here")));
-    row.appendChild(
-      tile(String(sum.looked), tn("reader.finish.looked", sum.looked, "word looked up", "words looked up"))
-    );
-    end.appendChild(row);
-  }
-
   function backward(how) {
     if (near.back === null) return false;
     note(how);
@@ -248,91 +302,324 @@
     return true;
   }
 
-  /* The end card, once (#367): real counts, the words themselves, and one door, and
-   * nothing that loads more. When the end has nothing to say — end.json failed, or
-   * answered with neither — it still says where the reader is and where their
-   * playlists are. */
+  /* The end card, once (#367, #435; design.md §12, 2026-10-09): what the set held, the
+   * words met with what they mean, and one next set picked for them — confirmed here, on
+   * the card, or changed on its own page. Nothing that loads more. When the end has
+   * nothing to say it still says where the reader is and where their playlists are. */
+  function line(className, text) {
+    var node = document.createElement("p");
+    node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function wordsMet(end, words) {
+    end.appendChild(
+      line(
+        "list-end-words",
+        words.new
+          ? tn(
+              "reader.list.end-words-new",
+              words.met,
+              "You met {n} word, {new} of them new.",
+              "You met {n} words, {new} of them new.",
+              { new: words.new }
+            )
+          : tn("reader.list.end-words", words.met, "You met {n} word.", "You met {n} words.")
+      )
+    );
+    // The words, not only their count, the new ones first, as many as the server names;
+    // each with its meaning where the text's glossary has one.
+    var shown = Array.isArray(words.list) ? words.list : [];
+    if (!shown.length) return;
+    var chips = document.createElement("ul");
+    chips.className = "list-end-list";
+    shown.forEach(function (one) {
+      chips.appendChild(chip(one));
+    });
+    function chip(one) {
+      var row = document.createElement("li");
+      if (one.new) row.className = "new";
+      var word = document.createElement("bdi");
+      word.setAttribute("dir", "auto");
+      if (one.language) word.setAttribute("lang", String(one.language));
+      word.textContent = String(one.word || "");
+      row.appendChild(word);
+      if (one.gloss) {
+        var gloss = document.createElement("span");
+        gloss.className = "list-end-gloss";
+        gloss.setAttribute("dir", "ltr");
+        gloss.textContent = String(one.gloss).split(/[;,]/)[0].trim();
+        row.appendChild(gloss);
+      }
+      return row;
+    }
+    end.appendChild(chips);
+    // "All 41 new words" (board PlaylistEnd): the rest of the new ones open out in place,
+    // with what each means, and the press goes. Nothing is fetched for it.
+    var more = Array.isArray(words.more) ? words.more : [];
+    if (more.length && words.new > 0) {
+      var all = document.createElement("button");
+      all.type = "button";
+      all.className = "list-end-all";
+      all.textContent = tn("reader.list.all-new", words.new, "All {n} new word", "All {n} new words");
+      all.addEventListener("click", function () {
+        more.forEach(function (one) {
+          chips.appendChild(chip(one));
+        });
+        all.remove();
+        var first = chips.children[shown.length];
+        if (first && first.focus) {
+          first.tabIndex = -1;
+          first.focus();
+        }
+      });
+      chips.appendChild(all);
+    }
+  }
+
+  function minutesOf(n) {
+    return t("reader.list.minutes", "{n} min", { n: n });
+  }
+
+  function creditsOf(n) {
+    return tn("reader.list.credits", n, "{n} credit", "{n} credits");
+  }
+
+  // Confirm: the set's own press, here (`POST /set/<id>`, all or nothing).
+  function confirmSet(next, foot) {
+    var press = foot.querySelector(".list-end-confirm");
+    var said = foot.querySelector(".list-end-said");
+    press.disabled = true;
+    said.hidden = true;
+    var headers = { "Content-Type": "application/json", "X-Targum-Press": "1" };
+    if (key) headers["X-Targum-Key"] = key;
+    fetch(keyed("/set/" + next.id), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: headers,
+      body: JSON.stringify({
+        keep: (next.items || []).map(function (item, n) {
+          return n;
+        }),
+      }),
+    })
+      .then(function (answer) {
+        return answer
+          .json()
+          .catch(function () {
+            return {};
+          })
+          .then(function (body) {
+            return { ok: answer.ok, body: body || {} };
+          });
+      })
+      .then(function (got) {
+        if (!got.ok) {
+          press.disabled = false;
+          said.hidden = false;
+          said.textContent = got.body.error || t("reader.list.end-could-not", "We couldn't start it. Try again.");
+          return;
+        }
+        started(next, foot);
+      })
+      .catch(function () {
+        press.disabled = false;
+        said.hidden = false;
+        said.textContent = t("reader.list.end-could-not", "We couldn't start it. Try again.");
+      });
+  }
+
+  function started(next, foot) {
+    foot.textContent = "";
+    var note = line("list-end-started", t("reader.list.end-started", "Getting it ready. It's in your playlists."));
+    note.setAttribute("role", "status");
+    foot.appendChild(note);
+    var go = document.createElement("a");
+    go.className = "list-end-next";
+    go.href = keyed(String(next.page || "/playlists"));
+    go.textContent = t("reader.list.end-open", "Open the playlist");
+    foot.appendChild(go);
+  }
+
+  function nextSet(end, next) {
+    var card = document.createElement("section");
+    card.className = "list-end-set";
+    card.appendChild(line("list-end-lead", t("reader.list.end-next", "Next playlist")));
+    // Its cover beside its name (board PlaylistEnd): the first four texts' pictures.
+    var top = document.createElement("div");
+    top.className = "list-end-set-top";
+    var mosaic = document.createElement("span");
+    var some = (next.items || []).slice(0, 4);
+    mosaic.className = "list-end-mosaic n-" + some.length;
+    mosaic.setAttribute("aria-hidden", "true");
+    some.forEach(function (item) {
+      mosaic.appendChild(thumbOf({ title: item.title, reader: item.entry || item.reader }, "list-end-cell"));
+    });
+    top.appendChild(mosaic);
+    var heading = document.createElement("div");
+    heading.className = "list-end-set-what";
+    var name = document.createElement("h3");
+    name.className = "list-end-name";
+    var bdi = document.createElement("bdi");
+    bdi.setAttribute("dir", "auto");
+    bdi.textContent = String(next.name || "");
+    name.appendChild(bdi);
+    heading.appendChild(name);
+    top.appendChild(heading);
+    card.appendChild(top);
+    var facts = [
+      next.made_by === "connector"
+        ? t("reader.list.by-assistant", "From an assistant")
+        : t("reader.list.by-targum", "From targum"),
+      tn("reader.list.texts", next.count || 0, "{n} text", "{n} texts"),
+    ];
+    if (next.seconds) facts.push(minutesOf(Math.round(next.seconds / 60)));
+    facts.push(t("reader.list.picked", "picked for the words you just met"));
+    heading.appendChild(line("list-end-facts", facts.join(" · ")));
+    var rows = document.createElement("ul");
+    rows.className = "list-end-items";
+    // A row a text (board PlaylistEnd): its picture, its title, what it is, how long,
+    // how much of it is known as a meter, and its credits.
+    (next.items || []).forEach(function (item) {
+      var row = document.createElement("li");
+      row.appendChild(thumbOf({ title: item.title, reader: item.entry || item.reader }, "list-end-thumb"));
+      var title = document.createElement("bdi");
+      title.setAttribute("dir", "auto");
+      title.className = "list-end-item";
+      title.textContent = String(item.title || "");
+      row.appendChild(title);
+      var kind = kindOf({ kind: item.kind, video: item.video });
+      row.appendChild(line("list-end-item-kind", kind));
+      row.appendChild(line("list-end-item-length", item.minutes ? minutesOf(item.minutes) : ""));
+      var known = line("list-end-item-facts", "");
+      if (typeof item.known === "number") {
+        var meter = document.createElement("span");
+        meter.className = "list-end-meter";
+        meter.setAttribute("aria-hidden", "true");
+        var fill = document.createElement("span");
+        fill.style.inlineSize = Math.round(Math.max(0, Math.min(1, item.known)) * 100) + "%";
+        meter.appendChild(fill);
+        known.appendChild(meter);
+        known.appendChild(
+          document.createTextNode(
+            t("reader.list.share", "{share}%", { share: Math.round(item.known * 100) })
+          )
+        );
+      }
+      row.appendChild(known);
+      // On a phone the columns fold under the title: "Dialogue · 2 min · 95%".
+      var folded = [kind];
+      if (item.minutes) folded.push(minutesOf(item.minutes));
+      if (typeof item.known === "number") {
+        folded.push(t("reader.list.share", "{share}%", { share: Math.round(item.known * 100) }));
+      }
+      row.appendChild(
+        line(
+          "list-end-item-folded",
+          folded
+            .filter(function (one) {
+              return !!one;
+            })
+            .join(" · ")
+        )
+      );
+      row.appendChild(line("list-end-item-credits", item.credits ? creditsOf(item.credits) : ""));
+      rows.appendChild(row);
+    });
+    card.appendChild(rows);
+    var foot = document.createElement("div");
+    foot.className = "list-end-foot";
+    if (next.state === "waiting") {
+      foot.appendChild(
+        line(
+          "list-end-total",
+          tn("reader.list.credits-in-all", next.credits || 0, "Uses {n} credit in all", "Uses {n} credits in all")
+        )
+      );
+      var change = document.createElement("a");
+      change.className = "list-end-change";
+      change.href = keyed(String(next.open));
+      change.textContent = t("reader.list.change", "Change what's in it");
+      foot.appendChild(change);
+      var press = document.createElement("button");
+      press.type = "button";
+      press.className = "list-end-confirm";
+      press.textContent = t("reader.list.confirm", "Confirm");
+      press.addEventListener("click", function () {
+        confirmSet(next, foot);
+      });
+      foot.appendChild(press);
+      var said = line("list-end-said");
+      said.setAttribute("role", "status");
+      said.hidden = true;
+      foot.appendChild(said);
+    } else {
+      started(next, foot);
+      if (next.state === "ready") {
+        foot.firstChild.textContent = t("reader.list.end-ready", "It's ready in your playlists.");
+      }
+    }
+    card.appendChild(foot);
+    end.appendChild(card);
+  }
+
+  /* The end's frame is drawn the moment it is reached, and what end.json says is put
+     into it when it comes: the words and the next set are worked out on the server and
+     can take seconds on a real shelf, and an end drawn only then was a blank page with
+     the rail beside it until they came (audit 2, 2026-10-09). */
   function drawEnd(end, said) {
     var words = said && said.words;
     var next = said && said.next;
-    drawFigures(end);
-    if (!(words && words.met) && !(next && next.open)) {
-      var over = withTitle(
-        document.createElement("p"),
-        t("reader.list.end-of", "That's the end of {name}."),
-        "name",
-        setName
-      );
-      over.className = "list-end-over";
-      end.appendChild(over);
-      var home = document.createElement("a");
-      home.className = "list-end-home";
-      home.href = keyed("/playlists");
-      home.textContent = t("reader.list.your-playlists", "Your playlists");
-      end.appendChild(home);
-      return;
-    }
-    if (words && words.met) {
-      var met = document.createElement("p");
-      met.className = "list-end-words";
-      met.textContent = words.new
-        ? tn(
-            "reader.list.end-words-new",
-            words.met,
-            "You met {n} word, {new} of them new.",
-            "You met {n} words, {new} of them new.",
-            { new: words.new }
-          )
-        : tn(
-            "reader.list.end-words",
-            words.met,
-            "You met {n} word.",
-            "You met {n} words."
-          );
-      end.appendChild(met);
-      // The words, not only their count (design.md §12: "the words met across the set"):
-      // the new ones first, as many as the server names — it caps them.
-      var shown = Array.isArray(words.list) ? words.list : [];
-      if (shown.length) {
-        var list = document.createElement("ul");
-        list.className = "list-end-list";
-        shown.forEach(function (one) {
-          var row = document.createElement("li");
-          if (one.new) row.className = "new";
-          var word = document.createElement("bdi");
-          word.setAttribute("dir", "auto");
-          if (one.language) word.setAttribute("lang", String(one.language));
-          word.textContent = String(one.word || "");
-          row.appendChild(word);
-          list.appendChild(row);
-        });
-        end.appendChild(list);
-      }
-    }
-    if (next && next.open) {
-      var lead = document.createElement("p");
-      lead.className = "list-end-lead";
-      lead.textContent = t("reader.list.end-next", "Next playlist");
-      end.appendChild(lead);
-      var door = document.createElement("a");
-      door.className = "list-end-next";
-      door.href = keyed(String(next.open));
-      // One span inside the pill, so the name and its count stay one line of text.
-      var label = document.createElement("span");
-      withTitle(
-        label,
-        tn("reader.list.end-next-door", next.count || 0, "{name}, {n} text", "{name}, {n} texts"),
-        "name",
-        String(next.name || "")
-      );
-      door.appendChild(label);
-      end.appendChild(door);
-    }
+    var way = end.querySelector(".list-end-way");
+    if (!way) return;
+    var more = document.createDocumentFragment();
+    if (words && words.met) wordsMet(more, words);
+    if (next && next.open) nextSet(more, next);
+    end.insertBefore(more, way);
+    end.classList.add("is-filled");
+  }
+
+  function drawFrame(end) {
+    /* Its own screen (board PlaylistEnd): "‹ Mornings · The end" at its head, the way
+       back to the playlist's page. */
+    var head = document.createElement("div");
+    head.className = "list-end-top";
+    var back = document.createElement("a");
+    back.className = "list-end-back";
+    back.href = keyed("/playlists/" + list);
+    back.setAttribute("aria-label", t("reader.list.end-back", "Back to {name}", { name: setName }));
+    back.appendChild(glyph(["M10 3.5 5.5 8l4.5 4.5"], "list-end-back-glyph"));
+    var called = document.createElement("bdi");
+    called.setAttribute("dir", "auto");
+    called.className = "list-end-set-name";
+    called.textContent = setName;
+    back.appendChild(called);
+    head.appendChild(back);
+    head.appendChild(line("list-end-the-end", t("reader.list.the-end", "The end")));
+    end.appendChild(head);
+    var over = withTitle(
+      document.createElement("h2"),
+      t("reader.list.end-of", "That's the end of {name}."),
+      "name",
+      setName
+    );
+    over.className = "list-end-over";
+    end.appendChild(over);
+    var home = document.createElement("a");
+    home.className = "list-end-home";
+    home.href = keyed("/playlists");
+    home.textContent = t("reader.list.your-playlists", "Your playlists");
+    var way = document.createElement("p");
+    way.className = "list-end-way";
+    way.appendChild(home);
+    end.appendChild(way);
   }
   var ended = false;
   function fillEnd(end) {
     if (ended) return;
     ended = true;
+    drawFrame(end);
     fetch(keyed("/playlists/" + list + "/end.json"), { credentials: "same-origin" })
       .then(function (answer) {
         return answer.ok ? answer.json() : null;
@@ -351,11 +638,25 @@
     if (end.hidden) {
       end.hidden = false;
       document.body.classList.add("list-ended");
-      // Out of the watching frame, so the card is on the page and not under a film.
-      var box = document.getElementById("video");
-      var mode = box && box.classList.contains("watching") ? box.querySelector(".video-mode") : null;
-      if (mode) mode.click();
+      // Under a large picture the transcript is a panel, and the card is at its foot:
+      // the panel opens, so the card is on the page and not behind the picture (#422).
+      if (window.TargumVideo && window.TargumVideo.transcript) window.TargumVideo.transcript(true);
       if (end.scrollIntoView) end.scrollIntoView({ block: "start" });
+      tellHere(items.length);
+      // The rail says where the reader is now: at its End.
+      var rail = document.getElementById("list-rail");
+      if (rail) {
+        var was = rail.querySelector(".list-rail-tile.is-here");
+        if (was) {
+          was.classList.remove("is-here");
+          was.removeAttribute("aria-current");
+        }
+        var last = rail.querySelector(".list-rail-end");
+        if (last) {
+          last.classList.add("is-here");
+          last.setAttribute("aria-current", "true");
+        }
+      }
       fillEnd(end);
       document.dispatchEvent(new CustomEvent("targum:list-end", { detail: { list: list } }));
     }
@@ -371,11 +672,31 @@
     return button;
   }
 
+  /* Where the reader is in the playlist, kept on the account (targum-internal#434): the
+   * playlist opened last is "the one you're in" on the Playlists tab, and "Play next"
+   * puts a text after this place. Past the last item is a playlist gone through. Said
+   * and forgotten: a page that cannot say it still reads. */
+  function tellHere(position) {
+    var headers = { "Content-Type": "application/json" };
+    if (key) headers["X-Targum-Key"] = key;
+    try {
+      fetch(keyed("/playlists/" + list), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: headers,
+        body: JSON.stringify({ do: "here", position: position }),
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
   function draw(set) {
     items = (set && set.items) || [];
     if (!items[at]) return;
+    tellHere(at);
     near = neighbours(items, at);
     setName = String((set && set.name) || "");
+    // Said to the listening view, whose Up next is this playlist's next items.
+    if (typeof CustomEvent === "function") document.dispatchEvent(new CustomEvent("targum:list-ready"));
 
     // Where you are, at the head of the foot's one block (design.md §12, "The foot is one
     // block", 2026-09-25): "← Back · Couples and everyday life, 2 of 3". Back is a small
@@ -405,19 +726,55 @@
     );
     where.className = "list-where";
     nav.appendChild(where);
+    if (voiced()) {
+      nav.appendChild(document.createTextNode(" · "));
+      nav.appendChild(playOnSwitch());
+    }
 
     // What comes next, small, under the press: the press says Next and this says where.
     var ahead = document.createElement("div");
     ahead.className = "list-ahead";
     ahead.setAttribute("dir", uiDir);
     if (near.next !== null) {
-      var upNext = withTitle(
-        document.createElement("p"),
-        t("reader.list.up-next", "Up next: {title}"),
-        "title",
-        String(items[near.next].title || "")
-      );
+      /* What comes next, as a card (boards PlaylistSwipePhone and ReaderPhone): its
+         picture, "Next · 3 of 6", its title, and what it is, how long and how much is
+         known. A press like Next: it goes on without marking, as a swipe does. */
+      var coming = items[near.next];
+      var upNext = document.createElement("button");
+      upNext.type = "button";
       upNext.className = "list-up-next";
+      upNext.appendChild(thumbOf(coming, "list-up-thumb"));
+      var said = document.createElement("span");
+      said.className = "list-up-what";
+      said.appendChild(
+        withTitle(
+          document.createElement("span"),
+          t("reader.list.next-of", "Next · {at} of {count}", { at: near.next + 1, count: items.length }),
+          "title",
+          ""
+        )
+      ).className = "list-up-lead";
+      var named = document.createElement("bdi");
+      named.setAttribute("dir", "auto");
+      named.className = "list-up-title";
+      named.textContent = String(coming.title || "");
+      said.appendChild(named);
+      var about = factsOf(coming);
+      if (about) {
+        var line = document.createElement("span");
+        line.className = "list-up-facts";
+        line.textContent = about;
+        said.appendChild(line);
+      }
+      upNext.appendChild(said);
+      upNext.appendChild(glyph(UP, "list-up-go"));
+      upNext.setAttribute(
+        "aria-label",
+        t("reader.list.up-next", "Up next: {title}", { title: String(coming.title || "") })
+      );
+      upNext.addEventListener("click", function () {
+        forward("list-up-next");
+      });
       ahead.appendChild(upNext);
     }
     if (near.waiting) {
@@ -467,9 +824,9 @@
     window.TargumFootWay = way;
     if (window.TargumReader && window.TargumReader.foot) window.TargumReader.foot(way);
 
-    // And in the watching frame, where the foot of the text cannot be seen: the same
-    // Next among the picture's own keys.
-    var keys = document.querySelector("#video .video-keys");
+    // And under the picture, where the foot of the text cannot be seen while it stands
+    // large: the same Next in the row of its controls (#422).
+    var keys = document.querySelector("#video .film-tools");
     if (keys) {
       if (near.back !== null) {
         keys.appendChild(
@@ -478,13 +835,471 @@
           })
         );
       }
-      keys.appendChild(
-        control("list-next video-list-next", nextLabel, function () {
-          forward("list-next");
-        })
-      );
+      /* "Next [picture] באוטובוס ↓" (board PlaylistSwipeDesk): the press says where it
+         goes. At the last item it is Finish, and says only that. */
+      var onward = control("list-next video-list-next", "", function () {
+        forward("list-next");
+      });
+      var word = document.createElement("span");
+      word.className = "video-list-word";
+      word.textContent = nextLabel;
+      onward.appendChild(word);
+      if (near.next !== null) {
+        onward.classList.add("has-next");
+        onward.appendChild(thumbOf(items[near.next], "video-list-thumb"));
+        var whose = document.createElement("bdi");
+        whose.setAttribute("dir", "auto");
+        whose.className = "video-list-title";
+        whose.textContent = String(items[near.next].title || "");
+        onward.appendChild(whose);
+        onward.appendChild(glyph(DOWN, "video-list-go"));
+        onward.setAttribute(
+          "aria-label",
+          t("reader.list.up-next", "Up next: {title}", { title: String(items[near.next].title || "") })
+        );
+      }
+      keys.appendChild(onward);
+      if (voiced()) {
+        var onKey = playOnSwitch();
+        onKey.classList.add("list-key", "video-list-on");
+        keys.appendChild(onKey);
+      }
     }
+    if (wideRail && wideRail.matches) drawRail();
+    if (voiced()) whenPlayer(listenTo);
     document.dispatchEvent(new CustomEvent("targum:list", { detail: { list: list, at: at } }));
+  }
+
+  /* --- one player across items (targum-internal#434) ---------------------------------
+   *
+   * design.md §12, "Listening plays on by itself, and reading still waits for a swipe"
+   * (2026-10-09). Listening is the screen locked, targum behind another app, or Play on.
+   * When this item's recording plays to its end then, the next item's starts by itself:
+   * with the screen in front of the reader, as a swipe would; with it locked, in the
+   * same player, because a locked phone neither loads a page nor starts one. The item
+   * that ended hands its media element to the next item's recording and the page stays
+   * what it was, saying what plays now. An item with nothing to hear is where it stops.
+   */
+  /* Whether this item can be heard: its play control is drawn by the server, so this is
+     known before the reader's own script has run, which a list that answers quickly can
+     beat (#434). */
+  function voiced() {
+    return !!document.querySelector("[data-play-scene]") || document.body.classList.contains("has-voice");
+  }
+
+  var PLAY_ON = "targum:play-on";
+  function playOn() {
+    try {
+      return localStorage.getItem(PLAY_ON) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+  function choosePlayOn(on) {
+    try {
+      if (on) localStorage.setItem(PLAY_ON, "1");
+      else localStorage.removeItem(PLAY_ON);
+    } catch (e) {}
+  }
+
+  // An item's own picture, for the rail and the lock screen: `/thumb/` answers with the
+  // text's picture or its drawn letter, from this box.
+  function pictureOf(item) {
+    var facts = item && item.facts;
+    var name = (facts && (facts.entry || facts.name)) || (item && item.reader) || "";
+    return name ? keyed("/thumb/" + encodeURIComponent(name) + "?drawn=1") : "";
+  }
+
+  /* What an item's recording is, read off its own page: the voice and never its
+     picture, because a phone goes on playing a sound behind a locked screen and stops a
+     film. Null where it has none. Asked for ahead, so the next one is in hand the moment
+     this one ends: a locked phone gives a page little time once its sound has stopped. */
+  var heard = {};
+  function recordingOf(index) {
+    var item = items[index];
+    if (!item || !item.open || item.failed) return Promise.resolve(null);
+    if (heard[index]) return heard[index];
+    var page = new URL(keyed(String(item.open)), location.href);
+    heard[index] = fetch(page.href, { credentials: "same-origin" })
+      .then(function (answer) {
+        return answer.ok ? answer.text() : "";
+      })
+      .then(function (html) {
+        if (!html || typeof DOMParser === "undefined") return null;
+        var doc = new DOMParser().parseFromString(html, "text/html");
+        var node = doc.getElementById("targum-data");
+        var data = node ? JSON.parse(node.textContent || "{}") : {};
+        var sound = data && data.speech && data.speech.audio;
+        if (!sound) return null;
+        if (/^data:/.test(sound)) return sound;
+        // Beside the page, asked for with the page's own key, as the reader asks.
+        var src = new URL(sound, page.href);
+        src.search = page.search;
+        return src.href;
+      })
+      .catch(function () {
+        return null;
+      });
+    return heard[index];
+  }
+
+  var handed = null; // { element, at }: the player, once it plays another item
+  var wasFollowing = false;
+
+  function lockScreen(index, sounding) {
+    if (typeof navigator === "undefined" || !navigator.mediaSession) return;
+    var item = items[index] || {};
+    try {
+      if (typeof MediaMetadata !== "undefined") {
+        var art = pictureOf(item);
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: String(item.title || setName),
+          artist: t("reader.list.where-short", "{name} · {at} of {count}", {
+            name: setName,
+            at: Math.min(index + 1, items.length),
+            count: items.length,
+          }),
+          album: "targum",
+          artwork: art ? [{ src: new URL(art, location.href).href, sizes: "512x512" }] : [],
+        });
+      }
+      if (sounding === false) navigator.mediaSession.playbackState = "paused";
+    } catch (e) {}
+  }
+
+  // The line that says, once the screen is back, what is playing now and opens it there.
+  function drawNow(said, index, withTime) {
+    var now = document.getElementById("list-now");
+    if (!now) {
+      now = document.createElement("p");
+      now.id = "list-now";
+      now.className = "list-now";
+      now.setAttribute("role", "status");
+      now.setAttribute("dir", uiDir);
+      document.body.appendChild(now);
+    }
+    now.textContent = "";
+    var item = items[index];
+    withTitle(now, said, "title", String((item && item.title) || setName));
+    if (item && item.open) {
+      now.appendChild(document.createTextNode(" "));
+      var open = document.createElement("a");
+      open.className = "list-now-open";
+      open.textContent = t("reader.list.open-it", "Open it");
+      open.addEventListener("click", function () {
+        var seconds = withTime && handed ? handed.element.currentTime : 0;
+        open.href = keyed(addressOf(item, list, index, true, withTime, seconds));
+      });
+      open.href = keyed(addressOf(item, list, index, true, withTime));
+      now.appendChild(open);
+    }
+  }
+
+  function endOfList() {
+    handed.at = items.length;
+    tellHere(items.length);
+    lockScreen(items.length - 1, false);
+    var now = document.getElementById("list-now");
+    if (now) now.remove();
+    var over = document.createElement("p");
+    over.id = "list-now";
+    over.className = "list-now";
+    over.setAttribute("role", "status");
+    over.setAttribute("dir", uiDir);
+    withTitle(over, t("reader.list.end-of", "That's the end of {name}."), "name", setName);
+    document.body.appendChild(over);
+  }
+
+  function playItem(index) {
+    return recordingOf(index).then(function (src) {
+      if (!handed) return;
+      handed.at = index;
+      tellHere(index);
+      if (!src) {
+        // Nothing to hear: it waits to be read, and the queue waits with it.
+        lockScreen(index, false);
+        drawNow(t("reader.list.up-to-read", "Up next, to read: {title}"), index, false);
+        return;
+      }
+      var element = handed.element;
+      var rate = element.playbackRate || 1;
+      element.src = src;
+      element.playbackRate = rate;
+      element.defaultPlaybackRate = rate;
+      var started = element.play();
+      if (started && started.catch) started.catch(function () {});
+      lockScreen(index, true);
+      drawNow(
+        t("reader.list.now-playing", "Now playing {at} of {count}: {title}", {
+          at: index + 1,
+          count: items.length,
+        }),
+        index,
+        true
+      );
+      var after = neighbours(items, index).next;
+      if (after !== null) recordingOf(after);
+    });
+  }
+
+  // The player becomes another item's: this page's own reading lets go of it.
+  function handOver(index) {
+    if (index === null || index === undefined) return false;
+    if (!handed) {
+      var player = window.TargumPlayer;
+      var element = player && player.release ? player.release() : null;
+      if (!element) return false;
+      handed = { element: element, at: at };
+      document.body.classList.add("list-handed");
+      element.addEventListener("ended", handedEnded);
+    }
+    playItem(index);
+    return true;
+  }
+
+  function handedEnded() {
+    if (!handed || handed.at >= items.length) return;
+    var next = neighbours(items, handed.at).next;
+    if (next === null) return endOfList();
+    playItem(next);
+  }
+
+  function ownEnded() {
+    if (handed) return;
+    var listening = wasFollowing && (document.hidden || playOn());
+    wasFollowing = false;
+    if (!listening || near.next === null) return;
+    if (!document.hidden) {
+      // Play on, with the screen in front of them: on, the way a swipe goes.
+      forward("play-on", false, true);
+      return;
+    }
+    // Listened to its end: finished, without marking, as a swipe finishes it.
+    var reader = window.TargumReader;
+    if (reader && reader.press) reader.press(false);
+    keepFigures(reader);
+    handOver(near.next);
+  }
+
+  // Previous and next on the lock screen, a headset or a keyboard's media keys: between
+  // items. With the screen in front of the reader, a press like Next and Back.
+  function lockKeys() {
+    if (typeof navigator === "undefined" || !navigator.mediaSession) return;
+    var session = navigator.mediaSession;
+    function set(action, run) {
+      try {
+        session.setActionHandler(action, run);
+      } catch (e) {}
+    }
+    set("nexttrack", function () {
+      var from = handed ? handed.at : at;
+      var next = neighbours(items, from).next;
+      if (next === null) return;
+      if (handed || document.hidden) handOver(next);
+      else forward("lock-next", false, true);
+    });
+    set("previoustrack", function () {
+      var from = handed ? handed.at : at;
+      var back = neighbours(items, Math.min(from, items.length)).back;
+      if (back === null) return;
+      if (handed || document.hidden) handOver(back);
+      else backward("lock-back");
+    });
+  }
+
+  // The player of this page, once the reader has drawn it: its end, and the lock screen.
+  function listenTo() {
+    var player = window.TargumPlayer;
+    var element = player && player.element ? player.element() : null;
+    if (!element) return false;
+    // Read while it plays: by the time it has ended the reader has already stopped.
+    element.addEventListener("timeupdate", function () {
+      if (!handed && !element.paused) wasFollowing = !!(player.following && player.following());
+    });
+    element.addEventListener("ended", ownEnded);
+    element.addEventListener("play", function () {
+      if (!handed) lockScreen(at, true);
+    });
+    // Named from the start, so the lock screen has it whenever the voice begins.
+    lockScreen(at, !element.paused);
+    lockKeys();
+    // Arriving listening: where the voice had got to, and on from there (`addressOf`).
+    var seconds = Number(asked.get("t") || 0);
+    if (asked.get("listen") === "1" || seconds > 0) {
+      var arrive = function () {
+        if (seconds > 0 && player.seek) player.seek(seconds);
+        if (asked.get("listen") === "1" && player.play) player.play();
+      };
+      if (player.length && player.length() > 0) setTimeout(arrive, 0);
+      else
+        element.addEventListener(
+          "loadedmetadata",
+          function () {
+            setTimeout(arrive, 0);
+          },
+          { once: true }
+        );
+    }
+    var next = near.next;
+    if (next !== null) recordingOf(next);
+    return true;
+  }
+
+  /* Up next in the listening view (design.md §12, "Listening is a view of its own",
+     2026-10-10): the items after this one that can be opened, in the order a swipe takes
+     them, each with what it is and the address that opens it listening. And Play on, which
+     the view's "Play in order" is: one choice, said in both places. */
+  window.TargumList.queue = function () {
+    var rows = [];
+    for (var n = at + 1; n < items.length; n++) {
+      var item = items[n] || {};
+      if (!item.open || item.failed) continue;
+      rows.push({
+        title: String(item.title || ""),
+        facts: factsOf(item),
+        thumb: thumbOf(item, "lv-qcover"),
+        href: keyed(addressOf(item, list, n, true, true)),
+      });
+    }
+    return { name: setName, rows: rows };
+  };
+  window.TargumList.playOn = playOn;
+  window.TargumList.choosePlayOn = function (on) {
+    choosePlayOn(on);
+    Array.prototype.forEach.call(document.querySelectorAll(".list-play-on"), function (one) {
+      one.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  };
+
+  /* Play on (design.md §12, 2026-10-09): the reader's own say that, with the screen in
+     front of them, the end of a recording moves on. Kept on this device; off until they
+     turn it on. */
+  function playOnSwitch() {
+    var press = document.createElement("button");
+    press.type = "button";
+    press.className = "list-play-on";
+    press.textContent = t("reader.list.play-on", "Play on");
+    press.title = t("reader.list.play-on-title", "When a recording ends, the next one starts");
+    press.setAttribute("aria-pressed", playOn() ? "true" : "false");
+    press.addEventListener("click", function () {
+      var on = press.getAttribute("aria-pressed") !== "true";
+      choosePlayOn(on);
+      // Every copy: the foot's, and the one among the picture's keys in Theatre.
+      Array.prototype.forEach.call(document.querySelectorAll(".list-play-on"), function (one) {
+        one.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    });
+    return press;
+  }
+
+  /* At a desk, the playlist's pictures down the side (board PlaylistSwipeDesk): the one
+     here marked, the end at the foot, and a step either way. A picture is a press like
+     Next. On a phone the swipe and the foot are the way through. */
+  var wideRail = window.matchMedia ? window.matchMedia("(min-width: 64rem)") : null;
+  function drawRail() {
+    if (document.getElementById("list-rail")) return;
+    var rail = document.createElement("aside");
+    rail.id = "list-rail";
+    rail.className = "list-rail";
+    rail.setAttribute("aria-label", t("reader.list.label", "Your playlist"));
+    rail.setAttribute("dir", uiDir);
+    var name = document.createElement("p");
+    name.className = "list-rail-name";
+    var bdi = document.createElement("bdi");
+    bdi.setAttribute("dir", "auto");
+    bdi.textContent = setName;
+    name.appendChild(bdi);
+    rail.appendChild(name);
+    var where = document.createElement("p");
+    where.className = "list-rail-at";
+    where.textContent = t("reader.list.of", "{at} of {count}", { at: at + 1, count: items.length });
+    rail.appendChild(where);
+    var up = control("list-rail-step list-rail-up", "↑", function () {
+      backward("rail");
+    });
+    up.setAttribute("aria-label", t("reader.list.back", "Back"));
+    up.disabled = near.back === null;
+    rail.appendChild(up);
+    var strip = document.createElement("ol");
+    strip.className = "list-rail-items";
+    items.forEach(function (item, index) {
+      var row = document.createElement("li");
+      var here = index === at;
+      var tile = document.createElement(here || !item.open ? "span" : "a");
+      tile.className = "list-rail-tile" + (here ? " is-here" : "") + (item.open ? "" : " is-waiting");
+      if (here) tile.setAttribute("aria-current", "true");
+      else if (item.open) tile.href = keyed(addressOf(item, list, index, index > at));
+      tile.setAttribute("aria-label", String(item.title || ""));
+      tile.title = String(item.title || "");
+      var src = pictureOf(item);
+      var letter = document.createElement("span");
+      letter.className = "list-rail-letter";
+      letter.setAttribute("aria-hidden", "true");
+      letter.textContent = String(item.title || "?").replace(/^[^\wא-תЀ-ӿ]+/, "").charAt(0);
+      tile.appendChild(letter);
+      if (src) {
+        var picture = new Image();
+        picture.alt = "";
+        picture.onload = function () {
+          letter.remove();
+          tile.insertBefore(picture, tile.firstChild);
+        };
+        picture.src = src;
+      }
+      if (here) tile.appendChild(glyph(PLAYING, "list-rail-playing"));
+      row.appendChild(tile);
+      strip.appendChild(row);
+    });
+    var end = document.createElement("li");
+    end.className = "list-rail-end";
+    end.textContent = t("reader.list.rail-end", "End");
+    strip.appendChild(end);
+    rail.appendChild(strip);
+    var down = control("list-rail-step list-rail-down", "↓", function () {
+      forward("rail-next");
+    });
+    down.setAttribute("aria-label", near.next !== null ? t("reader.list.next", "Next") : t("reader.list.done", "Finish"));
+    rail.appendChild(down);
+    document.body.appendChild(rail);
+    document.body.classList.add("has-list-rail");
+    var shown = strip.querySelector(".is-here");
+    if (shown && shown.scrollIntoView) shown.scrollIntoView({ block: "nearest" });
+  }
+
+  /* The wheel, at a desk: on to the next item only at the end of a text, and only by a
+     turn of the wheel begun there, as the swipe and the arrow (design.md §12,
+     2026-10-09). A scroll that carried on into the end was reading. */
+  var wheel = { sum: 0, at: 0, end: false, start: false, spent: false };
+  document.addEventListener(
+    "wheel",
+    function (event) {
+      if (!items.length || event.ctrlKey || handed) return;
+      if (event.target && event.target.closest && event.target.closest(".card, .sheet, .list-rail, .bar-pop, .bar-more, .list"))
+        return;
+      var now = Date.now();
+      if (now - wheel.at > 300) {
+        wheel = { sum: 0, at: now, end: atEnd(), start: atStart(), spent: false };
+      }
+      wheel.at = now;
+      if (wheel.spent) return;
+      wheel.sum += event.deltaY;
+      if (wheel.sum > 80 && wheel.end && atEnd()) {
+        wheel.spent = true;
+        forward("wheel");
+      } else if (wheel.sum < -80 && wheel.start && atStart() && near.back !== null) {
+        wheel.spent = true;
+        backward("wheel");
+      }
+    },
+    { passive: true }
+  );
+
+  function whenPlayer(run) {
+    if (run()) return;
+    var tries = 0;
+    var again = setInterval(function () {
+      if (run() || ++tries > 40) clearInterval(again);
+    }, 250);
   }
 
   /* Whether this item has been read to its end, so a swipe may leave it. Watching, the
@@ -492,7 +1307,9 @@
    * the last page — the reader's own answer, where it gives one — and the bottom of the
    * window. */
   function watchingNow() {
-    return document.body.classList.contains("watching");
+    // A large picture with its transcript put away: there is nothing to scroll (#422).
+    var body = document.body.classList;
+    return body.contains("film-theatre") && !body.contains("film-panel");
   }
   function atEnd() {
     if (watchingNow()) return true;

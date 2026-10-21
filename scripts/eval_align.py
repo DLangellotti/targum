@@ -20,6 +20,14 @@ boundaries by hand — which is what the card asks for and what a script cannot 
 takes the other road: **each word is synthesised as its own clip and the clips are joined**,
 so every boundary is known exactly, by construction, for nothing.
 
+**What "exactly" means here, learned the hard way (2026-10-08).** The join between two
+clips is exact, but it is not where either word is: every clip carries the voice's own
+silence around its word. The first run scored word ends against the joins and reported
+340-400 ms in every language, which was the padding. A word is now scored against where
+its own clip's speech is (`spoken_spans`, read off the audio's loudness), and the join is
+kept for the coarse question it can answer, whether it falls between the two words
+(`seam_in_gap`). `--rescore <keep>` scores a kept run again without saying anything.
+
 That is a real measurement and it is not the card's. Words spoken one at a time have no
 coarticulation: nothing runs into the next word, and the silences are cleaner than
 connected speech ever is. So **this number is an upper bound** — the aligner will not do
@@ -189,18 +197,76 @@ def spoken_one_by_one(words: list[str], language: str, into: Path) -> tuple[Clip
     return write(wav(pcm), into), boundaries
 
 
-def scored(found: list[tuple[float, float, float]], truth: list[float]) -> dict[str, float]:
-    """How far each word's end is from where it really ended, in milliseconds.
+#: A 10 ms frame, and how far under a clip's loudest frame still counts as speech: the
+#: voice's own silence is digital zero or near it, so the line is not a fine one.
+FRAME_S = 0.01
+SPEECH_DB = -30.0
 
-    The *ends* and not the starts: a start is the previous end by construction here, so
-    scoring both would count every boundary twice and halve the error it reports.
+
+def spoken_spans(audio: Path, seams: list[float]) -> list[tuple[float, float]]:
+    """Where speech is inside each clip: the first and last 10 ms frame within 30 dB of
+    the clip's loudest.
+
+    The clips are joined end to end, so a seam is where one *clip* ends — and every clip
+    carries the voice's own silence before and after the word. Scored against the seam,
+    an aligner that found every word exactly was 340–400 ms "wrong" on 2026-10-08, which
+    was the padding measured, not the aligner. Each clip holds one word and nothing else,
+    so its speech is read off the audio alone, and that is the truth a word is scored
+    against.
     """
-    errors = [abs(end - was) * 1000.0 for (_, end, _), was in zip(found, truth, strict=True)]
-    return {
-        "boundary_ms_mean": round(statistics.fmean(errors), 1),
-        "boundary_ms_median": round(statistics.median(errors), 1),
-        "within_50ms": round(sum(1 for e in errors if e <= CLOSE_MS) / len(errors), 4),
+    pcm = samples(audio, ALIGN_RATE)
+    frame = max(1, int(FRAME_S * ALIGN_RATE))
+    spans: list[tuple[float, float]] = []
+    start = 0.0
+    for seam in seams:
+        low, high = int(start * ALIGN_RATE), min(len(pcm), int(seam * ALIGN_RATE))
+        levels = []
+        for at in range(low, high, frame):
+            chunk = pcm[at : at + frame]
+            levels.append((sum(x * x for x in chunk) / max(1, len(chunk))) ** 0.5)
+        loudest = max(levels, default=0.0)
+        line = loudest * 10 ** (SPEECH_DB / 20)
+        loud = [n for n, level in enumerate(levels) if loudest and level >= line]
+        if loud:
+            spans.append((start + loud[0] * FRAME_S, start + (loud[-1] + 1) * FRAME_S))
+        else:
+            spans.append((start, seam))
+        start = seam
+    return spans
+
+
+def scored(
+    found: list[tuple[float, float, float]],
+    spans: list[tuple[float, float]],
+    seams: list[float] | None = None,
+) -> dict[str, float]:
+    """How far each aligned word's start and end are from where its speech starts and
+    ends, in milliseconds, and the share whose both edges are within 50 ms.
+
+    `seam_in_gap`, where the seams are given, is the coarse question the first scoring
+    should have asked: does the aligner put each join between the two words it divides?
+    """
+    starts = [
+        abs(begin - was) * 1000.0 for (begin, _, _), (was, _) in zip(found, spans, strict=True)
+    ]
+    ends = [abs(end - was) * 1000.0 for (_, end, _), (_, was) in zip(found, spans, strict=True)]
+    both = [max(a, b) for a, b in zip(starts, ends, strict=True)]
+    marks = {
+        "onset_ms_median": round(statistics.median(starts), 1),
+        "onset_ms_mean": round(statistics.fmean(starts), 1),
+        "end_ms_median": round(statistics.median(ends), 1),
+        "end_ms_mean": round(statistics.fmean(ends), 1),
+        "within_50ms": round(sum(1 for e in both if e <= CLOSE_MS) / len(both), 4),
     }
+    if seams:
+        pairs = list(zip(found, found[1:], strict=False))
+        inside = sum(
+            1
+            for seam, ((_, end, _), (begin, _, _)) in zip(seams, pairs, strict=False)
+            if end - 0.02 <= seam <= begin + 0.02
+        )
+        marks["seam_in_gap"] = round(inside / len(pairs), 4) if pairs else 0.0
+    return marks
 
 
 # -- real audio against hand marks: PocketTorah (targum-internal#225) ------------------
@@ -605,7 +671,7 @@ def run_tts(args: argparse.Namespace) -> list[evals.Row]:
             sys.exit(f"The forced aligner is not installed: {hint}")
         print(f"{code}: aligning {made.seconds:.1f}s of {made.path.suffix} …", flush=True)
         found = aligner.align(made.path, words, code)
-        marks = scored(found, truth)
+        marks = scored(found, spoken_spans(made.path, truth), truth)
         (keep / f"{code}-{len(words)}.json").write_text(
             json.dumps(
                 {"words": words, "truth": truth, "found": found, "scored": marks},
@@ -630,6 +696,44 @@ def run_tts(args: argparse.Namespace) -> list[evals.Row]:
                 )
             )
     print(f"\nThe audio and the alignment are in {keep}.")
+    return rows
+
+
+def run_rescore(args: argparse.Namespace) -> list[evals.Row]:
+    """Score a kept `--on tts` run again, from its audio and its alignment: no voice is
+    asked and nothing is spent. For a scoring that changed after the money was spent."""
+    keep: Path = args.rescore
+    rows: list[evals.Row] = []
+    for kept in sorted(keep.glob("*-*.json")):
+        code = kept.stem.split("-")[0]
+        audio = next(
+            (
+                kept.with_suffix(suffix)
+                for suffix in (".mp3", ".wav")
+                if kept.with_suffix(suffix).is_file()
+            ),
+            None,
+        )
+        if audio is None or code not in MODELS:
+            continue
+        held = json.loads(kept.read_text(encoding="utf-8"))
+        found = [tuple(one) for one in held["found"]]
+        marks = scored(found, spoken_spans(audio, held["truth"]), held["truth"])  # type: ignore[arg-type]
+        print(f"{code}: {marks}")
+        for metric, score in marks.items():
+            rows.append(
+                evals.Row(
+                    at=date.today().isoformat(),
+                    stage="align",
+                    corpus=f"tts-{code}",
+                    metric=metric,
+                    score=score,
+                    n=len(held["words"]),
+                    system="ctc-forced-aligner",
+                    version=MODELS[code][1],
+                    note=args.note or "one clip a word, joined; scored against each clip's speech",
+                )
+            )
     return rows
 
 
@@ -660,10 +764,13 @@ def main() -> None:
     parser.add_argument("--corpus", default="", help="clips: the ledger's name for them.")
     parser.add_argument("--ledger", type=Path, help="Which ledger file.")
     parser.add_argument("--note", default="", help="What was different about this run.")
+    parser.add_argument(
+        "--rescore", type=Path, help="tts: score a kept run again from its files; spends nothing."
+    )
     args = parser.parse_args()
 
     runs = {"tts": run_tts, "pockettorah": run_pockettorah, "clips": run_clips}
-    rows = runs[args.on](args)
+    rows = run_rescore(args) if args.rescore else runs[args.on](args)
     written = evals.append(rows, args.ledger or evals.DEFAULT)
     if rows:
         print(f"\nRecorded {written} rows.")

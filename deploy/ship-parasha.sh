@@ -44,6 +44,15 @@ for folder in $FOLDERS; do
     echo "not built: $folder — run targum parasha build" >&2; exit 1; }
 done
 
+# What the week's sheet is set from, beside each reader (targum-internal#415). A corpus
+# built before the sheet has none, and the box then refuses the PDF in a sentence; said
+# here so it is not found out by a reader pressing Download.
+UNSET=0
+for folder in $FOLDERS; do
+  [ -f "$LOCAL/read/$folder/print/document.json" ] || UNSET=$((UNSET + 1))
+done
+[ "$UNSET" -eq 0 ] || echo "   $UNSET portions have no sheet beside them — run targum parasha build for the PDF" >&2
+
 # The shelf, kept in step with the corpus. A portion is a catalogue row and the
 # fifty-four are one collection, and the catalogue is a file on this machine that
 # deploy.sh carries over. The merge used to be a separate step run by hand, and it had

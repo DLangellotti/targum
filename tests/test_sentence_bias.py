@@ -191,21 +191,22 @@ def test_the_second_wording_takes_the_register_off_the_top_and_nothing_else() ->
             assert word not in lowered, (word, description)
 
 
-def test_the_library_wording_is_still_the_default() -> None:
-    assert sentence_level.PROMPT == "situations"
+def test_the_wording_without_register_is_the_default() -> None:
+    assert sentence_level.PROMPT == "without-register"
+    assert sentence_level.PROMPTS["without-register"] is sentence_level.WITHOUT_REGISTER
     assert sentence_level.PROMPTS["situations"] is sentence_level.LEVELS
     (chunk,) = sentence_level.chunks([["שלום."]])
     _, questions = sentence_level.request(chunk)
-    _, plain = sentence_level.request(chunk, prompt="without-register")
+    _, old = sentence_level.request(chunk, prompt="situations")
     (default,) = questions.values()
-    (other,) = plain.values()
-    assert default["criteria"] == [text for _, text in sentence_level.LEVELS]
-    assert other["criteria"] == [text for _, text in sentence_level.WITHOUT_REGISTER]
+    (other,) = old.values()
+    assert default["criteria"] == [text for _, text in sentence_level.WITHOUT_REGISTER]
+    assert other["criteria"] == [text for _, text in sentence_level.LEVELS]
 
 
 def test_the_compiled_file_says_which_wording_it_holds(tmp_path: Path) -> None:
     to = tmp_path / "levels.json"
     sentence_level.write({"k": sentence_level.Level(1, 1.2, 0.5)}, to, "m")
-    assert json.loads(to.read_text("utf-8"))["prompt"] == "situations"
-    sentence_level.write({}, to, "m", "without-register")
     assert json.loads(to.read_text("utf-8"))["prompt"] == "without-register"
+    sentence_level.write({}, to, "m", "situations")
+    assert json.loads(to.read_text("utf-8"))["prompt"] == "situations"

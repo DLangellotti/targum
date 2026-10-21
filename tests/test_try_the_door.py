@@ -54,7 +54,7 @@ def door(
             "library": library,
             "token": "test-key",
             "require_account": True,
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "store": store,
             "mailer": library.mailer,
             "address": f"http://127.0.0.1:{port}",
@@ -158,7 +158,7 @@ def test_a_refusal_is_the_add_pages_own_and_offers_no_join(
     youtube_answers(monkeypatch, duration=0)
     status, page = post(port, "/try", {"link": VIDEO})
     assert status == 200
-    assert "That video has no length yet" in said(page)
+    assert "a live stream" in said(page)
     assert 'name="link" value=' not in page.split('<div class="tried"')[1]
 
     status, page = post(port, "/try", {"link": "not a link at all"})
@@ -170,7 +170,7 @@ def test_a_host_we_cannot_fetch_is_named(
 ) -> None:
     port, *_ = door
     _, page = post(port, "/try", {"link": "https://vimeo.com/123456"})
-    assert said(page) == "Vimeo doesn't let us fetch its videos."
+    assert said(page) == "Vimeo doesn't let us fetch its videos. Try a link to an article instead."
 
 
 def test_a_visitor_is_counted_and_told_when_to_come_back(
@@ -442,7 +442,9 @@ def test_a_refusal_never_shows_a_stranger_how_the_inside_works() -> None:
     inside = Job(id="try-1", source="https://x.com/a/status/1")
     inside.stage = "failed"
     inside.error = "We couldn't open https://cdn.syndication.twimg.com/tweet-result. HTTP 404"
-    assert tried_for(inside, "en") == {"refused": "We couldn't open that link."}
+    assert tried_for(inside, "en") == {
+        "refused": "We couldn't open that link. Check it and try again."
+    }
     person = Job(id="try-2", source="hello")
     person.stage = "failed"
     person.error = "That isn't a link. Paste one that starts with https."

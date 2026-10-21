@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("welcome.page.title", "Welcome — targum") }}</title>
+{% include '_icons.html.j2' %}
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'arrival.css') }}
+{{ hebrew_face() }}
+{{ script('keep.js') }}
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+{#- The arrival, on a page of its own: three questions, one a screen, as the FirstRun
+    boards draw them (design.md §12, "The arrival is three plain questions", 2026-10-09).
+    Home sends a reader who has opened nothing here (`home.js`), and `arrival.js` sends
+    anybody it has nothing to ask straight back. The site's head and pill are
+    included for the scripts that expect them, and not drawn (`arrival.css`). -#}
+<body class="welcome">
+{% set here = 'welcome' %}
+{% set title = '' %}
+{% include '_nav.html.j2' %}
+{{ script('building.js') }}
+
+<main id="page">
+  {#- The bare head the FirstRun boards draw (David, 2026-10-09: the boards win): the
+      lockup, and where they are in words on the right. No places, no bell, no account,
+      no pill and no foot — there is nothing to go to yet, and the pill covered the
+      press at the foot of a phone. The lockup is the one way out, home. -#}
+  <header class="arrival-head">
+    <a class="arrival-brand" href="/" aria-label="targum">
+      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+      </svg>
+      <span>targum</span>
+    </a>
+    <button type="button" class="arrival-back-mark" id="arrival-back-mark" aria-label="{{ t("learn.arrival.back", "Back") }}" title="{{ t("learn.arrival.back", "Back") }}" hidden><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <p class="arrival-step" id="arrival-step"></p>
+    {#- EN · RU, for a Russian reader whose browser did not say so: Latin letters, so a
+        reader who does not read Russian sees none (design.md §12, 2026-09-28). Drawn by
+        `arrival.js` only while the interface question is not asked. -#}
+    <p class="arrival-switch" id="arrival-switch" hidden></p>
+  </header>
+  <section class="arrival" id="arrival" hidden aria-labelledby="arrival-step">
+    {#- The language the page speaks, before anything that has to be read (2026-09-20),
+        asked only of a browser that may read Russian (2026-09-28). Each row in its own
+        name, and the question in every language it offers, because a reader who cannot
+        read the next question cannot be asked it. Not one of the three: it is the
+        OnboardRuUi boards' "1 of 4". -#}
+    <div class="arrival-screen" id="arrival-language" hidden>
+      <h1 class="arrival-asks" id="arrival-asks-language"></h1>
+      <div class="arrival-opts arrival-tongues" id="arrival-tongues" role="group" aria-labelledby="arrival-asks-language"></div>
+    </div>
+    {#- 1. Which language they are learning, each in its own greeting and wearing how far
+        along it is (design.md §12, "A language wears how far along it is"). -#}
+    <div class="arrival-screen" id="arrival-learning" hidden>
+      <h1 class="arrival-asks" id="arrival-asks-learning">{{ t("welcome.learning.asks", "Which language are you learning?") }}</h1>
+      <div class="arrival-opts arrival-langs" id="arrival-langs" role="radiogroup" aria-labelledby="arrival-asks-learning"></div>
+      <p class="arrival-note" id="arrival-later">{{ t("welcome.learning.later", "You can add a second language later.") }}</p>
+    </div>
+    {#- 2. What they like reading about: a few subjects, any number of them. -#}
+    <div class="arrival-screen" id="arrival-subjects" hidden>
+      <h1 class="arrival-asks" id="arrival-asks">{{ t("welcome.likes.asks", "What do you like to read about?") }}</h1>
+      <p class="arrival-hint">{{ t("welcome.likes.hint", "Pick as many as you like. We use them to choose your first texts.") }}</p>
+      <div class="arrival-opts arrival-doors" id="arrival-doors" role="group" aria-labelledby="arrival-asks"></div>
+    </div>
+    {#- 3. How much they read, in plain words and in that language's own texts. -#}
+    <div class="arrival-screen" id="arrival-level" hidden>
+      <h1 class="arrival-asks" id="arrival-asks-level"></h1>
+      <p class="arrival-hint">{{ t("welcome.level.hint", "We use this to pick your first text. You can change it later.") }}</p>
+      <div class="arrival-opts arrival-levels" id="arrival-levels" role="radiogroup" aria-labelledby="arrival-asks-level"></div>
+      <button type="button" class="arrival-unsure" id="arrival-unsure">{{ t("welcome.level.unsure", "I’m not sure, show me a page") }}</button>
+    </div>
+    <p class="arrival-foot">
+      <span class="arrival-foot-note" id="arrival-foot-note"></span>
+      <button type="button" class="arrival-back" id="arrival-back" hidden>{{ t("welcome.back", "← Back") }}</button>
+      <button type="button" class="arrival-done" id="arrival-done" disabled>{{ t("learn.arrival.continue", "Continue") }}</button>
+    </p>
+  </section>
+  <p class="arrival-waiting" id="arrival-waiting" role="status">{{ t("welcome.page.opening", "Opening…") }}</p>
+</main>
+
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_INTO = {{ into|tojson }};
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+window.TARGUM_STAGES = {{ stage_table()|safe }};
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+{{ script('strings.js') }}
+{{ script('charts.js') }}
+{{ script('lang.js') }}
+{#- What was pressed on the way in (targum-internal#127): a `control` event carries a name
+    and the window's width, never which text. Silent signed out and where turned off. -#}
+{{ script('events.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('shelf.js') }}
+{{ script('scenes.js') }}
+{{ script('arrival.js') }}
+</body>
+</html>

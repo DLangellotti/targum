@@ -29,7 +29,7 @@ from ..paths import write_atomic
 from ..render.builder import render
 from .calendar import Day, today, window
 from .cut import cut
-from .cycles import BY_SLUG, CYCLES, Cycle
+from .cycles import BY_SLUG, CYCLES, RECITED, Cycle
 
 #: How many days ahead to build. Two weeks is enough that a box which cannot reach
 #: Hebcal for a fortnight still has every page it needs, and few enough that a run is
@@ -108,6 +108,12 @@ def build(
             vocalization=portion.vocalization,
             clean=True,
             folder=folder,
+            # The plain reading, cut out of the books' own recordings the way a portion's
+            # is (`render.builder.voices`): the day's verses out of each chapter's file,
+            # joined, and kept in `reader/audio/` beside the pages rather than inside
+            # them. A chapter with no recording is silent, as it is in the book.
+            recordings_beside=one.cycle in RECITED,
+            commentary_words=portion.commentary_words,
         )
         built.setdefault(one.cycle, {})[one.day.isoformat()] = {
             "title": one.title,

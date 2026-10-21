@@ -20,6 +20,9 @@ const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 const told = [];
 install({
   TARGUM_LANGUAGES: { he: "Hebrew", yi: "Yiddish", arc: "Aramaic" },
+  // The badge table the nav writes into every page (`stages.DECLARED`); the Python test
+  // passes the real one, so this file carries no copy of it.
+  TARGUM_STAGES: payload.stages || {},
   stored: payload.stored || {},
   TargumSync: { language: (code) => told.push(code) },
   CustomEvent: function (type, init) {
@@ -30,6 +33,15 @@ install({
 global.CustomEvent = global.window.CustomEvent;
 const heard = [];
 global.window.dispatchEvent = (event) => heard.push(event.detail);
+// The address the page was arrived at, for a link out of a reader that carries the text's
+// language (2026-10-07), and what the page put in its place.
+const replaced = [];
+if (payload.href) {
+  const at = new URL(payload.href);
+  Object.assign(global.location, { href: at.href, search: at.search, hash: at.hash, pathname: at.pathname });
+}
+global.history = { state: null, replaceState: (state, title, url) => replaced.push(url) };
+global.window.history = global.history;
 
 require(path.join(assets, "lang.js"));
 const lang = global.window.TargumLang;
@@ -47,17 +59,34 @@ lang.switcher(nav, payload.pageCodes || ["he"], window.TARGUM_LANGUAGES, payload
 const open = nav.children[0];
 const panel = nav.children[1];
 const items = panel ? panel.children.filter((c) => c.getAttribute("role") === "menuitemradio") : [];
+const starts = panel ? panel.children.filter((c) => c.getAttribute("role") === "menuitem") : [];
+// Everything drawn under the menu, for what must not be there (a flag, since 2026-10-09).
+const everything = (node) => [node].concat((node.children || []).flatMap(everything));
 const before = {
   hidden: nav.hidden,
-  label: open ? open.textContent : "",
+  // The name alone; the badge beside it is its own field (design.md §12, 2026-10-09).
+  label: open ? (open.children.find((c) => String(c.className) === "lang-name") || {}).textContent || "" : "",
+  badge: open ? (open.children.find((c) => String(c.className).indexOf("lang-status") === 0) || {}).textContent || "" : "",
+  badges: items.map((i) => {
+    const named = i.children.find((c) => String(c.className) === "lang-item") || { children: [] };
+    return (named.children.find((c) => String(c.className).indexOf("lang-status") === 0) || {}).textContent || "";
+  }),
   items: items.map((i) => i.getAttribute("data-code")),
   checked: items.filter((i) => i.getAttribute("aria-checked") === "true").map((i) => i.getAttribute("data-code")),
-  more: panel ? (panel.children.find((c) => String(c.className) === "lang-more") || {}).href || "" : "",
+  heads: panel ? panel.children.filter((c) => String(c.className) === "lang-head").map((c) => c.textContent) : [],
+  starts: starts.map((i) => i.getAttribute("data-code")),
+  greetings: Object.fromEntries(
+    items.concat(starts).map((i) => [
+      i.getAttribute("data-code"),
+      (i.children.find((c) => String(c.className) === "lang-greeting") || {}).textContent || "",
+    ])
+  ),
+  flags: everything(nav).filter((n) => String(n.className || "").indexOf("flag") >= 0).length,
   panelHidden: panel ? panel.hidden : true,
 };
 if (open) open.fire("click", { stopPropagation() {} });
 const openedPanel = panel ? !panel.hidden : false;
-const target = items.find((i) => i.getAttribute("data-code") === payload.press);
+const target = items.concat(starts).find((i) => i.getAttribute("data-code") === payload.press);
 if (target) target.fire("click", {});
 
 // The same call anywhere but the nav: tabs, as the definition-language control has them.
@@ -70,6 +99,9 @@ process.stdout.write(
   JSON.stringify({
     before,
     current,
+    carried: lang.carried(),
+    replaced,
+    learning: global.localStorage.getItem("targum:learning"),
     openedPanel,
     picked,
     told,
@@ -77,14 +109,5 @@ process.stdout.write(
     stored: global.localStorage.getItem("targum:language"),
     afterPanelHidden: panel ? panel.hidden : true,
     tabs: other.children.map((c) => c.getAttribute("role")),
-    // What sits beside each name: a drawn flag, or the empty room one would take.
-    flags: Object.fromEntries(
-      items.map((item) => {
-        const named = item.children[0];
-        const box = named && named.children ? named.children[0] : null;
-        const drawn = box && String(box.className).includes("none") ? "none" : box && box.innerHTML ? "flag" : "";
-        return [item.getAttribute("data-code"), drawn];
-      })
-    ),
   })
 );

@@ -161,7 +161,10 @@ def test_on_the_card_says_where_the_word_comes_round(browser: Any, verb_page: Pa
         )
         assert lines == [
             "6 words from כ־ת־ב met, 3 known",
-            "4× in this text · 241× in the Tanakh" + "met in Jonah 1:4, Ruth 2:1, יונה and 6 more",
+            # How many texts leads, as the board's label over the stage control says it
+            # (audit Q6); the texts themselves are said for a screen reader and a pointer.
+            "Met in 9 texts · 4× in this text · 241× in the Tanakh"
+            + "met in Jonah 1:4, Ruth 2:1, יונה and 6 more",
         ]
         # A title in Hebrew sits in its own bdi, as the root does.
         assert page.evaluate(
@@ -170,7 +173,7 @@ def test_on_the_card_says_where_the_word_comes_round(browser: Any, verb_page: Pa
         ) == ["יונה"]
 
         # The root is the way in to the words of it the reader met.
-        root = ".gloss-card .verb .root-open"
+        root = ".gloss-card .card-facts .root-open"
         assert page.get_attribute(root, "aria-expanded") == "false"
         assert page.query_selector(".gloss-card .card-root-words") is None
         page.click(root)

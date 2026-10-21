@@ -8,6 +8,7 @@ document.json and rerunning is a supported way to work, not a trick.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,7 @@ from .models import (
     keeps_its_own_pointing,
     read_artifact,
 )
+from .renderings import commentary_ref, with_commentaries
 from .segment import HebrewSegmenter, Segmenter, segment_document
 from .translate import build as build_provider
 from .usage import Usage
@@ -83,10 +85,22 @@ class Plan:
     buying_segments: list[Segment] = field(default_factory=list)
     # For an imported recording: what this build will hear, and what hearing costs.
     audio: AudioPlan | None = None
+    #: The translation's price, still being counted (`plan(soon=True)`, 2026-10-06):
+    #: `estimated_cost` leaves it out until `settle` adds it. `floor` is the same price at
+    #: the local rate, for a caller deciding whether to start its own work early.
+    counting: Future[float] | None = None
+    floor: float = 0.0
 
     @property
     def needs_payment(self) -> bool:
         return self.cached_translation is None and self.estimated_cost > 0
+
+    def settle(self) -> None:
+        """Wait for the count, if one is going, and add it to `estimated_cost`."""
+        if self.counting is not None:
+            self.estimated_cost += self.counting.result()
+            self.counting = None
+            self.floor = 0.0
 
 
 @dataclass(slots=True)
@@ -715,7 +729,13 @@ class Build:
         for path in self.translation_files:
             document = ingest.load(str(path))
             target = segment_document(document, self.segmenter)
-            name = document.title or (path.stem if isinstance(path, Path) else str(path))
+            # A commentary is named by its reference, which says what it is on both
+            # sides: Sefaria titles the Hebrew of Rashi in Hebrew (targum-internal#414).
+            name = (
+                commentary_ref(document.source)
+                or document.title
+                or (path.stem if isinstance(path, Path) else str(path))
+            )
 
             # Some pairs do not need matching: both sides were published against the same
             # verse numbering, so the correspondence is stated rather than inferred. Both
@@ -971,7 +991,89 @@ class Build:
 
             self.moves = moves_module.keep(path.parent, moves_module.between(existing, annotation))
         annotation.write(path)
+        # The corpus ledger's `tokens` stage (targum-internal#162): annotation has no cache,
+        # so the file is the value and this is its second copy, keyed by the text and the
+        # annotator that read it. Off unless `TARGUM_LEDGER` is set; never fails a build.
+        # Only a pass over the whole text: a language the model reads is annotated a
+        # chapter at a time, per reader, and a partial pass under the shared key would
+        # stand in for the whole one and add a copy for every chapter bought (review,
+        # 2026-10-08).
+        if not self._words_owed(annotation, segmented, None):
+            from . import ledger as ledger_module
+
+            ledger_module.mirror_put(
+                "tokens",
+                f"{annotation.document_hash}:{annotation.annotator}",
+                annotation.model_dump(mode="json"),
+            )
         return annotation
+
+    def annotate_commentaries(
+        self, segmented: SegmentedDocument, translations: list[Translation]
+    ) -> dict[str, Annotation]:
+        """The words of each commentary read in the text's own language — Rashi beside
+        the Torah — so a word of it can be tapped like a word of the Hebrew
+        (targum-internal#414).
+
+        Read here, at build time, by the annotator the Hebrew has: DICTA, which runs on
+        this machine and spends nothing. Not at render, the way Onkelos's words are,
+        because Onkelos is read by a hand table and Rashi by a model a second a verse
+        long. Kept beside the rendering (`renderings.words_path`) under the rendering's
+        own text, so the portion cut carries it and a rebuild reads it again only when
+        the edition changes or the annotator does.
+
+        A commentary in another language — Rashi in English — has no words to tap here,
+        any more than a translation does.
+        """
+        from .annotate import lemma
+        from .renderings import (
+            as_segmented,
+            is_commentary,
+            rendering_hash,
+            words_key,
+            words_path,
+        )
+
+        found: dict[str, Annotation] = {}
+        if not self.difficulty:
+            return found
+        own = segmented.language.split("-")[0]
+        for translation in translations:
+            if not is_commentary(translation.name):
+                continue
+            if translation.target_language.split("-")[0] != own:
+                continue
+            text = as_segmented(translation, segmented)
+            if not text.segments:
+                continue
+            annotator = annotate_module.Annotator(
+                # Not the Torah's chain: scripture is looked up in the Open Scriptures
+                # tagging by verse, and a verse of Rashi is not that verse. Its source is
+                # the commentary's, which `is_biblical` reads as rabbinic.
+                lemmatizer=lemma.for_text(f"sefaria:{translation.name}", own),
+                bands=None,
+            )
+            path = words_path(self.resolved_out, translation)
+            existing = read_artifact(Annotation, path)
+            if (
+                not self.force
+                and existing is not None
+                and existing.document_hash == rendering_hash(translation)
+                and existing.annotator == annotator.name
+            ):
+                self.reused.append(f"words ({translation.name})")
+                found[words_key(translation)] = existing
+                continue
+            self.notify(f"Finding the words of {translation.name}…")
+            try:
+                words = annotator.annotate(text)
+            except TargumError as error:
+                self.notify(f"{error.message} {translation.name} is drawn without its words.")
+                continue
+            words.document_hash = rendering_hash(translation)
+            words.write(path)
+            found[words_key(translation)] = words
+        return found
 
     def vocalize(self, segmented: SegmentedDocument) -> Vocalization | None:
         """The pointed form of each segment, for the reader's vowel toggle.
@@ -1804,7 +1906,9 @@ class Build:
                 transcript = Transcript.model_validate(stored)
                 self.reused.append(f"transcript (part {number})")
             else:
-                transcript = self.transcriber.transcribe(piece, drafted.language)
+                transcript = self.transcriber.transcribe(
+                    piece, drafted.language, hint=self.title or found.title
+                )
                 self.cache.put("transcribe", key, transcript.model_dump(mode="json"))
             write_model(transcript_path(workspace, number), transcript)
             refined = self._refined(transcript, refiner)
@@ -2009,7 +2113,7 @@ class Build:
             total = total + marks
         return total
 
-    def plan(self, chapters: int | None = None) -> Plan:
+    def plan(self, chapters: int | None = None, *, soon: bool = False) -> Plan:
         """Ingest, segment, and price what a build would actually spend.
 
         `chapters` is what the build will buy, and so what the estimate is for. Pricing
@@ -2017,6 +2121,11 @@ class Build:
         novel prices at $7.58 against a real $0.38, the cap refuses it, and a book can
         never be opened at all — which is what happened when the chapter engine was
         built and the estimate was left alone.
+
+        `soon` returns while the translation is still being counted, on a provider that
+        can count on a thread (`estimate_soon`): `estimated_cost` then leaves it out until
+        `Plan.settle`. For the quote, which has the words to look up meanwhile
+        (2026-10-06); the number it settles on is the same exact count.
         """
         document = self.ingest()
         plan = Plan(document=document)
@@ -2041,9 +2150,16 @@ class Build:
             # cap refused a text that would have cost nothing to open.
             paid = self.held_for(plan.segmented, buying)
             owed = [segment for segment in buying if segment.id not in paid]
-            plan.estimated_cost = self.provider.estimate(
-                owed, plan.segmented.language, self.target_language, self.style
-            )
+            language = plan.segmented.language
+            if soon and hasattr(self.provider, "estimate_soon"):
+                plan.counting = self.provider.estimate_soon(
+                    owed, language, self.target_language, self.style
+                )
+                plan.floor = self.provider.estimate_floor(owed, language)
+            else:
+                plan.estimated_cost = self.provider.estimate(
+                    owed, language, self.target_language, self.style
+                )
             plan.chapters = len(split_sections(plan.segmented))
             plan.buying = len(buying)
             plan.buying_segments = list(buying)
@@ -2272,6 +2388,8 @@ class Build:
         # worked out from them, and a stage cannot use what has not run yet.
         vocalization = self.vocalize(segmented)
         annotation = self.annotate(segmented, vocalization, only=only)
+        # And the words of a commentary beside it, so Rashi is tapped like the Torah is.
+        commentary_words = self.annotate_commentaries(segmented, translations)
         # Russian's marks come the other way round: after the words, which settle a
         # homograph's stress. Hebrew's vowels are None here only for a language without
         # them, so this is never a second pointing of one text.
@@ -2306,6 +2424,7 @@ class Build:
                 whole=self.whole,
                 folder=self.resolved_out,
                 moves=self.moves,
+                commentary_words=commentary_words,
             )
 
         # Anything a source keeps beside the reader for the page to draw, before the
@@ -2314,6 +2433,13 @@ class Build:
         # reader somebody opens first.
         if self.beside is not None:
             self.beside(self.resolved_out, plan.document)
+        # And the text's own picture, where it brought one: an article's lead image, a
+        # book's cover, a PDF's first page (targum-internal#429). Here rather than at
+        # ingest, which a quote runs too: a picture is fetched for a text being built,
+        # never for one only priced. Never a library text's — see `thumbs.capture`.
+        from . import thumbs
+
+        thumbs.capture(str(self.source), self.resolved_out)
 
         result = Result(
             out_dir=self.resolved_out,
@@ -2331,7 +2457,9 @@ class Build:
             on_ready(result)
 
         try:
-            result.glossary = self.glossary(annotation, only=only)
+            result.glossary = self.glossary(
+                with_commentaries(annotation, commentary_words, only), only=only
+            )
         except TargumError as error:
             # The reader is already written and, where this is serving a page, already
             # open. Losing the meanings is worth saying; it is not worth taking back a

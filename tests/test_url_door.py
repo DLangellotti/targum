@@ -149,8 +149,8 @@ def test_a_sign_in_wall_is_named_and_says_to_paste_the_text(monkeypatch: Any) ->
     error = caught.value
     assert error.key == "fetch.needs-a-sign-in"
     assert error.fill == {"site": "paywall.example"}
-    assert "sign in" in error.message
-    assert "paste the text" in (error.hint or "")
+    assert "sign-in" in error.message
+    assert "paste it here" in (error.hint or "")
     # What Unreachable is for is untouched: still a shut door, with its status.
     assert error.status == 401 and error.host == "paywall.example" and door.shut(error)
 
@@ -237,7 +237,7 @@ def test_a_private_address_is_refused_before_any_knock(monkeypatch: Any) -> None
     monkeypatch.setattr(door, "POLITE_S", 0.0)
     with pytest.raises(TargumError) as caught:
         door.fetch("https://127.0.0.1/metadata")
-    assert "private network" in caught.value.message
+    assert "can't open pages on" in caught.value.message
     assert doors.direct.knocks == [], "refused at our end, never sent"
     assert not isinstance(caught.value, Unreachable), "so it is never recorded as a shut door"
 
@@ -329,9 +329,68 @@ def test_a_bot_check_is_said_as_one_to_the_model(tmp_path: Path) -> None:
         ctx, "site.example", Unreachable("no", status=403, host="site.example", challenge=True)
     )
     assert told is not None and told["host_shut"] and told["challenge"]
-    assert "bot check" in told["error"] and "own browser" in told["error"]
+    assert "bot check" in told["error"]
+    assert "browser" not in told["error"] and "search_sources" in told["advice"]
     row = store.db.execute("SELECT why, egress FROM reached WHERE host='site.example'").fetchone()
     assert (row["why"], row["egress"]) == ("bot check", "direct")
+
+
+def test_an_article_described_and_then_quoted_is_knocked_on_once(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """2026-10-06: `describe_source` read an article twice (once in `episode.find`, once
+    to count it) and the quote read it twice more, each knock after the first on the
+    host waiting out `POLITE_S` — 1.6 s a describe and most of a 4.1 s quote on the box.
+    The page is read once and the other three readers are handed it."""
+    article = (
+        "<html><head><title>על הים</title></head><body>"
+        + "".join(f"<p>{' '.join(['שלום', 'עולם', 'ים'] * 20)}</p>" for _ in range(4))
+        + "</body></html>"
+    ).encode()
+    headers = {"content-type": "text/html; charset=utf-8"}
+    doors = Doors([Answer(200, headers, article, "utf-8")])
+    monkeypatch.setattr(door, "_session", doors)
+    store = Store(tmp_path / "t.db")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+
+    described = tools.describe_source(ctx, {"url": "https://news.example/a#top"})
+    assert described["kind"] == "article" and described["words"] >= 200
+    document = door.UrlIngester().load("https://NEWS.example/a")
+    assert document.title == "על הים"
+    assert len(doors.direct.knocks) == 1, "one knock for the describe and the quote"
+
+
+def test_a_kept_page_lapses_and_a_refusal_is_never_kept(monkeypatch: Any) -> None:
+    """Ten minutes, so the build a reader presses reads the text they were quoted for and a
+    page asked about later is read fresh; a refusal is knocked on again every time, so a
+    door that opens is seen to open and `Store.reach` hears each refusal."""
+    now = [0.0]
+    pages = door.Pages(clock=lambda: now[0])
+    answered: list[str] = []
+
+    def fetch(url: str, params: Any = None) -> door.Fetched:
+        answered.append(url)
+        if "shut" in url:
+            raise Unreachable("no", status=403, host="shut.example")
+        return door.Fetched(f"<p>{len(answered)}</p>", "text/html", b"x")
+
+    monkeypatch.setattr(door, "fetch", fetch)
+    assert pages.get("https://a.example/1").text == "<p>1</p>"
+    now[0] = door.PAGE_KEEP_S - 1
+    assert pages.get("https://a.example/1").text == "<p>1</p>"
+    now[0] = door.PAGE_KEEP_S + 1
+    assert pages.get("https://a.example/1").text == "<p>2</p>", "read fresh once it lapses"
+    for _ in range(2):
+        with pytest.raises(Unreachable):
+            pages.get("https://shut.example/")
+    assert answered.count("https://shut.example/") == 2
+
+    small = door.Pages(most=2)
+    for n in range(3):
+        small.get(f"https://a.example/{n}")
+    assert len(small) == 2, "bounded, the least recently asked out first"
 
 
 def test_a_door_opened_through_the_proxy_is_remembered_as_such(tmp_path: Path) -> None:
@@ -342,7 +401,7 @@ def test_a_door_opened_through_the_proxy_is_remembered_as_such(tmp_path: Path) -
     told = tools.refused(
         ctx, "site.example", Unreachable("no", status=403, host="site.example", via="proxy")
     )
-    assert told is not None and "does not answer" in told["error"]
+    assert told is not None and "doesn't answer" in told["error"]
     row = store.db.execute("SELECT egress FROM reached WHERE host='site.example'").fetchone()
     assert row["egress"] == "proxy"
 
@@ -491,3 +550,240 @@ def test_a_bit_rate_on_the_stream_rather_than_the_format_is_still_a_bit_rate(
         lambda path: {"format": {"size": "1000"}, "streams": [{"bit_rate": "8000"}]},
     )
     assert probe.timed(b"front", 8_000) == 8.0
+
+
+# -- the proxy as the fallback for an article (2026-10-06) -------------------------------
+
+
+def test_a_qrator_refusal_is_a_bot_check_not_a_sign_in_wall(monkeypatch: Any) -> None:
+    """www.rbc.ru answers every article with a 401 from QRATOR and a page that loads a
+    script (measured 2026-10-06). Called a sign-in wall, the reader was told to sign in
+    to a site that has no account to sign in with."""
+    doors = Doors([Answer(401, {"server": "QRATOR"})])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(Unreachable) as caught:
+        door.fetch("https://www.rbc.example/a")
+    error = caught.value
+    assert error.challenge is True and error.key == "fetch.would-not-open"
+    assert "sign in" not in error.message and "bot check" in (error.hint or "")
+    assert door.shut(error)
+
+
+def test_the_proxy_is_only_asked_after_a_direct_knock_is_refused(monkeypatch: Any) -> None:
+    """Not a route: an article that opens directly never touches the metered exit, and
+    one that never answered, was reset or was refused is tried once through it."""
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    page = Answer(200, {"content-type": "text/html"}, b"<p>hi</p>")
+    doors = Doors(direct=[page])
+    monkeypatch.setattr(door, "_session", doors)
+    assert door.fetch("https://open.example/a").via == "direct"
+    assert doors.made == [""]
+
+    refusals: list[Any] = [ConnectionResetError("reset"), TimeoutError("timed out"), Answer(451)]
+    for refusal in refusals:
+        doors = Doors(
+            direct=[refusal], proxied=[Answer(200, {"content-type": "text/html"}, b"<p>ok</p>")]
+        )
+        monkeypatch.setattr(door, "_session", doors)
+        got = door.fetch("https://shut.example/a")
+        assert got.via == "proxy" and got.text == "<p>ok</p>"
+        assert doors.made == ["", "http://u:p@exit.example:823"]
+
+
+def test_a_page_fetched_through_the_proxy_is_logged_by_host_alone(
+    monkeypatch: Any, caplog: Any
+) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(200, {"content-type": "text/html"}, b"<p>hi</p>")],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with caplog.at_level("INFO", logger="targum.ingest.url"):
+        door.fetch("https://shut.example/secret/path?reader=7")
+    said = [record.getMessage() for record in caplog.records]
+    assert said == ["fetched shut.example through the proxy"]
+
+
+def test_the_size_cap_holds_through_the_proxy(monkeypatch: Any) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(200, {"content-type": "text/html"}, b"x" * (door.MAX_BYTES + 1))],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError, match="too big"):
+        door.fetch("https://shut.example/huge")
+
+
+def test_every_proxied_hop_is_still_checked_for_a_private_address(monkeypatch: Any) -> None:
+    """A redirect through the exit to the metadata endpoint is refused before it is
+    followed, as it is on the direct walk."""
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    checked: list[str] = []
+
+    def reachable(url: str) -> None:
+        checked.append(url)
+        if "169.254" in url:
+            raise TargumError("private", key="fetch.private-network")
+
+    monkeypatch.setattr(door, "_reachable", reachable)
+    doors = Doors(
+        direct=[Answer(403)],
+        proxied=[Answer(302, {"location": "https://169.254.169.254/latest/meta-data/"})],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError) as caught:
+        door.fetch("https://shut.example/a")
+    assert caught.value.key == "fetch.private-network"
+    assert checked[-1].startswith("https://169.254.169.254/")
+    assert len(doors.proxied.knocks) == 1, "the private hop was never knocked on"
+
+
+def test_a_private_address_is_never_retried_through_the_proxy(monkeypatch: Any) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+
+    def reachable(url: str) -> None:
+        raise TargumError("private", key="fetch.private-network")
+
+    monkeypatch.setattr(door, "_reachable", reachable)
+    doors = Doors(direct=[], proxied=[])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(TargumError):
+        door.fetch("https://10.0.0.1/a")
+    assert doors.proxied.knocks == [] and doors.direct.knocks == []
+
+
+def test_an_article_that_opens_through_the_proxy_does_not_mark_its_host_shut(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
+    door.PAGES.clear()
+    article = (
+        "<html><head><title>Море</title></head><body>"
+        + "".join(f"<p>{' '.join(['море', 'город', 'день'] * 20)}</p>" for _ in range(4))
+        + "</body></html>"
+    ).encode()
+    headers = {"content-type": "text/html; charset=utf-8"}
+    # One knock each way: `episode.find` knocks first, and the article read after it is
+    # the page that knock kept (`url.page`).
+    doors = Doors(direct=[Answer(403)], proxied=[Answer(200, headers, article, "utf-8")])
+    monkeypatch.setattr(door, "_session", doors)
+    store = Store(tmp_path / "t.db")
+    store.reach("ru.example", False, "403")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+    described = tools.describe_source(ctx, {"url": "https://ru.example/a"})
+    assert described["kind"] == "article" and "host_shut" not in described
+    row = store.db.execute("SELECT open, egress FROM reached WHERE host='ru.example'").fetchone()
+    assert (row["open"], row["egress"]) == (1, "proxy")
+    assert store.closed() == []
+
+
+# A news page shaped like Maariv's (2026-10-14): Next.js writes the article's ld+json
+# from script, the headline sits in a <header>, and the article's own sentences never
+# reach the markup at all — only the other stories listed under it do. The sentences
+# are made up; the shape is the publisher's.
+_ELSEWHERE = [
+    "החתול של השכנים טיפס שוב על הגג הגבוה בשכונה",
+    "מחר ירד גשם כבד בצפון ובמרכז הארץ לפי התחזית",
+    "התזמורת העירונית תנגן בפארק בערב החג הקרוב",
+    "מכירת הספרים השנתית נפתחה בכיכר העיר הבוקר",
+    "קבוצת הכדורסל המקומית ניצחה במשחק הפתיחה אמש",
+]
+_STATED = [
+    "החברה הציגה אתמול מסך חדש לבית, שמזהה מי עומד מולו ומדבר איתו בעברית פשוטה.",
+    'לדברי מנהלת המוצר, "המסך נועד לכל המשפחה", והוא יגיע לחנויות בחודש הבא.',
+]
+
+
+def _next_page(stated: list[str], headline: str = "מסך אחד לכל המשפחה") -> str:
+    import json
+
+    ld = json.dumps(
+        {
+            "@context": "https://schema.org",
+            "@type": "NewsArticle",
+            "articleBody": "\n".join(stated),
+        },
+        ensure_ascii=False,
+    )
+    push = json.dumps([0, {"type": "application/ld+json", "children": ld}], ensure_ascii=False)
+    listed = "".join(
+        f'<article class="category-article"><p class="category-article-title">{line}</p></article>'
+        for line in _ELSEWHERE
+    )
+    return (
+        f"<html><head><title>{headline}</title></head><body><main>"
+        f"<script>(self.__next_s=self.__next_s||[]).push({push})</script>"
+        f'<article class="breaking-news-page-container"><header><h1>{headline}</h1></header>'
+        f"<section>מבזקים - כתבות אחרונות</section>{listed}</article></main></body></html>"
+    )
+
+
+def test_a_stated_article_overrules_an_extraction_of_the_stories_beside_it(
+    monkeypatch: Any,
+) -> None:
+    """A reader asked for tech news and opened "Apple's new technology" on five unrelated
+    headlines: trafilatura read the list of other flashes, because the flash itself is
+    rendered by script, and nothing compared that with the `articleBody` the page states."""
+    page = _next_page(_STATED)
+    assert door.stated_body(page) == "\n".join(_STATED)
+    headers = {"content-type": "text/html; charset=utf-8"}
+    monkeypatch.setattr(door, "_session", Doors([Answer(200, headers, page.encode(), "utf-8")]))
+
+    document = door.UrlIngester().load("https://news.example/breaking-news/article-1")
+    read = [block.text for block in document.blocks]
+    assert read[0] == "מסך אחד לכל המשפחה", "the headline still opens the text"
+    assert read[1:] == _STATED
+    assert not any(line in " ".join(read) for line in _ELSEWHERE)
+    assert document.ingester == "url/6"
+
+
+def test_an_extraction_that_covers_the_stated_article_keeps_its_own_shape() -> None:
+    """Ynet, Israel Hayom and Mako state an `articleBody` their extraction already covers,
+    and the extraction has the subheadings the statement lacks. Mako's statement drops
+    every quotation mark and runs its paragraphs together; that is still a match."""
+    import json
+
+    said = '"זה יום חשוב לתושבים", אמר ראש העירייה בסוף הישיבה הארוכה.'
+    body = [
+        f"{opening} הוועדה התכנסה הבוקר כדי לדון בתוכנית לתחבורה ציבורית בעיר. "
+        "היא שמעה את נציגי השכונות ואת מהנדסת העיר. הדיון נמשך שעות רבות."
+        for opening in ("ביום שני", "בצהריים", "לקראת הערב")
+    ] + [f"{said} הוא הוסיף שהקווים החדשים יעברו גם בשכונות הוותיקות."]
+    ld = json.dumps(
+        {"@type": "NewsArticle", "articleBody": "".join(body).replace('"', "")},
+        ensure_ascii=False,
+    )
+    page = (
+        '<html><head><script type="application/ld+json">' + ld + "</script></head><body>"
+        "<article><h1>תוכנית חדשה לאוטובוסים</h1>"
+        + "".join(f"<p>{line}</p>" for line in body[:3])
+        + f"<h2>מה אמרו בעירייה</h2><p>{body[3]}</p>"
+        "</article></body></html>"
+    )
+    read = door.article_paragraphs(page)
+    assert "מה אמרו בעירייה" in [text for _, _, text in read], "the subheading survives"
+    assert [text for _, _, text in read][-1] == body[3]
+
+
+def test_the_known_share_is_counted_on_the_article_not_the_page(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The chat told a reader the flash was short and mostly words they knew, having
+    counted the menus and the other stories: `describe_source` read the whole page."""
+    page = _next_page(_STATED)
+    headers = {"content-type": "text/html; charset=utf-8"}
+    monkeypatch.setattr(door, "_session", Doors([Answer(200, headers, page.encode(), "utf-8")]))
+    ctx = tools.Ctx(
+        person=None,
+        home=tmp_path,
+        library=None,
+        store=Store(tmp_path / "t.db"),
+        chat_id="c",
+        level=level.EMPTY,
+    )
+    described = tools.describe_source(ctx, {"url": "https://news.example/breaking-news/a"})
+    assert described["words"] == sum(len(line.split()) for line in _STATED)

@@ -121,7 +121,7 @@ def _load(source: str) -> Document:
         # a missing file the user never meant to name.
         raise UnsupportedSource(
             f"We don't know the source '{source.split(':', 1)[0]}'.",
-            f"Supported: {', '.join(sources())}",
+            f"We read {', '.join(sources())}.",
             key="file.unknown-source",
             named=source.split(":", 1)[0],
             supported=", ".join(sources()),
@@ -135,7 +135,7 @@ def _load(source: str) -> Document:
             "This file is protected, so we can't read it.", key="file.protected"
         )
     if not path.exists():
-        raise TargumError(f"No such file: {source}", key="file.not-there", name=source)
+        raise TargumError(f"We can't find {source}.", key="file.not-there", name=source)
     if path.is_dir():
         # The pages of one text, photographed one after another: the upload door
         # numbers them into a folder, and the folder is the source.
@@ -154,8 +154,8 @@ def _load(source: str) -> Document:
     ingester = _BY_SUFFIX.get(suffix)
     if ingester is None:
         raise UnsupportedSource(
-            f"We can't read '{suffix or path.name}' files.",
-            f"Supported: {', '.join(sources())}",
+            f"We can't read {suffix or path.name} files. Paste the text instead.",
+            f"We read {', '.join(sources())}.",
             key="file.unreadable-kind",
             kind=suffix or path.name,
             supported=", ".join(sources()),

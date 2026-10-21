@@ -1,0 +1,538 @@
+/* A card in someone else's chat (design.md §12, 2026-10-06): the build card a host
+   draws beside `check_job` in a sandboxed frame of its own.
+
+   It is chrome, drawn as the desk is (§13): the chrome's sans, named and never fetched;
+   ink and teal; the desk's radii and type scale. It fetches nothing — this sheet is
+   inlined into the resource, and there is no @font-face, no image and no url() in it.
+
+   It is the one surface that takes a theme, because it is drawn inside somebody else's
+   page (§12, "A card takes the host's theme"): `card.js` sets `data-theme` from what
+   the host hands it. The dark block is the dark reading of the same palette, every value
+   one §4 already gives "on ink", and `test_brand.py` pins it value by value. */
+
+:root {
+  color-scheme: light;
+  --card: #fffdf9;
+  --ink: #1c1a17;
+  --muted: #6b645c;
+  --edge: rgb(28 26 23 / 0.08);
+  --teal: #1f6f6b;
+  --teal-ink: #fffdf9;
+  --leaf: #5a7340;
+  --track: #ece7de;
+  --shadow: 0 1px 2px rgb(28 26 23 / 0.06);
+  --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --reading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --reading-hebrew: "Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew", "New Peninim MT", David, serif;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* The dark reading (§12, 2026-10-06). Only these tokens change. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --card: #201e1b;
+  --ink: #e6e1d8;
+  --muted: #9a9288;
+  --edge: #322e29;
+  --teal: #6fb8b3;
+  --teal-ink: #0f1a19;
+  --leaf: #a8c37e;
+  --track: #322e29;
+  --shadow: none;
+}
+
+/* The host's page shows through around the card, so the frame never paints a
+   rectangle of its own over the conversation. */
+html,
+body {
+  margin: 0;
+  background: transparent;
+}
+
+body {
+  padding: 2px;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.card {
+  box-sizing: border-box;
+  max-inline-size: 34rem;
+  padding: 16px 20px;
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.card-label {
+  margin: 0 0 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* A text's own title is in the reading face (§13), Hebrew in its own stack and never
+   scaled below the Latin (§5). Named, never carried: the frame fetches nothing. */
+.card-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.card-title[lang|="he"],
+.card-title[lang|="arc"] {
+  font-family: var(--reading-hebrew);
+  line-height: 1.6;
+}
+
+.card-english {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* Progress is leaf (§4, §13: a green thing is always progress), flat, on the desk's
+   ground as its track. */
+.card-bar {
+  margin-block: 12px 0;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.card-bar span {
+  display: block;
+  block-size: 100%;
+  inline-size: 0;
+  border-radius: 999px;
+  background: var(--leaf);
+}
+
+.card-said {
+  margin: 10px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-stopped {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* The door: a teal word with its arrow out of the frame, as the board draws it (§12,
+   "The connector's pages are the boards'", 2026-10-09). It opens a page of ours; it
+   never starts or confirms anything (§12, "A card never presses"). */
+.card-door {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-block-start: 12px;
+  min-block-size: 40px;
+  padding-inline: 4px;
+  border-radius: 8px;
+  color: var(--teal);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.card-arrow {
+  inline-size: 14px;
+  block-size: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.card-door:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .card-door {
+    min-block-size: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card-bar span {
+    transition: inline-size 240ms var(--ease);
+  }
+
+  .card-door:active {
+    transform: scale(0.98);
+  }
+}
+
+/* -- the text card (design.md §12, 2026-10-06) ----------------------------------------
+   Each text a find answers with, as one card; several are a short stack of them, each
+   a little tighter so three sit in the space a host gives one answer. */
+
+.cards {
+  display: grid;
+  gap: 8px;
+  max-inline-size: 34rem;
+}
+
+.cards .card-none {
+  margin: 0;
+  padding: 12px 4px;
+  color: var(--muted);
+}
+
+.stack .card-text {
+  padding: 12px 16px;
+}
+
+.card-facts {
+  margin: 6px 0 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Who published it, how long, how much is known: whichever of the three there are,
+   with a point between each two that are shown. */
+.card-facts > :not([hidden]) ~ :not([hidden])::before {
+  content: " · ";
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-block-start: 12px;
+}
+
+.card-actions .card-door {
+  margin-block-start: 0;
+}
+
+/* Listen: a round button in the teal wash, its word said to a screen reader (§12, "The
+   connector's pages are the boards'", 2026-10-09). Only where the text already has a
+   recording; it plays, and spends nothing. */
+.card-play {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 36px;
+  block-size: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--teal) 12%, transparent);
+  color: var(--teal);
+  font: inherit;
+  cursor: pointer;
+}
+
+.card-play-word {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* §7: a 16px stroke at text weight, the reader's own play and pause. */
+.card-play svg {
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.card-play .pause,
+.card-play[aria-pressed="true"] .play {
+  display: none;
+}
+
+.card-play[aria-pressed="true"] .pause {
+  display: inline;
+}
+
+.card-play:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.card-credit {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .card-play {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card-play:active {
+    transform: scale(0.98);
+  }
+}
+
+/* The offer card's list (design.md §12, "A third card, the offer", 2026-10-09): a set's
+   texts, one a line, each title in its own face and what it uses beside it. */
+.card-items {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding-block: 4px;
+  border-block-start: 1px solid var(--edge);
+}
+
+.card-item-title {
+  font-family: var(--reading);
+  overflow-wrap: anywhere;
+}
+
+.card-item-title[lang|="he"] { font-family: var(--reading-hebrew); }
+
+.card-item-facts {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* -- the boards' card (design.md §12, "The connector's pages are the boards'", 2026-10-09)
+   A head row on every card: the mark, the name, and what the card is. */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 12px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.card-mark {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.card-mark i {
+  inline-size: 3px;
+  block-size: 12px;
+  background: var(--ink);
+}
+
+.card-mark i + i {
+  background: #a5824f;
+}
+
+.card-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The text card: one card, its head on a hairline, a row for each text. */
+.card-sheet {
+  padding: 0;
+  overflow: hidden;
+}
+
+.card-sheet > .card-head {
+  margin: 0;
+  padding: 9px 14px;
+  border-block-end: 1px solid var(--edge);
+}
+
+.card-text {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.card-text + .card-text {
+  border-block-start: 1px solid var(--edge);
+}
+
+.card-body {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.card-text .card-title {
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.card-text .card-actions {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.card-text .card-door {
+  margin: 0;
+}
+
+.card-text .card-credit {
+  display: block;
+  margin-block-start: 2px;
+}
+
+/* The tile: the letter on the colour of its kind (thumbs.py's tones), the cover over it
+   once loaded. 60px, as the board draws it; a phone-wide frame keeps 48. */
+.card-tile {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 60px;
+  block-size: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  color: #fffdf9;
+  background: #6b645c;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.card-tile[lang="he"] {
+  font-family: var(--reading-hebrew);
+}
+
+.card-tile.tone-news { background: #1f6f6b; }
+.card-tile.tone-set { background: #6b5a8e; }
+.card-tile.tone-spoken { background: #b4553f; }
+
+.card-tile img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  opacity: 0;
+}
+
+.card-tile.has-cover img {
+  opacity: 1;
+}
+
+/* A small leaf meter after how much is known; the sentence says the amount. */
+.card-meter {
+  display: inline-block;
+  vertical-align: middle;
+  inline-size: 44px;
+  block-size: 6px;
+  margin-inline-start: 6px;
+  border-radius: 4px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.card-meter span {
+  display: block;
+  block-size: 100%;
+  background: var(--leaf);
+}
+
+/* The foot: what the card is for, and its door (the offer card, the build card). */
+.card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 14px -20px -16px;
+  padding: 6px 14px 6px 20px;
+  border-block-start: 1px solid var(--edge);
+  border-radius: 0 0 16px 16px;
+  background: color-mix(in srgb, var(--track) 35%, var(--card));
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.card-foot .card-door {
+  margin: 0;
+}
+
+/* A set's tiles, up to four in a square, as a playlist's mosaic is on the desk. */
+.card-offer-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.card-mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  flex: none;
+  inline-size: 60px;
+  block-size: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.card-mosaic .card-tile {
+  inline-size: auto;
+  block-size: auto;
+  border-radius: 0;
+  font-size: 0.8125rem;
+}
+
+.card-mosaic.is-one {
+  grid-template-columns: 1fr;
+}
+
+.card-mosaic.is-one .card-tile {
+  font-size: 1.5rem;
+}
+
+@media (max-width: 420px) {
+  .card-text {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+
+  .card-tile {
+    inline-size: 48px;
+    block-size: 48px;
+  }
+
+  .card-text .card-body {
+    flex-basis: calc(100% - 60px);
+  }
+
+  .card-text .card-actions {
+    margin-inline-start: 60px;
+  }
+}

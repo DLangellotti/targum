@@ -128,11 +128,26 @@ def test_a_hebrew_noun_is_not_its_own_pronoun_suffix() -> None:
     assert seed.code == "Ncmsc", "a noun, where it used to answer with the suffix's code"
 
 
-def test_where_no_piece_is_numbered_the_last_one_is_the_word() -> None:
-    """`בּוֹ` is a preposition and a suffix with no noun between them, and there the
-    suffix really is the word."""
+def test_a_preposition_with_a_pronoun_on_the_end_is_the_preposition() -> None:
+    """`בּוֹ` is a preposition and a suffix with no noun between them. It used to be read
+    as the suffix, which filed `בּוֹ` and `ל֥וֹ` under ו and told a reader "and" — about
+    two a page of Genesis (known issues 1.4, 2026-10-12)."""
     in_it = oshb.Word(text="בּוֹ", pieces=("בְּ", "וֹ"), lexemes=("b",), morph=("R", "Sp3ms"))
-    assert in_it.content == 1
+    assert in_it.content == 0
+    assert in_it.lexeme == "b"
+    assert in_it.code == "R"
+    # Behind a conjunction too: וְל֖וֹ is ו + ל + וֹ.
+    and_to_him = oshb.Word(
+        text="וְלוֹ", pieces=("וְ", "ל", "וֹ"), lexemes=("c", "l"), morph=("C", "R", "Sp3ms")
+    )
+    assert and_to_him.content == 1
+    assert and_to_him.lexeme == "l"
+
+
+def test_where_no_piece_is_numbered_and_none_is_a_preposition_the_last_is_the_word() -> None:
+    """Only a preposition takes the word from its suffix."""
+    bare = oshb.Word(text="וּ", pieces=("וְ", "וֹ"), lexemes=("c",), morph=("C", "Sp3ms"))
+    assert bare.content == 1
 
 
 def test_a_word_with_no_pieces_to_spare_keeps_its_only_one() -> None:

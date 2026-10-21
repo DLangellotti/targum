@@ -162,25 +162,45 @@
 .quote-title bdi { line-height: 1.95; }
 .quote-english {
   margin-inline-start: 0.6em;
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
 /* Where the text is from: a quiet link under the title, the site's name (2026-09-11). */
 .quote-source {
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--teal);
   text-decoration: none;
   border-block-end: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
 }
 .quote-source:hover { border-block-end-color: var(--teal); }
+/* The facts in the desk's face, with tabular figures, as §13 keeps counts — never the
+   monospace, which read as a terminal in a conversation (David, 2026-10-10). */
 .quote-meta {
   margin: 0;
-  font-family: ui-monospace, monospace;
+  font-family: var(--chrome);
+  font-variant-numeric: tabular-nums;
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
+/* A pressed card following its build (2026-10-10): the stage in words over the desk's
+   building `.meter`, then the server's own line; when it is ready, the Open press. */
+.quote-progress {
+  justify-self: stretch;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+.quote-progress[hidden] { display: none; }
+.quote-stage { margin: 0; font-size: 0.8125rem; color: var(--ink); }
+.quote-meter { justify-self: stretch; }
+.quote-meter > span { transition: inline-size 0.4s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .quote-meter > span { transition: none; }
+}
+.quote-said { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.quote-open { text-decoration: none; }
 .quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 /* What the press spends, beside it (copy audit, 2026-09-28). */
 .quote-uses { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
@@ -189,7 +209,7 @@
 /* What could be done with it after it is built, not now: a note, so it does not read
    as another thing to press (targum-internal#246). */
 .quote-voice { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
-.quote-card.refused .quote-note { color: var(--clay); }
+.quote-card.refused .quote-note { color: var(--ink); }
 /* The first lines of a text that arrived as pages, in the reading face: what the
    reader will get, seen before the press. Four lines at most, set by the server. */
 .quote-excerpt {
@@ -268,7 +288,7 @@
 .chat-hours { margin: 0 0 0.5rem; font-size: 0.8125rem; color: var(--ink-soft); }
 .chat-hours[hidden] { display: none; }
 
-.chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--clay); }
+.chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--ink); }
 .chat-said[hidden] { display: none; }
 
 /* The chips: the things most readers ask, as buttons (targum-internal#240). Ink-bordered

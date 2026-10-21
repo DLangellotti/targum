@@ -3,34 +3,76 @@
     is set once and never touched, so it carries none of the reader's controls: the text,
     the translation beside it, and after each chapter its words. The direction follows the
     text, as the reader's does; the root's language is the translation's, as the reader's
-    chrome is, and every cell carries its own. -#}
-<html lang="{{ page_language }}" dir="{{ source_direction }}">
+    chrome is, and every cell carries its own.
+
+    The week's sheet is the same page with two parts — the portion beside Onkelos, the
+    haftarah beside the reader's language — and the reader's own words of the week after
+    them: the words they looked up, or where no look-up names one, the words they kept,
+    and the heading says which (design.md §12, 2026-09-28). A part after the first takes a title of its own. -#}
+<html lang="{{ page_language }}" dir="{{ page_direction }}">
 <head>
 <meta charset="utf-8">
 <title>{{ title }}{% if english %} · {{ english }}{% endif %}</title>
-<style>{{ asset('print.css') }}</style>
-<style>@page { size: {{ size }}; @top-center { font-family: "{{ hebrew_family }}", "Iowan Old Style", Palatino, Georgia, serif; } }</style>
+{{ styles('print.css') }}
+<style>@page { size: {{ size }}; @top-center { font-family: "{{ hebrew_family }}", "Iowan Old Style", Palatino, Georgia, serif; } @bottom-left { content: element(foot); } }</style>
 {{ hebrew_face }}
 {{ chrome_face }}
 </head>
-<body class="{% if under %}under{% else %}beside{% endif %}{% if verses %} verses{% endif %}">
-<header class="title">
-  <h1 lang="{{ source_language }}" dir="{{ source_direction }}">{{ title|isolate(source_direction) }}</h1>
-  {% if english %}<p class="english" lang="{{ target_language }}" dir="{{ target_direction }}">{{ english }}</p>{% endif %}
+<body class="{% if under %}under{% else %}beside{% endif %}{% if verses %} verses{% endif %}{% if glossed %} glossed{% endif %}">
+{#- The imprint (targum-internal#415): the lockup once, over the title of the first page,
+    small and centred as a publisher's name stands on a chumash's title page. Drawn here
+    rather than from lockup.svg, whose wordmark is live text in a face the box may not
+    have: the mark is two rectangles, and the wordmark is the page's own reading face. -#}
+{#- The foot of every page: the mark and the address as one running element, so the two
+    are centred on each other — a margin box's own image sits on the text's baseline and
+    stands above it (2026-10-05). -#}
+<div class="foot" dir="ltr" lang="en"><img class="foot-mark" src="{{ mark }}" alt=""><span>{{ address }}</span></div>
+<header class="imprint" dir="ltr" lang="en">
+  <svg class="imprint-mark" xmlns="http://www.w3.org/2000/svg" viewBox="12 4 72 88" aria-hidden="true"><rect x="20" y="12" width="22" height="62" rx="5" fill="#201e1b"/><rect x="54" y="22" width="22" height="62" rx="5" fill="#a5824f"/></svg>
+  <span class="wordmark">targum</span>
 </header>
-{% for chapter in chapters %}
+{% for part in parts %}
+{% set source_language = part.source_language %}{% set source_direction = part.source_direction %}
+{% set target_language = part.target_language %}{% set target_direction = part.target_direction %}
+<header class="title{% if not loop.first %} part{% endif %}">
+  {% if loop.first %}
+  <h1 lang="{{ source_language }}" dir="{{ source_direction }}">{{ title|isolate(source_direction) }}</h1>
+  {% if english %}<p class="english" lang="{{ chrome }}" dir="{{ chrome_direction }}">{{ english }}</p>{% endif %}
+  {% else %}
+  <h1 lang="{{ source_language }}" dir="{{ source_direction }}">{{ part.title|isolate(source_direction) }}</h1>
+  {% if part.english %}<p class="english" lang="{{ chrome }}" dir="{{ chrome_direction }}">{{ part.english }}</p>{% endif %}
+  {% endif %}
+</header>
+{% for chapter in part.chapters %}
 <section class="chapter">
   {% for line in chapter.lines %}
   {% if line.kind == 'heading' %}
   <div class="pair head">
     <h{{ line.level }} class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{{ line.source|isolate(source_direction) }}</h{{ line.level }}>
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ line.translation|isolate(target_direction) }}</p>
+    {% if line.cells %}<p class="tr" lang="{{ line.cells[0].language }}" dir="{{ line.cells[0].direction }}">{{ line.cells[0].text|isolate(line.cells[0].direction) }}</p>{% endif %}
   </div>
   {% else %}
-  <div class="pair {{ line.kind }}">
-    <p class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{% if line.verse %}<span class="verse-number">{{ line.verse.split(':')[1] }}</span>{% endif %}{{ line.source|isolate(source_direction) }}</p>
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ line.translation|isolate(target_direction) }}</p>
+  <div class="pair {{ line.kind }}{% if not line.cells|rejectattr("commented")|list %} alone{% endif %}">
+    <p class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{% if line.verse %}<span class="verse-number">{{ line.verse.split(':')[1] }}</span>{% endif %}{% if line.source_html %}{{ line.source_html }}{% else %}{{ line.source|isolate(source_direction) }}{% endif %}</p>
+    {#- Each companion the view has on, in its order: one beside the verse is a column,
+        and two or more share it, one under the other. -#}
+    {%- set plain = line.cells|rejectattr("commented")|list %}
+    {%- set notes = line.cells|selectattr("commented")|selectattr("text")|list %}
+    {% if plain|length == 1 %}
+    <p class="tr" lang="{{ plain[0].language }}" dir="{{ plain[0].direction }}">{{ plain[0].text|isolate(plain[0].direction) }}</p>
+    {% elif plain %}
+    <div class="trs">
+      {% for cell in plain %}<p class="tr" lang="{{ cell.language }}" dir="{{ cell.direction }}">{{ cell.text|isolate(cell.direction) }}</p>{% endfor %}
+    </div>
+    {% endif %}
   </div>
+  {#- A commentary — Rashi — runs under the verse the whole width of the page, as a
+      chumash sets him, named and with his comments apart; free to cross a page, because
+      one comment can be longer than a page; and on a verse he says nothing about, not
+      there at all (targum-internal#414). -#}
+  {% for cell in notes %}
+  <div class="note" lang="{{ cell.language }}" dir="{{ cell.direction }}"><span class="cmp-name" lang="en" dir="ltr">{{ cell.label }}</span>{{ cell.text|isolate(cell.direction) }}</div>
+  {% endfor %}
   {% endif %}
   {% endfor %}
   {% if chapter.words %}
@@ -48,5 +90,19 @@
   {% endif %}
 </section>
 {% endfor %}
+{% endfor %}
+{% if week %}
+<aside class="words week">
+  <h2 class="label" lang="{{ page_language }}">{% if week_looked %}{{ t("print.week.looked", "Words you looked up this week") }}{% else %}{{ t("print.week.kept", "Words you kept this week") }}{% endif %}</h2>
+  <dl>
+    {% for word in week %}
+    <div class="word">
+      <dt lang="{{ word.language or parts[0].source_language }}" dir="{{ word.direction or parts[0].source_direction }}">{{ word.form }}</dt>
+      <dd lang="{{ chrome }}" dir="{{ chrome_direction }}">{{ word.meaning|isolate(chrome_direction) }}</dd>
+    </div>
+    {% endfor %}
+  </dl>
+</aside>
+{% endif %}
 </body>
 </html>

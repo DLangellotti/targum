@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from targum.render.builder import list_page, playlists_page
+from targum.render.builder import carried, list_page, playlists_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -66,17 +66,21 @@ def browser():
     driver.stop()
 
 
-def shelf(browser, tmp_path: Path, width: int = 1280, html: str | None = None):
+def shelf(
+    browser, tmp_path: Path, width: int = 1280, html: str | None = None, mine: list | None = None
+):
     page_file = tmp_path / "texts.html"
-    page_file.write_text(html or list_page("test-key", "texts"), encoding="utf-8")
-    context = browser.new_context(viewport={"width": width, "height": 900})
+    page_file.write_text(carried(html or list_page("test-key", "texts")), encoding="utf-8")
+    # Tall enough that the shelf under home's Continue is on screen (2026-10-08).
+    context = browser.new_context(viewport={"width": width, "height": 2000})
     page = context.new_page()
     thrown: list[str] = []
     page.on("pageerror", lambda error: thrown.append(str(error)))
+    said = {"readers": MINE if mine is None else mine, "shared": SHARED, "trash": []}
     page.add_init_script(
         f"localStorage.setItem('targum:docs', {json.dumps(json.dumps(DOCS))});"
         f"localStorage.setItem('targum:opened', {json.dumps(json.dumps(OPENED))});"
-        f"const said = {json.dumps({'readers': MINE, 'shared': SHARED, 'trash': []})};"
+        f"const said = {json.dumps(said)};"
         "window.fetch = (url) => Promise.resolve(new Response(JSON.stringify("
         "  String(url).split('?')[0].endsWith('/readers') ? said : {})));"
     )
@@ -90,11 +94,35 @@ def titles(page) -> list[str]:
     return [one.strip() for one in page.locator("#library-list .book-title").all_inner_texts()]
 
 
+def test_a_continue_card_s_bar_is_the_share_it_says_you_know(browser, tmp_path: Path) -> None:
+    """The bar under "You know 40%" is 40% full (board Main: "274 of 379 known" over a bar
+    72% full). It drew the parts finished, so an opened text showed an empty track under
+    its known share (design review, 2026-10-09); a text with no share has no bar."""
+    mine = [
+        _text("known", "ידוע", english="Known", known=0.4, words=120),
+        _text("unmeasured", "לא נמדד", english="Unmeasured"),
+    ]
+    context, page, thrown = shelf(browser, tmp_path, mine=mine)
+    page.wait_for_selector("#continue-cards li")
+    cards = page.evaluate(
+        """() => [...document.querySelectorAll('#continue-cards .home-card')].map(card => ({
+             title: card.querySelector('.home-card-title').textContent,
+             facts: (card.querySelector('.home-card-facts') || {}).textContent || '',
+             done: card.querySelector('.home-fill')
+               ? card.querySelector('.home-fill').style.getPropertyValue('--done') : null }))"""
+    )
+    context.close()
+    by = {card["title"]: card for card in cards}
+    assert "You know 40% of the whole text" in by["ידוע"]["facts"] and by["ידוע"]["done"] == "0.4"
+    assert by["לא נמדד"]["done"] is None, "no figure, no bar"
+    assert not thrown
+
+
 def test_a_series_is_one_row_until_it_is_opened(browser, tmp_path: Path) -> None:
     context, page, thrown = shelf(browser, tmp_path)
     folded = titles(page)
     facts = page.locator("#library-list li.is-series .book-facts").inner_text()
-    status = page.locator("#library-list li.is-series .row-status").inner_text()
+    status = page.locator("#library-list li.is-series .fact-status").inner_text()
     page.click("#library-list .series-press")
     opened = titles(page)
     named = page.locator("#series-name").inner_text()
@@ -131,58 +159,76 @@ def test_all_targums_holds_the_shared_text_you_opened(browser, tmp_path: Path) -
     assert "במעלית" in everything and "משנה ברכות" in everything
 
 
-def test_a_chip_and_a_search_sift_the_shelf(browser, tmp_path: Path) -> None:
+def test_a_search_sifts_the_shelf(browser, tmp_path: Path) -> None:
+    """Board Main draws one field, "Find in your targums", and no chips or order: the
+    chips and the native select went in P4 (2026-10-09). The English under a title is
+    searched too."""
     context, page, thrown = shelf(browser, tmp_path)
-    chips = page.locator("#status-chips .chip").all_inner_texts()
-    page.locator("#status-chips .chip", has_text="Finished").click()
-    finished = titles(page)
-    page.locator("#status-chips .chip", has_text="Finished").click()
+    chips = page.locator("#status-chips, #shelf-order").count()
     page.fill("#shelf-find", "brought")
     found = titles(page)
     page.fill("#shelf-find", "zzz")
     nothing = page.locator("#shelf-note").inner_text()
     context.close()
-    assert [" ".join(chip.split()) for chip in chips] == [
-        "All 7",
-        "New 4",
-        "Started 1",
-        "Finished 2",
-    ]
-    # Two finished episodes of one series are still that series, folded.
-    assert finished == ["עברית אנפלאגד"]
+    assert chips == 0, "no chips and no order"
     assert found == ["כתבה שהבאתי"], "the English under a title is searched too"
-    assert nothing == "Nothing here matches that. Try another search or filter."
+    assert nothing == "Nothing here matches that. Try another search."
     assert not thrown
 
 
 def test_a_short_shelf_is_not_handed_controls(browser, tmp_path: Path) -> None:
     context, page, _ = shelf(browser, tmp_path)
     page.click("#yours-tabs [data-tab='uploads']")
-    hidden = page.locator("#sift-shelf").is_hidden()
+    hidden = page.locator("#shelf-find").is_hidden()
     context.close()
     assert hidden, "five uploads is a shelf that needs no sifting"
 
 
-def test_the_page_says_what_a_targum_is_by_showing_one(browser, tmp_path: Path) -> None:
-    context, page, _ = shelf(browser, tmp_path)
-    line = page.locator(".defined-line").inner_text()
-    under = page.locator(".defined-under").inner_text()
-    context.close()
-    assert "הַשֻּׁלְחָן" in line and under == "The book is on the table"
-
-
-def test_the_desk_draws_cards_and_a_phone_draws_rows(browser, tmp_path: Path) -> None:
-    widths = {}
+def test_the_list_is_rows_in_one_card_with_the_tabs_at_its_head(browser, tmp_path: Path) -> None:
+    """Board Main: "All your targums" is one card, its title and the four tabs at its
+    head, and every text a row across it, at a desk and on a phone alike. They were
+    Learn's cards at a desk, and a long playlist name pushed one past its card."""
     for width in (1280, 390):
-        context, page, _ = shelf(browser, tmp_path, width)
-        widths[width] = page.eval_on_selector_all(
-            "#library-list > li", "all => all.map(li => li.getBoundingClientRect().width)"
+        context, page, thrown = shelf(browser, tmp_path, width)
+        got = page.evaluate(
+            """() => {
+              const card = document.getElementById('shelf-panel').getBoundingClientRect();
+              const rows = [...document.querySelectorAll('#library-list > li')]
+                .map((li) => li.getBoundingClientRect());
+              return {
+                card: card.width,
+                rows: rows.map((r) => r.width),
+                inside: rows.every((r) => r.left >= card.left - 1 && r.right <= card.right + 1),
+                tabsInHead: !!document.querySelector('#yours-head #yours-tabs'),
+                title: document.getElementById('shelf-title').textContent,
+                scroll: document.documentElement.scrollWidth,
+              };
+            }"""
         )
-        scroll = page.evaluate("() => document.documentElement.scrollWidth")
         context.close()
-        assert scroll <= width, "the page never scrolls sideways"
-    assert max(widths[1280]) < 1280 / 2, "at a desk several cards share a line"
-    assert min(widths[390]) > 390 * 0.8, "on a phone each text is a row"
+        assert got["tabsInHead"] and got["title"] == "All your targums", got
+        assert got["inside"], "no row runs past its card"
+        assert min(got["rows"]) > got["card"] * 0.8, "each text is a row across the card"
+        assert got["scroll"] <= width, "the page never scrolls sideways"
+        assert not thrown
+
+
+def test_a_long_playlist_name_is_cut_and_never_widens_the_row(browser, tmp_path: Path) -> None:
+    long = ["Everyday Hebrew for the kitchen, the market and the bus on the way home"] * 3
+    mine = [_text("own", "כתבה שהבאתי", english="An article I brought", playlists=long)]
+    for width in (1280, 390):
+        context, page, _ = shelf(browser, tmp_path, width, mine=mine)
+        got = page.evaluate(
+            """() => {
+              const line = document.querySelector('#library-list .book-facts');
+              const row = line.closest('li').getBoundingClientRect();
+              const box = line.getBoundingClientRect();
+              return {fits: box.right <= row.right + 1 && box.left >= row.left - 1,
+                      scroll: document.documentElement.scrollWidth};
+            }"""
+        )
+        context.close()
+        assert got["fits"] and got["scroll"] <= width, got
 
 
 def test_playlists_wears_the_same_tabs_and_lights_your_targums(browser, tmp_path: Path) -> None:
@@ -191,7 +237,7 @@ def test_playlists_wears_the_same_tabs_and_lights_your_targums(browser, tmp_path
     current = page.get_attribute("#yours-tabs [aria-current='page']", "data-tab")
     here = page.get_attribute(".site-nav a[aria-current='page']", "data-nav")
     context.close()
-    assert tabs == ["all", "uploads", "playlists"]
+    assert tabs == ["recent", "playlists", "subscriptions", "uploads"]
     assert current == "playlists" and here == "texts"
 
 
@@ -233,34 +279,17 @@ def test_a_search_does_not_follow_the_reader_to_a_tab_with_no_search_box(
 ) -> None:
     """Typed on All targums, a search went on filtering Your uploads, which is too short to
     draw the box it could be cleared from: "Nothing here matches that." and no way out
-    (2026-09-27). A chip pressed there did the same."""
+    (2026-09-27)."""
     context, page, thrown = shelf(browser, tmp_path)
-    page.locator("#status-chips .chip", has_text="Finished").click()
     page.fill("#shelf-find", "zzz")
     page.click("#yours-tabs [data-tab='uploads']")
     uploads = titles(page)
-    page.click("#yours-tabs [data-tab='all']")
+    page.click("#yours-tabs [data-tab='recent']")
     everything = titles(page)
     typed = page.input_value("#shelf-find")
     context.close()
     assert "כתבה שהבאתי" in uploads and "עברית אנפלאגד" in uploads
     assert len(everything) == 5 and typed == ""
-    assert not thrown
-
-
-def test_a_chip_shows_a_series_whole_and_stays_while_it_filters(browser, tmp_path: Path) -> None:
-    """Pressed, Finished showed the series as "2 episodes · Finished" when it has three and
-    one unread; and a search that left nothing finished took the pressed chip away while
-    it still filtered (2026-09-27)."""
-    context, page, thrown = shelf(browser, tmp_path)
-    page.locator("#status-chips .chip", has_text="Finished").click()
-    facts = page.locator("#library-list li.is-series .book-facts").inner_text()
-    status = page.locator("#library-list li.is-series .row-status").inner_text()
-    page.fill("#shelf-find", "brought")
-    pressed = page.locator("#status-chips .chip[aria-pressed='true']").inner_text()
-    context.close()
-    assert "3 episodes" in facts and status.strip() == "2 of 3"
-    assert " ".join(pressed.split()) == "Finished 0"
     assert not thrown
 
 
@@ -271,20 +300,19 @@ def test_a_series_begun_and_not_finished_says_started(browser, tmp_path: Path) -
     DOCS, OPENED = {}, {"e63": 1000}
     try:
         context, page, _ = shelf(browser, tmp_path)
-        status = page.locator("#library-list li.is-series .row-status").inner_text()
+        status = page.locator("#library-list li.is-series .fact-status").inner_text()
         context.close()
     finally:
         DOCS, OPENED = kept
     assert status.strip() == "Started"
 
 
-def test_a_reader_with_nothing_still_sees_what_a_targum_is_and_the_tabs(
-    browser, tmp_path: Path
-) -> None:
-    """The definition and the tabs were inside the part of the page an empty shelf kept
-    hidden, so the reader who most needed them saw one line (2026-09-27)."""
+def test_a_reader_with_nothing_is_told_what_will_appear_here(browser, tmp_path: Path) -> None:
+    """The FirstRun boards (design.md §12, 2026-10-08): with nothing on the shelf, home
+    says what will appear here and offers the upload; the tabs and the shelf, which have
+    nothing to show, stay away."""
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 390, "height": 900})
     page = context.new_page()
     page.add_init_script(
@@ -292,47 +320,23 @@ def test_a_reader_with_nothing_still_sees_what_a_targum_is_and_the_tabs(
         "{readers: [], shared: [], trash: []})));"
     )
     page.goto(page_file.as_uri())
-    page.wait_for_selector("#nothing:not([hidden])")
-    defined = page.locator(".defined").is_visible()
+    page.wait_for_selector("#first-home:not([hidden])")
+    upload = page.locator(".upload-card").is_visible()
     tabs = page.locator("#yours-tabs").is_visible()
     shelf_shown = page.locator("#shelf-panel").is_visible()
     context.close()
-    assert defined and tabs and not shelf_shown
+    assert upload and not tabs and not shelf_shown
 
 
-def test_what_a_targum_is_folds_once_one_is_finished(browser, tmp_path: Path) -> None:
-    """Whole until a text is finished, then one line that opens it (David, 2026-09-27,
-    targum-internal#374). The default fixture has two finished episodes."""
-    context, page, _ = shelf(browser, tmp_path, width=390)
-    folded = page.locator(".defined").get_attribute("class") or ""
-    example = page.locator(".defined-example").is_visible()
-    line = page.locator("#defined-open").is_visible()
-    page.click("#defined-open")
-    opened = page.locator(".defined-example").is_visible()
-    expanded = page.get_attribute("#defined-open", "aria-expanded")
-    context.close()
-    assert "is-folded" in folded and not example and line
-    assert opened and expanded == "true"
-
-    global DOCS
-    kept, DOCS = DOCS, {}
-    try:
-        context, page, _ = shelf(browser, tmp_path, width=390)
-        whole = page.locator(".defined-example").is_visible()
-        no_line = page.locator("#defined-open").is_hidden()
-        context.close()
-    finally:
-        DOCS = kept
-    assert whole and no_line, "nothing finished: the definition is whole"
-
-
-def test_a_letter_tile_is_a_strip_and_a_picture_keeps_its_frame(browser, tmp_path: Path) -> None:
-    """At a desk a card with no picture was mostly an empty 16:9 box (targum-internal#375)."""
+def test_a_row_s_picture_is_the_board_s_square(browser, tmp_path: Path) -> None:
+    """Board Main: a 44px picture at the head of each row, a letter's as much as a frame's."""
     context, page, _ = shelf(browser, tmp_path, width=1280)
     box = page.locator("#library-list li:not(.is-series) .thumb.is-letter").first.bounding_box()
+    # 2.75rem, at the desk's clamped rem (§13): 44px at the boards' 1440.
+    rem = page.evaluate("() => parseFloat(getComputedStyle(document.documentElement).fontSize)")
     context.close()
     assert box is not None
-    assert abs(box["height"] / box["width"] - 5 / 16) < 0.03
+    assert abs(box["width"] - 2.75 * rem) <= 1 and abs(box["height"] - box["width"]) <= 1, box
 
 
 def test_a_series_is_read_through_pointing_marks_and_hebrew_numerals(
@@ -360,4 +364,153 @@ def test_a_series_is_read_through_pointing_marks_and_hebrew_numerals(
     assert folded.count("סיפורי חז״ל") == 1
     assert "The Chapter 11 story" in folded and "The Chapter 7 again" in folded
     assert [t.split()[-1] for t in opened] == ["ב", "י", "כג"]
+    assert not thrown
+
+
+def test_subscriptions_is_a_tab_that_draws_the_series_in_place(browser, tmp_path: Path) -> None:
+    """Your targums' tabs are Recent · Playlists · Subscriptions · Uploads (design.md §12,
+    2026-09-26, amended 2026-10-08). Subscriptions is answered in place: the series with
+    their switches, subscribed first, and the address says the tab."""
+    page_file = tmp_path / "texts.html"
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    series = [
+        {"id": "weekly", "name": "Weekly", "hebrew": "מבט השבוע", "what": "", "page": "/weekly"},
+        {"id": "parasha", "name": "The weekly portion", "what": "", "page": "/parasha"},
+    ]
+    page.add_init_script(
+        "localStorage.setItem('targum:follows', JSON.stringify({parasha: 1}));"
+        f"const said = {json.dumps({'readers': MINE, 'shared': SHARED, 'trash': []})};"
+        f"const series = {json.dumps({'series': series})};"
+        "window.fetch = (url) => { const path = String(url).split('?')[0];"
+        "  const body = path.endsWith('/readers') ? said : path.endsWith('/series') ? series : {};"
+        "  return Promise.resolve(new Response(JSON.stringify(body))); };"
+    )
+    page.goto(page_file.as_uri())
+    page.wait_for_selector("#library-list li")
+    page.click("#yours-tabs [data-tab='subscriptions']")
+    page.wait_for_selector("#home-series .series-row")
+    got = page.evaluate(
+        """() => ({
+          rows: [...document.querySelectorAll('#home-series .series-row')]
+            .map((li) => [li.dataset.series, li.querySelector('.switch-word').textContent]),
+          shelf: document.getElementById('shelf-panel').hidden,
+          current: document.querySelector('#yours-tabs [aria-current=page]').dataset.tab,
+          address: location.search,
+        })"""
+    )
+    context.close()
+    assert got["rows"] == [["parasha", "Subscribed"], ["weekly", "Subscribe"]], got
+    assert got["shelf"] and got["current"] == "subscriptions", got
+    assert "show=subscriptions" in got["address"], got
+
+
+def test_subscriptions_takes_the_page_s_width_under_the_title(browser, tmp_path: Path) -> None:
+    """Board SubsTab: the tab is the page's whole width, the title stands, the tabs under
+    it, and Continue and the side are not beside it. It sat in Continue's two-thirds
+    column, about 400px wide, until P4 (2026-10-09)."""
+    context, page, thrown = shelf(browser, tmp_path, 1280)
+    page.click("#yours-tabs [data-tab='subscriptions']")
+    got = page.evaluate(
+        """() => ({
+          panel: document.getElementById('subs-panel').getBoundingClientRect().width,
+          main: document.getElementById('page').getBoundingClientRect().width,
+          tabsOnTop: !!document.querySelector('#yours-top #yours-tabs'),
+          top: !document.getElementById('yours-top').hidden,
+          side: getComputedStyle(document.querySelector('.home-side')).display,
+          cont: getComputedStyle(document.getElementById('continue')).display,
+          title: getComputedStyle(document.querySelector('.page-title')).position,
+        })"""
+    )
+    page.click("#yours-tabs [data-tab='recent']")
+    back = page.evaluate("() => !!document.querySelector('#yours-head #yours-tabs')")
+    context.close()
+    assert got["tabsOnTop"] and got["top"], got
+    assert got["side"] == "none" and got["cont"] == "none", got
+    assert got["title"] != "absolute", "the page's title shows"
+    assert got["panel"] > got["main"] * 0.9, got
+    assert back, "Recent puts the tabs back in the card's head"
+    assert not thrown
+
+
+def _home_in(browser, tmp_path: Path, language: str, answers: dict, mine: list):
+    """Home in `language`, every address answered from `answers` by its path's end."""
+    page_file = tmp_path / "texts.html"
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1280, "height": 1600})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    said = {"readers": mine, "shared": [], "trash": [], **answers}
+    page.add_init_script(
+        f"localStorage.setItem('targum:language', {json.dumps(language)});"
+        f"localStorage.setItem('targum:learning', {json.dumps(json.dumps(['he', language]))});"
+        "sessionStorage.setItem('targum:arrival-over', '1');"
+        f"const said = {json.dumps(said)};"
+        "window.fetch = (url) => { const path = String(url).split('?')[0];"
+        "  const key = Object.keys(said).find((end) => path.endsWith('/' + end));"
+        "  const body = key === 'readers' ? {readers: said.readers, shared: [], trash: []}"
+        "    : key ? said[key] : {};"
+        "  return Promise.resolve(new Response(JSON.stringify(body))); };"
+    )
+    page.goto(page_file.as_uri())
+    page.wait_for_selector("#library-list li")
+    return context, page, thrown
+
+
+def test_a_language_the_library_has_nothing_in_says_so_and_names_the_upload(
+    browser, tmp_path: Path
+) -> None:
+    """Board YiHome: where the library has no texts in the language, home says so plainly
+    in place of a suggestion, and the upload names the language (P4, 2026-10-09)."""
+    mine = [_text("song", "אויפֿן פּריפּעטשיק", language="yi")]
+    context, page, thrown = _home_in(
+        browser, tmp_path, "yi", {"suggest": {"suggestion": None, "library": False}}, mine
+    )
+    page.wait_for_selector("#home-note:not([hidden])")
+    note = page.locator("#home-note").inner_text()
+    upload = page.locator("#upload-head").inner_text()
+    context.close()
+    assert "The library has no Yiddish texts yet" in note, note
+    assert upload == "Upload something in Yiddish"
+    assert not thrown
+
+
+def test_aramaic_says_where_its_words_are_met(browser, tmp_path: Path) -> None:
+    """Board ArcHome: Onkelos beside every verse of the Hebrew Torah, and the way there."""
+    mine = [_text("onk", "תרגום אונקלוס על בראשית", language="arc")]
+    context, page, thrown = _home_in(
+        browser, tmp_path, "arc", {"suggest": {"suggestion": None, "library": True}}, mine
+    )
+    page.wait_for_selector("#home-note:not([hidden])")
+    note = page.locator("#home-note").inner_text()
+    door = page.get_attribute("#home-note a", "href")
+    context.close()
+    assert "Onkelos sits beside every verse" in note and door and door.startswith("/parasha")
+    assert not thrown
+
+
+def test_what_a_subscription_brought_leads_continue_and_is_counted_on_its_tab(
+    browser, tmp_path: Path
+) -> None:
+    """Board SubHome: New first, said over Continue, and "1 new" on the Subscriptions tab."""
+    item = {
+        "kind": "series",
+        "name": "Weekly News Digest",
+        "title": "מבט השבוע",
+        "language": "he",
+        "door": "/reader/weekly/reader/index.html",
+        "subscription": 1,
+        "key": "w1",
+    }
+    context, page, thrown = _home_in(
+        browser, tmp_path, "he", {"new.json": {"signedIn": True, "items": [item]}}, MINE
+    )
+    page.wait_for_selector("#continue-cards .is-new")
+    note = page.locator("#continue-note").inner_text()
+    count = page.locator("#subs-new").inner_text()
+    context.close()
+    assert note.startswith("New from your subscriptions first"), note
+    assert count == "1 new"
     assert not thrown

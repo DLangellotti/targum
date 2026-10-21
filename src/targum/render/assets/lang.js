@@ -42,6 +42,33 @@
     return (code || "").split("-")[0].toLowerCase() !== HOME;
   }
 
+  /* How far along each language is, as the menu badges it (design.md §12, "A language
+     wears how far along it is", 2026-10-09, and "A badge is a promise, checked",
+     2026-10-12). A badge and nothing else: no note says what Beta means.
+
+     The table is not here. It is `stages.DECLARED` in Python, written into the page as
+     `window.TARGUM_STAGES` by the nav, and a test holds it to the facts; a second copy
+     in this file is what said Alpha of a French shelf with 14 texts. A language the page
+     does not name wears none. */
+  function status(code) {
+    var table = window.TARGUM_STAGES || {};
+    return table[String(code || "").split("-")[0].toLowerCase()] || "";
+  }
+
+  function badge(code) {
+    var which = status(code);
+    if (!which) return null;
+    var mark = document.createElement("span");
+    mark.className = "lang-status is-" + which;
+    mark.textContent =
+      which === "beta"
+        ? t("lang.status.beta", "Beta")
+        : which === "alpha"
+          ? t("lang.status.alpha", "Alpha")
+          : t("lang.status.experimental", "Experimental");
+    return mark;
+  }
+
   function stored(name) {
     try {
       return localStorage.getItem(name) || "";
@@ -87,8 +114,12 @@
   // language with nothing built or kept in it yet can be chosen — and a page asking only
   // of its own list then settled on Hebrew and wrote Hebrew back, so every change of page
   // put the reader back in Hebrew.
+  //
+  // And the language this page arrived carrying wins outright (2026-10-07): it was
+  // pressed a page ago, and the account's list may not have heard of it yet.
   function current(codes) {
     var was = stored(NAME);
+    if (carriedIn && was === carriedIn) return was;
     if (was && (codes.indexOf(was) >= 0 || learning().indexOf(was) >= 0)) return was;
     if (codes.indexOf(HOME) >= 0) return HOME;
     return codes[0] || HOME;
@@ -133,19 +164,69 @@
     });
   }
 
+  /* A text's language, carried in from the corner of its reader (design.md §12,
+   * 2026-10-07).
+   *
+   * David left a Russian text he had imported over the connector by the mark in its
+   * corner and landed on Learn in Hebrew: the mark went to `/` and said nothing, so the
+   * page opened in whatever the menu last held. Now the reader's ways out carry
+   * `?learning=<code>`, and this takes it as the menu takes a press — kept in this
+   * browser here, and on the account by `sync.js` once it knows who is signed in, with
+   * leave to turn the language on. Not `?lang=`, which is the language a public page
+   * speaks: the front door would have answered a signed-out visitor in Russian chrome.
+   *
+   * Only a language targum has a desk for. The rest — a text in English, Spanish, Latin
+   * — leaves the page in the language it was already in. The list is `READING` in
+   * `translate/prompts.py`, which `test_lang_js.py` holds this to. The word comes off the
+   * address either way, so a reload or a bookmark is the plain page and not a second
+   * press. A reader built before this carries nothing, and goes home as it always did.
+   */
+  var CARRY = "learning";
+  var LEARNABLE = ["he", "arc", "yi", "fr", "ru", "it"];
+  var carriedIn = "";
+
+  function arrived() {
+    var code = "";
+    try {
+      var url = new URL(location.href);
+      if (!url.searchParams.has(CARRY)) return "";
+      code = String(url.searchParams.get(CARRY) || "").split("-")[0].toLowerCase();
+      url.searchParams.delete(CARRY);
+      history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+    } catch (e) {
+      return "";
+    }
+    return LEARNABLE.indexOf(code) >= 0 ? code : "";
+  }
+
+  carriedIn = arrived();
+  if (carriedIn) {
+    set(carriedIn);
+    // On the list in this browser as well, so the next page can be in it before the
+    // account has answered — and at all, where nobody is signed in to answer.
+    var listed = learning();
+    if (listed.indexOf(carriedIn) < 0) {
+      try {
+        localStorage.setItem(LEARNING, JSON.stringify(listed.concat([carriedIn])));
+      } catch (e) {}
+    }
+  }
+
+  function carried() {
+    return carriedIn;
+  }
+
   /* The nav's host, which draws a menu rather than tabs. */
   var NAV = "langs";
 
-  /* A small flag beside each language in the menu (2026-09-14, design.md §12 — which
-   * reverses "no flags" for this one place). The flag of the country whose language it
-   * is, in that flag's own colours, drawn rather than typed: an emoji flag is an emoji,
-   * and §6 has none. Hebrew is Israel's. Yiddish and Aramaic have no country, and wear
-   * the language flags David chose for them: Yiddish the white flag with two black
-   * stripes and a menorah (the proposal most often flown for it, the menorah traced from
-   * its SVG), Aramaic the Jewish Babylonian Aramaic proposal, two blue stripes round the
-   * gate of the Vilna Talmud's title page, drawn here as the gate's outline because an
-   * engraving at eighteen pixels is a grey smudge. A code with no flag keeps the width
-   * so the names still line up. */
+  /* A small flag beside each language in the menu, drawn back on David's word
+   * (2026-10-10: "bring back the flags here"; design.md §12). The flag of the country
+   * whose language it is, in that flag's own colours, drawn rather than typed: an emoji
+   * flag is an emoji, and §6 has none. Hebrew is Israel's. Yiddish and Aramaic have no
+   * country, and wear the language flags David chose for them on 2026-09-14: Yiddish the
+   * white flag with two black stripes and a menorah, Aramaic the Jewish Babylonian
+   * Aramaic proposal, two blue stripes round the gate of the Vilna Talmud's title page.
+   * A code with no flag keeps the width so the names still line up. */
   var FLAGS = {
     he:
       '<rect width="18" height="12" fill="#fff"/>' +
@@ -197,6 +278,19 @@
       '<path d="M8.2 7.75H9.8M8.2 5.1Q9 5.9 9.8 5.1" fill="none" stroke="#3a3a3a" stroke-width="0.3"/>',
   };
 
+  function flag(code) {
+    var box = document.createElement("span");
+    box.className = "lang-flag";
+    box.setAttribute("aria-hidden", "true");
+    var drawn = FLAGS[String(code || "").split("-")[0].toLowerCase()];
+    if (drawn) {
+      box.innerHTML = '<svg viewBox="0 0 18 12" focusable="false">' + drawn + "</svg>";
+    } else {
+      box.className += " none";
+    }
+    return box;
+  }
+
   /* Each language in its own name as well as English's (2026-09-14): a Russian reader
    * choosing what their translations are in was offered "Russian". The English name
    * leads, because the chrome is English; the language's own follows, in its own face. */
@@ -220,19 +314,6 @@
     span.setAttribute("dir", own[1]);
     span.textContent = own[0];
     return span;
-  }
-
-  function flag(code) {
-    var box = document.createElement("span");
-    box.className = "lang-flag";
-    box.setAttribute("aria-hidden", "true");
-    var drawn = FLAGS[String(code || "").split("-")[0].toLowerCase()];
-    if (drawn) {
-      box.innerHTML = '<svg viewBox="0 0 18 12" focusable="false">' + drawn + "</svg>";
-    } else {
-      box.className += " none";
-    }
-    return box;
   }
 
   /* One switcher, built the same way on the library page and the words page.
@@ -262,6 +343,8 @@
     codes.forEach(function (code) {
       var button = document.createElement("button");
       button.type = "button";
+      // The desk's tab (chrome.css): a tinted pill, the chosen one filled.
+      button.className = "tab";
       button.setAttribute("role", "tab");
       button.setAttribute("data-code", code);
       button.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
@@ -292,12 +375,17 @@
    * Every language the account learns is listed, whatever the page had to show in it: a
    * switcher that left out a language with nothing on the shelf yet could never be used
    * to go and add the first thing. The page's own languages come too, for a text in a
-   * language the account has since stopped learning. The last item goes to where the
-   * list itself is chosen.
+   * language the account has since stopped learning.
+   *
+   * Since 2026-10-09 (design.md §12, "The boards are the desk"; board LangMenuDesk) the
+   * menu is drawn for a reader of one language too, with the language's badge on the
+   * button and no flag anywhere. The panel is two groups: **Your languages**, the ones
+   * learned, a tick on the one the page is in; and under a rule **Start another
+   * language**, the rest targum teaches, each of which a press turns on and opens. Each
+   * row carries its flag and its badge (no greeting since 2026-10-10, David: "I don't
+   * need the shalom, bonjour, ciao in the drop down").
    */
   function menu(host, codes, names, chosen, onPick, options) {
-    var settings = options || {};
-    var tag = settings.tag || beta;
     var all = order(
       learning().concat(codes).filter(function (code, at, list) {
         return list.indexOf(code) === at;
@@ -305,8 +393,11 @@
       names
     );
     if (all.indexOf(chosen) < 0 && chosen) all.unshift(chosen);
+    var others = LEARNABLE.filter(function (code) {
+      return all.indexOf(code) < 0;
+    });
     host.textContent = "";
-    host.hidden = all.length < 2;
+    host.hidden = !all.length;
     host.classList.add("lang-menu");
 
     var open = document.createElement("button");
@@ -318,8 +409,9 @@
     var label = document.createElement("span");
     label.className = "lang-name";
     label.textContent = names[chosen] || String(chosen || "").toUpperCase();
-    open.appendChild(flag(chosen));
     open.appendChild(label);
+    var worn = badge(chosen);
+    if (worn) open.appendChild(worn);
     host.appendChild(open);
 
     var panel = document.createElement("div");
@@ -327,31 +419,38 @@
     panel.setAttribute("role", "menu");
     panel.setAttribute("aria-label", t("lang.menu.panel", "The language you're learning"));
     panel.hidden = true;
-    // What the menu changes, said at its head (2026-09-14): not the language the pages
-    // are written in, and not the one the translations are in.
-    var head = document.createElement("p");
-    head.className = "lang-head";
-    head.textContent = t("lang.menu.head", "You're learning");
-    panel.appendChild(head);
-    all.forEach(function (code) {
+
+    function row(code, role) {
       var item = document.createElement("button");
       item.type = "button";
-      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("role", role);
       item.setAttribute("data-code", code);
-      item.setAttribute("aria-checked", code === chosen ? "true" : "false");
+      if (role === "menuitemradio") item.setAttribute("aria-checked", code === chosen ? "true" : "false");
+      else item.className = "lang-start";
       var named = document.createElement("span");
       named.className = "lang-item";
+      var tick = document.createElement("span");
+      tick.className = "lang-tick";
+      tick.setAttribute("aria-hidden", "true");
+      tick.textContent = code === chosen ? "\u2713" : "";
+      named.appendChild(tick);
       named.appendChild(flag(code));
       named.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
-      var own = native(code);
-      if (own && own.textContent !== (names[code] || "")) named.appendChild(own);
+      var mark = badge(code);
+      if (mark) named.appendChild(mark);
       item.appendChild(named);
-      if (tag(code)) {
-        var mark = document.createElement("span");
-        mark.className = "beta";
-        mark.textContent = t("lang.experimental", "experimental");
-        item.appendChild(mark);
-      }
+      return item;
+    }
+    function heading(text) {
+      var head = document.createElement("p");
+      head.className = "lang-head";
+      head.textContent = text;
+      panel.appendChild(head);
+    }
+
+    heading(t("lang.menu.yours", "Your languages"));
+    all.forEach(function (code) {
+      var item = row(code, "menuitemradio");
       item.addEventListener("click", function () {
         close();
         if (code === chosen) return;
@@ -359,12 +458,32 @@
       });
       panel.appendChild(item);
     });
-    var more = document.createElement("a");
-    more.className = "lang-more";
-    more.href = "/you#languages";
-    more.setAttribute("role", "menuitem");
-    more.textContent = t("lang.menu.more", "Your languages");
-    panel.appendChild(more);
+    if (others.length) {
+      var rule = document.createElement("hr");
+      rule.className = "lang-rule";
+      panel.appendChild(rule);
+      heading(t("lang.menu.start", "Start another language"));
+      others.forEach(function (code) {
+        var item = row(code, "menuitem");
+        // Turned on in this browser and on the account, then opened as any press is.
+        item.addEventListener("click", function () {
+          close();
+          var listed = learning();
+          if (listed.indexOf(code) < 0) {
+            try {
+              localStorage.setItem(LEARNING, JSON.stringify(listed.concat([code])));
+            } catch (e) {}
+          }
+          set(code);
+          var saved =
+            window.TargumSync && typeof window.TargumSync.language === "function"
+              ? window.TargumSync.language(code, true)
+              : null;
+          onPick(code, saved);
+        });
+        panel.appendChild(item);
+      });
+    }
     host.appendChild(panel);
 
     function close() {
@@ -408,8 +527,10 @@
         var name = host.querySelector && host.querySelector(".lang-name");
         if (name && code) name.textContent = names[code] || String(code).toUpperCase();
         var button = host.querySelector && host.querySelector(".lang-open");
-        var shown = button && button.querySelector && button.querySelector(".lang-flag");
-        if (button && shown && code) button.replaceChild(flag(code), shown);
+        var was = button && button.querySelector && button.querySelector(".lang-status");
+        var now = code ? badge(code) : null;
+        if (button && was) button.removeChild(was);
+        if (button && now) button.appendChild(now);
       });
     }
   }
@@ -442,6 +563,118 @@
     else later();
   }
 
+  /* --- EN · RU, the interface's language -------------------------------------------- */
+
+  /* David, 2026-10-12: "a more logical and obvious way for Russian L1 speakers to switch to
+     Russian", in the top bar, "very minimal". Two Latin codes beside the language menu, the
+     front door's and the arrival's own EN · RU, so nothing in it is Cyrillic (design.md §12,
+     "Russian is shown to somebody who may read it", 2026-09-28). Drawn only for a reader
+     signed in who may read Russian: the account already reads it, or the browser lists
+     Russian or a language of the countries where Russian is shared. Everybody else sees
+     nothing. A press is the account row's "Read and translate into", said the same way,
+     and the page is drawn again in the language chosen. */
+  var RUSSIAN_WORLD = ["ru", "uk", "be", "kk", "ky", "uz", "tg"];
+
+  function browserMayReadRussian() {
+    var nav = window.navigator;
+    if (!nav) return false;
+    var said = nav.languages && nav.languages.length ? nav.languages : [nav.language || ""];
+    for (var i = 0; i < said.length; i++) {
+      if (RUSSIAN_WORLD.indexOf(String(said[i] || "").split("-")[0].toLowerCase()) >= 0) return true;
+    }
+    return false;
+  }
+
+  function pageSpeaks() {
+    var said = (document.documentElement && document.documentElement.lang) || "en";
+    return String(said).split("-")[0].toLowerCase() || "en";
+  }
+
+  function askAccount(path, body) {
+    var key = window.TARGUM_KEY || "";
+    var headers = { "Content-Type": "application/json" };
+    if (key) headers["X-Targum-Key"] = key;
+    return fetch(path + (key ? "?k=" + encodeURIComponent(key) : ""), {
+      method: body ? "POST" : "GET",
+      headers: headers,
+      credentials: "same-origin",
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (response) {
+      return response.json();
+    });
+  }
+
+  /* Whether this reader is shown EN · RU at all: signed in, and Russian is theirs. */
+  function offersTongue(who) {
+    if (!who || !who.signedIn) return false;
+    var reads = who.reads || [];
+    return reads.indexOf("ru") >= 0 || browserMayReadRussian();
+  }
+
+  /* The two keys, into `host`: the bar's group, or the account sheet's row on a phone
+     (design.md §13, 2026-10-18), which is the same press in a place a thumb reaches. */
+  function drawTongue(host, who) {
+    if (!offersTongue(who)) return false;
+    var now = pageSpeaks() === "ru" ? "ru" : "en";
+    host.textContent = "";
+    [
+      ["en", "EN", "English"],
+      ["ru", "RU", "Русский"],
+    ].forEach(function (one, at) {
+      if (at) {
+        var dot = document.createElement("span");
+        dot.className = "ui-tongue-dot";
+        dot.setAttribute("aria-hidden", "true");
+        dot.textContent = "\u00b7";
+        host.appendChild(dot);
+      }
+      var press = document.createElement("button");
+      press.type = "button";
+      press.className = "ui-tongue-key";
+      press.textContent = one[1];
+      press.setAttribute("lang", one[0]);
+      press.setAttribute("aria-label", one[2]);
+      press.setAttribute("aria-pressed", one[0] === now ? "true" : "false");
+      press.addEventListener("click", function () {
+        if (one[0] === now) return;
+        into(one[0]);
+        askAccount("/account/languages", { learning: who.learning || [HOME], reads: [one[0]] })
+          .catch(function () {
+            return null;
+          })
+          .then(function () {
+            window.location.reload();
+          });
+      });
+      host.appendChild(press);
+    });
+    host.setAttribute("role", "group");
+    if (!host.getAttribute("aria-labelledby")) {
+      host.setAttribute("aria-label", t("nav.interface-language", "Interface language"));
+    }
+    host.hidden = false;
+    return true;
+  }
+
+  function mountTongue() {
+    var bar = document.getElementById("ui-tongue");
+    var row = document.getElementById("account-tongue");
+    var keys = document.getElementById("account-tongue-keys");
+    if ((!bar && !(row && keys)) || typeof fetch !== "function") return;
+    askAccount("/account/me")
+      .then(function (who) {
+        if (bar) drawTongue(bar, who);
+        if (row && keys && drawTongue(keys, who)) row.hidden = false;
+      })
+      .catch(function () {
+        /* signed out, or no server: nothing to switch */
+      });
+  }
+  if (typeof document !== "undefined" && document.addEventListener) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountTongue);
+    else mountTongue();
+  }
+
   // Said once, where the language is chosen, rather than on every card. The same
   // sentence the upload picker's own note uses, because it is the same claim.
   function betaNote(code, names) {
@@ -453,12 +686,16 @@
   window.TargumLang = {
     HOME: HOME,
     beta: beta,
+    status: status,
+    // The badge itself, for the arrival's first question, which wears the same ones.
+    badge: badge,
     offered: offered,
     set: set,
     remember: remember,
     learning: learning,
     into: into,
     current: current,
+    carried: carried,
     order: order,
     switcher: switcher,
     betaNote: betaNote,

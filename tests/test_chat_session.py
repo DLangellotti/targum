@@ -328,8 +328,10 @@ def test_the_chat_rail_refuses_and_names_when_it_lifts(tmp_path: Path) -> None:
     feed = chats.feed_for(first.chat_id, second.n)
     assert feed is not None
     errors = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert errors and "chatting" in errors[0]["message"]
-    assert "Try again in" in errors[0]["message"] and "library still open" in errors[0]["message"]
+    assert errors and "talking" in errors[0]["message"]
+    assert "Try again in" in errors[0]["message"]
+    # What still works rides beside it, for the panel (design.md §12, 2026-10-09).
+    assert "library still open" in errors[0]["fact"] and errors[0]["act"] == "library"
     assert "$" not in errors[0]["message"]
     turn = next(t for t in store.chat_turns(first.chat_id) if t["n"] == second.n)
     assert turn["stage"] == "failed" and turn["error"] == errors[0]["message"]
@@ -371,7 +373,7 @@ def test_a_failing_model_is_said_to_the_reader_and_released(tmp_path: Path) -> N
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said[0]["message"] == "We couldn't answer that. Try again."
+    assert said[0]["message"] == "We couldn't answer that."
     assert "boom" not in json.dumps(said), "the library's own words never reach a reader"
     assert library.jobs[f"chat-{asked.chat_id}-1"].stage == "failed"
     assert store.committed(0) == 0.0, "the reserve went back"
@@ -427,7 +429,7 @@ def test_a_turn_past_its_deadline_ends_and_says_so(tmp_path: Path, monkeypatch) 
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None and feed.closed
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said[0]["message"] == "We took too long to answer that. Try again."
+    assert said[0]["message"] == "We took too long to answer that."
     row = next(t for t in store.chat_turns(asked.chat_id) if t["n"] == asked.n)
     assert row["stage"] == "failed" and row["error"] == said[0]["message"]
 
@@ -700,8 +702,10 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     chats.answer(asked)
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
-    said = [json.loads(data) for kind, data in feed.events if kind == "error"][0]["message"]
-    assert "credits of audio and chat" in said and "library still open" in said
+    error = [json.loads(data) for kind, data in feed.events if kind == "error"][0]
+    said, fact = error["message"], error["fact"]
+    assert "credits for audio and talk" in said and "library still open" in fact
+    assert error["act"] == "top-up"
     assert "$" not in said
     assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"
 
@@ -823,6 +827,35 @@ def test_on_a_machine_somebody_runs_themselves_the_chat_rail_is_off(tmp_path: Pa
         encoding="utf-8"
     )
     assert "chat_budget=CHAT_BUDGET if require_account else None" in source
+
+
+def test_a_gift_turn_passes_the_account_and_spends_none_of_its_hours(tmp_path: Path) -> None:
+    """A word said from its card is on targum (design.md §12, 2026-10-07): a reader whose
+    chat budget is spent still hears it, and their hours do not move. The box ceiling
+    still holds."""
+    from targum.serve import Job, Library
+
+    store = Store(tmp_path / "words.db")
+    person = store.finish_sign_in(store.start_sign_in("r@example.com"))[0]  # type: ignore[index]
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store, chat_budget=0.01, budget=1.0)
+    spent = Job(id="chat-c-1", source="chat:c", estimate=0.02, kind="chat", owner=person.id)
+    assert library.claim_turn(spent) != "", "the reader's own turn is refused"
+    word = Job(
+        id="say-w",
+        source="word:he",
+        estimate=0.001,
+        seconds=2.0,
+        kind="chat",
+        owner=person.id,
+        gift=True,
+    )
+    assert library.claim_turn(word) == ""
+    library.settle(word)
+    assert store.hours_used(person.id, 0) == 0.0
+    huge = Job(id="say-x", source="word:he", estimate=5.0, kind="chat", owner=person.id, gift=True)
+    assert library.claim_turn(huge) != "", "the box ceiling is not waived"
 
 
 def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
@@ -1090,11 +1123,11 @@ def test_a_worker_outlives_the_turn_it_lost(tmp_path: Path, monkeypatch: Any) ->
 
     row = next(r for r in store.chat_turns(first.chat_id) if r["n"] == first.n)
     assert row["stage"] == "failed", "the page stops waiting"
-    assert row["error"] == "We couldn't answer that. Try again."
+    assert row["error"] == "We couldn't answer that."
     feed = chats.feed_for(first.chat_id, first.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said and said[0]["message"] == "We couldn't answer that. Try again."
+    assert said and said[0]["message"] == "We couldn't answer that."
     assert "wordlist" not in json.dumps(said), "the library's own words never reach a reader"
 
     second = chats.say(None, library.home(None), "", "again", admin=False)
@@ -1385,6 +1418,54 @@ def test_something_to_read_is_answered_without_the_model(tmp_path: Path, monkeyp
     assert quoted == ["ruth", "esther"]
     nothing = chats.suggest(person, home, got["chat"], admin=False, skip=["ruth", "esther"])
     assert nothing["status"] == 404
+
+
+def test_something_to_read_already_on_a_shelf_opens_it(tmp_path: Path, monkeypatch: Any) -> None:
+    """2026-10-11: the top suggestion was a text on the shared shelf, `quote_build` said
+    so with no quote, and the chip answered "We can't get that one ready right now". A
+    text already built is the best answer, free to read: the card a finished build draws,
+    with the reader to open, and no job made, nothing claimed, nothing spent."""
+    from targum import catalogue
+    from targum.chat import tools
+
+    entry = next(one for one in catalogue.everything() if one.language.startswith("he"))
+    library, store = world(tmp_path)
+    client = Script([])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    monkeypatch.setattr(
+        tools,
+        "suggest_next",
+        lambda ctx, args: {
+            "suggestions": [
+                {"id": entry.id, "title": entry.title, "english": entry.english},
+                {"id": "esther", "title": "אסתר"},
+            ]
+        },
+    )
+    # The real `quote_build`, over a shared shelf that has the text on it.
+    shelved = {
+        "name": "the-text-he",
+        "source": entry.source,
+        "reader": tools.reader_url("the-text-he"),
+        "shared": True,
+    }
+    monkeypatch.setattr(tools, "_shelf", lambda ctx, measured=True: ([], [dict(shelved)]))
+    jobs_before = set(library.jobs)
+    got = chats.suggest(person, home, "", admin=False)
+    assert "error" not in got, got
+    card = got["quote"]
+    assert card["stage"] == "done" and card["reader"] == "the-text-he/reader/index.html"
+    assert card["title"] == entry.title
+    assert got["offered"] == [entry.id] and got["more"] is True
+    assert client.requests == [], "the model was never asked"
+    assert set(library.jobs) == jobs_before, "no job made, so nothing to press or spend"
+    turns = store.chat_turns(got["chat"])
+    assert [(t["role"], t["said"]) for t in turns] == [
+        ("user", "Find me something to read"),
+        ("assistant", got["said"]),
+    ]
 
 
 def test_a_reader_of_russian_gets_russian_under_every_line(

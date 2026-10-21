@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>מדור תרבות</title>
+  <entry>
+    <title>תערוכה חדשה נפתחה במוזיאון</title>
+    <link rel="alternate" href="https://section.example/culture/3001"/>
+    <summary>התערוכה מציגה ציורים של אמנים צעירים.</summary>
+    <updated>2026-10-07T10:00:00+03:00</updated>
+  </entry>
+  <entry>
+    <title>להקה ותיקה חוזרת להופיע</title>
+    <link rel="alternate" href="https://section.example/culture/3002"/>
+    <summary>ההופעה הראשונה תהיה בחודש הבא.</summary>
+    <category term="מוזיקה"/>
+    <updated>2026-10-07T09:00:00+03:00</updated>
+  </entry>
+</feed>

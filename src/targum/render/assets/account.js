@@ -1,7 +1,7 @@
 /* The account control in the corner, on every page that has a header.
  *
- * Everything it does is one of three things: say who is signed in, ask for an email
- * address, or sign out. The syncing itself is not here — that is `sync.js`, which runs
+ * Everything it does is one of three things: say who is signed in and what is left of
+ * the month, ask for an email address, or sign out. The syncing itself is not here — that is `sync.js`, which runs
  * whether or not this panel is ever opened.
  *
  * The copy is deliberately about what the reader gets rather than what the software
@@ -47,17 +47,28 @@
   var signedIn = panel.querySelector(".signed-in");
 
   function say(message, showing, bad) {
+    if (window.TargumFault && field) window.TargumFault.clear(field);
     said.hidden = !message;
     said.textContent = message || "";
     said.classList.toggle("bad", !!bad);
     if (showing) show(true);
+    // A refusal about the address is said under its field, which keeps the focus
+    // (design.md §12, 2026-10-09); it was a clay line under the form.
+    if (bad && message && window.TargumFault && field && !signedOut.hidden && !panel.hidden) {
+      said.hidden = true;
+      window.TargumFault.field(field, message);
+    }
   }
 
   function show(showing) {
+    // Where the keyboard was, so a close gives it back rather than dropping it on the
+    // page's body (QA 2026-10-11).
+    var inside = panel.contains(document.activeElement);
     panel.hidden = !showing;
     open.setAttribute("aria-expanded", showing ? "true" : "false");
     open.classList.toggle("on", showing);
     if (showing && !signedOut.hidden && field) field.focus();
+    if (!showing && (inside || document.activeElement === document.body)) open.focus();
   }
 
   /* The initials this browser was last signed in with, so the corner says who you are
@@ -112,16 +123,31 @@
       image.src = who.picture;
     }
     avatar(who.initials);
-    whom.textContent = who.name ? who.name + " · " + who.email : who.email;
-    drawHours(who.hours);
+    // Name and address on one line, the address muted (2026-10-09).
+    whom.textContent = "";
+    if (who.name) {
+      var named = document.createElement("span");
+      named.className = "whom-name";
+      named.textContent = who.name;
+      whom.appendChild(named);
+      whom.appendChild(document.createTextNode(" "));
+    }
+    var address = document.createElement("span");
+    address.className = "whom-email";
+    address.textContent = who.email;
+    whom.appendChild(address);
+    drawHours(who.hours, who.plan);
   }
 
-  // The month's hours, in the panel and — where the page has the line — under the
-  // ledger on Your Progress: the real count, off the chat page where it stood in every
-  // reader's face on every visit (2026-09-10, targum-internal#237). Nothing where there
-  // is no cap.
+  // The month's credits, in the panel and — where the page has the line — on the
+  // account page's Credits panel: the real count, off the chat page where it stood in
+  // every reader's face on every visit (2026-09-10, targum-internal#237), and off Your
+  // Progress since it became a story (design.md §12, 2026-10-09). Nothing where there is
+  // no cap.
   var hoursLine = document.getElementById("account-hours");
+  var rateLine = document.getElementById("account-rate");
   var ledgerLine = document.getElementById("hours-line");
+  var creditsPanel = document.getElementById("credits");
   // "50 minutes", "1 hour 5 minutes", "3 hours": the hours as a person says them. "0.83
   // of 8 hours" was a decimal nobody reads as fifty minutes (2026-09-14).
   function spoken(hours) {
@@ -142,29 +168,57 @@
   function credits(hours) {
     return Math.round((Number(hours) || 0) * 60);
   }
-  function drawHours(got) {
+  function drawHours(got, plan) {
     var has = got && got.allowed !== null && got.allowed !== undefined;
     var spare = has ? Math.max(0, (Number(got.allowed) || 0) - (Number(got.used) || 0)) : 0;
-    var said = has
-      ? tn(
-          "account.credits.left",
-          credits(spare),
-          "{n} credit left this month",
-          "{n} credits left this month"
-        ) +
-        " — " +
-        t("account.credits.rate", "about {clock} of audio", { clock: spoken(spare) })
-      : "";
+    /* The menu says it shorter (design.md §12, "The account menu is who, what is left,
+       and three rows", 2026-10-09): what is left and when it comes back on one line, and
+       the rate under it, muted — still beside the balance, because the rate goes
+       wherever a balance is. */
     if (hoursLine) {
-      hoursLine.textContent = said;
+      var back = has && got.ends ? t("account.credits.back", "resets on {date}", { date: got.ends }) : "";
+      hoursLine.textContent = has
+        ? tn("account.credits.left-short", credits(spare), "{n} credit left", "{n} credits left") +
+          (back ? " · " + back : "")
+        : "";
       hoursLine.hidden = !has;
     }
-    if (ledgerLine) {
-      ledgerLine.textContent = said
-        ? said + (got.ends ? " · " + t("account.hours.resets", "resets {date}", { date: got.ends }) : "")
+    if (rateLine) {
+      rateLine.textContent = has
+        ? t("account.credits.rate-line", "About {clock} of audio", { clock: spoken(spare) })
         : "";
+      rateLine.hidden = !has;
+    }
+    /* Your account's Credits card (board AccountDesk, 2026-10-09): the number alone in
+       the serif, "left this month" beside it in the template, the rate and the day it
+       comes back under it, and a meter of what is left. The Plan card says the month. */
+    if (ledgerLine) {
+      ledgerLine.textContent = has ? String(credits(spare)) : "";
       ledgerLine.hidden = !has;
     }
+    var rateUnder = document.getElementById("credits-rate");
+    if (rateUnder) {
+      rateUnder.textContent = has
+        ? t("account.credits.rate-line", "About {clock} of audio", { clock: spoken(spare) }) +
+          (got.ends ? " · " + t("account.hours.resets", "resets {date}", { date: got.ends }) : "")
+        : "";
+    }
+    var meter = document.getElementById("credits-meter");
+    if (meter && has) {
+      var allowed = Number(got.allowed) || 0;
+      meter.style.setProperty("--done", allowed > 0 ? String(Math.min(1, spare / allowed)) : "0");
+    }
+    var planLine = document.getElementById("plan-line");
+    if (planLine && has) {
+      planLine.textContent =
+        tn("account.plan.month", credits(Number(got.allowed) || 0), "{n} credit a month while targum is in early access", "{n} credits a month while targum is in early access") +
+        (got.ends ? " · " + t("account.plan.back", "resets on {date}", { date: got.ends }) : "");
+    }
+    var planCard = document.getElementById("plan");
+    // With plans on the account draws its own plan instead (`you.js`, design.md §12,
+    // "Free and Plan, behind a switch", 2026-10-09); off, this card is the plan.
+    if (planCard) planCard.hidden = !has || !!(plan && plan.on);
+    if (creditsPanel) creditsPanel.hidden = !has;
   }
 
   open.addEventListener("click", function () {
@@ -194,7 +248,7 @@
         if (answer.sent) form.hidden = true;
       })
       .catch(function () {
-        say(t("account.could-not-send", "We couldn't send a link. Try again."), false, true);
+        say(t("account.could-not-send", "We couldn't send the link. Try again in a minute."), false, true);
       });
   });
 
@@ -219,7 +273,7 @@
   var arrived = new URLSearchParams(location.search).get("signin");
   if (arrived === "welcome") say(t("account.welcome", "You're signed in."), true);
   if (arrived === "expired") {
-    say(t("account.expired", "That link no longer works. Enter your email for a new one."), true, true);
+    say(t("account.expired", "This link has expired. Enter your email and we'll send a new one."), true, true);
   }
   if (arrived) {
     // Take it out of the address so a refresh does not say it again.

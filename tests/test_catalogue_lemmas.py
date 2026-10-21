@@ -15,8 +15,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from targum.coverage import (
     EMPTY,
+    IGNORED,
     INDEX_VERSION,
     KNOWN,
     Index,
@@ -53,6 +56,27 @@ def test_measuring_against_what_the_reader_marked() -> None:
     # Halfway through learning is not knowing, and `שמים` has been met, so one is fresh.
     assert measured.fresh == 1
     assert measured.total == 4
+
+
+def test_an_ignored_word_comes_out_of_the_total_as_the_reader_takes_it_out() -> None:
+    """The reader leaves the words a reader ignored — a name, a numeral, a foreign word —
+    out of the text's total, and the shelf counted them, so one text read two figures
+    (known-issues 1.18; design.md §12, "Known means marked, everywhere a share is
+    shown"). Ignored is neither known nor waiting."""
+    index = build_index({"genesis": ["אור", "ארץ", "שמים", "רקיע"]})
+    measured = index.against("genesis", {"אור": KNOWN, "ארץ": KNOWN, "שמים": IGNORED})
+    assert measured is not None
+    assert measured.known == pytest.approx(2 / 3)
+    assert measured.total == 3
+    assert measured.fresh == 1
+
+
+def test_a_text_whose_every_word_is_ignored_has_nothing_to_measure() -> None:
+    index = build_index({"names": ["משה", "אהרן"]})
+    measured = index.against("names", {"משה": IGNORED, "אהרן": IGNORED})
+    assert measured is not None
+    assert measured.total == 0
+    assert measured.known == 0.0
 
 
 def test_a_text_not_in_the_index_is_not_measured_rather_than_zero(tmp_path: Path) -> None:

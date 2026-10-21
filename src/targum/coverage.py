@@ -33,6 +33,12 @@ from .paths import write_atomic
 # them something to read.
 KNOWN = 9
 
+#: The status a word set aside as not vocabulary carries: a name, a numeral, a word from
+#: another language. Neither known nor waiting, so it comes out of a text's total rather
+#: than counting against the reader, as the reader's own figure takes it out
+#: (`reader.js`, `renderStats`; known-issues 1.18).
+IGNORED = 0
+
 ANNOTATION = "annotation.json"
 LEMMAS = "lemmas.json"
 
@@ -133,9 +139,19 @@ def against(folder: Path, marked: dict[str, int]) -> Coverage | None:
     words = lemmas(folder)
     if not words:
         return None
+    return measure(words, marked)
+
+
+def measure(words: list[str], marked: dict[str, int]) -> Coverage:
+    """A text's distinct dictionary forms measured against one person's marks, as the
+    reader measures the page in front of them: the words they ignored are left out of the
+    total, so the share the shelf, the Library and the contents page show is the one the
+    reader's bar shows (design.md §12, "Known means marked, everywhere a share is shown").
+    A text whose every word is ignored has nothing to measure, and its total is nought."""
     known = sum(1 for lemma in words if marked.get(lemma) == KNOWN)
     fresh = sum(1 for lemma in words if lemma not in marked)
-    return Coverage(known=known / len(words), fresh=fresh, total=len(words))
+    scored = sum(1 for lemma in words if marked.get(lemma) != IGNORED)
+    return Coverage(known=known / scored if scored else 0.0, fresh=fresh, total=scored)
 
 
 # -- the catalogue's own lemmas (targum-internal#293) ---------------------------------
@@ -232,9 +248,7 @@ class Index:
         words = self.lemmas_for(entry_id)
         if not words:
             return None
-        known = sum(1 for lemma in words if marked.get(lemma) == KNOWN)
-        fresh = sum(1 for lemma in words if lemma not in marked)
-        return Coverage(known=known / len(words), fresh=fresh, total=len(words))
+        return measure(words, marked)
 
 
 EMPTY = Index(words=(), texts={})
@@ -419,6 +433,63 @@ def section_lemmas(folder: Path, number: int) -> list[str] | None:
     return out
 
 
+def sections_lemmas(folder: Path) -> dict[int, tuple[str, ...]]:
+    """`section_lemmas` for every section of a text at once, by section number: the
+    annotation read once, not once a row — a Torah book is fifty sections over 9 MB of
+    annotation. Kept while the annotation and the segments are unchanged, so a contents
+    page asked for again reads nothing (design.md §12, "A contents page is a page of its
+    own", 2026-10-09). Empty where there is no annotation: not measured."""
+    stamps = []
+    for name in (ANNOTATION, "segments.json"):
+        try:
+            found = (folder / name).stat()
+        except OSError:
+            return {}
+        stamps.append((found.st_mtime_ns, found.st_size))
+    return _sections_lemmas(folder, tuple(stamps))
+
+
+@lru_cache(maxsize=16)
+def _sections_lemmas(
+    folder: Path, stamps: tuple[tuple[int, int], ...]
+) -> dict[int, tuple[str, ...]]:
+    from .annotate.base import not_vocabulary
+    from .ingest import post as post_module
+    from .models import SegmentedDocument, read_artifact
+    from .render.builder import split_sections
+
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    if segmented is None:
+        return {}
+    try:
+        loaded = json.loads((folder / ANNOTATION).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    # The same sections the pages were written as: a text rendered whole is one.
+    written = len(list((folder / "reader").glob("sec-*.html")))
+    if written <= 1:
+        where = {segment.id: 1 for segment in segmented.segments}
+    else:
+        where = {sid: part.number for part in split_sections(segmented) for sid in part.segment_ids}
+    unwordly = post_module.left_out(folder) or {}
+    out: dict[int, list[str]] = {}
+    for sid, tokens in (loaded.get("tokens") or {}).items():
+        number = where.get(sid)
+        if number is None:
+            continue
+        kept = out.setdefault(number, [])
+        for token in tokens:
+            lemma = str(token.get("lemma") or "")
+            if not lemma or not_vocabulary(token.get("pos"), token.get("entity")):
+                continue
+            if sid in unwordly and post_module.inside(
+                int(token.get("start") or 0), int(token.get("end") or 0), unwordly[sid]
+            ):
+                continue
+            kept.append(lemma)
+    return {number: tuple(lemmas) for number, lemmas in out.items()}
+
+
 def section_reading(folder: Path, number: int, marked: dict[str, int]) -> Reading | None:
     """One section measured against what one person has marked, now.
 
@@ -432,8 +503,8 @@ def section_reading(folder: Path, number: int, marked: dict[str, int]) -> Readin
 
 
 #: Under this many points the line is not drawn, and the page says what would draw it:
-#: two months make a slope out of anything.
-POINTS = 3
+#: one month is a dot, not a line (two since 2026-10-09: the board draws from two).
+POINTS = 2
 
 #: Under this many running words a month is a guess and not a point — the same floor
 #: `level.known_share` keeps (its `MEASURABLE`), for the same reason.
@@ -651,3 +722,24 @@ def chapter_estimate(
         )
         out[ref] = weighed / part.tokens
     return out
+
+
+#: Where the map's leaf ramp turns, as whole percentages of a chapter's running words
+#: (design.md §12, 2026-09-28). Under the first a chapter is measured and plainly not
+#: yet within reach; the last is the share at which reading goes on without stopping.
+#: Running words climb fast — the commonest hundred dictionary forms are about half of
+#: any chapter — so the steps are packed at the top, where one more word known is a
+#: chapter changing hands.
+MAP_STEPS = (50, 75, 90, 95)
+
+
+def map_percent(share: float) -> int:
+    """A share as the whole percentage the map says, rounded down: a chapter at 94.6%
+    is not yet at 95%, and the square and the card must not disagree about it."""
+    return int(min(max(share, 0.0), 1.0) * 100)
+
+
+def map_step(percent: int) -> int:
+    """Which of the ramp's steps a percentage stands on: 0 below the first turn, 4 at
+    the last. `tanakh.js` counts the same way off the page's own copy of the turns."""
+    return sum(1 for turn in MAP_STEPS if percent >= turn)

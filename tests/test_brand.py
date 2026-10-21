@@ -46,7 +46,9 @@ PALETTE = {
     "#9a9288": "muted, on ink",
     "#7a5c38": "accent working",
     "#c8a778": "accent working, on ink / the wash",
-    "#b8935e": "focus ring",
+    # The gold: the mark's column in mail and /connect's underline. Never a focus ring
+    # since 2026-10-11 (§12, "The focus ring is teal everywhere").
+    "#b8935e": "gold, the mark's",
     "#a5824f": "the mark's translation column on paper",
     # The knowledge ramp used to be four gold steps written out per surface, and it is why
     # every chart on the progress page read brown. It climbs to leaf now — tints of
@@ -110,6 +112,10 @@ RADIUS_TOKENS = {
 SIZES = {
     "2.75rem",
     "2.25rem",
+    # §12, 2026-10-09 ("The boards are the desk"): every desk page's title, on the desk under
+    # the bar, and the boards' big figures — 34px at a 1440 window. A section's title is the
+    # serif at 1.5rem (24px), already on the scale.
+    "1.9375rem",
     "1.75rem",
     "1.5rem",
     "1.5em",
@@ -158,8 +164,8 @@ def test_radii_are_on_the_scale(sheet: Path) -> None:
 
 
 def test_the_radius_tokens_are_the_scale() -> None:
-    """§13: the desk names its corners once, in the stylesheet every page loads."""
-    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    """§13: the desk names its corners once, in the stylesheet every page loads (§11)."""
+    text = (ASSETS / "tokens.css").read_text(encoding="utf-8")
     for token, size in RADIUS_TOKENS.items():
         found = set(re.findall(rf"{token}:\s*([^;]+);", text))
         assert found == {size}, f"{token} should be {size} everywhere, found {found}"
@@ -181,11 +187,40 @@ def test_absolute_type_sizes_are_on_the_scale(sheet: Path) -> None:
         assert size in SIZES, f"{sheet.name}: font-size {size!r} is off the scale"
 
 
+FOCUS = "#1f6f6b"
+FOCUS_ON_INK = "#6fb8b3"
+
+
 def test_the_focus_ring_is_one_colour() -> None:
-    """§4 gives one focus colour, and it is defined once."""
-    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    """§4 gives one focus colour, teal, defined once with the tokens (§11), and teal on
+    ink where a press stands on an ink surface (§12, 2026-10-11)."""
+    text = (ASSETS / "tokens.css").read_text(encoding="utf-8")
     rings = set(re.findall(r"--focus:\s*([^;]+);", text))
-    assert rings == {"#b8935e"}, f"focus ring should be #b8935e everywhere, found {rings}"
+    assert rings == {FOCUS}, f"focus ring should be {FOCUS} everywhere, found {rings}"
+    on_ink = set(re.findall(r"--focus-on-ink:\s*([^;]+);", text))
+    assert on_ink == {FOCUS_ON_INK}, f"focus on ink should be {FOCUS_ON_INK}, found {on_ink}"
+    # The public sheets carry their own copy of the tokens; an ink surface points at the
+    # ink token rather than naming a value. Nothing else sets the ring.
+    for sheet in STYLESHEETS:
+        for value in re.findall(r"--focus:\s*([^;]+);", sheet.read_text(encoding="utf-8")):
+            assert value.strip() in {FOCUS, "var(--focus-on-ink)"}, (
+                f"{sheet.name}: --focus is {value.strip()!r}"
+            )
+
+
+def test_no_focus_ring_is_the_gold() -> None:
+    """The gold measured 2.31:1 on the ground and 2.71:1 on paper, under 1.4.11's 3:1
+    (§12, "The focus ring is teal everywhere", 2026-10-11). It stays the mark's and is
+    never a ring: no focus rule draws it, and nothing falls back to it."""
+    for sheet in STYLESHEETS:
+        css = re.sub(r"/\*.*?\*/", "", sheet.read_text(encoding="utf-8"), flags=re.S)
+        for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+            if "focus" not in selector and "outline" not in body:
+                continue
+            assert "#b8935e" not in body.lower(), f"{sheet.name}: {selector.strip()} rings in gold"
+        assert not re.search(r"--focus\s*,\s*#b8935e", css, re.I), (
+            f"{sheet.name}: falls back to the gold ring"
+        )
 
 
 #: §8. Every control a thumb presses. This list IS the rule: a new control in the strip,
@@ -207,16 +242,42 @@ THUMBED = (
     ".player-video",
     ".player-get",
     ".player-close",
-    ".video-mode",
-    ".video-corner",
-    ".video-close",
-    # And the picture's grip and size key, on a wide touch screen (2026-09-13).
-    ".video-grip",
-    ".video-size",
+    # The row under a video's picture, the switch beside it in the bar, the transcript
+    # panel's ×, the speed's picks and the step in ⋯ (targum-internal#422, 2026-10-05).
+    # They replaced the picture's mode, corner, close, grip and size keys.
+    ".film-play",
+    ".film-rate",
+    ".film-loop",
+    ".film-transcript",
+    ".film-view",
+    ".film-panel-close",
+    ".film-rate-pick",
+    ".more-back",
+    ".more-on",
+    # Theatre's size grip on the picture's foot (design.md §12, 2026-10-07).
+    ".film-size",
+    # Saving for offline (design.md §12, 2026-10-09): save, stop, try again and remove, in
+    # a reader's ⋯ and on a playlist's page.
+    ".offline-go",
+    ".offline-stop",
+    ".offline-again",
+    ".offline-remove",
+    # Beside, the line between the picture and the transcript (design.md §12, 2026-10-08).
+    ".film-split",
+    # The next part under the picture, and its Try again (design.md §12, 2026-10-07).
+    ".film-next-go",
+    ".film-next-again",
+    # And the parts either side, in the row under the picture (design.md §12, 2026-10-11).
+    ".film-part-go",
     # What to work on (2026-09-18, targum-internal#103): the two answers a word row has.
     ".work-keys button",
     ".fold",
     ".pair.voiced .say",
+    # The rest of READER-04 (known issues §3, 2026-10-12): the strip's scrubber, the word
+    # card's × on a phone and its "Add your meaning". The video's play is above.
+    ".player-track",
+    ".card-x",
+    ".note-open",
     # The chat's controls (2026-09-05): the button that sends, the door to a fresh
     # conversation, and the rows that open an old one.
     ".chat-send",
@@ -249,18 +310,28 @@ THUMBED = (
     ".account > button",
     ".palette-open",
     ".palette-row",
-    # And the row of doors above the sheet on Learn, and the subscriptions menu's rows
-    # (2026-09-11).
-    ".way",
-    ".ways-item",
-    ".ways-link",
+    # And the one search's own presses (design.md §12, "One search, everywhere",
+    # 2026-10-09): a result, a recent search's ×, the field's ×, the way back on a phone,
+    # the language it searches in and each of its rows, and the level.
+    ".palette-hit",
+    ".palette-drop",
+    ".palette-clear",
+    ".palette-back",
+    ".palette-lang",
+    ".palette-lang-row",
+    ".palette-level-pick",
+    # (The row of doors above Learn's sheet and its subscriptions menu went with Learn,
+    # design.md §12, 2026-10-08.)
     # And the door that makes a silent section's audio (2026-09-10, #246).
     ".voice-go",
-    # And the Add page's box (2026-09-13, targum-internal#249): Choose files, Ask
-    # targum, Continue, the × on a file in the box, Change, the presses on a priced card,
-    # and Choose file for a translation or a transcript.
+    # And the Weekly portion shelf's Diaspora / Israel switch (targum-internal#411).
+    "#portion-schedule .segment",
+    # And the Add page's box (2026-09-13, targum-internal#249): Choose a file, Bring a
+    # post, Upload, the × on a file in the box, Change, the presses on a priced card,
+    # and Choose file for a translation or a transcript. (Ask targum went with the
+    # board, 2026-10-09.)
     ".bring-choose",
-    ".bring-ask",
+    ".bring-post",
     ".add .go",
     ".given-file-x",
     ".add .change",
@@ -316,21 +387,56 @@ THUMBED = (
     ".week-part",
     # And Hear first, in the player strip (2026-09-15, targum-internal#265).
     ".player-first",
-    # The connect page's own (2026-09-24): an app's tab, the Copy beside an address,
-    # the examples under the conversation, and a step, which shows its picture.
-    ".plat",
-    ".copy",
-    ".scene",
-    ".steps > li",
+    # The connect page's own (2026-09-24; as the board draws it since 2026-10-09,
+    # design.md §12, "The connector's pages are the boards'"): an app's tab, the Copy
+    # beside an address, and a question, which opens its answer.
+    ".cn-plat",
+    ".cn-copy",
+    ".cn-faq summary",
     ".yours-tabs .tab",
-    ".defined-open",
-    ".sift-shelf .chip",
-    ".sift-shelf .find",
-    ".sift-shelf .pick select",
+    # Your targums' find field (P4, 2026-10-09); its chips and order are gone.
+    ".yours-card > .find",
     ".series-back",
-    ".filters > summary",
+    # The Library's kind doors and See all's menus (design.md §12, "The Library stands on
+    # the ground", 2026-10-09); its Filters fold is gone.
+    ".lib-door",
+    ".see-menu-press",
+    ".see-menu-item",
+    # And the Library's own from its QA (2026-10-20): Try again when the shelf could not
+    # open, the way to every text from an empty band, See all's column heads, the Tanakh
+    # list's way to the map and Subscribe on a row.
+    "#lib-fault-again",
+    ".lib-empty-go",
+    ".see-list > .rows-head button",
+    ".crumbs .crumb-map",
+    ".see-rows .sub-subscribe",
+    ".elsewhere a",
+    ".series-pdf",
+    ".palette-foot-all",
+    # And wider than the Library, from its QA (2026-10-20): the connection banner's Saved
+    # texts, All among the search's tabs (39px wide), every link in the one foot, and
+    # News's way to its topics. The bar's bell and account are above, and reached 44px
+    # already; `test_chrome_reach_browser.py` hit-tests all of them.
+    ".fault-banner .offline-to-saved",
+    ".palette-filters .tab",
+    ".site-footer .sf-mark",
+    ".site-footer .sf-join",
+    ".site-footer .sf-signin",
+    ".site-footer .sf-col ul:not(.sf-social) a",
+    ".site-footer .sf-social a",
+    ".site-footer .sf-small a",
+    ".site-footer .sf-tongue a",
+    ".see-topics a",
+    ".public .corner .enter",
     ".claim-table label",
     ".chat-claim label",
+    # The arrival's own (QA 2026-10-18): EN and RU in its head, the conversation's Mark
+    # known and Skip, and the sign-in door's way back to the field and its lockup.
+    ".arrival-switch-key",
+    ".chat-claim .claim-yes",
+    ".chat-claim .claim-no",
+    ".gate .sent-again",
+    ".gate .brand",
     # A post's one way home (design.md §12, "A post keeps its shape", 2026-09-27).
     ".post-home",
     # "inferred" after a reading on a word card (design.md §12, 2026-09-27).
@@ -338,8 +444,75 @@ THUMBED = (
     # The fold over the words to know before a chapter (design.md §12, 2026-09-28).
     ".preread > summary",
     # The root on a word card, where it opens the words of it a reader has met
-    # (targum-internal#96, behind `TARGUM_OCCURRENCES`).
-    ".gloss-card .verb .root-open",
+    # (targum-internal#96, behind `TARGUM_OCCURRENCES`), in the card's list since audit
+    # Q6 (2026-10-09), and the way to all its forms or cases under the list.
+    ".gloss-card .card-facts .root-open",
+    ".gloss-card .card-all",
+    # The vowel switch on /how (targum-internal#401).
+    ".how-switch",
+    # The Tanakh map's Read, the press a phone's tap on a square leads to (design.md §12,
+    # "The Tanakh map is the knowledge ramp", 2026-09-28).
+    ".tanakh-read",
+    # The reader's bar as one row (targum-internal#421, 2026-10-05): Aa, print and ⋯,
+    # Listen and the reading inside it, the rows and steps of Aa, the picks of the print
+    # and the reading, the rows of ⋯, and the + that brings a column back.
+    ".bar .bar-tool",
+    ".bar .listen-play",
+    ".bar .listen-voice",
+    ".bar .aa-switch",
+    ".bar .aa-step",
+    ".bar-pop .recordings .recording-key",
+    ".bar-pop .to-sheet .more-sheet",
+    ".cmp-add",
+    # The bar by how often it is pressed (design.md §12, 2026-10-08): the view's three
+    # drawings stand in the bar. The speed and the marks are `.bar-tool`s.
+    ".bar .bar-tools > .modes button",
+    # Aa and ⋯ as the board draws them (design.md §12, 2026-10-09): every row, every
+    # part of a segmented control, the rows Save for offline draws, and a sheet's handle.
+    ".m-menu .m-row",
+    ".bar .m-menu .seg > *",
+    ".m-menu .offline-go",
+    ".m-menu .offline-stop",
+    ".m-menu .offline-remove",
+    ".sheet-grab",
+    # The build card's door, in somebody else's chat (design.md §12, 2026-10-06).
+    ".card-door",
+    # And the text card's Listen, beside its door (2026-10-06).
+    ".card-play",
+    # Home (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08):
+    # a Continue card, the next one's Open, and the upload.
+    ".home-card-open",
+    ".try-open",
+    ".upload-card",
+    # A refusal's way on (design.md §12, 2026-10-09): Try again in a line or the
+    # banner, and the one button of a panel or a whole page.
+    ".fault-act",
+    ".fault-go",
+    # And See plans, which stood short beside them (errors QA, targum-internal#468).
+    ".fault-see",
+    # The components (design.md §12, "The desk's controls are one layer", 2026-10-09):
+    # a button, a part of a choice of a few, a tab, and a field's well.
+    ".btn",
+    ".seg > *",
+    ".tab",
+    ".well",
+    # Home's QA (targum-internal#463, 2026-10-18): the account menu's rows, Tell us among
+    # them, and the bar's EN and RU.
+    ".account-panel .menu-row",
+    ".ui-tongue-key",
+    # And EN and RU as the account sheet's row on a phone (design.md §13, 2026-10-18),
+    # 44px across as well as up, since there they are the row's whole press.
+    ".account-tongue .ui-tongue-key",
+    # Your Words' QA (targum-internal#467, 2026-10-20): the way back, the exports, the
+    # practice card's Next and coming words, the way to the Library on an empty list,
+    # Undo on an ignored row and the stage tabs' narrowest, All.
+    ".words-back",
+    ".words-exports .link-quiet",
+    ".practise-next",
+    ".practise-go",
+    ".empty-go",
+    ".held-undo",
+    ".stage-tabs .tab",
 )
 
 
@@ -584,7 +757,7 @@ def test_the_streak_is_the_longest_one_and_the_foot_moves_nothing() -> None:
     for currency in ("score", "point", "level", "xp"):
         assert currency not in foot.lower(), f"the foot invents a currency: {currency!r}"
     # And the words that cost (targum-internal#174): no percentage, no grade, no clay.
-    # The finished box's one share, "N% known here", is the header's own figure and is
+    # The finished box's one share, "N% known in this part", is the header's own figure and is
     # drawn in `renderFinished`, outside this span (§12, 2026-09-25).
     for verdict in ("%", "accuracy", "grade", "clay"):
         assert verdict not in foot.lower(), f"the foot passes a verdict: {verdict!r}"
@@ -630,18 +803,19 @@ def test_a_toggle_the_page_marks_pressed_is_styled_pressed() -> None:
     """A control the script toggles must look toggled, or the press does nothing visible.
 
     Shipped broken on 2026-09-17 and deployed: the arrival's subject chips set
-    `aria-pressed` and `.is-picked` in `learn.js`, and the one rule that styled them was
-    a grouped selector — `.arrival-door[aria-pressed="true"], .arrival-rung[...]`. A
-    clean-up that dropped every rule naming `.arrival-rung` took the door half with it,
-    so picking a subject changed nothing on screen and nothing failed.
+    `aria-pressed` and `.is-picked` in `learn.js` (now `arrival.js`), and the one rule
+    that styled them was a grouped selector —
+    `.arrival-door[aria-pressed="true"], .arrival-rung[...]`. A clean-up that dropped
+    every rule naming `.arrival-rung` took the door half with it, so picking a subject
+    changed nothing on screen and nothing failed.
 
-    Checked from the script, not from a list here: whatever `learn.js` marks as pressed
-    is what `learn.css` has to answer for, so a new toggle cannot be added without one.
+    Checked from the script, not from a list here: whatever `arrival.js` marks as pressed
+    is what `arrival.css` has to answer for, so a new toggle cannot be added without one.
     """
     import re
 
-    script = (ASSETS / "learn.js").read_text(encoding="utf-8")
-    sheet = (ASSETS / "learn.css").read_text(encoding="utf-8")
+    script = (ASSETS / "arrival.js").read_text(encoding="utf-8")
+    sheet = (ASSETS / "arrival.css").read_text(encoding="utf-8")
     # The class given to the *same* element that is marked `aria-pressed`. Bound by the
     # variable, not by nearness: a first cut looked within 400 characters and caught
     # `arrival-rung-letter`, a span inside the button, which is never pressed itself.
@@ -650,10 +824,10 @@ def test_a_toggle_the_page_marks_pressed_is_styled_pressed() -> None:
         for holder, name in re.findall(r"(\w+)\.className\s*=\s*\"([a-z-]+)\"", script)
         if re.search(re.escape(holder) + r'\.setAttribute\("aria-pressed"', script)
     }
-    assert pressed, "no pressable control found in learn.js — has the arrival moved?"
+    assert pressed, "no pressable control found in arrival.js — has the arrival moved?"
     for name in sorted(pressed):
         assert re.search(r"\." + re.escape(name) + r'\[aria-pressed="true"\]', sheet), (
-            f".{name} is marked aria-pressed by learn.js and styled by nothing in learn.css"
+            f".{name} is marked aria-pressed by arrival.js and styled by nothing in arrival.css"
         )
 
 
@@ -662,27 +836,526 @@ def test_the_queue_waits_and_never_chases() -> None:
     constraint came in the same minute as the request: "if smth gonna ping me or bother
     me like duolingo I'll fucking delete it" (Dmitry Z, 2026-09-16).
 
-    So it is pull and never push. `workOn` reads rows that already exist; nothing about
-    it is scheduled, owed or counted, and §6's rule that engagement counts real things
-    is what keeps it a view rather than a debt.
+    So it is pull and never push. The practice card that replaced the fold (design.md
+    §12, "Your Words is one table and a practice card", 2026-10-09) reads rows that
+    already exist; nothing about it is scheduled, owed or counted, and §6's rule that
+    engagement counts real things is what keeps it a view rather than a debt. "2 of 10"
+    is where the reader is in it, never what is waiting.
     """
     lists = (ASSETS / "lists.js").read_text(encoding="utf-8")
-    fold = lists[lists.index("function workOn(") : lists.index("/* --- the word table")]
+    card = lists[lists.index("/* --- the practice card") : lists.index("function keyed(")]
     # The code, not the prose about it: the comments in here name every one of these
-    # words in order to say the fold does not do them, and a check that read them would
+    # words in order to say the card does not do them, and a check that read them would
     # be a check that can only pass on undocumented code.
-    fold = re.sub(r"/\*.*?\*/", " ", fold, flags=re.S)
-    fold = re.sub(r"//.*", " ", fold)
+    card = re.sub(r"/\*.*?\*/", " ", card, flags=re.S)
+    card = re.sub(r"//.*", " ", card)
 
     # Nothing that implies a clock or an obligation.
     for owed in ("due", "overdue", "interval", "schedule", "remind", "notify", "streak", "goal"):
-        assert owed not in fold.lower(), f"the fold says {owed!r}"
+        assert owed not in card.lower(), f"the card says {owed!r}"
     # And nothing that puts a number on what is waiting: "12 words due" is the sentence
     # this card exists not to say, and a count is how it starts.
-    assert "length +" not in fold and "count" not in fold.lower()
+    assert "length +" not in card and "count" not in card.lower()
 
-    # The heading is a question answered rather than an instruction, and carries no
-    # number beside it the way the table's title does.
+    # The heading is an invitation with no number beside it.
     yours = (TEMPLATES / "yours.html.j2").read_text(encoding="utf-8")
-    assert "What to work on" in yours
-    assert "work-title" not in yours, "no counted heading: that is the table's, and earned"
+    assert "Practise these" in yours
+    assert "yours.page.what-to-work-on" not in yours, "the fold is gone: one list, not two"
+
+
+#: The card's two columns (design.md §12, "The dark reading", 2026-10-06). A card is the
+#: one surface that takes a theme, because it is drawn inside somebody else's page, and
+#: its dark column is §4's "on ink" values and nothing invented. The edge on light is
+#: ink at 8%, the desk's hairline, which is not a hex and so is not pinned here.
+CARD_LIGHT = {
+    "--card": "#fffdf9",
+    "--ink": "#1c1a17",
+    "--muted": "#6b645c",
+    "--teal": "#1f6f6b",
+    "--teal-ink": "#fffdf9",
+    "--leaf": "#5a7340",
+    "--track": "#ece7de",
+}
+CARD_DARK = {
+    "--card": "#201e1b",
+    "--ink": "#e6e1d8",
+    "--muted": "#9a9288",
+    "--edge": "#322e29",
+    "--teal": "#6fb8b3",
+    "--teal-ink": "#0f1a19",
+    "--leaf": "#a8c37e",
+    "--track": "#322e29",
+}
+
+
+def _block(css: str, selector: str) -> dict[str, str]:
+    body = css[css.index(selector + " {") :]
+    body = body[: body.index("}")]
+    return dict(re.findall(r"(--[\w-]+):\s*([^;]+);", body))
+
+
+def test_the_card_reads_the_palette_light_and_dark() -> None:
+    """§12: a card follows the host's theme in a dark reading of the same palette. Each
+    value is pinned, and every dark one is a colour §4 already gives a job on ink."""
+    css = re.sub(r"/\*.*?\*/", " ", (ASSETS / "card.css").read_text(encoding="utf-8"), flags=re.S)
+    light = _block(css, ":root")
+    dark = _block(css, ':root[data-theme="dark"]')
+    for token, value in CARD_LIGHT.items():
+        assert light.get(token) == value, f"light {token} is {light.get(token)}, not {value}"
+    for token, value in CARD_DARK.items():
+        assert dark.get(token) == value, f"dark {token} is {dark.get(token)}, not {value}"
+        assert value in PALETTE, f"dark {token} {value} is not in the palette"
+    # The dark block swaps colours and nothing else: no size, face or corner of its own.
+    assert set(dark) <= set(CARD_DARK) | {"--shadow"}, sorted(set(dark) - set(CARD_DARK))
+    # And the card says the scheme it is in, so the browser draws no backdrop behind it.
+    assert "color-scheme: dark" in css and "color-scheme: light" in css
+
+
+def test_the_card_names_its_faces_and_carries_none() -> None:
+    """§12: the chrome's sans, named and never fetched. No @font-face, no url()."""
+    css = re.sub(r"/\*.*?\*/", " ", (ASSETS / "card.css").read_text(encoding="utf-8"), flags=re.S)
+    assert "@font-face" not in css and "url(" not in css
+    assert '"Source Sans 3"' in css
+
+
+# -- the desk and the reader, apart (design.md §11 and §13, 2026-10-09) ----------------
+#
+# The design review of 2026-10-09 found most of the desk drawn in the platform's face:
+# every desk page inlined the reader's whole sheet, `words.css` named system-ui on the
+# body after `chrome.css` had named the chrome's face, and whichever came last won. A page
+# passed every test above in the wrong face. These hold the cascade itself.
+
+
+def _page_sheets(template: Path, seen: set[str] | None = None) -> list[str]:
+    """Every stylesheet a page inlines, its partials' included, in order."""
+    seen = set() if seen is None else seen
+    if template.name in seen or not template.exists():
+        return []
+    seen.add(template.name)
+    text = template.read_text(encoding="utf-8")
+    # `styles('tokens.css', ...)` since 2026-10-18 (a desk page names them by address,
+    # the rest still inline them), and `asset()` wherever a sheet is baked in by hand.
+    sheets = [
+        name
+        for call in re.findall(r"\b(?:styles|asset)\(([^)]*)\)", text)
+        for name in re.findall(r"'([\w-]+\.css)'", call)
+    ]
+    for partial in re.findall(r"""\{%-?\s*include\s+['"]([^'"]+)['"]""", text):
+        sheets += _page_sheets(TEMPLATES / partial, seen)
+    return sheets
+
+
+#: §13: a desk page stands on the ground in the chrome's face — the app's pages, which
+#: carry `chrome.css`, and the doors in front of it, which carry `signin.css`.
+DESK_PAGES = [
+    page
+    for page in PAGES
+    if not page.name.startswith("_") and {"chrome.css", "signin.css"} & set(_page_sheets(page))
+]
+DESK_SHEETS = sorted({sheet for page in DESK_PAGES for sheet in _page_sheets(page)})
+
+
+def _declarations(css: str) -> list[tuple[str, str, str]]:
+    """(selector, property, value) for every declaration, comments dropped."""
+    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    out = []
+    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        for prop, value in re.findall(r"([\w-]+)\s*:\s*([^;]+)", body):
+            out.append((selector.strip(), prop.strip(), value.strip()))
+    return out
+
+
+def test_every_page_carries_the_tokens_and_no_desk_page_carries_the_reader() -> None:
+    """§11: the tokens are `tokens.css`, which every page carries first; the reader's
+    own rules are `reader.css`, and a desk page never carries them, so no rule of the
+    reader's decides how the desk looks by where it sits in the cascade."""
+    assert DESK_PAGES, "no desk page found"
+    for page in DESK_PAGES:
+        sheets = _page_sheets(page)
+        assert "reader.css" not in sheets, f"{page.name} carries the reader's sheet"
+        assert sheets[:2] == ["tokens.css", "shared.css"], f"{page.name}: {sheets[:3]}"
+    for page in PAGES:
+        sheets = _page_sheets(page)
+        if "reader.css" in sheets:
+            at = sheets.index("reader.css")
+            assert sheets[at - 2 : at] == ["tokens.css", "shared.css"], page.name
+
+
+def test_each_page_wears_one_body_class() -> None:
+    """A body's classes were stacked history — `words you playlists` — and every one of
+    them was a selector some sheet could still reach. One page, one name (2026-10-09)."""
+    for page in DESK_PAGES:
+        body = re.search(r'<body class="([^"{]*)', page.read_text(encoding="utf-8"))
+        assert body is not None, f"{page.name} has no body class"
+        assert len(body.group(1).split()) == 1, f"{page.name}: {body.group(1)!r}"
+
+
+@pytest.mark.parametrize("sheet", DESK_SHEETS, ids=lambda name: name)
+def test_the_desk_names_no_platform_face(sheet: str) -> None:
+    """§13: the chrome speaks in Source Sans 3, with "Segoe UI", system-ui as the
+    fallback inside `--chrome` and nowhere else. A desk rule names a face by its token
+    (`--chrome`, `--ui`, `--reading`); one that names system-ui is the rule that put
+    1,157 runs of See all in the platform's face."""
+    css = (ASSETS / sheet).read_text(encoding="utf-8")
+    for selector, prop, value in _declarations(css):
+        if prop not in ("font-family", "font"):
+            continue
+        bare = re.sub(r"var\([^)]*\)", "var()", value)
+        assert "system-ui" not in bare, f"{sheet}: {selector} names system-ui"
+
+
+@pytest.mark.parametrize("sheet", DESK_SHEETS, ids=lambda name: name)
+def test_no_press_on_the_desk_is_a_gradient(sheet: str) -> None:
+    """§13: a button is filled, tonal or ghost, and each is a flat fill — the primary,
+    its tint, or nothing — on surfaces that are flat too. The black sheen on the doors'
+    one button was the last gradient on the desk (2026-10-09)."""
+    css = (ASSETS / sheet).read_text(encoding="utf-8")
+    for selector, prop, value in _declarations(css):
+        if prop.startswith("background") and "gradient(" in value:
+            raise AssertionError(f"{sheet}: {selector} draws {value}")
+
+
+def test_a_press_in_the_primary_is_flat_everywhere() -> None:
+    """§13 gives the filled button to the primary, and the reader's own chrome takes the
+    desk's buttons (phase 5): so a press filled in teal is flat on the reader's page too —
+    the end of a part, Next part under a picture."""
+    for sheet in STYLESHEETS:
+        for selector, prop, value in _declarations(sheet.read_text(encoding="utf-8")):
+            if prop.startswith("background") and "var(--teal)" in value:
+                assert "gradient(" not in value, f"{sheet.name}: {selector} draws {value}"
+
+
+def test_modern_hebrew_stays_a_sans_where_the_boards_draw_a_serif() -> None:
+    """design.md §12, "The boards are the desk" (2026-10-09): the boards win over this
+    file everywhere but here. They set modern Hebrew in Frank Ruhl; David kept it in Noto
+    Sans Hebrew ("The modern shelf reads in a sans", 2026-09-17), and the Tanakh keeps
+    its accented face."""
+    from targum.render.builder import BIBLICAL_FACE, MODERN_FACE
+
+    assert MODERN_FACE[0] == "Noto Sans Hebrew"
+    assert BIBLICAL_FACE[0] == "Taamey Frank CLM"
+
+
+def test_the_boards_rulings_are_recorded_and_the_rules_they_retire_say_so() -> None:
+    """The rulings are in §12 once, as the global rule, and each rule they overturn is
+    marked where it stands, so nobody follows it back (design.md §12, 2026-10-09)."""
+    text = DESIGN.read_text(encoding="utf-8")
+    assert text.count("### The boards are the desk — 2026-10-09") == 1
+    entry = text.split("### The boards are the desk — 2026-10-09", 1)[1].split("\n### ", 1)[0]
+    for ruling in (
+        "1248px",
+        "34px",
+        "Talk pill is ink",
+        "tinted pills",
+        "always shown",
+        "Flags in the",
+        "new system",
+        "Noto Sans Hebrew",
+        "Plain words",
+        "Continue and Your targums",
+        "bell and the foot stay",
+        "one in-app page",
+    ):
+        assert ruling in entry, ruling
+    # §13's own lines, each marked where it stands.
+    desk = text.split("## 13 · The desk", 1)[1]
+    for retired in (
+        "A 62rem column *(superseded 2026-10-09",
+        "Section titles 1.25rem/700 *(superseded 2026-10-09",
+        "one pill in the primary *(in ink since 2026-10-09",
+        "more than one language. *(Superseded 2026-10-09",
+    ):
+        assert retired in desk, retired
+
+
+# -- one shell for every desk page (design.md §12, "The boards are the desk", 2026-10-09) --
+
+
+def test_every_desk_page_stands_in_the_one_column() -> None:
+    """The boards' 1248px at a 1440 window, one token for the bar's row, the title, the
+    page and the foot. #680 drew it on Your Progress alone; a page-local copy, or the old
+    62rem, is a page that has drifted out of the shell."""
+    chrome = (ASSETS / "chrome.css").read_text(encoding="utf-8")
+    chrome = re.sub(r"/\*.*?\*/", " ", chrome, flags=re.S)
+    assert "--column: 73.75rem" in chrome
+    for sheet in DESK_SHEETS:
+        css = re.sub(r"/\*.*?\*/", " ", (ASSETS / sheet).read_text(encoding="utf-8"), flags=re.S)
+        assert "62rem" not in css, f"{sheet} keeps the old column"
+        assert "--progress-column" not in css, f"{sheet} keeps a page's own column"
+
+
+def test_the_talk_pill_is_ink() -> None:
+    """The boards draw Talk to targum as the call to action: paper on ink (§9), not the
+    primary."""
+    chrome = (ASSETS / "chrome.css").read_text(encoding="utf-8")
+    said = [
+        (prop, value)
+        for selector, prop, value in _declarations(chrome)
+        if selector == ".talk-cta" and prop in ("background", "color")
+    ]
+    assert dict(said)["background"] == "var(--ink)"
+    assert dict(said)["color"] == "var(--page-max)"
+
+
+def test_a_page_title_stands_on_the_desk_under_the_bar() -> None:
+    """The title leaves the bar for the ground below it, in the reading serif at 34px and
+    weight 500, on every desk page that has one."""
+    nav = (TEMPLATES / "_nav.html.j2").read_text(encoding="utf-8")
+    assert nav.index("</header>") < nav.index('class="page-title"')
+    chrome = (ASSETS / "chrome.css").read_text(encoding="utf-8")
+    title: dict[str, str] = {}
+    for selector, prop, value in _declarations(chrome):
+        if selector == ".page-title":
+            title.setdefault(prop, value)  # the desk's own; a phone's comes later
+    assert title["font-family"] == "var(--reading)"
+    assert title["font-size"] == "1.9375rem" and title["font-weight"] == "500"
+
+
+def test_the_language_menu_is_the_one_place_with_flags() -> None:
+    """§12, 2026-10-10: the menu's rows carry flags again; §1's "no flags" holds elsewhere."""
+    for name in ("lang.js", "chrome.css"):
+        text = (ASSETS / name).read_text(encoding="utf-8")
+        code = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+        assert "lang-flag" in code, name
+
+
+# -- the components (design.md §12, "The desk's controls are one layer", 2026-10-09) --------
+
+
+def _rules(sheet: str) -> dict[str, dict[str, str]]:
+    """selector -> its declarations, first rule of each selector winning, comments dropped."""
+    found: dict[str, dict[str, str]] = {}
+    for selector, prop, value in _declarations((ASSETS / sheet).read_text(encoding="utf-8")):
+        found.setdefault(selector, {}).setdefault(prop, value)
+    return found
+
+
+def test_the_components_wear_the_boards_values() -> None:
+    """One button, one row of tabs, one card, one field, one meter, one tag, one choice of
+    a few and one section title, at the boards' values, each defined once."""
+    shared = _rules("shared.css")
+    chrome = _rules("chrome.css")
+
+    button = shared[".btn"]
+    assert button["border-radius"] == "999px" and button["font-weight"] == "600"
+    assert button["min-block-size"] == "2.5rem"
+    assert shared[".btn.filled"] == {"background": "var(--teal)", "color": "var(--teal-ink)"}
+    assert shared[".btn.tonal"]["background"] == "var(--teal-wash)"
+    assert shared[".btn.ghost"]["background"] == "transparent"
+    assert shared[".btn.text"]["color"] == "var(--teal)"
+    assert shared[".btn.danger"]["color"] == "var(--clay)"
+
+    tab = chrome[".tab"]
+    assert tab["border-radius"] == "999px" and tab["background"] == "var(--teal-wash)"
+    chosen = (
+        '.tab[aria-current="page"],\n.tab[aria-current="true"],\n'
+        '.tab[aria-selected="true"],\n.tab[aria-pressed="true"]'
+    )
+    assert chrome[chosen]["background"] == "var(--teal)"
+    assert chrome[chosen]["color"] == "var(--teal-ink)"
+
+    card = chrome[".card,\n.panel"]
+    assert card["background"] == "var(--card)"
+    assert card["border-radius"] == "var(--radius-card)"
+    assert card["box-shadow"] == "var(--shadow-rest)"
+    assert card["border"] == "0"
+
+    well = chrome[".field input,\n.field select,\n.field textarea,\n.well"]
+    assert well["border-radius"] == "var(--radius-row)" and well["background"] == "var(--field)"
+    focus = chrome[".field input:focus,\n.field select:focus,\n.field textarea:focus,\n.well:focus"]
+    assert focus["border-color"] == "var(--teal)"
+
+    assert chrome[".meter"]["block-size"] == "6px"
+    assert chrome[".meter"]["background"] == "var(--rule)"
+    assert chrome[".meter > span"]["background"] == "var(--leaf)"
+    assert chrome[".tag"]["border"] == "1px solid var(--rule)"
+    assert chrome[".tag"]["border-radius"] == "999px"
+
+    title = chrome[".section-title"]
+    assert title["font-family"] == "var(--reading)"
+    assert title["font-size"] == "1.5rem" and title["font-weight"] == "500"
+
+    seg = shared[".seg"]
+    assert seg["border"] == "1px solid var(--rule)"
+    assert seg["border-radius"] == "var(--radius-control)"
+    live = shared[
+        '.seg > .on,\n.seg > [aria-pressed="true"],\n.seg > [aria-checked="true"],\n'
+        ".seg > [aria-current],\n.seg > .here"
+    ]
+    assert live["background"] == "var(--teal-wash)" and live["color"] == "var(--teal)"
+    assert shared[".scrim"]["background"] == "var(--scrim)"
+
+
+def _desk_sheets_but(owner: str) -> list[str]:
+    return [sheet for sheet in DESK_SHEETS if sheet != owner]
+
+
+@pytest.mark.parametrize(
+    ("needle", "owner"),
+    [(r"\.btn", "shared.css"), (r"\.tab", "chrome.css"), (r"\.seg", "shared.css")],
+)
+def test_a_component_is_drawn_in_one_sheet(needle: str, owner: str) -> None:
+    """A page may place a component — its width, its margin — but its look (fill, colour,
+    corners, border) is the component's own sheet's alone, so a second copy cannot drift
+    (P2, 2026-10-09: there were five copies of the button and three of the tab)."""
+    look = {"background", "background-color", "color", "border-radius", "border", "box-shadow"}
+    alone = re.compile(needle + r"(?![\w-])")
+    for sheet in _desk_sheets_but(owner):
+        for selector, prop, _ in _declarations((ASSETS / sheet).read_text(encoding="utf-8")):
+            if prop in look and any(alone.search(part.strip()) for part in selector.split(",")):
+                # A component's look is its sheet's; a page may still say how a part of it
+                # sits (`body.front .btn.cta` is the public pages' own call to action).
+                if sheet == "front.css" and ".cta" in selector:
+                    continue
+                if sheet == "front.css" and ".tonal:hover" in selector:
+                    continue
+                raise AssertionError(f"{sheet}: {selector} draws {prop} of a component")
+
+
+@pytest.mark.parametrize("sheet", DESK_SHEETS, ids=lambda name: name)
+def test_no_tab_is_underlined(sheet: str) -> None:
+    """Tabs are tinted pills (design.md §12, "The boards are the desk"). The Library's tabs
+    were underlined, Your targums' strip copied them, and Your Words' meaning languages
+    drew a third kind; a tab that wears a line under it is one of those come back."""
+    tabbish = re.compile(r"\.(?:tab|tabs|[\w-]+-tabs?)(?![\w-])")
+    for selector, prop, value in _declarations((ASSETS / sheet).read_text(encoding="utf-8")):
+        if not tabbish.search(selector):
+            continue
+        underline = (
+            prop in ("border-block-end", "border-bottom", "border-block-end-color")
+            or (prop == "text-decoration" and "underline" in value)
+            or (prop == "box-shadow" and "inset 0 -" in value)
+        )
+        assert not underline, f"{sheet}: {selector} underlines a tab ({prop}: {value})"
+
+
+@pytest.mark.parametrize("sheet", STYLESHEETS, ids=lambda p: p.name)
+def test_no_choice_of_a_few_is_filled_in_ink(sheet: Path) -> None:
+    """A choice of a few marks its live part in the teal wash, the reader's and the desk's
+    alike; the saved page's pair was the last one filled in ink."""
+    for selector, prop, value in _declarations(sheet.read_text(encoding="utf-8")):
+        if not re.search(r"seg(?:ment)?(?![\w-])", selector) or not prop.startswith("background"):
+            continue
+        assert value not in ("var(--ink)", "var(--ink-soft)"), f"{sheet.name}: {selector}"
+
+
+@pytest.mark.parametrize("sheet", DESK_SHEETS, ids=lambda name: name)
+def test_a_letter_tile_never_rests_on_beige(sheet: str) -> None:
+    """A tile without a picture is its letter on the colour of its kind (thumbs.py
+    `TONES`), never a beige box (P2, 2026-10-09; the boards' fallback tile)."""
+    for selector, prop, value in _declarations((ASSETS / sheet).read_text(encoding="utf-8")):
+        if "is-letter" in selector and prop.startswith("background"):
+            assert value not in ("var(--paper-raised)", "var(--desk)", "var(--paper)"), (
+                f"{sheet}: {selector} puts a letter on {value}"
+            )
+
+
+def test_every_tile_is_drawn_by_one_path() -> None:
+    """`TargumCovers.picture()` draws every text's tile on the desk: home, the shelf, the
+    Library, a playlist's mosaic and a subscription. A page that calls `tile()` with an
+    address of its own is a second path, which is how the beige boxes survived."""
+    for name in ("home.js", "shelf.js", "library.js", "playlists.js", "subs.js"):
+        code = (ASSETS / name).read_text(encoding="utf-8")
+        assert "TargumCovers.tile(" not in code and "covers.tile(" not in code, name
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    assert '"tone-" + tone(' in covers
+
+
+# -- the reader on the new system (design.md §12, "The reader's chrome is the desk's",
+#    2026-10-09) ------------------------------------------------------------------------
+
+
+def _bare(sheet: Path) -> str:
+    """A stylesheet without its comments."""
+    return re.sub(r"/\*.*?\*/", " ", sheet.read_text(encoding="utf-8"), flags=re.S)
+
+
+def test_the_reader_speaks_in_the_chrome_face_and_carries_it() -> None:
+    """`--ui` is the chrome's face on every page, the reader's included, and the reader
+    carries that face in the page, so naming it fetches nothing."""
+    tokens = _bare(ASSETS / "tokens.css")
+    root = tokens[tokens.index(":root {") : tokens.index("}", tokens.index(":root {"))]
+    assert re.findall(r"--ui:\s*([^;]+);", root) == ["var(--chrome)"]
+    assert "system-ui" not in re.sub(r"--chrome:[^;]+;", "", tokens), "only --chrome falls back"
+    reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
+    assert "chrome_face(" in reader, "a reader carries the chrome's face"
+
+
+def test_the_line_read_is_a_size_above_its_english_with_no_rule_beside_it() -> None:
+    """The boards' reading sizes: the source at 1.25em of the reader's own size, about
+    21px, and the translation under it with no rule before it."""
+    css = _bare(ASSETS / "reader.css")
+    rule = re.search(r"#reader \.pair > \.src\s*\{([^}]*)\}", css)
+    assert rule is not None and "font-size: 1.25em" in rule.group(1)
+    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        if ".mode-inter .tr" in selector or ".mode-parallel .tr" in selector:
+            assert "border-inline-start" not in body, selector.strip()
+
+
+def test_the_readers_presses_are_teal() -> None:
+    """Teal for what is pressed: the bar's play, Up next, the pager, the card's Ask. The
+    brown is left to what is kept and to a highlight."""
+    css = _bare(ASSETS / "reader.css")
+    shared = _bare(ASSETS / "shared.css")
+    for sheet, selector in (
+        (css, ".player-play"),
+        (css, ".next-up-link"),
+        (css, ".turn button"),
+        (shared, ".gloss-card .ask-go"),
+    ):
+        bodies = [b for s, b in re.findall(r"([^{}]+)\{([^{}]*)\}", sheet) if s.strip() == selector]
+        assert bodies, selector
+        assert any("var(--teal)" in b for b in bodies), f"{selector} is not teal"
+        assert not any("var(--accent)" in b for b in bodies), f"{selector} is still brown"
+
+
+def test_the_word_card_and_the_end_of_a_part_are_cards() -> None:
+    """§12, "The word card, the end of a part and Theatre are the boards'": the reader's
+    card at the card's white with no border, a sheet on a dimmed page on a phone, and the
+    end of a part a card with its name at the head."""
+    css = _bare(ASSETS / "reader.css")
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", css)
+    card = [b for s, b in rules if s.strip() == "#gloss-card"]
+    assert any("background: var(--card)" in b for b in card), card
+    assert any("var(--scrim)" in b for b in card), "the phone's sheet dims the page"
+    foot = [b for s, b in rules if s.strip() == ".foot,\n.film-end"]
+    assert any("background: var(--card)" in b and "var(--radius-card)" in b for b in foot), foot
+    reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
+    assert 'class="foot-title"' in reader
+
+
+def test_the_finish_bar_names_checks_that_exist() -> None:
+    """§14: the bar a surface is finished against names the tests that hold its
+    checkable lines. A test renamed or deleted would leave the bar citing nothing while
+    still reading as enforced, so every name it cites must be a test in this suite.
+    """
+    text = DESIGN.read_text(encoding="utf-8")
+    at = text.find("## 14 ·")
+    assert at != -1, "design.md has no §14, the bar a surface is finished against"
+    section = text[at:]
+    lines = re.findall(r"^(\d)\. \*\*", section, re.M)
+    assert lines == [str(n) for n in range(1, 9)], "§14's bar is eight numbered lines"
+
+    cited = set(re.findall(r"`(test_\w+)`", section))
+    assert cited, "§14 names no check, so nothing a machine can hold is held"
+    suite = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "tests").glob("test_*.py"))
+    defined = set(re.findall(r"^def (test_\w+)\(", suite, re.M))
+    missing = sorted(cited - defined)
+    assert not missing, "§14 cites checks the suite no longer has: " + ", ".join(missing)
+
+
+def test_every_hebrew_run_says_its_direction() -> None:
+    """§14, line 3: a run in a right-to-left language carries `dir` with its `lang`.
+
+    `lang` alone picks the face and the voice; the direction comes from `dir`. Inside an
+    English line, a Hebrew word without it is ordered by the line's direction, which is
+    right for one bare word and wrong as soon as a mark, a number or a second word joins.
+    Read at the templates, where the runs are written by hand.
+    """
+    loose = []
+    for page in PAGES:
+        written = page.read_text(encoding="utf-8")
+        for tag in re.findall(r'<[a-z]+\b[^>]*\blang="(?:he|arc|yi)"[^>]*>', written):
+            if not re.search(r'\bdir="', tag):
+                loose.append(f"{page.name}: {tag[:80]}")
+    assert not loose, "§14: Hebrew runs with no direction:\n" + "\n".join(loose)

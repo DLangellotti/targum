@@ -61,14 +61,14 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
             "token": token,
             # Every chrome page carries the talk drawer's frame, and so does a reader;
             # the framed conversation carries none (2026-09-11).
-            "page": '<html>start<iframe id="talk-frame"></iframe></html>',
+            "welcome": '<html>start<iframe id="talk-frame"></iframe></html>',
             "chatting": '<html><body class="chat"><div class="site-head"></div>'
             '<iframe id="talk-frame"></iframe></body></html>',
             "embedded": '<html><body class="chat embed"></body></html>',
             "progress": '<html>your progress<iframe id="talk-frame"></iframe></html>',
             "shelf": "<html>library</html>",
             "lists": {
-                "texts": "<html>your targums</html>",
+                "texts": '<html>your targums<iframe id="talk-frame"></iframe></html>',
                 "words": "<html>your words</html>",
                 "phrases": "<html>your phrases</html>",
             },
@@ -289,10 +289,21 @@ def test_the_old_words_address_lands_on_the_words(served: tuple[int, str, Path])
 
 
 def test_each_list_has_a_page_of_its_own(served: tuple[int, str, Path]) -> None:
-    """Learn caps every list it draws. These are where the rest of each one is."""
+    """Your targums is home since 2026-10-08, at `/`; the other two are behind the
+    account. `/texts` and `/learn`, the addresses that were, open home with what they
+    asked for (design.md §12)."""
     port, token, _ = served
+    for route, where in (
+        (f"/texts?k={token}", f"/?k={token}"),
+        (f"/texts?show=uploads&k={token}", f"/?show=uploads&k={token}"),
+        (f"/learn?k={token}", f"/?k={token}"),
+    ):
+        status, _, location = call(port, "GET", route)
+        assert status == 302 and location == where, route
+    status, body, _ = call(port, "GET", f"/welcome?k={token}")
+    assert status == 200 and b"start" in body, "the arrival's own page"
     for route, expected in (
-        ("/texts", b"your targums"),
+        ("/", b"your targums"),
         ("/words", b"your words"),
         ("/phrases", b"your phrases"),
     ):
@@ -369,7 +380,8 @@ def test_a_signed_out_browser_is_shown_nothing(served: tuple[int, str, Path]) ->
     port, token, _ = served
     status, payload = get(port, f"/account/me?k={token}")
     assert status == 200
-    assert payload == {"signedIn": False}
+    # Nobody to sign into yet, so not "signed out" either: the page asks as it always did.
+    assert payload == {"signedIn": False, "signedOut": False}
 
     status, payload, _ = call(port, "POST", f"/sync?k={token}", {"since": 0})
     assert status == 401
@@ -385,7 +397,7 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     port, token, _ = served
     cookie = sign_in(port, postbox)
     status, payload = get(port, f"/account/me?k={token}")
-    assert payload == {"signedIn": False}, "the key alone is not a person"
+    assert payload == {"signedIn": False, "signedOut": True}, "the key alone is not a person"
 
     status, payload, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert payload["signedIn"] is True
@@ -400,7 +412,7 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     link = postbox.link
     status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
     assert status == 200
-    assert b"no longer works" in body
+    assert b"This link has expired" in body
 
 
 def test_an_address_is_never_confirmed_or_denied(served: tuple[int, str, Path]) -> None:
@@ -834,6 +846,12 @@ def test_a_sitting_is_appended_and_the_figures_are_read_off_it(
     assert by_medium["watch"]["watched"] == 80
     assert by_medium["read"]["words"] == 360
 
+    # A box that stops keeping new events still shows a reader what it kept (§12,
+    # "The mockups win on Your Progress", 2026-10-09).
+    monkeypatch.delenv("TARGUM_EVENTS")
+    status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    assert got["kept"] is False and len(got["totals"]) == len(by_medium)
+
 
 def test_a_reader_can_stop_the_record_and_erase_it(
     served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
@@ -860,6 +878,44 @@ def test_a_reader_can_stop_the_record_and_erase_it(
     assert answer["erased"] == 5 and answer["events"]["on"] is True
     status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
     assert got["totals"] == []
+
+
+def test_a_text_left_by_its_corner_turns_its_language_on(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """design.md §12, 2026-10-07: a Russian text imported over the connector sits on the
+    shelf of an account that says Hebrew alone, and leaving it by the mark puts the desk
+    in Russian. The menu's own press still refuses a language not on the list; the
+    corner's carries leave to add it, and only ever adds, and only what targum offers."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(
+        port, "POST", f"/account/language?k={token}", {"language": "ru"}, cookie=cookie
+    )
+    assert status == 400 and answer["language"] == "he", "the menu offers only the list"
+
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/account/language?k={token}",
+        {"language": "ru", "add": True},
+        cookie=cookie,
+    )
+    assert status == 200 and answer["language"] == "ru"
+    assert answer["learning"] == ["he", "ru"], "Hebrew kept, Russian beside it"
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["language"] == "ru" and sorted(me["learning"]) == ["he", "ru"]
+
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/account/language?k={token}",
+        {"language": "es", "add": True},
+        cookie=cookie,
+    )
+    assert status == 400 and answer["language"] == "ru", "no desk in Spanish: nothing moves"
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert sorted(me["learning"]) == ["he", "ru"]
 
 
 def test_an_old_marking_arrives_as_the_persons_own_choice(tmp_path: Path) -> None:
@@ -1137,7 +1193,7 @@ def test_signing_out_ends_it_on_that_browser_only(
     assert status == 200 and "Max-Age=0" in handed
 
     _, mine, _ = call(port, "GET", f"/account/me?k={token}", cookie=laptop)
-    assert mine == {"signedIn": False}
+    assert mine == {"signedIn": False, "signedOut": True}
 
     _, theirs, _ = call(port, "GET", f"/account/me?k={token}", cookie=phone)
     assert theirs["signedIn"] is True
@@ -1163,12 +1219,12 @@ def test_a_session_outlives_a_restart_where_the_key_does_not(
     status, body, _ = call(port, "GET", "/progress", cookie=cookie)
     assert status == 200 and b"your progress" in body
 
-    # And without either, still nothing — the holding page now, rather than the
-    # stale-session error, because once an account exists on a machine "signed out" is
-    # a state somebody chose rather than a key that expired.
+    # And without either, still nothing — the sign-in door now (QA 2026-10-11, D2),
+    # rather than the stale-session error, because once an account exists on a machine
+    # "signed out" is a state somebody chose rather than a key that expired.
     status, body, _ = call(port, "GET", "/progress")
     assert b"<html>words</html>" not in body, "the words page must not be served"
-    assert b"Coming soon" in body or status == 403
+    assert status in (303, 403)
 
 
 # --- one person's readers are their own ---------------------------------------
@@ -1648,7 +1704,7 @@ def hosted(tmp_path: Path) -> tuple[int, threading.Thread, ThreadingHTTPServer]:
             "store": Store(tmp_path / "w.db"),
             "mailer": ConsoleMailer(stream=io.StringIO()),
             "address": "https://targum.page",
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "progress": "<html>your progress</html>",
             "shelf": "<html>library</html>",
         },
@@ -1669,13 +1725,16 @@ def test_a_stranger_sees_the_holding_page_and_nothing_else(tmp_path: Path) -> No
     """
     port, _, server = hosted(tmp_path)
     try:
-        for route in ("/", "/progress"):
-            status, body, _ = call(port, "GET", route)
-            assert status == 200, route
-            assert b"Coming soon" in body, f"{route} should be the holding page"
-            assert b'href="/account/signin"' in body, f"{route} has no way in"
-            # None of the product leaks through.
-            assert b"start</html>" not in body and b"library</html>" not in body
+        status, body, _ = call(port, "GET", "/")
+        assert status == 200
+        assert b"Coming soon" in body, "/ should be the holding page"
+        assert b'href="/account/signin"' in body, "/ has no way in"
+        # None of the product leaks through.
+        assert b"start</html>" not in body and b"library</html>" not in body
+        # Any other room is the door, carrying the room (QA 2026-10-11, decision D2).
+        status, body, where = call(port, "GET", "/progress")
+        assert status == 303 and where == "/account/signin?next=/progress"
+        assert b"your progress" not in body
     finally:
         server.shutdown()
 
@@ -1695,6 +1754,23 @@ def test_the_catalogue_is_shut(tmp_path: Path) -> None:
                 assert b"Coming soon" in body, f"{route} should be the door"
             else:
                 assert status == 404, route
+    finally:
+        server.shutdown()
+
+
+def test_the_link_preview_is_served_to_anybody(tmp_path: Path) -> None:
+    """The picture a shared link shows (design.md §12, "A shared link shows the mark",
+    2026-10-13). A crawler carries no key and no cookie, so it answers before either."""
+    port, _, server = hosted(tmp_path)
+    try:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", "/link-preview.png")
+        response = connection.getresponse()
+        body = response.read()
+        connection.close()
+        assert response.status == 200
+        assert response.getheader("Content-Type") == "image/png"
+        assert body.startswith(b"\x89PNG"), "a PNG"
     finally:
         server.shutdown()
 
@@ -1739,7 +1815,7 @@ def test_the_catalogue_opens_when_the_deployment_says_so(
         assert status == 200 and b"The Land of Israel" in body
 
         assert call(port, "GET", "/sitemap.xml")[0] == 200
-        assert b"Disallow: /\n" not in call(port, "GET", "/robots.txt")[1]
+        assert not call(port, "GET", "/robots.txt")[1].startswith(b"User-agent: *\nDisallow: /\n")
     finally:
         server.shutdown()
 
@@ -1791,6 +1867,24 @@ def test_the_about_page_is_open_to_strangers(tmp_path: Path) -> None:
         server.shutdown()
 
 
+def test_how_targum_reads_hebrew_is_open_to_strangers(tmp_path: Path) -> None:
+    """targum-internal#401: the page is for people who have never signed in, so the
+    holding page must not swallow it, and the foot that every page wears reaches it."""
+    port, _, server = hosted(tmp_path)
+    try:
+        status, body, _ = call(port, "GET", "/how")
+        assert status == 200
+        assert b"How targum reads Hebrew" in body
+        assert b"Coming soon" not in body
+        status, body, _ = call(port, "GET", "/how?lang=ru")
+        assert status == 200
+        assert "Как targum читает иврит".encode() in body
+        _, body, _ = call(port, "GET", "/about")
+        assert b'href="/how"' in body
+    finally:
+        server.shutdown()
+
+
 def test_the_holding_page_links_to_it(tmp_path: Path) -> None:
     port, _, server = hosted(tmp_path)
     try:
@@ -1821,9 +1915,9 @@ def test_signing_out_shows_the_holding_page_once_an_account_exists(tmp_path: Pat
 def test_the_about_page_is_reachable_from_inside_the_app() -> None:
     """It is the open-source half made visible, and a link only on the front door means
     nobody who is signed in ever finds it."""
-    from targum.render.builder import add_page, learn_page, library_page, progress_page
+    from targum.render.builder import add_page, library_page, list_page, progress_page
 
-    for page in (library_page("k"), learn_page("k"), progress_page("k"), add_page("k")):
+    for page in (library_page("k"), list_page("k", "texts"), progress_page("k"), add_page("k")):
         assert 'href="/about"' in page
 
 
@@ -2375,6 +2469,101 @@ def test_a_video_import_without_a_cover_shows_its_own_frame(
     assert climbing == 404
 
 
+def test_an_uploads_own_picture_is_served_to_its_reader_only(
+    served: tuple[int, str, Path],
+) -> None:
+    """targum-internal#429: a publisher's picture is kept with the reader who added it. The
+    same folder name on the shared shelf answers nothing, so a picture there could never
+    reach every reader."""
+    port, key, out = served
+    for home in ("local", "shared"):
+        (out / home / "article").mkdir(parents=True)
+    (out / "local" / "article" / "thumb.webp").write_bytes(b"RIFF0000WEBPmine")
+    (out / "shared" / "shelved").mkdir(parents=True)
+    (out / "shared" / "shelved" / "thumb.webp").write_bytes(b"RIFF0000WEBPtheirs")
+
+    def fetch(path: str) -> tuple[int, bytes, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read(), response.getheader("Content-Type") or ""
+        finally:
+            connection.close()
+
+    status, body, kind = fetch(f"/thumb/article?k={key}")
+    assert status == 200 and body.endswith(b"mine") and kind == "image/webp"
+    shelved, _, _ = fetch(f"/thumb/shelved?k={key}")
+    assert shelved == 404
+
+
+def test_a_text_with_no_picture_is_drawn_when_asked(served: tuple[int, str, Path]) -> None:
+    """`?drawn=1` answers with the tile instead of a 404: the first letter on the kind's
+    colour, drawn on the server from what it knows, and nothing fetched or stored."""
+    port, key, out = served
+    folder = out / "local" / "notes"
+    folder.mkdir(parents=True)
+    (folder / "document.json").write_text(
+        '{"source": "https://example.org/a", "title": "«שלום»", "language": "he"}',
+        encoding="utf-8",
+    )
+
+    def fetch(path: str) -> tuple[int, str, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            body = response.read().decode("utf-8", "replace")
+            return response.status, body, response.getheader("Content-Type") or ""
+        finally:
+            connection.close()
+
+    missing, _, _ = fetch(f"/thumb/psalms-c003?k={key}")
+    assert missing == 404, "unasked, nothing changes for the pages that draw their own letter"
+    status, body, kind = fetch(f"/thumb/psalms-c003?k={key}&drawn=1")
+    assert status == 200 and kind == "image/svg+xml" and body.startswith("<svg")
+    status, body, _ = fetch(f"/thumb/notes?k={key}&drawn=1")
+    assert status == 200 and ">ש</text>" in body and "#1f6f6b" in body, "an article is news"
+    nobody, _, _ = fetch(f"/thumb/..%2Fnotes?k={key}&drawn=1")
+    assert nobody == 404
+
+
+def test_a_library_text_asked_for_by_its_folder_wears_its_catalogue_cover(
+    served: tuple[int, str, Path],
+) -> None:
+    """The listening view asks for its picture by the reader's folder (design.md §12,
+    "Listening is a view of its own", 2026-10-10), and a library text's folder is not the
+    catalogue's id: the cover is found by the source the folder holds."""
+    from urllib.parse import quote
+
+    from targum.catalogue import CATALOGUE
+
+    port, key, out = served
+    entry = next(e for e in CATALOGUE if e.id == "psalms")
+    thumbs = out / "thumbs"
+    thumbs.mkdir()
+    (thumbs / "psalms.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 40)
+    folder = out / "shared" / "תהלים-he"
+    folder.mkdir(parents=True)
+    (folder / "document.json").write_text(
+        json.dumps({"source": entry.source, "title": "תהלים"}), encoding="utf-8"
+    )
+
+    def fetch(path: str) -> tuple[int, bytes]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
+    status, body = fetch(f"/thumb/{quote('תהלים-he')}?k={key}&drawn=1")
+    assert status == 200 and body.startswith(b"\x89PNG")
+    climbing, _ = fetch(f"/thumb/..%2Fshared%2F{quote('תהלים-he')}?k={key}")
+    assert climbing == 404
+
+
 def built_catalogue_text(out: Path, entry_id: str, titles: list[str]) -> Path:
     """One catalogue text on disk, with chapters, as a build would leave it."""
     from targum.catalogue import CATALOGUE
@@ -2893,6 +3082,67 @@ def test_a_door_spelled_with_the_wrong_final_letter_still_opens(
     assert status == 404, "a folder with nothing under it is not a door"
 
 
+def test_a_part_the_text_does_not_have_opens_its_first_part(
+    served: tuple[int, str, Path],
+) -> None:
+    """Reader QA, 2026-10-20 (targum-internal#464): `sec-0042.html` of a four-part text
+    answered the site's "We can't find that page". It opens the text's first part now,
+    query and all, with `gone=` naming the part asked for so the page can say so. A text
+    that is not there, or an address that is not a part, is still not found."""
+    from urllib.parse import quote
+
+    port, key, out = served
+    reader = out / "local" / "רות-he" / "reader"
+    reader.mkdir(parents=True)
+    for n in range(1, 5):
+        (reader / f"sec-{n:04d}.html").write_text(f"<p>part {n}</p>", encoding="utf-8")
+    (reader / "index.html").write_text("<p>contents</p>", encoding="utf-8")
+    single = out / "local" / "one-page-he" / "reader"
+    single.mkdir(parents=True)
+    (single / "index.html").write_text("<p>the page</p>", encoding="utf-8")
+
+    def fetch(path: str) -> tuple[int, bytes, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read(), response.getheader("Location") or ""
+        finally:
+            connection.close()
+
+    name = quote("רות-he")
+    status, _, where = fetch(f"/reader/{name}/reader/sec-0042.html?k={key}")
+    assert status == 302
+    assert where == f"/reader/{name}/reader/sec-0001.html?k={key}&gone=42"
+    status, body, _ = fetch(where)
+    assert status == 200 and body == b"<p>part 1</p>"
+
+    status, body, _ = fetch(f"/reader/{name}/reader/sec-0003.html?k={key}")
+    assert status == 200 and body == b"<p>part 3</p>", "a part that is there is served"
+    status, _, where = fetch(f"/reader/one-page-he/reader/sec-0002.html?k={key}")
+    assert status == 302 and where == f"/reader/one-page-he/reader/index.html?k={key}&gone=2"
+
+    status, _, where = fetch(f"/reader/{quote('אין-כזה-he')}/reader/sec-0002.html?k={key}")
+    assert status == 404 and not where, "a text that is not there is still not found"
+    status, _, where = fetch(f"/reader/{name}/reader/notes.html?k={key}")
+    assert status == 404 and not where, "only a part's address is a part"
+
+
+def test_the_reader_says_which_part_was_not_there() -> None:
+    """The line the first part shows, keyed and said in Russian; and the address is put
+    back as the part's own, so a reload is the first part plainly."""
+    from targum.strings import catalogue
+
+    source = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "reader.js"
+    ).read_text(encoding="utf-8")
+    english = "Part {n} isn't in this text, so we opened the first part."
+    assert f't(\n      "reader.page.part-gone",\n      "{english}"' in source
+    assert catalogue("en")["reader.page.part-gone"] == english
+    assert "{n}" in catalogue("ru")["reader.page.part-gone"]
+    assert 'query.delete("gone")' in source and "history.replaceState" in source
+
+
 def test_one_readers_cover_is_not_served_to_another(served: tuple[int, str, Path]) -> None:
     """The route puts the asker's own home on the name. Asking for a name that already
     carries one is asking for a file by somebody else's key, and `thumbs/` being one
@@ -2983,6 +3233,17 @@ def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
     assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""
 
 
+def test_a_build_says_the_language_it_was_pressed_in_until_it_reads_its_own() -> None:
+    """David, 2026-10-10: a French upload still transcribing had no language yet, and home
+    drew it under Hebrew too. Until the build reads its own, it says the one it was asked in."""
+    from targum.serve import Job
+
+    assert Job(id="j", source="x", options={"from": "fr"}).state()["language"] == "fr"
+    read = Job(id="k", source="x", language="he", options={"from": "fr"})
+    assert read.state()["language"] == "he"
+    assert Job(id="m", source="x").state()["language"] == ""
+
+
 def test_a_quote_says_a_silent_text_can_be_given_a_voice_later() -> None:
     """targum-internal#246, change 5. The card says it in one line and offers no button:
     the press is in the reader, beside the section it would read, and this card is
@@ -3023,6 +3284,9 @@ def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
     status, payload = get(port, f"/words/common?k={token}")
     assert status == 200 and len(payload["words"]) == 50 and payload["offset"] == 0
     assert payload["next"] == 50 and payload["into"] == "en"
+    # Words, not wordfreq's tokens (2026-10-18): no "1", no "0", no lone ב or ה.
+    forms = [row["form"] for row in payload["words"]]
+    assert not [form for form in forms if len(form) < 2 or form.isdigit()], forms
     first = payload["words"][0]
     assert set(first) == {"form", "band", "meaning"} and first["band"] in ("easy", "fairly easy")
     status, second = get(port, f"/words/common?offset=50&limit=10&k={token}")
@@ -3036,6 +3300,16 @@ def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
     # The hand table answers before the glossary for the commonest words (#378).
     said = {row["form"]: row["meaning"] for row in payload["words"]}
     assert said.get("עם") == "with" and said.get("היא") == "she; it"
+    # By name, for words already claimed (known issues 2026-10-12, 1.8): the same
+    # meanings, in the order asked, and no next page.
+    from urllib.parse import quote
+
+    status, named = get(port, f"/words/common?forms={quote('היא,עם')}&k={token}")
+    assert status == 200 and named["next"] is None and named["into"] == "en"
+    assert [(row["form"], row["meaning"]) for row in named["words"]] == [
+        ("היא", "she; it"),
+        ("עם", "with"),
+    ]
 
 
 # -- hear a silent text (targum-internal#246) ----------------------------------------
@@ -3137,6 +3411,23 @@ def test_hear_this_section_is_reserved_before_it_is_made(tmp_path: Path, monkeyp
         status, second, _ = call(port, "POST", "/voice?k=k", {"name": "book-he", "section": 2})
         assert status == 200 and second["id"] == first["id"], "the same job, not another"
         assert store.committed(0) == pytest.approx(row["claimed"]), "and nothing claimed twice"
+        voices = [job for job in library.jobs.values() if job.kind == "voice"]
+        assert [job.id for job in voices] == [first["id"]], "no second job made"
+        rows = store.db.execute("SELECT id FROM job WHERE kind = 'voice'").fetchall()
+        assert [one["id"] for one in rows] == [first["id"]], "and no second row claimed"
+
+        # The page asks on load whether the section is underway (2026-10-10), and only
+        # asks: the answer is the job, and nothing more is made or claimed.
+        status, asked = get(port, "/voice?k=k&name=book-he&section=2")
+        assert status == 200 and asked["job"]["id"] == first["id"]
+        assert asked["job"]["stage"] not in ("done", "failed", "blocked")
+        assert {"done", "total"} <= set(asked["job"])
+        status, other = get(port, "/voice?k=k&name=book-he&section=1")
+        assert status == 200 and other == {"job": None}, "another section is not underway"
+        status, nowhere = get(port, "/voice?k=k&name=nothing-here&section=2")
+        assert status == 200 and nowhere == {"job": None}
+        assert store.committed(0) == pytest.approx(row["claimed"]), "asking spends nothing"
+        assert len([job for job in library.jobs.values() if job.kind == "voice"]) == 1
     finally:
         server.shutdown()
 
@@ -3164,7 +3455,7 @@ def test_a_voice_that_stops_part_way_settles_what_was_said(
         folder / "document.json"
     )
 
-    def render_lines(lines: list[str], into: Path, voice: str = "", language: str = "he") -> Any:
+    def render_lines(lines: list[str], into: Path, voice: str = "", **kw: Any) -> Any:
         raise speech.Interrupted("The voice did not answer.", seconds=6.0)
 
     monkeypatch.setattr(speech, "render_lines", render_lines)
@@ -3218,13 +3509,17 @@ def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
         folder / "document.json"
     )
 
-    def render_lines(lines: list[str], into: Path, voice: str = "", language: str = "he") -> Any:
+    def render_lines(lines: list[str], into: Path, voice: str = "", **kw: Any) -> Any:
+        for said in range(1, len(lines) + 1):
+            kw["progress"](said)
+            counted.append((job.done, job.total))
         into.parent.mkdir(parents=True, exist_ok=True)
         clip = into.with_suffix(".mp3")
         clip.write_bytes(b"mp3")
         spans = [(float(n), float(n + 1)) for n in range(len(lines))]
         return speech.Clip(clip, "audio/mpeg", float(len(lines))), spans
 
+    counted: list[tuple[int, int]] = []
     monkeypatch.setattr(speech, "render_lines", render_lines)
     rendered: dict[str, Any] = {}
 
@@ -3252,6 +3547,7 @@ def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
     library.run(job)
     assert job.stage == "done", job.error
     assert job.seconds == 4.0, "a heading and three lines"
+    assert counted == [(1, 4), (2, 4), (3, 4), (4, 4)], "how far, line by line, for the page"
     assert job.reader == "book-he/reader/index.html"
     assert rendered["folder"] == folder, "named, so the page finds the manifest beside it"
     kept = manifest_module.load(folder)
@@ -3356,6 +3652,8 @@ def test_the_way_out_is_in_the_language_the_reader_followed_in(
     at a reader whose library, whose letter and whose follow button were all Russian."""
     port, key, out = served
     book = Store(out.parent / "words.db")
+    # An account to subscribe with (design.md §12, 2026-10-09).
+    book.finish_sign_in(book.start_sign_in("r@example.org"))
     book.follow_series("r@example.org", "parasha", language="ru")
     ((_, stop, said),) = book.followers("parasha")
     assert said == "ru"
@@ -3746,3 +4044,63 @@ def test_a_correction_with_nothing_in_it_is_refused(
     for bad in ({"lemma": "עם"}, {"meaning": "with"}, {}):
         status, answer, _ = call(port, "POST", f"/correction?k={token}", bad, cookie=cookie)
         assert status == 400, answer
+
+
+def test_a_weekly_edition_is_drawn_when_asked(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A weekly row is a library row outside `CATALOGUE`, so its `?drawn=1` was a 404 on
+    every visit to the Library; and its reader's folder lives under the weekly root, not
+    in anybody's home (known issues, 2026-10-12)."""
+    import dataclasses
+    from urllib.parse import quote
+
+    from targum.catalogue import CATALOGUE
+    from targum.weekly import entries as weekly_entries
+
+    port, key, out = served
+    edition = dataclasses.replace(CATALOGUE[0], id="weekly-2026-w39-aleph", title="מבט")
+    monkeypatch.setattr(weekly_entries, "entries", lambda: [edition])
+    folder = out / "weekly" / "weekly-2026-w39-aleph-he"
+    folder.mkdir(parents=True)
+    (folder / "document.json").write_text(
+        json.dumps({"source": "weekly:2026-w39-aleph", "title": "שבוע", "language": "he"}),
+        encoding="utf-8",
+    )
+
+    def fetch(path: str) -> tuple[int, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read().decode("utf-8", "replace")
+        finally:
+            connection.close()
+
+    status, body = fetch(f"/thumb/weekly-2026-w39-aleph?k={key}&drawn=1")
+    assert status == 200 and ">מ</text>" in body
+    status, body = fetch(f"/thumb/{quote('weekly-2026-w39-aleph-he')}?k={key}&drawn=1")
+    assert status == 200 and ">ש</text>" in body
+    missing, _ = fetch(f"/thumb/weekly-2026-w40-aleph?k={key}&drawn=1")
+    assert missing == 404
+
+
+def test_head_answers_like_get_without_a_body(served: tuple[int, str, Path]) -> None:
+    """`HEAD /` answered 501, which link previews and uptime checks read as a broken
+    site (known issues, 2026-10-12)."""
+    port, key, _ = served
+
+    def ask(method: str, path: str) -> tuple[int, str, bytes]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request(method, path)
+            response = connection.getresponse()
+            return response.status, response.getheader("Content-Length") or "", response.read()
+        finally:
+            connection.close()
+
+    for path in ("/", f"/?k={key}", "/health", "/no-such-page"):
+        got, length, body = ask("GET", path)
+        head, head_length, nothing = ask("HEAD", path)
+        assert head == got != 501, path
+        assert head_length == length and nothing == b"", path

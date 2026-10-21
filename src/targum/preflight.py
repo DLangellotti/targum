@@ -498,7 +498,7 @@ def reader_stylesheet() -> str:
     """The stylesheet a reader page inlines today, exactly as `render` bakes it in."""
     from .render.builder import _asset
 
-    return str(_asset("reader.css"))
+    return str(_asset("tokens.css") + _asset("shared.css") + _asset("reader.css"))
 
 
 def shelf_of(reader: Path, out: Path) -> str:

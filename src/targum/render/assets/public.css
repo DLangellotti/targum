@@ -705,6 +705,8 @@ body.public {
     min-block-size: 44px;
     line-height: 1.75rem;
   }
+  /* Sign in in the corner was 36px tall on the signed-out Library (QA, 2026-10-20). */
+  .public .corner .enter { min-block-size: 44px; display: inline-flex; align-items: center; }
 }
 
 /* The band is the parasha's, unchanged: two equal columns, words then picture, so no
@@ -1423,4 +1425,18 @@ body.public.note > main {
 }
 .public details.sources[open] summary .sub::after {
   content: "\2191";
+}
+
+/* The week's sheet's few choices, beside its button on /parasha (targum-internal#415):
+   one quiet row of boxes in the chrome's small size and muted ink, wrapping as the column
+   narrows, and the button after them. A form, so it works with nothing but the browser. */
+.sheet-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-block-start: 0.75rem; }
+.sheet-choices fieldset { display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; margin: 0; padding: 0; border: 0; min-inline-size: 0; }
+.sheet-choices label { display: inline-flex; align-items: center; gap: 0.35rem; font: 0.8125rem/1.4 var(--chrome); color: var(--ink-soft); cursor: pointer; }
+.sheet-choices input[type="checkbox"] { margin: 0; accent-color: var(--ink-soft); }
+.sheet-choices button[aria-busy="true"] { cursor: progress; }
+.sheet-choices .sheet-note { flex-basis: 100%; margin: 0; font: 0.8125rem/1.4 var(--chrome); color: var(--ink-soft); }
+.sheet-choices .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (hover: none) and (pointer: coarse) {
+  .sheet-choices label { min-block-size: 44px; }
 }

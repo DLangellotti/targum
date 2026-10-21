@@ -12,12 +12,12 @@
 <meta name="referrer" content="no-referrer">
 <title>back office</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'reader.css', 'public.css') }}
 {#- Carried because a `name` on an account is whatever the person typed, and on this box
     that is as likely to be Hebrew as not. Without it the page falls back to whatever the
     machine has, which for Hebrew on a stock Mac is a font with no accents in it. -#}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 <style>
   .bo { max-inline-size: 60rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
   .bo h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
@@ -67,6 +67,21 @@
   .bo .bo-tabs a:hover { color: var(--ink); }
   .bo .bo-tabs a[aria-selected="true"] { color: var(--ink); border-block-end-color: var(--ink); }
   .bo .tab-panel > h2:first-child, .bo .tab-panel > p:first-child { margin-block-start: 0; }
+  /* The readers' days, one row each (2026-10-15). Thirty cells fit at desk width and
+     scroll in their own box on a phone, never the page. */
+  .bo .strip-wrap { overflow-x: auto; }
+  .bo .strip th, .bo .strip td { padding: 0.3rem 0.15rem; }
+  .bo .strip td:first-child, .bo .strip th:first-child { padding-inline-end: 0.6rem; white-space: nowrap; }
+  .bo .strip .d { text-align: center; inline-size: 1.1rem; font-size: 0.6875rem; }
+  .bo .strip .on, .bo .strip .off { display: inline-block; inline-size: 0.6rem; block-size: 0.6rem; border-radius: 2px; }
+  .bo .strip .on { background: var(--leaf); }
+  .bo .strip .off { background: var(--rule); }
+  .bo .reach td:first-child { inline-size: 70%; }
+  .bo details.let-in { margin-block-start: 1rem; }
+  .bo details.let-in summary { cursor: pointer; color: var(--ink-soft); font-weight: 600; }
+  .bo a.write { font-size: 0.8125rem; font-weight: 600; }
+  .bo .told .said-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .bo .told .told-where { margin: 0.25rem 0 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -79,6 +94,7 @@
     {% if visits and visits.any() %}{{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot; {% endif %}
     {{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
     {{ survey.active() }} active in the last {{ days }} days &middot;
+    {{ told_open }} message{{ '' if told_open == 1 else 's' }} waiting on us &middot;
     {{ incidents|length }} incident{{ '' if incidents|length == 1 else 's' }} &middot; taken {{ survey.taken }}</p>
 
   {#- Four tabs on one page (David, 2026-09-28: "so much going on now"), switched in
@@ -96,6 +112,125 @@
   </nav>
 
   <section class="tab-panel" id="tab-people" role="tabpanel" aria-label="People">
+  {#- First what to do, then how the weeks went, then where readers get to (2026-10-15).
+      The follow-up list names people, from what clause 3.2 already holds; the two
+      tables below it name nobody. -#}
+  <h2>Follow up</h2>
+  {%- if survey.follow_up %}
+  <table class="follow">
+    <thead><tr><th>Address</th><th>Why</th><th></th></tr></thead>
+    <tbody>
+      {% for who in survey.follow_up %}
+      <tr>
+        <td>{{ who.email }}</td>
+        <td class="quiet">{{ who.why }}</td>
+        <td>
+          {%- if who.action == 'resend' %}
+          <form method="post" action="/back-office/resend" class="decide">
+            <input type="hidden" name="email" value="{{ who.email }}">
+            <button type="submit" aria-label="Send {{ who.email }} the invitation again">Send again</button>
+          </form>
+          {%- else %}
+          {#- From the operator's own mail, so a reply comes back to a person. -#}
+          <a class="write" href="mailto:{{ who.email|urlencode }}?subject=targum">Write</a>
+          {%- endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="quiet">Nobody to follow up with today.</p>
+  {%- endif %}
+
+  {#- What readers wrote to us through Tell us (targum-internal#456, clause 3.14): the
+      one place this page holds words somebody wrote, because they wrote them to us.
+      Open and asked first; fixed and won't fold away, and go a year after closing. -#}
+  <h2 id="told">Tell us</h2>
+  {%- set waiting_on_us = told|selectattr('state', 'in', ['open', 'asked'])|list %}
+  {%- set settled = told|rejectattr('state', 'in', ['open', 'asked'])|list %}
+  {%- macro told_rows(rows) %}
+  <table class="told">
+    <thead><tr><th>When</th><th>From</th><th>What they said</th><th>State</th></tr></thead>
+    <tbody>
+      {% for one in rows %}
+      <tr>
+        <td class="quiet">{{ one.when }}</td>
+        <td>{% if one.email %}{{ one.email }}<br><a class="write" href="mailto:{{ one.email|urlencode }}?subject=targum">Write</a>{% else %}<span class="quiet">no account</span>{% endif %}</td>
+        <td><p class="said-text" dir="auto">{{ one.said }}</p>
+          <p class="quiet told-where">{{ one.page or 'no page' }} &middot; {{ one.viewport or 'no window' }} &middot; {{ one.language or 'no language' }} &middot; {{ one.build or 'no build' }}</p></td>
+        <td>
+          <form method="post" action="/back-office/told" class="decide">
+            <input type="hidden" name="id" value="{{ one.id }}">
+            <select name="state" aria-label="State of message {{ one.id }}">
+              {% for state in told_states %}<option value="{{ state }}"{% if one.state == state %} selected{% endif %}>{{ state }}</option>{% endfor %}
+            </select>
+            <button type="submit">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {%- endmacro %}
+  {%- if waiting_on_us %}
+  {{ told_rows(waiting_on_us) }}
+  {%- else %}
+  <p class="quiet">Nothing waiting on us.</p>
+  {%- endif %}
+  {%- if settled %}
+  <details class="let-in">
+    <summary>Closed ({{ settled|length }})</summary>
+    {{ told_rows(settled) }}
+  </details>
+  {%- endif %}
+
+  {%- if survey.batches %}
+  <h2>Each week's readers</h2>
+  <div class="strip-wrap"><table>
+    <thead>
+      <tr>
+        <th>Let in the week of</th><th class="n">Let in</th><th class="n">Signed in</th>
+        <th class="n">Opened a text</th><th class="n">Kept a word</th><th class="n">Came back</th>
+        <th class="n">A second text</th><th class="n">Week 1</th><th class="n">Week 4</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in survey.batches %}
+      <tr>
+        <td>{{ week.week }}</td>
+        <td class="n">{{ week.let_in }}</td>
+        <td class="n">{{ week.signed_in }}</td>
+        <td class="n">{{ week.opened }}</td>
+        <td class="n">{{ week.kept }}</td>
+        {#- Out of those who have had the chance, never out of everyone: a week let in
+            yesterday reads "too soon", not nought. -#}
+        {%- for n, over in [(week.came_back, week.old_enough), (week.second_text, week.old_enough), (week.week_one, week.week_one_over), (week.week_four, week.week_four_over)] %}
+        <td class="n">{% if over %}{{ n }} of {{ over }}{% else %}<span class="quiet">too soon</span>{% endif %}</td>
+        {%- endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {%- endif %}
+
+  {%- if survey.readers %}
+  <h2>How far readers get</h2>
+  <table class="reach">
+    <tbody>
+      {% for part in survey.reach %}
+      <tr{% if not part.people %} class="empty"{% endif %}>
+        <td>{{ part.part }}</td>
+        {#- A count of a count, never a percentage: with a few readers, one person is a
+            swing of twenty points. -#}
+        <td class="n">{{ part.people }} of {{ survey.readers }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="quiet note">Your own addresses are not counted anywhere on this page.</p>
+  {%- endif %}
+
   {#- The front door's list (targum-internal#69). Three numbers, no addresses: the rest
       of this page names nobody either. `on` is the number that matters — an address
       that answered its confirmation — and `pending` is how many have not yet. -#}
@@ -113,15 +248,10 @@
   {%- endif %}
 
   {#- Who is waiting, oldest first, which is the order they would be let in. The counts
-      above answer "how many", which is the one question the operator does not have. -#}
-  {%- if survey.waiting_list %}
-  <h2>The waitlist</h2>
-  <table>
-    <thead>
-      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
-    </thead>
-    <tbody>
-      {% for who in survey.waiting_list %}
+      above answer "how many", which is the one question the operator does not have.
+      Those already let in fold away beneath (2026-10-15): with the door open, they were
+      most of the list, and the few still waiting were the rows to find. -#}
+  {%- macro waiting_row(who) %}
       <tr>
         <td>{{ who.email }}</td>
         <td class="quiet">{{ who.asked }}</td>
@@ -143,9 +273,37 @@
         <td class="quiet">{{ who.language or 'en' }}</td>
         <td class="quiet">{{ who.page or '—' }}{% if who.link %}<br><a href="{{ who.link }}" rel="noopener noreferrer" target="_blank">{{ who.link|truncate(48, true, '…') }}</a>{% endif %}</td>
       </tr>
-      {% endfor %}
+  {%- endmacro %}
+  {%- macro waiting_head() %}
+    <thead>
+      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
+    </thead>
+  {%- endmacro %}
+  {%- if survey.waiting_list %}
+  {%- set still = survey.waiting_list|rejectattr('invited')|list %}
+  {%- set done = survey.waiting_list|selectattr('invited')|list %}
+  <h2>The waitlist</h2>
+  {%- if still %}
+  <table>
+    {{ waiting_head() }}
+    <tbody>
+      {% for who in still %}{{ waiting_row(who) }}{% endfor %}
     </tbody>
   </table>
+  {%- else %}
+  <p class="quiet">Everybody who joined has been let in.</p>
+  {%- endif %}
+  {%- if done %}
+  <details class="let-in">
+    <summary>Let in ({{ done|length }})</summary>
+    <table>
+      {{ waiting_head() }}
+      <tbody>
+        {% for who in done %}{{ waiting_row(who) }}{% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {%- endif %}
   {#- The press that keeps the front door's promise (targum-internal#292): the oldest
       confirmed addresses that have not been let in yet, each put on the guest list and
       each written to in the language they joined in. Safe to press again — an address
@@ -188,38 +346,36 @@
   </table>
 
   <h2>The last {{ days }} days</h2>
-  {#- Words saved and texts opened, per account per day, with a mark for a day the
-      reader's own record says they read on — which is the only one that knows about an
-      evening that saved nothing. -#}
-  <table>
+  {#- One row a reader and one cell a day, oldest on the left (2026-10-15). It was a
+      column a reader, which stopped fitting at ten. A filled cell is a day they kept a
+      word, opened a text or read; its title says which. Most recently active first. -#}
+  {%- set columns = survey.days|reverse|list %}
+  <div class="strip-wrap">
+  <table class="strip">
     <thead>
       <tr>
-        <th>Day</th>
-        {% for who in survey.accounts %}<th class="n">{{ who.email.split('@')[0] }}</th>{% endfor %}
+        <th>Reader</th>
+        {% for day in columns %}<th class="d" title="{{ day.day }}">{{ day.day[8:]|int }}</th>{% endfor %}
       </tr>
     </thead>
     <tbody>
-      {% for day in survey.days %}
-      <tr{% if not day.busy() %} class="empty"{% endif %}>
-        <td>{{ day.day }}</td>
-        {% for who in survey.accounts %}
-        <td class="n">
+      {% for who in survey.accounts|sort(attribute='last_active', reverse=True) %}
+      <tr>
+        <td>{{ who.email.split('@')[0] }}</td>
+        {% for day in columns -%}
           {%- set words = day.words.get(who.id, 0) -%}
           {%- set opened = day.opened.get(who.id, 0) -%}
           {%- if words or opened or who.id in day.read -%}
-            {% if words %}{{ words }} word{{ '' if words == 1 else 's' }}{% endif %}
-            {%- if words and opened %} &middot; {% endif -%}
-            {% if opened %}{{ opened }} text{{ '' if opened == 1 else 's' }}{% endif %}
-            {%- if who.id in day.read %} <span class="read" title="read on this day"></span>{% endif -%}
+          <td class="d"><span class="on" title="{{ day.day }}: {% if words %}{{ words }} word{{ '' if words == 1 else 's' }}{% endif %}{% if words and opened %} · {% endif %}{% if opened %}{{ opened }} text{{ '' if opened == 1 else 's' }}{% endif %}{% if not words and not opened %}read{% endif %}"></span></td>
           {%- else -%}
-            <span class="nothing">&middot;</span>
+          <td class="d"><span class="off"></span></td>
           {%- endif -%}
-        </td>
-        {% endfor %}
+        {%- endfor %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
 
   </section>
 
@@ -229,6 +385,14 @@
       A visitor is an address and browser within one day, so the window's figure is a
       sum of days, not a count of people. -#}
   <h2 id="visitors">Visitors</h2>
+  {#- What came in through the chat connector (targum-internal#408), off the job and
+      playlist rows. Readers who use it are signed in, so the visitor count below never
+      sees them. -#}
+  {%- if survey.connector and (survey.connector.quoted or survey.connector.sets) %}
+  <p class="taken">Through the connector, last {{ days }} days: {{ survey.connector.quoted }} texts offered &middot;
+    {{ survey.connector.pressed }} confirmed &middot; {{ survey.connector.finished }} ready &middot;
+    {{ survey.connector.sets }} playlists</p>
+  {%- endif %}
   {%- if not visits or not visits.any() %}
   <p class="nothing">Nothing counted yet. The roll-up runs hourly on the box.</p>
   {%- else %}
@@ -379,6 +543,54 @@
     </tbody>
   </table>
 
+  {#- What broke in readers' browsers (targum-internal#457, clause 3.14), counted by
+      message and page over thirty days: how often, for how many accounts, and where in
+      the script. A message reported five times in an hour has mailed the operator. Fixed
+      marks a message settled on every page and folds it away; a report after the fix
+      brings it back. -#}
+  <h2 id="faults">Broken in browsers</h2>
+  {%- set broken = faults|rejectattr('since', 'equalto', 0)|list %}
+  {%- set mended = faults|selectattr('since', 'equalto', 0)|list %}
+  {%- macro fault_rows(rows) %}
+  <table>
+    <thead><tr><th>Last</th><th>Page</th><th>What</th><th class="n">Times</th><th class="n">Accounts</th><th></th></tr></thead>
+    <tbody>
+      {% for one in rows %}
+      <tr>
+        <td class="quiet">{{ one.when }}</td>
+        <td>{{ one.page or 'not said' }}</td>
+        <td>{{ one.message }}
+          {%- if one.fixed_on and one.since %}<p class="quiet">Back after the fix on {{ one.fixed_on }}: {{ one.since }} since.</p>{% endif %}
+          {%- if one.place or one.build %}<details class="trace"><summary class="quiet">Where</summary><pre>{{ one.place or 'not said' }}{% if one.build %} &middot; {{ one.build }}{% endif %}</pre></details>{% endif %}</td>
+        <td class="n">{{ one.count }}</td>
+        <td class="n">{{ one.people }}</td>
+        <td>
+          {%- if one.since %}
+          <form method="post" action="/back-office/fault" class="decide">
+            <input type="hidden" name="message" value="{{ one.message }}">
+            <button type="submit" aria-label="Mark {{ one.message|truncate(60) }} fixed on every page">Fixed</button>
+          </form>
+          {%- else %}<span class="quiet">Fixed {{ one.fixed_on }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {%- endmacro %}
+  {%- if broken %}
+  {{ fault_rows(broken) }}
+  {%- elif mended %}
+  <p class="nothing">Nothing has broken since the last fix.</p>
+  {%- else %}
+  <p class="nothing">No page has broken in a browser lately.</p>
+  {%- endif %}
+  {%- if mended %}
+  <details class="let-in">
+    <summary>Fixed ({{ mended|length }})</summary>
+    {{ fault_rows(mended) }}
+  </details>
+  {%- endif %}
+
   <h2>Incidents</h2>
   {#- What went wrong, other than in the journal (targum-internal#24): a request that
       raised, a build that died, a look-up that failed. The type and the message, the
@@ -405,9 +617,10 @@
 
   </section>
 
-  <p class="note">Counts only. This page holds no words, no texts and no notes — see
-    <code>backoffice.py</code> for why that is a rule rather than a first version.</p>
+  <p class="note">Counts only. This page holds no words, no texts and no notes, save the
+    messages readers write to us through Tell us. See <code>backoffice.py</code> for why
+    that is a rule rather than a first version, and why those are the exception.</p>
 </main>
-<script>{{ asset('backoffice.js') }}</script>
+{{ script('backoffice.js') }}
 </body>
 </html>

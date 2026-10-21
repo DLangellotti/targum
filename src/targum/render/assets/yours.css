@@ -1,0 +1,407 @@
+/* Your targums, Your Words and Your Phrases — the three lists `yours.html.j2` draws.
+ *
+ * What the three share and nothing else does: the column they stand in, the line while
+ * the shelf is asked for, and what is said when there is nothing. The panels, rows and
+ * list controls are words.css's and library.css's; home's own head (Continue, the next
+ * one, the upload) is home.css. These rules were Learn's until Learn was taken apart
+ * (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08), and are
+ * kept here with the rest of Learn's sheet left behind. */
+
+/* The lists are pages to read down, not a reader to fill the desk with: they keep the
+   column every other list page stands in, header and all. */
+body.yours main {
+  max-width: var(--column);
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+/* The type selector otherwise beats the user-agent [hidden] rule. */
+body.yours main[hidden] {
+  display: none;
+}
+@media (max-width: 40rem) {
+  /* The phone's gutter is 1rem, the mark's and the cards': the back link, the counts,
+     the chips and the cards all touched the glass's edge at 0 (2026-10-09). */
+  body.yours main { padding: 1rem 1rem 5rem; }
+}
+
+/* While the shelf is asked for (2026-09-14): one quiet line where the shelf will stand,
+   so the page under the bar is not blank for the seconds a large shelf takes. */
+.learn-waiting {
+  margin: 3rem auto;
+  max-width: var(--column);
+  padding-inline: 1.5rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.learn-waiting[hidden] { display: none; }
+
+/* Nothing yet, or nothing could be loaded. */
+body.yours .nothing {
+  max-width: 34rem;
+  margin: 4rem auto;
+  padding: 0 1.25rem;
+  text-align: center;
+  color: var(--ink-soft);
+}
+body.yours .nothing[hidden] {
+  display: none;
+}
+body.yours .nothing .lede {
+  margin: 0 0 0.5rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+body.yours .nothing a {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--hairline);
+}
+body.yours .nothing a:hover { border-block-end-color: var(--ink-soft); }
+@media (max-width: 40rem) {
+  body.yours .nothing { padding-inline: 1rem; }
+}
+
+/* The way back to Your targums from Your Words and Your Phrases; words.css draws it. */
+.back {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+/* --- Your Words' head and its rows (design.md §12, "Your Words is reached from Your
+   Progress, by stage", 2026-10-09) ------------------------------------------------------
+   The way back, what the list adds up to, and Words and Phrases as tabs: links, because
+   each is a page, drawn as the desk's pill tabs with the one you are on filled. */
+.words-head { display: flex; flex-direction: column; gap: 0.6rem; margin-block-end: 1.25rem; }
+.words-back { align-self: start; font-size: 0.875rem; color: var(--teal); text-decoration: none; }
+.words-back:hover { text-decoration: underline; }
+.words-summary { margin: 0; font-size: 0.9375rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.words-summary:empty { display: none; }
+
+/* --- Your Words is one table and a practice card (design.md §12, 2026-10-09) -----------
+   Boards WordsDesk and WordsPhone: the head on the desk, the exports quiet at its end;
+   then the list's card — Words and Phrases as tabs with the find field in its head, the
+   stages as tabs, the table, and "Most met first" with Show more at its foot — and the
+   practice card beside it, which comes first on a phone. */
+body.yours .visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.words-sum { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.4rem 1.25rem; }
+.words-exports { margin: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.link-quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link-quiet:hover { color: var(--ink); }
+.link-quiet[hidden] { display: none; }
+
+.words-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22.5rem;
+  gap: 1.5rem;
+  align-items: start;
+}
+.words-grid:has(> .practise[hidden]) { grid-template-columns: minmax(0, 1fr); }
+.words-grid > .practise { position: sticky; inset-block-start: 1rem; }
+.words-grid > .practise[hidden] { display: none; }
+.words-card { min-inline-size: 0; }
+.words-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+}
+.words-card-head .find { flex: 0 1 16rem; min-inline-size: 0; min-block-size: 2.5rem; font-size: 0.875rem; }
+.stage-tabs { margin-block-end: 0.75rem; }
+.stage-tabs .tab-often { margin-inline-start: 0.75rem; }
+.meaning-langs { margin-block-end: 0.75rem; }
+
+/* The table: the word, its meaning, in how many texts it was met, its stage by name on
+   the ramp's colour, and the five stages. */
+table.words-table { inline-size: 100%; border-collapse: collapse; font-size: 0.875rem; }
+table.words-table th {
+  padding: 0 0.75rem 0.5rem 0;
+  border-block-end: 1px solid var(--hairline);
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-align: start;
+  white-space: nowrap;
+}
+table.words-table td {
+  padding: 0.7rem 0.75rem 0.7rem 0;
+  border-block-end: 1px solid var(--hairline);
+  vertical-align: middle;
+}
+table.words-table tbody tr { cursor: pointer; }
+table.words-table tbody tr:hover { background: var(--teal-wash); }
+table.words-table:not(.has-met) .met { display: none; }
+table.words-table .term { font-family: var(--reading); font-size: 1.25rem; line-height: 1.35; }
+table.words-table .term:lang(he),
+table.words-table .term:lang(yi),
+table.words-table .term:lang(arc) { font-family: var(--reading-hebrew); }
+table.words-table .word-cell .form,
+table.words-table .word-cell .said { display: block; font-size: 0.8125rem; color: var(--ink-soft); }
+table.words-table .word-cell .said { color: var(--iris); font-family: var(--reading); }
+table.words-table.is-rtl .word-cell { text-align: end; }
+table.words-table td.meaning { min-inline-size: 7rem; }
+.word-note { display: block; margin-block-start: 0.2rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.word-note.friend { color: var(--clay); }
+.word-note .friend-tag { color: var(--clay); border-color: var(--clay); }
+table.words-table td.met { color: var(--ink-soft); white-space: nowrap; }
+table.words-table td.status { white-space: nowrap; }
+table.words-table .status-met { display: none; }
+table.words-table td.stage { white-space: nowrap; cursor: auto; }
+table.words-table td.stage .vocab-editor { gap: 0; }
+table.words-table td.stage .vocab-editor .levels { flex-wrap: nowrap; }
+/* A word just ignored (QA 2026-10-11, decision D6): its row says where it went, quietly,
+   with Undo after it in teal, as a deleted text's row does on home. Not a row that opens
+   a card, so it takes no hover. Kept clear of the phone's bar of places when the
+   keyboard scrolls to it. */
+table.words-table tbody tr.held { cursor: auto; }
+table.words-table tbody tr.held:hover { background: none; }
+table.words-table td.held-cell { color: var(--ink-soft); }
+.held-note { margin-inline-end: 0.5rem; }
+.held-note .term { font-size: 1.0625rem; color: var(--ink); }
+.held-undo { scroll-margin-block-end: calc(8.5rem + env(safe-area-inset-bottom)); }
+/* The copy waits like the reader's list's does, beside the word and out of its way. */
+table.words-table .copy { opacity: 0; margin-inline-start: 0.35rem; }
+table.words-table tr:hover .copy,
+table.words-table .copy:focus-visible,
+table.words-table .copy.copied { opacity: 1; }
+.dot {
+  display: inline-block;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  margin-inline-end: 0.45rem;
+  border-radius: 50%;
+  background: var(--well);
+  vertical-align: 0.05em;
+}
+.dot-1 { background: color-mix(in srgb, var(--leaf) 32%, var(--paper)); }
+.dot-2 { background: color-mix(in srgb, var(--leaf) 55%, var(--paper)); }
+.dot-3 { background: color-mix(in srgb, var(--leaf) 78%, var(--paper)); }
+.dot-9 { background: var(--leaf); }
+.dot-0 { background: transparent; box-shadow: inset 0 0 0 1px var(--ink-soft); }
+.words-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-block-start: 0.9rem; }
+.words-order { font-size: 0.8125rem; color: var(--ink-soft); }
+.words-foot .more {
+  display: inline-block;
+  inline-size: auto;
+  margin: 0 0 0 auto;
+  padding: 0.35rem 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.words-foot .more[hidden] { display: none; }
+
+/* Practise these: one word at a time, in a line the reader read. */
+.practise-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.practise-top .section-title { margin: 0; }
+.practise-at { font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.practise-note { margin: 0.35rem 0 1rem; font-size: 0.875rem; color: var(--ink-soft); }
+.practise-well { padding: 1rem 1.1rem; border: 1px solid var(--hairline); border-radius: 12px; }
+.practise-from { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.75rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.practise-from .practise-thumb { flex: none; inline-size: 1.75rem; block-size: 1.75rem; border-radius: 6px; overflow: hidden; font-size: 0.875rem; }
+.practise-from .practise-thumb img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.practise-line { margin: 0 0 0.9rem; font-family: var(--reading); font-size: 1.25rem; line-height: 1.65; color: var(--ink); }
+.practise-line:lang(he),
+.practise-line:lang(yi),
+.practise-line:lang(arc) { font-family: var(--reading-hebrew); }
+.practise-word {
+  padding: 0 0.15em;
+  border-radius: 6px;
+  background: var(--teal-wash);
+  box-shadow: inset 0 0 0 1.5px var(--teal);
+  color: inherit;
+}
+.practise-meaning { padding-block-start: 0.8rem; border-block-start: 1px solid var(--hairline); }
+.practise-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; margin: 0 0 0.3rem; }
+.practise-head .term { font-family: var(--reading); font-size: 1.25rem; }
+.practise-head .term:lang(he),
+.practise-head .term:lang(yi),
+.practise-head .term:lang(arc) { font-family: var(--reading-hebrew); }
+.practise-sense { font-weight: 600; font-size: 0.9375rem; }
+.practise-translation { margin: 0.4rem 0 0; font-family: var(--reading); font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
+.practise-ask { display: none; }
+.practise-question { margin: 0 0 0.6rem; font-size: 0.875rem; color: var(--ink-soft); }
+.practise-reveal { inline-size: 100%; }
+.practise-stage { margin-block: 1rem 0.25rem; }
+.practise-next {
+  display: block;
+  margin-inline-start: auto;
+  padding: 0.4rem 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.practise-next[hidden] { display: none; }
+.practise-coming { margin-block-start: 0.75rem; padding-block-start: 0.75rem; border-block-start: 1px solid var(--hairline); }
+.practise-coming-head { margin: 0 0 0.35rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.practise-coming-words { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0; }
+.practise-go {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  cursor: pointer;
+}
+.practise-go:lang(he),
+.practise-go:lang(yi),
+.practise-go:lang(arc) { font-family: var(--reading-hebrew); }
+.practise-go:hover { color: var(--teal); }
+
+/* Narrower than the column and the card beside it: one column, the card first. */
+@media (max-width: 64rem) {
+  .words-grid { grid-template-columns: minmax(0, 1fr); }
+  .words-grid > .practise { position: static; order: -1; }
+}
+
+/* A phone (board WordsPhone): each word a row of its own — what it means and the word
+   on one line, its stage and how often it was met under them, and the stages a thumb
+   tall — and the practice card asks before it tells. */
+@media (max-width: 40rem) {
+  .words-card-head .find { flex: 1 1 100%; }
+  table.words-table,
+  table.words-table tbody,
+  table.words-table tr,
+  table.words-table td { display: block; }
+  table.words-table thead { display: none; }
+  table.words-table tbody tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "word meaning" "status status" "stage stage";
+    align-items: baseline;
+    gap: 0.35rem 0.75rem;
+    padding-block: 0.9rem;
+    border-block-end: 1px solid var(--hairline);
+  }
+  table.words-table.is-rtl tbody tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "meaning word" "status status" "stage stage";
+  }
+  table.words-table td { padding: 0; border: 0; }
+  table.words-table td.word-cell { grid-area: word; }
+  table.words-table td.meaning { grid-area: meaning; min-inline-size: 0; }
+  table.words-table:not(.is-rtl) td.meaning { text-align: end; }
+  table.words-table td.met { display: none; }
+  table.words-table td.status { grid-area: status; font-size: 0.8125rem; color: var(--ink-soft); white-space: normal; }
+  table.words-table .status-met { display: inline; }
+  table.words-table td.stage { grid-area: stage; }
+  table.words-table td.stage .vocab-editor .level { min-inline-size: 3rem; }
+  table.words-table tbody tr.held,
+  table.words-table.is-rtl tbody tr.held { display: block; }
+  .practise-body:not(.is-shown) .practise-meaning,
+  .practise-body:not(.is-shown) .practise-stage,
+  .practise-body:not(.is-shown) .practise-next,
+  .practise-body:not(.is-shown) .practise-coming { display: none; }
+  .practise-body:not(.is-shown) .practise-ask { display: block; }
+}
+
+/* The Grammar tab (targum-internal#440): the hard spots as a list, and a round beside it
+   in the practice card's frame. Two answers as two presses; once one is chosen the right
+   one wears leaf and a wrong choice clay, each with a line under it, so it never rests on
+   colour alone (design.md §4). */
+.grammar-spots { list-style: none; margin: 0; padding: 0; }
+.grammar-spot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.8rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.grammar-spot-name { margin: 0; font-weight: 600; }
+.grammar-spot-met { margin: 0.2rem 0 0; font-size: 0.875rem; color: var(--ink-soft); }
+.grammar-spot-lens { margin: 0.2rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.grammar-spot:not(.is-ready) .grammar-spot-name { color: var(--ink-soft); font-weight: 400; }
+.grammar-options { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-block: 0.4rem 0.9rem; }
+.grammar-option {
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.grammar-option:hover:not(:disabled) { background: var(--teal-wash); }
+.grammar-option:disabled { cursor: default; }
+.grammar-option.is-right { border-color: var(--leaf); text-decoration: underline; text-underline-offset: 4px; }
+.grammar-option.is-wrong { border-color: var(--clay); text-decoration: line-through; color: var(--ink-soft); }
+.grammar-answer:lang(he) { font-family: var(--reading-hebrew); }
+.grammar-feedback { padding-block-start: 0.8rem; border-block-start: 1px solid var(--hairline); }
+.grammar-verdict { margin: 0 0 0.3rem; font-weight: 600; }
+.grammar-rule { margin: 0 0 0.6rem; font-size: 0.9375rem; color: var(--ink); }
+.grammar-other { margin: 0 0 0.2rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.grammar-other-line { font-size: 1.0625rem; margin-block-end: 0; }
+.grammar-done { margin: 0 0 1rem; }
+.grammar-said:lang(he) { font-family: var(--reading-hebrew); }
+/* Start and Next are the round's one way on, a `.btn` like Practise: the practice card's
+   text-link Next, which they also wear, took the button's padding away and left "Start"
+   squeezed into a 30px circle (Your Words QA, 2026-10-20). */
+.btn.grammar-next { padding: 0 1.125rem; }
+@media (max-width: 40rem) {
+  .grammar-options { grid-template-columns: 1fr; }
+}
+
+/* A reader with no words: the line, and the way to where words are met, without stage
+   tabs or column heads over nothing. */
+body.yours .stage-tabs[hidden],
+body.yours table.words-table[hidden] { display: none; }
+.empty-go { color: var(--teal); font-weight: 600; text-decoration: none; }
+.empty-go:hover { text-decoration: underline; }
+
+/* §8 under a thumb (Your Words QA, 2026-10-20): the way back, the two exports, the find
+   field, the practice card's Next and its coming words, and Undo on an ignored row were
+   21-40px on a phone. Drawn at 44px rather than given a reach: each stands a line from
+   text, and a reach would cross it. */
+@media (hover: none) and (pointer: coarse) {
+  .words-back,
+  .words-exports .link-quiet:not([hidden]),
+  .practise-go,
+  .empty-go {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+  .words-exports .link-quiet:not([hidden]),
+  .practise-go { min-inline-size: 44px; justify-content: center; }
+  .practise-next {
+    display: flex;
+    align-items: center;
+    inline-size: fit-content;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+  .words-card-head .find { min-block-size: 44px; }
+  .stage-tabs .tab { min-inline-size: 44px; justify-content: center; }
+  .held-undo { min-inline-size: 44px; }
+}

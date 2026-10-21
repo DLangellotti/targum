@@ -616,8 +616,8 @@ def test_every_section_carries_its_own_done(tmp_path: Path) -> None:
     first = pages[1].read_text(encoding="utf-8")
     last = pages[2].read_text(encoding="utf-8")
 
-    assert 'id="done-mark"' in first, "the first chapter can be finished on its own"
-    assert 'id="done-mark"' in last
+    assert 'id="done-go"' in first, "the first chapter can be finished on its own"
+    assert 'id="done-go"' in last
 
     # And each page says which part of the document it is, because that is what gets
     # marked: the section number the filename, the contents page and the pager all use.
@@ -1084,7 +1084,7 @@ def test_interlinear_shows_the_translation_not_the_words(tmp_path: Path) -> None
     assert 'data-mode="inter"' in html
     assert "<dt>l</dt>" in html
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     # The translation is shown, under the line rather than beside it.
     assert ".mode-inter .tr {" in css
     assert ".mode-inter .tr { display: none; }" not in css
@@ -1212,10 +1212,13 @@ def test_the_progress_page_stands_on_its_own() -> None:
     # The page's own heading, not the nav's. `assert "Your words" in html` used to stand
     # here and passed on "Your words follow you" in the account panel, which every page
     # carries — so it would have gone on passing with every heading stripped out.
-    assert "<h1>Your Progress</h1>" in html
-    assert 'id="progress"' in html  # where your words are
-    assert 'id="growth"' in html  # kept over time
-    assert 'id="bands"' in html  # how common they are
+    # On the desk under the bar, the board's way (§12, "The mockups win on Your
+    # Progress", 2026-10-09).
+    assert '<h1 class="page-title">Your Progress</h1>' in html
+    # A story in three parts (§12, 2026-10-09): where you are, how you got here, what next.
+    assert 'id="touchstones"' in html  # where you are
+    assert 'id="weeks"' in html  # the words taken up, week by week
+    assert 'id="met-rows"' in html and 'id="level-rows"' in html  # what next
 
     # The same three stores the reader writes, and no fourth copy of anything. The
     # reading of them lives in charts.js, because Learn draws the same numbers from the
@@ -1224,7 +1227,7 @@ def test_the_progress_page_stands_on_its_own() -> None:
     assert '"targum:vocab:"' in script
     assert '"targum:picked:"' in script
     assert '"targum:docs"' in script
-    for page in ("progress.js", "learn.js"):
+    for page in ("progress.js", "arrival.js", "home.js"):
         source = (ASSETS / page).read_text(encoding="utf-8")
         assert "function collect(" not in source, f"{page} should share the collector"
 
@@ -1249,7 +1252,14 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
     the front door had already gone that way on 2026-09-16. What is pinned here is the
     absence: no second palette, no switch, no stamp, and no page that reads the old key.
     """
-    from targum.render.builder import ASSETS, add_page, learn_page, library_page, progress_page
+    from targum.render.builder import (
+        ASSETS,
+        add_page,
+        carried,
+        library_page,
+        progress_page,
+        welcome_page,
+    )
 
     assert not (ASSETS / "theme.js").exists(), "what was left of it is keep.js"
     keep = (ASSETS / "keep.js").read_text(encoding="utf-8")
@@ -1267,11 +1277,12 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
         provider="null",
         segments={segments[0].id: "tr"},
     )
+    # The desk pages read with the files they name put back inside them (`carried`).
     pages = {
-        "add": add_page("k"),
-        "learn": learn_page("k"),
-        "library": library_page("k"),
-        "progress": progress_page("k"),
+        "add": carried(add_page("k")),
+        "welcome": carried(welcome_page("k")),
+        "library": carried(library_page("k")),
+        "progress": carried(progress_page("k")),
         "reader": render(document, segmented, [translation], tmp_path / "r")[0].read_text(
             encoding="utf-8"
         ),
@@ -1284,11 +1295,16 @@ def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
         assert "window.targumKeep" in html, name
 
     for sheet in sorted(ASSETS.glob("*.css")):
+        if sheet.name == "card.css":
+            # The one exception, David's (design.md §12, "A card takes the host's theme",
+            # 2026-10-06): a card is drawn inside somebody else's page and follows its
+            # theme. No page of ours carries it; `test_brand.py` pins its dark reading.
+            continue
         css = sheet.read_text(encoding="utf-8")
         assert "prefers-color-scheme" not in css, sheet.name
         assert "data-theme" not in css, sheet.name
         assert "color-scheme: dark" not in css, sheet.name
-    assert "color-scheme: light" in (ASSETS / "reader.css").read_text(encoding="utf-8")
+    assert "color-scheme: light" in _reader_css()
 
 
 def _favicon(html: str) -> str:
@@ -1354,9 +1370,8 @@ def test_the_reader_styles_every_floating_card() -> None:
     That is what "adding words does not work" looked like: the definition card was
     being built and shown correctly, with its styles removed by an unrelated cleanup.
     """
-    from targum.render.builder import ASSETS
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     for selector in (".gloss-card {", ".pick-card {", ".list {"):
         assert selector in css, selector
     # Each floats over the text, so each needs taking out of the flow.
@@ -1372,7 +1387,7 @@ def test_every_word_a_reader_meets_offers_to_copy_itself() -> None:
     carries, and in the reader it speaks through the reader's own live region."""
     from targum.render.builder import ASSETS
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     assert ".copy {" in css and ".gloss-card .copy-line {" in css
     reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
     assert reader.count("window.TargumVocab.copyButton(") == 5, (
@@ -1402,7 +1417,7 @@ def test_pressing_a_card_does_not_cancel_the_selection_behind_it() -> None:
     assert "chip.contains(event.target)" in script
     assert 'chip.addEventListener("mousedown"' in script
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     assert "user-select: none" in css
 
 
@@ -1600,7 +1615,7 @@ def test_the_page_carries_the_face_it_needs_and_not_the_other(tmp_path: Path) ->
     Two faces, one per shelf, and a page carries exactly one: paying for both would
     double the cost of the thing for no reader's benefit.
     """
-    from targum.render.builder import BIBLICAL_FACE, MODERN_FACE
+    from targum.render.builder import BIBLICAL_FACE, CHROME_FACE, MODERN_FACE
 
     segment = hebrew(0, TROPE_TEXT)
     voc = vocalization_for([segment], {segment.id: TROPE_TEXT}, [])
@@ -1610,14 +1625,16 @@ def test_the_page_carries_the_face_it_needs_and_not_the_other(tmp_path: Path) ->
     # What matters is which face is *embedded*, not which names appear: `--reading-hebrew`
     # in reader.css still lists the faces worth reaching for, and one of them shares a
     # name with the face this shelf carries.
+    # The chrome's face rides in every reader too, upright only, for its menus (design.md
+    # §12, 2026-10-09); it is no Hebrew face and is counted apart.
     def embedded(html: str) -> set[str]:
-        return set(re.findall(r'@font-face\{font-family:"([^"]+)"', html))
+        return set(re.findall(r'@font-face\{font-family:"([^"]+)"', html)) - {CHROME_FACE[0]}
 
     assert embedded(scripture) == {BIBLICAL_FACE[0]}, "scripture carries the wrong face"
     assert embedded(news) == {MODERN_FACE[0]}, "a modern text carries the wrong face"
-    # One face per page, and one only: paying for both helps no reader.
-    assert scripture.count("url(data:font/woff2") == 1
-    assert news.count("url(data:font/woff2") == 1
+    # One Hebrew face per page, and one only: paying for both helps no reader.
+    assert scripture.count("url(data:font/woff2") == 2
+    assert news.count("url(data:font/woff2") == 2
     # And the face is actually reached for, not merely defined.
     assert f'--reading-hebrew:"{BIBLICAL_FACE[0]}"' in scripture
     # Carried in the page, not fetched. `test_loads_nothing_from_the_network` holds the
@@ -1650,7 +1667,9 @@ def test_a_french_page_carries_no_hebrew_face(tmp_path: Path) -> None:
         segments={segment.id: "The cat sleeps."},
     )
     html = render(document, segmented, [translation], tmp_path / "r")[0].read_text(encoding="utf-8")
-    assert 'lang="fr"' in html and "url(data:font/woff2" not in html
+    # The one face it carries is the chrome's, for the menus (design.md §12, 2026-10-09).
+    assert 'lang="fr"' in html and html.count("url(data:font/woff2") == 1
+    assert '@font-face{font-family:"Source Sans 3"' in html
 
 
 def test_the_page_is_measured_again_when_the_face_arrives(tmp_path: Path) -> None:
@@ -1692,7 +1711,7 @@ def test_every_page_that_reads_hebrew_carries_a_face() -> None:
     missing = [
         path.name
         for path in templates
-        if "asset('reader.css')" in path.read_text(encoding="utf-8")
+        if "'tokens.css'" in path.read_text(encoding="utf-8")
         and "hebrew_face(" not in path.read_text(encoding="utf-8")
     ]
     assert not missing, f"these carry the stylesheet but no Hebrew face: {', '.join(missing)}"
@@ -1953,7 +1972,7 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
     Words are checked because Wikisource is full of index pages that look like texts.
     """
     from targum.catalogue import CATALOGUE, by_id
-    from targum.render.builder import library_page
+    from targum.render.builder import carried, library_page
 
     assert CATALOGUE, "an empty catalogue is a page with nothing on it"
     for entry in CATALOGUE:
@@ -1969,8 +1988,9 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
         assert entry.words > 100, entry.id  # an index page, not a text
 
     # The cards are drawn in the browser, from the payload, so that picking a language
-    # can filter them. What the page has to carry is the payload itself.
-    html = library_page("k")
+    # can filter them. What the page has to carry is the payload itself: since
+    # 2026-10-19 in a file of its own beside the page, so read with it put back inside.
+    html = carried(library_page("k"))
     payload = html.split("window.TARGUM_CATALOGUE = ", 1)[1].split("\n", 1)[0].rstrip(";")
     shipped = json.loads(payload)
     assert [entry["id"] for entry in shipped] == [entry.id for entry in CATALOGUE]
@@ -2089,9 +2109,10 @@ def test_every_page_shares_one_language_choice() -> None:
     the module that keeps that choice has to be on every page that offers it. Hebrew
     is the default and the only one not marked beta.
     """
-    from targum.render.builder import add_page, learn_page, library_page, progress_page
+    from targum.render.builder import add_page, carried, library_page, list_page, progress_page
 
-    for html in (add_page("k"), learn_page("k"), progress_page("k"), library_page("k")):
+    for page in (add_page("k"), list_page("k", "texts"), progress_page("k"), library_page("k")):
+        html = carried(page)
         assert "TargumLang" in html, "the shared language choice is missing"
         assert 'HOME = "he"' in html
 
@@ -2101,14 +2122,22 @@ def test_every_page_shares_one_language_choice() -> None:
     # says which of them is which, and says it the same way the note under it does.
     assert '<option value="he" selected>' in start
     said = unescape(start)
-    assert "(Experimental)" in said
+    # The into side is not a badge and keeps its two words (2026-10-12).
+    assert "Russian (Experimental)" in said and "English (alpha)" in said
     assert ">Hebrew (Experimental)<" not in said
-    assert ">Hebrew (alpha)<" in start
-    # One word in the picker, two behind it: the note says which kind of experimental.
-    from targum.translate.prompts import stage_label
+    # The language the text is in is named alone, as board UploadDesk draws it
+    # (2026-10-09); how far along it is is said under the box, in the badge's own word
+    # from the one table (design.md §12, "A badge is a promise, checked", 2026-10-12).
+    assert '<option value="he" selected>Hebrew</option>' in start
+    import json as _json
 
-    assert stage_label("R&D") == stage_label("beta") == "Experimental"
-    assert stage_label("alpha") == "alpha"
+    from targum.stages import DECLARED
+
+    reading = _json.loads(start.split("window.TARGUM_READING = ", 1)[1].split(";", 1)[0])
+    assert {row["code"]: row["stage"] for row in reading} == {
+        code: stage.value for code, stage in DECLARED.items()
+    }
+    assert "window.TARGUM_STAGES = " in start
 
 
 def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
@@ -2451,8 +2480,8 @@ def test_every_page_carries_the_identity(rendered: Path) -> None:
     assert 'href="brand/' not in html
 
 
-def test_the_way_back_goes_to_learn(tmp_path: Path) -> None:
-    """Both back links say Learn, so both go there.
+def test_the_way_back_goes_home(tmp_path: Path) -> None:
+    """Both back links go home, which is Your targums since 2026-10-08.
 
     Somebody leaving a text wants their own shelf and the thing they were part way
     through — not the catalogue. The contents page and the section pages set the link
@@ -2476,9 +2505,14 @@ def test_the_way_back_goes_to_learn(tmp_path: Path) -> None:
         # The mark in the corner is the way back — the oldest convention there is, and
         # it was sitting inert beside a link that said the same thing.
         assert '<a class="bar-brand" id="home" href="/"' in html
-        assert 'title="Your Learn page"' in html
-        assert ">Learn</a>" not in html, "the word beside it said it twice"
-        assert '"/library"' not in html, "the way out is not the catalogue any more"
+        assert 'title="Your targums"' in html
+        assert ">Your targums</a>" not in html, "the word beside it said it twice"
+        # A refusal's panel may offer the library as its way on (`fault.js`, design.md
+        # §12, 2026-10-09); that is not the way back, so it is left out of the look.
+        from targum.render.builder import _asset
+
+        outside = html.replace(str(_asset("fault.js")), "")
+        assert '"/library"' not in outside, "the way out is not the catalogue any more"
 
 
 ASSETS = Path(__file__).resolve().parents[1] / "src/targum/render/assets"
@@ -2593,9 +2627,8 @@ def test_a_pair_is_not_separated_by_a_blank_line() -> None:
     Pinned as a fraction of a line rather than as a number, because the number only means
     anything against the leading.
     """
-    from targum.render.builder import ASSETS
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
     line = 1.0625 * 1.95  # a Hebrew line, per §5
 
     def gap(*blocks: str) -> float:
@@ -2889,20 +2922,18 @@ def test_a_torah_books_contents_page_groups_its_chapters_by_portion(
     assert '<a class="portion-name" href="#1:1">' in before
 
 
-def test_a_torah_book_with_no_corpus_lists_its_chapters_as_it_always_has(
+def test_a_torah_book_with_no_corpus_is_grouped_by_the_portions_targum_ships(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The layer is data: with nothing built there is nothing to draw, and a fresh
-    machine gets the page it got before the corpus existed."""
+    """Where the 54 begin is fixed, so a machine with no corpus built still groups a Torah
+    book by portion, off the table shipped with targum: a reader's own copy of Genesis
+    reads as the library's does (board PartsTanakh, audit Q9, 2026-10-09). It listed the
+    chapters flat until then."""
     html = torah(tmp_path, monkeypatch, None)
-    # The body, not the page: the stylesheet is inlined into every reader and carries the
-    # rules for a layer this page does not draw.
     body = html[html.index("<body") : html.index("</main>")]
-    assert 'class="portion"' not in body
-    assert "portion-" not in body
+    assert 'data-portion="bereshit"' in body and 'data-portion="noach"' in body
     # The rows carry the verse range each file holds, the way every other contents
-    # page does since a verse link learned to land on the file that has it — the
-    # portion layer is what a machine with no corpus goes without, not the range.
+    # page does since a verse link learned to land on the file that has it.
     assert '<li data-chapter="1" data-chapters="5" data-from="5:1" data-to="5:10">' in html
     assert '<li data-chapter="3" data-chapters="7" data-from="7:1" data-to="7:10">' in html
 
@@ -2939,9 +2970,14 @@ def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
 
 
 def _reader_css() -> str:
+    """What a reader page carries: the tokens, what it shares with the desk, and its own
+    rules, in the order it inlines them (design.md §11, 2026-10-09)."""
     from targum.render.builder import ASSETS
 
-    return (ASSETS / "reader.css").read_text(encoding="utf-8")
+    return "".join(
+        (ASSETS / name).read_text(encoding="utf-8")
+        for name in ("tokens.css", "shared.css", "reader.css")
+    )
 
 
 def test_marking_is_what_a_text_opens_in() -> None:
@@ -3202,14 +3238,16 @@ def test_taking_a_mark_off_is_asked_for_rather_than_inferred() -> None:
     assert "var current = statusOf(lemma);" not in body, "nothing is inferred from the store"
     assert "if (status === null || status === undefined) {" in body
 
-    # The callers that do want a toggle say so, and ask before anything has been written.
-    assert (
-        "function toggled(index, status) {\n    return statusOf(lemmas[index]) === status" in script
-    )
-    assert "setStatus(index, surface, band, value);" in script, "the card's own row"
+    # Nothing toggles any more (QA 2026-10-11, decision D8): the level a word has, pressed
+    # again, is no change, asked before anything has been written.
+    assert "function toggled(" not in script
+    asked = "function already(index, status) {\n    return statusOf(lemmas[index]) === status"
+    assert asked in script
+    # Asked whether a free word list is full first (design.md §12, 2026-10-09).
+    assert "setStatus(index, surface, band, value) === LIST_FULL" in script, "the card's own row"
     # The keys do not toggle. The back arrow lands on words already marked, and a level
     # pressed to confirm one took the mark off instead and walked on — silently.
-    assert "setStatus(index, surface, levelOf(word), status);" in script, "the keys"
+    assert "setStatus(index, surface, levelOf(word), status) === LIST_FULL" in script, "the keys"
     assert "setStatus(index, surface, levelOf(word), toggled(index, status));" not in script
 
 
@@ -3366,7 +3404,7 @@ def test_a_quoted_phrase_is_marked_in_the_parallel_text() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    sheet = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    sheet = _reader_css()
     rule = sheet[sheet.index(".tr .echo {") : sheet.index("}", sheet.index(".tr .echo {"))]
     assert re.search(r"var\(--iris\) (1[2-9]|2[0-2])%", rule), "the wash is iris, 12–22%"
     assert "transition" not in rule and "gradient" not in rule, "flat"
@@ -3646,19 +3684,27 @@ def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) ->
         assert len(found) == 1, f"{marker}: expected one button, found {len(found)}"
         return found[0]
 
+    # Since the bar went by how often it is pressed (design.md §12, 2026-10-08) the
+    # vowels are the bar's own press again, drawn as a pointed letter: its name is a noun
+    # for a screen reader, never a state ("Vowels" / "No vowels"), and the longer
+    # sentence is behind it on the hover.
     vowels = control("data-nikkud-toggle")
-    assert "<svg" in vowels and ">Vowels<" not in vowels and ">No vowels<" not in vowels
+    assert 'aria-label="Vowel points"' in vowels
+    assert 'class="marks-glyph" lang="he"' in vowels
+    assert ">No vowels<" not in vowels
     assert "title=" in vowels, "the words move to the hover"
-    assert "aria-label=" in vowels, "and stay for anyone not hovering"
 
     # The marking control only renders on a text that has words to mark, so it is read
-    # from the template rather than from a fixture built without annotation.
-
+    # from the template rather than from a fixture built without annotation. A row of Aa
+    # since 2026-10-08: its name is written beside its switch, and its title stays.
     template = _reader_template()
     mark = re.search(r"<button\b[^>]*data-marking.*?</button>", template, re.S)
     assert mark is not None
-    assert "<svg" in mark.group(0) and ">Mark<" not in mark.group(0)
-    assert "title=" in mark.group(0) and "aria-label=" in mark.group(0)
+    assert 'class="sw"' in mark.group(0) and ">Mark<" not in mark.group(0)
+    assert "title=" in mark.group(0)
+    assert '<span class="m-label aa-name">Highlight what you have not learned</span>' in mark.group(
+        0
+    )
 
 
 def test_the_speed_is_a_pair_in_the_player_and_only_where_there_is_a_voice(
@@ -3671,8 +3717,10 @@ def test_the_speed_is_a_pair_in_the_player_and_only_where_there_is_a_voice(
     player = re.search(r'<div class="player".*?</div>', template, re.S)
     assert player is not None
     card = player.group(0)
-    assert '<button type="button" class="player-slower" aria-label="Slower">−</button>' in card
-    assert '<button type="button" class="player-faster" aria-label="Faster">+</button>' in card
+    slower = 'class="player-slower" aria-label="Slower" title="Slower">−</button>'
+    faster = 'class="player-faster" aria-label="Faster" title="Faster">+</button>'
+    assert f'<button type="button" {slower}' in card
+    assert f'<button type="button" {faster}' in card
     assert 'class="player-rate" role="group" aria-label="Speed"' in card
     assert ">1×<" in card, "the reading's own pace, to begin with"
     assert ">-<" not in card, "a minus sign, not a hyphen"
@@ -3702,7 +3750,8 @@ def test_the_vowel_control_is_one_switch_not_two_choices(tmp_path: Path) -> None
     assert vowels is not None
     assert 'aria-pressed="false"' in vowels.group(0)
     assert "data-step" not in vowels.group(0)
-    assert 'class="dots"' in vowels.group(0)
+    # One press in the bar since 2026-10-08, pressed or not: one thing, on or off.
+    assert 'class="bar-tool marks"' in vowels.group(0)
 
     from targum.render.builder import ASSETS
 
@@ -3907,7 +3956,9 @@ def test_the_contents_page_carries_the_cover(tmp_path: Path) -> None:
     assert 'src="data:image/webp;base64,' in contents
 
     chapter = pages[1].read_text(encoding="utf-8")
-    assert '<figure class="plate">' in chapter, "and a stamp on the chapter"
+    # No stamp on the chapter since 2026-10-09 (design.md §12, "The reader's chrome is
+    # the desk's"): the boards draw a chapter with its text alone.
+    assert 'class="plate"' not in chapter, "a chapter carries no stamp"
     assert '<figure class="cover">' not in chapter, "the big one belongs to the contents"
 
 
@@ -3927,34 +3978,6 @@ def test_a_cover_is_never_something_the_page_goes_and_gets(tmp_path: Path) -> No
         html = page.read_text(encoding="utf-8")
         for position in (r'src\s*=\s*["\']', r"url\(", r'<link[^>]+href\s*=\s*["\']'):
             assert not re.search(position + r"(https?:)?//", html, re.I)
-
-
-def test_a_chapter_carries_a_smaller_one_than_the_contents_page(tmp_path: Path) -> None:
-    """A book of a hundred and fifty chapters would otherwise put three megabytes of the
-    same picture into one reader."""
-    from targum.render.builder import cover_uri, plate_uri
-
-    covers = tmp_path / "thumbs"
-    cover_at(covers, "psalms")
-
-    whole = cover_uri(covers, "psalms")
-    plate = plate_uri(covers, "psalms")
-
-    assert whole.startswith("data:image/webp;base64,")
-    assert plate.startswith("data:image/webp;base64,")
-    assert len(plate) < len(whole) / 2, "the stamp is a fraction of the cover"
-    assert (covers / "small" / "psalms.webp").is_file(), "and is shrunk once, not per page"
-
-
-def test_a_chapter_falls_back_to_its_book(tmp_path: Path) -> None:
-    """Most chapters are numbered rather than titled and have no cover of their own."""
-    from targum.render.builder import plate_uri
-
-    covers = tmp_path / "thumbs"
-    cover_at(covers, "psalms")
-
-    assert plate_uri(covers, "psalms-c007") == "", "nothing drawn for this chapter"
-    assert plate_uri(covers, "psalms") != "", "so the page uses the book's"
 
 
 # -- the word queue the arrows walk -----------------------------------------------
@@ -4191,7 +4214,10 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
     # panel (targum-internal#261).
     assert escape.index("hideCard();") < escape.index('showCase("");')
     assert escape.index('showCase("");') < escape.index("showList(false);")
-    assert escape.count("return;") == 7
+    # A panel of the bar (Aa, print, the reading; targum-internal#421) is outermost of
+    # all, and it gives focus back to the press that opened it.
+    assert escape.index("closeAnyPop(true)") < escape.index("showMore(false);")
+    assert escape.count("return;") == 8
 
 
 def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
@@ -4252,19 +4278,17 @@ def test_a_key_is_the_letter_on_it_whatever_the_shift_was() -> None:
     assert "markLookedUp(key)" in script
 
 
-def test_the_word_list_does_not_open_itself_over_a_walk(tmp_path: Path) -> None:
-    """The panel covers the translation column. Opening it in the middle of somebody
-    stepping the chapter a word at a time takes away the thing they are grading against,
-    at the one moment they are not looking for it."""
+def test_the_word_list_does_not_open_itself(tmp_path: Path) -> None:
+    """The panel covered the translation column when it opened over a walk, and put the
+    card being typed into away on a phone (targum-internal#155). Since 2026-10-09 it never
+    opens itself: it starts closed (design.md §12, "The reader's chrome is the desk's"),
+    and keeping a word or a phrase leaves it where it is. Only a press opens it."""
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert (
-        "if (isLearning(status) && !standing && !carded && listBox && listBox.hidden) {" in script
-    )
-    # Nor under a card on a phone: the band holds one thing, and a sheet arriving there
-    # put away the card being typed into (targum-internal#155).
-    assert "var carded = card && !card.hidden && !roomy.matches;" in script
+    assert "showList(prefs.list === null ? false : prefs.list" in script
+    assert "if (listBox && listBox.hidden) showList(true);" not in script
+    assert "isLearning(status) && !standing" not in script
 
 
 def test_the_keyboard_card_is_in_the_page_before_the_script_that_finds_it(
@@ -4293,7 +4317,11 @@ def test_a_card_a_pointer_opened_survives_the_key_that_marks_it() -> None:
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     body = script[script.index("function markLookedUp(") : script.index("function statusRow(")]
-    assert body.index('word.closest(".pair")') < body.index("redraw();"), "read it first"
+    # `.film-pair` too since #422: the line under a video is a copy of its transcript's
+    # line, held in a `film-pair` so nothing that walks the transcript counts it.
+    assert body.index('word.closest(".pair, .film-pair")') < body.index("redraw();"), (
+        "read it first"
+    )
 
 
 def test_the_word_decides_whether_to_scroll_and_the_sentence_moves() -> None:
@@ -4335,9 +4363,12 @@ def test_the_arrows_stop_at_the_end_rather_than_coming_round() -> None:
     )
     # On pages, forward stops at the foot of the page and turns one page from there —
     # loudly, the way PageDown does — rather than turning straight to the next word owed
-    # and leaving the lines under this one unread.
+    # and leaving the lines under this one unread. One page, that is, past the pages that
+    # only carry on a cut verse's commentary, which have no word to stand on (QA
+    # 2026-10-05).
     assert "var foot = footOf(current);" in onward
-    assert "if (!turnBy(1)) return entry;" in onward
+    assert "var ahead = 1;" in onward
+    assert "if (!turnBy(ahead)) return entry;" in onward
     # The first press on a page already clear goes to its foot, not some pages on.
     assert "return onward(edge, forward) || step(null, forward);" in script
     # And off the foot of the last page, the next chapter — the one place the walk
@@ -4369,7 +4400,7 @@ def test_a_card_goes_once_the_level_it_asked_for_has_been_said() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    css = _reader_css()
 
     assert "if (open) spendCard();" in script, "a level said on an open card spends it"
     spend = script[script.index("function spendCard() {") : script.index("function stopFade() {")]
@@ -4665,12 +4696,20 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "inset-inline-end" not in tab, "the end corner is the player's and the arrows'"
     assert "body.paged .list-tab { inset-block-end: 5.5rem; }" in css, "the player's row, wide"
     phone = css[css.index("/* --- the phone: one band at the foot") :]
-    # The video panel is in the occupant list by design — §12's moving-pictures entry.
-    shared = "\n  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {"
+    # The video panel was in the occupant list by design — §12's moving-pictures entry —
+    # until targum-internal#422, when a phone's picture went to stand at the top, above its
+    # transcript, always; it is no longer in the band at all.
+    shared = "\n  .list, .pick-card, .keys-card, .bar-more.open {"
     occupants = phone.split(shared, 1)[1]
     occupants = occupants.split("\n  }\n", 1)[0]
     assert "position: fixed;" in occupants and "inset-block: auto 0;" in occupants
     assert "max-block-size: 45svh;" in occupants, "the band's ceiling"
+    # The word's card rises into the same band, from `shared.css`, which the desk's
+    # lists open too (design.md §11, 2026-10-09).
+    card = (ASSETS / "shared.css").read_text(encoding="utf-8")
+    card = card[card.index("@media (max-width: 60rem) {\n  @keyframes rise") :]
+    card = card.split("\n  .gloss-card {", 1)[1].split("\n  }\n", 1)[0]
+    assert "position: fixed;" in card and "max-block-size: 45svh;" in card
     assert "inset-block-end: var(--occupant, 0px);" in phone, "the strip stands on the occupant"
     assert "var(--occupant, 0px) + var(--strip, 0px)" in phone, "the arrows stand on the strip"
     assert "body { padding-block-end: var(--foot, 0px); }" in phone, "the page above the lot"
@@ -4691,11 +4730,13 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "if (!roomy.matches) {" in room and "residents().forEach" in room
     assert "occupants()" not in script, "the card is not measured with the residents"
     assert "return [listBox, keysCard, videoPanel];" in script
-    assert "return [card, chip, more];" in script
+    # And the bar's panels, which are visits like ⋯ (targum-internal#421).
+    assert "return [card, chip, more].concat(" in script
     assert room.count("settledTop(thing, false)") == 1
     assert room.count("settledTop(thing, true)") == 1
-    over = "\n  .gloss-card, .pick-card, .bar-more.open { z-index: 30; }\n"
+    over = "\n  .pick-card, .bar-more.open { z-index: 30; }\n"
     assert over in phone, "over the strip and the tab"
+    assert "z-index: 30;" in card, "the word's card, over the strip and the tab too"
     assert ".bar:has(.bar-more.open) { z-index: 30; }" in phone, "the menu's bar rises with it"
     # One occupant at a time, and the sheet left standing under a card.
     assert "function occupy(which)" in script and "function vacate(which)" in script
@@ -5328,8 +5369,26 @@ def _markup(html: str) -> str:
 
 
 def _switch(html: str) -> str:
-    found = re.search(r'<div class="group renderings".*?</div>', html, re.S)
+    found = re.search(r'<div class="m-end seg renderings" id="translation".*?</div>', html, re.S)
     return found.group(0) if found else ""
+
+
+def _companions(html: str) -> str:
+    """The on-and-off switches for what sits beside the verse (targum-internal#414).
+
+    In the Aa panel since targum-internal#421, where each is a row with its name and a
+    drawn switch. The drawing is taken off here so what the tests read is the name on
+    the press, as it was: `...>Rashi</button>`."""
+    found = re.search(r'<div class="companions" id="companions".*?</div>', html, re.S)
+    if not found:
+        return ""
+    # Each row starts with its drawing since the menus became the board's (design.md
+    # §12, 2026-10-09); that is taken off too.
+    return (
+        re.sub(r'<span class="m-icon".*?</svg></span>', "", found.group(0), flags=re.S)
+        .replace('<span class="m-label aa-name">', "")
+        .replace('</span><span class="sw" aria-hidden="true"></span>', "")
+    )
 
 
 #: Genesis 1:1–2, against a published English and against Onkelos: RTL beside LTR and
@@ -5371,8 +5430,9 @@ def test_a_text_with_one_translation_draws_no_switch(tmp_path: Path) -> None:
 def test_every_rendering_reaches_the_page_with_its_own_direction(tmp_path: Path) -> None:
     """Both renderings ship, each with the language and direction of its own target:
     Hebrew against English runs RTL/LTR and against Onkelos RTL/RTL, in one file. The
-    cells are written with the first and say so; the switch names each by its language
-    and pressed on the one drawn."""
+    column is the English's and says so; Onkelos sits under the verse in a cell of its
+    own, in its own language and direction, and is turned on and off rather than chosen
+    instead of the English (targum-internal#414)."""
     html = _genesis(tmp_path, [_english(), _onkelos()])
     shipped = _payload(html)["translations"]
     assert {k: (v["language"], v["direction"]) for k, v in shipped.items()} == {
@@ -5380,17 +5440,29 @@ def test_every_rendering_reaches_the_page_with_its_own_direction(tmp_path: Path)
         "t1": ("arc", "rtl"),
     }
     assert shipped["t1"]["text"][GENESIS[1].id] == "ארמית 1"
+    assert shipped["t1"]["companion"] == "targum" and "companion" not in shipped["t0"]
 
-    switch = _switch(html)
-    assert 'data-drawn="t0"' in switch
-    assert ">English</button>" in switch and ">Aramaic</button>" in switch
-    assert 'title="JPS 1917"' in switch and 'title="Onkelos"' in switch
-    assert re.search(r'class="rendering on" data-translation="t0" aria-pressed="true"', switch)
-    assert re.search(r'class="rendering" data-translation="t1" aria-pressed="false"', switch)
-    assert "disabled" not in switch, "both cover the chapter, so neither is refused"
-    # The cells are the first rendering's, in its language and direction.
+    # One translation, so no switch: Onkelos is not a position of it.
+    assert 'id="translation"' not in html
+    toggles = _companions(html)
+    assert (
+        'data-companion="translation" data-on="1" aria-pressed="true" title="JPS 1917">English<'
+        in toggles
+    )
+    assert re.search(r'data-companion="targum" data-translation-id="t1" data-on="1"', toggles)
+    assert ">Onkelos</button>" in toggles
+    # The cells are the English's, in its language and direction...
     cells = re.findall(r'<p class="tr" lang="(\w+)" dir="(\w+)">', html)
     assert cells and set(cells) == {("en", "ltr")}
+    # ...and Onkelos is under every line, right to left.
+    assert (
+        len(
+            re.findall(
+                r'<p class="cmp" data-t="t1" data-companion="targum" lang="arc" dir="rtl">', html
+            )
+        )
+        == 2
+    )
 
 
 def test_two_renderings_in_one_language_are_named_by_the_rendering(tmp_path: Path) -> None:
@@ -5428,9 +5500,9 @@ def test_a_section_only_the_second_rendering_covers_is_drawn_from_it(tmp_path: P
         _segment(5, "שורה שלישית"),
     ]
     english = _rendering("JPS 1917", "en", {segments[1].id: "Hello world"})
-    onkelos = _rendering("Onkelos", "arc", {segments[1].id: "שלם", segments[3].id: "עוד"})
+    russian = _rendering("Russian", "ru", {segments[1].id: "Привет", segments[3].id: "Ещё"})
     document = Document(source="memory", title="ספר", language="he", blocks=[], content_hash="h")
-    pages = render(document, make_segmented(segments), [english, onkelos], tmp_path / "r")
+    pages = render(document, make_segmented(segments), [english, russian], tmp_path / "r")
     one, two, three = (p.read_text(encoding="utf-8") for p in pages[1:])
 
     assert 'data-drawn="t0"' in _switch(one) and "disabled" not in _switch(one)
@@ -5441,9 +5513,9 @@ def test_a_section_only_the_second_rendering_covers_is_drawn_from_it(tmp_path: P
     refused = r'data-translation="t0" aria-pressed="false" title="JPS 1917" disabled>'
     assert re.search(refused, switch)
     assert re.search(r'class="rendering on" data-translation="t1" aria-pressed="true"', switch)
-    assert '<p class="tr" lang="arc" dir="rtl">' in two
+    assert '<p class="tr" lang="ru" dir="ltr">' in two
     assert '<p class="tr" lang="en"' not in two
-    assert 'id="waiting-note"' not in two, "the chapter is translated, in Aramaic"
+    assert 'id="waiting-note"' not in two, "the chapter is translated, in Russian"
 
     assert 'id="waiting-note"' in three
     assert "We haven't translated this chapter yet." in three
@@ -5464,14 +5536,133 @@ def test_onkelos_is_kept_whatever_the_reader_reads(tmp_path: Path) -> None:
     assert [v["language"] for v in nothing["translations"].values()] == ["en", "arc"]
 
 
+def _rashi_beside(into: str, saying: str) -> Translation:
+    return _rendering("Rashi on Genesis", into, {GENESIS[1].id: f"{saying} 1"})
+
+
+def test_rashi_sits_beside_the_verse_named_for_rashi_and_every_companion_starts_on(
+    tmp_path: Path,
+) -> None:
+    """targum-internal#414. Rashi in Hebrew is named "Rashi" on its switch, not "Hebrew";
+    Rashi in English is "Rashi · English", not the portion's name. Each is a cell under
+    the verse, after Onkelos and Rashi before his English, the order a printed chumash
+    sets them in, whatever order the files arrive in; and a new reader
+    starts with the English, Onkelos and Rashi on and Rashi in English off (David,
+    2026-10-04)."""
+    html = _genesis(
+        tmp_path,
+        [_rashi_beside("en", "Comment"), _english(), _rashi_beside("he", "פירוש"), _onkelos()],
+    )
+    shipped = _payload(html)["translations"]
+    assert [(v["language"], v.get("companion", "")) for v in shipped.values()] == [
+        ("en", ""),
+        ("arc", "targum"),
+        ("he", "rashi"),
+        ("en", "rashi-en"),
+    ]
+    assert 'id="translation"' not in html, "one translation: the companions are no switch"
+    toggles = _companions(html)
+    labels = re.findall(r'data-companion="([\w-]+)"[^>]*>([^<]+)</button>', toggles)
+    assert labels == [
+        ("translation", "English"),
+        ("targum", "Onkelos"),
+        ("rashi", "Rashi"),
+        ("rashi-en", "Rashi · English"),
+    ]
+    assert ">Hebrew<" not in toggles
+    # On for a new reader: the translation, Onkelos and Rashi; Rashi in English is off.
+    on = dict(re.findall(r'data-companion="([\w-]+)"[^>]*data-on="(\d)"', toggles))
+    assert on == {"translation": "1", "targum": "1", "rashi": "1", "rashi-en": "0"}
+    # A cell for each under the verse, and only Rashi's English hidden.
+    cells = re.findall(r'<p class="cmp[^"]*" data-t="(t\d)" data-companion="([\w-]+)"[^>]*>', html)
+    assert [key for _, key in cells] == ["targum", "rashi", "rashi-en"] * 2
+    hidden = re.findall(r'<p class="cmp[^"]*"[^>]*data-companion="([\w-]+)"[^>]*hidden', html)
+    assert hidden == ["rashi-en", "rashi-en"]
+    assert len(re.findall(r'<p class="cmp commented empty" data-t="t2"', html)) == 1
+
+
+def test_rashi_in_hebrew_is_kept_for_a_reader_who_reads_english_or_russian(
+    tmp_path: Path,
+) -> None:
+    """The `reads` filter kept only Onkelos beside a reader's own language, so a Library
+    page for a reader of English dropped Rashi's Hebrew (targum-internal#414). A
+    commentary in the text's own language is read like the text; one in English answers
+    to `reads` like any translation."""
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
+    every = [
+        _english(),
+        russian,
+        _onkelos(),
+        _rashi_beside("he", "פירוש"),
+        _rashi_beside("en", "Comment"),
+    ]
+    english = _payload(_genesis(tmp_path / "en", every, reads=["en"]))["translations"]
+    assert [(v["language"], v.get("companion", "")) for v in english.values()] == [
+        ("en", ""),
+        ("arc", "targum"),
+        ("he", "rashi"),
+        ("en", "rashi-en"),
+    ]
+    reader = _payload(_genesis(tmp_path / "ru", every, reads=["ru"]))["translations"]
+    assert [(v["language"], v.get("companion", "")) for v in reader.values()] == [
+        ("ru", ""),
+        ("arc", "targum"),
+        ("he", "rashi"),
+    ]
+
+
+def test_beside_a_switch_of_translations_the_toggle_says_translation(tmp_path: Path) -> None:
+    """With English and Russian on the switch, the companions' own toggle for the column
+    is "Translation": the switch says which, and two buttons reading "English" say
+    nothing (targum-internal#414)."""
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
+    toggles = _companions(_genesis(tmp_path, [_english(), russian, _onkelos()]))
+    assert re.search(r'data-companion="translation"[^>]*>Translation</button>', toggles)
+
+
+def test_rashi_in_hebrew_ships_his_words_with_the_pages_meanings(tmp_path: Path) -> None:
+    """Rashi's words were read at build time (DICTA) and kept beside the rendering; the
+    page ships them as a table filed with its own Hebrew, its meanings looked up in the
+    page's own glossaries, so a word of Rashi is tapped like a word of the verse."""
+    from targum.models import Glossary
+    from targum.renderings import words_key
+
+    rashi = _rashi_beside("he", "פירוש")
+    words = Annotation(
+        document_hash="x",
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="",
+        tokens={GENESIS[1].id: [Token(start=0, end=5, surface="פירוש", lemma="פירוש", band=3)]},
+    )
+    glossary = Glossary(
+        source_language="he", target_language="en", provider="null", entries={"פירוש": "commentary"}
+    )
+    html = _genesis(
+        tmp_path,
+        [_english(), rashi],
+        commentary_words={words_key(rashi): words},
+        glossaries={"en": glossary},
+    )
+    table = _payload(html)["translations"]["t1"]["tokens"]
+    assert table["own"] is True and table["language"] == "he"
+    assert table["lemmas"] == ["פירוש"]
+    assert table["glosses"] == {"en": ["commentary"]}
+    assert table["words"] == {
+        GENESIS[1].id: [[0, 5, 3, 0, 0, 0, table["words"][GENESIS[1].id][0][6], 0, 0]]
+    }
+    assert GENESIS[2].id not in table["words"], "nothing to tap where Rashi is silent"
+
+
 def test_a_torah_opens_in_its_own_language_with_onkelos_one_press_away(tmp_path: Path) -> None:
     """Whatever order the renderings arrive in — a folder's files sort by name — the page
-    is drawn in the language a person reads, and Onkelos waits on the switch."""
+    is drawn in the language a person reads, and Onkelos sits under the verse."""
     html = _genesis(tmp_path, [_onkelos(), _english()])
     shipped = _payload(html)["translations"]
     assert [v["language"] for v in shipped.values()] == ["en", "arc"]
-    assert 'data-drawn="t0"' in _switch(html)
     assert set(re.findall(r'<p class="tr" lang="(\w+)"', html)) == {"en"}
+    assert 'data-companion="targum"' in _companions(html)
 
 
 def test_shnayim_mikra_is_offered_only_where_onkelos_is_beside_the_hebrew(
@@ -5530,12 +5721,13 @@ def test_onkelos_ships_words_of_its_own_and_the_hebrew_ships_what_it_did(
 
 
 def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Path) -> None:
-    """The regression that matters, from the other side: a second rendering adds the
+    """The regression that matters, from the other side: a second translation adds the
     switch and its own data, and leaves every byte of the text, the cells and the first
     rendering's data exactly as a one-rendering page has them. Every existing text takes
     the one-rendering path, and it is pinned to be the same markup it always was."""
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
     alone = _genesis(tmp_path / "alone", [_english([GENESIS[2].id])])
-    both = _genesis(tmp_path / "both", [_english([GENESIS[2].id]), _onkelos()])
+    both = _genesis(tmp_path / "both", [_english([GENESIS[2].id]), russian])
 
     switch = _switch(both)
     assert switch
@@ -5685,6 +5877,138 @@ def test_a_russian_reader_carries_partners_and_moving_stress_where_the_tables_ar
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 
 
+def test_a_russian_reader_says_which_way_a_verb_of_motion_goes(tmp_path: Path) -> None:
+    """идти and ходить are both imperfective, so the aspect line cannot tell them apart;
+    the card names the way each goes and the other verb of its pair, from the dictionary
+    form alone (`annotate/motion.py`). A prefixed verb and every other word carry
+    nothing, and a page in another language carries no table at all."""
+    from targum.models import Annotation, Token
+
+    text = "Он шёл, ходил и пришёл."
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+
+    def data(language: str, folder: str) -> dict[str, Any]:
+        segmented = SegmentedDocument(
+            document_hash="h", language=language, segmenter="fake/1", segments=[segment]
+        )
+        document = Document(source="m", title="T", language=language, blocks=[], content_hash="h")
+        translation = Translation(
+            name="English",
+            document_hash="h",
+            source_language=language,
+            target_language="en",
+            provider="null",
+            segments={segment.id: "He was walking, went and came back, and arrived."},
+        )
+        annotation = Annotation(
+            document_hash="h",
+            language=language,
+            annotator="t",
+            method="frequency",
+            method_note="note",
+            tokens={
+                segment.id: [
+                    Token(start=3, end=6, surface="шёл", lemma="идти", band=1),
+                    Token(start=8, end=13, surface="ходил", lemma="ходить", band=1),
+                    Token(start=16, end=22, surface="пришёл", lemma="прийти", band=1),
+                ]
+            },
+        )
+        html = render(document, segmented, [translation], tmp_path / folder, annotation=annotation)[
+            0
+        ].read_text(encoding="utf-8")
+        found = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+        assert found is not None
+        loaded: dict[str, Any] = json.loads(found.group(1))
+        return loaded
+
+    assert data("ru", "ru")["extensions"]["motion"] == ["one:ходить", "both:идти", ""]
+    assert "motion" not in data("uk", "uk").get("extensions", {})
+
+
+def test_a_russian_reader_lights_a_subject_after_its_verb_on_a_lens(tmp_path: Path) -> None:
+    """Russian's word-order hard spot (design.md §12, "Subjects after their verb, on a
+    lens", 2026-10-13): a subject standing after its verb says `Order=VS` on its grammar
+    line, read off the stored grammar (`annotate/word_order.py`), and the page offers the
+    lens on `w`, hidden until a second read. A page in another language says nothing."""
+    from targum.models import Annotation, Token
+
+    text = "Книгу написал Толстой."
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    said = [
+        ("Книгу", "книга", "NOUN", "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing"),
+        ("написал", "написать", "VERB", "UPOS=VERB|Gender=Masc|Number=Sing|VerbForm=Fin"),
+        ("Толстой", "Толстой", "PROPN", "UPOS=PROPN|Case=Nom|Gender=Masc|Number=Sing"),
+    ]
+    tokens = [
+        Token(
+            start=text.index(surface),
+            end=text.index(surface) + len(surface),
+            surface=surface,
+            lemma=lemma,
+            band=1,
+            pos=pos,
+            feats=feats,
+        )
+        for surface, lemma, pos, feats in said
+    ]
+
+    def page(language: str, folder: str) -> tuple[str, dict[str, Any]]:
+        segmented = SegmentedDocument(
+            document_hash="h", language=language, segmenter="fake/1", segments=[segment]
+        )
+        document = Document(source="m", title="T", language=language, blocks=[], content_hash="h")
+        translation = Translation(
+            name="English",
+            document_hash="h",
+            source_language=language,
+            target_language="en",
+            provider="null",
+            segments={segment.id: "Tolstoy wrote the book."},
+        )
+        annotation = Annotation(
+            document_hash="h",
+            language=language,
+            annotator="t",
+            method="frequency",
+            method_note="note",
+            tokens={segment.id: tokens},
+        )
+        html = render(document, segmented, [translation], tmp_path / folder, annotation=annotation)[
+            0
+        ].read_text(encoding="utf-8")
+        found = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+        assert found is not None
+        loaded: dict[str, Any] = json.loads(found.group(1))
+        return html, loaded
+
+    html, data = page("ru", "ru")
+    lines = [data["grammar"][row[8]] for row in data["words"][segment.id]]
+    assert lines[2].endswith("|Order=VS"), lines
+    assert not any("Order=" in line for line in lines[:2]), lines
+    assert re.search(r"<button[^>]*data-order-lens[^>]*hidden", html), "a lens waits"
+    assert "<dt>w</dt>" in html
+    html, data = page("uk", "uk")
+    assert not any("Order=" in line for line in data["grammar"])
+    assert not re.search(r"<button[^>]*data-order-lens", html) and "<dt>w</dt>" not in html
+
+
+def test_the_word_order_lens_is_one_lens_among_the_others() -> None:
+    """`w` toggles it, only where the page has it and offers it, and turning it or another
+    on turns the rest off (design.md §12, "Lenses wait for a second read")."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    keys = script[script.index("switch (key) {") :]
+    assert 'case "w":\n        if (!toggleOrder()) return;' in keys
+    toggle = script[script.index("function toggleOrder() {") :]
+    assert "if (!orderLens || orderLens.hidden) return false;" in toggle
+    case = script[script.index("function showCase(name) {") :]
+    assert "showOrder(false, true);" in case[: case.index("\n  }\n")]
+    style = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    assert 'body[data-lens="order"] .w.late-subject' in style
+
+
 def test_a_reader_carries_its_own_words_only_in_a_language_other_than_english(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5724,24 +6048,25 @@ def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
         strings,
         "catalogue",
         lambda code: (
-            {"nav.library": "Библиотека", "progress.page.milestones": "Вехи"}
+            {"nav.library": "Библиотека", "progress.next.title": "Что дальше"}
             if code == "ru"
             else real(code)
         ),
     )
     russian = progress_page("k", language="ru")
-    assert "<span>Библиотека</span>" in russian and "<h2>Вехи</h2>" in russian
-    assert "<span>Library</span>" in english and "<h2>Milestones</h2>" in english
+    assert "<span>Библиотека</span>" in russian and ">Что дальше</h2>" in russian
+    assert "<span>Library</span>" in english
+    assert ">The words and texts that would help most</h2>" in english
     assert progress_page("k") == english
 
 
 @pytest.mark.parametrize(
     ("page", "key", "english"),
     [
-        ("learn_page", "learn.page.continue-reading", "Continue reading"),
+        ("welcome_page", "welcome.learning.asks", "Which language are you learning?"),
         ("library_page", "nav.library", "Library"),
         ("you_page", "nav.your-account", "Your account"),
-        ("add_page", "add.page.what-would-you-like-to-read", "What would you like to learn from?"),
+        ("add_page", "add.page.paste-a-link", "Paste a link"),
     ],
 )
 def test_every_desk_page_is_said_in_the_language_asked(
@@ -5792,12 +6117,12 @@ def test_a_desk_page_in_another_language_says_so_to_a_screen_reader() -> None:
     """A page whose words are Russian is marked Russian, or a screen reader reads the
     Cyrillic with an English voice; a language with no catalogue falls back to English
     words and says English (targum-internal#184)."""
-    from targum.render.builder import learn_page, list_page
+    from targum.render.builder import list_page, welcome_page
 
-    assert '<html lang="en">' in learn_page("k")
-    assert '<html lang="ru">' in learn_page("k", language="ru")
+    assert '<html lang="en">' in welcome_page("k")
+    assert '<html lang="ru">' in welcome_page("k", language="ru")
     assert '<html lang="ru">' in list_page("k", "words", language="ru-RU")
-    assert '<html lang="en">' in learn_page("k", language="xx")
+    assert '<html lang="en">' in welcome_page("k", language="xx")
 
 
 def test_the_conversation_page_is_said_in_the_language_asked(
@@ -5839,8 +6164,10 @@ def test_a_book_read_in_russian_says_its_contents_page_in_russian(tmp_path: Path
 
 
 def test_a_readers_next_text_is_offered_in_the_language_it_is_read_in() -> None:
-    """The reason and the scene a reader offers next are said in the page's language; the
-    English `next_after` keeps is what its own tests read (targum-internal#287)."""
+    """The reason a reader offers next is said in the page's language, and the scene
+    number never reaches the page (design.md §12, "A text is named in everyday words",
+    2026-10-09); the English `next_after` keeps is what its own tests read
+    (targum-internal#287)."""
     from targum.render.builder import offers_in
 
     offers = [
@@ -5848,9 +6175,11 @@ def test_a_readers_next_text_is_offered_in_the_language_it_is_read_in() -> None:
         {"id": "x", "because": "Easier than this one.", "scene": ""},
     ]
     russian = offers_in(offers, "ru")
-    assert russian[0]["because"] == "Следующий по порядку." and russian[0]["scene"] == "Сцена 2"
+    assert russian[0]["because"] == "Следующий по порядку." and "scene" not in russian[0]
     assert russian[1]["because"] == "Легче этого."
-    assert offers_in(offers, "en") == offers
+    assert offers_in(offers, "en") == [
+        {key: value for key, value in offer.items() if key != "scene"} for offer in offers
+    ]
 
 
 def test_a_verb_ships_the_other_verbs_built_on_its_root(tmp_path: Path) -> None:
@@ -6045,6 +6374,103 @@ def test_a_participle_takes_the_table_of_the_verb_whose_present_it_is(
     # Tagged past, it is `עוּמַּד`'s spelling as much as `עָמַד`'s: no table.
     past = drawn("UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past", "past")
     assert past.get("paradigms", [0]) == [0]
+
+
+def _pointed_page(
+    tmp_path: Path, lemma: str, words: list[tuple[str, str | None]]
+) -> dict[str, Any]:
+    """A page whose only verb is `lemma`, written as each (surface, binyan)."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(
+                    start=at,
+                    end=at + 1,
+                    surface=surface,
+                    lemma=lemma,
+                    band=1,
+                    pos="VERB",
+                    binyan=binyan,
+                )
+                for at, (surface, binyan) in enumerate(words)
+            ]
+        },
+    )
+    html = render(
+        document, make_segmented(segments), [translation], tmp_path, annotation=annotation
+    )[0].read_text(encoding="utf-8")
+    return dict(json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1)))
+
+
+def test_an_occurrence_s_own_pointing_draws_its_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#307, decided 2026-10-03. Unpointed, `אוכל` is `אָכַל`'s present and
+    the past of the פֻּעַל `אוכל`, so the word draws no table. The occurrence written
+    `אוֹכֵל` opens on the פעל's present, and carries `אָכַל`'s table as its own; the one
+    written without points carries nothing of its own."""
+    from targum.annotate import paradigms
+
+    paal = paradigms.Paradigm(
+        lemma="אָכַל",
+        forms=(
+            paradigms.Form(written="אכל", features=("3rd", "masculine", "past", "singular")),
+            paradigms.Form(written="אוכל", features=("masculine", "present", "singular")),
+        ),
+    )
+    pual = paradigms.Paradigm(
+        lemma="אוכל",
+        forms=(paradigms.Form(written="אוכל", features=("3rd", "masculine", "past", "singular")),),
+    )
+    shelf = paradigms.Table(verbs={"a": paal, "u": pual}, by_form={"אוכל": ("a", "u")})
+    monkeypatch.setattr(paradigms, "table", lambda: shelf)
+
+    data = _pointed_page(tmp_path, "אוכל", [("אוֹכֵל", None), ("אוכל", None)])
+    extensions = data["extensions"]
+    assert extensions.get("paradigms", [0]) == [0], "the word itself is still undecided"
+    ((sid, here),) = data["paradigmsHere"].items()
+    assert here == [[0, 1]], "the pointed occurrence alone, on its own row"
+    assert {form for form, _codes in extensions["conjugations"][1]} == {"אכל", "אוכל"}
+
+
+def test_an_occurrence_whose_pointing_disagrees_refuses_the_word_s_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Refuse-on-conflict, per occurrence. The word is tagged פעל, so it draws `הָלַךְ`;
+    the occurrence pointed `הִלֵּךְ` is the פיעל, and draws nothing rather than a table
+    its own vowels say is wrong. The one pointed `הָלַךְ` agrees, and keeps the word's."""
+    from targum.annotate import paradigms
+
+    paal = paradigms.Paradigm(
+        lemma="הָלַךְ", forms=(paradigms.Form(written="הָלַכְתִּי", features=("1st", "past")),)
+    )
+    piel = paradigms.Paradigm(
+        lemma="הִלֵּךְ", forms=(paradigms.Form(written="הִלַּכְתִּי", features=("1st", "past")),)
+    )
+    shelf = paradigms.Table(verbs={"a": paal, "b": piel}, by_form={"הלך": ("a", "b")})
+    monkeypatch.setattr(paradigms, "table", lambda: shelf)
+
+    data = _pointed_page(tmp_path, "הלך", [("הָלַךְ", "פעל"), ("הִלֵּךְ", "פעל")])
+    assert data["extensions"]["paradigms"] == [1]
+    ((sid, here),) = data["paradigmsHere"].items()
+    assert here == [[1, 0]]
 
 
 # -- a commentary's comments are separated (targum-internal#200) ------------------------

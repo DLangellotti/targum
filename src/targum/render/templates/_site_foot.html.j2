@@ -15,7 +15,7 @@
     the legal pages only once they are published, the waitlist only while the front
     door is. -#}
 {%- set public = public|default(false) %}
-<style>{{ asset('foot.css') }}</style>
+{{ styles('foot.css') }}
 <footer class="site-footer">
   <div class="sf-inner">
     <div class="sf-brand">
@@ -48,6 +48,12 @@
               has never added one. -#}
           {%- if connector_is_open() %}
           <li><a href="/connect">{{ t("foot.install-mcp", "Install MCP") }}</a></li>
+          {%- endif %}
+          {#- The plans, inside the app only and only while they are on (design.md §12,
+              "The plans page is the one place money shows", 2026-10-09): the front door
+              stays a waitlist with no figures. -#}
+          {%- if not public and plans_are_on() %}
+          <li><a href="/plans">{{ t("foot.plans", "Plans") }}</a></li>
           {%- endif %}
           <li><a href="https://github.com/DLangellotti/targum">{{ t("foot.source", "Source") }}</a></li>
         </ul>

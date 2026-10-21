@@ -1,0 +1,335 @@
+/* How targum reads Hebrew (targum-internal#401). Laid on /about's sheet and card, so the
+   two public pages behind the foot read as one family.
+
+   The card is the view's one raised layer (§9), so an example inside it is a hairline,
+   never a second card. Ink and ink-soft carry the page; the word an example is about is
+   ink at full weight with an ink underline, not a hue. The one hue is the accent on the
+   vowel switch, which is a working control (§9), and teal on the links, as /about has. */
+
+.how .card { padding: 1.75rem 1.5rem 1.5rem; }
+.how .sheet { max-width: 46rem; }
+
+.how .lede {
+  margin: 0 0 0.5rem;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.part {
+  padding-block: 1.5rem 0.25rem;
+  border-block-start: 1px solid var(--rule);
+  margin-block-start: 1.25rem;
+}
+.part h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.part > p {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.example {
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-row);
+  padding: 1rem 1.1rem;
+  background: var(--paper);
+}
+.example + .example,
+.pair-row + .pair-row { margin-block-start: 0.75rem; }
+
+/* Hebrew at reading size, in the reader's own face. */
+.how .he {
+  margin: 0;
+  font-family: var(--reading-hebrew);
+  font-size: 1.25rem;
+  line-height: var(--leading-rtl);
+  color: var(--ink);
+}
+.how .he.scripture { font-family: var(--scripture, var(--reading-hebrew)); }
+.how .he b {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.35em;
+}
+/* The reader's English: a translation at rest is muted (§9). */
+.how .en {
+  margin: 0.25rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+.how .from {
+  margin: 0.6rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.how .label {
+  margin: 0 0 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.how .label ~ .label { margin-block-start: 1rem; }
+
+/* The vowel switch: a checkbox, so it works with no script. Checked shows the points. */
+.how-switch-box {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.how-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-block-end: 0.75rem;
+  min-block-size: 2rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.how-switch::before {
+  content: "";
+  inline-size: 2.25rem;
+  block-size: 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--ink-soft);
+  background: var(--card);
+  box-sizing: border-box;
+}
+.how-switch::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0.2rem;
+  inline-size: 0.85rem;
+  block-size: 0.85rem;
+  border-radius: 50%;
+  background: var(--ink-soft);
+  transition: transform 200ms var(--ease, ease);
+}
+.how-switch-box:checked + .how-switch::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.how-switch-box:checked + .how-switch::after {
+  background: var(--page-max, #fffdf9);
+  transform: translateX(1rem);
+}
+[dir="rtl"] .how-switch-box:checked + .how-switch::after { transform: translateX(-1rem); }
+.how-switch-box:focus-visible + .how-switch::before {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.vowels .bare { display: none; }
+.how-switch-box:not(:checked) ~ .pointed { display: none; }
+.how-switch-box:not(:checked) ~ .bare { display: block; }
+
+/* Two of the same letters, side by side where there is room. */
+.pair-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.pair-row .example + .example { margin: 0; }
+.word-card .headword {
+  margin: 0;
+  font-family: var(--reading-hebrew);
+  font-size: 1.75rem;
+  line-height: 1.4;
+}
+.word-card .what {
+  margin: 0 0 0.6rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.word-card .he { font-size: 1.0625rem; }
+
+/* A word and what came off it, one row a word. */
+.splits { list-style: none; margin: 0; padding: 0; }
+.splits li {
+  display: grid;
+  grid-template-columns: 9rem 1fr;
+  gap: 0.35rem 1rem;
+  align-items: center;
+  padding-block: 0.6rem;
+}
+.splits li + li { border-block-start: 1px solid var(--hairline); }
+.splits .whole {
+  font-family: var(--reading-hebrew);
+  font-size: 1.25rem;
+  text-align: end;
+}
+.splits .pieces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-start;
+}
+.splits .piece {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--card);
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+}
+.splits .piece small {
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.splits .piece.stem { border-color: var(--ink); }
+.splits .lemma {
+  grid-column: 2;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.splits .lemma [lang="he"] {
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+  color: var(--ink);
+}
+
+/* One root, a row a pattern. */
+.roots .root {
+  margin: 0 0 0.25rem;
+  font-family: var(--reading-hebrew);
+  font-size: 1.75rem;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+.pattern { padding-block: 0.75rem; }
+.pattern + .pattern { border-block-start: 1px solid var(--hairline); }
+.pattern-name {
+  margin: 0 0 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.pattern-name [lang="he"] {
+  font-family: var(--reading-hebrew);
+  font-size: 1.25rem;
+  margin-inline-end: 0.35rem;
+}
+.use + .use { margin-block-start: 0.75rem; }
+.use .he { font-size: 1.0625rem; }
+
+/* Speech: each word over the time it was said. */
+.speech .heard {
+  font-size: 1.0625rem;
+  color: var(--ink-soft);
+}
+.timed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.6rem;
+  margin-block-start: 0.6rem;
+}
+.timed .w {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.5;
+}
+.timed .w small {
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A reel upright beside its words; a chat as names and lines. */
+.media-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+.media-row .example + .example { margin: 0; }
+.reel {
+  display: grid;
+  grid-template-columns: 6.75rem 1fr;
+  gap: 0.9rem;
+  align-items: start;
+}
+.reel .frame {
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: var(--radius-row);
+  background: var(--ink);
+}
+.reel .he,
+.chat .he { font-size: 1.0625rem; }
+.reel .en + .he { margin-block-start: 0.75rem; }
+.turns { list-style: none; margin: 0; padding: 0; }
+.turns li + li {
+  margin-block-start: 0.6rem;
+  padding-block-start: 0.6rem;
+  border-block-start: 1px solid var(--hairline);
+}
+.turns .who {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+/* Onkelos: the verse, the Targum under it, and the words it files. */
+.aramaic .onkelos { margin-block-start: 0.4rem; }
+.aramaic-words {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.aramaic-words li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.aramaic-words .he { font-size: 1.25rem; }
+.aramaic-words .built {
+  font-family: var(--reading-hebrew);
+  font-size: 0.9375rem;
+}
+
+.credits .credit {
+  margin: 0 0 0.35rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+/* On a phone everything stands in one column. */
+@media (max-width: 40rem) {
+  .pair-row,
+  .media-row { grid-template-columns: 1fr; }
+  .splits li { grid-template-columns: 1fr; }
+  .splits .whole { text-align: start; }
+  .splits .lemma { grid-column: 1; }
+  .how .card { padding: 1.25rem 1rem; }
+  .example { padding: 0.9rem; }
+}
+
+/* §8: the switch answers a thumb over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .how-switch { min-block-size: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .how-switch::after { transition: none; }
+}

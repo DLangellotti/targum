@@ -1,0 +1,401 @@
+{
+ "vowels": {
+  "where": "weekly",
+  "plain": "חברת סמסונג הציגה שעון חכם חדש, Galaxy Watch Ultra 2. השעון עובד בתנאים קשים. בבדיקת \"גלובס\" הסוללה מחזיקה זמן רב. החיסרון המרכזי הוא המחיר הגבוה.",
+  "pointed": "חֶבְרַת סַמְסוֹנְג הִצִּיגָה שָׁעוֹן חָכָם חָדָשׁ, Galaxy Watch Ultra 2. הַשָּׁעוֹן עוֹבֵד בִּתְנָאִים קָשִׁים. בִּבְדִיקַת \"גְּלוֹבְּס\" הַסּוֹלְלָה מַחֲזִיקָה זְמַן רַב. הַחִיסָּרוֹן הַמֶּרְכָּזִי הוּא הַמְּחִיר הַגָּבוֹהַּ.",
+  "english": "Samsung has unveiled a new smartwatch, the Galaxy Watch Ultra 2. The watch works in harsh conditions. In Globes' testing, the battery lasts a long time. The main drawback is the high price."
+ },
+ "homographs": [
+  [
+   {
+    "letters": "דיווח",
+    "kind": "noun",
+    "meaning": "report",
+    "sentence": {
+     "before": "שָׁבוּעַ שֶׁל ",
+     "word": "דִּיוּוּחַ",
+     "after": " עַל אַזְהָרָה מִצְרִית לִפְנֵי 7 בְּאוֹקְטוֹבֶּר, הַצָּעָה אִירָאנִית עַל מֵצַר הוֹרְמוּז, עִסְקַת קַרְקַע בַּצָּפוֹן וְהֶפְסֵד שֶׁל אִינְטֶר מֵיָאמִי."
+    },
+    "english": "A week of reports on an Egyptian warning before October 7, an Iranian proposal on the Strait of Hormuz, a land deal in the north, and a loss for Inter Miami.",
+    "where": "weekly"
+   },
+   {
+    "letters": "דיווח",
+    "kind": "verb, past",
+    "meaning": "reported",
+    "sentence": {
+     "before": "הָעִיתּוֹן הָאָמֵרִיקָאִי ווֹל סְטְרִיט ג'וֹרְנֶל ",
+     "word": "דִּיוֵּוחַ",
+     "after": " עַל שִׂיחַת טֵלֵפוֹן."
+    },
+    "english": "The American newspaper The Wall Street Journal reported on a phone call.",
+    "where": "weekly"
+   }
+  ],
+  [
+   {
+    "letters": "ירד",
+    "kind": "verb, past",
+    "meaning": "went down; descended",
+    "sentence": {
+     "before": "בַּבֹּוקֶר ",
+     "word": "יָרַד",
+     "after": " גֶּשֶׁם בִּצְפוֹן הָאָרֶץ."
+    },
+    "english": "In the morning it rained in the north of the country.",
+    "where": "weekly"
+   },
+   {
+    "letters": "ירד",
+    "kind": "name",
+    "meaning": "Yered",
+    "sentence": {
+     "before": "וַֽיְחִי מַֽהֲלַלְאֵל חָמֵשׁ שָׁנִים וְשִׁשִּׁים שָׁנָה וַיּוֹלֶד אֶת־",
+     "word": "יָֽרֶד",
+     "after": "׃"
+    },
+    "english": "Mahalaleil lived sixty-five years and he had a son, Yered.",
+    "where": "Genesis 5:15"
+   }
+  ]
+ ],
+ "prefixes": [
+  {
+   "surface": "כשהמכשיר",
+   "word": "כְּשֶׁהַמַּכְשִׁיר",
+   "parts": [
+    {
+     "letters": "כ",
+     "means": "as"
+    },
+    {
+     "letters": "ש",
+     "means": "that"
+    },
+    {
+     "letters": "ה",
+     "means": "the"
+    }
+   ],
+   "stem": "מכשיר",
+   "suffix": false,
+   "lemma": "מכשיר",
+   "meaning": "device; instrument"
+  },
+  {
+   "surface": "ובמוסדותיה",
+   "word": "וּבְמוֹסְדוֹתֶיהָ",
+   "parts": [
+    {
+     "letters": "ו",
+     "means": "and"
+    },
+    {
+     "letters": "ב",
+     "means": "in"
+    }
+   ],
+   "stem": "מוסדותיה",
+   "suffix": true,
+   "lemma": "מוסד",
+   "meaning": "institution"
+  },
+  {
+   "surface": "מהמפגינים",
+   "word": "מֵהַמַּפְגִּינִים",
+   "parts": [
+    {
+     "letters": "מ",
+     "means": "from"
+    },
+    {
+     "letters": "ה",
+     "means": "the"
+    }
+   ],
+   "stem": "מפגינים",
+   "suffix": false,
+   "lemma": "מפגין",
+   "meaning": "demonstrator; protester"
+  }
+ ],
+ "roots": {
+  "root": "ע־ל־ה",
+  "rows": [
+   {
+    "pattern": "פָּעַל",
+    "meaning": "go up",
+    "uses": [
+     {
+      "binyan": "פעל",
+      "sentence": {
+       "before": "וְאֵד ",
+       "word": "יַֽעֲלֶה",
+       "after": " מִן־הָאָרֶץ וְהִשְׁקָה אֶֽת־כָּל־פְּנֵֽי־הָֽאֲדָמָֽה׃"
+      },
+      "english": "A mist rose up from the earth, and it watered the entire surface of the soil.",
+      "where": "Genesis 2:6"
+     },
+     {
+      "binyan": "פעל",
+      "sentence": {
+       "before": "מֵלָאגָה ",
+       "word": "עָלְתָה",
+       "after": " הָעוֹנָה לַלִּיגָה הַבְּכִירָה וְקִיוְּותָה לְהַפְתִּיעַ בְּמַדְרִיד."
+      },
+      "english": "Malaga was promoted to the top division this season and hoped to spring a surprise in Madrid.",
+      "where": "weekly"
+     }
+    ]
+   },
+   {
+    "pattern": "הִפְעִיל",
+    "meaning": "bring up, raise",
+    "uses": [
+     {
+      "binyan": "הפעיל",
+      "sentence": {
+       "before": "וָאֵרֵד לְהַצִּילוֹ ׀ מִיַּד מִצְרַיִם ",
+       "word": "וּֽלְהַעֲלֹתוֹ",
+       "after": " מִן־הָאָרֶץ הַהִוא …"
+      },
+      "english": "I have descended to free them from the hand of Egypt, and to bring them up from that land …",
+      "where": "Exodus 3:8"
+     },
+     {
+      "binyan": "הפעיל",
+      "sentence": {
+       "before": "הִיא גַּם ",
+       "word": "מַעֲלָה",
+       "after": " אֶת הָאִינְפְלַצְיָה."
+      },
+      "english": "It also raises inflation.",
+      "where": "weekly"
+     }
+    ]
+   },
+   {
+    "pattern": "נִפְעַל",
+    "meaning": "be lifted",
+    "uses": [
+     {
+      "binyan": "נפעל",
+      "sentence": {
+       "before": "",
+       "word": "וּבְהֵעָלוֹת",
+       "after": " הֶֽעָנָן מֵעַל הַמִּשְׁכָּן יִסְעוּ בְּנֵי יִשְׂרָאֵל בְּכֹל מַסְעֵיהֶֽם׃"
+      },
+      "english": "When the cloud rose up from over the mishkon, the B’nei Yisrael would set out in all their travels.",
+      "where": "Exodus 40:36"
+     }
+    ]
+   }
+  ]
+ },
+ "speech": {
+  "heard": "אנחנו כמעט שם אבל יש עיכוב קטן הלקוח ביקש עוד שני שינויים בדף הבית אז לא נספיק עד יום ראשון אני חושב שנצטרך עוד שבוע",
+  "sentences": [
+   {
+    "words": [
+     {
+      "word": "אנחנו",
+      "at": 12.04
+     },
+     {
+      "word": "כמעט",
+      "at": 12.46
+     },
+     {
+      "word": "שם,",
+      "at": 13.0
+     },
+     {
+      "word": "אבל",
+      "at": 14.18
+     },
+     {
+      "word": "יש",
+      "at": 14.4
+     },
+     {
+      "word": "עיכוב",
+      "at": 14.76
+     },
+     {
+      "word": "קטן.",
+      "at": 15.32
+     }
+    ],
+    "english": "We're almost there, but there's a small delay."
+   },
+   {
+    "words": [
+     {
+      "word": "הלקוח",
+      "at": 16.66
+     },
+     {
+      "word": "ביקש",
+      "at": 17.12
+     },
+     {
+      "word": "עוד",
+      "at": 17.68
+     },
+     {
+      "word": "שני",
+      "at": 17.96
+     },
+     {
+      "word": "שינויים",
+      "at": 18.32
+     },
+     {
+      "word": "בדף",
+      "at": 18.72
+     },
+     {
+      "word": "הבית,",
+      "at": 19.1
+     },
+     {
+      "word": "אז",
+      "at": 20.28
+     },
+     {
+      "word": "לא",
+      "at": 20.38
+     },
+     {
+      "word": "נספיק",
+      "at": 20.56
+     },
+     {
+      "word": "עד",
+      "at": 20.96
+     },
+     {
+      "word": "יום",
+      "at": 21.14
+     },
+     {
+      "word": "ראשון.",
+      "at": 21.3
+     }
+    ],
+    "english": "The client asked for two more changes to the homepage, so we won't make it by Sunday."
+   },
+   {
+    "words": [
+     {
+      "word": "אני",
+      "at": 22.7
+     },
+     {
+      "word": "חושב",
+      "at": 22.9
+     },
+     {
+      "word": "שנצטרך",
+      "at": 23.32
+     },
+     {
+      "word": "עוד",
+      "at": 24.12
+     },
+     {
+      "word": "שבוע.",
+      "at": 24.48
+     }
+    ],
+    "english": "I think we'll need another week."
+   }
+  ]
+ },
+ "media": {
+  "reel": {
+   "author": "Vegan Friendly",
+   "home": "https://www.youtube.com/shorts/0zIhpFW_4EY",
+   "tall": true,
+   "poster": "data:image/webp;base64,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",
+   "lines": [
+    {
+     "pointed": "אָז מְטַגְּנִים אֶת הַיְּרָקוֹת וְהַטּוֹפּוֹ לְפִי הַסֵּדֶר, וְכַמּוּבָן שֶׁאֶפְשָׁר לְהוֹסִיף גַּם פִּטְרִיּוֹת וּמָה שֶׁבָּא לָכֶם.",
+     "english": "So we sauté the vegetables and tofu in order, and of course you can also add mushrooms and whatever else you like."
+    },
+    {
+     "pointed": "שִׂימוּ לֵב לְצוּרַת קִיפּוּל שֶׁאֲנִי עוֹשֶׂה כְּדֵי שֶׁלֹּא יִבְרַח שׁוּם דָּבָר מֵהַצְּדָדִים, וְגַם אַל תַּגְזִימוּ עִם הַמִּילּוּי.",
+     "english": "Pay attention to the fold shape I'm doing so nothing escapes from the sides, and don't overdo it with the filling either."
+    }
+   ]
+  },
+  "chat": {
+   "turns": [
+    {
+     "speaker": "אבי · ועד הבית",
+     "text": "בוקר טוב לכולם, ביום שלישי מגיע טכנאי לתקן את המעלית. בין 8 ל-12 לא תהיה מעלית, תתכננו בהתאם.",
+     "english": "Good morning everyone, on Tuesday a technician is coming to fix the elevator. Between 8 and 12 there will be no elevator, plan accordingly."
+    },
+    {
+     "speaker": "רינה קומה 3",
+     "text": "שוב?? תיקנו אותה לפני חודש",
+     "english": "Again?? They fixed it a month ago"
+    },
+    {
+     "speaker": "משה",
+     "text": "מישהו שוב חונה בחניה שלי. רכב לבן, מספר מסתיים ב-47. תזיזו בבקשה",
+     "english": "Someone is parked in my spot again. White car, plate ending in 47. Please move it"
+    }
+   ]
+  }
+ },
+ "aramaic": {
+  "where": "Genesis 1:1",
+  "torah": "בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָֽרֶץ׃",
+  "onkelos": "בְּקַדְמִין בְּרָא יְיָ יָת שְׁמַיָּא וְיָת אַרְעָא",
+  "words": [
+   {
+    "form": "בְּקַדְמִין",
+    "headword": "",
+    "built": "",
+    "meaning": ""
+   },
+   {
+    "form": "בְּרָא",
+    "headword": "",
+    "built": "",
+    "meaning": ""
+   },
+   {
+    "form": "יְיָ",
+    "headword": "יְיָ",
+    "built": "",
+    "meaning": "the LORD [the divine name]"
+   },
+   {
+    "form": "יָת",
+    "headword": "יָת",
+    "built": "",
+    "meaning": "[marks the direct object]"
+   },
+   {
+    "form": "שְׁמַיָּא",
+    "headword": "שְׁמַיָּא",
+    "built": "",
+    "meaning": "heaven; sky"
+   },
+   {
+    "form": "וְיָת",
+    "headword": "יָת",
+    "built": "ו + ית",
+    "meaning": "[marks the direct object]"
+   },
+   {
+    "form": "אַרְעָא",
+    "headword": "אַרְעָא",
+    "built": "",
+    "meaning": "land; earth; ground"
+   }
+  ]
+ }
+}

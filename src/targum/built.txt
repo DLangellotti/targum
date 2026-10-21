@@ -5,6 +5,86 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-20
+The Library measures each language by your known words in it, so Russian texts no longer go by your Hebrew.
+Upload takes a link pasted without https, and follows its build on the card it was priced on.
+Home, the Library, Your Words and Progress say when they cannot load, with Try again beside it.
+
+2026-10-19
+A film keeps playing past its first lines, and a recording that will not start says why.
+The Library opens in about half a second after Home, and a first visit loads sooner.
+A slow look-up says it is still looking, and a chapter that cannot open offers Try again.
+
+2026-10-18
+Tell us sits in the account menu, so a reader can write to targum from any page.
+Home says when it cannot open your texts, with Try again, and a text begun on another device continues here.
+Words you may already know includes a language's one-letter words, such as Russian в and я.
+
+2026-10-14
+The Russian Library holds over 400 texts across its four levels, most of them with a recording.
+Russian texts are no longer graded harder than they are, so the easy ones show as Easy.
+On a second read, a Russian page can show each subject that comes after its verb.
+
+2026-10-13
+A Grammar tab beside Words and Phrases practises Hebrew's hard spots on lines you have already read.
+A Hebrew verb's card says which preposition it takes, and its object's card names the verb it goes with.
+Done finishes a part and marks nothing; marking the words left as known is a press of its own.
+
+2026-10-12
+Every way into the Torah opens its weekly portion at the verse, and each portion leads on to the next.
+A Hebrew word's card spells its sound in letters a learner reads, in syllables, with the stress marked.
+A reader who reads Russian can switch the interface between English and Russian from the top bar.
+
+2026-10-11
+In Theatre the picture sits centred, the line being said under it, and Next part is always a press away.
+An ignored word on Your Words can be taken back, and found again under Ignored.
+A word counts as known only once you mark it, the same in a text, on its contents page and in the Library.
+
+2026-10-10
+Listening has a view of its own: the picture, the line being said, and steps by line, also on a locked screen.
+Upload can record your voice again, beside choosing a file.
+Hearing a section aloud shows how far the audio has got, and plays it when it is ready.
+
+2026-10-09
+One search opens from every page, forgives spelling, and finds Hebrew typed in Latin letters.
+A text once opened can be read with no connection, and what you do offline is kept for when you are back.
+Every page wears one new design, from Home and the Library to Your Words and Your Progress.
+
+2026-10-08
+Home opens on the texts you were reading, each picking up at the sentence you left, on any device.
+Every text in the Library has a picture on its card, and an upload gets its own when it is added.
+The Tanakh map puts a check on each chapter you have read, with the Torah's year above it.
+
+2026-10-07
+A video in parts offers the next part at the end of each, and one press gets every part.
+A word's card can say any word aloud, even where no recording of the text covers it.
+A reader who starts as advanced is not asked about the commonest Hebrew words.
+
+2026-10-06
+A text that is getting ready can be opened from the bell, to follow how far it has got as it happens.
+In Claude and ChatGPT, a text targum finds shows as a card that opens it, and plays it if it has a recording.
+A text being made ready from Claude or ChatGPT shows a card that follows it until it can be read.
+
+2026-10-05
+The controls above a text sit in one quiet row, which steps back while you read or listen.
+A video plays beside its transcript, or large with the line being said set under it.
+The weekly portion reads in Russian, with the Russian translation as its first column.
+
+2026-10-04
+Each section of the weekly portion can be heard chanted or spoken, with a switch between the two.
+Rashi, in Hebrew or in English, and the Aramaic sit beside each verse of the week's portion.
+The Library leads with this Shabbat's portion, and each portion ends on a link to the next one.
+
+2026-10-03
+A map of the Tanakh shades every chapter by how much of it you would understand.
+A new page shows the hard parts of Hebrew, each one solved on a real text.
+The Library has a Life in Israel subject, for texts about settling in the country.
+
+2026-10-02
+Paste a link on the front page and targum says what it would make of it.
+A Hebrew verb's card fills forms missing from its table, worked out from its root and pattern.
+The week's Torah portion prints as a sheet, with the Aramaic beside each verse and the haftarah after it.
+
 2026-10-01
 On a phone, the recording controls in the menu no longer break one word to a line.
 A known word's card says known once, not twice.

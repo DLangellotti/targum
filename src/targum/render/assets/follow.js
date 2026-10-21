@@ -110,11 +110,32 @@
     write(SEEN, kept);
   }
 
+  /* Which calendar this reader keeps: Israel's or the diaspora's, which part company
+     for a few weeks in some years (targum-internal#411). A fact about this browser, kept
+     the way the follows are; the diaspora's until they say, because that is what
+     `/parasha` opens on. The Library's Weekly portion shelf sets it, and the week's
+     portion on Learn and in the bell is asked for by it. */
+  var SCHEDULE = "targum:schedule";
+  function schedule() {
+    try {
+      return localStorage.getItem(SCHEDULE) === "israel" ? "israel" : "diaspora";
+    } catch (e) {
+      return "diaspora";
+    }
+  }
+  function setSchedule(which) {
+    try {
+      localStorage.setItem(SCHEDULE, which === "israel" ? "israel" : "diaspora");
+    } catch (e) {
+      /* nothing to keep it in; the page still answers for this visit */
+    }
+  }
+
   function list() {
     if (typeof fetch !== "function") return Promise.resolve([]);
     return sync()
       .then(function () {
-        return fetch(keyed("/series"), { headers: keyHeaders({}) });
+        return fetch(keyed("/series?schedule=" + schedule()), { headers: keyHeaders({}) });
       })
       .then(function (response) {
         return response.json();
@@ -190,8 +211,8 @@
     return node;
   }
 
-  /* The row on the Library: each series with what it is, where it is this week, one
-     press to follow it and one to open its page. */
+  /* A row per series — what it is, where it is this week, its switch and its Open — drawn
+     where home's Subscriptions tab asks (`yours.js`, design.md §12, 2026-10-08). */
   function draw(host, series) {
     host.textContent = "";
     series.forEach(function (one) {
@@ -236,7 +257,7 @@
       toggle.appendChild(word);
       function settle() {
         var on = following(one.id);
-        word.textContent = on ? t("follow.following", "Following") : t("follow.follow", "Follow");
+        word.textContent = on ? t("follow.subscribed", "Subscribed") : t("follow.subscribe", "Subscribe");
         toggle.setAttribute("aria-checked", on ? "true" : "false");
         li.classList.toggle("followed", on);
       }
@@ -268,24 +289,7 @@
     fresh: fresh,
     whenSaid: whenSaid,
     draw: draw,
+    schedule: schedule,
+    setSchedule: setSchedule,
   };
-
-  // The profile carries the row; anywhere else this only answers questions. This
-  // script rides in the bar, ahead of the page's own markup, so the row is looked for
-  // once the document is complete.
-  function mount() {
-    var host = document.getElementById("series");
-    var section = document.getElementById("subscriptions");
-    if (!host || !section) return;
-    list().then(function (series) {
-      if (!series.length) return;
-      draw(host, series);
-      section.hidden = false;
-    });
-  }
-  if (document.readyState === "loading" && document.addEventListener) {
-    document.addEventListener("DOMContentLoaded", mount);
-  } else {
-    mount();
-  }
 })();

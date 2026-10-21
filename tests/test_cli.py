@@ -1664,3 +1664,17 @@ def test_a_french_shelf_keeps_its_words_until_it_is_read_again(
     assert fresh is not None and model_lemma.tenses_apart(fresh.annotator)
     assert fresh.tokens[read.id][1].feats == "UPOS=VERB|Tense=Imp|Person=3"
     assert "Read the words again for $" in result.output
+
+
+def test_journal_logging_lets_info_through(monkeypatch) -> None:
+    """The box's journal sees the server's INFO lines, the connector's timings among them."""
+    import logging
+
+    from targum import cli
+
+    root = logging.getLogger()
+    monkeypatch.setattr(root, "handlers", [])
+    monkeypatch.setattr(root, "level", logging.WARNING)
+    cli.journal_logging()
+    assert root.level == logging.INFO
+    assert root.handlers

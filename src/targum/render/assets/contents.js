@@ -10,33 +10,46 @@ function readInto() {
 }
 
 /* What a waiting press spends, said beside it (copy audit, 2026-09-28): a translation
- * none, and a transcript its parts' minutes — a credit a minute, any part of one a whole
- * one, as the server counts (`builder.credits_of`). The page carries each part's length
- * on `.whole[data-part-seconds]` and each row's parts on `data-parts`; "" where either
- * is missing, rather than a guess. `parts` is a list of part numbers. */
-function spends(hearing, parts) {
-  var t = window.TargumStrings.t;
-  var tn = window.TargumStrings.tn;
-  if (!hearing) return t("contents.uses-no-credits", "Uses none of your credits");
-  var whole = document.querySelector(".whole[data-part-seconds]");
-  if (!whole || !parts.length) return "";
-  var seconds = {};
-  whole
-    .getAttribute("data-part-seconds")
-    .split(" ")
-    .forEach(function (pair) {
-      var bits = pair.split(":");
-      seconds[bits[0]] = Number(bits[1]) || 0;
-    });
-  var sum = 0;
-  for (var i = 0; i < parts.length; i++) {
-    if (!seconds[parts[i]]) return "";
-    sum += seconds[parts[i]];
-  }
-  var n = Math.ceil(sum / 60 - 1e-9);
-  return tn("contents.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+ * none. Only a book's chapters have a press here since 2026-10-07: a recording's parts
+ * are made as the reader opens them (design.md §12, "One press gets the whole video, a
+ * part at a time"), so its rows say how each part stands instead. */
+function spends() {
+  return window.TargumStrings.t("contents.uses-no-credits", "Uses none of your credits");
 }
 
+/* targum out of reach: the connection's banner under the top of the page (`fault.js`;
+   design.md §12, 2026-10-09), whose Try again runs `retry`. */
+function unreachable(retry) {
+  if (window.TargumFault) window.TargumFault.unreachable(retry);
+}
+
+/* A press that could not start says why in a line after it, and the press itself says
+   Try again (errors QA, targum-internal#468). The reason stood on the button, where a
+   sentence is read as the thing to press — the chapter's own note in the reader was
+   mended the same way (reader QA, 2026-10-19). */
+function refusedAt(button, sentence) {
+  var fault = window.TargumFault;
+  var next = button.nextElementSibling;
+  if (next && next.classList.contains("contents-fault")) next.parentNode.removeChild(next);
+  button.disabled = false;
+  if (!fault) {
+    button.textContent = sentence;
+    return;
+  }
+  button.textContent = fault.tryAgain();
+  var said = fault.line(sentence, "", null, true);
+  said.classList.add("contents-fault");
+  button.parentNode.insertBefore(said, button.nextSibling);
+  button.addEventListener(
+    "click",
+    function () {
+      if (said.parentNode) said.parentNode.removeChild(said);
+    },
+    { once: true }
+  );
+}
+
+/* The parts of a recording a row holds, as the page writes them on `data-parts`. */
 function partsOf(row) {
   return (row.getAttribute("data-parts") || "").split(" ").filter(Boolean);
 }
@@ -63,7 +76,10 @@ function partsOf(row) {
   var key = new URLSearchParams(location.search).get("k") || "";
   var suffix = key ? "?k=" + encodeURIComponent(key) : "";
 
-  var links = document.querySelectorAll(".toc a");
+  // The served contents page has more ways in than its list (design.md §12, "A contents
+  // page is a page of its own", 2026-10-09): the filmstrip, the Tanakh's strip of
+  // chapters, Continue and Start from the beginning.
+  var links = document.querySelectorAll(".toc a, .parts-strip a, .parts-cells a, #start, .parts-again");
   Array.prototype.forEach.call(links, function (link) {
     var href = link.getAttribute("href");
     // A link out of the folder — a portion's own page, by route — needs no key. A link
@@ -97,7 +113,11 @@ function partsOf(row) {
 /* --- where to start ---------------------------------------------------------
  *
  * "Start reading" goes to the first chapter. Come back and it says "Continue" and goes
- * to the chapter last opened, which the reader writes down under the text's hash.
+ * to the part the reader was last in — on this browser, or, signed in, on whichever
+ * device they read on last (targum-internal#430). The reader writes the place down as
+ * it is read (`TargumSync.place`); the account's copy is asked for here and wins when
+ * it is newer, and is kept in this browser too, so the part it opens puts the reader
+ * back on their sentence. Signed out, or off the disk, this browser's is the whole of it.
  */
 (function () {
   "use strict";
@@ -106,17 +126,91 @@ function partsOf(row) {
   var start = document.getElementById("start");
   var toc = document.querySelector(".toc[data-document]");
   if (!start || !toc) return;
-  var last = 0;
-  try {
-    last = Number(
-      JSON.parse(localStorage.getItem("targum:chapter") || "{}")[toc.getAttribute("data-document")]
-    );
-  } catch (e) {}
-  if (!last) return;
-  var row = toc.querySelector('[data-chapter="' + last + '"] a');
-  if (!row) return;
-  start.href = row.getAttribute("href");
-  start.textContent = t("contents.continue", "Continue");
+  var documentId = toc.getAttribute("data-document");
+  var PLACES = "targum:places";
+
+  function stored(name) {
+    try {
+      return JSON.parse(localStorage.getItem(name) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // The text's place as this browser has it. `targum:chapter` is the one number a
+  // browser kept before there were places, read for a text not opened since.
+  function mine() {
+    var place = stored(PLACES)[documentId];
+    if (place && place.section) return place;
+    var last = Number(stored("targum:chapter")[documentId]);
+    return last ? { section: String(last), at: 0 } : null;
+  }
+
+  // Said the board's way on the served page, "Continue: chapter 5" or "Continue: part 3,
+  // 4:12", from the patterns it carries; the page a disk opens says Continue.
+  function label(place, number) {
+    var at = Number(place.seconds || 0);
+    var pattern = (at && start.getAttribute("data-continue-at")) || start.getAttribute("data-continue");
+    if (!pattern) return t("contents.continue", "Continue");
+    var whole = Math.floor(at);
+    var clock = Math.floor(whole / 60) + ":" + ("0" + (whole % 60)).slice(-2);
+    if (whole >= 3600) {
+      var minutes = Math.floor((whole % 3600) / 60);
+      clock = Math.floor(whole / 3600) + ":" + ("0" + minutes).slice(-2) + ":" + ("0" + (whole % 60)).slice(-2);
+    }
+    return pattern.replace("{n}", number).replace("{time}", clock);
+  }
+
+  function point(place) {
+    if (!place || !place.section) return;
+    var row = toc.querySelector('[data-chapter="' + place.section + '"]');
+    var link = row && row.querySelector("a");
+    if (!link) return;
+    start.href = link.getAttribute("href");
+    var said = start.querySelector(".parts-start-label") || start;
+    said.textContent = label(place, row.getAttribute("data-chapter"));
+    Array.prototype.forEach.call(document.querySelectorAll(".here[data-chapter], .here[data-frame]"), function (was) {
+      was.classList.remove("here");
+    });
+    row.classList.add("here");
+    var cell = document.querySelector('[data-frame="' + place.section + '"]');
+    if (cell) cell.classList.add("here");
+  }
+
+  // The server already pointed it, from the account: nothing here can know better.
+  if (start.hasAttribute("data-placed")) return;
+  var here = mine();
+  point(here);
+
+  if (!/^https?:$/.test(location.protocol) || !window.fetch) return;
+  var key = new URLSearchParams(location.search).get("k") || "";
+  fetch(
+    "/account/places?limit=1&document=" +
+      encodeURIComponent(documentId) +
+      (key ? "&k=" + encodeURIComponent(key) : ""),
+    { credentials: "same-origin" }
+  )
+    .then(function (response) {
+      return response.ok ? response.json() : null;
+    })
+    .then(function (answer) {
+      var theirs = answer && answer.places && answer.places[0];
+      if (!theirs || !theirs.section) return;
+      if (Number(theirs.at || 0) <= Number((here && here.at) || 0)) return;
+      var all = stored(PLACES);
+      all[documentId] = {
+        section: String(theirs.section),
+        path: theirs.path || "",
+        segment: theirs.segment || "",
+        seconds: Number(theirs.seconds || 0),
+        at: Number(theirs.at || 0),
+      };
+      try {
+        targumKeep(PLACES, JSON.stringify(all));
+      } catch (e) {}
+      point(theirs);
+    })
+    .catch(function () {});
 })();
 
 /* --- a link to a verse ------------------------------------------------------
@@ -209,6 +303,7 @@ function partsOf(row) {
   }
 
   function mark(chapters) {
+    var heard = [];
     Array.prototype.forEach.call(rows, function (row) {
       var number = Number(row.getAttribute("data-chapter"));
       var chapter = chapters.filter(function (c) {
@@ -216,44 +311,133 @@ function partsOf(row) {
       })[0];
       if (!chapter) return;
       row.classList.toggle("waiting", !chapter.ready);
-      if (chapter.ready || row.querySelector(".get")) return;
+      var cell = document.querySelector('[data-frame="' + number + '"]');
+      if (cell && !chapter.ready) cell.classList.add("waiting");
+      if (chapter.ready) return;
+
+      // A part of a recording has no press here (David, 2026-10-07; design.md §12, "One
+      // press gets the whole video, a part at a time"): the press on its quote covered
+      // every part, and opening the part's own page is what starts it. The row says
+      // plainly how the part stands instead — waiting, or being made and how far — and
+      // its link is the way in.
+      if (row.hasAttribute("data-audio")) {
+        if (!row.querySelector(".get-said")) {
+          var line = document.createElement("span");
+          line.className = "get-said";
+          line.setAttribute("role", "status");
+          // A sentence in the page's language inside a Hebrew list: isolated, or its
+          // closing full stop is drawn at the start of the line.
+          line.dir = "auto";
+          row.appendChild(line);
+        }
+        heard.push(row);
+        return;
+      }
+      if (row.querySelector(".get")) return;
 
       var get = document.createElement("button");
       get.type = "button";
       get.className = "get";
-      // An imported recording's chapter is waiting on a transcript, not a
-      // translation, and a button that names the wrong work makes the wrong promise.
-      var hearing = row.hasAttribute("data-audio");
-      get.textContent = hearing ? t("contents.transcribe", "Transcribe") : t("contents.translate", "Translate");
+      get.textContent = t("contents.translate", "Translate");
       get.onclick = function () {
         get.disabled = true;
-        get.textContent = hearing ? t("contents.transcribing", "Transcribing…") : t("contents.translating", "Translating…");
+        get.textContent = t("contents.translating", "Translating…");
         ask("/chapter", { name: name, number: number, to: readInto() })
           .then(function (job) {
             if (job.ready) return location.reload();
             // A refusal carries an id too, and watching a job that was never kept
             // spun for ever (2026-09-14).
             if (job.blocked || job.stage === "blocked" || !job.id) {
-              get.disabled = false;
-              get.textContent = job.blocked || job.error || t("contents.could-not", "We couldn't start that. Try again.");
+              refusedAt(get, job.blocked || job.error || t("contents.could-not", "We couldn't start that."));
               return;
             }
             watch(job.id, get);
           })
           .catch(function () {
+            // The connection's banner, not the button's label (design.md §12,
+            // 2026-10-09): the button goes back to what it was, and Try again presses it.
             get.disabled = false;
-            get.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
+            get.textContent = t("contents.translate", "Translate");
+            unreachable(function () {
+              get.click();
+            });
           });
       };
       row.appendChild(get);
-      var cost = spends(hearing, partsOf(row));
-      if (cost) {
-        var said = document.createElement("span");
-        said.className = "get-cost";
-        said.textContent = cost;
-        row.appendChild(said);
-      }
+      var said = document.createElement("span");
+      said.className = "get-cost";
+      said.textContent = spends();
+      row.appendChild(said);
     });
+    if (heard.length) follow(heard);
+  }
+
+  /* How each waiting part of a recording stands, from the bell's own list of your builds
+   * (`/jobs`, with the server's `said` about each), looked at again every three seconds
+   * while any of them is being made, as the bell does, and not at all once none is. A
+   * part made while the page was watching reloads it, so its row turns ready. Nothing
+   * here asks for anything to be made. */
+  function follow(heard) {
+    var seen = {};
+    var timer = null;
+    function jobFor(row, jobs) {
+      var mine = partsOf(row).map(Number);
+      return jobs.filter(function (job) {
+        if (job.folder !== name || job.stage === "done") return false;
+        return (job.making || []).some(function (n) {
+          return mine.indexOf(n) >= 0;
+        });
+      })[0];
+    }
+    function say(row, job) {
+      var line = row.querySelector(".get-said");
+      if (!job) {
+        line.textContent = t("contents.part-waiting", "Ready when you open it.");
+      } else if (job.stage === "failed" || job.stage === "blocked") {
+        line.textContent = job.said || job.blocked || job.error || t("contents.could-not", "We couldn't start that.");
+      } else {
+        var making = t("contents.part-making", "Getting ready.");
+        line.textContent = job.said ? making + " " + job.said : making;
+      }
+    }
+    function look() {
+      fetch(keyed("/jobs"), { credentials: "same-origin" })
+        .then(function (r) {
+          return r.ok ? r.json() : { jobs: [] };
+        })
+        .then(function (data) {
+          var jobs = (data && data.jobs) || [];
+          var going = false;
+          var finished = false;
+          heard.forEach(function (row) {
+            var job = jobFor(row, jobs);
+            say(row, job);
+            var live = !!job && job.stage !== "failed" && job.stage !== "blocked";
+            if (live) seen[job.id] = true;
+            going = going || live;
+          });
+          // A job this page saw being made that is now done, or gone from the list.
+          Object.keys(seen).forEach(function (id) {
+            var now = jobs.filter(function (job) {
+              return job.id === id;
+            })[0];
+            if (!now || now.stage === "done") finished = true;
+          });
+          if (finished) return location.reload();
+          if (going && !timer) timer = setInterval(look, 3000);
+          if (!going && timer) {
+            clearInterval(timer);
+            timer = null;
+          }
+        })
+        .catch(function () {
+          heard.forEach(function (row) {
+            var line = row.querySelector(".get-said");
+            if (!line.textContent) say(row, null);
+          });
+        });
+    }
+    look();
   }
 
   function watch(id, button) {
@@ -268,14 +452,16 @@ function partsOf(row) {
             location.reload();
           } else if (job.stage === "failed" || job.blocked || (job.error && !job.stage)) {
             clearInterval(timer);
-            button.disabled = false;
-            button.textContent = job.error || job.blocked || t("contents.could-not", "We couldn't start that. Try again.");
+            refusedAt(button, job.error || job.blocked || t("contents.could-not", "We couldn't start that."));
           }
         })
         .catch(function () {
           clearInterval(timer);
-          button.disabled = false;
-          button.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
+          // Still building, as far as anybody knows: the banner says the connection
+          // went, and Try again goes back to watching rather than starting it twice.
+          unreachable(function () {
+            watch(id, button);
+          });
         });
     }, 1500);
   }
@@ -293,7 +479,8 @@ function partsOf(row) {
     .catch(function () {});
 })();
 
-/* Prepare the whole book, for reading somewhere with no connection. */
+/* Prepare the whole book, for reading somewhere with no connection. A book's only: a
+ * recording's contents page has no such press since 2026-10-07. */
 (function () {
   "use strict";
   // Said in the page's language, from `strings.js` (targum-internal#184).
@@ -324,23 +511,18 @@ function partsOf(row) {
   }
 
   function show() {
-    var rows = document.querySelectorAll("[data-chapter].waiting");
-    var waiting = rows.length;
+    var waiting = document.querySelectorAll("[data-chapter].waiting").length;
     var box = press.parentNode;
     box.hidden = waiting === 0;
-    // What preparing the rest spends, beside the press: every waiting part once.
+    // What preparing the rest spends, beside the press. Only a book's page has the
+    // press since 2026-10-07, so it is a translation's none.
     var cost = document.getElementById("prepare-cost");
     if (!cost || !waiting) return;
-    var hearing = rows[0].hasAttribute("data-audio");
-    var parts = [];
-    Array.prototype.forEach.call(rows, function (row) {
-      partsOf(row).forEach(function (n) {
-        if (parts.indexOf(n) < 0) parts.push(n);
-      });
-    });
-    cost.textContent = spends(hearing, parts);
+    cost.textContent = spends();
     cost.hidden = !cost.textContent;
   }
+
+  var pressLabel = press.textContent;
 
   press.onclick = function () {
     press.disabled = true;
@@ -355,8 +537,7 @@ function partsOf(row) {
       })
       .then(function (job) {
         if (job.blocked || job.stage === "blocked") {
-          press.disabled = false;
-          press.textContent = job.blocked || job.error;
+          refusedAt(press, job.blocked || job.error || t("contents.could-not-prepare", "We couldn't prepare it."));
           return;
         }
         if (!job.id) return location.reload();
@@ -371,20 +552,25 @@ function partsOf(row) {
                 location.reload();
               } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
-                press.disabled = false;
-                press.textContent = state.error || state.blocked || t("contents.could-not-prepare", "We couldn't prepare it. Try again.");
+                refusedAt(press, state.error || state.blocked || t("contents.could-not-prepare", "We couldn't prepare it."));
               }
             })
             .catch(function () {
               clearInterval(timer);
               press.disabled = false;
-              press.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
+              press.textContent = pressLabel;
+              unreachable(function () {
+                press.click();
+              });
             });
         }, 1500);
       })
       .catch(function () {
         press.disabled = false;
-        press.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
+        press.textContent = pressLabel;
+        unreachable(function () {
+          press.click();
+        });
       });
   };
 

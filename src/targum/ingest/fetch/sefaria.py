@@ -180,23 +180,24 @@ class Pair:
     english: str
 
 
-#: Rashi on the five books (targum-internal#200). Silbermann's is public domain on both
-#: sides, and it is **two Hebrew pins and not one**: Numbers is filed under a title that
-#: ends four words differently, so a build that pinned one string would take four books
-#: and miss the fifth in silence. Checked against the v3 endpoint on 2026-09-22 — the v1
-#: one answers some of these with no version and no licence at all, which reads like a
-#: hole and is not one.
-_SILBERMANN = "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934"
-_SILBERMANN_NUMBERS = (
-    "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann "
-    "-- corrected vocalization"
-)
+#: Rashi on the five books (targum-internal#200), in the Metsudah Rashi Chumash on both
+#: sides (targum-internal#414, David, 2026-10-04). CC-BY, the same publisher and licence
+#: as the English already on the verses, and one edition on both sides, so a verse's
+#: Hebrew comments and its English ones are the same comments in the same order.
+#:
+#: It replaced Silbermann's (1929-1934, public domain), which is complete too but whose
+#: English opens each comment with the catchword in capitals, and whose Hebrew is filed
+#: under two titles, Numbers apart. Measured against the v3 endpoint on 2026-10-04: all
+#: five books on both sides, Genesis 2,011 Hebrew comments against 2,007 English, the rest
+#: within three. The comments are joined a verse at a time (`document_from_payload`), so a
+#: verse where one side splits a comment the other keeps whole still pairs.
+#:
+#: **The Hebrew is unpointed**, apart from the verses it quotes. A rendering is never
+#: vocalized, so it reads as Metsudah printed it.
+_METSUDAH_RASHI = "Rashi Chumash, Metsudah Publications, 2009"
 RASHI_TORAH: dict[str, Pair] = {
-    "Genesis": Pair(_SILBERMANN, _SILBERMANN),
-    "Exodus": Pair(_SILBERMANN, _SILBERMANN),
-    "Leviticus": Pair(_SILBERMANN, _SILBERMANN),
-    "Numbers": Pair(_SILBERMANN_NUMBERS, _SILBERMANN),
-    "Deuteronomy": Pair(_SILBERMANN, _SILBERMANN),
+    book: Pair(_METSUDAH_RASHI, _METSUDAH_RASHI)
+    for book in ("Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy")
 }
 
 
@@ -612,7 +613,7 @@ def version_for(language: str, ref: str) -> str:
     book = book_of(ref)
     commented = _COMMENTARY_REF.match(ref.strip())
     if commented is not None and commented.group("who") == "Rashi":
-        # Two pins, not one: see `RASHI_TORAH` (targum-internal#200).
+        # One edition on both sides: see `RASHI_TORAH` (targum-internal#200, #414).
         pinned = RASHI_TORAH.get(commented.group("book").strip())
         if pinned is None:
             raise TargumError(

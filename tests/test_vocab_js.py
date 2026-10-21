@@ -205,6 +205,17 @@ def test_the_field_offers_a_way_to_finish() -> None:
     assert built["saveLabel"] == "Save"
 
 
+def test_save_waits_for_something_to_save() -> None:
+    """A dark Save on an empty field was the loudest thing on the card, and on a phrase it
+    stood over Keep: "I kept clicking save instead of keep" (Boaz, 2026-10-06). It comes
+    with the first letter typed, and stays to say Saved."""
+    assert run()["saveHidden"] is True
+    assert run(note="scroll")["saveHidden"] is True, "a meaning already kept is not news"
+    assert run(type="s")["saveHidden"] is False
+    done = run(type="scroll", press=True)
+    assert done["saveHidden"] is False and done["saveLabel"] == "Saved"
+
+
 def test_pressing_save_keeps_what_was_typed() -> None:
     built = run(type="most of the leadership", press=True)
     assert built["kept"] == ["most of the leadership"]
@@ -248,13 +259,17 @@ def test_a_level_pressed_over_a_definition_keeps_both() -> None:
     assert built["levels"] == [2]
 
 
-def test_pressing_the_level_you_already_have_still_takes_it_off() -> None:
-    """The toggle is worth keeping — the same press both grades a word and undoes a
-    mistake. It just must not fire because you wrote something."""
-    assert run(status=2, note="", level=2)["levels"] == [None]
+def test_pressing_the_level_you_already_have_changes_nothing() -> None:
+    """QA 2026-10-11, decision D8: the stage a word has, pressed again, stays. It used to
+    take the mark off, so a second tap meant as a confirmation silently un-marked the
+    word. Nothing is handed on, so nothing is written or sent; the step stays pressed."""
+    built = run(status=2, note="", level=2)
+    assert built["levels"] == [], "a second press of the stage is no change"
+    for status in (1, 3, 9, 0):
+        assert run(status=status, note="", level=status)["levels"] == [], status
 
 
-def test_a_level_is_still_a_toggle_after_the_note_has_saved_itself() -> None:
+def test_a_level_pressed_after_the_note_has_saved_itself_is_still_a_save() -> None:
     """The note commits 400ms after the last keystroke, so a field that has been typed in
     and a field that matches the store are the same field by the time a level is pressed.
     Whether it was written in is the question, not whether it currently differs.
@@ -262,7 +277,7 @@ def test_a_level_is_still_a_toggle_after_the_note_has_saved_itself() -> None:
     # `note` already holds what was typed: the debounce has been and gone.
     built = run(status=2, note="second thoughts", type="second thoughts", level=2)
     assert built["levels"] == [2], "written in, so this is a save"
-    assert run(status=2, note="second thoughts", level=2)["levels"] == [None], "untouched"
+    assert run(status=2, note="second thoughts", level=2)["levels"] == [], "untouched"
 
 
 def test_a_level_press_keeps_the_note_before_it_sets_the_level() -> None:
@@ -293,10 +308,11 @@ def test_typing_again_offers_to_save_again() -> None:
 
 def test_the_scale_says_what_the_pressed_step_means() -> None:
     """ "Explain what the 1, 2, 3 stages of how well you know a word mean." The names were
-    in the buttons' tooltips, which is nowhere on a phone."""
-    assert run(status=2, legend=True)["legend"] == "2 · getting there"
-    assert run(status=9, legend=True)["legend"] == "known", "said once, not 'known · known'"
-    assert run(status=0, legend=True)["legend"] == "ignore · a name or a number"
+    in the buttons' tooltips, which is nowhere on a phone. Since 2026-10-09 (§12, "The
+    five stages are one control, on every card") the stage's own name, written once."""
+    assert run(status=2, legend=True)["legend"] == "Getting there"
+    assert run(status=9, legend=True)["legend"] == "Known", "said once, not 'known · known'"
+    assert run(status=0, legend=True)["legend"] == "Ignored: a name or a number"
     assert run(legend=True)["legend"] == "1 just met · 2 getting there · 3 nearly there"
     assert run(status=2)["legend"] is None, "the list beside the text has no room for it"
 
@@ -344,7 +360,7 @@ def test_with_no_way_to_copy_it_says_so_rather_than_throwing() -> None:
     assert done["after"] == {
         "text": "Not copied",
         "copied": True,
-        "announced": "We couldn't copy that.",
+        "announced": "We couldn't copy that. Select the text and copy it from there.",
     }
 
 

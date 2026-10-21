@@ -10,13 +10,6 @@
    row can: same information, one line each, and the controls above act on all of them
    as you type. */
 
-.sift {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  margin-block-end: 0.9rem;
-}
 /* The line that says what the list is. Ink, not the soft ink the words page gives a
    note: for a reader who cannot yet read the titles it is the primary sentence on the
    page, and §9 keeps muted for secondary content. As `.lead` it sits under the heading,
@@ -28,18 +21,14 @@
 }
 .note.lead { margin: 0 0 0.9rem; }
 
+/* The search and the picks are the desk's `.well` (chrome.css); here a filter row's
+   denser size. */
 .find {
   flex: 1 1 11rem;
   min-inline-size: 7rem;
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-control);
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.8125rem;
 }
-.find:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.find,
+.pick select { min-block-size: 2.25rem; padding-block: 0.25rem; font-size: 0.8125rem; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 0.2rem; }
 .chip {
@@ -67,14 +56,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.pick select {
-  padding: 0.2rem 0.4rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-control);
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 0.6875rem;
-}
+.pick select { inline-size: auto; }
 .clear {
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--hairline);
@@ -270,17 +252,6 @@
   white-space: nowrap;
 }
 .row-by-after { color: var(--ink-soft); }
-/* Which scene, before the title, in the label style but ink: it orients. Outside the
-   Hebrew's bdi, so the number never rides the title's direction. */
-.row-scene {
-  margin-inline-end: 0.5rem;
-  font-family: system-ui, sans-serif;
-  font-size: 0.6875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink);
-  vertical-align: 0.15em;
-}
 /* The row to open next. A hairline pill, never filled — filled ink is selection (§8) —
    and its border mixed from the closed palette. */
 .row-next {
@@ -290,7 +261,7 @@
   border: 1px solid color-mix(in srgb, var(--ink) 55%, var(--paper));
   border-radius: 999px;
   background: var(--paper);
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.6875rem;
   line-height: 1.5;
   color: var(--ink);
@@ -321,30 +292,6 @@
   font-variant-numeric: tabular-nums;
   font-size: 0.6875rem;
 }
-
-/* How much of a text a reader would have to look up, drawn rather than named: the
-   number is a share, and a share is a length. Ink, not a hue — this is neither
-   progress nor achievement, and §9 rations the hue to where the reader acts. */
-.gauge {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-.gauge .track {
-  flex: none;
-  inline-size: 2rem;
-  block-size: 3px;
-  border-radius: 999px;
-  background: var(--rule);
-  overflow: hidden;
-}
-.gauge .fill {
-  display: block;
-  block-size: 100%;
-  border-radius: 999px;
-  background: var(--ink-soft);
-}
-.rows .row-open:hover .gauge .fill { background: var(--ink); }
 
 /* Empty most of the time — an `auto` track with nothing in it is no width at all. */
 .row-state { color: var(--ink-soft); font-size: 0.6875rem; }
@@ -539,7 +486,8 @@
   box-shadow: var(--lift, 0 8px 28px rgba(0, 0, 0, 0.16));
   font-family: var(--chrome);
 }
-.row-menu button {
+.row-menu button,
+.row-menu a {
   display: flex;
   align-items: center;
   min-block-size: 2.5rem;
@@ -554,7 +502,10 @@
   white-space: nowrap;
   cursor: pointer;
 }
+.row-menu a { text-decoration: none; }
 .row-menu button:hover,
+.row-menu a:hover,
+.row-menu a:focus-visible,
 .row-menu button:focus-visible { background: var(--teal-wash); outline: none; }
 .row-menu button.bin:hover,
 .row-menu button.bin:focus-visible { background: color-mix(in srgb, var(--clay) 10%, transparent); color: var(--clay); }
@@ -563,7 +514,8 @@
 @media (pointer: coarse) {
   .shelf-rows .add-to-list,
   .shelf-rows .row-more,
-  .row-menu button { min-block-size: 2.75rem; }
+  .row-menu button,
+  .row-menu a { min-block-size: 2.75rem; }
   .shelf-rows .row-more { inline-size: 2.75rem; }
 }
 
@@ -737,36 +689,9 @@
 }
 
 /* --- the tabs ---------------------------------------------------------------
-   All texts and the Beit Midrash, Hebrew's. There were two lists here until 2026-09-25,
-   the catalogue and Your uploads; yours are on Your targums now. Underlined rather than pilled, because the page
-   already wears pills for the language above and chips for the filters below. */
-
-.tabs {
-  display: flex;
-  gap: 1.25rem;
-  margin-block-end: 0.9rem;
-  border-block-end: 1px solid var(--hairline);
-}
-/* Drawn only beside the Beit Midrash (2026-09-25); `display: flex` would beat `hidden`. */
-.tabs[hidden] { display: none; }
-.tab {
-  padding: 0.35rem 0;
-  border: 0;
-  border-block-end: 2px solid transparent;
-  margin-block-end: -1px;
-  background: none;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 0.9375rem;
-  cursor: pointer;
-}
-.tab:hover { color: var(--ink); }
-/* §4: selection in UI is quiet ink, never the accent. */
-.tab[aria-selected="true"] {
-  border-block-end-color: var(--ink);
-  color: var(--ink);
-  font-weight: 600;
-}
+   All texts and the Beit Midrash, Hebrew's: the desk's `.tabs` (chrome.css), tinted
+   pills since 2026-10-09 (design.md §12, "The boards are the desk"). They were
+   underlined here, and that underline was copied to Your targums' strip. */
 
 /* How much of a text is already yours, under its title. Leaf: §4 gives "known" to it. */
 .row-fit { display: block; font-size: 0.6875rem; color: var(--leaf); }
@@ -825,14 +750,8 @@
 }
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
-.find, .pick select {
-  border: 1px solid transparent;
-  border-radius: var(--radius-row);
-  background: var(--field);
-}
-.find:focus, .pick select:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
-.chips button, .tabs button, .clear { border-color: transparent; background: var(--teal-wash); color: var(--teal); }
-.chips button[aria-pressed="true"], .tabs button[aria-selected="true"] { background: var(--teal); color: var(--teal-ink); }
+.chips button, .clear { border-color: transparent; background: var(--teal-wash); color: var(--teal); }
+.chips button[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
 .series-follow { border: 0; background: var(--teal-wash); color: var(--teal); border-radius: 999px; }
 .series-follow:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 .series-follow[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
@@ -860,8 +779,6 @@
 .rows > li { border-radius: var(--radius-row); }
 .rows > li:hover { background: var(--teal-wash); }
 .rows > li + li { border-block-start-color: transparent; }
-.tabs { border-block-end: 0; gap: 0.4rem; }
-.tab { border-radius: 999px; padding: 0.35rem 0.9rem; }
 
 /* --- the switch on a subscription (2026-09-11) ---------------------------------------- */
 .series-follow {
@@ -908,29 +825,7 @@
   letter-spacing: 0;
   font-size: 0.8125rem;
 }
-.pick select { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
-
-/* --- the filters, folded (2026-09-11): the search stays; the rest is behind one word --- */
-.filters { display: contents; }
-.filters > summary {
-  list-style: none;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 600;
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
-  align-self: center;
-}
-.filters > summary::-webkit-details-marker { display: none; }
-/* Its words are the page's, in the page's language, carried on the element. */
-.filters > summary::before { content: attr(data-more); }
-.filters[open] > summary::before { content: attr(data-fewer); }
-.filters > summary:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
-.filters:not([open]) > :not(summary) { display: none; }
-/* One register in front of the reader is no choice: the switch and its label go. */
-.switch-set:has(.segmented:empty) { display: none; }
+.pick select { text-transform: none; letter-spacing: 0; }
 
 /* --- the audit of 2026-09-14 -------------------------------------------------------- */
 
@@ -982,14 +877,6 @@
 .elsewhere a { color: var(--teal); text-underline-offset: 2px; }
 /* The collection's disclosure at a size a pointer can find. */
 .row-fold { font-size: 0.9375rem; }
-
-/* The filters open into rows of their own under the search, and stay put as the search
-   is typed in. They were flex items beside the search, and the moment Clear appeared the
-   whole block reflowed into a column beside it and pushed the field down mid-word. */
-.sift > .find { flex: 1 1 60%; }
-.filters[open] > .switch-set,
-.filters[open] > .chips { flex: 1 1 100%; }
-.clear[hidden] { display: inline-block; visibility: hidden; }
 
 @media (max-width: 46rem) {
   /* A long title wraps to two lines on a phone rather than clipping mid-word. */
@@ -1043,76 +930,6 @@
    the other posture: the sentence that says how far the list is narrowed, the row of
    subjects, and the cards themselves. */
 
-/* The sentence above the list. The count is ink because it is a fact the reader is being
-   given; the rest is the quieter voice the page uses for what it is doing. */
-.said {
-  margin: 0 0 0.75rem;
-  color: var(--ink-soft);
-  font-size: 0.9375rem;
-}
-.said .count { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.fit { display: inline-flex; align-items: center; gap: 0.3rem; }
-/* A select drawn as a word you can press, not as a field: it sits inside a sentence, and
-   a boxed control mid-sentence reads as a form. The primary, because it is a control. */
-.fit-pick {
-  border: 0;
-  border-radius: 999px;
-  padding: 0.15rem 0.4rem;
-  background: var(--teal-wash);
-  color: var(--teal);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.fit-pick:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
-
-/* The row of subjects. Bigger than the filter chips below it, because it is navigation
-   rather than a refinement, and it carries a count on each. */
-/* Not `.label`: the table's kind and register cells are `.col.label`, and a bare class
-   of that name leaked a margin, a colour and a size onto every one of them. */
-.chips-label {
-  margin: 0 0 0.4rem;
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.chips.subjects { gap: 0.35rem; margin-block-end: 1rem; }
-.chips.subjects .chip {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.875rem;
-  display: inline-flex;
-  gap: 0.35rem;
-  align-items: baseline;
-}
-.chip-n { font-size: 0.8125rem; opacity: 0.66; font-variant-numeric: tabular-nums; }
-
-/* How the list is ordered and which shape it is in, as quiet words at the end of the
-   controls. They sit together and wrap together: two groups that broke onto separate
-   lines read as two unrelated rows, and they are one question asked twice — what order,
-   and in what shape. `margin-inline-start: auto` on the first puts both at the far end
-   on a wide row and does nothing once the row wraps. */
-.shape { display: flex; gap: 0.2rem; align-items: center; }
-#sorts { margin-inline-start: auto; }
-/* A hairline between the two groups, so "Words you know" and "Cards" are not read as one
-   list of five. Drawn on the second group so it never shows when the first is hidden —
-   which it is under the table, where the headings say the order already. */
-#sorts:not([hidden]) + #shape {
-  padding-inline-start: 0.5rem;
-  border-inline-start: 1px solid var(--hairline);
-}
-.shape button {
-  border: 0;
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
-  background: none;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-.shape button[aria-pressed="true"] { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
-
 /* The grid. `auto-fill` rather than a fixed count, so one rule serves a phone, a laptop
    and the television §13 sizes the rem for. */
 .cards {
@@ -1130,16 +947,14 @@
    at columns that were not on the page. */
 .cards[hidden], .rows[hidden], .rows-head[hidden] { display: none; }
 .cards > li { display: flex; min-width: 0; }
-.card {
+/* A text in the list: the desk's `.card` (chrome.css) is its surface; this is its layout
+   and the press it is. Scoped to the list, because `.card` is the desk's card
+   everywhere else. */
+.cards .card {
   display: flex;
   gap: 0.75rem;
   flex: 1 1 auto;
-  min-width: 0;
   padding: 0.75rem;
-  border: 0;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
   color: inherit;
   font: inherit;
   text-align: start;
@@ -1147,9 +962,9 @@
   cursor: pointer;
   transition: box-shadow 0.18s ease;
 }
-@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
-.card:hover { box-shadow: var(--shadow-raised); }
-.card:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .cards .card { transition: none; } }
+.cards .card:hover { box-shadow: var(--shadow-raised); }
+.cards .card:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 
 /* `align-self` so the cover hugs its own picture. The card is a flex row, so without it
    the cover box stretched to the full height of the card and the media mark — pinned to
@@ -1223,8 +1038,8 @@
 .card-known-say { font-size: 0.6875rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 /* A build narrates itself here, as it does in a row's own cell. Empty the rest of the
    time, and taking no room when it is. */
-.card .row-state:empty { display: none; }
-.card .row-state { font-size: 0.6875rem; color: var(--teal); padding-block-start: 0.3rem; }
+.cards .card .row-state:empty { display: none; }
+.cards .card .row-state { font-size: 0.6875rem; color: var(--teal); padding-block-start: 0.3rem; }
 
 @media (hover: none) and (pointer: coarse) {
   .chips.subjects .chip { min-height: 44px; }
@@ -1261,7 +1076,7 @@
    beats the `hidden` attribute, so hiding them in the script alone hid nothing: the doors
    stood under a row of subject chips, three sorts and a Cards/List switch with no list to
    act on (found by opening it, 2026-09-19). */
-.chips.subjects[hidden], #sorts[hidden], #shape[hidden], .crumbs[hidden] { display: none; }
+.crumbs[hidden] { display: none; }
 
 /* A door is a card among the cards (§13: raised by its shadow, not by a line), and a
    press rather than a link: it opens where it stands. The Hebrew name leads in the
@@ -1296,6 +1111,8 @@
 .crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; margin: 0 0 0.75rem; font-family: var(--chrome); font-size: 0.9375rem; }
 .crumbs[hidden] { display: none; }
 .crumbs .crumb { color: var(--ink); }
+.crumbs .row-sub { inline-size: auto; margin-inline-start: auto; }
+.crumbs .crumb-map { margin-inline-start: auto; text-decoration: underline; text-underline-offset: 0.15em; }
 .crumbs button.crumb {
   padding: 0.2rem 0;
   border: 0;
@@ -1313,136 +1130,21 @@
 
 /* --- Your targums (design.md §12, "Your targums has tabs", 2026-09-26) ------------ */
 
-/* What a targum is, shown: a sentence beside a small page of the thing itself. On the
-   desk ground rather than a panel, because §9 allows one raised layer per view and the
-   example card is it. */
-.defined {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
-  align-items: center;
-  gap: 1.5rem;
-  margin: 0 0 1.25rem;
-}
-.defined h2 { margin: 0 0 0.3rem; font-family: var(--chrome); font-size: 1.25rem; font-weight: 600; }
-.defined-words p { margin: 0; max-inline-size: 30rem; color: var(--ink-soft); font-size: 0.9375rem; line-height: 1.55; }
-.defined-example {
-  position: relative;
-  margin: 0;
-  padding: 1rem 1.25rem 1.1rem;
-  border-radius: var(--radius-card);
-  background: var(--card);
-  box-shadow: var(--shadow-raised);
-}
-.defined-line {
-  margin: 0;
-  font-family: var(--reading-hebrew);
-  font-size: 1.5rem;
-  line-height: 1.5;
-  color: var(--ink);
-}
-/* The tapped word: the reader's accent wash under it, the way a word looks the moment
-   its card is up. */
-.defined-word {
-  padding: 0 0.2em;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: inherit;
-}
-.defined-under {
-  margin: 0.15rem 0 0;
-  font-family: var(--reading);
-  font-size: 0.9375rem;
-  color: var(--ink-soft);
-}
-/* The word's card, small, pinned to the word's corner as it is in a reader. */
-.defined-card {
-  position: absolute;
-  inset-block-start: -0.9rem;
-  inset-inline-start: 1rem;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.45rem;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  background: var(--bar);
-  color: var(--bar-ink);
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-  box-shadow: var(--shadow-raised);
-}
-.defined-card-word { font-family: var(--reading-hebrew); font-size: 0.9375rem; }
-.defined-card-means { font-weight: 600; }
-.defined-card-what { color: var(--bar-muted); }
 @media (max-width: 40rem) {
-  /* Learn's phone rule takes the page's gutter away for its edge-to-edge panels; these
-     two stand on the ground and need it back. */
-  .defined { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; padding: 1rem 1rem 0; }
-  body.learn .yours-tabs { margin-inline: 1rem; }
+  /* Home gives the page its gutter on a phone (home.css), so the strip needs none of
+     its own. */
   /* And the strip at the same height on all three tabs: Learn's phone main has no top
      padding, so /playlists drops its own. */
   body.playlists main { padding-block-start: 0; }
-  .defined-example { margin-block-start: 0.6rem; }
-  .defined-line { font-size: 1.25rem; }
 }
 
-/* The strip is links (one of them is another page), dressed as the Library's tabs. */
-/* A `nav`, and the chrome's nav rules would close the gaps up. */
-.yours-tabs { gap: 1.5rem; }
-.yours-tabs .tab { padding: 0.35rem 0; border-radius: 0; text-decoration: none; }
-.yours-tabs .tab[aria-current="page"] {
-  border-block-end-color: var(--ink);
-  color: var(--ink);
-  font-weight: 600;
-}
-.yours-tabs .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The strip is links (one of them is another page), drawn as the desk's `.tabs`. */
 
-/* Chips on the start, then the search and the order. */
-.sift-shelf {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 0.9rem;
-  margin: 0 0 1rem;
-}
-.sift-shelf[hidden] { display: none; }
-.sift-shelf .chips { flex: 1 1 auto; }
-.sift-shelf .chip { padding: 0.3rem 0.8rem; font-size: 0.8125rem; }
-.sift-shelf .find { flex: 1 1 12rem; max-inline-size: 18rem; min-block-size: 2.25rem; }
-@media (max-width: 40rem) { .sift-shelf .find { max-inline-size: none; } }
-.sift-shelf .pick select { min-block-size: 2.25rem; font-size: 0.8125rem; }
-
-/* Folded, once a text has been finished (targum-internal#374): one ghost line that
-   opens it, and nothing else of the block. Open again, the line stays as its close. */
-.defined-open {
-  grid-column: 1 / -1;
-  justify-self: start;
-  padding: 0.3rem 0;
-  border: 0;
-  background: none;
-  color: var(--teal);
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.defined-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.defined.is-folded { gap: 0; }
-.defined.is-folded .defined-words,
-.defined.is-folded .defined-example { display: none; }
-.defined:not(.is-folded) .defined-open:not([hidden]) + .defined-words h2 { display: none; }
-
-/* §8 under a thumb (2026-09-27): the tabs, the chips, the search, the order and the way
-   back out of a series were 30-36px, and none was in the registry. The Library's Filters
-   too. */
+/* §8 under a thumb (2026-09-27): the tabs and the way back out of a series were
+   30-36px, and none was in the registry. */
 @media (hover: none) and (pointer: coarse) {
   .yours-tabs .tab,
-  .defined-open,
-  .sift-shelf .chip,
-  .series-back,
-  .filters > summary { min-block-size: 44px; display: inline-flex; align-items: center; }
-  .sift-shelf .find,
-  .sift-shelf .pick select { min-block-size: 44px; }
+  .series-back { min-block-size: 44px; display: inline-flex; align-items: center; }
 }
 
 /* Inside a series: the way back, and its name. */
@@ -1492,94 +1194,694 @@
 }
 [dir="rtl"] .series-chevron { transform: scaleX(-1); }
 
-/* At a desk the shelf is cards; the row's cells are the card's, in the same order. Only
-   this list: Learn's rows and every phone keep the row. */
-@media (min-width: 64rem) {
-  /* The cards are the raised layer, so the panel under them steps down to the ground
-     (§9: one raised layer per view). */
-  #shelf-panel { padding: 0; border: 0; background: none; box-shadow: none; }
-  .books.shelf-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
-    gap: 1rem;
-    /* The end column's + and ⋯ sit at the card's foot, at the grid's end edge, and each
-       one scrolled under the Talk to targum pill until the window was wide enough for the
-       page's margin to hold it (targum-internal#379). The grid gives up only as much of
-       that edge as the pill reaches past the margin, plus a gap: `--talk-room` is measured
-       by `talk.js`, and `(100vw - 100%) / 2` is the margin, `100%` being the page's width
-       here. The band `room()` keeps at a reader's foot, on its side; a wide window gives
-       up nothing. */
-    padding-inline-end: max(0px, var(--talk-room, 0px) + 0.75rem - (100vw - 100%) / 2);
-  }
-  .books.shelf-cards li {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto 1fr auto;
-    align-items: start;
-    gap: 0.6rem;
-    padding: 0.6rem 0.6rem 0.7rem;
-    border-radius: var(--radius-card);
-    background: var(--card);
-    box-shadow: var(--shadow-rest);
-    transition: box-shadow var(--out) var(--ease);
-  }
-  .books.shelf-cards li + li { border-block-start: none; }
-  .books.shelf-cards li:hover { background: var(--card); box-shadow: var(--shadow-raised); }
-  .books.shelf-cards li.is-building:hover { box-shadow: var(--shadow-rest); }
-  .shelf-cards .thumb,
-  .shelf-cards .series-stack {
-    grid-column: 1 / -1;
-    inline-size: 100%;
-    block-size: auto;
-    aspect-ratio: 16 / 9;
-    border-radius: var(--radius-row);
-  }
-  .shelf-cards .series-stack .thumb { block-size: 100%; }
-  /* A letter says less than a picture and takes a strip, not a screen: on a shelf of
-     uploads most of the desk was beige boxes with one letter in each (David, 2026-09-27,
-     targum-internal#375). A picture keeps 16:9. */
-  .shelf-cards .thumb.is-letter,
-  .shelf-cards .series-stack:has(.is-letter) { aspect-ratio: 16 / 5; }
-  .shelf-cards .thumb.is-letter .glyph { font-size: 1.75rem; }
-  .shelf-cards .series-stack::before,
-  .shelf-cards .series-stack::after { border-radius: var(--radius-row); }
-  .shelf-cards .series-stack::before,
-  .shelf-cards .series-stack::after { transform-origin: 50% 0; }
-  .shelf-cards .series-stack::before { transform: translate(0, -6px) scale(0.94); }
-  .shelf-cards .series-stack::after { transform: translate(0, -12px) scale(0.88); }
-  .shelf-cards li.is-series { padding-block-start: 1.1rem; }
-  /* A text with no picture wears its letter large, on a wash of the accent. */
-  .shelf-cards .thumb { background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
-  .shelf-cards .thumb .glyph { font-size: 2.75rem; color: color-mix(in srgb, var(--accent) 70%, var(--ink-soft)); }
-  .shelf-cards .book-what { grid-column: 1 / -1; padding-inline: 0.25rem; }
-  .shelf-cards .book-title {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    white-space: normal;
-    line-height: 1.35;
-  }
-  /* The facts wrap on a card: it is narrow, and a cut line would lose the level. Spaced
-     rather than dotted, as on a phone. `white-space` alone did nothing: each fact is
-     unbreakable and the spans sit with no space between them, so "Added 9 days ago" was
-     cut to "Adde…" (2026-09-27). */
-  .shelf-cards .book-facts {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 0.75em;
-    row-gap: 0.1rem;
-    overflow: visible;
-    white-space: normal;
-  }
-  .shelf-cards .book-facts .fact + .fact::before { content: none; }
-  .shelf-cards .row-status { align-self: center; margin-inline-start: 0.25rem; }
-  .shelf-cards .row-controls { align-self: center; }
-  .shelf-cards .add-to-list { padding: 0; inline-size: 2.5rem; }
-  .shelf-cards .add-to-list .add-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .shelf-cards .add-to-list .add-glyph { display: block; }
-  .books.shelf-cards > .chapters,
-  .books.shelf-cards li.binned { grid-column: 1 / -1; }
+
+/* --- the Weekly portion (targum-internal#411) ----------------------------------------- */
+
+/* A shelf of its own above the list: this Shabbat's portion, then the year onward from
+   it. One row that scrolls sideways rather than fifty-four cards stacked over the list —
+   the list is still the page, and this is the one question it cannot answer. The cards
+   are the Beit Midrash's doors (§13: raised by the shadow, the Hebrew name leading in the
+   reading face); this week's is the wide one, and says so in a label, not in a colour. */
+.portions { margin: 0 0 1.5rem; }
+.portions[hidden], #portion-schedule[hidden] { display: none; }
+.portions-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 0 0 0.6rem;
 }
-@media (min-width: 64rem) and (prefers-reduced-motion: reduce) {
-  .books.shelf-cards li { transition: none; }
+.portions-head {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.portions-hebrew {
+  margin-inline-start: 0.4rem;
+  font-family: var(--reading-hebrew);
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+/* Diaspora / Israel is the shared `.seg` (shared.css) since 2026-10-09. */
+.portion-cards {
+  list-style: none;
+  margin: 0;
+  /* Room for the cards' shadow and the focus ring, which an overflowing box clips. */
+  padding: 0.25rem 0.25rem 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 0.25rem;
+}
+.portion-item { flex: 0 0 auto; display: flex; scroll-snap-align: start; }
+.portion-card {
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+  inline-size: 10.5rem;
+  min-block-size: 7rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  color: var(--ink);
+  text-decoration: none;
+  transition: box-shadow 0.18s ease;
+}
+.portion-card:hover { box-shadow: var(--shadow-raised); }
+.portion-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .portion-card { transition: none; } }
+.portion-name {
+  font-family: var(--reading-hebrew);
+  font-size: 1.5rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portion-english { font-family: var(--chrome); font-size: 0.9375rem; font-weight: 600; }
+.portion-span { font-family: var(--chrome); font-size: 0.8125rem; color: var(--ink-soft); }
+/* This Shabbat's: wider, lifted, and its name at the display size. The label is the
+   desk's working teal, the one hue on the shelf, because it is where a reader acts. */
+.portion-item.this-week .portion-card {
+  inline-size: 19rem;
+  padding: 1.1rem 1.25rem 1.2rem;
+  box-shadow: var(--shadow-raised);
+}
+/* Its name wraps rather than clips: a festival's ("שמיני עצרת (בשבת)") is the long one,
+   and this is the card with the room for it. */
+.portion-item.this-week .portion-name {
+  font-size: 1.75rem;
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.25;
+}
+.portion-when {
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+@media (max-width: 40rem) {
+  .portion-item.this-week .portion-card { inline-size: 15rem; }
+  .portion-card { inline-size: 9rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  #portion-schedule .segment { min-height: 44px; }
+}
+
+/* --- The shelves (design.md §12, "The Library is shelved by how much you'd follow",
+   2026-10-09; boards Library and LibraryPhone). Where the page lands: a row of texts for
+   each band, each with its See all. A row scrolls sideways rather than wrapping, so a
+   shelf is one line on a phone and on a desk alike, and the page under it stays short. */
+.shelves {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.75rem;
+  margin-block: 1.25rem 0.5rem;
+}
+.shelves[hidden], .see-back[hidden] { display: none; }
+.shelves-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.band-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+/* A shelf's name is the desk's `.section-title` (chrome.css): the serif at 24px, 500. */
+.band-all {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--teal);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.band-all::after { content: " →"; }
+[dir="rtl"] .band-all::after { content: " ←"; }
+.band-all:hover { text-decoration: underline; }
+.band-all:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+.band-note { margin: 0.2rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.band-cards {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  /* Room for the cards' shadow and the focus ring, which an overflowing box clips. */
+  padding: 0.25rem 0.25rem 0.75rem;
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 0.25rem;
+}
+.band-item {
+  flex: 0 0 auto;
+  /* Five to a shelf on a desk, as the Library board stands them; never narrower than a
+     title can be read in, so a phone shows two and the edge of a third. */
+  inline-size: max(10rem, calc((100% - 4rem) / 5));
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  scroll-snap-align: start;
+}
+/* A text as a book on a shelf: the picture over the words, no box round them. The
+   picture is the press's surface and lifts under the pointer. */
+.band-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+.band-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: var(--radius-row); }
+.band-card:disabled { cursor: progress; }
+.band-cover { position: relative; display: block; margin-block-end: 0.35rem; }
+.band-cover .band-thumb {
+  position: relative;
+  inline-size: 100%;
+  block-size: 9rem;
+  border: 0;
+  border-radius: var(--radius-row);
+  box-shadow: var(--shadow-rest);
+  transition: box-shadow 0.18s ease;
+}
+.band-cover .band-thumb img { position: absolute; inset: 0; object-fit: cover; }
+.band-cover .band-thumb .glyph { font-size: 2.75rem; }
+.band-card:hover .band-thumb,
+.band-card:hover .band-mosaic { box-shadow: var(--shadow-raised); }
+@media (prefers-reduced-motion: reduce) { .band-cover .band-thumb { transition: none; } }
+.band-cover .card-media { inset-block-end: 0.4rem; inset-inline-end: 0.4rem; }
+/* targum's own playlists: the first four as one picture, as on Your targums. */
+.band-mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  block-size: 9rem;
+  border-radius: var(--radius-row);
+  overflow: hidden;
+  background: var(--rule);
+  box-shadow: var(--shadow-rest);
+}
+.band-mosaic .thumb {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  border: 0;
+  border-radius: 0;
+}
+.band-mosaic .thumb img { position: absolute; inset: 0; object-fit: cover; }
+.band-kind { font-size: 0.8125rem; color: var(--ink-soft); }
+.band-title {
+  display: block;
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.band-title:not(:lang(he)):not(:lang(yi)):not(:lang(arc)) { font-family: var(--reading); }
+.band-set-name { font-family: var(--chrome); font-size: 0.9375rem; font-weight: 600; white-space: normal; }
+.band-card .row-next { margin: 0; align-self: start; vertical-align: baseline; }
+.band-known { font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+/* Leaf only where it is earned: a text the reader can read now. */
+.band-known.near { color: var(--leaf); font-weight: 600; }
+.band-card .row-state:empty { display: none; }
+.band-card .row-state { font-size: 0.8125rem; color: var(--ink); }
+/* What a press says on a card is read whole: "We can't open this one ri…" was all a
+   phone showed of a refusal (Library QA, 2026-10-20). */
+.band-card .row-state { white-space: normal; overflow: visible; }
+.band-item .row-go,
+.band-item .row-not { align-self: start; }
+.see-back { margin: 0 0 0.6rem; font-size: 0.8125rem; }
+.see-back a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.see-back a:hover { text-decoration: underline; }
+.see-back a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+@media (max-width: 40rem) {
+  .band-cover .band-thumb, .band-mosaic { block-size: 7.5rem; }
+}
+/* News's way to its topics, under the list's name: a quiet link like the way back. */
+.see-topics { margin: -0.75rem 0 1rem; font-size: 0.875rem; }
+.see-topics[hidden] { display: none; }
+.see-topics a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.see-topics a:hover { text-decoration: underline; }
+.see-topics a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+@media (hover: none) and (pointer: coarse) {
+  .band-all, .see-back a, .see-topics a { display: inline-block; min-block-size: 44px; line-height: 44px; }
+}
+
+
+/* --- The Library as the boards draw it (design.md §12, "The Library stands on the
+   ground", 2026-10-09; boards Library, LibraryPhone, SeeAllDesk, SeeAllPhone and
+   SubFromLibrary). The search is a field on the ground, the kind doors are pills under
+   it, each shelf is a row of cards on the ground with its serif head, and See all is one
+   card holding a table, fifty rows at a time. */
+
+/* The search: its own field on the ground, the board's 17px in a 12px-cornered well on
+   the card's paper with the rule round it. */
+.lib-find {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 0 0 1rem;
+}
+.lib-find > .find {
+  flex: 1 1 18rem;
+  min-inline-size: 0;
+  min-block-size: 3.25rem;
+  padding: 0.75rem 1.125rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-row);
+  background: var(--card);
+  font-size: 1.0625rem;
+}
+.see-menus { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.see-menus[hidden], .lib-doors[hidden], .see-title[hidden], .see-more[hidden] { display: none; }
+
+/* The kind doors: "Browse by kind:", then a pill a door. */
+.lib-doors {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 2rem;
+  min-inline-size: 0;
+}
+.lib-doors-label { flex: none; font-size: 0.8125rem; color: var(--ink-soft); }
+.lib-doors-row { display: flex; flex-wrap: wrap; gap: 0.5rem; min-inline-size: 0; }
+.lib-door {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.lib-door:hover { border-color: var(--ink-soft); }
+.lib-door:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lib-door-hebrew { font-family: var(--reading-hebrew); font-size: 0.9375rem; }
+
+/* A shelf: its serif head and See all, the note under it, and five cards on the ground. */
+.shelves { gap: 2.5rem; margin-block: 0 1rem; }
+.band-head .band-all { font-size: 0.875rem; }
+.band-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  overflow: visible;
+}
+.band-item { inline-size: auto; min-inline-size: 0; }
+.band-card {
+  flex: 1 1 auto;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  transition: box-shadow 0.18s ease;
+}
+.band-card:hover { box-shadow: var(--shadow-raised); }
+@media (prefers-reduced-motion: reduce) { .band-card { transition: none; } }
+.band-cover .band-thumb,
+.band-mosaic { block-size: 11.25rem; box-shadow: none; border-radius: var(--radius-control); }
+.band-card:hover .band-thumb,
+.band-card:hover .band-mosaic { box-shadow: none; }
+.band-cover { margin-block-end: 0.4rem; }
+.band-title { font-size: 1.0625rem; margin-block: 0.15rem 0.35rem; }
+.band-known { margin-block-start: auto; font-weight: 600; }
+.band-known.unmeasured { font-weight: 400; }
+/* A card pressed, asking before it spends (signed-in walk 2026-10-12, m1): the item
+   takes the card's surface, so how long and the two presses read as one card. How much
+   of it is known gives its line to how long, so the row grows by the presses alone. */
+.band-item.asking {
+  gap: 0;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+.band-item.asking > .band-card,
+.band-item.asking > .band-card:hover { box-shadow: none; background: none; padding-block-end: 0.5rem; }
+.band-item.asking .band-known { display: none; }
+.band-item.asking .row-state { margin-block-start: auto; }
+.band-ask { display: flex; flex-wrap: wrap; gap: 0.375rem; padding: 0 0.75rem 0.75rem; }
+.portions { margin: 0 0 1rem; }
+.portions-head { font-family: var(--reading); font-size: 1.5rem; font-weight: 500; }
+
+/* See all's head: the way back, then the list's name in the serif and its count. */
+body.is-seeing .page-head { display: none; }
+.see-back { margin: 0 0 0.5rem; font-size: 0.875rem; }
+.see-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+  font-family: var(--reading);
+  font-size: 1.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.see-title-count {
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A menu: the pill that says what it is set to, and the short list under it. */
+.see-menu { position: relative; }
+.see-menu-press {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-block-size: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.see-menu-press::after { content: "\25be"; margin-inline-start: 0.35rem; font-size: 0.6875rem; color: var(--ink-soft); }
+.see-menu-press:hover { border-color: var(--ink-soft); }
+.see-menu-press[aria-expanded="true"] { border-color: var(--teal); }
+.see-menu-press:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.see-menu-label { color: var(--ink-soft); }
+.see-menu-value { font-weight: 600; }
+.see-menu-list {
+  position: absolute;
+  inset-block-start: calc(100% + 0.375rem);
+  inset-inline-end: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 12rem;
+  padding: 0.375rem;
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+.see-menu-list[hidden] { display: none; }
+.see-menu-item {
+  display: block;
+  inline-size: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.see-menu-item:hover,
+.see-menu-item:focus-visible { background: var(--teal-wash); outline: none; }
+.see-menu-item[aria-checked="true"] { color: var(--teal); font-weight: 600; }
+
+/* The table: one card, its heads, a row a text, and the foot. */
+.see-list { padding: 0; overflow: hidden; }
+.see-list[hidden] { display: none; }
+.see-list > .rows-head,
+.see-rows > li > .row-open {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 7.5rem 7.5rem;
+  column-gap: 1rem;
+}
+.see-list > .rows-head {
+  align-items: center;
+  padding: 0.875rem 1.25rem;
+  border-block-end: 1px solid var(--rule);
+}
+.see-list.has-subs > .rows-head { grid-template-columns: 4rem minmax(0, 1fr) 7.5rem 7.5rem 7rem; }
+.see-list > .rows-head button,
+.see-head-sub {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: start;
+  cursor: pointer;
+}
+.see-list > .rows-head button:hover { background: none; color: var(--ink); }
+.see-list > .rows-head button[aria-sort] { background: none; color: var(--teal); font-weight: 600; }
+.see-list > .rows-head .see-head-known,
+.see-head-sub { justify-self: end; text-align: end; }
+.see-head-sub { cursor: default; }
+.see-rows > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 0;
+  border-block-start: 1px solid var(--rule);
+}
+.see-rows > li:first-child { border-block-start: 0; }
+.see-rows > li:hover { background: color-mix(in srgb, var(--teal) 5%, transparent); }
+.see-rows > li > .row-open {
+  flex: 1 1 0;
+  align-items: start;
+  row-gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+.see-rows > li > .row-open:hover { background: none; }
+.see-rows > li > .row-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.see-pic { position: relative; grid-row: 1 / span 2; display: block; }
+.see-pic .thumb {
+  position: relative;
+  inline-size: 4rem;
+  block-size: 4rem;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+}
+.see-pic .thumb img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.see-pic .card-media { inset-block-end: 0.2rem; inset-inline-end: 0.2rem; }
+.see-pic.row-fold {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 4rem;
+  block-size: 4rem;
+  border-radius: var(--radius-control);
+  background: var(--field);
+  color: var(--ink-soft);
+  font-size: 1.25rem;
+}
+.see-rows .what {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.6rem;
+  row-gap: 0.2rem;
+  min-inline-size: 0;
+}
+.see-rows .row-title { display: inline-flex; align-items: baseline; gap: 0.5rem; max-inline-size: 100%; }
+.see-rows .row-title .row-name { font-family: var(--reading-hebrew); font-size: 1.25rem; line-height: 1.3; color: var(--ink); }
+.see-rows .row-title:not(:lang(he)):not(:lang(yi)):not(:lang(arc)) .row-name { font-family: var(--reading); }
+.see-rows .row-english {
+  display: inline;
+  min-inline-size: 0;
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.see-rows .row-meta,
+.see-rows .row-blurb { flex: 1 1 100%; min-inline-size: 0; }
+.see-rows .row-meta { display: block; color: var(--ink-soft); font-family: var(--chrome); font-size: 0.8125rem; }
+.see-rows .row-blurb {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+.see-rows .row-new { align-self: center; }
+.see-length {
+  padding-block-start: 0.3rem;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.see-length-kind { display: none; }
+.see-known {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  padding-block-start: 0.3rem;
+  text-align: end;
+}
+.see-known-say {
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.see-known.near .see-known-say { color: var(--leaf); }
+.see-known.unmeasured .see-known-say { font-weight: 400; }
+.see-known .meter { inline-size: 5.5rem; }
+.see-known:not(.near) .meter > span { background: var(--ink-soft); }
+.see-rows .row-state { grid-column: 2 / -1; }
+.see-rows .row-state:empty { display: none; }
+.row-sub { flex: none; inline-size: 7rem; display: flex; justify-content: flex-end; }
+/* A row with nothing to subscribe to keeps the column, so its figures stand under their
+   heads with the rows that have one. */
+.see-list.has-subs .see-rows > li:not(:has(> .row-sub)) > .row-open { margin-inline-end: 8rem; }
+.see-rows > li > .draw,
+.see-rows > li > .row-go,
+.see-rows > li > .row-not { flex: none; }
+.see-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  border-block-start: 1px solid var(--rule);
+}
+.see-foot .tally { margin: 0; font-size: 0.8125rem; }
+.see-list > .empty { margin: 0; padding: 1.25rem; }
+
+@media (max-width: 64rem) {
+  .band-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .band-cards > li:nth-child(n + 4) { display: none; }
+}
+@media (max-width: 40rem) {
+  .lib-find > .find { flex-basis: 100%; min-block-size: 3rem; }
+  /* Wraps, rather than one row: Kind, Level and Language at their 44px ran the list 386px
+     wide on a 320px phone and 436px in Russian, and the page scrolled sideways (QA
+     2026-10-11). Not a scroller either, which would clip the menus that drop from them. */
+  .see-menus { flex-wrap: wrap; gap: 0.375rem; }
+  .see-menu-press { padding: 0 0.75rem; font-size: 0.8125rem; }
+  /* On a phone a menu comes up as a sheet from the foot, as every panel does (§13): once
+     the row wraps, a menu on the second line opened to the inline start of its button and
+     ran past the window's edge (QA 2026-10-11). */
+  .see-menu-list {
+    position: fixed;
+    inset-inline: 0;
+    inset-block: auto 0;
+    z-index: 32;
+    min-inline-size: 0;
+    max-block-size: calc(100svh - 5rem);
+    overflow-y: auto;
+    padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    box-shadow: var(--shadow-floating);
+  }
+  .see-menu-item { min-block-size: 44px; }
+  .lib-doors { margin-block-end: 1.5rem; }
+  .lib-doors-label { display: none; }
+  .lib-doors-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-block: 2px;
+  }
+  .lib-doors-row::-webkit-scrollbar { display: none; }
+  .band-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+  .band-cards > li:nth-child(n + 3) { display: none; }
+  .band-cover .band-thumb, .band-mosaic { block-size: 9.375rem; }
+  .see-title { font-size: 1.5rem; }
+  .see-list > .rows-head { grid-template-columns: minmax(0, 1fr) auto; padding: 0.75rem 1rem; }
+  .see-list.has-subs > .rows-head { grid-template-columns: minmax(0, 1fr) auto; }
+  .see-list > .rows-head .see-head-pic,
+  .see-list > .rows-head .see-head-minutes,
+  .see-head-sub { display: none; }
+  .see-rows > li { gap: 0.5rem 0.75rem; padding: 0.875rem 1rem; }
+  .see-rows > li > .row-open { grid-template-columns: 4rem minmax(0, 1fr) auto; column-gap: 0.75rem; }
+  .see-pic { grid-row: 1 / span 2; }
+  .see-rows .what { grid-column: 2 / -1; }
+  .see-length { grid-column: 2; padding: 0; font-size: 0.8125rem; }
+  .see-known { grid-column: 3; padding: 0; }
+  .see-known .meter { display: none; }
+  .see-rows .row-english { flex: 1 1 100%; }
+  .see-rows .row-meta { display: none; }
+  .see-length-kind { display: inline; }
+  .row-sub { inline-size: auto; margin-inline-start: 4.75rem; }
+  .see-list.has-subs .see-rows > li:not(:has(> .row-sub)) > .row-open { margin-inline-end: 0; }
+  .see-foot { padding: 0.75rem 1rem; justify-content: center; flex-direction: column; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .lib-door,
+  .see-menu-press,
+  .see-menu-item { min-block-size: 44px; }
+}
+
+/* --- waiting, and a shelf that could not be opened (Library QA, 2026-10-20) -----------
+   One quiet line where the shelves will stand, said again past three seconds; and, when
+   `/readers` or the shelf's own file did not come, a card that says so with the one
+   press that asks again (design.md §14, line 1). */
+.lib-waiting {
+  margin: 2rem 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.lib-waiting[hidden], .lib-fault[hidden] { display: none; }
+/* The panel itself is `.fault-panel` (shared.css), as on home and Your Words. */
+.lib-fault { margin: 2rem 0; }
+.lib-empty-go { margin-inline-start: 0.35rem; color: var(--teal); font-weight: 600; }
+.lib-empty-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+@media (hover: none) and (pointer: coarse) {
+  #lib-fault-again { min-block-size: 44px; }
+  .lib-empty-go { display: inline-flex; align-items: center; min-block-size: 44px; }
+  .see-list > .rows-head button,
+  .crumbs .crumb-map,
+  .see-rows .sub-subscribe { min-block-size: 44px; }
+  .elsewhere a { display: inline-block; padding-block: 0.7rem; }
 }

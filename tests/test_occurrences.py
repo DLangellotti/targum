@@ -26,6 +26,7 @@ from targum.occurrences import (
     Place,
     count_text,
     family,
+    finished_chapters,
     in_tanakh,
     met,
     places_named,
@@ -199,6 +200,65 @@ def test_a_reader_met_a_word_only_in_sections_they_finished(tmp_path: Path) -> N
     ]
     assert met("דג", finished, folder_for) == [], "chapter 2 was never finished"
     assert met("ים", finished, folder_for, language="arc") == []
+
+
+def test_a_chapter_is_read_when_every_verse_of_it_is_in_a_finished_section(
+    tmp_path: Path,
+) -> None:
+    """The Tanakh map's check (targum-internal#144), named as the map names a
+    chapter. A text that cuts a chapter in two finishes it with its second section."""
+    folder = _jonah(tmp_path / "jonah")
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return (folder, "he") if document == "jonah-hash" else None
+
+    assert finished_chapters([("jonah-hash", "1", 10)], folder_for) == {"Jonah 1"}
+    both = [("jonah-hash", "1", 10), ("jonah-hash", "2", 20), ("elsewhere", "1", 5)]
+    assert finished_chapters(both, folder_for) == {"Jonah 1", "Jonah 2"}
+    assert finished_chapters(both, folder_for, language="arc") == set()
+    assert finished_chapters([], folder_for) == set()
+
+
+def test_half_a_chapter_is_not_a_chapter_read(tmp_path: Path, monkeypatch) -> None:
+    """Jonah 1 cut across two sections: the first alone reads none of it."""
+    import targum.occurrences as occurrences
+
+    folder = _jonah(tmp_path / "jonah")
+    counted = occurrences.text_occurrences(folder)
+    assert counted is not None
+    split = occurrences.Occurrences(
+        places=((1, "Jonah 1:1"), (2, "Jonah 1:4"), (3, "Jonah 2:1")),
+        lemmas=counted.lemmas,
+    )
+    monkeypatch.setattr(occurrences, "text_occurrences", lambda _folder: split)
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return (folder, "he")
+
+    assert finished_chapters([("jonah-hash", "1", 10)], folder_for) == set()
+    assert finished_chapters([("jonah-hash", "1", 10), ("jonah-hash", "2", 20)], folder_for) == {
+        "Jonah 1"
+    }
+
+
+def test_a_chapter_is_read_only_when_all_its_verses_are_whichever_text_held_them(
+    tmp_path: Path,
+) -> None:
+    """Review, 2026-10-08: Noach starts at Genesis 6:9, so finishing it is not reading
+    Genesis 6. With the map's verse count, a chapter is read when that many of its verses
+    have been, across every text the reader finished them in."""
+    first = _jonah(tmp_path / "one")
+    second = _jonah(tmp_path / "two")
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return {"one": (first, "he"), "two": (second, "he")}.get(document)
+
+    # The fixture carries Jonah 1:1 and 1:4 of chapter 1, and 2:1 of chapter 2.
+    assert finished_chapters([("one", "1", 1)], folder_for, verses={"Jonah 1": 3}) == set()
+    assert finished_chapters([("one", "1", 1)], folder_for, verses={"Jonah 1": 2}) == {"Jonah 1"}
+    assert finished_chapters(
+        [("one", "1", 1), ("two", "2", 2)], folder_for, verses={"Jonah 1": 2, "Jonah 2": 1}
+    ) == {"Jonah 1", "Jonah 2"}, "verses pooled across two texts"
 
 
 def test_met_reads_the_store_s_finished_sections(tmp_path: Path) -> None:

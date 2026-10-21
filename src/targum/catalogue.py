@@ -104,6 +104,11 @@ class Tag(StrEnum):
     #: Hebrew itself — its words, where they came from, how it is said. The Ben-Yehuda
     #: articles about pronunciation are exactly this and nothing else.
     language = "language"
+    #: Living in Israel day to day: money and paperwork, health, children and school, home
+    #: and work — the four things an oleh meets in the first months (targum-internal#386).
+    #: One subject rather than four, by decision (David, 2026-10-02, #393): simple to
+    #: choose on the way in, at the price of a shelf that cannot be browsed by the four.
+    israel = "israel"
 
 
 #: The tags a Beit Midrash mode would keep. Named explicitly because `Tag` stopped being a
@@ -375,6 +380,12 @@ class Collection:
     #: built once on the shared shelf, which a reader opens as a playlist of their own
     #: and swipes through for nothing. `"swipe": true` in the file.
     swipe: bool = False
+    #: The YouTube channel its texts come from, where the file names one
+    #: (`"channel": "https://www.youtube.com/@…"`): a Library row of it then offers
+    #: Subscribe, which is a subscription to that channel confirmed on targum's own page
+    #: (design.md §12, "A channel or a podcast is subscribed to", 2026-10-09). Empty for
+    #: everything else, which is most collections.
+    channel: str = ""
 
     def name_in(self, code: str) -> str:
         """The collection's name for somebody reading the interface in `code`, and the
@@ -397,7 +408,14 @@ class Collection:
             "ordered": self.ordered,
             "door": self.door,
             "swipe": self.swipe,
+            "channel": self.channel,
         }
+
+
+#: The words a minute a learner reads at, which every "how long it takes" in the library
+#: is counted at. Named on 2026-10-06 so the text card counts a shelf text, which carries
+#: its words and not its minutes, at the same rate the library counts its own.
+READING_WORDS_PER_MINUTE = 130
 
 
 @dataclass(frozen=True)
@@ -454,7 +472,7 @@ class Entry:
     @property
     def minutes(self) -> int:
         """How long this takes to read, at the 130 words a minute a learner manages."""
-        return max(1, round(self.words / 130))
+        return max(1, round(self.words / READING_WORDS_PER_MINUTE))
 
     #: The model this text's English was bought with, where nobody had published one.
     #:
@@ -815,6 +833,7 @@ def _collection(raw: dict[str, Any]) -> Collection:
         named=_said_in(raw.get("named")),
         blurbs=_said_in(raw.get("blurbs")),
         swipe=bool(raw.get("swipe", False)),
+        channel=str(raw.get("channel") or ""),
     )
 
 
@@ -945,11 +964,13 @@ def _key(source: str) -> str:
 
 
 #: The numbered scenes: a hundred short dialogues whose ids are `scene-NN-slug`, and the
-#: number is the order somebody with no Hebrew reads them in. Parsed from the id rather
+#: number is the order somebody with no Hebrew reads them in. A scene in another language
+#: says so after `scene-` (`scene-ru-01-slug`, 2026-10-13), and its number orders its own
+#: language's scenes only. Parsed from the id rather
 #: than stored beside it — the id is the one key every page already has, and a second
 #: copy of the number would be a second thing to drift. `render/assets/scenes.js` is the
 #: same rule in the browser.
-SCENE = re.compile(r"^scene-(\d+)-")
+SCENE = re.compile(r"^scene-(?:[a-z]{2,3}-)?(\d+)-")
 
 
 def scene_number(entry_id: str) -> int:

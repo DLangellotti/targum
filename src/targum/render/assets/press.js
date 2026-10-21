@@ -160,7 +160,7 @@
   function stop(why) {
     if (button) {
       button.disabled = false;
-      says.textContent = t("press.page.read-this", "Read this");
+      says.textContent = t("press.page.confirm", "Confirm");
     }
     say(doing, why);
     say(left, "");
@@ -203,7 +203,10 @@
     started = Date.now();
     // The quote's guess is put away; from here the line below it is measured and true.
     if (quoted) quoted.hidden = true;
-    say(doing, t("press.page.getting-started", "We're getting it ready."));
+    /* Nothing under the button yet: the button itself now says "Getting it ready…", and
+       the same words again beneath it said nothing new (David, 2026-10-07). The line
+       comes back when there is something to add — a stage, a refusal, "It's ready." */
+    say(doing, "");
     if (note) note.hidden = true;
     if (away) away.hidden = false;
   }
@@ -226,6 +229,12 @@
           return answer.json();
         })
         .then(function (state) {
+          // The plan, for a free reader out of credits: the page draws it, so it is
+          // drawn again (design.md §12, "A free reader meets the plan", 2026-10-09).
+          if (state.blocked && state.act === "plan" && !state.error) {
+            window.location.reload();
+            return;
+          }
           if (state.error || state.blocked) return stop(state.error || state.blocked);
           if (state.reader) return open(state.reader);
           say(left, howLong(state));

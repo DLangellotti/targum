@@ -65,7 +65,7 @@ def test_the_form_takes_the_boxs_place_and_quotes_what_was_typed() -> None:
     assert body["uploads"] == ["u0", "u1"]
     assert "pictures" not in body, "the pictures' words are never asked for by Continue"
     assert not [one for one in said["asked"] if one["path"] == "/build"], "a quote, not a build"
-    assert "Open" in said["status"] and "Also read the 2 pictures" in said["status"]
+    assert "Confirm" in said["status"] and "Also read the 2 pictures" in said["status"]
 
 
 def test_reading_the_pictures_is_the_cards_press_and_names_the_post_by_its_job() -> None:

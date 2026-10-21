@@ -6,6 +6,7 @@ Same harness shape as `test_progress_js.py`: a stub document in `tests/js/`, not
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -20,6 +21,11 @@ pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 
 
 def menu(**payload: Any) -> dict[str, Any]:
+    # The badge table the nav writes into every page: the real one, so this file holds
+    # no copy (design.md §12, "A badge is a promise, checked", 2026-10-12).
+    from targum.stages import DECLARED
+
+    payload.setdefault("stages", {code: stage.value for code, stage in DECLARED.items()})
     with tempfile.TemporaryDirectory() as where:
         given = Path(where) / "payload.json"
         given.write_text(json.dumps(payload), encoding="utf-8")
@@ -37,8 +43,34 @@ def test_the_menu_lists_every_language_the_reader_learns() -> None:
     assert drawn["before"]["hidden"] is False
     assert drawn["before"]["items"] == ["he", "yi"], "Hebrew first, then the rest"
     assert drawn["before"]["label"] == "Hebrew" and drawn["before"]["checked"] == ["he"]
-    assert drawn["before"]["more"] == "/you#languages"
+    assert drawn["before"]["heads"] == ["Your languages", "Start another language"]
+    assert drawn["before"]["starts"] == ["arc", "fr", "ru", "it"], "the rest targum teaches"
     assert drawn["before"]["panelHidden"] and drawn["openedPanel"], "opened by its button"
+
+
+def test_every_language_wears_how_far_along_it_is() -> None:
+    """design.md §12, 2026-10-09: a badge, on the menu's button and on every row, and
+    nothing more. Since 2026-10-12 the words come from `stages.DECLARED` through the page,
+    checked by `test_stages.py`: Hebrew keeps Beta by decision, the rest wear what they
+    have earned, which today is Experimental."""
+    learning = ["he", "ru", "it", "fr", "arc", "yi"]
+    drawn = menu(stored={"targum:learning": json.dumps(learning)}, pageCodes=["he"])
+    said = dict(zip(drawn["before"]["items"], drawn["before"]["badges"], strict=True))
+    assert said == {
+        "he": "Beta",
+        "ru": "Experimental",
+        "it": "Experimental",
+        "fr": "Experimental",
+        "arc": "Experimental",
+        "yi": "Experimental",
+    }
+    assert drawn["before"]["badge"] == "Beta", "the button wears the one it is showing"
+
+
+def test_a_language_the_page_does_not_name_wears_nothing() -> None:
+    """The table is the page's, not this file's: with no table there is no badge."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he", "ru"])}, stages={})
+    assert drawn["before"]["badge"] == "" and drawn["before"]["badges"] == ["", ""]
 
 
 def test_a_press_is_kept_on_the_page_and_on_the_account() -> None:
@@ -75,18 +107,109 @@ def test_a_language_no_longer_learned_falls_back_to_hebrew() -> None:
     assert drawn["current"] == "he"
 
 
-def test_one_language_draws_no_menu() -> None:
-    """A menu with one thing in it asks a question with no other answer."""
-    assert menu(stored={"targum:learning": json.dumps(["he"])})["before"]["hidden"] is True
+def test_one_language_still_draws_the_menu_with_its_badge() -> None:
+    """design.md §12, "The boards are the desk" (2026-10-09): always shown, with its badge,
+    for a reader of one language too — it is also where another is started."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he"])})
+    assert drawn["before"]["hidden"] is False and drawn["before"]["badge"] == "Beta"
+    assert drawn["before"]["items"] == ["he"]
+    assert drawn["before"]["starts"] == ["arc", "yi", "fr", "ru", "it"]
+
+
+def test_another_language_is_started_from_the_menu() -> None:
+    """A press under Start another language turns it on, in this browser and on the
+    account, and opens it as any press does."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he"])}, press="ru")
+    assert drawn["picked"] == ["ru"] and drawn["told"] == ["ru"] and drawn["stored"] == "ru"
+    assert json.loads(drawn["learning"]) == ["he", "ru"]
 
 
 def test_anywhere_but_the_nav_the_same_call_still_draws_tabs() -> None:
     assert set(menu()["tabs"]) == {"tab"}
 
 
-def test_each_language_wears_a_small_flag_and_a_language_with_no_country_keeps_the_room() -> None:
-    """2026-09-14 (design.md §12): a drawn flag beside each name in the menu. Yiddish and
-    Aramaic have no country and wear the language flags David chose; a code with no
-    flag at all keeps an empty box the flag's width."""
-    drawn = menu(stored={"targum:learning": json.dumps(["he", "fr", "yi", "arc", "de"])})
-    assert drawn["flags"] == {"he": "flag", "fr": "flag", "yi": "flag", "arc": "flag", "de": "none"}
+def test_each_language_wears_its_flag_and_no_greeting() -> None:
+    """design.md §12: each row of the menu carries its flag (David, 2026-10-10, back from
+    2026-09-14), and no greeting ("I don't need the shalom, bonjour, ciao")."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he", "ru"])})
+    assert drawn["before"]["flags"] == 6, "one per row: he, ru, then arc, yi, fr, it"
+    assert not any(drawn["before"]["greetings"].values())
+
+
+# -- a text's language, carried out of its reader (design.md §12, 2026-10-07) ----------
+
+
+def test_a_page_arrived_at_from_a_russian_text_is_in_russian() -> None:
+    """David left a Russian text by the mark in its corner and landed on Learn in Hebrew.
+    The mark now carries `?learning=ru`, and the page takes it as the menu takes a press:
+    kept in this browser, said to be what the page is in, and gone from the address."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "ru"]), "targum:language": "he"},
+        href="http://learn.test/?learning=ru&k=key",
+        currentOf=["he", "ru"],
+    )
+    assert drawn["carried"] == "ru" and drawn["current"] == "ru"
+    assert drawn["stored"] == "ru", "the next page opens in it too"
+    assert drawn["replaced"] == ["/?k=key"], "a reload is the plain page, key kept"
+    assert "ru" in drawn["heard"]
+
+
+def test_a_page_arrived_at_from_a_hebrew_text_is_in_hebrew() -> None:
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "ru"]), "targum:language": "ru"},
+        href="http://learn.test/?learning=he",
+        currentOf=["he", "ru"],
+    )
+    assert drawn["current"] == "he" and drawn["stored"] == "he"
+
+
+def test_a_language_not_on_the_list_is_the_page_s_and_goes_on_it() -> None:
+    """A text imported over the connector, in a language the account has not ticked: the
+    page is in it before the account has answered, and on a page with nothing else in
+    it, and the browser's list carries it for the next page. The account is told by
+    `sync.js` (see `test_sync_js.py`)."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he"]), "targum:language": "he"},
+        href="http://learn.test/?learning=fr",
+        currentOf=["he"],
+    )
+    assert drawn["current"] == "fr" and drawn["stored"] == "fr"
+    assert json.loads(drawn["learning"]) == ["he", "fr"]
+
+
+@pytest.mark.parametrize("code", ["en", "es", "und", "%3Cscript%3E"])
+def test_a_language_with_no_desk_leaves_the_page_where_it_was(code: str) -> None:
+    """A text in English or Spanish has no Learn of its own: the page stays in the
+    language it was in, and the word still comes off the address."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "ru"]), "targum:language": "ru"},
+        href=f"http://learn.test/?learning={code}",
+        currentOf=["he", "ru"],
+    )
+    assert drawn["carried"] == "" and drawn["current"] == "ru"
+    assert drawn["stored"] == "ru" and drawn["replaced"] == ["/"]
+    assert json.loads(drawn["learning"]) == ["he", "ru"]
+
+
+def test_a_page_arrived_at_with_nothing_carried_is_untouched() -> None:
+    """What a reader built before 2026-10-07 sends: the page opens as it always did, and
+    its address is left alone."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "ru"]), "targum:language": "he"},
+        href="http://learn.test/?k=key",
+        currentOf=["he", "ru"],
+    )
+    assert drawn["carried"] == "" and drawn["current"] == "he" and drawn["replaced"] == []
+
+
+def test_the_languages_a_page_takes_are_the_ones_targum_teaches() -> None:
+    """`lang.js` keeps its own copy of `READING`, because a desk page has no other way to
+    know it; held to the source here so the two cannot drift."""
+    from targum.render.builder import ASSETS
+    from targum.translate.prompts import READING
+
+    source = (ASSETS / "lang.js").read_text(encoding="utf-8")
+    found = re.search(r"var LEARNABLE = \[([^\]]*)\]", source)
+    assert found is not None
+    listed = re.findall(r'"([a-z]+)"', found.group(1))
+    assert sorted(listed) == sorted(code for code, _ in READING)

@@ -400,7 +400,12 @@ class Door:
         was = self.store.stop_telegram(chat_id)
         if was is None:
             return self._reply(
-                chat_id, said_in(ui, "telegram.not-linked", "This chat isn't linked to targum.")
+                chat_id,
+                said_in(
+                    ui,
+                    "telegram.not-linked",
+                    "This chat isn't linked to targum, so there's nothing to stop.",
+                ),
             )
         self._reply(
             chat_id,
@@ -680,12 +685,16 @@ class Door:
                 or said_in(
                     ui,
                     "job.unreadable.other",
-                    "We couldn't read that. Try again, or paste the text itself.",
+                    "We couldn't read that page. Paste its text here instead.",
                 ),
             )
             return True
         if job.stage == "blocked":
-            self._reply(chat_id, f"{job.blocked} {self.address}/you".strip())
+            # What a page draws beside the sentence, said after it (design.md §12,
+            # 2026-10-09).
+            fact = getattr(job.blocked, "fact", "")
+            said = f"{job.blocked} {fact}." if fact else job.blocked
+            self._reply(chat_id, f"{said} {self.address}/you".strip())
             return True
         return False
 

@@ -22,9 +22,11 @@ User=targum
 Group=targum
 WorkingDirectory=/srv/targum
 EnvironmentFile=/etc/targum/targum.env
-# Stanza fetches its models through the Hugging Face hub, which caches under $HOME —
-# and ProtectHome below makes /srv/targum read-only. Point it at the one writable tree.
-Environment=HF_HOME=/var/lib/targum/models/huggingface
+# No HF_HOME here (2026-10-07, targum-internal#426). It was set to models/huggingface,
+# while deploy.sh's `systemd-run` steps read the env file and not this unit and fell to
+# the code's models/hf, so the box kept dictabert-joint twice. `targum` itself now sets
+# it, before anything reads it, to `$TARGUM_MODEL_DIR/hf` — inside /var/lib/targum, the
+# one tree ProtectHome below leaves writable — for the service and every step alike.
 
 # The gate. A deployment fails either here, in the journal, or at somebody's first
 # sign-in — and there is only one alpha reader to spend on the second. Non-zero exit
@@ -48,8 +50,12 @@ RestartSec=10
 # be a line in the journal rather than a box that cannot open a template.
 LimitNOFILE=65536
 
-# Stanza and LaBSE are large, and a build is a long-running request. Let it finish.
-TimeoutStopSec=90
+# A stop finishes the builds and chat turns already running before it stops serving,
+# up to `DRAIN_SECONDS` (ten minutes) in serve.py; this has to stay above that, or
+# systemd kills the wait it asked for and a deploy fails a reader's build after all
+# (known issues 1.9, 2026-10-12). A box with nothing running stops in about a second.
+# Stanza and LaBSE are large, and unloading them took the old 27 s on its own.
+TimeoutStopSec=660
 KillSignal=SIGINT
 
 # --- hardening -------------------------------------------------------------

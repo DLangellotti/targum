@@ -10,7 +10,8 @@ and nothing bought. Every verb token is put in one bucket:
   unique                the bare spelling names one verb, and that is the table
   settled by binyan     several verbs spell it the same; the binyan targum worked out
                         for this word matches exactly one of them (#307)
-  settled by pointing   several; the pointed form the reader saw belongs to one
+  settled by pointing   several; the pointed form the reader saw belongs to one, or
+                        opens on a vowel only one of them could (#307, per occurrence)
   settled, both agree   both signals decide and name the same verb
   settled by reading    several, and no binyan; every form the word is written in on
                         the page is read as the same one of them by targum's own
@@ -23,10 +24,12 @@ and nothing bought. Every verb token is put in one bucket:
     disagrees           page is another candidate's (#307)
   refused: read         one of the first three decided, and a form of the same word
     otherwise           on the page is read as one of the other verbs (#307)
+  refused: shin or sin  something above settled it, and the word is pointed with a
+                        שׂ where the verb's lemma has a שׁ, or the other way round (#307)
   still ambiguous       several, and nothing settles it — the card draws no table
   no candidate          the source has never heard of this verb
 
-The first six are coverage. The last four are the honest gaps, and `Table.of` answers
+The first six are coverage. The last five are the honest gaps, and `Table.of` answers
 None for all of them, because a wrong conjugation table is worse than none: the reader
 has no way to tell.
 
@@ -46,7 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from targum.annotate.paradigms import (  # noqa: E402
     Table,
     bare,
-    binyan_of,
+    pointed_form,
     table,
     written_form,
 )
@@ -117,10 +120,11 @@ def measure(
             where = bucket(
                 verbs,
                 lemma,
-                str(token.get("surface") or ""),
+                pointed_form(str(token.get("surface") or ""), token.get("built")),
                 token.get("binyan"),
                 tuple(written[(lemma, str(token.get("headword") or ""))]),
                 tuple(said[(lemma, str(token.get("headword") or ""))]),
+                infinitive="VerbForm=Inf" in str(token.get("feats") or ""),
             )
             tally[where] += 1
             lemmas[where].add(lemma)
@@ -134,6 +138,7 @@ def bucket(
     binyan: object,
     written: tuple[str, ...] = (),
     said: tuple[tuple[str, str, str], ...] = (),
+    infinitive: bool = False,
 ) -> str:
     """Which bucket one verb token falls in. The same questions `Table.of` asks, kept
     apart here so the answer says *why* rather than only yes or no."""
@@ -144,14 +149,9 @@ def bucket(
     if len(candidates) == 1:
         return "unique"
     known = verbs.verbs
-    pointed = [
-        lid
-        for lid in candidates
-        if surface
-        and (verb := known.get(lid))
-        and (verb.lemma == surface or any(form.written == surface for form in verb.forms))
-    ]
-    built = [lid for lid in candidates if binyan and binyan_of(known[lid].lemma) == str(binyan)]
+    # An infinitive's vowel names no cell of the table (`Table.of`, 2026-10-08).
+    pointed = [] if infinitive else verbs.pointed_as(candidates, surface)
+    built = [lid for lid in candidates if binyan and verbs.binyan_of(lid) == str(binyan)]
     present = verbs._by_present(candidates, said)
     if len(pointed) == 1 and len(built) == 1:
         if pointed[0] != built[0]:
@@ -161,15 +161,21 @@ def bucket(
         chosen, where = built[0], "settled by binyan"
     elif len(pointed) == 1:
         chosen, where = pointed[0], "settled by pointing"
+        named = verbs.binyan_of(chosen)
+        if binyan and named and named != str(binyan):
+            return "refused: conflict"
     else:
         read = verbs._by_reading(candidates, written) if not binyan and written else None
         if read is not None:
             if present is not None and known.get(present) is not read:
                 return "refused: the present disagrees"
+            lid = next((lid for lid in candidates if known.get(lid) is read), None)
+            if lid is not None and verbs.dotted_otherwise(lid, surface):
+                return "refused: shin or sin"
             return "settled by reading"
         if present is None:
             return "still ambiguous"
-        named = binyan_of(known[present].lemma)
+        named = verbs.binyan_of(present)
         if binyan and named and named != str(binyan):
             return "refused: conflict"
         chosen, where = present, "settled by the present"
@@ -177,6 +183,8 @@ def bucket(
         return "refused: the present disagrees"
     if verbs._read_otherwise(candidates, chosen, written):
         return "refused: read otherwise"
+    if verbs.dotted_otherwise(chosen, surface):
+        return "refused: shin or sin"
     return where
 
 

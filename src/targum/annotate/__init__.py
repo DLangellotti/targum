@@ -30,13 +30,14 @@ from .base import (
     unread,
 )
 from .biblical import METHOD as TANAKH_METHOD
+from .dicta import mend_pointed
 from .dictionary import Entry as DictionaryEntry
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
 from .lemma import StanzaLemmatizer
 from .moves import letters as _letters
 from .moves import shared as _shared
-from .pronounce import PhonikudPronouncer
+from .pronounce import PhonikudPronouncer, as_prefixed
 from .pronounce import supports as pronounceable
 
 __all__ = [
@@ -70,6 +71,25 @@ def _spells(root: str, surface: str) -> bool:
     if not have:
         return False
     return _shared(root, surface) >= max(2, len(have) - 1)
+
+
+def _reheaded(tokens: list[Token], kept_at: Mapping[int, int]) -> list[Token]:
+    """Syntax heads renumbered onto the tokens kept, -1 where the head was read past.
+
+    `Syntax.head` counts the lemmatizer's own list. Reading past an English name or an
+    emoji shortens it, and every head beyond the gap then named the next word over, which
+    put a preposition on the wrong verb (`governed`)."""
+    out: list[Token] = []
+    for token in tokens:
+        syntax = token.syntax
+        if syntax is None or syntax.head < 0:
+            out.append(token)
+            continue
+        head = kept_at.get(syntax.head, -1)
+        if head != syntax.head:
+            token = token.model_copy(update={"syntax": syntax.model_copy(update={"head": head})})
+        out.append(token)
+    return out
 
 
 def _unpointed(lemma: str) -> str:
@@ -207,6 +227,9 @@ class Annotator:
             marked: list[Token] = []
             said_in = spoken.get(segment_id, segmented.language)
             english = foreign_runs(tokens, said_in, zipf) if zipf is not None else set()
+            # Where each kept token now sits, so a syntax head counted over the
+            # lemmatizer's list still names the same word once the ones read past are gone.
+            kept_at: dict[int, int] = {}
             for at, token in enumerate(tokens):
                 if not in_script(token.surface, said_in):
                     # An English name, a time, an emoji inside the Hebrew: read past,
@@ -234,6 +257,16 @@ class Annotator:
                     # the part of speech, and a card offering its conjugations offers a
                     # table that does not exist.
                     token = token.model_copy(update={"pos": "AUX"})
+                if positions is not None and said_in == "he":
+                    # What only the marks settle, and only here are they still held: the
+                    # lemmatizer was handed the bare text. Before the band, which is
+                    # asked of the lemma. See `dicta.mend_pointed`.
+                    start, end = map_span(token.start, token.end, positions)
+                    lemma, pos = mend_pointed(
+                        token.lemma, token.pos, source_text[segment_id][start:end]
+                    )
+                    if (lemma, pos) != (token.lemma, token.pos):
+                        token = token.model_copy(update={"lemma": lemma, "pos": pos})
                 if segment_id in elsewhere:
                     # Read, and deliberately not rated. See `elsewhere` above.
                     band = UNRATED
@@ -266,7 +299,10 @@ class Annotator:
                         "end": end,
                         "surface": source_text[segment_id][start:end],
                     }
+                kept_at[at] = len(marked)
                 marked.append(token.model_copy(update=update))
+            if len(marked) < len(tokens):
+                marked = _reheaded(marked, kept_at)
             if marked:
                 banded[segment_id] = marked
 
@@ -401,6 +437,10 @@ class Annotator:
                     continue
                 start, end = map_span(bare_start, bare_end, to_pointed)
                 word = pointed[start:end]
+                # One letter of prefix, as DICTA cut it, is the one a shva can sit on:
+                # לְ in לְהוֹסִיף is said, and the reading has to be told it is a prefix.
+                if token.syntax is not None and token.syntax.lead == 1:
+                    word = as_prefixed(word)
                 found.append(word)
                 distinct.add(word)
             surfaces[segment_id] = found

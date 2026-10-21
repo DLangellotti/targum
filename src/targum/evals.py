@@ -64,6 +64,10 @@ STAGES = (
     "suggest",
     "rail",
     "said",
+    # How the connector reads to a host (2026-10-06): time to the first Hebrew line,
+    # tool calls, result sizes and the contract, from scripts/eval_connector.py. It
+    # writes its own rows under evals/connector/ rather than the ledger.
+    "connector",
 )
 
 
@@ -77,6 +81,10 @@ SCRIPTS = {
     "vocalize": "measure_pointing.py",
     "stress/wiktionary-ru": "eval_stress.py",
     "stress/tanakh-taamim": "eval_hebrew_stress.py",
+    # The same gold, the stress rule fed by a local tagger instead of OSHB (#325).
+    "stress/tanakh-taamim-tagger": "eval_stress_tagger.py",
+    # The vav-consecutive read off the pointing, against OSHB's own tag (#449).
+    "lemma/oshb": "eval_vav_consecutive.py",
     "align": "eval_align.py",
     "grading": "eval_grading.py",
     "recast": "eval_recast.py",
@@ -85,6 +93,7 @@ SCRIPTS = {
     "suggest": "eval_suggest.py",
     "rail": "eval_rail.py",
     "said": "eval_liaison.py",
+    "connector": "eval_connector.py",
 }
 
 
@@ -94,7 +103,7 @@ def script_for(name: str) -> str:
         return SCRIPTS[name]
     within = sorted(known for known in SCRIPTS if known.startswith(f"{name}/"))
     if within:
-        raise ValueError(f"{name} is measured two ways; one of {', '.join(within)}")
+        raise ValueError(f"{name} is measured more than one way; one of {', '.join(within)}")
     raise ValueError(f"no eval called {name!r}; one of {', '.join(SCRIPTS)}")
 
 

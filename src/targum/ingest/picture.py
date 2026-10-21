@@ -78,5 +78,9 @@ class PictureIngester:
             conversation=any(read.conversation for read in reads),
         )
         if not document.blocks:
-            raise TargumError("We couldn't find any text in that picture.", key="pictures.no-text")
+            raise TargumError(
+                "We couldn't find any text in that picture.",
+                "Try a clearer photo or a screenshot.",
+                key="pictures.no-text",
+            )
         return document

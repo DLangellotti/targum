@@ -17,17 +17,32 @@ body.chat {
   grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100svh;
 }
+/* The page itself (not the drawer's frame) carries the site's foot, which is 290px at a
+   desk and 420px on a phone. Inside the one screen it left the thread 209px and 32px,
+   half a line (QA 2026-10-11). So the conversation takes the screen under the bar, the
+   foot waits below it, and on a phone the room stops above the bar of places.
+   `--chat-head` is the bar's measured height, kept by chat.js. */
+body.chat:not(.embed) {
+  height: auto;
+  min-height: 100svh;
+  grid-template-rows: auto calc(100svh - var(--chat-head, 4.5rem)) auto;
+}
+@media (max-width: 40rem) {
+  body.chat:not(.embed) {
+    grid-template-rows: auto calc(100svh - var(--chat-head, 4rem) - 4rem - env(safe-area-inset-bottom)) auto;
+  }
+}
 body.chat > .site-head { justify-self: stretch; }
 body.chat > .chat-main {
   justify-self: start;
-  margin-inline-start: max(0px, calc((100% - 62rem) / 2));
+  margin-inline-start: max(0px, calc((100% - var(--column)) / 2));
   min-height: 0;
 }
 
 .chat-main {
-  width: min(62rem, 100%);
+  width: min(var(--column), 100%);
   padding: 1rem 1.25rem 1rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   display: grid;
   grid-template-columns: 14rem minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto auto auto;
@@ -224,7 +239,7 @@ body.chat > .chat-main {
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
-.chat-turn.bad .chat-line { color: var(--clay); }
+/* A failed turn is a fault line (`fault.js`), ink with its clay mark; the line it replaces is hidden. */
 .chat-turn.working .chat-line:empty::before { content: "…"; color: var(--ink-soft); }
 
 /* --- hearing an answer ----------------------------------------------------- */
@@ -393,7 +408,7 @@ body.chat > .chat-main {
 .chat-door {
   display: inline-block;
   margin-block: 0.35rem 0.6rem;
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.2;
@@ -581,4 +596,42 @@ body.embed > .chat-main > .composer {
   .chat-claim label { display: flex; align-items: center; min-block-size: 44px; }
   .chat-claim label.claim-all-reach { justify-content: center; min-inline-size: 44px; }
   .chat-claim .claim-check { inline-size: 1.5rem; block-size: 1.5rem; }
+  /* Mark known and Skip, drawn smaller here than on Your Words, answered at 40px under a
+     thumb until the arrival QA of 2026-10-18. */
+  .chat-claim .claim-yes,
+  .chat-claim .claim-no { min-block-size: 44px; }
+}
+
+/* --- the drawer's conversation, as boards ChatDesk and ChatPhone draw it (design.md
+   §12, "Talk is a sheet over a dimmed page", 2026-10-09) ------------------------------
+   The Reading line stands only while the conversation is empty: once there is a turn,
+   the drawer's own head says what it is about. Your lines are tinted at the end edge,
+   sized to what was said; a door to a text is the primary; the box is one field. */
+body.embed .chat-main:has(.turns > li) > .chat-reading { display: none; }
+.chat-turn.me .chat-line { justify-self: end; }
+.chat-door {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font-size: 0.9375rem;
+}
+.chat-door:hover { background: var(--teal); color: var(--teal-ink); filter: brightness(1.08); }
+body.embed > .chat-main > .composer {
+  margin-block-start: 0.5rem;
+  padding: 0.375rem 0.375rem 0.375rem 0.5rem;
+  border: 1px solid var(--well);
+  border-radius: var(--radius-row);
+  background: var(--card);
+  align-items: center;
+}
+body.embed > .chat-main > .composer textarea {
+  background: transparent;
+  box-shadow: none;
+}
+@media (hover: none) and (pointer: coarse) {
+  .chat-door { min-block-size: 44px; }
 }

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from targum.models import BlockKind, Segment, SegmentedDocument, Translation, read_artifact
 from targum.serve import Library
 
@@ -567,18 +569,54 @@ def _recording(tmp_path: Path, video: bool = False) -> tuple[str, dict[int, str]
 def test_a_waiting_press_says_what_it_spends(tmp_path: Path) -> None:
     """Copy audit, 2026-09-28 (Q11). Translate, Transcribe and Prepare all spent with no
     cost beside them, where the voice offer beside them said its credits. A translation
-    uses none; a transcript its part's minutes, a credit a minute, rounded up."""
+    uses none. A part of a recording none either since 2026-10-07 (design.md §12, "One
+    press gets the whole video, a part at a time"): the press on its quote took the whole
+    recording's credits, and "Uses 3 credits" here was a second price for them."""
     text = _render_book(tmp_path / "text", translated=1)
     assert 'id="waiting-cost"' in text[2] and "Uses none of your credits" in text[2]
 
     contents, pages = _recording(tmp_path / "talk")
-    assert 'id="waiting-cost"' in pages[2] and "Uses 3 credits" in pages[2], "130 seconds"
-    assert 'data-parts="2"' in contents and 'data-part-seconds="1:300.0 2:130.0"' in contents
+    assert 'id="waiting-cost"' in pages[2]
+    assert "Already in the credits you confirmed" in pages[2]
+    assert "Uses 3 credits" not in pages[2], "never a second price for a paid part"
+    assert 'data-parts="2"' in contents
     source = (Path(__file__).parents[1] / "src/targum/render/assets/contents.js").read_text(
         encoding="utf-8"
     )
-    assert "spends(hearing, partsOf(row))" in source
-    assert 'getElementById("prepare-cost")' in source
+    assert 'getElementById("prepare-cost")' in source, "a book's Prepare all says its none"
+    assert "Already in the credits you confirmed" not in source, "no press on a part to price"
+
+
+def test_a_recordings_contents_page_has_no_press_for_a_part(tmp_path: Path) -> None:
+    """David, 2026-10-07 (design.md §12, "One press gets the whole video, a part at a
+    time"): the contents page of a recording has neither a row's Transcribe nor Prepare
+    all — opening a part's page is what starts it — and its waiting rows say how the part
+    stands. A book's contents page keeps both of its presses."""
+    contents, _pages = _recording(tmp_path / "talk")
+    assert 'id="prepare"' not in contents and "Prepare all" not in contents
+    assert "data-part-seconds" not in contents, "nothing left to price"
+    assert '<a href="sec-0002.html">' in contents, "the waiting part's link is the way in"
+
+    from targum.models import Document
+    from targum.render import render
+
+    folder = tmp_path / "book" / "book-he"
+    book(folder, chapters=2, translated=1)
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    translation = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert segmented is not None and translation is not None
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="b")
+    render(document, segmented, [translation], folder / "reader")
+    index = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert 'id="prepare"' in index and "Prepare all" in index, "a book keeps Prepare all"
+
+    source = (Path(__file__).parents[1] / "src/targum/render/assets/contents.js").read_text(
+        encoding="utf-8"
+    )
+    assert "contents.transcribe" not in source and "Transcribe" not in source
+    assert 't("contents.translate", "Translate")' in source, "a book keeps Translate"
+    assert '"Ready when you open it."' in source
+    assert '"Getting ready."' in source
 
 
 def test_the_contents_page_starts_a_recording_by_listening_and_a_film_by_watching(
@@ -590,3 +628,103 @@ def test_the_contents_page_starts_a_recording_by_listening_and_a_film_by_watchin
     assert "Start listening" in contents and "Start reading" not in contents
     film, _ = _recording(tmp_path / "film", video=True)
     assert "Start watching" in film
+
+
+def test_a_chapter_already_translated_is_not_asked_for_ahead(tmp_path: Path) -> None:
+    """The reader asks for the next chapter at 60% of this one. A page whose next chapter
+    is already translated says so, and asks nothing: on a text off the shared shelf that
+    asking was a 404 in the console on every first text (known issues 2026-10-12, m6)."""
+    pytest.importorskip("playwright.sync_api")
+    from playwright.sync_api import sync_playwright
+    from test_reader_browser import opened
+
+    from targum.models import Document, SegmentedDocument, Translation, read_artifact
+    from targum.render import render
+
+    folder = tmp_path / "book-he"
+    book(folder, chapters=3, translated=2)
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    translation = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert segmented is not None and translation is not None
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="b")
+    render(document, segmented, [translation], folder / "reader")
+    reader = folder / "reader"
+    first = (reader / "sec-0001.html").read_text(encoding="utf-8")
+    second = (reader / "sec-0002.html").read_text(encoding="utf-8")
+    assert 'data-next="2" data-ready' in first
+    assert 'data-next="3"' in second and 'data-next="3" data-ready' not in second
+
+    with sync_playwright() as driver:
+        try:
+            browser = driver.chromium.launch()
+        except Exception as why:  # pragma: no cover - the browser itself is not installed
+            pytest.skip(f"no Chromium: {why}")
+
+        def asked(path: str, name: str) -> list[dict]:
+            seen: list[dict] = []
+
+            def answer(route, request) -> None:
+                if request.url.split("?")[0].endswith("/chapter"):
+                    seen.append(request.post_data_json)
+                    route.fulfill(status=200, content_type="application/json", body="{}")
+                elif request.url.split("?")[0].endswith(".html"):
+                    body = (reader / name).read_bytes()
+                    route.fulfill(status=200, content_type="text/html", body=body)
+                else:
+                    route.fulfill(status=404, body="")
+
+            context = opened(browser)
+            page = context.new_page()
+            page.route("http://reader.test/**", answer)
+            page.goto(f"http://reader.test{path}{name}")
+            page.wait_for_timeout(600)
+            context.close()
+            return seen
+
+        try:
+            assert asked("/reader/book-he/reader/", "sec-0001.html") == []
+            waiting = asked("/reader/book-he/reader/", "sec-0002.html")
+            assert [ask["number"] for ask in waiting] == [3], "a waiting chapter is still asked for"
+            assert asked("/parasha/read/book-he/reader/", "sec-0002.html") == [], (
+                "a portion is not the reader's to buy"
+            )
+        finally:
+            browser.close()
+
+
+def test_the_waiting_note_is_said_through_the_catalogue(tmp_path: Path) -> None:
+    """Reader QA, 2026-10-19 (targum-internal#464): the note and its press were written
+    into the template in English, so a Russian reader said them in English."""
+    from targum.render.builder import TEMPLATES
+
+    reader = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
+    note = reader[reader.index('id="waiting-note"') : reader.index('id="waiting-cost"')]
+    for key in (
+        "reader.chapter.not-translated",
+        "reader.chapter.not-transcribed",
+        "reader.chapter.translate",
+    ):
+        assert f't("{key}"' in note, key
+    assert ">Translate<" not in note and "yet.{%" not in note
+    # Both kinds of waiting page have a line for what went wrong, not only a recording's.
+    assert '<p class="waiting-said" id="waiting-said" role="status"></p>' in note
+
+
+def test_the_pager_says_a_part_in_the_text_s_own_language(tmp_path: Path) -> None:
+    """A part's name is the text's: bare in the pager, a Hebrew name stood in the page's
+    English run (reader QA, 2026-10-19)."""
+    pages = _render_book(tmp_path, translated=2)
+    assert '<a class="next" href="sec-0002.html" data-next="2"' in pages[1]
+    after = pages[1][pages[1].index('<a class="next" href="sec-0002.html"') :]
+    assert after.split(">", 1)[1].startswith('<bdi lang="he" dir="auto">')
+    before = pages[2][pages[2].index('<a class="prev" href="sec-0001.html">') :]
+    assert before.split(">", 1)[1].startswith('<bdi lang="he" dir="auto">')
+
+
+def test_a_reader_carries_no_charts(tmp_path: Path) -> None:
+    """`charts.js` left the reader on 2026-10-19: nothing in it had read the ledger's
+    arithmetic since the finished box became three figures (#429), and every page of every
+    book carried it anyway."""
+    pages = _render_book(tmp_path, translated=2)
+    for html in pages.values():
+        assert "TargumCharts" not in html

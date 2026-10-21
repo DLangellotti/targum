@@ -79,6 +79,27 @@ responses stream, so the reader's Range requests pass through. Hosted video tran
 on the box at roughly real-time ÷ 4 per part. The box never fetches from YouTube —
 that import is CLI-only, on purpose.
 
+## What the box installs
+
+`deploy.sh` installs the wheel with **uv.lock's versions as constraints**
+(`dist/box-constraints.txt`, exported on every deploy), so the box gets what CI tested
+rather than whatever PyPI has that day. Without them `uv tool install` resolved fresh:
+transformers 5.17.0 broke every Hebrew build on 2026-09-13 and stanza 1.15.0 stopped a
+rebuild on 2026-10-01, both with CI green. Torch, the CUDA packages and ru-core-news-lg are
+left out of the constraints: torch comes from PyTorch's CPU index as a +cpu build, and the
+model wheel is pinned by its URL. To move a library on the box, move it in uv.lock.
+
+The week's sheet as a PDF (targum-internal#415) is set by WeasyPrint, which the `print`
+extra installs, through Pango, which it does not. `provision.sh` installs Pango on a fresh
+box; on the live one it is this, once, before the deploy that carries the extra:
+
+```sh
+ssh root@targum.page 'apt-get update -qq && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core fonts-urw-base35'
+```
+
+Without it the service still starts, and Download PDF answers "The PDF can't be made right
+now" with the reason in the log.
+
 ## A test account
 
 An account for trying targum as a new reader meets it, as often as you like: signing
@@ -87,8 +108,14 @@ connections and the texts it built — and keeps the account and its invitation,
 next sign-in is a first visit. Made on the box:
 
 ```
-targum test-account tester@example.com
+ssh root@targum.page 'runuser -u targum -- targum test-account tester@example.com --store /var/lib/targum/targum.db'
 ```
+
+As the service's own user and against the service's own database, both on purpose. Left
+to itself `targum` reads `~/.targum/targum.db`, which for root is a database the site never
+opens — the account is made there and does not exist on the site (found 2026-09-28, the
+first time this ran). And a database file written as root is one the service can no
+longer write to.
 
 It is refused for an address that already has an account: a test account is emptied
 the next time it signs out, so a real reader's account must never become one. For
@@ -96,7 +123,7 @@ testing without reading the address's mail, `--link` prints a one-time sign-in l
 only for a test account:
 
 ```
-ssh root@targum.page 'set -a; . /etc/targum/targum.env; set +a; targum test-account tester@example.com --link'
+ssh root@targum.page 'runuser -u targum -- targum test-account tester@example.com --link --store /var/lib/targum/targum.db --address https://targum.page'
 ```
 
 The link opens the ordinary sign-in page; press its button. `targum test-account` with
@@ -190,3 +217,16 @@ box's own index (`TARGUM_WEEKLY_DIR`, which `ship-weekly.sh` writes into `targum
 and mails once if it is not published, which is the only way a run that never started
 is heard about. Every week it sees is a line in `/var/lib/targum/weekly-watch.json`, out
 or not. On the laptop, every run is a line in `targum-out/weekly/runs.log`.
+
+Subscriptions (design.md §12, 2026-10-09) have one timer and one loop. Every half hour
+`targum-subscriptions.timer` runs `targum subscriptions poll`, which reads each live
+subscription's source — the series built here, the news feeds, YouTube's Data API with
+`TARGUM_YOUTUBE_API_KEY` (in `box.env.op`), a podcast's feed — and writes what is new; it
+never builds and never spends. Inside `targum.service`, every five minutes, the server
+gets a channel's or a podcast's new item ready: prepared like a pasted link (through the
+proxy and the token minter), held to the subscription's monthly cap, and claimed through
+`Library.press` like any build. Every deploy installs and enables the timer;
+`journalctl -u targum-subscriptions -n 20` says what each run found. Once a day, at
+04:30 UTC, `targum-subscriptions-mail.timer` runs `targum subscriptions mail`: one mail a
+reader with everything new, the daily cycles included and the weekly left to its Monday
+mail (`journalctl -u targum-subscriptions-mail -n 20`).

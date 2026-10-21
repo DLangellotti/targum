@@ -11,8 +11,10 @@ import re
 import threading
 import time
 from collections.abc import Callable
+from datetime import UTC, date, datetime
 from http.client import HTTPConnection
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import pytest
 
@@ -68,10 +70,12 @@ def hosted(
     return port, signed_in[1]
 
 
-def ask(port: int, path: str, host: str, session: str = "") -> tuple[int, bytes]:
+def ask(port: int, path: str, host: str, session: str = "", agent: str = "") -> tuple[int, bytes]:
     conn = HTTPConnection("127.0.0.1", port, timeout=5)
     conn.putrequest("GET", path, skip_host=True)
     conn.putheader("Host", host)
+    if agent:
+        conn.putheader("User-Agent", agent)
     if session:
         conn.putheader("Cookie", f"targum_session={session}")
     conn.endheaders()
@@ -171,8 +175,9 @@ def test_an_empty_key_authorises_nobody() -> None:
 def test_no_key_gets_a_stranger_through_the_door(hosted: tuple[int, str], query: str) -> None:
     port, _ = hosted
     status, body = ask(port, "/progress" + query, "targum.page")
-    assert status == 200
-    assert b"Coming soon" in body, "a stranger should meet the holding page, whatever they guess"
+    # The sign-in door since 2026-10-11 (QA decision D2), not the page they guessed at.
+    assert status == 303, "a stranger should meet the door, whatever they guess"
+    assert b"Progress" not in body
 
 
 def test_run_locally_the_key_is_still_there(tmp_path: Path, free_port: Callable[[], int]) -> None:
@@ -395,6 +400,10 @@ def test_the_legal_documents_answer_once_the_switch_is_thrown(
         assert status == 200, route
         assert b"Coming soon" not in body, f"{route} fell through to the holding page"
         assert b"hello@targum.page" in body, f"{route} gives nobody to write to"
+    # 2026-10-13: robots.txt asks training crawlers to stay off the shelves; the terms
+    # are what that request stands on.
+    terms = ask(port, "/terms", "targum.page")[1]
+    assert b"train, fine-tune or" in terms
 
 
 def test_the_sitemap_and_robots_name_the_documents_once_they_are_open(
@@ -410,6 +419,74 @@ def test_the_sitemap_and_robots_name_the_documents_once_they_are_open(
     for route in ("/privacy", "/terms", "/retention", "/deletion"):
         assert f"Allow: {route}" in robots, route
         assert f"<loc>https://targum.page{route}</loc>" in sitemap, route
+
+
+def test_a_year_old_chrome_gets_no_text_unless_signed_in(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2026-10-13: the crawler behind the October spike, as real headless Chrome through
+    residential addresses, claiming Chrome 101–136 while Chrome was at ~157."""
+    port, session = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+
+    def chrome(major: int) -> str:
+        return (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+            f" (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+        )
+
+    shipping = 120 + (datetime.now(UTC).date() - date(2023, 12, 5)).days // 28
+    old, current = chrome(shipping - 20), chrome(shipping)
+    for shelf in ("/library", "/library/il-declaration", "/parasha", "/weekly", "/tehillim"):
+        status, body = ask(port, shelf, "targum.page", agent=old)
+        assert status == 403, shelf
+        assert b"out of date" in body
+    assert ask(port, "/library/il-declaration", "targum.page", agent=current)[0] == 200
+    assert ask(port, "/library/il-declaration", "targum.page", session, old)[0] == 200
+    for door in ("/", "/robots.txt"):
+        assert ask(port, door, "targum.page", agent=old)[0] == 200, door
+
+
+def test_an_ai_finds_targum_and_does_not_train_on_its_shelves(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2026-10-13: an agent a person sends and an AI's search index read the library like
+    any search engine; a training crawler gets the pages about targum and no texts."""
+    from urllib.robotparser import RobotFileParser
+
+    port, _ = hosted
+    assert ask(port, "/llms.txt", "targum.page")[0] == 404, "shut with the shelves"
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+
+    rules = RobotFileParser()
+    rules.parse(ask(port, "/robots.txt", "targum.page")[1].decode().splitlines())
+    text = "https://targum.page/library/scene-57-the-lease"
+    for agent in ("ChatGPT-User", "Claude-User", "OAI-SearchBot", "Claude-SearchBot", "Applebot"):
+        assert rules.can_fetch(agent, text), agent
+    for agent in serve.TRAINING_CRAWLERS:
+        assert not rules.can_fetch(agent, text), agent
+        assert not rules.can_fetch(agent, "https://targum.page/parasha/noach"), agent
+        assert rules.can_fetch(agent, "https://targum.page/connect"), agent
+        assert rules.can_fetch(agent, "https://targum.page/llms.txt"), agent
+    assert not rules.can_fetch("Googlebot", "https://targum.page/account/me")
+
+    status, llms = ask(port, "/llms.txt", "targum.page")
+    assert status == 200
+    said = llms.decode()
+    assert said.startswith("# targum\n")
+    assert "https://targum.page/mcp" in said
+    assert "not for training" in said
+
+
+def test_llms_txt_names_no_connector_that_is_shut(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    said = ask(port, "/llms.txt", "targum.page")[1].decode()
+    assert "/mcp" not in said
+    assert "/connect" not in said
 
 
 def test_every_text_answers_at_one_address(
@@ -434,9 +511,10 @@ def test_every_text_answers_at_one_address(
 def test_the_front_door_is_still_shut(hosted: tuple[int, str]) -> None:
     """The shelves opening up must not have opened anything else."""
     port, _ = hosted
-    for route in ("/", "/progress"):
-        status, body = ask(port, route, "targum.page")
-        assert status == 200 and b"Coming soon" in body, route
+    status, body = ask(port, "/", "targum.page")
+    assert status == 200 and b"Coming soon" in body
+    # Every other room is the sign-in door since 2026-10-11 (QA decision D2).
+    assert ask(port, "/progress", "targum.page")[0] == 303
 
 
 # -- who may open an account --------------------------------------------------
@@ -575,6 +653,28 @@ def test_an_uninvited_address_is_pointed_at_the_waitlist_while_there_is_one(
     assert sent == []
 
 
+def test_a_refusal_is_said_in_the_language_of_the_page_it_was_asked_from(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """QA 2026-10-11: /account/signin?lang=ru drew its heading in Russian and said every
+    refusal under the field in the browser's English. The page posts its language as
+    `into`, and the answer follows it — for that answer only, so a kept-alive connection
+    does not carry it to the next."""
+    from targum.strings import catalogue
+
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.delenv("TARGUM_FRONT_DOOR", raising=False)
+    russian = catalogue("ru")
+    status, body = post(port, "/account/sign-in", {"email": "a@b", "into": "ru"})
+    assert status == 400 and body["error"] == russian["serve.we-couldn-t-read-that-as"]
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com", "into": "ru"})
+    assert status == 403 and body["error"] == russian["serve.not-open"]
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com"})
+    assert body["error"] == "Thanks for asking. targum isn't open yet."
+    assert sent == []
+
+
 def test_a_link_asked_for_mid_connect_is_marked_as_one(
     tmp_path: Path, free_port: Callable[[], int]
 ) -> None:
@@ -629,12 +729,191 @@ def test_a_closing_account_is_told_so_at_every_door(
 
     status, page = ask(port, f"/account/enter?t={link}", "targum.page")
     said = page.decode()
-    assert status == 200 and closing in said
-    assert "no longer works" not in said
+    # A whole page since 2026-10-09 (design.md §12): the heading says it, and the one
+    # button is the mail that keeps the account.
+    assert status == 200 and "This account is being closed" in said
+    assert 'href="mailto:hello@targum.page"' in said
+    assert "has expired" not in said
 
     # A link nobody is leaving through is still just a spent link.
     assert not store.leaving_link("not-a-token")
     assert not store.is_leaving("reader@example.com")
+
+
+# -- a door back to the page (QA 2026-10-11, decision D2) ------------------------------
+
+
+def _exchange(
+    port: int, method: str, path: str, body: bytes = b"", kind: str = ""
+) -> tuple[int, dict[str, str], bytes]:
+    """One request with no redirect followed, for what the door answers itself."""
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest(method, path, skip_host=True)
+    conn.putheader("Host", "targum.page")
+    if body:
+        conn.putheader("Content-Type", kind)
+        conn.putheader("Content-Length", str(len(body)))
+    conn.endheaders()
+    if body:
+        conn.send(body)
+    response = conn.getresponse()
+    said = response.read()
+    headers = {name.lower(): value for name, value in response.getheaders()}
+    conn.close()
+    return response.status, headers, said
+
+
+@pytest.mark.parametrize(
+    ("path", "back"),
+    [
+        ("/you", "/you"),
+        ("/add", "/add"),
+        ("/progress?tab=words", "/progress?tab=words"),
+        ("/reader/texts/some-text.html", "/reader/texts/some-text.html"),
+    ],
+)
+def test_a_page_asked_for_signed_out_is_a_door_back_to_it(
+    hosted: tuple[int, str], path: str, back: str
+) -> None:
+    """An expired session or a bookmark met "Coming soon" about a page the reader had
+    been reading (QA 2026-10-11, D2). Now the door, carrying the page."""
+    port, _ = hosted
+    status, headers, _ = _exchange(port, "GET", path)
+    assert status == 303
+    where = headers["location"]
+    assert where.startswith("/account/signin?next=")
+    assert parse_qs(urlparse(where).query)["next"] == [back]
+
+    status, _, page = _exchange(port, "GET", where)
+    said = page.decode()
+    assert status == 200 and "Coming soon" not in said
+    assert f'data-next="{back}"' in said
+
+
+def test_data_is_still_answered_as_data_signed_out(hosted: tuple[int, str]) -> None:
+    port, _ = hosted
+    status, headers, body = _exchange(port, "GET", "/readers")
+    assert status == 401 and "location" not in headers
+    assert json.loads(body)["signIn"] == "/account/signin"
+
+
+def test_the_root_is_not_sent_to_the_door(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port, _ = hosted
+    monkeypatch.delenv("TARGUM_FRONT_DOOR", raising=False)
+    status, headers, body = _exchange(port, "GET", "/")
+    assert status == 200 and "location" not in headers
+    assert b"Coming soon" in body
+
+
+def test_the_mailed_link_lands_on_the_page_that_was_asked_for(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """The whole way round: turned away from a reader, the address typed on the door,
+    the link opened, the press, and the reader back where they were."""
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    store.invite("reader@example.com")
+    room = "/reader/texts/some-text.html?at=3&lang=ru"
+
+    status, headers, _ = _exchange(port, "GET", room)
+    assert status == 303
+    back = parse_qs(urlparse(headers["location"]).query)["next"][0]
+    assert back == room
+
+    status, _ = post(port, "/account/sign-in", {"email": "reader@example.com", "next": back})
+    assert status == 200 and len(links) == 1
+    link = urlparse(links[0])
+    query = parse_qs(link.query)
+    assert query["next"] == [room], links[0]
+
+    status, _, page = _exchange(port, "GET", f"{link.path}?{link.query}")
+    said = page.decode()
+    assert status == 200 and "Sign in as" in said
+    assert 'name="next" value="/reader/texts/some-text.html?at=3&amp;lang=ru"' in said
+
+    form = urlencode({"t": query["t"][0], "next": room}).encode()
+    status, headers, _ = _exchange(
+        port, "POST", "/account/enter", form, "application/x-www-form-urlencoded"
+    )
+    assert status == 303
+    assert headers["location"] == room
+    assert "targum_session=" in headers.get("set-cookie", "")
+
+
+def test_without_a_page_the_press_still_lands_home(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    store.invite("reader@example.com")
+    assert post(port, "/account/sign-in", {"email": "reader@example.com"})[0] == 200
+    assert "next=" not in links[0]
+    token = parse_qs(urlparse(links[0]).query)["t"][0]
+    form = urlencode({"t": token}).encode()
+    status, headers, _ = _exchange(
+        port, "POST", "/account/enter", form, "application/x-www-form-urlencoded"
+    )
+    assert status == 303 and headers["location"] == "/?signin=welcome"
+
+
+ELSEWHERE = [
+    "//evil.test",
+    "//evil.test/you",
+    "https://evil.test",
+    "https://evil.test/you",
+    "/\\evil.test",
+    "\\\\evil.test",
+    "javascript:alert(1)",
+    "evil.test",
+    "/you\r\nSet-Cookie: x=1",
+    "/you\x00",
+    "/" + "a" * 2000,
+    "/account/signin",
+    "",
+]
+
+
+@pytest.mark.parametrize("asked", ELSEWHERE)
+def test_next_is_only_ever_a_page_of_ours(asked: str) -> None:
+    assert serve.safe_next(asked) == ""
+
+
+@pytest.mark.parametrize("asked", ["/", "/you", "/reader/a/b.html?x=1&y=2", "/r/abc#here"])
+def test_a_page_of_ours_passes(asked: str) -> None:
+    assert serve.safe_next(asked) == asked
+
+
+def test_no_press_is_sent_elsewhere(tmp_path: Path, free_port: Callable[[], int]) -> None:
+    """Whatever `next` a link or a form is made to carry, the press lands at home, and
+    no page writes it in. One box, one address for each, so no address asks too often."""
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    for number, asked in enumerate(ELSEWHERE):
+        address = f"reader{number}@example.com"
+        store.invite(address)
+
+        status, _, page = _exchange(port, "GET", "/account/signin?" + urlencode({"next": asked}))
+        assert status == 200 and b'data-next="' not in page, asked
+
+        assert post(port, "/account/sign-in", {"email": address, "next": asked})[0] == 200
+        assert "next=" not in links[-1], links[-1]
+
+        token = parse_qs(urlparse(links[-1]).query)["t"][0]
+        status, _, page = _exchange(
+            port, "GET", f"/account/enter?t={token}&" + urlencode({"next": asked})
+        )
+        assert status == 200 and b'name="next"' not in page, asked
+
+        fields = urlencode({"t": token, "next": asked}).encode()
+        status, headers, _ = _exchange(
+            port, "POST", "/account/enter", fields, "application/x-www-form-urlencoded"
+        )
+        assert status == 303 and headers["location"] == "/?signin=welcome", asked
 
 
 def test_the_link_is_written_in_what_the_page_reads_into(
@@ -1290,3 +1569,58 @@ def test_a_corrected_line_said_known_leaves_the_queue_and_not_the_record(
     assert _signed_post(port, "/slips/999999", {"known": True}, session)[0] == 404
     assert _signed_post(port, "/slips/nonsense", {"known": True}, session)[0] == 404
     assert _signed_post(port, f"/slips/{mine}", {"known": True}, "")[0] == 401
+
+
+def test_a_strangers_404_is_the_doors_page_and_asks_for_nothing(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """QA 2026-10-11: a signed-out visitor at an address that is not a page met the whole
+    desk — the four places, the bell and the AI Assistant, each a door that would only
+    ask them to sign in — and the page asked for their jobs and conversations and was
+    refused. A stranger gets the door's bar; somebody signed in keeps the desk."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    status, body = ask(port, "/no-such-page", "targum.page")
+    assert status == 404
+    page = body.decode()
+    assert 'class="site-nav door-nav"' in page
+    assert 'id="talk-open"' not in page and 'id="notices-open"' not in page
+
+
+def test_a_stranger_asking_who_is_signed_in_is_told_nobody_not_refused(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """QA 2026-10-11: every reader and series page asks `/account/me`, and signed out it
+    was answered with the stale-key page and a 403 in the console. It is a question with
+    an answer: nobody, and an account is needed here, so the page asks nothing more."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    status, body = ask(port, "/account/me", "targum.page")
+    assert status == 200
+    assert json.loads(body) == {"signedIn": False, "signedOut": True}
+
+
+def test_an_unknown_text_or_reader_page_is_the_sites_own_404_to_a_browser(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ACCOUNT-12 (QA 2026-10-11): an unknown `/library/<id>`, or a reader's page that is
+    not there, answered the browser with the bare words "not found". A browser asking for
+    the page gets the site's own 404; a script's fetch keeps its short answer."""
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    for path in ("/library/no-such-text", "/parasha/read/noach/reader/sec-0099.html"):
+        for headers in ({"Sec-Fetch-Mode": "navigate"}, {"Accept": "text/html,*/*;q=0.8"}):
+            conn = HTTPConnection("127.0.0.1", port, timeout=5)
+            conn.request("GET", path, headers={"Host": "targum.page", **headers})
+            response = conn.getresponse()
+            page = response.read().decode()
+            conn.close()
+            assert response.status == 404, path
+            assert response.getheader("Content-Type", "").startswith("text/html"), path
+            assert 'class="site-nav door-nav"' in page, path
+        conn = HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.request("GET", path, headers={"Host": "targum.page", "Sec-Fetch-Mode": "cors"})
+        response = conn.getresponse()
+        assert (response.status, response.read()) == (404, b"not found"), path
+        conn.close()

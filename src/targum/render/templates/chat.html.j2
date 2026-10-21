@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("chat.page.conversations-targum", "Chats — targum") }}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('composer.css') }}{{ asset('chat.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'composer.css', 'chat.css') }}
 {{ hebrew_face() }}
 {% if embed %}
 {#- Framed in the front page (design.md §13, 2026-09-11): the chrome's face rides with
@@ -14,7 +14,7 @@
 {{ chrome_face() }}
 <base target="_top">
 {% endif %}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
     the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
     once as they load; it was set in a script at the foot of the body, so on a local serve
@@ -26,7 +26,7 @@
 {% set here = 'chat' %}
 {% if not embed %}
 {% include '_nav.html.j2' %}
-<script>{{ asset('building.js') }}</script>
+{{ script('building.js') }}
 {% endif %}
 <main class="chat-main">
   {#- The conversations you have had, newest first, and one door to a fresh one. A
@@ -40,7 +40,7 @@
           (2026-09-10, targum-internal#238). Drawn only at phone width; the stylesheet
           decides. -#}
       <button type="button" id="chat-open-list" class="chat-open-list"
-              aria-expanded="false" aria-controls="chat-list">{{ t("chat.page.conversations", "Chats") }}</button>
+              aria-expanded="false" aria-controls="chat-list">{{ t("chat.page.conversations", "Chat History") }}</button>
     </div>
     {#- Newest first, each with when it was last opened; "More" at the foot for the next
         page. A row writes the conversation into the address, so a conversation can be
@@ -93,15 +93,17 @@ window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('lang.js') }}</script>
-<script>{{ asset('sync.js') }}</script>
-<script>{{ asset('account.js') }}</script>
-<script>{{ asset('bring.js') }}</script>
-<script>{{ asset('chips.js') }}</script>
-<script>{{ asset('first.js') }}</script>
-<script>{{ asset('speak.js') }}</script>
-<script>{{ asset('claim.js') }}</script>
-<script>{{ asset('chat.js') }}</script>
+{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('bring.js') }}
+{{ script('chips.js') }}
+{{ script('first.js') }}
+{{ script('speak.js') }}
+{{ script('claim.js') }}
+{#- The nav carries `fault.js` everywhere but the drawer, which has no nav. -#}
+{% if embed %}{{ script('report.js', data_build=build()) }}{{ script('fault.js') }}
+{% endif %}{{ script('chat.js') }}
 </body>
 </html>

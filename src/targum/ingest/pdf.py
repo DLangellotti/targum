@@ -84,8 +84,12 @@ def page_lines(path: Path) -> list[list[str]]:
     """
     reader = _reader(path)
     if len(reader.pages) > MAX_PAGES:
+        said = (
+            f"That PDF has {len(reader.pages)} pages. We can read up to {MAX_PAGES} at a "
+            "time, so upload the part you want."
+        )
         raise TargumError(
-            f"That PDF has {len(reader.pages)} pages. We can read up to {MAX_PAGES} at a time.",
+            said,
             key="pdf.too-many-pages",
             pages=len(reader.pages),
             most=MAX_PAGES,

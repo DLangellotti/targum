@@ -90,8 +90,8 @@ def test_arriving_plays_nothing_and_next_plays_the_next(browser, tmp_path) -> No
         page.goto(at(one, 0))
         page.wait_for_selector("#list-nav", state="attached")
         assert page.evaluate(PAUSED), "opening an item from its playlist plays nothing"
-        assert page.evaluate("() => document.body.classList.contains('watching')"), (
-            "inside a playlist a video opens watching"
+        assert page.evaluate("() => document.body.classList.contains('film-theatre')"), (
+            "inside a playlist a video opens large, in Theatre"
         )
         page.click("#video .video-list-next")
         page.wait_for_url("**/two/**go=1")
@@ -139,6 +139,9 @@ def test_a_swipe_up_moves_on_and_a_swipe_down_goes_back(browser, tmp_path) -> No
     try:
         page.goto(at(one, 0))
         page.wait_for_selector("#list-nav", state="attached")
+        # The swipe on is made at the end of the text, where the card of what comes next
+        # stands (P9): read down to it first.
+        page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
         page.evaluate(swipe, -200)
         page.wait_for_url("**/two/**go=1")
         page.wait_for_selector("#list-nav", state="attached")
@@ -168,8 +171,8 @@ def test_an_article_is_read_before_it_is_left(browser, tmp_path) -> None:  # noq
         page.wait_for_url("**/film/**go=1")
         page.wait_for_selector("#list-nav", state="attached")
         # And Tab reaches the press, which Enter presses.
-        page.focus("#done-mark")
-        assert page.evaluate("() => document.activeElement.id === 'done-mark'")
+        page.focus("#done-go")
+        assert page.evaluate("() => document.activeElement.id === 'done-go'")
     finally:
         context.close()
 
@@ -204,11 +207,10 @@ def test_the_text_alone_still_opens_as_its_transcript(browser, tmp_path) -> None
         page.goto(address(one))
         page.wait_for_selector("#video:not([hidden])")
         page.wait_for_timeout(200)
-        assert not page.evaluate("() => document.body.classList.contains('watching')")
-        stored = page.evaluate(
-            "() => Object.keys(localStorage).filter((k) => k.startsWith('targum:video-watch:'))"
-        )
-        assert stored == []
+        assert not page.evaluate("() => document.body.classList.contains('film-theatre')")
+        # Nor did it write the reader's own way of standing (#422).
+        stored = page.evaluate("() => localStorage.getItem('targum:film-view')")
+        assert stored is None
     finally:
         context.close()
 
@@ -246,45 +248,80 @@ def test_the_ones_not_ready_are_passed_and_the_last_leads_to_the_end(
         page.click("#video .video-list-next")
         # Empty until #367 fills it, so waited on as a state rather than as something seen.
         page.wait_for_function("() => document.getElementById('list-end').hidden === false")
-        assert not page.evaluate("() => document.body.classList.contains('watching')")
+        # The end is on the page: under a large picture the transcript opens beside it,
+        # with the end at its foot (#422; it used to leave the full-screen mode).
+        assert page.evaluate("() => document.body.classList.contains('film-panel')")
         assert "/two/" in page.url, "the end is shown here, and nothing is loaded after it"
     finally:
         context.close()
 
 
-def test_the_end_says_what_the_set_held_and_offers_one_next_set(
+NEXT = {
+    "id": 9,
+    "name": "After Reels",
+    "made_by": "targum",
+    "count": 2,
+    "seconds": 360,
+    "credits": 6,
+    "state": "waiting",
+    "open": "/set/9",
+    "page": "/playlists/9",
+    "items": [
+        {"title": "מה השעה?", "minutes": 2, "known": 0.95, "credits": 2, "state": "waiting"},
+        {"title": "בבית קפה", "minutes": 4, "known": 0.92, "credits": 4, "state": "waiting"},
+    ],
+}
+
+
+def test_the_end_offers_one_next_set_and_confirms_it_on_the_card(
     browser,  # noqa: F811
     tmp_path,
 ) -> None:
-    """#367: the end card is filled once from end.json, and its one door is a press page."""
+    """#367, #435: the end card is filled once from end.json; its next set names each
+    text, its credits and the total, and Confirm is the set's own press, here."""
     one, two = two_films(tmp_path)
     context, _ = listed(browser, playlist(one, two))
     ended: list[str] = []
+    pressed: list[tuple[str, dict, str]] = []
 
     def answer_end(route) -> None:  # type: ignore[no-untyped-def]
         ended.append(route.request.url)
         route.fulfill(
             status=200,
             content_type="application/json",
-            body=json.dumps(
-                {
-                    "words": {"met": 84, "new": 12},
-                    "next": {"id": 9, "name": "After Reels", "count": 5, "open": "/set/9"},
-                }
-            ),
+            body=json.dumps({"words": {"met": 84, "new": 12}, "next": NEXT}),
         )
 
+    def answer_press(route) -> None:  # type: ignore[no-untyped-def]
+        request = route.request
+        pressed.append(
+            (
+                request.method,
+                json.loads(request.post_data or "{}"),
+                request.headers.get("x-targum-press", ""),
+            )
+        )
+        route.fulfill(status=200, content_type="application/json", body='{"started": ["a", "b"]}')
+
     context.route("**/playlists/7/end.json", answer_end)
+    context.route("**/set/9*", answer_press)
     page = context.new_page()
     try:
         page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
         page.click("#video .video-list-next")
-        page.wait_for_selector("#list-end .list-end-next")
+        page.wait_for_selector("#list-end .list-end-confirm")
         said = page.inner_text("#list-end")
+        assert "That's the end of Reels." in said
         assert "You met 84 words, 12 of them new." in said
-        assert "After Reels, 5 texts" in said
-        assert page.get_attribute("#list-end .list-end-next", "href").startswith("/set/9")
+        assert "From targum · 2 texts · 6 min · picked for the words you just met" in said
+        assert "Uses 6 credits in all" in said and "4 credits" in said
+        assert page.get_attribute("#list-end .list-end-change", "href").startswith("/set/9")
+        assert page.locator("#list-end .list-end-tiles").count() == 0, "no figures, words only"
+        page.click("#list-end .list-end-confirm")
+        page.wait_for_selector("#list-end .list-end-started")
+        assert pressed == [("POST", {"keep": [0, 1]}, "1")]
+        assert page.get_attribute("#list-end .list-end-next", "href").startswith("/playlists/9")
         # Another press at the end loads nothing more and asks for nothing more.
         page.evaluate(
             "() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown'}))"
@@ -296,44 +333,67 @@ def test_the_end_says_what_the_set_held_and_offers_one_next_set(
         context.close()
 
 
-def test_the_end_card_adds_up_what_each_item_came_to(browser, tmp_path) -> None:  # noqa: F811
-    """design.md §12, "The finished box is three figures" (2026-09-25): each press keeps
-    what its item came to, and the end card adds them up across the playlist."""
-    one = chapter(tmp_path / "one" / "reader")
-    two = other_text(tmp_path / "two" / "reader")
+def test_a_refused_confirm_says_why_and_can_be_pressed_again(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
     context, _ = listed(browser, playlist(one, two))
     context.route(
         "**/playlists/7/end.json",
-        lambda route: route.fulfill(status=200, content_type="application/json", body="{}"),
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"next": NEXT})
+        ),
+    )
+    refusal = "These texts need 6 credits and you have 2 left. Untick some and try again."
+    context.route(
+        "**/set/9*",
+        lambda route: route.fulfill(
+            status=402, content_type="application/json", body=json.dumps({"error": refusal})
+        ),
     )
     page = context.new_page()
     try:
-        page.goto(at(one, 0))
+        page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
-        page.evaluate("() => document.getElementById('done-mark').click()")
-        page.wait_for_url("**/two/**go=1")
+        page.click("#video .video-list-next")
+        page.click("#list-end .list-end-confirm")
+        page.wait_for_selector("#list-end .list-end-said:not([hidden])")
+        assert page.inner_text("#list-end .list-end-said") == refusal
+        assert page.locator("#list-end .list-end-confirm").is_enabled()
+    finally:
+        context.close()
+
+
+def test_a_set_already_confirmed_is_not_asked_for_again(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    context.route(
+        "**/playlists/7/end.json",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"next": {**NEXT, "state": "making"}}),
+        ),
+    )
+    page = context.new_page()
+    try:
+        page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
-        page.evaluate("() => document.getElementById('done-mark').click()")
-        page.wait_for_selector("#list-end .list-end-tiles")
-        tiles = page.inner_text("#list-end .list-end-tiles")
-        assert "2\ntexts finished" in tiles, tiles
-        assert re.search(r"\+[1-9]\d*\nwords known", tiles), tiles
-        assert "100%\nknown here" in tiles, "every word marked, across both"
-        assert "0\nwords looked up" in tiles
+        page.click("#video .video-list-next")
+        page.wait_for_selector("#list-end .list-end-started")
+        assert page.locator("#list-end .list-end-confirm").count() == 0
     finally:
         context.close()
 
 
 # --- review fixes, 2026-09-24 -------------------------------------------------------
 
-from test_reader_browser import dialogue  # noqa: E402
+from test_reader_browser import dialogue, strip_up  # noqa: E402
 
 
 def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> None:  # noqa: F811
     one, two = two_films(tmp_path)
     context, _ = listed(browser, playlist(one, two))
     words = [
-        {"word": "שלום", "language": "he", "new": True},
+        {"word": "שלום", "language": "he", "new": True, "gloss": "peace; hello"},
         {"word": "בית", "language": "he", "new": False},
     ]
     context.route(
@@ -344,7 +404,7 @@ def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> No
             body=json.dumps(
                 {
                     "words": {"met": 2, "new": 1, "list": words},
-                    "next": {"id": 9, "name": "More like Reels", "count": 5, "open": "/set/9"},
+                    "next": {**NEXT, "name": "More like Reels"},
                 }
             ),
         ),
@@ -354,23 +414,26 @@ def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> No
         page.goto(at(two, 1))
         page.wait_for_selector("#list-nav", state="attached")
         page.click("#video .video-list-next")
-        page.wait_for_selector("#list-end .list-end-next")
+        page.wait_for_selector("#list-end.is-filled")
         got = page.evaluate(
             """() => {
-              const door = getComputedStyle(document.querySelector('#list-end .list-end-next'));
+              const door = getComputedStyle(document.querySelector('#list-end .list-end-home'));
               return {
                 words: [...document.querySelectorAll('#list-end .list-end-list bdi')]
                   .map((w) => [w.textContent, w.getAttribute('lang')]),
                 decoration: door.textDecorationLine,
                 radius: door.borderRadius,
                 dir: document.getElementById('list-end').getAttribute('dir'),
+                glosses: [...document.querySelectorAll('#list-end .list-end-list li')]
+                  .map((w) => w.querySelector('.list-end-gloss')?.textContent || ''),
               };
             }"""
         )
         assert got["words"] == [["שלום", "he"], ["בית", "he"]]
         assert got["decoration"] == "none" and got["radius"] == "999px"
         assert got["dir"] == "ltr"
-        assert "More like Reels, 5 texts" in page.inner_text("#list-end")
+        assert got["glosses"] == ["peace", ""], "each word with its first meaning"
+        assert "More like Reels" in page.inner_text("#list-end")
     finally:
         context.close()
 
@@ -415,7 +478,10 @@ def test_a_hebrew_title_keeps_its_punctuation_on_its_own_side(browser, tmp_path)
 
 @pytest.mark.parametrize("viewport", [None, {"width": 390, "height": 844}])
 def test_next_stands_clear_of_the_player(browser, tmp_path, monkeypatch, viewport) -> None:  # noqa: F811
-    """On an audio scene the strip stood over Next, and a press there hit Hear first."""
+    """On an audio scene the strip stood over Next, and a press there hit Hear first.
+
+    Since targum-internal#421 the strip waits for the bar's Listen, so it is brought up
+    first: the question is still where Next stands while the strip is out."""
     monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
     one = dialogue(tmp_path / "dialogues", tmp_path / "one" / "x", turns=3, words=True)
     two = dialogue(tmp_path / "dialogues", tmp_path / "two" / "x", turns=3, words=True)
@@ -424,11 +490,12 @@ def test_next_stands_clear_of_the_player(browser, tmp_path, monkeypatch, viewpor
     try:
         page.goto(at(one, 0))
         page.wait_for_selector("#list-nav", state="attached")
+        strip_up(page)
         page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
         page.wait_for_timeout(200)
         hit = page.evaluate(
             """() => {
-              const box = document.getElementById('done-mark').getBoundingClientRect();
+              const box = document.getElementById('done-go').getBoundingClientRect();
               const x = box.left + box.width / 2;
               const on = document.elementFromPoint(x, box.top + box.height / 2);
               const strip = document.getElementById('player').getBoundingClientRect();
@@ -493,8 +560,9 @@ def other_text(out: Path) -> Path:
 
 def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_path) -> None:  # noqa: F811
     """design.md §12, "The foot is one block" (2026-09-25). In a playlist the press is
-    Next and says both halves; it finishes the item, marks the words never marked, and
-    the page it leads to says so once, with one Undo that takes back both."""
+    Next, and the quiet press under it says both halves (§12, "Done marks nothing",
+    2026-10-13); it finishes the item, marks the words never marked, and the page it
+    leads to says so once, with one Undo that takes back both."""
     one = chapter(tmp_path / "one" / "reader")
     two = other_text(tmp_path / "two" / "reader")
     context, _ = listed(browser, playlist(one, two))
@@ -502,9 +570,9 @@ def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_
     try:
         page.goto(at(one, 0))
         page.wait_for_selector("#list-nav", state="attached")
+        assert page.inner_text("#done-go") == "Next"
         said = page.inner_text("#done-mark")
         assert said.startswith("Next, and mark ") and said.endswith(" words known")
-        assert page.inner_text("#done-plain") == "Next without marking"
         assert page.inner_text("#list-nav") == "Reels, 1 of 2", "no Back on the first"
         document = page.evaluate(DOCUMENT)
         page.evaluate("() => document.getElementById('done-mark').click()")
@@ -512,8 +580,11 @@ def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_
         page.wait_for_selector("#arrived:not([hidden])")
         line = page.inner_text("#arrived")
         assert line.startswith("Finished Item 1 · ")
-        # The finished box's three figures, on one line (§12, 2026-09-25).
-        assert re.search(r"· \+[1-9]\d* known · \d+% · \d+ looked up", line), line
+        # The finished box's three figures, on one line (§12, 2026-09-25), the share
+        # naming what it is a share of (§12, 2026-10-13).
+        assert re.search(r"· \+[1-9]\d* known · \d+% of this (part|text) · \d+ looked up", line), (
+            line
+        )
         state = page.evaluate(RECORD, document)
         assert state["sections"], "the item is finished"
         assert state["known"] > 0, "and its words are marked"
@@ -525,6 +596,26 @@ def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_
         page.reload()
         page.wait_for_selector("#list-nav", state="attached")
         assert page.is_hidden("#arrived")
+    finally:
+        context.close()
+
+
+def test_next_finishes_and_marks_nothing(browser, tmp_path) -> None:  # noqa: F811
+    """design.md §12, "Done marks nothing; knowing them all is a choice" (2026-10-13):
+    the press itself is Next, and it finishes the item without marking a word."""
+    one = chapter(tmp_path / "one" / "reader")
+    two = other_text(tmp_path / "two" / "reader")
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav", state="attached")
+        document = page.evaluate(DOCUMENT)
+        page.evaluate("() => document.getElementById('done-go').click()")
+        page.wait_for_url("**/two/**go=1")
+        state = page.evaluate(RECORD, document)
+        assert state["sections"], "the item is finished"
+        assert state["known"] == 0, "and no word is marked"
     finally:
         context.close()
 
@@ -549,5 +640,264 @@ def test_a_swipe_finishes_without_marking(browser, tmp_path) -> None:  # noqa: F
         state = page.evaluate(RECORD, document)
         assert state["known"] == 0, "nothing was marked"
         assert state["sections"], "and the item is finished"
+    finally:
+        context.close()
+
+
+# -- one player across items (targum-internal#434; design.md §12, 2026-10-09) -----------
+
+HIDE = """() => {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+  document.dispatchEvent(new Event('visibilitychange'));
+}"""
+
+PLAY = """() => {
+  window.TargumPlayer.play();
+}"""
+
+
+def ready_to_play(page) -> None:
+    page.wait_for_selector("#list-nav", state="attached")
+    page.wait_for_function("() => !!(window.TargumPlayer && window.TargumPlayer.length() > 0)")
+
+
+def test_the_lock_screen_names_the_item_and_where_it_is(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        ready_to_play(page)
+        page.evaluate(PLAY)
+        page.wait_for_function(
+            "() => !!(navigator.mediaSession && navigator.mediaSession.metadata)"
+        )
+        said = page.evaluate(
+            "() => ({title: navigator.mediaSession.metadata.title,"
+            " artist: navigator.mediaSession.metadata.artist})"
+        )
+        assert said == {"title": "Item 1", "artist": "Reels · 1 of 2"}
+    finally:
+        context.close()
+
+
+def test_with_the_screen_locked_the_next_item_plays_in_the_same_player(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """Listening, the end of a recording starts the next one, in the one player, without
+    loading a page; back at the screen, a line says what plays and opens it there."""
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        ready_to_play(page)
+        before = page.url
+        page.evaluate(PLAY)
+        page.wait_for_function("() => window.TargumPlayer.following()")
+        page.evaluate(HIDE)
+        page.wait_for_selector("#list-now", state="attached", timeout=10000)
+        said = page.locator("#list-now").inner_text()
+        playing = page.evaluate(
+            "() => { const el = window.TargumPlayer.element();"
+            " return {src: el.currentSrc || el.src, handed: document.body.classList"
+            ".contains('list-handed')}; }"
+        )
+        assert page.url == before, "no page was loaded"
+        assert said.startswith("Now playing 2 of 2"), said
+        assert playing["handed"]
+        assert "Item 2" in said
+        href = page.get_attribute("#list-now .list-now-open", "href") or ""
+        assert "/two/" in href and "go=1" in href and "listen=1" in href
+        page.wait_for_function("() => navigator.mediaSession.metadata.artist === 'Reels · 2 of 2'")
+    finally:
+        context.close()
+
+
+def test_reading_with_the_screen_on_the_end_waits_for_a_press(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        ready_to_play(page)
+        page.evaluate(PLAY)
+        page.wait_for_function("() => window.TargumPlayer.element().ended", timeout=10000)
+        page.wait_for_timeout(300)
+        assert "/one/" in page.url, "the end of a recording, read with the screen on, waits"
+        assert page.locator("#list-now").count() == 0
+    finally:
+        context.close()
+
+
+def test_play_on_moves_on_by_itself_with_the_screen_on(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        ready_to_play(page)
+        switch = page.locator("#video .list-play-on")
+        assert switch.get_attribute("aria-pressed") == "false", "off until turned on"
+        switch.click()
+        assert switch.get_attribute("aria-pressed") == "true"
+        page.evaluate(PLAY)
+        page.wait_for_url("**/two/**go=1&listen=1", timeout=10000)
+        page.wait_for_selector("#list-nav", state="attached")
+        kept = page.evaluate("() => localStorage.getItem('targum:play-on')")
+        assert kept == "1", "kept on this device"
+    finally:
+        context.close()
+
+
+def test_at_a_desk_the_playlist_is_a_rail_beside_the_picture(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two), viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-rail")
+        rail = page.evaluate(
+            """() => {
+              const rail = document.getElementById('list-rail');
+              const box = rail.getBoundingClientRect();
+              const video = document.querySelector('#video').getBoundingClientRect();
+              return {
+                tiles: [...rail.querySelectorAll('.list-rail-tile')].map((t) => ({
+                  here: t.classList.contains('is-here'),
+                  href: t.getAttribute('href'),
+                })),
+                end: rail.querySelector('.list-rail-end').textContent,
+                at: rail.querySelector('.list-rail-at').textContent,
+                right: Math.round(box.right),
+                clear: video.right <= box.left + 1,
+              };
+            }"""
+        )
+        assert rail["right"] == 1440 and rail["clear"], rail
+        assert rail["tiles"][0] == {"here": True, "href": None}
+        assert "/two/" in rail["tiles"][1]["href"] and "go=1" in rail["tiles"][1]["href"]
+        assert rail["end"] == "End" and rail["at"] == "1 of 2"
+    finally:
+        context.close()
+
+
+def test_the_wheel_moves_on_from_the_end_of_a_text_only(browser, tmp_path) -> None:  # noqa: F811
+    text = chapter(tmp_path / "text" / "reader")
+    one = video_reader(tmp_path / "film")
+    context, _ = listed(browser, playlist(text, one), viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    try:
+        page.goto(at(text, 0))
+        page.wait_for_selector("#list-nav", state="attached")
+        page.evaluate("() => window.scrollTo(0, 0)")
+        page.mouse.move(600, 400)
+        page.mouse.wheel(0, 400)
+        page.wait_for_timeout(400)
+        assert "/film/" not in page.url, "the wheel mid-text scrolls the text"
+        page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
+        page.wait_for_timeout(400)
+        page.mouse.wheel(0, 200)
+        page.wait_for_url("**/film/**go=1")
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("panel", [True, False], ids=["transcript", "theatre"])
+def test_at_a_desk_the_end_is_its_own_screen_at_once(browser, tmp_path, panel) -> None:  # noqa: F811
+    """Audit 2, Q1: finishing the last item at a desk, in Theatre, left a blank page under
+    the bar until end.json answered — seconds on a real shelf — with the old ink
+    "Finished" box at the foot of the column under it. The end's head and its line are
+    there the moment it is reached, the words come into it, and nothing of the page
+    under it is drawn."""
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two), viewport={"width": 1440, "height": 900})
+    answers: list = []
+
+    def held(route) -> None:  # type: ignore[no-untyped-def]
+        answers.append(route)
+
+    context.route("**/playlists/7/end.json", held)
+    page = context.new_page()
+    try:
+        page.goto(at(two, 1))
+        page.wait_for_selector("#list-nav", state="attached")
+        assert page.evaluate("() => document.body.classList.contains('film-theatre')")
+        if panel:
+            page.evaluate("() => window.TargumVideo && window.TargumVideo.transcript(true)")
+        # Under the transcript, the press at its foot; with it put away, Finish under
+        # the picture.
+        page.click("#foot .foot-go" if panel else "#video .video-list-next")
+        page.wait_for_function("() => document.body.classList.contains('list-ended')")
+        # end.json has not answered, and the end already says where the reader is.
+        assert answers and not page.locator("#list-end.is-filled").count()
+        seen = page.evaluate(
+            """() => {
+              const end = document.getElementById('list-end');
+              const box = end.getBoundingClientRect();
+              const shown = (sel) => [...document.querySelectorAll(sel)].some((e) => {
+                const r = e.getBoundingClientRect();
+                return getComputedStyle(e).visibility !== 'hidden' && r.width > 0 && r.height > 0;
+              });
+              const top = document.elementFromPoint(box.left + box.width / 2, 300);
+              return {
+                text: end.innerText,
+                box: [box.left, box.top, box.width, box.height],
+                top: top ? !!top.closest('#list-end') : false,
+                foot: shown('#foot'),
+                video: shown('#video'),
+                split: shown('#film-split'),
+              };
+            }"""
+        )
+        assert "The end" in seen["text"] and "That's the end of Reels." in seen["text"], seen
+        assert seen["box"][2] > 1000 and seen["box"][3] == 900, seen
+        assert seen["top"], "the end stands over the page"
+        assert not seen["foot"], "no Finished box under the end"
+        assert not seen["video"] and not seen["split"], "nor the picture's column"
+        words = [{"word": "שלום", "language": "he", "new": True, "gloss": "peace"}]
+        body = json.dumps({"words": {"met": 1, "new": 1, "list": words}})
+        answers[0].fulfill(status=200, content_type="application/json", body=body)
+        page.wait_for_selector("#list-end.is-filled")
+        text = page.inner_text("#list-end")
+        assert text.index("That's the end of Reels.") < text.index("You met 1 word")
+        assert text.index("You met 1 word") < text.index("Your playlists")
+    finally:
+        context.close()
+
+
+def test_in_a_short_window_the_playlist_row_stays_clear_of_the_rail(browser, tmp_path) -> None:  # noqa: F811
+    """A playlist's row carries Back, Next with its picture and title, and the play-on
+    switch. In a window 1138 by 526 the picture was narrow, the row took its width, and
+    Next ran out to the right under the rail (David, 2026-10-11, a screenshot). The row
+    stands at its own measure now, and ends before the rail begins."""
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two), viewport={"width": 1138, "height": 526})
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-rail")
+        page.wait_for_selector(".list-key.video-list-next.has-next")
+        seen = page.evaluate(
+            """() => {
+              const ctl = document.querySelector('.film-ctl');
+              const rail = document.getElementById('list-rail').getBoundingClientRect();
+              const key = document.querySelector('.list-key.video-list-next');
+              const next = key.getBoundingClientRect();
+              const on = document.querySelector('.list-play-on').getBoundingClientRect();
+              return {
+                overflow: ctl.scrollWidth - ctl.clientWidth,
+                rail: rail.left,
+                next: next.right,
+                on: on.right,
+                title: !!document.querySelector('.video-list-title').getClientRects().length,
+              };
+            }"""
+        )
+        assert seen["overflow"] <= 0, seen
+        assert seen["next"] <= seen["rail"] and seen["on"] <= seen["rail"], seen
+        assert seen["title"], "a desk's Next says where"
     finally:
         context.close()

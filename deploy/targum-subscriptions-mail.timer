@@ -1,0 +1,14 @@
+# /etc/systemd/system/targum-subscriptions-mail.timer — installed and enabled by deploy.sh.
+#
+# 04:30 UTC: half past seven in Israel in the summer, half past six in the winter, before
+# the day's reading starts; after the night's polls, so the morning's instalments are in.
+
+[Unit]
+Description=targum subscriptions mail, once a day
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

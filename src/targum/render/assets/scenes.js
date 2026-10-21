@@ -13,7 +13,8 @@
 (function () {
   "use strict";
 
-  var SCENE = /^scene-(\d+)-/;
+  // A scene in another language names it after `scene-`: `scene-ru-01-slug` (2026-10-13).
+  var SCENE = /^scene-(?:[a-z]{2,3}-)?(\d+)-/;
 
   function numberOf(id) {
     var found = SCENE.exec(String(id || ""));
@@ -35,11 +36,14 @@
   /* The first scene not yet finished, among the shared readers the server handed the
      page — the row the library chips and the door Learn opens. `docs` is the reader's
      own `targum:docs`, keyed by content hash, where a finish is written (and synced).
-     Nothing when no scene is seeded, or every one is finished. */
-  function next(shared, docs) {
+     Nothing when no scene is seeded, or every one is finished. One language's scenes at
+     a time, Hebrew's unless another is named: two languages' scene 1s are both first. */
+  function next(shared, docs, code) {
+    var wanted = code || "he";
     var scenes = ordered(
       (shared || []).filter(function (reader) {
-        return numberOf(reader.entry) > 0;
+        var language = String(reader.language || "he").split("-")[0].toLowerCase();
+        return numberOf(reader.entry) > 0 && language === wanted;
       }).map(function (reader) {
         return { id: reader.entry, reader: reader };
       })

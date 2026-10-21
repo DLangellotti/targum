@@ -20,7 +20,7 @@ import base64
 import os
 from typing import Any, Protocol
 
-from ..errors import OffHere, TargumError
+from ..errors import OffHere, ProviderError, TargumError
 
 #: Portrait, because a cover is. The nearest size these models offer to the 2:3 the
 #: prompt asks for; the tile crops rather than stretches, so exactness is not the point.
@@ -157,7 +157,10 @@ class OpenAIImages:
     def _answer(self, response: Any) -> bytes:
         if response.status_code >= 400:
             # Their message, not ours: it says which of the many things went wrong.
-            raise TargumError("We couldn't draw the cover.", response.text[:200])
+            raise ProviderError(
+                "We couldn't draw the cover.",
+                f"OpenAI {response.status_code}: {response.text[:300]}",
+            )
         answer = response.json()
         used = answer.get("usage") or {}
         prices = TOKEN_PRICES.get(self.model)

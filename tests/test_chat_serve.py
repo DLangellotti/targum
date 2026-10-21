@@ -73,7 +73,7 @@ def chatting(tmp_path: Path) -> Iterator[tuple[int, str, Store, session_module.C
         {
             "library": library,
             "token": "k",
-            "page": "<html>start</html>",
+            "welcome": "<html>start</html>",
             "chatting": "<html>chat</html>",
             "chats": chats,
             "store": store,
@@ -187,7 +187,8 @@ def test_an_empty_line_and_a_missing_key_are_refused(chatting) -> None:
     assert call(port, "POST", f"/chat/say?k={key}", {"text": "   "})[0] == 400
     chats.usable = False
     status, answer, _ = call(port, "POST", f"/chat/say?k={key}", {"text": "hi"})
-    assert status == 402 and "still opens" in answer["error"]
+    assert status == 402 and "anything new" in answer["error"]
+    assert "still opens" in answer["fact"] and answer["act"] == "yours"
 
 
 def test_the_policy_did_not_move_for_the_chat() -> None:
@@ -209,7 +210,7 @@ def test_a_handler_without_a_chat_answers_not_found(tmp_path: Path) -> None:
         {
             "library": Library(out),
             "token": "k",
-            "page": "<html></html>",
+            "welcome": "<html></html>",
             "store": Store(tmp_path / "w.db"),
             "mailer": ConsoleMailer(),
             "address": f"http://127.0.0.1:{port}",
@@ -704,17 +705,39 @@ def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch
 
     monkeypatch.setattr(tools, "suggest_next", suggest_next)
     status, got, _ = call(port, "GET", f"/suggest?k={key}")
-    assert status == 200 and got == {"suggestion": picked[0]}
+    # Whether the library has the language at all rides along (P4, 2026-10-09): home
+    # says so plainly where it has nothing (board YiHome).
+    assert status == 200 and got == {"suggestion": picked[0], "library": True}
     assert store.chats(None) == [], "no conversation was opened for it"
     status, got, _ = call(port, "GET", f"/suggest?skip=esther,%20x&k={key}")
-    assert got == {"suggestion": picked[1]}, "a finished suggestion makes way for the next"
+    assert got["suggestion"] == picked[1], "a finished suggestion makes way for the next"
     assert asked[-1]["skip"] == ["esther", "x"], (
         "the finished ids reach the pick itself, before its cut — live, the top ten "
         "were all finished scenes and skipping after the cut left nothing (2026-09-11)"
     )
     monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
-    assert call(port, "GET", f"/suggest?k={key}")[1] == {"suggestion": None}
+    assert call(port, "GET", f"/suggest?k={key}")[1]["suggestion"] is None
     assert catalogue
+
+
+def test_home_says_nothing_of_a_share_of_none(chatting, monkeypatch: Any) -> None:
+    """Home QA, 2026-10-18 (targum-internal#463): "You know 0% of its words" is true of
+    every text for a reader with no words yet, and it was the first thing home said under
+    the first text it offered. A share of none is left unsaid; any other is said."""
+    from targum.chat import tools
+
+    port, key, _store, _chats = chatting
+
+    def picking(share: int):
+        row = {"id": "ruth", "title": "רות", "because": f"You know {share}% of its words."}
+        row["reason"] = {"key": "suggest.known", "share": share}
+        return lambda ctx, args: {"suggestions": [dict(row)]}
+
+    monkeypatch.setattr(tools, "suggest_next", picking(0))
+    assert call(port, "GET", f"/suggest?k={key}")[1]["suggestion"]["because"] == ""
+    monkeypatch.setattr(tools, "suggest_next", picking(40))
+    said = call(port, "GET", f"/suggest?k={key}")[1]["suggestion"]["because"]
+    assert said == "You know 40% of its words."
 
 
 def test_a_turn_that_searched_carries_what_it_found_to_the_page(chatting) -> None:
@@ -759,3 +782,77 @@ def test_a_turn_that_found_nothing_says_so_rather_than_leaving_the_key_out(chatt
     chats.answer(chats.queue.get())
     status, state, _ = call(port, "GET", f"/chat/turn/{asked['chat']}/1?k={key}")
     assert status == 200 and state["found"] == []
+
+
+def test_a_word_is_said_once_and_kept_for_everyone(
+    chatting, monkeypatch: Any, tmp_path: Path
+) -> None:
+    """The word card's Hear on a page with no recording: the press makes the clip on
+    targum (a gift, design.md §12), claimed against the box and settled to the clip, and
+    the clip is kept by the word, so a second press costs nothing and claims nothing."""
+    import base64
+
+    from targum import speech
+
+    port, key, store, chats = chatting
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    said: list[tuple[str, str]] = []
+
+    def render(
+        text: str, into: Path, voice: str = speech.VOICE, language: str = "he"
+    ) -> speech.Clip:
+        said.append((text, language))
+        into.parent.mkdir(parents=True, exist_ok=True)
+        target = into.with_suffix(".wav")
+        target.write_bytes(speech.wav(b"\x00" * speech.BYTES_PER_SECOND))
+        return speech.Clip(target, "audio/wav", 1.0)
+
+    monkeypatch.setattr(speech, "render", render)
+    monkeypatch.setenv(speech.KEY, "k")
+    word = {"text": "תלמידי", "language": "he"}
+    status, body, _ = call(port, "POST", f"/say-word?k={key}", word)
+    assert status == 200 and body["audio"].startswith("data:audio/wav;base64,")
+    assert base64.b64decode(body["audio"].split(",", 1)[1])[:4] == b"RIFF"
+    assert said == [("תלמידי", "he")]
+    spoken = [job for job in chats.library.jobs.values() if job.source == "word:he"]
+    assert len(spoken) == 1 and spoken[0].stage == "done"
+    assert spoken[0].gift, "targum pays for a word, not the reader"
+    assert spoken[0].spent == pytest.approx(1.0 / 60 * speech.PRICES[speech.NAME])
+    assert store.committed(0) >= spoken[0].spent, "the box's day can see it"
+
+    # Kept: no second voice, no second claim — and no key needed to hear it again.
+    monkeypatch.delenv(speech.KEY, raising=False)
+    monkeypatch.delenv(speech.VERTEX_KEY, raising=False)
+    before = store.committed(0)
+    status, again, _ = call(port, "POST", f"/say-word?k={key}", word)
+    assert status == 200 and again["audio"] == body["audio"]
+    assert len(said) == 1 and store.committed(0) == pytest.approx(before)
+
+    # A language the voice does not read, a sentence, and nothing at all are refused
+    # before anything is spent.
+    assert call(port, "POST", f"/say-word?k={key}", {"text": "דין", "language": "arc"})[0] == 402
+    long = {"text": "אחת שתיים שלוש ארבע חמש", "language": "he"}
+    assert call(port, "POST", f"/say-word?k={key}", long)[0] == 400
+    assert call(port, "POST", f"/say-word?k={key}", {"text": " "})[0] == 400
+    assert len(said) == 1
+
+
+def test_a_word_the_voice_breaks_on_gives_its_claim_back(
+    chatting, monkeypatch: Any, tmp_path: Path
+) -> None:
+    from targum import speech
+
+    port, key, store, _chats = chatting
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    before = store.committed(0)
+
+    def broken(
+        text: str, into: Path, voice: str = speech.VOICE, language: str = "he"
+    ) -> speech.Clip:
+        raise RuntimeError("ffmpeg went away")
+
+    monkeypatch.setattr(speech, "render", broken)
+    monkeypatch.setenv(speech.KEY, "k")
+    status, body, _ = call(port, "POST", f"/say-word?k={key}", {"text": "שלום", "language": "he"})
+    assert status == 502 and body["error"] == "The voice did not answer."
+    assert store.committed(0) == pytest.approx(before), "released, nothing held"

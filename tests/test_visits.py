@@ -317,6 +317,27 @@ def test_crawlers_and_probes_that_borrow_a_browsers_headers_are_left_out() -> No
         assert visits.parse(line(at(20), uri=probe)) is None, probe
 
 
+def test_a_chrome_years_behind_its_day_is_a_crawler() -> None:
+    """2026-10-13: ~900 a day from 3,300 addresses, full browser headers, each claiming a
+    Chrome from 101 to 136 while Chrome was at ~157."""
+
+    def chrome(major: int) -> str:
+        return (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            f" (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+        )
+
+    october = datetime(2026, 10, 13, 4, tzinfo=UTC)
+    for old in (101, 116, 136):
+        assert visits.parse(line(october, agent=chrome(old))) is None, old
+    for current in (146, 157, 158):
+        assert visits.parse(line(october, agent=chrome(current))) is not None, current
+    # The same agent was current once, and counted then.
+    assert visits.parse(line(datetime(2025, 5, 1, tzinfo=UTC), agent=chrome(136))) is not None
+    # Safari and Firefox name no Chrome, and are not judged by it.
+    assert visits.parse(line(october)) is not None
+
+
 def test_the_headline_is_visitors_a_day() -> None:
     """The sum of thirty days read as that many people."""
     found = visits.Visits(days=[visits.Tally(day=f"d{n}", visitors=n % 4) for n in range(30)])

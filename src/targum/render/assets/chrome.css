@@ -34,11 +34,15 @@ body {
 }
 .site-head-row { padding-block: 0.65rem; }
 .site-head .brand, .site-head .brand span { color: var(--bar-ink); }
+/* One column for every desk page (design.md §12, "The boards are the desk", 2026-10-09):
+   the boards' 1248px at a 1440 window, with its 1.25rem gutters, at the desk's clamped
+   rem. The bar's row, the page's title, the page and the foot all stand in it. In rem,
+   so the column grows with the desk on a wall and keeps the board's proportion. */
+:root { --column: 73.75rem; }
 .site-head-row,
-.site-head h1,
-.site-head .beta-note {
+.page-head {
   width: 100%;
-  max-width: 62rem;
+  max-width: var(--column);
   margin-inline: auto;
   padding-inline: 1.25rem;
 }
@@ -73,21 +77,52 @@ body {
    it go accent would leave both columns the same colour — the one thing the two-colour
    mark is not allowed to be. */
 .brand:hover span { color: var(--accent); }
-.site-head h1 {
-  margin-block: 1.5rem 0;
+/* The page's title, on the desk under the bar: the reading serif at 34px, weight 500
+   (design.md §12, "The boards are the desk"); 28px on a phone, as board HomePhone. */
+.page-title {
+  margin: 2rem 0 0;
   font-family: var(--reading);
-  font-size: 1.75rem;
-  font-weight: 600;
+  font-size: 1.9375rem;
+  font-weight: 500;
+  line-height: 1.2;
   letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+/* A title's Hebrew name beside it (board LibraryTanakh: "The Tanakh תנ״ך"), and what a
+   board stands at the far end of the title's row. */
+.page-title-he { margin-inline-start: 0.35rem; font-family: var(--reading-hebrew); font-weight: 400; color: var(--ink-soft); }
+.page-head:has(> .page-head-aside) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 1rem;
+  align-items: end;
+}
+.page-head:has(> .page-head-aside) > :not(.page-head-aside) { grid-column: 1; }
+.page-head-aside { grid-column: 2; grid-row: 1 / span 3; align-self: end; }
+
+/* The trail above a heading, where a page stands inside a place (Library › The Tanakh).
+   Quiet, and the way back is the place's own name in the working teal. */
+.page-head .site-crumbs {
+  display: block;
+  margin-block: 1.5rem 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.page-head .site-crumbs a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.page-head .site-crumbs a:hover { text-decoration: underline; }
+.page-head .site-crumbs a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+.page-head .site-crumbs + .page-title { margin-block-start: 0.35rem; }
+@media (hover: none) and (pointer: coarse) {
+  .page-head .site-crumbs a { display: inline-block; min-block-size: 44px; line-height: 44px; }
 }
 
 @media (max-width: 40rem) {
-  .site-head { padding-block-start: 1rem; }
-  .site-head h1 { font-size: 1.5rem; }
+  .page-title { margin-block-start: 1.25rem; font-size: 1.75rem; }
+  .page-head .site-crumbs { margin-block-start: 1rem; }
   .site-head-row { gap: 0.5rem; }
   .site-head-row,
-  .site-head h1,
-  .site-head .beta-note { padding-inline: 1rem; }
+  .page-head { padding-inline: 1rem; }
 }
 
 .site-nav {
@@ -109,7 +144,7 @@ body {
 .site-nav a:hover { color: var(--bar-ink); background: rgb(255 253 249 / 0.08); }
 .site-nav a.on { color: var(--bar-ink); background: rgb(255 253 249 / 0.10); box-shadow: inset 0 -2px 0 var(--teal); }
 
-/* Under 46rem the things in the bar — name, four places, account, light switch — do
+/* Under 56rem the things in the bar — name, four places, account, light switch — do
    not fit on one line. Left to wrap on their own, the name took the first line alone
    with dead paper beside it, and the places sat indented under it (with Upload, when it
    was a corner here, cut off at the edge): their auto margin, which is what pushes them
@@ -122,8 +157,7 @@ body {
    overrides, on purpose. */
 /* Between a phone and a laptop the places are one row that does not wrap: left to
    themselves they fitted three and dropped "+ Add" onto a line of its own (641 to about
-   850px, 2026-09-14). Two things give way first — the word "Your", and the language's
-   name beside its flag, as on a phone. */
+   850px, 2026-09-14). The word "Your" gives way first. */
 /* The shelf's place is "Your targums", and "targums" where "Your" does not fit, the way
    Progress drops it. It said "Texts" there from 2026-09-24, because "targums" alone read
    as a typo; a place with two names read worse, and design.md §12 ("Yours and
@@ -135,10 +169,14 @@ body {
      wordmark's own word beside it (targum-internal#373, David, 2026-09-27). The
      capital is Russian's; English keeps its lowercase targums, which the brand needs. */
   html:lang(ru) .site-nav .nav-many { text-transform: capitalize; }
-  .lang-menu .lang-open:has(.lang-flag:not(.none)) .lang-name { display: none; }
 }
 
-@media (max-width: 46rem) {
+/* The two lines start at 56rem, not 46rem (QA 2026-10-11). Between them the one row did
+   not fit and the account was pushed past the edge of the window, so the whole page
+   scrolled sideways: 737–793px signed out in English, and 737–840px on every desk page
+   in Russian, whose places are longer — an iPad held upright is 768 to 834. 56rem
+   clears the longest row measured (Russian, Aramaic's «Экспериментальный» badge). */
+@media (max-width: 56rem) {
   .site-head-row { flex-wrap: wrap; row-gap: 0; }
   .site-head-row::before { content: ""; order: 1; flex: 1 0 100%; height: 0; }
   .site-head-row .notices { margin-inline-start: auto; }
@@ -175,7 +213,9 @@ body {
   padding: 0;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  /* Not `overflow: hidden`, which clipped the 44px reach `shared.css` gives the button on
+     a touch screen to the 30px circle (QA 2026-10-11); the picture is rounded itself. */
+  overflow: visible;
   border: 0;
   border-radius: 50%;
   background: var(--teal);
@@ -190,6 +230,7 @@ body {
   block-size: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 50%;
 }
 .account > button.on { color: var(--bar-ink); background: rgb(255 253 249 / 0.14); }
 
@@ -210,55 +251,54 @@ body {
 }
 .account-panel[hidden] { display: none; }
 .account-panel p { margin: 0 0 0.7rem; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.5; }
-.account-panel .whom { color: var(--ink); font-size: 0.9375rem; margin-block-end: 0.2rem; }
+/* Who you are, one line: the name in ink, the address muted (2026-10-09). */
+.account-panel .whom { color: var(--ink); font-size: 0.9375rem; margin-block-end: 0.15rem; overflow-wrap: anywhere; }
+.account-panel .whom-email { color: var(--ink-soft); }
+.account-panel .hours { color: var(--ink); font-size: 0.875rem; margin: 0.35rem 0 0; }
+.account-panel .rate { margin: 0; }
 .account-panel form { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.account-panel input {
-  flex: 1 1 9rem;
-  min-width: 0;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-control);
-  background: var(--paper-raised);
-  color: inherit;
+/* The address is the desk's `.well` and Send a link its filled `.btn`. */
+.account-panel input { flex: 1 1 9rem; inline-size: auto; min-width: 0; }
+/* The menu's rows have the reader menus' anatomy (board ReaderMenus, 2026-10-09): the
+   panel runs edge to edge, a row is a full-width line of ink at the body size, and a
+   hairline from edge to edge stands between the head and the rows. Sign out is one of
+   them, in ink, not a pill: it was the one tonal button in a panel of lines. */
+.account-panel .menu-rows { display: flex; flex-direction: column; margin-block-start: 0.5rem; padding-block-start: 0.375rem; border-block-start: 1px solid var(--hairline); }
+.account-panel .menu-row {
+  display: flex;
+  align-items: center;
+  min-block-size: 1.5rem;
+  padding: 0.625rem 1.125rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
   font: inherit;
-  font-size: 0.8125rem;
-}
-.account-panel form button,
-.account-panel .signed-in button {
-  padding: 0.35rem 0.7rem;
-  border-radius: var(--radius-control);
-  font-size: 0.8125rem;
-}
-.account-panel form button { background: var(--accent); border-color: var(--accent); color: var(--paper); }
-/* The one link in the panel, which had no rule at all and so came out as a browser
-   default: underlined, and blue — a hue the palette does not have and §4 does not allow.
-   Quiet ink beside the button, the same way the footer's links read. */
-.account-panel .to-you {
-  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  text-align: start;
   text-decoration: none;
-  border-block-end: 1px solid var(--hairline);
+  cursor: pointer;
 }
-.account-panel .to-you:hover { color: var(--ink); border-block-end-color: var(--ink-soft); }
-.account-panel .yours-link { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0 0 0.8rem; padding-block-end: 0.7rem; border-block-end: 1px solid var(--hairline); }
-.account-panel .yours-link .to-you { color: var(--ink); font-weight: 600; }
+.account-panel .menu-row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); color: var(--ink); }
+.account-panel .menu-row:focus-visible { outline-offset: -2px; }
+/* §8 under a thumb (home QA, 2026-10-18): a row was 0.625rem twice and a line of 1.5,
+   43px at a phone's rem, a pixel short. */
+@media (hover: none) and (pointer: coarse) {
+  .account-panel .menu-row { min-block-size: 44px; }
+}
 /* account.js writes both outcomes here, so accent painted a failure in the hue §4
-   reserves for the primary action. Ink for what happened, clay for what did not. */
+   reserves for the primary action. Ink for both: a refusal about the address goes under
+   its field with the clay mark (`fault.js`, design.md §12, 2026-10-09). */
 .account-panel .said { margin: 0.6rem 0 0; color: var(--ink); }
-.account-panel .said.bad { color: var(--clay); }
 .account-panel .said[hidden] { display: none; }
 .account-panel [hidden] { display: none; }
 
 /* --- a segmented switch ----------------------------------------------------
-   A few answers to one question, in one track, so it reads as a switch between things
-   rather than as more pills among the filters. Discover asks which Hebrew with it; the
-   upload page asks where a translation comes from. Here rather than in either, because a
-   copy of it in the second file is the copy that stops matching.
-
-   It wraps. It carried two answers for as long as Hebrew was biblical or modern, and
-   carries five now — Biblical, Rabbinic, Medieval, Revival, Modern, plus All — which is
-   about fifty pixels more than a phone has. Wrapped it is two lines inside one outline,
-   which still reads as one control; scrolled it would be a filter whose options you
-   cannot see. */
+   A few answers to one question, in one strip: the shared `.seg` (shared.css) since
+   2026-10-09, where it was a pill track here and an ink-filled pair on the saved page.
+   Discover asks which Hebrew with it; the upload page asks where a translation comes
+   from. Its label, where it has one, stands before it. */
 .switch-set { display: flex; align-items: center; gap: 0.35rem; }
 .switch-set[hidden] { display: none; }
 .switch-label {
@@ -267,29 +307,6 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.segmented {
-  display: inline-flex;
-  flex-wrap: wrap;
-  row-gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  /* §9: one raised layer per view. This always sits inside a raised card or
-     panel, so the fill repeated the surface underneath it and the hairline is
-     what marks the edge — "if a card needs a card, use a hairline instead". */
-}
-.segment {
-  padding: 0.2rem 0.6rem;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-  cursor: pointer;
-}
-.segment:hover { color: var(--ink); }
-/* §4: selection in UI is quiet ink, never the accent. */
-.segment[aria-pressed="true"] { background: var(--ink-soft); color: var(--paper); }
 
 
 /* Notifications (2026-09-11): a bell in the bar with a count, and a panel under it —
@@ -376,6 +393,22 @@ body {
    marks the page you are on. A bar at the edge of a rounded row read as a crescent. */
 .lang-panel button[aria-checked="true"] { font-weight: 600; color: var(--teal); background: var(--teal-wash); }
 .lang-panel .lang-item { display: inline-flex; align-items: center; gap: 0.55rem; }
+/* How far along a language is (design.md §12, 2026-10-09): a badge, nothing more. One
+   hue a badge, at a wash: ink-soft on raised paper for Beta, iris for Alpha, clay for
+   Experimental. Text at the working cuts, never the wash. */
+.lang-status {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.lang-status.is-beta { color: var(--ink-soft); background: var(--paper-raised); }
+.lang-status.is-alpha { color: var(--iris); background: color-mix(in srgb, var(--iris) 12%, transparent); }
+.lang-status.is-experimental { color: var(--clay); background: color-mix(in srgb, var(--clay) 12%, transparent); }
 /* The language's own name after the English one, quieter, in its own face. */
 .lang-native { color: var(--ink-soft); font-weight: 400; }
 .lang-native:lang(he), .lang-native:lang(yi), .lang-native:lang(arc) { font-family: var(--reading-hebrew); }
@@ -387,21 +420,6 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-/* A flag beside each name (§12, 2026-09-14): small, square-cornered at the scale's
-   smallest step, a hairline round the white stripes. A language with no country keeps the
-   width, so the names line up. */
-.lang-flag {
-  display: inline-block;
-  flex: none;
-  inline-size: 1.125rem;
-  block-size: 0.75rem;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px var(--hairline);
-  line-height: 0;
-}
-.lang-flag svg { display: block; inline-size: 100%; block-size: 100%; }
-.lang-flag.none { box-shadow: none; }
 .lang-panel .lang-more {
   margin-block-start: 0.3rem;
   padding: 0.5rem 0.6rem 0.2rem;
@@ -464,18 +482,6 @@ body {
 /* Clear all (2026-09-14): a ghost at the head of the panel, as dismiss is (§13). */
 .notices-head { display: flex; justify-content: flex-end; padding: 0 0.2rem 0.2rem; }
 .notices-head[hidden] { display: none; }
-.notices-clear {
-  padding: 0.25rem 0.7rem;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--teal);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.notices-clear:hover { background: var(--teal-wash); }
 .notices-empty { margin: 0.3rem 0.6rem; font-size: 0.8125rem; color: var(--ink-soft); }
 .notices-empty[hidden] { display: none; }
 .notices-list { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -599,7 +605,7 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
     border-radius: var(--radius-card) var(--radius-card) 0 0;
     border-block-end: 0;
   }
-  .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
+  .talk-scrim { display: block; z-index: 30; }
   .talk-scrim[hidden] { display: none; }
   /* The end edge only. Both edges made the pill a bar the width of the window, over the
      reader's page count on a tablet (2026-09-14). */
@@ -648,9 +654,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
-/* Sticky where the bar is one row; a page with a title under the row lets it scroll,
-   since a title that follows you down the page is a bar too tall. */
-.site-head:not(:has(h1)) { position: sticky; inset-block-start: 0; z-index: 25; }
+/* Sticky, always: the bar is one row now on every page, its title on the desk below. */
+.site-head { position: sticky; inset-block-start: 0; z-index: 25; }
 .site-head .brand, .site-head .brand span { color: var(--ink); }
 .site-nav a { color: var(--ink-soft); border-radius: 999px; padding: 0.4rem 0.85rem; }
 .site-nav a:hover { color: var(--ink); background: var(--teal-wash); }
@@ -681,6 +686,63 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 .lang-menu .lang-open:hover,
 .lang-menu .lang-open.on { color: var(--ink); background: color-mix(in srgb, var(--teal) 16%, transparent); }
+/* EN · RU, the interface's language (design.md §12, "Russian has a switch in the bar",
+   2026-10-12): two codes and a dot, no pill and no border, so it is the quietest thing in
+   the bar. The one in use is ink; the other is soft ink until it is pointed at. */
+.ui-tongue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.ui-tongue[hidden] { display: none; }
+.ui-tongue-key {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.3rem 0.35rem;
+  font: inherit;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.ui-tongue-key[aria-pressed="true"] { color: var(--ink); font-weight: 600; cursor: default; }
+.ui-tongue-key[aria-pressed="false"]:hover { color: var(--ink); background: var(--teal-wash); }
+.ui-tongue-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* §8 under a thumb (home QA, 2026-10-18): EN and RU were 28px keys in the bar. Each is
+   drawn at 44px wide and tall rather than given an overlapping reach, since the two
+   stand side by side and a reach of one would take the other's taps. */
+@media (hover: none) and (pointer: coarse) {
+  .ui-tongue-key { min-block-size: 44px; }
+  .account-tongue .ui-tongue-key { min-inline-size: 44px; }
+}
+/* On a phone EN · RU is a row of the account's sheet (design.md §13, 2026-10-18): the
+   name of the choice, then the two keys, each 44px across and up. Widened in the bar
+   they pushed the Russian bar 32px off a 390px screen, so the bar leaves them out
+   under 40rem. At a desk the row is not drawn and the bar keeps them. */
+.account-panel .account-tongue { display: none; }
+@media (max-width: 40rem) {
+  .site-head-row > .ui-tongue { display: none; }
+  .account-panel .account-tongue:not([hidden]) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0 0.75rem 0 1.125rem;
+    color: var(--ink);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+  .account-tongue .ui-tongue { font-size: 0.875rem; }
+  .account-tongue .ui-tongue-key {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    padding: 0 0.5rem;
+  }
+}
 .lang-panel {
   border: 0;
   border-radius: var(--radius-sheet);
@@ -697,31 +759,16 @@ button:active:not(:disabled) { transform: scale(0.98); }
   background: var(--card);
   box-shadow: var(--shadow-floating);
 }
-.account-panel { padding: 1.1rem 1.2rem 1.2rem; }
-.account-panel input {
-  border: 1px solid transparent;
-  border-radius: var(--radius-row);
-  background: var(--field);
-  padding: 0.5rem 0.7rem;
-}
-.account-panel input:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
-.account-panel form button { background: var(--teal); border: 0; border-radius: 999px; color: var(--teal-ink); padding: 0.5rem 0.9rem; }
-.account-panel .signed-in button { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); padding: 0.5rem 0.9rem; }
-.account-panel .signed-in button:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
-.account-panel .yours-link { border-block-end: 1px solid var(--hairline); }
-.account-panel .to-you { border-block-end: 0; }
+/* Edge to edge, as the reader menus are: the head and the form keep the inset, the rows
+   carry their own. */
+.account-panel { padding: 0.5rem 0; }
+.account-panel .account-head,
+.account-panel .signed-out > p,
+.account-panel .signed-out > form,
+.account-panel .said { padding-inline: 1.125rem; }
+.account-panel .account-head { padding-block: 0.6rem 0.2rem; }
+.account-panel .signed-out > p:first-child { padding-block-start: 0.6rem; }
 .account-panel .account-phone { display: none; }
-.account-panel .account-find {
-  padding: 0.45rem 0.9rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--teal-wash);
-  color: var(--teal);
-  font: inherit;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
 .notices-list li + li { border-block-start: 1px solid var(--hairline); }
 .talk-drawer { animation: talk-in var(--in) var(--ease); }
 .talk-drawer-head { border-block-end: 1px solid var(--hairline); padding: 0.8rem 0.8rem 0.7rem 1.2rem; }
@@ -729,8 +776,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 @media (max-width: 48rem) {
   .talk-drawer { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
 }
-.segmented { border: 1px solid var(--hairline); background: var(--field); }
-.segment[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow-rest); }
 
 /* --- phase 4 (2026-09-11): the phone ------------------------------------------------
    The four places are a bar at the foot of the window, a glyph over each word, on
@@ -738,6 +783,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
    button above the bar; the account's and the bell's panels come up as sheets. Phones
    only — under 40rem; a tablet keeps the row. */
 .nav-glyph { display: none; }
+.talk-cta .talk-short { display: none; }
 .talk-glyph { display: none; inline-size: 1.25rem; block-size: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .nav-glyph { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 /* Add (2026-09-13) is the one place that keeps its glyph at a desk: a `+` before the
@@ -761,7 +807,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
     margin: 0;
     padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.25rem;
     background: var(--glass);
     -webkit-backdrop-filter: blur(12px);
@@ -783,17 +829,15 @@ button:active:not(:disabled) { transform: scale(0.98); }
   }
   .site-nav a .nav-glyph { display: block; inline-size: 1.4rem; block-size: 1.4rem; }
   .site-nav a.on { background: var(--teal-wash); color: var(--teal); }
+  /* A pill that says Talk (board HomePhone, audit Q7): the round glyph said nothing a
+     stranger could read. The whole name stays for a screen reader. */
   .talk-cta {
     inset-inline: auto 1rem;
     inset-block-end: calc(4.5rem + env(safe-area-inset-bottom));
-    inline-size: 3.25rem;
-    block-size: 3.25rem;
-    padding: 0;
-    display: grid;
-    place-items: center;
+    padding: 0.65rem 1.25rem;
   }
-  .talk-cta .talk-glyph { display: block; }
-  .talk-cta span { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .talk-cta .talk-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .talk-cta .talk-short { display: inline; }
   .talk-drawer { z-index: 31; }
   .account-panel, .notices-panel, .lang-panel {
     position: fixed;
@@ -826,8 +870,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
     justify-content: space-between;
     gap: 0.75rem;
     margin: 0;
-    padding-block: 0.5rem;
-    margin-block-end: 0.7rem;
+    padding: 0.5rem 1.125rem;
+    margin-block-end: 0.2rem;
     border-block-end: 1px solid var(--hairline);
   }
   /* The conversation page itself: its box sits above the bar, and its list sheet's rows
@@ -836,15 +880,14 @@ button:active:not(:disabled) { transform: scale(0.98); }
   /* The top bar fits a 320px phone signed in (2026-09-14): the name, the language, find,
      the bell, the account and the light switch. Its things no longer shrink — shrinking
      squashed the account into an oval and pushed the language's chevron out of its pill —
-     so they are made to fit instead: the language says itself with its flag (the name
-     stays for a language with no flag, and in the button's label), and the name and the
+     so they are made to fit instead: the language says its name and badge in a tighter
+     pill (no flag since 2026-10-09), and the name and the
      gaps are a size smaller. Before this a signed-in row was 385px wide at any width
      under it, and the whole page scrolled sideways. */
   .site-head-row { gap: 0.375rem; }
   .site-head-row > * { flex: none; }
   .site-head .brand { font-size: 1.25rem; }
   .lang-menu .lang-open { padding-inline: 0.6rem; gap: 0.35rem; min-block-size: 1.9rem; }
-  .lang-menu .lang-open:has(.lang-flag:not(.none)) .lang-name { display: none; }
 }
 /* And the smallest phones keep the side gutter by closing the gaps a little more. */
 @media (max-width: 22.5rem) {
@@ -859,14 +902,45 @@ button:active:not(:disabled) { transform: scale(0.98); }
   .notices-list button,
   .account > button,
   .palette-open,
-  .palette-row {
+  .palette-row,
+  .palette-hit,
+  .palette-drop,
+  .palette-clear,
+  .palette-back,
+  .palette-lang,
+  .palette-lang-row,
+  .palette-level-pick,
+  .palette-foot-all {
     min-height: 44px;
   }
   .notices-list .notices-x { min-width: 44px; }
+  /* The search's Close and × were 36 and 28px wide on a phone (Library QA, 2026-10-20). */
+  .palette-clear,
+  .palette-back { min-width: 44px; }
+  /* And All among the search's tabs was 39px wide (Library QA, 2026-10-20); the word
+     stays in the middle of the wider pill. */
+  .palette-filters .tab { min-inline-size: 44px; justify-content: center; }
   /* The initials stay a circle: the 44px above made it an oval 30px wide. Drawn a little
      larger instead, and its reach is the 44px `::after` that `reader.css` gives every
      `.account > button`. */
   .account > button.avatar { min-height: 0; inline-size: 2.25rem; block-size: 2.25rem; }
+  /* And across as well as up: the bell and find were 30px wide under a thumb and the
+     account 34, with only their height grown (QA 2026-10-11). Centred by insets, so each
+     reaches 22px from its middle and a neighbour a few pixels into the gap at most. */
+  .notices > button, .palette-open, .site-head .account > button.avatar { position: relative; }
+  /* Far enough apart that two reaches meet at the gap's middle rather than one taking the
+     other's: the bell's middle and the account's are 44px apart. */
+  .site-head-row .notices { margin-inline-end: 0.5rem; }
+  .notices > button::after,
+  .palette-open::after,
+  .site-head .account > button.avatar::after {
+    content: "";
+    position: absolute;
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: min(0px, calc(50% - 22px));
+    transform: none;
+    block-size: auto;
+  }
 }
 
 /* --- the command palette (2026-09-11) ------------------------------------------------ */
@@ -884,44 +958,141 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 .palette-open:hover, .palette-open[aria-expanded="true"] { color: var(--ink); background: var(--teal-wash); }
 .palette-open .bell { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
-.palette-scrim { position: fixed; inset: 0; z-index: 40; background: rgb(0 0 0 / 0.25); }
+/* --- one search (design.md §12, "One search, everywhere", 2026-10-09) -----------------
+   The boards' FindDesk and FindPhone: at a desk a floating panel under the bar, over the
+   page dimmed, as wide as the column allows; on a phone the whole screen, with a way back
+   where Esc stands at a desk. The rows are the desk's `.rows`, their pictures the one
+   tile path, their kinds `.tag`s and their known share a `.meter` (P2's components). */
+.palette-scrim { z-index: 40; }
 .palette-scrim[hidden] { display: none; }
 .palette {
   position: fixed;
   inset-inline: 0;
-  inset-block-start: 12vh;
+  inset-block-start: 4.75rem;
   z-index: 41;
+  display: flex;
+  flex-direction: column;
   margin-inline: auto;
-  inline-size: min(36rem, calc(100vw - 2rem));
-  padding: 0.6rem;
+  inline-size: min(58.5rem, calc(100vw - 2rem));
+  max-block-size: calc(100svh - 6rem);
+  padding: 1.25rem 1.25rem 0.5rem;
   border-radius: var(--radius-sheet);
   background: var(--card);
   box-shadow: var(--shadow-floating);
   font-family: var(--chrome);
+  color: var(--ink);
   animation: talk-in var(--in) var(--ease);
 }
 .palette[hidden] { display: none; }
+.palette.is-searching { inline-size: min(var(--column, 78rem), 66rem, calc(100vw - 2rem)); }
+.palette-top { display: flex; align-items: center; gap: 0.75rem; }
+.palette-back { display: none; }
+.palette-field {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-inline-size: 0;
+  min-block-size: 3rem;
+  padding: 0 0.875rem;
+  border: 1.5px solid var(--teal);
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: 0 0 0 3px var(--teal-wash);
+}
+.palette-lens,
+.palette-glyph,
+.palette-back svg {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.palette-lens { color: var(--ink-soft); }
 .palette-find {
-  inline-size: 100%;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0.6rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
   font: inherit;
   font-size: 1.0625rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-row);
-  background: var(--field);
-  color: var(--ink);
 }
-.palette-find:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
-.palette-list { list-style: none; margin: 0.6rem 0 0; padding: 0; max-block-size: 50svh; overflow: auto; }
-.palette-list[hidden] { display: none; }
-.palette-row {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  inline-size: 100%;
-  padding: 0.55rem 0.8rem;
+.palette-find:focus { outline: 0; }
+.palette-find::-webkit-search-cancel-button { display: none; }
+.palette-find::placeholder { color: var(--ink-soft); }
+.palette-clear {
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding: 0;
   border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.palette-clear:hover { background: var(--teal-wash); color: var(--ink); }
+.palette-clear[hidden] { display: none; }
+.palette-esc {
+  flex: none;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+}
+.palette-scope { position: relative; flex: none; }
+.palette-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.palette-lang:hover,
+.palette-lang[aria-expanded="true"] { background: var(--teal-wash); }
+.palette-caret { color: var(--ink-soft); font-size: 0.6875rem; }
+.palette-langs {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + 0.4rem);
+  z-index: 2;
+  display: grid;
+  min-inline-size: 14rem;
+  padding: 0.4rem;
   border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-floating);
+}
+.palette-langs[hidden] { display: none; }
+.palette-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.5rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink);
   font: inherit;
@@ -929,32 +1100,802 @@ button:active:not(:disabled) { transform: scale(0.98); }
   text-align: start;
   cursor: pointer;
 }
-.palette-row:hover, .palette-row.on { background: var(--teal-wash); }
-.palette-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.palette-title:dir(rtl) { text-align: end; }
-/* The row under the pointer keeps its ink. */
-.palette-row.on .palette-title, .palette-row:hover .palette-title { color: var(--ink); }
-.palette-english { color: var(--ink-soft); font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.palette-kind { margin-inline-start: auto; flex: none; color: var(--ink-soft); font-size: 0.6875rem; }
+.palette-lang-row:hover { background: var(--teal-wash); }
+.palette-lang-row[aria-checked="true"] { font-weight: 600; color: var(--teal); }
+.palette-lang-count { margin-inline-start: auto; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.palette-filters { margin-block: 1rem 0.25rem; }
+.palette-filters .tab.is-empty { opacity: 0.55; }
+.palette-filters .tab:disabled { cursor: default; }
+.palette-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-inline-start: auto;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.palette-level-pick {
+  min-block-size: 2.25rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.palette-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  margin-inline: -1.25rem;
+  padding: 0.25rem 1.25rem 1rem;
+  overscroll-behavior: contain;
+}
+.palette-empty { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; padding-block-start: 0.75rem; }
+.palette-group { margin-block-start: 1rem; }
+.palette-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block-end: 0.4rem;
+  border-block-end: 1px solid var(--rule);
+}
+.palette-group-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.palette-group-name .palette-glyph { color: var(--ink-soft); }
+.palette-group-count { color: var(--ink-soft); font-weight: 400; font-variant-numeric: tabular-nums; }
+.palette-see-all .palette-glyph,
+.palette-more .palette-glyph { inline-size: 0.8rem; block-size: 0.8rem; }
+/* The desk's `.rows` is written later in this sheet, so its padding is answered at a
+   higher weight here: the press inside the row carries the row's breathing room. */
+.palette .rows > .row { padding-block: 0; }
+.palette .row-main > * { align-self: flex-start; max-inline-size: 100%; }
+.palette-hit {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-inline-size: 0;
+  margin-inline: -0.5rem;
+  padding: 0.625rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+.palette-hit:hover,
+.palette-hit.on { background: var(--teal-wash); }
+.palette-hit:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.palette .row-thumb {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  background: var(--field);
+}
+.palette .row-thumb .glyph { font-family: var(--reading); font-size: 1.25rem; line-height: 1; }
+/* A playlist's row wears its cover: four pictures in the square, fewer sharing it. */
+.palette .palette-mosaic {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  place-items: stretch;
+  gap: 1px;
+  overflow: hidden;
+}
+.palette .palette-mosaic.n-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.palette .palette-mosaic.n-2 { grid-template-rows: 1fr; }
+.palette .palette-mosaic.n-3 > :first-child { grid-row: 1 / span 2; }
+.palette .palette-cell { position: relative; display: grid; place-items: center; min-inline-size: 0; overflow: hidden; }
+.palette .palette-cell img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.palette .palette-cell .glyph { font-size: 0.6875rem; }
+.palette-title {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-english,
+.palette-facts { color: var(--ink-soft); font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-meta { display: flex; align-items: center; gap: 0.45rem; min-inline-size: 0; }
+.palette-end { flex: none; display: flex; align-items: center; gap: 1rem; }
+.palette-band.is-now { color: var(--leaf); border-color: color-mix(in srgb, var(--leaf) 45%, transparent); }
+.palette-known { display: grid; gap: 0.3rem; inline-size: 7.5rem; }
+.palette-known-said { color: var(--ink); font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums; text-align: end; }
+.palette-word-tile { color: var(--teal); }
+.palette-word-tile .palette-glyph { inline-size: 1.25rem; block-size: 1.25rem; }
+.palette-word-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.6rem; }
+.palette-lemma { font-size: 1.25rem; font-weight: 600; }
+.palette-more { flex: none; }
+.palette-again { gap: 0.75rem; color: var(--ink); font-size: 0.9375rem; }
+.palette-again .palette-glyph { color: var(--ink-soft); }
+.palette-recent-row { gap: 0.25rem; }
+.palette-drop {
+  flex: none;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.0625rem;
+  cursor: pointer;
+}
+.palette-drop:hover { background: var(--teal-wash); color: var(--ink); }
+.palette-quiet { margin: 0.75rem 0; color: var(--ink-soft); font-size: 0.875rem; }
+.palette-rows.is-compact .palette-hit { padding-block: 0.5rem; }
+.palette-rows.is-compact > .row { border-block-end: 0; }
+.palette-rows.is-compact .palette-title { font-size: 0.9375rem; }
+.palette-foot { margin: 1.25rem 0 0.25rem; color: var(--ink-soft); font-size: 0.8125rem; }
+.palette-foot-all {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.palette-elsewhere { margin-block-start: 1.25rem; box-shadow: none; border: 1px solid var(--rule); }
+.palette-elsewhere-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.palette-elsewhere-said { display: inline-flex; align-items: center; gap: 0.5rem; margin: 0; font-weight: 600; }
+.palette-elsewhere .palette-rows { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1.5rem; margin-block-start: 0.5rem; }
+.palette-nothing { padding-block: 1rem 0.5rem; }
+.palette-nothing-head { margin: 0 0 0.35rem; font-family: var(--reading); font-size: 1.5rem; font-weight: 500; }
+.palette-nothing-note { margin: 0 0 1.25rem; color: var(--ink-soft); }
+.palette-bring { display: grid; gap: 0.75rem; box-shadow: none; border: 1px solid var(--rule); }
+.palette-bring-row { display: flex; gap: 0.6rem; }
+.palette-bring-row .well { flex: 1 1 auto; }
+.palette-or {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.palette-or::before,
+.palette-or::after { content: ""; flex: 1 1 auto; border-block-start: 1px solid var(--rule); }
+.palette-upload { justify-self: start; }
+.palette-nothing-foot { margin: 0.75rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.palette-word-card { margin-block-start: 0.75rem; box-shadow: none; border: 1px solid var(--rule); }
+.palette-word-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.palette-word-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem; }
+.palette-word-lemma { font-family: var(--reading); font-size: 1.9375rem; line-height: 1.2; }
+.palette-word-tally { margin: 0; color: var(--ink-soft); font-size: 0.875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.palette-forms { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0 0; }
+.palette-forms-label { color: var(--ink-soft); font-size: 0.8125rem; margin-inline-end: 0.25rem; }
+.palette-form { font-size: 0.875rem; }
+.palette-sentence-row { align-items: flex-start; gap: 1rem; padding-block: 0.875rem; }
+.palette-sentence-row > .row-thumb { margin-block-start: 0.15rem; }
+.palette-sentence { color: var(--ink); font-size: 1.0625rem; line-height: 1.6; }
+.palette-sentence mark { background: color-mix(in srgb, var(--mark-accent) 22%, transparent); color: inherit; border-radius: 4px; padding-inline: 1px; }
+.palette-at { flex: none; display: grid; justify-items: end; gap: 0.35rem; }
 @media (max-width: 40rem) {
-  .palette { inset-block-start: 1rem; }
+  /* The whole screen, as the board's phone draws it: the way back, the field, then the
+     language and the filters in one row that wraps. */
+  .palette,
+  .palette.is-searching {
+    inset: 0;
+    inline-size: 100%;
+    max-block-size: none;
+    padding: 0.75rem 1rem 0;
+    border-radius: 0;
+    background: var(--desk);
+  }
+  .palette-top { flex-wrap: wrap; gap: 0.5rem; }
+  .palette-back {
+    display: grid;
+    place-items: center;
+    flex: none;
+    inline-size: 2.25rem;
+    block-size: 2.75rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .palette-field { flex-basis: calc(100% - 2.75rem); background: var(--card); }
+  .palette-esc { display: none; }
+  .palette-scope { order: 3; }
+  .palette-langs { inset-inline: 0 auto; }
+  .palette-filters { margin-block: 0.5rem 0; }
+  .palette-filters .tab.is-empty { display: none; }
+  .palette-level { display: none; }
+  .palette-body { margin-inline: -1rem; padding: 0.25rem 1rem 6rem; }
+  .palette-group,
+  .palette-recent,
+  .palette-lately {
+    margin-block-start: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-card);
+    background: var(--card);
+    box-shadow: var(--shadow-rest);
+  }
+  .palette-empty { grid-template-columns: 1fr; gap: 0; padding-block-start: 0; }
+  .palette-hit { flex-wrap: wrap; gap: 0.75rem; }
+  .palette-hit > .row-main { flex: 1 1 calc(100% - 4rem); }
+  .palette-hit > .palette-end { flex-basis: 100%; padding-inline-start: 3.5rem; gap: 0.6rem; }
+  .palette-known { display: flex; align-items: center; gap: 0.5rem; inline-size: auto; }
+  .palette-known .meter { display: none; }
+  .palette-more { padding-inline-start: 3.5rem; }
+  .palette-elsewhere .palette-rows { grid-template-columns: 1fr; }
+  .palette-word-top { flex-direction: column; }
+  .palette-sentence-row { flex-wrap: wrap; }
+  .palette-at { justify-items: start; padding-inline-start: 3.5rem; }
+  .palette-bring-row { flex-direction: column; }
+  html.palette-up { overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) { .palette { animation: none; } }
 .switch-label { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
-.notices-act {
+
+/* A build opened in place (2026-10-06): the line is the button, and under it the stage,
+   a bar and the server's sentence. The chevron points down and up rather than at the
+   end, so it needs no mirror in a right-to-left page. Motion only where it is wanted. */
+.notices-list .notices-row {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  margin: -0.3rem -0.4rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: var(--radius-control);
+  color: inherit;
+  line-height: 1.4;
+  text-align: start;
+}
+.notices-list .notices-row:hover { background: var(--teal-wash); color: var(--ink); }
+.notices-list .notices-row:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.notices-row > span { flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
+.notices-row::after {
+  content: "";
+  flex: none;
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  margin-block-start: -0.2rem;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+.notices-row[aria-expanded="true"]::after { margin-block-start: 0.2rem; transform: rotate(225deg); }
+/* One box, so a title too long for the rest of the line moves down whole and wraps
+   inside itself in its own direction, rather than breaking among the English. */
+.notices-title { display: inline-block; max-inline-size: 100%; unicode-bidi: isolate; vertical-align: bottom; }
+.notices-status { grid-column: 1 / -1; display: grid; gap: 0.4rem; padding-block: 0.2rem 0.1rem; }
+.notices-stage { margin: 0; font-weight: 600; color: var(--ink); }
+.notices-said { margin: 0; color: var(--ink-soft); }
+.notices-bar { block-size: 0.375rem; border-radius: 999px; background: var(--teal-wash); overflow: hidden; }
+.notices-bar > span { display: block; block-size: 100%; border-radius: 999px; background: var(--teal); }
+@media (prefers-reduced-motion: no-preference) {
+  .notices-row::after { transition: transform var(--out) var(--ease); }
+  .notices-bar > span { transition: inline-size var(--in) var(--ease); }
+  .notices-status { animation: notices-unfold var(--in) var(--ease); }
+}
+@keyframes notices-unfold {
+  from { opacity: 0; transform: translateY(-0.25rem); }
+}
+
+/* The foot is its own (`foot.css`, 2026-09-28); on the desk it stands in the desk's own
+   column, so its links start where the page does. */
+body .site-footer { max-inline-size: var(--column); }
+/* An address the account panel couldn't use (design.md §12, 2026-10-09): the field in
+   clay over the teal it wears focused, and the line under the row rather than between
+   the field and its button. */
+.account-panel input.fault-field,
+.account-panel input.fault-field:focus { border-color: var(--clay); box-shadow: 0 0 0 1px var(--clay); }
+.account-panel .fault-under { flex-basis: 100%; order: 3; margin: 0; font-size: 0.875rem; }
+
+/* =====================================================================================
+   One shell for every desk page (design.md §12, "The boards are the desk", 2026-10-09).
+   Written last so that it wins over the phases above: the bar as the boards draw it, the
+   title on the desk under it, the Talk pill in ink, and the language always shown. */
+
+/* --- the bar: the page's paper, ruled off from the desk, one row 76px tall at 1440 ---- */
+.site-head { border-block-end: 1px solid var(--rule); }
+.site-head::before { background: color-mix(in srgb, var(--paper) 92%, transparent); }
+.site-head-row { min-block-size: 4.375rem; padding-block: 0.5rem; }
+/* The places in the middle of the bar, between the name and the corner, as the boards
+   draw them. */
+@media (min-width: 60.0625rem) {
+  .site-head-row > .site-nav:not(.door-nav) { margin-inline: auto; }
+}
+@media (max-width: 40rem) {
+  .site-head-row { min-block-size: 3.75rem; }
+}
+/* A door in front of the account keeps the bar and the one place a stranger may go, in
+   the bar on a phone too rather than at the foot. */
+.site-nav.door-nav { margin-inline-start: auto; }
+@media (max-width: 40rem) {
+  .site-head-row .site-nav.door-nav {
+    position: static;
+    display: flex;
+    margin-inline-start: auto;
+    padding: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 0;
+  }
+  .site-nav.door-nav a { display: inline-flex; min-block-size: 0; font-size: 0.9375rem; font-weight: 400; }
+  body.signin[data-shell="desk"] { padding-block-end: 0; }
+}
+
+/* --- the Talk pill is ink: the call to action's paper on ink (§9), not the primary --- */
+.talk-cta { background: var(--ink); color: var(--page-max); }
+.talk-cta:hover { filter: none; background: color-mix(in srgb, var(--ink) 88%, var(--page-max)); }
+
+/* --- the pill's clearance at a desk (audit 2, 2026-10-09) ----------------------------
+   The pill floats at the window's bottom-right corner, and a desk page's column runs to
+   that corner too: it sat on the Library's second "See all →", the Words table and the
+   Upload card. The phone keeps a band at the foot (below); at a desk the room is kept at
+   the end edge instead, where the pill is. The pill says "Talk", as the boards draw it,
+   so at 1440 it stands in the margin outside the column and nothing moves; narrower, the
+   page gives up what the pill reaches (`--talk-room`, measured by talk.js) less the
+   column's own padding, at the end edge only. The bar keeps the whole width. */
+@media (min-width: 40.0625rem) {
+  :root {
+    --talk-clear: max(
+      0px,
+      min(
+        var(--talk-room, 0px) - 0.5rem,
+        2 * (var(--talk-room, 0px) - 0.5rem) - (100vw - var(--column))
+      )
+    );
+  }
+  body { padding-inline-end: var(--talk-clear); }
+  body > .site-head { margin-inline-end: calc(-1 * var(--talk-clear)); }
+}
+@media (min-width: 48.0625rem) {
+  .talk-cta { inset-inline-end: 0.75rem; padding-inline: 1rem; }
+  .talk-cta .talk-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .talk-cta .talk-short { display: inline; }
+}
+
+/* --- the phone: "Your targums" says its whole name at the foot, as board HomePhone, and
+   the page keeps clear of the round pill above the bar ---------------------------------- */
+/* A sheet of the bar's — the bell's, the account's, the language's — opened while the
+   AI Assistant's drawer is open stands over the drawer at a desk too, as it does on a
+   phone: the bar's layer (25) sat under the drawer's (31), and the notices opened
+   behind it (known issues, signed-in walk 2026-10-12). */
+.site-head:has(.account-panel:not([hidden]), .notices-panel:not([hidden]), .lang-panel:not([hidden])) {
+  z-index: 33;
+}
+
+/* The AI Assistant's pill joins the band at the foot (known issues §3, 2026-10-12). It
+   floated 4.5rem up, over the page: Home's tabs, the Library's headings, Your Words'
+   filters, a practice card, a series page's aliyot — whatever stopped under it, its end
+   first. A floating control that covers what is read joins the band rather than floating
+   over the page: the glass of the four places grows up behind the pill, and the page's
+   8rem of room at its foot already lets its last row scroll clear of both. Not on the
+   conversation's page, which has no pill, nor the stranger's door bar, which is no band. */
+@media (max-width: 40rem) {
+  body:not(.chat):has(> .talk-cta) .site-head-row .site-nav:not(.door-nav) { padding-block-start: 4rem; }
+}
+@media (max-width: 40rem) {
+  .site-nav .nav-many .nav-your { display: inline; }
+  html:lang(ru) .site-nav .nav-many { text-transform: none; }
+  body { padding-block-end: calc(8rem + env(safe-area-inset-bottom)); }
+  body.chat { padding-block-end: 0; }
+}
+
+/* --- the language, always shown, with its badge and without a flag ------------------- */
+.lang-menu .lang-open {
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.lang-menu .lang-open .lang-name { color: var(--ink); }
+.lang-menu .lang-open:hover,
+.lang-menu .lang-open.on { background: var(--teal-wash); color: var(--ink); }
+.lang-panel { min-inline-size: 22rem; padding: 0.5rem; }
+.lang-panel .lang-head {
+  margin: 0.5rem 0.75rem 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.lang-panel .lang-rule { margin: 0.4rem 0.75rem; border: 0; border-block-start: 1px solid var(--rule); }
+.lang-panel button { min-block-size: 3rem; padding-inline: 0.75rem; }
+.lang-panel .lang-item { gap: 0.6rem; }
+/* The tick stands where a flag stood, on the language the page is in; the rest keep its
+   room, so the names line up. */
+.lang-panel .lang-tick {
+  inline-size: 1rem;
+  flex: none;
+  color: var(--teal);
+  font-weight: 600;
+}
+.lang-panel button[aria-checked="true"] { color: var(--ink); background: var(--teal-wash); }
+/* A flag beside each name (§12, 2026-10-10, back from 2026-09-14): small, square-cornered
+   at the scale's smallest step, a hairline round the white stripes. A language with no
+   country keeps the width, so the names line up. */
+.lang-flag {
+  display: inline-block;
+  flex: none;
+  inline-size: 1.125rem;
+  block-size: 0.75rem;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--hairline);
+  line-height: 0;
+}
+.lang-flag svg { display: block; inline-size: 100%; block-size: 100%; }
+.lang-flag.none { box-shadow: none; }
+@media (max-width: 40rem) {
+  .lang-panel { min-inline-size: 0; }
+  .lang-menu .lang-open { padding-inline: 0.5rem; }
+}
+@media (max-width: 22.5rem) {
+  .lang-menu .lang-open .lang-status { display: none; }
+  /* "Your targums" read whole at 320px: the foot's cells give up their side padding. */
+  .site-head-row .site-nav { gap: 0; padding-inline: 0.25rem; }
+  .site-nav a { padding-inline: 0; }
+}
+
+/* =====================================================================================
+   The components (design.md §12, "The boards are the desk", 2026-10-09; P2 of the
+   polish plan). One button, one row of tabs, one card, one list of rows, one field, one
+   meter, one tag, one tile and one section title for every desk page, at the boards'
+   values, so a page draws a control by naming it rather than by drawing it again. Each
+   replaced a page's own copy: the Upload page's, the playlists', /you's and the doors'
+   buttons; the Library's, Your targums' and Your Words' three kinds of tab; five
+   meters; a beige letter box in four places. A button (`.btn`), a choice of a few
+   (`.seg`), the dim under a sheet (`.scrim`) and a sheet's handle are in `shared.css`,
+   because the doors, the public pages and the reader draw them too. Written last, so a page's older rule cannot win by being later. */
+
+/* --- a button is the shared `.btn` (shared.css): the doors and the public pages draw
+   it too. ---------------------------------------------------------------------------- */
+
+/* --- a row of tabs: `.tabs` of `.tab` -------------------------------------------------
+   Tinted pills (design.md §12, "The boards are the desk": "each a pill on the wash, the
+   chosen one filled in the primary with paper text"). The underlined tabs are retired —
+   the Library's, Your targums' and the strip drawn as the Library's — and so is §4's
+   quiet ink for a chosen tab on the desk. Links (`aria-current`) or buttons
+   (`aria-selected`, `aria-pressed`): whichever a row already is, it is drawn the same. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.tabs[hidden] { display: none; }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-block-size: 2.25rem;
+  margin: 0;
+  padding: 0 0.875rem;
   border: 0;
   border-radius: 999px;
   background: var(--teal-wash);
   color: var(--teal);
   font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tab:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); color: var(--teal); }
+.tab[aria-current="page"],
+.tab[aria-current="true"],
+.tab[aria-selected="true"],
+.tab[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); cursor: default; }
+.tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tab .tab-count { font-variant-numeric: tabular-nums; opacity: 0.8; font-weight: 400; }
+.tab .tab-count:empty { display: none; }
+/* On a phone a row of tabs is one line that scrolls sideways, as the boards' phones draw
+   it: wrapped, Your targums' four took two lines and pushed the list a screen down. */
+@media (max-width: 40rem) {
+  .tabs {
+    flex-wrap: nowrap;
+    gap: 0.375rem;
+    overflow-x: auto;
+    padding-block: 3px;
+    margin-block: -3px;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; padding-inline: 0.75rem; }
+}
+
+/* --- a card: `.card` (and `.panel`, its older name) ----------------------------------
+   What sits on the ground: the card's paper, 16px corners, raised by the resting shadow
+   and no line (the boards' card; §13's tiers). A card is never inside a card — what
+   groups things inside one is a hairline (§9, "if a card needs a card, use a hairline"),
+   and `test_brand` and the pages' browser test hold it. `.panel` is the same thing under
+   the name five pages and their scripts already use; there is one rule for both. */
+.card,
+.panel {
+  min-inline-size: 0;
+  padding: 1.25rem 1.5rem;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  color: var(--ink);
+}
+.card[hidden],
+.panel[hidden] { display: none; }
+@media (max-width: 40rem) {
+  .card,
+  .panel { padding: 1rem; }
+}
+
+/* --- a section's title: `.section-title` ---------------------------------------------
+   The reading serif at 24px, weight 500 (design.md §12, "The boards are the desk"), on
+   the ground or at the head of a card: a shelf, a part of a page. A card's own name, a
+   label and a column head stay in the chrome's sans. */
+.section-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+@media (max-width: 40rem) {
+  .section-title { font-size: 1.25rem; }
+}
+
+/* --- a list of rows: `.rows` of `.row` ------------------------------------------------
+   The boards' row: a picture 44px square (64 in `.rows.is-large`), the title, its kind
+   as a `.tag`, how much is known as a `.meter`, and a quiet fact at the end
+   (`.row-end`); a hairline between rows and none after the last. The parts are named, so
+   a row may leave any of them out. Only `.row` items take the anatomy: the Library's own
+   list keeps its rows until it moves onto these (P5). */
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows > .row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-inline-size: 0;
+  padding-block: 0.875rem;
+  border-block-end: 1px solid var(--rule);
+}
+.rows > .row:last-child { border-block-end: 0; }
+.row-thumb {
+  flex: none;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+.rows.is-large .row-thumb { inline-size: 4rem; block-size: 4rem; }
+.row-thumb img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.row-main { flex: 1 1 auto; min-inline-size: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.rows > .row .row-meter { flex: none; inline-size: 7.5rem; }
+.row-end {
+  flex: none;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 40rem) {
+  .rows > .row { gap: 0.75rem; }
+  .rows > .row .row-meter { inline-size: 4rem; }
+}
+
+/* --- a field: `.field` ----------------------------------------------------------------
+   A label above a well: no line, the ground mixed into the card, 12px corners, and the
+   primary's ring on focus (§13; the boards' field). `.field` is the label that holds it;
+   an input that stands alone takes `.well` for the same look. */
+.field { display: flex; flex-direction: column; gap: 0.3rem; margin: 0; min-inline-size: 0; }
+.field > span {
+  color: var(--ink-soft);
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   font-weight: 600;
-  padding: 0.3rem 0.7rem;
-  cursor: pointer;
+}
+.field input,
+.field select,
+.field textarea,
+.well {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  margin: 0;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+}
+.field textarea,
+textarea.well { min-block-size: 5rem; resize: vertical; }
+.field input::placeholder,
+.field textarea::placeholder,
+.well::placeholder { color: var(--ink-soft); }
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.well:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+
+/* --- how far: `.meter` ----------------------------------------------------------------
+   A 6px rail in the rule's grey with a fill in leaf, because green is progress (§4): how
+   much of a text is known, how far through a playlist. `--done` is the share, 0 to 1.
+   `.is-building` fills in the primary (a build under way is a control at work); `.is-spent`
+   in ink-soft (credits used, which is neither); `.is-full` in clay (a cap reached). */
+.meter {
+  display: block;
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.meter > span {
+  display: block;
+  block-size: 100%;
+  inline-size: calc(var(--done, 0) * 100%);
+  border-radius: 999px;
+  background: var(--leaf);
+}
+.meter.is-building > span { background: var(--teal); }
+.meter.is-spent > span { background: var(--ink-soft); }
+.meter.is-full > span { background: var(--clay); }
+
+/* --- what a thing is: `.tag` -----------------------------------------------------------
+   A small outlined pill: "Video", "Uploaded by you", "Book · Tanakh". `.is-building` and
+   `.is-new` take the primary and iris, the one hue each means. */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  align-self: flex-start;
+  inline-size: max-content;
+  max-inline-size: 100%;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  line-height: 1.4;
   white-space: nowrap;
 }
-.notices-act:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.tag.is-building { color: var(--teal); border-color: var(--teal); }
+.tag.is-new { color: var(--iris); border-color: var(--iris); }
 
-/* The foot is its own (`foot.css`, 2026-09-28); on the desk it stands in the desk's own
-   62rem column, so its links start where the page does. */
-body .site-footer { max-inline-size: 62rem; }
+/* --- a text's picture: the tile -----------------------------------------------------
+   One path draws every tile, `TargumCovers.picture()` (covers.js): the text's own
+   picture where it has one, or the server's drawn letter on the colour of its kind. A
+   tile the server cannot draw — a build with no folder yet, a picture that did not come
+   — keeps its letter here on the same colours, never on beige: teal news, iris sets and
+   Mishnah, clay things said, the muted grey of books (thumbs.py `TONES`; David,
+   2026-10-08). */
+.thumb.is-letter,
+.thumb.is-letter.tone-book { border: 0; background: var(--ink-soft); }
+.thumb.is-letter.tone-news { background: var(--teal); }
+.thumb.is-letter.tone-set { background: var(--iris); }
+.thumb.is-letter.tone-spoken { background: var(--clay); }
+.thumb.is-letter .glyph { color: var(--card); }
+
+@media (hover: none) and (pointer: coarse) {
+  .tab,
+  .field input,
+  .field select,
+  .well { min-block-size: 44px; }
+}
+
+/* --- Talk is a sheet over a dimmed page (design.md §12, 2026-10-09; boards ChatDesk and
+   ChatPhone) ---------------------------------------------------------------------------
+   The shared `.scrim` under it at every width; at a desk 460px from the end edge, top to
+   foot; on a phone a sheet up from the foot with the shared `.sheet-grab`. Last in the
+   sheet so it is the drawer's shape wherever the rules above drew another. */
+.talk-scrim { display: block; z-index: 30; }
+.talk-scrim[hidden] { display: none; }
+.talk-drawer {
+  inset-block: 0;
+  inset-inline: auto 0;
+  inline-size: min(460px, 100vw);
+  block-size: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: var(--shadow-floating);
+  z-index: 31;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.talk-grab { display: none; }
+.talk-drawer-head {
+  align-items: flex-start;
+  padding: 1.25rem 1rem 0.875rem 1.5rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.talk-drawer-names { display: grid; gap: 0.5rem; justify-items: start; min-inline-size: 0; }
+.talk-drawer-title {
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.talk-about {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-inline-size: 100%;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.talk-about svg,
+.talk-close svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.talk-close {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  margin-block-start: -0.125rem;
+}
+@media (max-width: 48rem) {
+  .talk-drawer {
+    inset-inline: 0;
+    inset-block: auto 0;
+    inline-size: auto;
+    block-size: calc(100svh - 1.25rem);
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  .talk-grab { display: block; }
+  .talk-drawer-head { padding: 0 0.75rem 0.75rem 1.125rem; }
+  .talk-drawer-title { font-size: 1.5rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .talk-close { min-block-size: 44px; min-inline-size: 44px; }
+}
+
+/* A drawer left open on the page before comes back beside this one, undimmed and under
+   its bar, without moving in (audit 2, 2026-10-09; design.md §12, "A drawer left open
+   comes back undimmed"). Only a press on this page dims the page under it. */
+.talk-drawer.talk-aside { animation: none; }
+@media (min-width: 48.01rem) {
+  .talk-drawer.talk-aside { inset-block-start: var(--talk-top, 0px); }
+}

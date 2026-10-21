@@ -93,6 +93,32 @@ def test_the_ledger_block_carries_the_words_and_never_a_level(tmp_path: Path) ->
     assert "read in Hebrew so far" in empty
 
 
+def test_a_host_is_handed_the_commonest_known_words_and_no_junk(monkeypatch) -> None:
+    """2026-10-06: `how_to_talk` carried 1,483 known words and 774 common ones, about
+    22,000 characters on every turn of a host's conversation. A host gets the commonest
+    few hundred, never laughter or a stretched word, and never one already in the common
+    list it is handed beside them."""
+    from targum.annotate import frequency
+
+    order = {"מלך": 900, "ספר": 300, "בית": 40, "שלום": 120}
+    monkeypatch.setattr(frequency, "rank", lambda lemma, language: order.get(lemma))
+    known = ["חחחח", "אתההה", "מלך", "בַּיִת", "ספר", "שלום", "גלגל", "קשקש", "ספר"]
+    got = hebrew.known_for_host(known, ["שלום"], "he", most=4)
+    assert got == ["בַּיִת", "ספר", "מלך", "גלגל"], "ranked first, then newest; one each"
+    assert hebrew.known_for_host(["haha", "jajaja", "ciao", "hhhm"], [], "it") == ["ciao"]
+
+
+def test_a_sample_of_the_ledger_says_it_is_a_sample() -> None:
+    block = hebrew.ledger_block(level.EMPTY, ["בית", "ספר"], ["את"], known_of=1483)
+    assert "the commonest 2 of the 1,483 they have marked known" in block
+    assert "leaving out any in the common list" in block
+    assert "no words known yet" not in block
+    whole = hebrew.ledger_block(level.EMPTY, ["בית", "ספר"], ["את"], known_of=2)
+    assert "known words (2): בית ספר" in whole
+    covered = hebrew.ledger_block(level.EMPTY, [], ["את"], known_of=40)
+    assert "marked 40 words known" in covered and "no words known yet" not in covered
+
+
 def test_a_first_day_in_another_language_asks_about_that_language() -> None:
     """An Italian conversation with an empty Italian ledger was told to ask what the reader
     had read in Hebrew, and offered a Hebrew text (2026-09-15)."""
@@ -300,6 +326,50 @@ def test_the_italian_contract_keeps_the_shape_and_none_of_hebrew_s_own_rules() -
         assert hebrew_only not in said, hebrew_only
 
 
+# --- the contract as a host is handed it (2026-10-06) ------------------------------
+
+
+@pytest.mark.parametrize("code", ["he", "it", "fr", "ru", "yi"])
+@pytest.mark.parametrize("gloss", ["English", "Russian"])
+def test_a_host_is_handed_a_contract_that_says_one_thing(code: str, gloss: str) -> None:
+    """The connector eval's host wrote a "= " line under every Hebrew line, because the
+    contract said "never a Hebrew line without its English line" and a note above it
+    said that sentence was overridden. Each sentence about the page's folded lines and
+    its doors is now rewritten in place, in every contract; a contract reworded without
+    its rewrite fails here."""
+    base = hebrew.contract_for(code, gloss)
+    said, missed = hebrew._for_connector(base, gloss)
+    assert missed == [], missed
+    flat = " ".join(said.split())
+    for gone in ("line without its", "The page draws it as a door", "like every other word"):
+        assert gone not in flat, gone
+    assert f"Its {gloss} only when the reader asks" in flat
+    assert '"= " line at the end of the reply' in flat
+    assert "Every link a tool returns goes on a line of its own" in flat
+    # The recast keeps its own "= " line, which is what the reader wrote.
+    assert '"> "' in flat and 'then a "= " line with its' in flat
+    assert hebrew.for_connector(base, gloss) == said
+
+
+@pytest.mark.parametrize("code", sorted(hebrew.TALKED))
+def test_targums_own_chat_is_handed_the_contract_as_it_was(code: str) -> None:
+    """`for_connector` is the host's alone. The chat's prompt (`session.py`) and the
+    check (`check.py`) read `contract_for`, which still says the page's sentences."""
+    flat = " ".join(hebrew.contract_for(code).split())
+    assert "line without its English line." in flat
+    assert "The page draws it as a door." in flat
+    assert "Its English only when the reader asks" not in flat
+    assert hebrew.contract_for("he") == hebrew.CONTRACT
+
+
+def test_the_ledger_s_new_words_are_said_after_the_reply_for_a_host() -> None:
+    returning = hebrew.Returning(new=["גשם"], learning=[], nearly=[], known=[], phrases=[])
+    block = hebrew.ledger_block(level.EMPTY, [], [], returning)
+    assert 'its English is on the "= " line like any word.' in block, "the chat's, as it was"
+    said = hebrew.for_connector(block)
+    assert 'its meaning goes on the one "= " line at the end of the reply.' in said
+
+
 # --- the three that landed with the connector (#281–#283) ------------------------
 
 
@@ -468,3 +538,48 @@ def test_a_french_reply_read_as_hebrew_has_no_lines() -> None:
     assert hebrew.pairs(FRENCH_REPLY) == []
     assert hebrew.pairs(RUSSIAN_REPLY) == []
     assert hebrew.pairs(YIDDISH_REPLY, "yi") == hebrew.pairs(YIDDISH_REPLY, "he")
+
+
+@pytest.mark.parametrize(
+    ("word", "language", "offered"),
+    [
+        ("1", "he", False),
+        ("0", "he", False),
+        ("2024", "he", False),
+        ("ב", "he", False),
+        ("ה", "he", False),
+        ("the", "he", False),
+        ("a", "he", False),
+        ("ש״ח", "he", True),
+        ("את", "he", True),
+        ("в", "ru", True),
+        ("ж", "ru", False),
+        ("http", "ru", False),
+        ("на", "ru", True),
+        ("à", "fr", True),
+        ("x", "fr", False),
+        ("°", "fr", False),
+        ("de", "fr", True),
+        ("è", "it", True),
+        ("perché", "it", True),
+    ],
+)
+def test_the_claim_list_offers_words_not_tokens(word: str, language: str, offered: bool) -> None:
+    """David, 2026-10-18: the claim grid offered "1", "0" and lone letters as words a
+    reader may know. No digits, nothing of one character, and nothing without a letter of
+    the language's own script; but a language's own one-letter words stay."""
+    assert hebrew.claimable(word, language) is offered
+
+
+@pytest.mark.skipif(
+    shutil.which("python3") is None or not hebrew.common_words(5), reason="wordfreq missing"
+)
+@pytest.mark.parametrize("code", ["he", "ru", "fr", "it"])
+def test_the_claim_list_is_cut_after_the_junk_is_left_out(code: str) -> None:
+    raw = hebrew.common_words(300, language=code)
+    assert any(not hebrew.claimable(word, code) for word in raw), "wordfreq still has junk"
+    picked = hebrew.common_words(300, language=code, claim=True)
+    assert len(picked) == 300, "a page is still a page"
+    assert all(hebrew.claimable(word, code) for word in picked)
+    kept = [word for word in raw if hebrew.claimable(word, code)]
+    assert picked[: len(kept)] == kept, "in the same order"

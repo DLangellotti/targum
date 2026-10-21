@@ -5,11 +5,14 @@
  * the conversation page framed without its bar (`/chat?embed=1`). Loaded the first time
  * it is opened and never before; closed by its own button, the scrim or Escape; left open
  * across pages once opened (`targum:talk`), since somebody mid-conversation who follows a
- * link has not finished talking.
+ * link has not finished talking. Only a press dims the page under it: a drawer a page
+ * brings back because it was left open comes back beside the page, undimmed. Not on a
+ * phone, where it would come back as a sheet over the page: there leaving a page closes
+ * it (QA 2026-10-11, D7).
  *
- * A text the conversation offers is opened by the page holding the drawer: Learn puts it
- * in its sheet (`TargumLearn.open`), any other page goes to the reader itself. Nothing is
- * taken from a message that did not come from the drawer's own frame on this origin.
+ * A text the conversation offers opens the reader itself, from whatever page holds the
+ * drawer (Learn's sheet, which held it in place, went with Learn on 2026-10-08). Nothing
+ * is taken from a message that did not come from the drawer's own frame on this origin.
  */
 (function () {
   "use strict";
@@ -119,8 +122,36 @@
     frame.setAttribute("src", src);
   }
 
+  // Until the conversation has loaded, the frame holds an empty document that says it is
+  // complete, so readiness is the frame's own load event and not its readyState.
+  var wantsFocus = false;
+  var frameReady = false;
+  function focusBox() {
+    if (!frameReady) {
+      wantsFocus = true;
+      return;
+    }
+    frame.focus();
+    // Under a thumb the box is left alone: focusing it would put the keyboard up over a
+    // sheet the reader may only want to read.
+    if (window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches) return;
+    frame.contentWindow.postMessage({ type: "targum:focus" }, window.location.origin);
+  }
+  frame.addEventListener("load", function () {
+    if (!frame.getAttribute("src")) return;
+    frameReady = true;
+    if (!wantsFocus || drawer.hidden) return;
+    wantsFocus = false;
+    focusBox();
+  });
+
   var leaving = null;
-  function show(on) {
+  /* `restored` is the drawer brought back by a page because it was left open on the one
+     before, rather than pressed open on this one. It comes back as a panel beside the
+     page and does not dim it: the scrim says "this is what you are doing now", and a
+     reader who followed a link out of a conversation is reading the page they came to
+     (audit 2, 2026-10-09; design.md §12, "A drawer left open comes back undimmed"). */
+  function show(on, restored) {
     if (on) {
       if (!reading && window.TargumReader && window.TargumReader.where) reading = window.TargumReader.where();
       load();
@@ -139,9 +170,24 @@
         drawer.hidden = true;
       }, 160);
     }
-    if (scrim) scrim.hidden = !on;
+    if (scrim) scrim.hidden = !on || !!restored;
+    drawer.classList.toggle("talk-aside", on && !!restored);
+    if (on && restored) {
+      // Beside the page, under its bar, so the bar's own buttons stay pressable.
+      var head = document.querySelector(".site-head, body > .bar");
+      var foot = head ? Math.max(0, Math.round(head.getBoundingClientRect().bottom)) : 0;
+      drawer.style.setProperty("--talk-top", foot + "px");
+    }
     pill.setAttribute("aria-expanded", on ? "true" : "false");
     document.body.classList.toggle("talking", on);
+    // Focus goes in with a press and comes back to the pill with a close, so a keyboard
+    // is never left on the page's body (QA 2026-10-11). A drawer a page brought back by
+    // itself takes nothing: the reader came to the page.
+    if (on && !restored) focusBox();
+    if (!on && (drawer.contains(document.activeElement) || document.activeElement === frame ||
+        document.activeElement === document.body || !document.activeElement)) {
+      pill.focus();
+    }
     try {
       if (on) localStorage.setItem(OPEN, "open");
       else localStorage.removeItem(OPEN);
@@ -163,6 +209,12 @@
       show(false);
     });
   }
+  // The sheet's handle on a phone closes it, as a tap on the dimmed page does.
+  Array.prototype.forEach.call(drawer.querySelectorAll("[data-talk-close]"), function (grab) {
+    grab.addEventListener("click", function () {
+      show(false);
+    });
+  });
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && !drawer.hidden) show(false);
   });
@@ -172,29 +224,41 @@
     if (event.origin !== window.location.origin) return;
     if (!frame.contentWindow || event.source !== frame.contentWindow) return;
     var data = event.data || {};
-    var learn = window.TargumLearn;
+    if (data.type === "targum:close" && !drawer.hidden) {
+      show(false);
+      return;
+    }
     if (data.type === "targum:open" && data.reader) {
       var path = String(data.reader);
-      if (learn && learn.open) {
-        learn.open(path);
-        // On a phone the drawer covers the sheet the text just opened in.
-        if (window.matchMedia && window.matchMedia("(max-width: 48rem)").matches) show(false);
-        return;
-      }
       window.location.href = keyed(
         "/reader/" + path.split("/").map(encodeURIComponent).join("/")
       );
     }
-    if (data.type === "targum:changed" && learn && learn.changed) learn.changed();
   });
 
+  // On a phone the drawer is a sheet over the whole page, so one brought back would cover
+  // the page the reader just chose — "Open your targums" pressed inside it opened Your
+  // targums under a sheet. There, leaving a page closes it: the next page forgets it was
+  // open, and the conversation, which is the box's, is there again behind the pill (QA
+  // 2026-10-11, decision D7; design.md §12, "On a phone, the drawer closes when you leave
+  // the page"). "A phone" is where the CSS draws the sheet: 48rem on the chrome's pages
+  // (chrome.css), 60rem on the reader's (reader.css). At a desk it still comes back
+  // beside the page.
+  function sheet() {
+    var at = document.body.classList.contains("reader") ? "60rem" : "48rem";
+    return !!(window.matchMedia && window.matchMedia("(max-width: " + at + ")").matches);
+  }
   var wasOpen = false;
   try {
     wasOpen = localStorage.getItem(OPEN) === "open";
+    if (wasOpen && sheet()) {
+      wasOpen = false;
+      localStorage.removeItem(OPEN);
+    }
   } catch (e) {
     wasOpen = false;
   }
-  if (wasOpen) show(true);
+  if (wasOpen) show(true, true);
 
   // A conversation by id, from the palette: open the drawer and name it in the frame's
   // address, which the conversation's own script answers.

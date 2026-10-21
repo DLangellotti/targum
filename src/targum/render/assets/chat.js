@@ -17,7 +17,9 @@
   // The conversation is Hebrew whatever they are.
   var t = window.TargumStrings.t;
   var tn = window.TargumStrings.tn;
-  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer questions right now. Your texts and the library still open.");
+  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer right now.");
+  // Beside it, in the panel (design.md §12, 2026-10-09).
+  var STILL_OPEN = t("chat.cannot-answer.fact", "Your texts and the library still open");
 
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
@@ -45,6 +47,18 @@
   // text opens in the page that holds the frame, and the address is left alone: a
   // frame's own history is the holding page's history too.
   var EMBED = String(document.body.className || "").split(" ").indexOf("embed") >= 0;
+  // The bar's height, for the room the conversation takes under it (chat.css): it is one
+  // row or two depending on the width, so it is measured rather than assumed.
+  (function keepHead() {
+    var head = document.querySelector("body.chat > .site-head");
+    if (EMBED || !head) return;
+    function measure() {
+      document.body.style.setProperty("--chat-head", head.offsetHeight + "px");
+    }
+    measure();
+    if (window.ResizeObserver) new ResizeObserver(measure).observe(head);
+    else window.addEventListener("resize", measure);
+  })();
 
   // Where a text opens. On the page itself, the reader. Framed in the front page, the
   // text is offered to the page holding the frame, which opens it in the reader it
@@ -106,7 +120,37 @@
   // The language a word's meaning is looked up in: the one the conversation's meanings
   // arrive in, which the list names (targum-internal#287).
   var meaningsIn = "en";
-  var UNREACHED = { error: t("chat.unreached", "We couldn't connect. Check your connection and try again.") };
+  // targum out of reach is said once, by the connection's banner under the top of the
+  // page (design.md §12, 2026-10-09); the answer still carries a sentence, for the places
+  // that draw one where the thing did not come.
+  var UNREACHED = { error: t("chat.unreached", "We can't reach targum."), unreached: true };
+  function unreached() {
+    if (window.TargumFault) window.TargumFault.unreachable();
+    return UNREACHED;
+  }
+
+  /* A turn that failed: the sentence as a line in the turn, with Try again where there
+     is something to try again (design.md §12, 2026-10-09). It was the sentence in clay
+     with "Try again" inside it. */
+  function failed(li, message, again, fact, act) {
+    li.className = li.className.replace(/\s*\b(working|bad)\b/g, "") + " bad";
+    var line = li.querySelector(".chat-line");
+    if (!window.TargumFault) {
+      if (line) line.textContent = message;
+      return;
+    }
+    if (line) line.hidden = true;
+    var old = li.querySelector(".fault-line, .fault-panel");
+    if (old) old.parentNode.removeChild(old);
+    // A refusal with what still works is a panel, and nothing to try again: the rail
+    // that stopped it says when it lifts.
+    li.appendChild(
+      fact || act
+        ? window.TargumFault.refusal(message, fact, act)
+        : window.TargumFault.line(message, again || null)
+    );
+  }
+
   function ask(path, body) {
     return fetch(keyed(path), {
       method: body ? "POST" : "GET",
@@ -116,9 +160,7 @@
       .then(function (response) {
         return response.json();
       })
-      .catch(function () {
-        return UNREACHED;
-      });
+      .catch(unreached);
   }
 
   /* Which language this conversation is in (2026-09-13): the switcher's, or — in the
@@ -163,10 +205,21 @@
     return /\p{L}/u.test(text);
   }
 
-  function tell(text) {
+  // What the page says back. A refusal is a line with the clay mark, or, where the server
+  // sent what still works, a panel (`fault.js`, design.md §12, 2026-10-09); it was a
+  // sentence in clay.
+  function tell(text, fact, act) {
     if (!said) return;
-    said.textContent = text || "";
+    said.textContent = "";
     said.hidden = !text;
+    if (!text) return;
+    if (!window.TargumFault) {
+      said.textContent = text;
+      return;
+    }
+    said.appendChild(
+      fact || act ? window.TargumFault.refusal(text, fact, act) : window.TargumFault.line(text)
+    );
   }
 
   /* --- the record ------------------------------------------------------------
@@ -305,7 +358,20 @@
               line.removeChild(look);
               line.appendChild(document.createTextNode(" · " + got.meaning));
             } else {
-              look.textContent = (got && got.error) || t("chat.not-found", "we couldn't find it");
+              // A line where the meaning would be, and Try again asks once more.
+              look.textContent = t("chat.look-up", "look it up");
+              if (!window.TargumFault || (got && got.unreached)) return;
+              look.hidden = true;
+              var miss = window.TargumFault.line(
+                (got && got.error) || t("chat.not-found", "We couldn't find a meaning for this word."),
+                function () {
+                  line.removeChild(miss);
+                  look.hidden = false;
+                  look.click();
+                },
+                true
+              );
+              line.appendChild(miss);
             }
           }
         );
@@ -358,8 +424,9 @@
   var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'״׳־׀׃–0-9-]*[֐-׿]|[֐-׿]/g;
   // A path the server returned, standing on its own. Nothing else becomes a link.
   // A set a model quoted (#365) is a door too, to the page where it is pressed.
-  var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+|\/set\/\d+)/g;
-  var ONLY_PATH = /^(?:\/(?:reader|library)\/\S+|\/set\/\d+)$/;
+  // And a subscription offered (design.md §12, 2026-10-09): the page where it is confirmed.
+  var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+|\/set\/\d+|\/subscribe\?[^\s)]+)/g;
+  var ONLY_PATH = /^(?:\/(?:reader|library)\/\S+|\/set\/\d+|\/subscribe\?\S+)$/;
 
   // A path is drawn as a door: the model can say where a text is, and only the reader
   // opens it (design.md §9: the door-opening action is the ink call to action). The
@@ -370,6 +437,10 @@
     a.href = keyed(path);
     if (/^\/set\/\d+$/.test(path)) {
       a.appendChild(document.createTextNode(t("chat.open-set", "See the set")));
+      return a;
+    }
+    if (/^\/subscribe\?/.test(path)) {
+      a.appendChild(document.createTextNode(t("chat.open-subscribe", "Subscribe on targum")));
       return a;
     }
     var name = path;
@@ -669,10 +740,13 @@
           return job;
         }
         return bringing.start(job).then(function (state) {
-          quoteCard(li, state);
+          // The card follows the build itself (2026-10-10); a reader who only said
+          // "open this" is also taken to it when it is ready, on the card's own follow
+          // rather than a second one asking the same question.
+          var card = quoteCard(li, state);
           if (state.error || state.blocked) return state;
           if (!opening) return state;
-          return bringing.follow(job.id).then(function (done) {
+          return (card.finished || bringing.follow(job.id)).then(function (done) {
             if (done.stage === "done" && done.reader) {
               openReader(done.reader);
             }
@@ -781,13 +855,10 @@
       .then(function (response) {
         return response.json();
       })
-      .catch(function () {
-        return UNREACHED;
-      })
+      .catch(unreached)
       .then(function (got) {
         if (got.error) {
-          pending.className = "chat-turn me bad";
-          render(pending.querySelector(".chat-line"), got.error);
+          failed(pending, got.error);
           busy = false;
           send.disabled = false;
           return;
@@ -972,10 +1043,20 @@
     listPill.onclick = function () {
       showList(listPill.getAttribute("aria-expanded") !== "true");
     };
-    document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape") showList(false);
-    });
   }
+  // Escape closes the list where it is open, and otherwise, in the drawer, the drawer:
+  // a key pressed in a frame never reaches the page around it, so with the box focused
+  // Escape did nothing at all (QA 2026-10-11).
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+    if (listPill && listPill.getAttribute("aria-expanded") === "true") {
+      showList(false);
+      return;
+    }
+    if (EMBED && window.parent !== window) {
+      window.parent.postMessage({ type: "targum:close" }, window.location.origin);
+    }
+  });
 
   // The conversation in the address (targum-internal#238): a row writes it there, so a
   // conversation can be linked to and the back button goes to the one before; the
@@ -1115,7 +1196,7 @@
       drawChips(answer.chips || []);
       usable = answer.usable !== false;
       drawHours(answer.hours);
-      if (!usable) tell(CANNOT_ANSWER);
+      if (!usable) tell(CANNOT_ANSWER, STILL_OPEN, "yours");
       drawList();
       showFresh();
       // Arrived from the front door with a conversation named in the hash: that one,
@@ -1237,7 +1318,7 @@
           lastAsked = one.n;
           lastWords = one.words || null;
           pending = one.stage === "working" ? one.n : null;
-          if (one.stage === "failed" && one.error) turn("assistant", one.error, "bad");
+          if (one.stage === "failed" && one.error) failed(turn("assistant", "", ""), one.error);
         } else if (one.said) {
           var li = turn("assistant", one.said, "", lastWords);
           playButton(li, id, lastAsked);
@@ -1300,7 +1381,7 @@
 
   function suggest() {
     if (busy) return;
-    if (!usable) return tell(CANNOT_ANSWER);
+    if (!usable) return tell(CANNOT_ANSWER, STILL_OPEN, "yours");
     busy = true;
     send.disabled = true;
     tell("");
@@ -1348,6 +1429,16 @@
     var title = reading && reading.title ? String(reading.title) : "";
     var shown = sentence || title;
     readingLine.hidden = !shown;
+    // In a reader the box asks about the text (design.md §12, "Talk is a sheet over a
+    // dimmed page", 2026-10-09, board ChatDesk), in the conversation's language.
+    if (shown && field) {
+      var named = (window.TARGUM_LANGUAGES || {})[listedIn || spoken()];
+      if (named) {
+        field.placeholder = t("chat.ask-about-the-text", "Ask about the text, or write in {language}", {
+          language: named,
+        });
+      }
+    }
     if (readingText) readingText.textContent = shown.length > 90 ? shown.slice(0, 88) + "…" : shown;
     if (readingAsk) {
       readingAsk.textContent = sentence
@@ -1387,6 +1478,19 @@
           if (asked) say(asked);
         });
       }
+      // The drawer was pressed open: the box is where the reader is going (QA 2026-10-11).
+      if (data.type === "targum:focus" && field) {
+        // Once the list has loaded too: drawing it can take the focus back to the page.
+        var into = function () {
+          try {
+            field.focus({ preventScroll: true });
+          } catch (e) {
+            field.focus();
+          }
+        };
+        into();
+        Promise.resolve(booted).then(into);
+      }
       if (data.type === "targum:language" && typeof data.code === "string") {
         holder = data.code.split("-")[0];
         // Another language's conversation, once the first list has been drawn; before
@@ -1401,10 +1505,10 @@
 
   function say(text, brought) {
     if (busy || !text) return;
-    if (!usable) return tell(CANNOT_ANSWER);
+    if (!usable) return tell(CANNOT_ANSWER, STILL_OPEN, "yours");
     busy = true;
     send.disabled = true;
-    turn("user", text);
+    var asked = turn("user", text);
     var answer = turn("assistant", "", "working");
     var line = { chat: current, text: text, language: spoken() };
     // The text sent with the line, by its job, so the model knows what it was given.
@@ -1414,17 +1518,28 @@
     if (reading && (reading.sentence || reading.document)) {
       line.about = { document: reading.document, section: reading.section, sentence: reading.sentence, title: reading.title };
     }
+    // Try again sends the same line again, in place of the one that failed.
+    function again() {
+      if (asked.parentNode) asked.parentNode.removeChild(asked);
+      if (answer.parentNode) answer.parentNode.removeChild(answer);
+      say(text, brought);
+    }
     ask("/chat/say", line).then(function (got) {
-      if (got.error) {
-        answer.className = "chat-turn them bad";
-        render(answer.querySelector(".chat-line"), got.error);
-        busy = false;
-        send.disabled = false;
+      busy = false;
+      send.disabled = false;
+      if (got.unreached) {
+        // Said by the banner, whose Try again sends it again; nothing stands in the
+        // thread for an answer that never started.
+        if (answer.parentNode) answer.parentNode.removeChild(answer);
+        if (window.TargumFault) window.TargumFault.unreachable(again);
         return;
       }
+      if (got.error) return failed(answer, got.error, got.fact || got.act ? null : again, got.fact, got.act);
+      busy = true;
+      send.disabled = true;
       var wasNew = !current;
       current = got.chat;
-      follow(got.chat, got.turn, answer);
+      follow(got.chat, got.turn, answer, again);
       if (wasNew) load();
     });
   }
@@ -1435,7 +1550,7 @@
   // what we are doing, and after a long quiet that we are still at it.
   var GIVE_UP_MS = 270 * 1000;
   var QUIET_MS = 20 * 1000;
-  var TOO_LONG = t("chat.too-long", "We took too long to answer that. Try again.");
+  var TOO_LONG = t("chat.too-long", "We took too long to answer that.");
   var LIBRARY = t("chat.doing.library", "We're looking through the library…");
   var QUOTING = t("chat.doing.quote", "We're working out how long it'll take…");
   var DOING = {
@@ -1447,6 +1562,7 @@
     open_library_text: t("chat.doing.open", "We're opening the text…"),
     quote_build: QUOTING,
     quote_conversation: QUOTING,
+    quote_subscription: t("chat.doing.subscription", "We're looking at what it puts out…"),
   };
   // A clock a test can stand in for; the browser's own everywhere else.
   var clock = window.TargumClock || {
@@ -1461,7 +1577,7 @@
     },
   };
 
-  function follow(chat, n, li) {
+  function follow(chat, n, li, again) {
     var line = li.querySelector(".chat-line");
     var text = "";
     var words = null;
@@ -1514,8 +1630,9 @@
         doing = null;
       }
       var was = atBottom();
-      li.className = "chat-turn them" + (kind === "error" ? " bad" : "");
-      render(line, kind === "error" ? payload.message : payload.text || text, words);
+      li.className = "chat-turn them";
+      if (kind === "error") failed(li, payload.message, payload.fact || payload.act ? null : again, payload.fact, payload.act);
+      else render(line, payload.text || text, words);
       keepBottom(was);
       if (kind !== "error") playButton(li, chat, n);
       if (kind !== "error") drawFoot(payload.seconds);

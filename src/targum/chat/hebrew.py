@@ -50,6 +50,14 @@ COMMON = 800
 #: for a list nobody reads; the commonest are the ones a conversation reaches for.
 KNOWN_LIMIT = 1500
 
+#: How many of them a host is handed through `how_to_talk` (2026-10-06). Measured live,
+#: that answer was about 22,000 characters, mostly 1,483 known words and 774 common ones
+#: that overlapped, and a host carries a tool's answer on every turn after it. The
+#: commonest few hundred are the ones a conversation reaches for; past them a host is
+#: paying, every turn, for words it will not write. targum's own chat keeps
+#: `KNOWN_LIMIT`: its prompt is cached and has never been measured as the slow part.
+HOST_KNOWN = 300
+
 #: Words a minute, for turning a typed exchange into the seconds the allowance is kept
 #: in. Three measured numbers disagreed and had to be reconciled before any of them
 #: metered anything: read-aloud literature runs 5,367 words an hour (89 a minute,
@@ -742,6 +750,116 @@ def contract_for(language: str, gloss: str = "English") -> str:
     return text
 
 
+def _loose(phrase: str) -> str:
+    """A phrase as a pattern that matches it however the contract wrapped it.
+
+    `{L}` is the language's name and `{A}` its article, the same in every contract, so
+    one pattern serves all of them; every other word is matched as written.
+    """
+    parts = []
+    for word in phrase.split(" "):
+        if word == "{L}":
+            parts.append(r"(?P<L>\w+)")
+        elif word == "{A}":
+            parts.append(r"an?")
+        else:
+            parts.append(re.escape(word).replace(r"\{L\}", "(?P=L)"))
+    return r"\s+".join(parts)
+
+
+#: The sentences of a contract that say what targum's page does with a "= " line, and
+#: what they say in a conversation a host writes (2026-10-06, design.md §12, "The
+#: connector talks by the contract"). Each is (name, the sentence, what it becomes,
+#: required); `{G}` is the language the reader reads. Required ones are in every
+#: contract, and a test holds each contract to them, so a contract reworded later fails
+#: there rather than handing a host the old sentence beside the new.
+_FOR_CONNECTOR: tuple[tuple[str, str, str, bool], ...] = (
+    (
+        "meaning on request",
+        'Directly under it, on the next line, its {G}, beginning with "= ". '
+        "Never {A} {L} line without its {G} line.",
+        'Its {G} only when the reader asks: on the next line, beginning with "= ", under '
+        "the lines they asked about, or under every line from then on if that is what "
+        "they asked for, until they say otherwise. In your first reply, say once, in one "
+        "short {L} line, that they can ask for the translation at any time, and give its "
+        'meaning on the "= " line at the end of the reply.',
+        True,
+    ),
+    (
+        "new words after the reply",
+        '— each is on its "= " line like every other word —',
+        '— and give their meanings on the one "= " line at the end of the reply —',
+        True,
+    ),
+    (
+        "a meaning line written",
+        'The "= " line under each of your lines is the {G} for the {L} you wrote,',
+        'A "= " line you write is the {G} for the {L} you wrote,',
+        True,
+    ),
+    (
+        "texts offered",
+        "When you offer texts, one {L} line per text with its {G}, and the text's door under it.",
+        "When you offer texts, one {L} line per text, and the text's door under it.",
+        True,
+    ),
+    (
+        "links",
+        "When the reader asks to read a text, its path - exactly as the tool returned "
+        "it - goes on a line of its own between the {L} lines, with nothing else on that "
+        'line and no "= " line under it. The page draws it as a door. Never say a text '
+        "is open when you have not given its path.",
+        "Every link a tool returns goes on a line of its own, exactly as the tool "
+        'returned it, with nothing else on that line and no "= " line under it. Never '
+        "say a text is open when you have not given its link.",
+        True,
+    ),
+    (
+        "the ledger's new words",
+        'its English is on the "= " line like any word.',
+        'its meaning goes on the one "= " line at the end of the reply.',
+        False,
+    ),
+)
+
+
+def _for_connector(text: str, gloss: str = "English") -> tuple[str, list[str]]:
+    """`for_connector`, and the names of the required sentences it did not find."""
+    missed = []
+    for name, sentence, becomes, required in _FOR_CONNECTOR:
+        pattern = _loose(sentence.replace("{G}", gloss))
+
+        def said(found: re.Match[str], becomes: str = becomes) -> str:
+            named = found.groupdict().get("L") or ""
+            return becomes.replace("{G}", gloss).replace("{L}", named)
+
+        text, count = re.subn(pattern, said, text)
+        if required and not count:
+            missed.append(name)
+    return text, missed
+
+
+def for_connector(text: str, gloss: str = "English") -> str:
+    """A contract, and the ledger block under it, as a host is handed them.
+
+    The host writes the replies and no page of ours draws them, so the meaning lines
+    are written when the reader asks rather than folded under every line, and a link is
+    a link rather than a door the page draws. Until 2026-10-06 that was a note on top of
+    the contract saying it overrode one sentence below — and the connector eval's host
+    kept to the sentence below, writing an English line under every Hebrew one. Now the
+    sentences themselves say it, so the contract a host reads says one thing. targum's
+    own chat is handed `contract_for` untouched.
+    """
+    said, missed = _for_connector(text, gloss)
+    if missed:
+        # A contract reworded without its rewrite: the host gets both, as before this
+        # existed, rather than no contract. `test_chat_hebrew` fails on it first.
+        import logging
+
+        logging.getLogger(__name__).warning("for_connector: not found: %s", ", ".join(missed))
+    return said
+
+
 @dataclass(frozen=True)
 class Pair:
     hebrew: str
@@ -883,6 +1001,56 @@ def for_host(words: list[str], language: str) -> list[str]:
     return out
 
 
+#: A letter three times running, as in חחחח or אתההה — laughter and stretched words a
+#: reader tapped in a chat transcript. Hardly a Hebrew word spells a letter three times
+#: in a row, and the few other languages' that do are not ones a conversation needs.
+_STRETCHED = re.compile(r"([^\W\d_])\1\1")
+
+#: Laughter in the Latin and Cyrillic scripts: haha, jaja, хаха. Hebrew's is caught by
+#: `_STRETCHED`; a two-letter run repeated is not junk there (גלגל, בלבל).
+_LAUGHTER = re.compile(r"(?:ha|ah|he|ja|xa|ха|хе|ах){2,}h?")
+
+#: Points and cantillation, so a pointed headword and a bare common word are one word.
+_POINTED = re.compile("[\u0591-\u05c7]")
+
+
+def known_for_host(
+    known: list[str], common: list[str], language: str, most: int = HOST_KNOWN
+) -> list[str]:
+    """The reader's known words as a host is handed them: the commonest `most` of them.
+
+    `known` has been through `for_host` already. Left out besides: words stretched or
+    laughed (חחחח, אתההה, haha), which `for_host` lets through because they are letters;
+    and any word in `common`, which the host is handed beside this list anyway. Then
+    ordered by how common the word is in the language (`frequency.rank`, the table the
+    reader's levels come from), with words the table does not rank after the ranked ones
+    in the order they came — newest first — and cut at `most`. Where wordfreq is not
+    installed nothing is ranked, and the cut keeps the newest.
+    """
+    from ..annotate import frequency
+
+    code = (language or "he").split("-")[0].lower()
+    floor = {_POINTED.sub("", word) for word in common}
+    seen: set[str] = set()
+    ranked: list[tuple[int, int, str]] = []
+    unranked: list[str] = []
+    for at, word in enumerate(known):
+        bare = _POINTED.sub("", word)
+        lowered = bare.lower()
+        if bare in floor or bare in seen or _STRETCHED.search(lowered):
+            continue
+        if code not in HEBREW_SCRIPT and _LAUGHTER.fullmatch(lowered):
+            continue
+        seen.add(bare)
+        place = frequency.rank(bare, code)
+        if place is None:
+            unranked.append(word)
+        else:
+            ranked.append((place, at, word))
+    ranked.sort()
+    return [word for _, _, word in ranked][:most] + unranked[: max(0, most - len(ranked))]
+
+
 def length(text: str, language: str = "he") -> int:
     """How many words a reply is, the way a reader meets them: over the model's own lines,
     the "> " recast left out because it is the reader's sentence said back. A Hebrew word
@@ -897,8 +1065,44 @@ _WORD = re.compile(r"[\u05d0-\u05ea][\u05b0-\u05c7\u05d0-\u05ea\u05f3\u05f4\"']*
 _LATIN_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")
 
 
-def common_words(n: int = COMMON, language: str = "he") -> list[str]:
+#: The words of one letter `claimable` keeps, by language.
+ONE_LETTER_WORDS: dict[str, frozenset[str]] = {
+    "ru": frozenset("вияскоуа"),
+    "fr": frozenset({"à", "a", "y"}),
+    "it": frozenset({"è", "e", "a", "o", "i"}),
+}
+
+
+def claimable(word: str, language: str = "he") -> bool:
+    """Whether a word from the common list may be offered as a word the reader may know.
+
+    wordfreq's lists are tokens, not words: near the top of the Hebrew one stand "1",
+    "0", the prefix letters ב and ה on their own, and "the". The claim grid offered them
+    as words a reader might know (David, 2026-10-18), so it is offered only a token of two
+    characters or more, not all digits, with a letter of the language's own script in it.
+    Except the languages' own one-letter words, which are among the first a beginner
+    meets and so worth marking (David, 2026-10-18): Russian's в and и, French's à,
+    Italian's è. Hebrew has none; its lone letters are prefixes.
+    """
+    form = word.strip()
+    code = (language or "he").split("-")[0].lower()
+    if form.lower() in ONE_LETTER_WORDS.get(code, frozenset()):
+        return True
+    if len(form) < 2 or form.isdigit():
+        return False
+    if code in HEBREW_SCRIPT:
+        return any("\u05d0" <= ch <= "\u05ea" for ch in form)
+    if code in CYRILLIC_SCRIPT:
+        return any("\u0400" <= ch <= "\u04ff" for ch in form)
+    return any(ch.isalpha() and (ch.isascii() or "\u00c0" <= ch <= "\u024f") for ch in form)
+
+
+def common_words(n: int = COMMON, language: str = "he", *, claim: bool = False) -> list[str]:
     """The commonest words of the language at bands 1 and 2, most common first.
+
+    With `claim`, only the ones `claimable` lets through, cut at `n` after they are left
+    out: the list "Words you may already know" is drawn from (`/words/common`). The
+    other callers measure against the list as wordfreq has it, and keep it so.
 
     From wordfreq, the same table the reader's bands come from, so "common" here means
     the same thing it means on their word cards. Empty where the `difficulty` extra is
@@ -912,9 +1116,11 @@ def common_words(n: int = COMMON, language: str = "he") -> list[str]:
     (targum-internal#228). A missing list is a fact about wordfreq, not about the reader.
     """
     try:
-        from wordfreq import available_languages, top_n_list, zipf_frequency
+        from wordfreq import top_n_list, zipf_frequency
     except ImportError:
         return []
+    from ..annotate.frequency import languages as available_languages
+
     code = language.split("-")[0].lower()
     # Asked before the list is read, because not every missing language raises: asked for
     # Yiddish, wordfreq answers with its fallback list, which is English, and a Yiddish
@@ -927,6 +1133,7 @@ def common_words(n: int = COMMON, language: str = "he") -> list[str]:
             word
             for word in top_n_list(code, n * 2)
             if zipf_frequency(word, code) >= BAND_FLOOR_ZIPF
+            and (not claim or claimable(word, code))
         ][:n]
     except LookupError:
         return []
@@ -1074,8 +1281,19 @@ def ledger_block(
     returning: Returning | None = None,
     rules: list[str] | None = None,
     shared: bool = True,
+    known_of: int | None = None,
+    finder: str = "suggest_next",
 ) -> str:
     """The per-reader block: the ledger, then the word lists, then what comes back.
+
+    `finder` is the tool the first-day line sends a model to for a text to start with:
+    `suggest_next` in targum's own chat, `find_text` over the connector, where the three
+    finding tools are one (design.md §12, 2026-10-06). A host told to call a tool it was
+    never listed says it cannot.
+
+    `known_of` is how many words the reader has marked known, where `known` is only a
+    sample of them (`known_for_host`, the connector's). The line then says what the
+    sample is, so a host is not told a reader with 1,483 words knows 300.
 
     `shared` is False for a connector that was not granted the reader's record. Then
     there is no ledger to describe, and the first-day branch would be false: a reader
@@ -1099,8 +1317,19 @@ def ledger_block(
             )
         return "\n\n".join(parts)
     parts = [describe(level)]
-    if known:
+    if known and known_of and known_of > len(known):
+        parts.append(
+            f"A sample of the reader's known words, the commonest {len(known)} of the "
+            f"{known_of:,} they have marked known, leaving out any in the common list "
+            "below: " + " ".join(known)
+        )
+    elif known:
         parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))
+    elif known_of:
+        parts.append(
+            f"The reader has marked {known_of:,} words known, and every one is in the "
+            "common list below."
+        )
     else:
         # Nobody has a ledger on their first day. Words are marked while reading, so
         # the way to a ledger is a text, and the first question is the one the research
@@ -1112,7 +1341,7 @@ def ledger_block(
             "The reader has marked no words known yet. Stand on the commonest of the common "
             "words, keep every sentence short, and in your first reply ask what they have "
             f"read in {named} so far - never what level they are - and offer them one short "
-            f"{named} text to start with (suggest_next), because words are marked while "
+            f"{named} text to start with ({finder}), because words are marked while "
             f"reading and that is how their ledger begins. If they say they already read "
             f"{named}, tell them once that Learn has a list called Words you may already "
             "know, where marking the common words they know lets you write with them."

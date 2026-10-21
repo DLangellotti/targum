@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("subs.page.title", "Subscription — targum") }}</title>
+{% include '_icons.html.j2' %}
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'library.css', 'you.css', 'subs.css') }}
+{{ hebrew_face() }}
+{{ script('keep.js') }}
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+<body class="subs-page">
+{#- One subscription (design.md §12, "A subscription is the account's", 2026-10-09; board
+    SubDetail; "A subscription's page is two columns", 2026-10-09). One row of Your targums'
+    Subscriptions tab, opened: the nav lights Your targums, and the page wears no tabs —
+    "‹ Subscriptions" is the way back. -#}
+{% set here = 'texts' %}{% set title = '' %}
+{% include '_nav.html.j2' %}
+{{ script('building.js') }}
+
+<main>
+  <section class="panel" id="stranger" hidden>
+    <p class="note">{{ t("subs.page.sign-in", "Sign in to see your subscriptions.") }}</p>
+  </section>
+  <section class="panel" id="gone" hidden>
+    <p class="note">{{ t("subs.page.gone", "We couldn't find that subscription. Your others are under Subscriptions.") }}</p>
+  </section>
+  {#- Drawn by `subs.js` from `/subscriptions/<id>.json`: the head with Pause and
+      Unsubscribe, what it brought newest first, what was out before, and the cap. -#}
+  <section class="sub-one" id="sub-one" hidden aria-labelledby="sub-name">
+    <a class="sub-back" id="sub-back" href="/?show=subscriptions">{{ t("subs.page.back", "Subscriptions") }}</a>
+    <div id="sub-body"></div>
+    <p class="said" id="sub-said" role="status" hidden></p>
+  </section>
+</main>
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+{{ script('strings.js') }}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('subs.js') }}
+</body>
+</html>

@@ -66,7 +66,7 @@ def test_the_budget_still_refuses_after_a_restart(tmp_path: Path) -> None:
     )
     blocked = second.claim(job(second, 4.0, id="j2"))
     assert blocked, "the second build should not fit in what is left"
-    assert "at once" in blocked or "our limit" in blocked
+    assert "in one day" in blocked or "our limit" in blocked
 
 
 def test_a_failed_build_gives_its_money_back(tmp_path: Path) -> None:
@@ -269,7 +269,7 @@ def test_a_hosted_box_without_ytdlp_does_not_tell_the_reader_to_install_it(
         failed = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
         box.prepare(failed)
         assert failed.stage == "failed"
-        assert "can't fetch from YouTube" in failed.error
+        assert "can't bring in YouTube" in failed.error
         assert ("install yt-dlp" in failed.error) is install, failed.error
 
 
@@ -458,3 +458,155 @@ def test_an_admin_buying_a_chapter_is_never_in_the_way(tmp_path: Path) -> None:
     lib.claim(job(lib, 50.0, id="a", owner=boss, admin=True))
 
     assert lib.already_over(job(lib, 0.0, id="ch", owner=boss, admin=True)) == ""
+
+
+DAY_MS = 24 * 60 * 60 * 1000
+
+
+def test_a_restart_holds_a_day_of_history_and_reads_the_rest_back(tmp_path: Path) -> None:
+    """targum-internal#231: the table is the record and the process holds a window. Two
+    thousand settled jobs from last month cost a restart nothing, and any one of them
+    still answers by its id, as `/job/<id>` always has."""
+    lib, store = library(tmp_path)
+    for n in range(2000):
+        old = Job(id=f"old{n}", source="x", estimate=0.0, kind="chat" if n % 2 else "build")
+        old.made = now() - 30 * DAY_MS
+        old.stage = "done"
+        lib.remember(old)
+    fresh = job(lib, 0.1)
+    fresh.stage = "done"
+    lib.remember(fresh)
+    stuck = Job(id="stuck", source="x", estimate=0.0)
+    stuck.made = now() - 30 * DAY_MS
+    stuck.stage = "ready"  # a quote nobody has pressed yet
+    lib.remember(stuck)
+
+    after = Library(
+        tmp_path / "out", max_cost=10.0, budget=10.0, store=Store(tmp_path / "targum.db")
+    )
+    assert len(after.jobs) == 2, "only the day's job and the unpressed quote are held"
+    assert "old7" not in after.jobs
+    assert after.jobs["old7"].stage == "done", "and an old one still answers"
+    assert after.jobs.get("old7") is after.jobs.get("old7"), "read back once, then held"
+    assert after.jobs.get("nothing") is None
+    with pytest.raises(KeyError):
+        after.jobs["nothing"]
+
+
+def test_a_settled_job_stops_being_held_and_a_running_one_never_does(tmp_path: Path) -> None:
+    lib, _ = library(tmp_path)
+    settled = job(lib, 0.1, id="settled")
+    settled.stage, settled.made = "failed", now() - 2 * DAY_MS
+    working = job(lib, 0.1, id="working")
+    working.stage, working.made = "working", now() - 2 * DAY_MS
+    lib.remember(settled)
+    lib.remember(working)
+    settled.finished = now() - 2 * DAY_MS  # it ended long ago, as well as began
+
+    assert lib.jobs.sweep(now() - lib.jobs.HELD_MS) == 1
+    assert working.id in lib.jobs, "a worker is writing to it"
+    assert settled.id not in lib.jobs
+    assert lib.jobs[settled.id].stage == "failed", "still on disk, still answering"
+
+
+def test_held_jobs_are_swept_as_new_ones_arrive(tmp_path: Path, monkeypatch) -> None:
+    """The sweep rides on adding a job, every `SWEEP_EVERY`, so a long-lived process stays
+    flat however many turns it takes."""
+    from targum.serve import Jobs
+
+    monkeypatch.setattr(Jobs, "SWEEP_EVERY", 10)
+    lib, _ = library(tmp_path)
+    after = Library(tmp_path / "out", max_cost=10.0, budget=10.0, store=lib.store)
+    for n in range(95):
+        turn = Job(id=f"t{n}", source="x", estimate=0.0, kind="chat")
+        turn.stage, turn.made = "done", now() - 2 * DAY_MS
+        after.jobs[turn.id] = turn
+    assert len(after.jobs) < 10, "never more than one sweep's worth held"
+
+
+def test_a_done_build_still_finishing_is_not_let_go(tmp_path: Path) -> None:
+    """Review, 2026-10-08: a build says "done" when its reader is up and its worker goes
+    on looking up meanings. Pressed a day after its quote, `made` is old; `finished` is
+    not, and it is held until both are."""
+    lib, _ = library(tmp_path)
+    late = job(lib, 0.1, id="late")
+    late.made = now() - 2 * DAY_MS
+    late.stage = "done"
+    lib.remember(late)
+    assert late.finished > now() - DAY_MS, "stamped as it settled, just now"
+    assert lib.jobs.sweep(now() - lib.jobs.HELD_MS) == 0
+    assert lib.jobs.get("late") is late, "the worker's own object, not a second one"
+
+
+def test_a_quote_pressed_after_a_restart_is_charged_what_it_was_priced_at(
+    tmp_path: Path,
+) -> None:
+    """A recording quoted before a restart and pressed after it was charged no credits
+    and built anyway: `audio` and `seconds` lived only in memory, so the job read back
+    came with neither, `claim` held it to no hours, and the model was paid for a build
+    nobody was charged for (2026-10-09)."""
+    first, _ = library(tmp_path)
+    quoted = job(
+        first,
+        0.5,
+        stage="ready",
+        audio=True,
+        seconds=1800.0,
+        parts=3,
+        transcription=0.18,
+        reading=0.02,
+    )
+    first.remember(quoted)
+
+    # The deploy restarts the box between the quote and the press.
+    after, store = library(tmp_path)
+    recovered = after.jobs[quoted.id]
+    assert (recovered.audio, recovered.seconds) == (True, 1800.0)
+    assert (recovered.parts, recovered.transcription, recovered.reading) == (3, 0.18, 0.02)
+    assert after.press(recovered) == ""
+    assert store.hours_used(None, 0) == 1800.0, "a quote pressed after a restart was free"
+
+    # A job no longer held, read back by id as a press from an old card reads it, is
+    # priced the same way.
+    from_disk = after._job_from_store(quoted.id)
+    assert from_disk is not None and (from_disk.audio, from_disk.seconds) == (True, 1800.0)
+
+
+def test_a_database_from_before_the_price_columns_gains_them(tmp_path: Path) -> None:
+    import sqlite3
+
+    from targum.accounts import SCHEMA_VERSION
+
+    path = tmp_path / "old.db"
+    Store(path).save_job({"id": "old", "owner": None, "home": "/tmp", "source": "x"})
+    raw = sqlite3.connect(path)
+    raw.executescript(
+        "ALTER TABLE job DROP COLUMN audio; ALTER TABLE job DROP COLUMN seconds;"
+        "ALTER TABLE job DROP COLUMN parts; ALTER TABLE job DROP COLUMN transcription;"
+        "ALTER TABLE job DROP COLUMN reading; PRAGMA user_version = 44;"
+    )
+    raw.close()
+    store = Store(path)
+    columns = {row["name"] for row in store.db.execute("PRAGMA table_info(job)")}
+    assert {"audio", "seconds", "parts", "transcription", "reading"} <= columns
+    assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    old = store.job("old")
+    assert old is not None and (old["audio"], old["seconds"]) == (0, 0.0)
+
+
+def test_a_text_missing_from_the_shelf_names_no_path_and_offers_no_paste() -> None:
+    """QA 2026-10-11: pressing a Library dialogue whose file was missing on the machine
+    said "There is no dialogue called … Looked in /Users/…/targum-out/dialogues" on the
+    card; as an operator's refusal it then said "paste its text here", on a card with
+    nowhere to paste. A hosted box says the shelf's own sentence, in the reader's
+    language; a laptop keeps the detail for its operator."""
+    from targum.dialogue import index
+    from targum.errors import OffHere
+    from targum.serve import told
+
+    with pytest.raises(OffHere) as raised:
+        index.load("no-such-dialogue-at-all")
+    hosted = told("en", raised.value, hosted=True)
+    assert hosted == "We can't open this one right now. Try another text."
+    assert "/" not in told("ru", raised.value, hosted=True)
+    assert "Looked in" in told("en", raised.value, hosted=False)

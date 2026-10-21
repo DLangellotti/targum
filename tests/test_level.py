@@ -184,6 +184,18 @@ def test_known_share_counts_a_known_word_with_or_without_its_prefix() -> None:
     assert level.known_share("hello " * 40, {"שלום"}) is None, "no Hebrew, nothing measured"
 
 
+def test_known_share_reads_russian_as_words_when_asked_to() -> None:
+    """2026-10-06: Russian publishers' items are measured in Russian, where the Hebrew
+    rule finds no token and answers "not measured"."""
+    text = " ".join(["Ёлка стояла в парке, и дети пели"] * 4)  # 28 tokens
+    forms = {"елка", "парке", "дети", "в"}
+    assert level.known_share(text, forms) is None, "the Hebrew rule, as before"
+    share = level.known_share(text, forms, "ru")
+    # Ёлка (ё read as е, case folded), в, парке, дети count; стояла, и, пели do not.
+    assert share is not None and abs(share - 4 / 7) < 1e-9
+    assert level.known_share("дети в парке", forms, "ru") is None, "too short to say"
+
+
 def test_known_share_answers_a_page_inside_its_budget() -> None:
     """targum-internal#244, acceptance criterion 2: `known_share` on a 500-word page runs
     under 50 ms.

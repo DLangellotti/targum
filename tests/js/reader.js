@@ -26,6 +26,9 @@ const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 const language = payload.language || "he";
 
 install({
+  // The verse rows a portion's page holds, by their `id`, for the finish carried over
+  // from its book's own reader (targum-internal#446).
+  selectors: { ".pair.verse[id]": (payload.verseIds || []).map((id) => ({ id })) },
   innerWidth: payload.window.width,
   innerHeight: payload.window.height,
   // What you have already said about words in this language, as the browser would have
@@ -60,6 +63,8 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   ...(payload.tensesApart ? { tensesApart: true } : {}),
   ...(payload.stands ? { stands: payload.stands } : {}),
   sourceRegister: payload.sourceRegister || "",
+  // A token's band by its third field, as the builder ships them: `{ "1": "easy" }`.
+  ...(payload.levelNames ? { levelNames: payload.levelNames } : {}),
   document: "a-chapter",
   // Which part of the document this file is, and how many there are. A targum finishes
   // at the end of a chapter (targum-internal#173), so a test about the Done button is a
@@ -67,6 +72,8 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   // which is what every page built before this said.
   ...(payload.section ? { section: payload.section } : {}),
   ...(payload.sections ? { sections: payload.sections } : {}),
+  // The book a portion was cut from (targum-internal#446).
+  ...(payload.carriesFrom ? { carriesFrom: payload.carriesFrom } : {}),
   // The renderings this section carries, as the builder ships them: `{ t0: { text,
   // coarse, language, direction }, ... }`.
   ...(payload.translations ? { translations: payload.translations } : {}),
@@ -135,9 +142,6 @@ byId.first = Object.assign(element("p"), {
 
 // The page loads this first and the reader leans on it: the level names it announces
 // and the steps the card draws are both `TargumVocab.STEPS`.
-// And the ledger's arithmetic before either, as the template ships it: the foot of a
-// finished section counts the longest run of days through `TargumCharts`.
-require(path.join(assets, "charts.js"));
 require(path.join(assets, "vocab.js"));
 /* targum's own server, where a test gives it an answer (`ask`): the page is then one
  * served with a key, and `/known-ahead` answers with what the test said — a JSON body, or
@@ -297,7 +301,7 @@ process.stdout.write(
       tally: reader.finishedCount(),
       language:
         (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).language || "",
-      button: byId["done-mark"].textContent,
+      button: byId["done-go"].textContent,
       // Whether the ink block of a finish is up, which holds the Undo.
       shown: !byId.finished.hidden,
       said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
@@ -343,7 +347,9 @@ process.stdout.write(
     // What a French noun's ending says: [grammar line, "f:tion"].
     endingLines: (payload.endingLines || []).map((ask) => reader.endingLine(...ask)),
     // A split word's pieces, as the card says them in the page's language.
-    builts: (payload.builtLines || []).map((line) => reader.builtIn(line)),
+    builts: (payload.builtLines || []).map((line) =>
+      typeof line === "string" ? reader.builtIn(line) : reader.builtIn(...line),
+    ),
     // The tag an ask sends, which stays English on any page.
     tags: (payload.tagLines || []).map((line) => reader.tagOf(line)),
     // Whether a grammar line's forms are shown and asked about.
@@ -367,8 +373,11 @@ process.stdout.write(
       : null,
     // The first-time line under the bar, after everything above.
     first: { hidden: Boolean(byId.first.hidden), text: byId.first.textContent },
+    // What the page says you know of this text: the bar's "N of M known" and the list's
+    // share. Marked words only (design.md §12, "Known means marked", 2026-10-11).
+    counted: { bar: byId.known.textContent, list: byId["list-stats"].textContent },
     // The foot's one block (design.md §12, "The foot is one block"): what the press says,
-    // the quiet way under it, and whether the ink block of a finish is up.
+    // the quiet press under it that marks the rest, and whether the ink block of a finish is up.
     foot: reader.footSays(),
     // Every word list in the browser, by language, after every level above was said.
     stores: Object.fromEntries(

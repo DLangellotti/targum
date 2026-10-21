@@ -8,6 +8,7 @@ never serve a stale artifact against new code.
 from __future__ import annotations
 
 import json
+import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, TypeVar
@@ -26,6 +27,41 @@ SCHEMA_VERSION = 4
 #: form both — it goes to the model as the form to gloss, so the model knows which word
 #: the spelling is — and never a display string: the card shows the lemma.
 VERB_MARK = " (verb)"
+
+#: The few unpointed spellings that stand for a grammatical word and another word on
+#: nearly every modern page, filed by part of speech the way a verb is (known issues
+#: 1.21, 2026-10-13). עם is "with" and "people", את the object marker and "you", אל "to",
+#: "God" and "don't", עד "until" and "witness", תחת "under" and "bottom". Filed under one
+#: key, the card on the commonest of them said the wrong one: "with" read "people;
+#: nation" on 96 of the shelf's modern texts. A closed list, because a mark on every
+#: preposition would buy every preposition's meaning again for nothing.
+SPLIT_BY_POS = frozenset({"עם", "את", "אל", "עד", "תחת"})
+POS_MARKS = {
+    "ADP": " (preposition)",
+    "NOUN": " (noun)",
+    "PRON": " (pronoun)",
+    "ADV": " (adverb)",
+}
+#: Every mark a meaning's key can carry after the form.
+MARKS = (VERB_MARK, *POS_MARKS.values())
+
+#: What a pointed headword carries when the lexicon points more than one word alike:
+#: `אֵת (H854)`, "with", beside `אֵת (H853)`, the object marker (`oshb.filed_as`). A key
+#: like `VERB_MARK`, and one a model asked for the meaning can read: it names the entry.
+NUMBER_MARK = " (H{})"
+_NUMBERED = re.compile(r" \(H(\d+)\)$")
+
+
+def shown(headword: str) -> str:
+    """A headword as a reader is shown it: without the number it is filed under."""
+    return _NUMBERED.sub("", headword)
+
+
+def numbered(form: str) -> str:
+    """The Strong's number a form is filed under, or "" where it carries none."""
+    found = _NUMBERED.search(form)
+    return found.group(1) if found else ""
+
 
 # BCP-47 primary subtags written right to left.
 RTL_LANGUAGES = frozenset({"he", "iw", "ar", "fa", "ur", "yi", "ji", "arc", "dv", "ps", "sd", "ug"})
@@ -261,6 +297,29 @@ class SegmentedDocument(Artifact):
         return direction_for(self.language)
 
 
+class Syntax(BaseModel):
+    """Which word a word hangs off, and how, as DICTA's syntax head read it.
+
+    `head` is the index of the governing word in the same segment's token list, and -1
+    for the root or for a head that was not kept (punctuation is never a token).
+    `relation` is DICTA's label for the link: `compound:smixut` on the governed noun of a
+    construct chain, `nummod`, `det`, and the rest of Universal Dependencies.
+    `prefixes` are DICTA's tags for what is glued to the front (DET, ADP, CCONJ, SCONJ),
+    and `lead` is how many letters those take up.
+
+    Kept because DICTA marks the construct state nowhere else. Its morphology never
+    emits `Definite`, so until this was stored no annotation could say that a word heads
+    a chain, and the scene gate re-read every scene with the local model to find out
+    (targum-internal#134). Not on the page: the reader is sent `feats`, which now carries
+    `Definite=Cons` on the head of a chain.
+    """
+
+    head: int
+    relation: str
+    prefixes: tuple[str, ...] = ()
+    lead: int = 0
+
+
 class Token(Artifact):
     """One word of the source, with what makes it hard.
 
@@ -341,11 +400,16 @@ class Token(Artifact):
     # only the page knows which segment comes before; it places them (targum-internal#264).
     # Only the model's French reading says it, from prompt 3; absent everywhere else.
     stands_for: tuple[int, str] | None = None
+    # How this word is governed, as DICTA's syntax head said: see `Syntax`. Only DICTA
+    # reads syntax; absent everywhere else, and on annotations written before it was
+    # kept (targum-internal#134, annotator `…+smixut`).
+    syntax: Syntax | None = None
 
     @property
     def glossed_as(self) -> str:
         """The form a meaning is bought and filed under: the headword where two words
-        share a spelling, the lemma with `VERB_MARK` on a verb, the lemma everywhere else.
+        share a spelling, the lemma with `VERB_MARK` on a verb, a `SPLIT_BY_POS` spelling
+        with its part of speech, the lemma everywhere else.
 
         The mark, since 2026-09-08. DICTA names many verbs by their present participle,
         and in modern Hebrew a participle is a noun as often as not: מְשַׁנּוֹת, "are
@@ -362,6 +426,8 @@ class Token(Artifact):
             return self.headword
         if self.pos == "VERB":
             return self.lemma + VERB_MARK
+        if self.lemma in SPLIT_BY_POS and self.pos in POS_MARKS:
+            return self.lemma + POS_MARKS[self.pos]
         return self.lemma
 
     @property

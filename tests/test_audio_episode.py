@@ -352,7 +352,7 @@ def test_a_spotify_address_is_refused_with_somewhere_to_go() -> None:
     minute titled as the episode has been lied to."""
     from targum.errors import UnsupportedSource
 
-    with pytest.raises(UnsupportedSource, match="Spotify keeps its audio"):
+    with pytest.raises(UnsupportedSource, match="Spotify doesn't let us bring in its audio"):
         find("https://open.spotify.com/episode/3HauBQw2qdSdB3VkBjUJfn")
 
 

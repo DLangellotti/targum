@@ -35,15 +35,19 @@ from targum.render.builder import (
     LISTS,
     about_page,
     add_page,
+    carried,
     chat_page,
     holding_page,
-    learn_page,
     library_page,
     list_page,
     not_found_page,
     playlists_page,
     progress_page,
+    saved_page,
     signin_page,
+    subscription_page,
+    tanakh_map_page,
+    welcome_page,
     you_page,
 )
 
@@ -59,11 +63,16 @@ def pages() -> dict[str, str]:
     built = {
         "add": add_page(TOKEN),
         "chat": chat_page(TOKEN),
-        "learn": learn_page(TOKEN),
+        "welcome": welcome_page(TOKEN),
         "library": library_page(TOKEN),
         "playlists": playlists_page(TOKEN),
+        "subscription": subscription_page(TOKEN),
         "progress": progress_page(TOKEN),
+        "tanakh": tanakh_map_page(TOKEN),
         "you": you_page(TOKEN),
+        "saved": saved_page(TOKEN),
+        # The 404 is a desk page with the top bar since 2026-10-09 (design.md §12).
+        "missing": not_found_page(TOKEN),
     }
     built.update({f"words:{which}": list_page(TOKEN, which) for which in LISTS})
     return built
@@ -97,7 +106,7 @@ def test_a_page_runs_its_scripts_without_throwing(browser, tmp_path: Path, name:
     at all, not even the line telling somebody where to sign in.
     """
     page_file = tmp_path / f"{name.replace(':', '-')}.html"
-    page_file.write_text(pages()[name], encoding="utf-8")
+    page_file.write_text(carried(pages()[name]), encoding="utf-8")
 
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     open_page = context.new_page()
@@ -119,7 +128,7 @@ def test_the_add_page_wires_its_button(browser, tmp_path: Path) -> None:
     the button a reader presses does nothing at all — no upload, no pasted text, no link.
     """
     page_file = tmp_path / "add.html"
-    page_file.write_text(add_page(TOKEN), encoding="utf-8")
+    page_file.write_text(carried(add_page(TOKEN)), encoding="utf-8")
 
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     open_page = context.new_page()
@@ -203,6 +212,38 @@ def _add_served(browser, asked: list[dict]):
     open_page.route("http://add.test/**", answer)
     open_page.goto("http://add.test/add")
     return context, open_page
+
+
+def test_with_nothing_new_to_make_the_line_under_the_box_does_not_say_press_upload(
+    browser,
+) -> None:
+    """QA 2026-10-11: on a box that can make nothing new, Upload is drawn disabled under
+    a banner that says so, and the line under the field still said "Press Upload and
+    we'll look for it" and "We'll work out how long it'll take". It says what still
+    works now; the banner says what doesn't, once (QA 2026-10-20, targum-internal#466)."""
+    html = add_page(TOKEN, no_key="We can't get anything new ready right now.")
+
+    def answer(route, request):
+        if request.url.endswith("/add"):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.route("http://add.test/**", answer)
+    page.goto("http://add.test/add")
+    said = []
+    for typed in ("https://www.youtube.com/watch?v=abc", "I want something about cooking"):
+        page.fill("#given", typed)
+        page.wait_for_timeout(250)
+        said.append(page.locator("#understood").inner_text())
+    disabled = page.locator("#go").is_disabled()
+    context.close()
+    assert disabled
+    for line in said:
+        assert "Press Upload" not in line and "work out how long" not in line, said
+        assert line == "Everything you have still opens.", said
 
 
 def test_a_link_in_the_box_is_priced_as_a_link(browser) -> None:
@@ -358,40 +399,34 @@ def test_the_wrong_script_names_the_language_chosen(browser) -> None:
 
     assert said == (
         "You're adding Russian, and this isn't in Cyrillic letters. "
-        "Choose its language under Change."
+        "Choose the language it's in beside Upload."
     ), said
 
 
 def test_a_description_is_never_priced(browser) -> None:
     """A sentence about what the reader wants is a request, not a text: Continue sends
-    nothing to `/prepare`, and Ask targum — a turn of conversation, the reader's own
-    press — is offered where the talk drawer is on the page."""
+    nothing to `/prepare`. Ask targum is gone with the board (2026-10-09); a description
+    typed anyway is still looked for in place."""
     asked: list[dict] = []
     context, open_page = _add_served(browser, asked)
     open_page.fill("#given", "a short podcast about why flats in Tel Aviv cost so much")
     said = open_page.text_content("#understood")
-    offered = open_page.is_visible("#ask-targum")
     open_page.click("#go")
     open_page.wait_for_timeout(400)
     context.close()
 
     assert said and "what you want to read" in said, said
-    assert offered, "Ask targum is offered for a description"
     assert asked == [], "a description never reaches /prepare"
 
 
 def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -> None:
-    """A text carries a scene label, a chip, a Hebrew title and an English one. At 390px
-    the chip takes a line of its own under the Hebrew, and the Hebrew title never breaks
-    across lines — a title in two pieces reads as two titles.
-
-    Measured on the card, which is what the page opens in since 2026-09-17 (design.md
-    §12) and so what a phone actually shows. It measured the table's row until then, and
-    the row is still there behind List view; what this is really pinning is the phone,
-    and the phone gets cards.
+    """A text carries a chip, a Hebrew title and an English one. At 390px the Hebrew
+    title never breaks across lines — a title in two pieces reads as two titles — and the
+    row of See all keeps its picture, its title and how much is known inside the phone
+    (board SeeAllPhone; design.md §12, "The Library stands on the ground", 2026-10-09).
     """
     page_file = tmp_path / "library.html"
-    page_file.write_text(library_page(TOKEN), encoding="utf-8")
+    page_file.write_text(carried(library_page(TOKEN)), encoding="utf-8")
 
     shared = [
         {
@@ -435,21 +470,26 @@ def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -
             body=json.dumps({"readers": [], "shared": shared, "trash": [], "covers": False}),
         ),
     )
-    open_page.goto("http://targum.test/library")
+    # The list, which is behind See all since the Library landed on its shelves
+    # (design.md §12, 2026-10-09): sent to the scene, as Learn's links were, so its
+    # shelf is open and the card is in the list.
+    open_page.goto("http://targum.test/library#scene-01-nice-to-meet-you")
     open_page.wait_for_timeout(500)
     measured = open_page.evaluate(
         """() => {
           const row = document.querySelector('[data-row="scene-01-nice-to-meet-you"]');
           if (!row) return { missing: true };
-          const bdi = row.querySelector('.card-title');
+          const bdi = row.querySelector('.row-name');
           const chip = row.querySelector('.row-next');
+          const known = row.querySelector('.see-known');
           if (!bdi) return { missing: true };
           const b = bdi.getBoundingClientRect();
-          const c = chip ? chip.getBoundingClientRect() : null;
+          const k = known.getBoundingClientRect();
           return {
             titleLines: bdi.getClientRects().length,
-            chipBelow: c ? c.top >= b.bottom - 1 : null,
             chipText: chip ? chip.textContent : "",
+            knownInside: k.right <= 390 && k.width > 0,
+            titleInside: b.right <= 390,
             width: document.documentElement.scrollWidth,
           };
         }"""
@@ -459,7 +499,7 @@ def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -
     assert not measured.get("missing"), "the shared scene has a card"
     assert measured["titleLines"] == 1, "the Hebrew title never breaks"
     assert measured["chipText"] == "Start here"
-    assert measured["chipBelow"] is True, "the chip sits on its own line under the title"
+    assert measured["knownInside"] and measured["titleInside"], measured
     assert measured["width"] <= 390, "and the page does not scroll sideways"
 
 
@@ -472,8 +512,8 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     under the name, and before that indented under it with Upload cut off at the edge:
     a cascade bug is invisible in the file and obvious on a phone, which is why this is
     measured rather than read."""
-    page_file = tmp_path / "learn.html"
-    page_file.write_text(learn_page(TOKEN), encoding="utf-8")
+    page_file = tmp_path / "home.html"
+    page_file.write_text(carried(list_page(TOKEN, "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 844})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
@@ -519,12 +559,25 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     phone narrower than that scrolled sideways; the account was squashed into an oval;
     and the language's chevron stood outside its pill, its `::after` taken by the reach
     `reader.css` gives the button on a touch screen (2026-09-14)."""
-    html = learn_page(TOKEN)
+    html = list_page(TOKEN, "texts")
 
     def answer(route, request):
         u = request.url
         if "/account/me" in u:
-            body = {"signedIn": True, "email": "d@x.test", "initials": "DJ", "language": "he"}
+            # The two languages said by the account as well as by this browser, as the
+            # server always says them (2026-10-07, targum-internal#425). Without them
+            # `sync.js` mirrored `me.learning || []` over the init script's two, so the
+            # menu was drawn twice: with two by the nav's own default at load, visible,
+            # and again by Learn once the shelf answered, with one and hidden. Which of
+            # the two the wait below met was a matter of timing, and on a slow runner it
+            # met the second and waited 30 s for a button that never shows.
+            body = {
+                "signedIn": True,
+                "email": "d@x.test",
+                "initials": "DJ",
+                "language": "he",
+                "learning": ["he", "it"],
+            }
         elif request.resource_type == "document":
             route.fulfill(status=200, content_type="text/html", body=html)
             return
@@ -538,11 +591,15 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     page = context.new_page()
     page.add_init_script(
         "localStorage.setItem('targum:learning', JSON.stringify(['he', 'it']));"
-        "localStorage.setItem('targum:language', 'he')"
+        "localStorage.setItem('targum:language', 'he');"
+        "sessionStorage.setItem('targum:arrival-over', '1');"
     )
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
     page.wait_for_selector(".account > button.avatar")
+    # Home's own menu, not the nav's default drawn before it: the waiting line is hidden
+    # once the shelf is drawn, so once it is gone the menu measured is the last one.
+    page.wait_for_selector("#home-waiting", state="hidden")
     page.wait_for_selector(".lang-open")
     page.wait_for_timeout(200)
     got = page.evaluate(
@@ -551,18 +608,39 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
           const pill = open.getBoundingClientRect();
           const chevron = getComputedStyle(open, '::before');
           const account = document.querySelector('.account > button').getBoundingClientRect();
+          // What a thumb reaches: 20px either side of the middle, and above and below.
+          const reaches = (sel) => {
+            const el = document.querySelector(sel);
+            const box = el.getBoundingClientRect();
+            const x = box.left + box.width / 2, y = box.top + box.height / 2;
+            const hit = (dx, dy) => el.contains(document.elementFromPoint(x + dx, y + dy));
+            return hit(-20, 0) && hit(20, 0) && hit(0, -20) && hit(0, 20);
+          };
           return {
+            bell: reaches('.notices > button'), avatar: reaches('.account > button'),
             inner: window.innerWidth, scrollWidth: document.documentElement.scrollWidth,
             chevronDrawn: chevron.content === '""' && chevron.position !== 'absolute',
-            flag: open.querySelector('.lang-flag').getBoundingClientRect().left >= pill.left,
+            flag: !open.querySelector('[class*="flag"]'),
             round: Math.abs(account.width - account.height) <= 1,
+            worn: (open.querySelector('.lang-status') || {}).textContent || '',
+            listed: [...document.querySelectorAll('.lang-panel [role="menuitemradio"]')].map(
+              (item) => [item.getAttribute('data-code'),
+                         (item.querySelector('.lang-status') || {}).textContent || '']),
           };
         }"""
     )
     context.close()
     assert got["inner"] == width and got["scrollWidth"] <= width, f"sideways at {width}px: {got}"
-    assert got["chevronDrawn"] and got["flag"], f"the chevron in its pill: {got}"
+    # No flag since 2026-10-09 (design.md §12, "The boards are the desk"): the name says it.
+    assert got["chevronDrawn"] and got["flag"], f"the chevron in its pill, and no flag: {got}"
     assert got["round"], f"the account is a circle: {got}"
+    # QA 2026-10-11: the bell was 30px wide under a thumb, and the account's reach was
+    # clipped to its circle by `overflow: hidden`.
+    assert got["bell"] and got["avatar"], f"the bell and the account reach 44px: {got}"
+    # How far along each language is, a badge and nothing more (design.md §12, 2026-10-09),
+    # from the one table the test in `test_stages.py` holds to the facts (2026-10-12).
+    assert got["worn"] == "Beta", got
+    assert got["listed"] == [["he", "Beta"], ["it", "Experimental"]], got
 
 
 def _arrival_page(
@@ -572,21 +650,20 @@ def _arrival_page(
     language: str | None = "English",
     locale: str = "ru-RU",
 ):
-    """Learn for a brand-new account on a shelf of three, at a phone's size.
+    """The arrival for a brand-new account on a shelf of three, at a phone's size.
 
-    A brand-new account whose browser gives a sign of Russian is asked which language it
-    reads before anything else (design.md §12, 2026-09-20 and 2026-09-28), so the page
-    handed back is the one after that answer — the subjects — unless `language` is None,
-    which leaves it on the first screen for the test that is about it. The browser says
-    Russian unless `locale` says otherwise; with no sign, nothing is asked and the page
-    starts on the subjects."""
-    html = learn_page(TOKEN)
+    A brand-new account whose browser gives a sign of Russian is asked which language the
+    page speaks before anything else (design.md §12, 2026-09-20 and 2026-09-28), so the
+    page handed back is the one after that answer — which language they are learning —
+    unless `language` is None, which leaves it on the first screen for the test that is
+    about it. With no sign of Russian nothing is asked and the page starts on the three."""
+    html = welcome_page(TOKEN)
     shelf = [
         {
             "name": name, "document": name, "entry": name, "title": title, "language": "he",
-            "register": "modern", "kind": "article", "tags": ["sport"], "difficulty": hard,
-            "sections": 1, "chapters": [], "readyChapters": 0, "built": 1, "opened": 0,
-            "drawn": True,
+            "register": "modern", "kind": "article", "tags": ["sport", "journalism"],
+            "difficulty": hard, "sections": 1, "chapters": [], "readyChapters": 0, "built": 1,
+            "opened": 0, "drawn": True,
         }
         for name, title, hard in (("easy", "קל", 5), ("mid", "בינוני", 20), ("hard", "קשה", 45))
     ]  # fmt: skip
@@ -615,25 +692,17 @@ def _arrival_page(
     )
     page = context.new_page()
     page.route("http://learn.test/**", answer)
-    page.goto(f"http://learn.test/?k={TOKEN}")
-
-    def past_welcome() -> None:
-        # The welcome (2026-09-28) asks nothing; these tests are about what comes after
-        # it, so they go on the way a reader does, with Continue.
-        page.wait_for_selector("#arrival-welcome:not([hidden])")
-        page.locator("#arrival-done").tap()
+    page.goto(f"http://learn.test/welcome?k={TOKEN}")
 
     if not locale.startswith("ru"):
-        past_welcome()
-        page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
-        page.wait_for_timeout(150)
+        page.wait_for_selector("#arrival-learning:not([hidden]) .arrival-lang")
+        page.wait_for_timeout(300)
         return context, page, went
     page.wait_for_selector("#arrival-language:not([hidden]) .arrival-rung")
     if language is not None:
         page.locator("#arrival-tongues .arrival-rung", has_text=language).tap()
-        past_welcome()
-        page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
-    page.wait_for_timeout(150)
+        page.wait_for_selector("#arrival-learning:not([hidden]) .arrival-lang")
+    page.wait_for_timeout(300)
     return context, page, went
 
 
@@ -643,116 +712,153 @@ ARRIVAL_MEASURE = """() => {
     const box = el.getBoundingClientRect();
     return box.width > 0 && box.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   };
-  // In the page itself: the pill at the corner is the chrome's, and is on every page.
-  const filled = [...document.querySelectorAll('main button, main a')].filter((el) => {
+  const filled = [...document.querySelectorAll('button, a')].filter((el) => {
     if (!seen(el)) return false;
     const paint = getComputedStyle(el).backgroundColor;
     return paint === 'rgb(31, 111, 107)';  // the primary, filled (§13)
   });
   const foot = document.querySelector('.arrival-foot').getBoundingClientRect();
-  const doors = [...document.querySelectorAll('.arrival-door')]
+  const cards = [...document.querySelectorAll('.arrival-lang')]
     .map((d) => d.getBoundingClientRect());
   return {
     filled: filled.map((el) => el.id || el.className),
     footInView: foot.top >= 0 && foot.bottom <= window.innerHeight,
     footFixed: getComputedStyle(document.querySelector('.arrival-foot')).position,
-    rows: new Set(doors.map((d) => Math.round(d.top))).size,
-    short: doors.every((d) => d.height >= 43.5),
-    cards: seen(document.querySelector('.learn-cards')),
-    pill: seen(document.querySelector('.talk-cta')),
-    pillClear: (() => {
-      const pill = document.querySelector('.talk-cta').getBoundingClientRect();
-      return [...document.querySelectorAll('.arrival-foot > *')].every((el) => {
-        const box = el.getBoundingClientRect();
-        return box.width === 0 || box.right <= pill.left || box.left >= pill.right;
-      });
-    })(),
+    cards: cards.length,
+    tall: cards.every((d) => d.height >= 43.5),
+    clearOfFoot: cards.every((d) => d.bottom <= foot.top + 1),
+    chrome: ['.site-head', '.talk-cta', '.site-footer']
+      .filter((s) => seen(document.querySelector(s))),
     sideways: document.documentElement.scrollWidth > window.innerWidth,
-    skip: seen(document.getElementById('arrival-skip')),
-    nextOff: document.getElementById('arrival-done').disabled,
+    badges: [...document.querySelectorAll('.arrival-lang .lang-status')].map((b) => b.textContent),
   };
 }"""
 
 
 @pytest.mark.parametrize("width", [320, 375, 412])
 def test_the_arrival_is_the_screen_on_a_phone(browser, width: int) -> None:
-    """targum-internal#334. A new reader's first screen on a phone was nineteen full-width
-    rows with the only filled button on the page below all of them, disabled, and no way
-    past but to answer. It is the screen now: the question, the subjects wrapped as
-    pills, and Next and Skip at the foot of the window where a thumb is.
+    """The FirstRunPhone board (2026-10-09): the six languages a row each, a thumb's
+    height, all above Continue across the foot of the window, and nothing of the chrome —
+    no head, no pill, no foot: there is nowhere to go yet, and the pill covered the press.
 
-    Measured in a browser because none of this is visible in the file — it is a cascade,
-    a fixed foot and a wrap, and the last notes' bugs were all found by opening the page.
-    """
+    Measured in a browser because none of this is visible in the file — it is a cascade
+    and a fixed foot, and the last notes' bugs were all found by opening the page."""
     context, page, _ = _arrival_page(browser, width)
     got = page.evaluate(ARRIVAL_MEASURE)
     context.close()
     assert got["footFixed"] == "fixed" and got["footInView"], got
-    assert got["skip"] and got["nextOff"], "Skip is live from the start; Next waits for three"
-    assert got["filled"] == [], f"nothing filled competes while Next is asleep: {got['filled']}"
-    assert got["rows"] < 19, f"the subjects wrap, they do not stack: {got['rows']} rows"
-    assert got["short"], "and every one of them is a thumb's height"
-    assert not got["cards"], "no other text is drawn while it is up"
-    # §13: the pill is on every page. The foot stops short of it rather than putting it away.
-    assert got["pill"] and got["pillClear"], got
+    assert got["filled"] == ["arrival-done"], f"Continue is the one filled press: {got}"
+    assert got["cards"] == 6 and got["tall"] and got["clearOfFoot"], got
+    # Hebrew keeps its Beta by decision; the rest wear what they have earned (design.md
+    # §12, "A badge is a promise, checked", 2026-10-12).
+    assert got["badges"] == ["Beta"] + ["Experimental"] * 5
+    assert got["chrome"] == [], got
     assert not got["sideways"]
 
 
-def test_the_arrival_leads_into_a_text_in_six_presses(browser) -> None:
-    """A language, three subjects, Next, a rung — and the reader is open, at the rung
-    they named. Not Learn again with a card to find (design.md §12, 2026-09-19; five
-    presses until the language was asked first, 2026-09-20)."""
-    context, page, went = _arrival_page(browser, 375)
-    for label in ("Sport", "History", "Art"):
-        page.locator(".arrival-door", has_text=label).first.tap()
-    # A press fades in over `--in`; measured mid-fade, Next is still transparent.
-    page.wait_for_timeout(400)
-    woke = page.evaluate(ARRIVAL_MEASURE)
-    assert woke["filled"] == ["arrival-done"], (
-        f"three picked, and Next is the one filled press: {woke}"
-    )
+def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
+    """Continue on Hebrew, a subject, Continue, a level, Continue — and the reader is
+    open, at the level they named (design.md §12, 2026-09-19 and 2026-10-09)."""
+    context, page, went = _arrival_page(browser, 375, locale="en-US")
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
+    page.locator(".arrival-door", has_text="News").first.tap()
     page.locator("#arrival-done").tap()
     page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
     second = page.evaluate(
         """() => ({
           step: document.getElementById('arrival-step').textContent,
-          rungs: document.querySelectorAll('#arrival-levels .arrival-rung').length,
-          asked: document.getElementById('arrival-asks-level').getBoundingClientRect().top
-                 >= document.querySelector('.site-head').getBoundingClientRect().bottom - 1,
-          fits: document.querySelector('.arrival-levels').getBoundingClientRect().bottom
-                <= document.querySelector('.arrival-foot').getBoundingClientRect().top + 1
-                || document.documentElement.scrollHeight > window.innerHeight,
+          rungs: [...document.querySelectorAll('#arrival-levels .arrival-rung')]
+            .map((r) => r.textContent),
+          asked: document.getElementById('arrival-asks-level').getBoundingClientRect().top >= 0,
+          asleep: document.getElementById('arrival-done').disabled,
         })"""
     )
-    assert second["step"] == "3 of 3" and second["rungs"] == 8 and second["fits"], second
-    assert second["asked"], "the second question starts at its top, not where the first was left"
-    page.locator(".arrival-rung", has_text="I follow almost anything").tap()
+    assert second["step"] == "3 of 3" and len(second["rungs"]) == 4, second
+    assert second["asked"] and second["asleep"], second
+    page.locator(".arrival-rung", has_text="I’m just starting").tap()
+    page.locator("#arrival-done").tap()
     page.wait_for_timeout(300)
     context.close()
-    assert went and "/reader/hard" in went[-1], f"hey opens the hardest sport text: {went}"
+    assert went and "/reader/easy" in went[-1], f"the letters open the easiest text: {went}"
+
+
+def test_the_phones_back_gesture_steps_back_through_the_arrival(browser) -> None:
+    """Each step of the arrival is an entry in the browser's history (QA 2026-10-11). The
+    back gesture on a phone left /welcome altogether from the second step, and coming
+    forward again started over with every answer gone."""
+    context, page, _ = _arrival_page(browser, 390, locale="en-US")
+    step = "document.body.dataset.step"
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
+    page.locator(".arrival-door", has_text="News").first.tap()
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
+    page.locator(".arrival-rung", has_text="I can read simple things").tap()
+
+    page.go_back()
+    assert page.evaluate(step) == "subjects"
+    news = page.locator(".arrival-door", has_text="News").first
+    assert news.get_attribute("aria-pressed") == "true", "the subject chosen is still chosen"
+    page.go_back()
+    assert page.evaluate(step) == "learning"
+    assert page.url.endswith("/welcome?k=" + TOKEN), "and the page never left"
+
+    page.go_forward()
+    page.go_forward()
+    assert page.evaluate(step) == "level"
+    rung = page.locator(".arrival-rung", has_text="I can read simple things")
+    assert rung.get_attribute("aria-checked") == "true", "the level chosen is still chosen"
+    assert not page.locator("#arrival-done").is_disabled()
+
+    page.locator("#arrival-back-mark").tap()
+    assert page.evaluate(step) == "subjects", "the page's own back walks the same history"
+    page.go_forward()
+    assert page.evaluate(step) == "level"
+
+    # A reload on the last step carries on there: the subjects kept at the second step
+    # read as an arrival answered, and the level was never asked.
+    page.reload()
+    page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
+    assert page.evaluate(step) == "level"
+    context.close()
+
+
+@pytest.mark.parametrize("width", [320, 360, 660, 768, 900])
+def test_the_languages_fit_in_russian(browser, width: int) -> None:
+    """In Russian «Арамейский» and «Экспериментальный» side by side pushed Aramaic's
+    greeting off a 320px phone, and the three columns ran past a 660px window
+    (QA 2026-10-11). The badge folds under the name instead."""
+    context, page, _ = _arrival_page(browser, width, language="Русский")
+    got = page.evaluate(
+        """() => ({
+          sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          outside: [...document.querySelectorAll('.arrival-lang .arrival-greeting')]
+            .filter((g) => {
+              const box = g.getBoundingClientRect();
+              const card = g.closest('.arrival-lang').getBoundingClientRect();
+              return box.right > card.right + 1 || box.left < card.left - 1;
+            }).map((g) => g.textContent),
+        })"""
+    )
+    context.close()
+    assert got["outside"] == [] and not got["sideways"], got
 
 
 LANGUAGE_MEASURE = """() => {
   const foot = document.querySelector('.arrival-foot').getBoundingClientRect();
   const rows = [...document.querySelectorAll('#arrival-tongues .arrival-rung')];
   const seen = (el) => !!el && !el.hidden && el.getBoundingClientRect().width > 0;
-  const pill = document.querySelector('.talk-cta').getBoundingClientRect();
   return {
     step: document.getElementById('arrival-step').textContent,
     rows: rows.map((row) => row.textContent),
     spoken: rows.map((row) => row.getAttribute('lang')),
     asks: [...document.querySelectorAll('#arrival-asks-language span')].map((s) => s.textContent),
     tall: rows.every((row) => row.getBoundingClientRect().height >= 43.5),
-    footInView: foot.top >= 0 && foot.bottom <= window.innerHeight,
     rowsClearOfFoot: rows.every((row) => row.getBoundingClientRect().bottom <= foot.top + 1),
-    skip: seen(document.getElementById('arrival-skip')),
     back: seen(document.getElementById('arrival-back')),
     next: seen(document.getElementById('arrival-done')),
-    subjects: seen(document.getElementById('arrival-subjects')),
-    pillClear: [...document.querySelectorAll('.arrival-foot > *')].every((el) => {
-      const box = el.getBoundingClientRect();
-      return box.width === 0 || box.right <= pill.left || box.left >= pill.right;
-    }),
+    learning: seen(document.getElementById('arrival-learning')),
     sideways: document.documentElement.scrollWidth > window.innerWidth,
   };
 }"""
@@ -760,24 +866,30 @@ LANGUAGE_MEASURE = """() => {
 
 @pytest.mark.parametrize("width", [320, 375, 412])
 def test_the_arrival_asks_which_language_first_on_a_phone(browser, width: int) -> None:
-    """design.md §12, 2026-09-20. The first screen a new reader meets is the one they can
-    read whatever they read: the question a line a language, a row each in its own name,
-    and nothing else to press but Skip."""
+    """design.md §12, 2026-09-20. The first screen a browser that may read Russian meets
+    is the one they can read whatever they read: the question a line a language, and a
+    row each in its own name. Pressing a row is the answer."""
     context, page, _ = _arrival_page(browser, width, language=None)
     got = page.evaluate(LANGUAGE_MEASURE)
     context.close()
-    assert got["step"] == "1 of 3", got
+    assert got["step"] == "1 of 4", got
     assert got["rows"] == ["English", "Русский", "Other · Другой"], got
     # Each language's row says which language it is in; the last is in both, and says none.
     assert got["spoken"] == ["en", "ru", None], got
     assert len(got["asks"]) == 2, f"asked once in each language: {got['asks']}"
-    assert got["tall"] and got["rowsClearOfFoot"] and got["footInView"], got
-    assert got["skip"] and not got["back"] and not got["next"], got
-    assert not got["subjects"], "one question a screen"
-    assert got["pillClear"] and not got["sideways"], got
+    assert got["tall"] and got["rowsClearOfFoot"], got
+    assert not got["back"] and not got["next"], got
+    assert not got["learning"], "one question a screen"
+    assert not got["sideways"], got
 
 
-def _progress_with(browser, totals: dict, reading: dict | None = None, width: int = 390):
+def _progress_with(
+    browser,
+    totals: dict,
+    reading: dict | None = None,
+    width: int = 390,
+    story: dict | None = None,
+):
     from datetime import date, timedelta
 
     from targum.render.builder import progress_page
@@ -803,6 +915,8 @@ def _progress_with(browser, totals: dict, reading: dict | None = None, width: in
         body = said if "/account/totals" in request.url else {}
         if "/account/reading" in request.url and reading is not None:
             body = {"signedIn": True, "reading": reading}
+        if "/account/story" in request.url and story is not None:
+            body = {"signedIn": True, **story}
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
     context = browser.new_context(viewport={"width": width, "height": 844})
@@ -831,22 +945,81 @@ def test_progress_says_time_listened_watched_and_words_read_and_narrows_them(bro
     """targum-internal#339: "track hours/minutes listened/watched + words read… displayed
     and filterable on Progress." Read off the account's own record, in the page's language
     (the Russian row is not counted here), in hours and minutes and words — no invented
-    unit — and a figure that is nought is not drawn."""
+    unit. The board's three figures, always, a nought said as one. Filtered by period
+    only, the last 30 days first (§12, 2026-10-09)."""
     context, page = _progress_with(browser, {})
-    everything = page.evaluate(SPENT)
-    page.locator("#spent-medium .chip", has_text="Watching").click()
-    watching = page.evaluate(SPENT)
-    page.locator("#spent-medium .chip", has_text="Everything").click()
+    month = page.evaluate(SPENT)
+    page.locator("#spent-period .chip", has_text="All time").click()
+    ever = page.evaluate(SPENT)
     page.locator("#spent-period .chip", has_text="Last 7 days").click()
     lately = page.evaluate(SPENT)
+    medium = page.locator("#spent-medium").count()
     context.close()
 
-    assert everything["shown"] and not everything["sideways"]
-    assert everything["figures"] == ["1 h 35 min listened", "25 min watched", "12,400 words read"]
-    assert watching["figures"] == ["25 min watched"]
-    assert lately["figures"] == ["1 h 35 min listened", "25 min watched"], (
+    assert month["shown"] and not month["sideways"]
+    assert month["figures"] == ["0 words read", "1 h 35 min listened", "25 min watched"], (
         "the book was two months ago"
     )
+    assert ever["figures"] == ["12,400 words read", "1 h 35 min listened", "25 min watched"]
+    assert lately["figures"] == month["figures"]
+    assert medium == 0, "the three figures say the medium"
+
+
+STORY = {
+    "library": True,
+    "known": 1,
+    "ladder": [
+        {"kind": "dialogue", "name": "dialogue", "share": 99, "state": "passed", "texts": 9},
+        {"kind": "talk", "name": "talk", "share": 96, "state": "passed", "texts": 9},
+        {"kind": "article", "name": "article", "share": 93, "state": "here", "texts": 9},
+        {"kind": "story", "name": "story", "share": 86, "state": "next", "texts": 9},
+        {"kind": "novel", "name": "novel", "share": None, "state": "ahead", "texts": 9},
+        {"kind": "poetry", "name": "poetry", "share": None, "state": "ahead", "texts": 9},
+    ],
+    "here": 2,
+    "said": "nearly",
+    "texts": [{"id": "jonah", "title": "יונה", "english": "Jonah", "known": 91}],
+    "words": [{"lemma": "a", "texts": 3}],
+}
+
+STORY_SEEN = """() => ({
+  head: document.getElementById('where-title').textContent,
+  rungs: [...document.querySelectorAll('#touchstones .touch a')].map((a) => ({
+    text: a.textContent, href: a.getAttribute('href'), height: a.getBoundingClientRect().height,
+  })),
+  parts: [...document.querySelectorAll('.story-step')].map((p) => p.textContent),
+  credits: !!document.getElementById('hours-line'),
+  level: [...document.querySelectorAll('#level-rows .next-row')].map((r) => r.textContent),
+  sideways: document.documentElement.scrollWidth > window.innerWidth,
+})"""
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_progress_tells_its_story_in_three_parts(browser, width: int) -> None:
+    """§12, 2026-10-09: where you are on the ladder of the language's own kinds of text,
+    each opening its shelf; how you got here; what next. No credits on the page, and
+    nothing wider than a phone."""
+    import os
+
+    context, page = _progress_with(browser, {}, width=width, story=STORY)
+    got = page.evaluate(STORY_SEEN)
+    shots = os.environ.get("TARGUM_SHOTS")
+    if shots:
+        page.screenshot(path=f"{shots}/progress-{width}.png", full_page=True)
+    page.locator("#touchstones .touch a", has_text="A short story").click()
+    page.wait_for_timeout(200)
+    went = page.url
+    context.close()
+
+    assert got["parts"] == ["1 · Where you are", "2 · How you got here", "3 · What next"]
+    assert got["head"] == "You'd follow nearly all of a news article"
+    assert [rung["text"] for rung in got["rungs"]][2:4] == ["A news article93%", "A short story86%"]
+    assert not got["credits"], "credits are the account page's"
+    assert got["level"] == ["יונה91% known"], "the title alone, as the board has it"
+    assert not got["sideways"], got
+    if width == 390:
+        assert all(rung["height"] >= 44 for rung in got["rungs"]), "§8's thumb"
+    assert went.endswith("/library?k=" + TOKEN + "#see/kind/story"), went
 
 
 def test_progress_draws_no_such_figures_where_there_is_no_record(browser) -> None:
@@ -885,9 +1058,9 @@ READING = """() => {
 def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     browser, width: int
 ) -> None:
-    """targum-internal#291. Three months draw one line that fits the panel at a phone's
-    width and stays a reading width on the desk; a fall is said in one sentence; nothing
-    in the block is a percentage."""
+    """targum-internal#291. Three months draw one line across the panel, as the board
+    draws it (§12, 2026-10-09), at a phone's width and on the desk; a fall is said in one
+    sentence; nothing in the block is a percentage."""
     import os
 
     line = [
@@ -910,20 +1083,18 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     assert "%" not in got["text"]
     assert not got["sideways"], got
     assert 0 < got["width"] <= got["panelWidth"], got
-    # 30rem, and the rem is §13's clamped one rather than 16px.
-    assert got["width"] <= 30 * got["rem"] + 1, "held to a reading width on the desk"
+    assert got["width"] >= got["panelWidth"] - 2, "the panel's full width, as the board"
 
 
-def test_progress_says_what_would_draw_the_line_under_three_months(browser) -> None:
+def test_progress_hides_the_line_under_two_months(browser) -> None:
+    """No line and no paragraph about one (David, 2026-10-09): the part is absent until
+    two months can be drawn."""
     context, page = _progress_with(
         browser, {}, reading={"he": {"line": [], "months": 1, "sections": 2}}
     )
     got = page.evaluate(READING)
     context.close()
-    assert got["shown"] and got["points"] == 0, got
-    assert got["said"] == [
-        "We'll draw this once you've finished sections in three different months. Months so far: 1."
-    ]
+    assert not got["shown"] and got["points"] == 0, got
 
 
 def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
@@ -933,7 +1104,7 @@ def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
     in a panel further down. The row stays, says it is in Trash, and Undo is where Delete
     was (targum-internal#278)."""
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page(TOKEN, "texts")), encoding="utf-8")
     chapters = [{"number": 1, "title": "א", "ready": True, "file": "1.html"}]
     readers = [
         {
@@ -948,7 +1119,9 @@ def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
         }
         for name, title in (("jonah", "יונה"), ("ruth", "רות"))
     ]
-    context = browser.new_context(viewport={"width": 390, "height": 844})
+    # Tall enough that the shelf under home's Continue is on screen without a scroll: a
+    # scroll closes an open ⋯, which is right for a reader and not what this is about.
+    context = browser.new_context(viewport={"width": 390, "height": 1600})
     open_page = context.new_page()
     # The page asks the server with fetch; this answers for it, and keeps what was posted
     # across the reload Undo ends with.
@@ -1000,7 +1173,7 @@ def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
     """A long inbox on a phone ran off the top of the screen with Clear all above it, a
     failure's address ran past the edge, a line with nothing to open put its × in the
     Open column, and the round pill stood over the sheet (2026-09-14)."""
-    html = learn_page(TOKEN)
+    html = list_page(TOKEN, "texts")
     address = "https://www.example.test/" + "a-long-path-segment-" * 8 + "?utm_source=copy_link"
     jobs = [
         {"id": f"j{n}", "title": f"text {n}", "stage": "done", "reader": f"r{n}/reader/index.html"}
@@ -1026,6 +1199,8 @@ def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
         viewport={"width": 384, "height": 694}, is_mobile=True, has_touch=True
     )
     page = context.new_page()
+    # Home, past the arrival a new account would be sent to first (2026-10-08).
+    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
     page.wait_for_selector("#notices-count:not([hidden])")
@@ -1062,19 +1237,41 @@ def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
     assert not got["pillCovers"], "the pill does not stand over the sheet"
 
 
-def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
-    """At 768px everything fits, and the two-line arrangement must not apply."""
-    page_file = tmp_path / "learn.html"
-    page_file.write_text(learn_page(TOKEN), encoding="utf-8")
-    context = browser.new_context(viewport={"width": 768, "height": 1024})
+@pytest.mark.parametrize(
+    ("language", "width", "one_line"),
+    [
+        ("en", 768, False),
+        ("ru", 768, False),
+        ("ru", 834, False),
+        ("en", 1024, True),
+        ("ru", 1024, True),
+    ],
+)
+def test_the_header_never_runs_past_a_tablet(
+    browser, tmp_path: Path, language: str, width: int, one_line: bool
+) -> None:
+    """The header is one line where it fits and two where it does not, and never wider
+    than the window. This test said "at 768px everything fits" until the QA pass of
+    2026-10-11 measured it in a running app: it did not, by 25px signed out and by 73px
+    in Russian on every desk page, so an iPad held upright scrolled sideways and its
+    account sat past the edge. Two lines start under 56rem now; at a laptop the header is
+    still the one line it always was."""
+    page_file = tmp_path / "home.html"
+    page_file.write_text(carried(list_page(TOKEN, "texts", language)), encoding="utf-8")
+    context = browser.new_context(viewport={"width": width, "height": 1024})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
     open_page.wait_for_timeout(300)
-    one_line = open_page.evaluate(
+    got = open_page.evaluate(
         """() => {
           const brand = document.querySelector('.brand').getBoundingClientRect();
           const nav = document.querySelector('.site-nav').getBoundingClientRect();
-          return nav.top < brand.bottom && nav.bottom > brand.top;
+          const account = document.querySelector('.account').getBoundingClientRect();
+          return {
+            oneLine: nav.top < brand.bottom && nav.bottom > brand.top,
+            accountInside: account.right <= document.documentElement.clientWidth + 1,
+            sideways: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          };
         }"""
     )
     glyphs = open_page.evaluate(
@@ -1083,15 +1280,17 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
           .map((a) => a.dataset.nav)"""
     )
     context.close()
-    assert one_line
+    assert got["oneLine"] is one_line, got
+    assert got["accountInside"] and not got["sideways"], f"the page scrolls sideways: {got}"
     assert glyphs == ["add"], "at a desk only Add keeps its glyph, a + before the word"
 
 
 def test_a_menu_chevron_points_down_in_either_direction(browser, tmp_path: Path) -> None:
     """A chevron drawn from two logical borders and a turn: under RTL the borders swap
-    sides, so the same turn pointed the language menu's and the doors' chevrons sideways."""
-    page_file = tmp_path / "learn.html"
-    page_file.write_text(learn_page(TOKEN), encoding="utf-8")
+    sides, so the same turn pointed the language menu's chevron sideways. (The doors'
+    menu, which had one too, went with Learn on 2026-10-08.)"""
+    page_file = tmp_path / "home.html"
+    page_file.write_text(carried(list_page(TOKEN, "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     open_page = context.new_page()
     open_page.goto(page_file.as_uri())
@@ -1103,11 +1302,9 @@ def test_a_menu_chevron_points_down_in_either_direction(browser, tmp_path: Path)
             const host = document.createElement('div');
             host.dir = dir;
             host.innerHTML = '<span class="lang-menu">'
-              + '<button class="lang-open">Hebrew</button></span>'
-              + '<button class="way-menu">Following</button>';
+              + '<button class="lang-open">Hebrew</button></span>';
             document.body.append(host);
-            for (const [name, sel, pseudo] of [['lang', '.lang-open', '::before'],
-                                                ['way', '.way-menu', '::after']]) {
+            for (const [name, sel, pseudo] of [['lang', '.lang-open', '::before']]) {
               const st = getComputedStyle(host.querySelector(sel), pseudo);
               const on = (side) => parseFloat(st['border' + side + 'Width']) > 0;
               // The corner the two borders make, as a vector, then turned by the transform.
@@ -1365,8 +1562,12 @@ def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
             """() => {
               const send = document.getElementById('chat-send').getBoundingClientRect();
               const thread = document.getElementById('chat-thread');
+              const bar = document.querySelector('.site-nav').getBoundingClientRect();
               return {
                 sendBottom: send.bottom,
+                room: thread.clientHeight,
+                barTop: getComputedStyle(document.querySelector('.site-nav')).position === 'fixed'
+                  ? bar.top : innerHeight,
                 turns: document.querySelectorAll('.chat-turn').length,
                 scrolls: thread.scrollHeight > thread.clientHeight,
                 labels: [...document.querySelectorAll('.chat-who')].length,
@@ -1379,337 +1580,18 @@ def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
         got = seen[width]
         assert got["turns"] == 60
         assert got["sendBottom"] <= height + 1, f"Send in view at {width}px: {got}"
+        # QA 2026-10-11: the site's foot stood inside the one screen and left the thread
+        # 32px on a phone; and the box must stand above the phone's bar of places.
+        assert got["room"] >= 0.3 * height, f"the thread has the screen at {width}px: {got}"
+        assert got["sendBottom"] <= got["barTop"] + 1, f"Send above the bar at {width}px: {got}"
         assert got["scrolls"], "the thread scrolls inside itself"
         assert got["labels"] == 0, "no word over a turn"
         assert got["motion"] == "none", "asked for no motion, given none"
 
 
-@pytest.mark.parametrize("width", [320, 375, 430, 768, 1024, 1440, 2560])
-def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
-    """2026-09-11: "I want this to work on all major modern devices, from a small iPhone
-    to a large 32-inch screen". The page never scrolls sideways, a chip never runs past
-    the card it stands in, the two-column row is one column below 48rem, and Send is
-    on screen at the top of the page."""
-    html = learn_page(TOKEN)
-    chips = [
-        {"id": "read", "line": "Find me something to read"},
-        {
-            "id": "continue",
-            "line": "Continue",
-            "title": "יוטיוב מקשיחה תנאים: ליוצרים חדשים יהיה קשה יותר להרוויח כסף - טכנולוגיה",
-            "reader": "x/reader/index.html",
-        },
-        {"id": "words", "line": "Use my new words"},
-        {"id": "stuck", "line": "Explain a word I'm stuck on"},
-    ]
-    readers = [
-        {
-            "name": "youtube-he",
-            "title": "יוטיוב מקשיחה תנאים: ליוצרים חדשים יהיה קשה יותר להרוויח כסף",
-            "language": "he",
-            "register": "modern",
-            "document": "h1",
-            "built": 1,
-            "chapters": [1],
-            "readyChapters": 1,
-            "known": 0.31,
-            "reader": "youtube-he/reader/index.html",
-        }
-    ]
-
-    def answer(route, request):
-        u = request.url
-        if "/chat/list" in u:
-            body = {
-                "chats": [{"id": "a", "title": "t", "seen": 1}],
-                "usable": True,
-                "talk": True,
-                "chips": chips,
-            }
-        elif "/reader/" in u:
-            route.fulfill(
-                status=200,
-                content_type="text/html",
-                body="<html><body><p>שורה ראשונה ארוכה למדי של טקסט.</p></body></html>",
-            )
-            return
-        elif "/readers" in u:
-            body = {"readers": readers, "shared": [], "trash": []}
-        elif "/account/me" in u:
-            body = {"signedIn": False}
-        elif "/words/common" in u:
-            body = {"words": [], "offset": 0, "next": None, "into": "en"}
-        elif "embed=1" in u:
-            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
-            return
-        else:
-            route.fulfill(status=200, content_type="text/html", body=html)
-            return
-        route.fulfill(
-            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
-        )
-
-    context = browser.new_context(viewport={"width": width, "height": 800})
-    page = context.new_page()
-    page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
-    page.route("http://learn.test/**", answer)
-    page.goto(f"http://learn.test/learn?k={TOKEN}")
-    # Before the drawer opens, while the pill stands at the corner: on a phone the sheet's
-    # window ends above everything fixed at the foot (2026-09-14), so the reader's own bar
-    # at the bottom of the frame is never behind the places or the pill.
-    # A phone draws cards rather than the sheet (David, 2026-09-14), and a desk the sheet.
-    page.wait_for_selector(
-        "#learn-cards:not([hidden])" if width <= 640 else "#carry-window:not([hidden])"
-    )
-    page.wait_for_timeout(300)
-    foot = page.evaluate(
-        """() => {
-          const box = (s) => document.querySelector(s).getBoundingClientRect();
-          const open = document.getElementById('carry');
-          const hint = document.getElementById('carry-hint');
-          return { window: box('#carry-window').bottom, nav: box('.site-nav').top,
-                   pill: box('#talk-open').top,
-                   open: open.textContent.trim(), openBox: open.getBoundingClientRect().toJSON(),
-                   head: box('.page-head').toJSON(),
-                   hint: getComputedStyle(hint).display === 'none' ? '' : hint.textContent,
-                   hintBox: hint.getBoundingClientRect().toJSON() };
-        }"""
-    )
-    # The conversation is the conversation page framed in the drawer the pill opens
-    # (2026-09-11): the chips and the box are measured inside it, against the drawer's
-    # own width, with the drawer open.
-    page.click("#talk-open")
-    talk = page.frame_locator("#talk-frame")
-    talk.locator(".chat-ask").first.wait_for()
-    page.wait_for_timeout(400)
-    got = page.evaluate(
-        """() => {
-          const doc = document.documentElement;
-          const drawer = document.getElementById('talk-drawer').getBoundingClientRect();
-          const frame = document.getElementById('talk-frame').getBoundingClientRect();
-          const sheet = document.getElementById('carry-sheet').getBoundingClientRect();
-          const front = document.getElementById('front').getBoundingClientRect();
-          const window_ = document.getElementById('carry-window');
-          const nav = document.querySelector('.site-nav');
-          const navBox = nav.getBoundingClientRect();
-          return {
-            navFixed: getComputedStyle(nav).position === 'fixed',
-            navBottom: navBox.bottom, navLeft: navBox.left, navRight: navBox.right,
-            scrollWidth: doc.scrollWidth, inner: window.innerWidth,
-            frameLeft: frame.left, frameRight: frame.right, frameHeight: frame.height,
-            talkRight: drawer.right, drawerTop: drawer.top, drawerBottom: drawer.bottom,
-            sheetWidth: Math.round(sheet.width), frontWidth: Math.round(front.width),
-            reader: window_.hidden ? ''
-              : document.getElementById('carry-frame').getAttribute('src'),
-            root: parseFloat(getComputedStyle(doc).fontSize),
-          };
-        }"""
-    )
-    inside = [f for f in page.frames if "embed=1" in f.url][0].evaluate(
-        """() => {
-          const doc = document.documentElement;
-          const chips = [...document.querySelectorAll('.chat-ask')]
-            .map((c) => c.getBoundingClientRect().right);
-          const send = document.getElementById('chat-send').getBoundingClientRect();
-          const mic = document.getElementById('chat-mic');
-          return {
-            width: window.innerWidth, scrollWidth: doc.scrollWidth,
-            chipsPast: chips.filter((r) => r > window.innerWidth + 1).length,
-            sendLeft: send.left, sendRight: send.right, sendBottom: send.bottom,
-            height: window.innerHeight,
-            mic: !mic.hidden && mic.getBoundingClientRect().width > 0,
-            base: document.querySelector('base') && document.querySelector('base').target,
-          };
-        }"""
-    )
-    context.close()
-    assert got["scrollWidth"] <= got["inner"] + 1, f"sideways scroll at {width}px: {got}"
-    assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
-    assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
-    # The sheet takes the row until there is room beside it for the rail (2026-09-18).
-    # A media query resolves `rem` against the root's initial 16px rather than this
-    # page's clamped one, so the 72rem in `learn.css` is 1152px here and nothing else.
-    if 640 < width < 1152:
-        assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
-    if width >= 1152:
-        assert got["sheetWidth"] < got["frontWidth"], f"the rail shares the row at {width}px"
-        assert got["sheetWidth"] > got["frontWidth"] * 0.6, (
-            f"and takes most of it: the rail must not have its room out of the sheet "
-            f"at {width}px, which is what 64rem did — 658px of reader at 1024"
-        )
-    # Phase 4: on a phone the four places are a bar at the foot of the window.
-    assert got["navFixed"] == (width <= 640), f"{width}px: {got}"
-    if width <= 640:
-        assert abs(got["navBottom"] - 800) <= 1 and got["navLeft"] == 0, (
-            f"the bar at the foot: {got}"
-        )
-        assert got["navRight"] == width
-    assert 0 <= got["drawerTop"] and got["drawerBottom"] <= 800 + 1, f"the drawer on screen: {got}"
-    if width <= 640:
-        assert foot["window"] <= min(foot["nav"], foot["pill"]), f"the sheet runs under: {foot}"
-        # And the page you were on still shows above the drawer (2026-09-14).
-        assert got["drawerTop"] >= 800 * 0.15, f"the drawer covers the page: {got}"
-    if width <= 640:
-        assert got["reader"] == "", "a phone frames no reader"
-    else:
-        assert "preview=1" in got["reader"], "the sheet frames the reader, working"
-    assert 16 <= got["root"] <= 22, f"the rem is {got['root']} at {width}px"
-    assert inside["scrollWidth"] <= inside["width"] + 1, f"the frame scrolls sideways: {inside}"
-    assert inside["chipsPast"] == 0, f"a chip runs past the frame at {width}px"
-    assert 0 <= inside["sendLeft"] and inside["sendRight"] <= inside["width"], inside
-    assert inside["sendBottom"] <= inside["height"] + 1, f"Send is below the frame: {inside}"
-    assert inside["base"] == "_top", "every link in the frame opens the page that holds it"
-    # 2026-09-14: "people should be able to talk to targum ... on any device".
-    assert inside["mic"], f"no microphone in the conversation at {width}px"
-    # And at a desk the sheet says the reader is the better place to read: the press names
-    # where it goes, the line beside it says why, and neither runs out of the head. A phone
-    # has no sheet (2026-09-14); its cards are the press.
-    if width <= 640:
-        return
-    assert foot["open"] == "Open", foot
-    assert foot["hint"] == "Read here, or go full screen.", foot
-    for part in ("openBox", "hintBox"):
-        box = foot[part]
-        assert box["left"] >= foot["head"]["left"] and box["right"] <= foot["head"]["right"] + 1, (
-            f"{part} runs out of the sheet's head at {width}px: {foot}"
-        )
-        assert box["width"] > 0 and box["height"] > 0
-    assert foot["hintBox"]["right"] <= foot["openBox"]["left"] + 1 or (
-        foot["hintBox"]["bottom"] <= foot["openBox"]["top"] + 1
-    ), f"the line and the press overlap at {width}px: {foot}"
-
-
-@pytest.mark.parametrize(("width", "height"), [(320, 568), (390, 844), (1280, 800)])
-def test_a_phone_gets_cards_and_a_desk_gets_the_framed_reader(
-    browser, width: int, height: int
-) -> None:
-    """David, on a phone (2026-09-14): the framed reader on Learn "had to be a card, not an
-    actual reader", and several cards, "giving more choice". Under 40rem the page draws a
-    card for every text it can offer — the one carried on with, the suggestion, what was
-    read lately — each a press to its reader, with no sheet, no row of doors and no
-    reader loaded behind them.
-
-    At a desk the sheet still frames the reader, and since 2026-09-18 the same cards
-    stand beside it as a rail: the pill they replaced offered the same texts and hid
-    most of them."""
-    html = learn_page(TOKEN)
-    readers = [
-        {
-            "name": name,
-            "title": title,
-            "english": english,
-            "language": "he",
-            "register": "modern",
-            "document": doc,
-            "built": built,
-            "sections": 1,
-            "known": 0.5,
-        }
-        for name, title, english, doc, built in (
-            ("doctor-he", "תור לרופא", "A doctor's appointment", "d1", 3),
-            ("bank-he", "בבנק", "At the bank", "d2", 2),
-        )
-    ]
-    suggestion = {
-        "id": "ynet-1",
-        "title": "מחאה בתל אביב",
-        "english": "A protest in Tel Aviv",
-        "language": "he",
-        "minutes": 3,
-        "register": "modern",
-        "because": "News at your level",
-    }
-    framed: list[str] = []
-
-    def answer(route, request):
-        u = request.url
-        if "/reader/" in u:
-            framed.append(u)
-            route.fulfill(status=200, content_type="text/html", body="<p>שורה</p>")
-            return
-        if "/readers" in u:
-            body: dict = {"readers": readers, "shared": [], "trash": []}
-        elif "/suggest" in u:
-            body = {"suggestion": suggestion}
-        elif "/chat/list" in u:
-            body = {"chats": [], "usable": True, "talk": True, "chips": []}
-        elif "/account/me" in u:
-            body = {"signedIn": False}
-        elif "/words/common" in u:
-            body = {"words": [], "offset": 0, "next": None, "into": "en"}
-        elif "/thumb/" in u:
-            route.fulfill(status=404, body="")
-            return
-        else:
-            route.fulfill(status=200, content_type="text/html", body=html)
-            return
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
-
-    context = browser.new_context(viewport={"width": width, "height": height})
-    page = context.new_page()
-    page.add_init_script(
-        "localStorage.setItem('targum:opened', JSON.stringify("
-        "{d1: Date.now() - 3600e3, d2: Date.now() - 7200e3}))"
-    )
-    page.route("http://learn.test/**", answer)
-    page.goto(f"http://learn.test/learn?k={TOKEN}")
-    page.wait_for_selector("#carry-sheet:not([hidden])", state="attached")
-    page.wait_for_timeout(500)
-    got = page.evaluate(
-        """() => {
-          const shown = (el) => !!el && getComputedStyle(el).display !== 'none'
-            && el.getBoundingClientRect().height > 0;
-          const cards = [...document.querySelectorAll('.learn-card')];
-          return {
-            cards: cards.filter(shown).map((a) => [
-              a.querySelector('.learn-card-state').textContent,
-              a.querySelector('.learn-card-title').textContent,
-              new URL(a.href).pathname,
-            ]),
-            sheet: shown(document.getElementById('carry-sheet')),
-            doors: shown(document.getElementById('doors')),
-            all: shown(document.getElementById('learn-cards-all')),
-            sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
-          };
-        }"""
-    )
-    loaded_behind = list(framed)
-    went = ""
-    if width <= 640:
-        # A press opens the reader. The desk's rail swaps the sheet instead, and until
-        # 2026-09-18 a phone did too: its sheet is hidden by the stylesheet rather than
-        # by `hidden`, so every card on a phone swapped an invisible sheet and went nowhere.
-        page.locator(".learn-card").first.click()
-        page.wait_for_url("**/reader/doctor-he/**", timeout=5000)
-        went = page.url
-    context.close()
-    assert not got["sideways"], got
-    if width <= 640:
-        assert "/reader/doctor-he/reader/index.html" in went, "a card on a phone opens its reader"
-        assert got["cards"] == [
-            ["Continue reading", "תור לרופא", "/reader/doctor-he/reader/index.html"],
-            # `/open/<id>` since targum-internal#313: a card offering a text links at
-            # the text, not at where it is filed. The id is the catalogue row's.
-            ["Suggested for you", "מחאה בתל אביב", "/open/ynet-1"],
-            ["Recently opened", "בבנק", "/reader/bank-he/reader/index.html"],
-        ], got
-        assert not got["sheet"] and not got["doors"], "no sheet and no row of doors on a phone"
-        assert got["all"], "and the way to the whole list"
-        assert not loaded_behind, "no reader loaded behind the cards"
-    else:
-        # A desk draws the sheet *and* the cards since 2026-09-18 (David: the front door
-        # "is not delightful"). The cards were phone-only, so a desk had one object and
-        # a three-way pill to reach anything else; beside the sheet they are the rail
-        # that replaced the pill. The sheet is unchanged and still frames the reader —
-        # what the desk gained is somewhere to go, not a different thing to look at.
-        assert got["sheet"] and framed, "the sheet still frames the reader"
-        assert got["cards"], "and the rail offers everything else"
-        assert not got["doors"], "the row of doors is the rail's job now"
-
-
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
     """The whole of what a reader does with a phone's worth of pages, on the client's
-    side: two files chosen together on Learn sit in the box as chips, Send takes them up
+    side: two files chosen together in the drawer sit in the box as chips, Send takes them up
     one after another, `/prepare` is asked once with both, `/build` is pressed by Send
     itself, and the reader opens when the build is done. The server is answered here —
     what is under test is that a real file input with `multiple` reaches the box's
@@ -1740,7 +1622,7 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
         # The path under the host, without the key: "chat/list", "upload/u1/end".
         path = urlparse(request.url).path.strip("/")
         if path in ("", "learn", "learn.html"):
-            route.fulfill(status=200, content_type="text/html", body=learn_page(TOKEN))
+            route.fulfill(status=200, content_type="text/html", body=list_page(TOKEN, "texts"))
         elif path == "chat":
             embed = "embed=1" in request.url
             route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=embed))
@@ -1789,8 +1671,9 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
 
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     open_page = context.new_page()
+    open_page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
     open_page.route("http://learn.test/**", answer)
-    open_page.goto("http://learn.test/learn")
+    open_page.goto("http://learn.test/")
     # The box is in the conversation page framed in the drawer (2026-09-11); the text it
     # opens must open in the page that holds the drawer.
     open_page.click("#talk-open")
@@ -1801,33 +1684,168 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     chips = talk.locator(".chat-chip").count()
     assert talk.locator(".quote-card").count() == 0, "held, not yet brought"
     talk.locator("#chat-send").click()
-    # The text opens in the sheet beside the conversation, not on a page of its own
-    # (2026-09-11): the frame offers it to the page, which draws it.
-    open_page.wait_for_function(
-        "() => (document.getElementById('carry-frame').getAttribute('src') || '')"
-        ".indexOf('negev-he') >= 0",
-        timeout=5000,
-    )
-    landed = open_page.evaluate(
-        """() => ({
-          url: location.href,
-          frame: document.getElementById('carry-frame').getAttribute('src'),
-          sheet: !document.getElementById('carry-sheet').hidden,
-          heading: document.getElementById('carry-heading').textContent,
-          open: document.getElementById('carry').getAttribute('href'),
-        })"""
-    )
+    # The text opens the reader itself (2026-10-08): Learn's sheet, which held it beside
+    # the conversation, went with Learn.
+    open_page.wait_for_url("**/reader/negev-he/reader/index.html*", timeout=5000)
+    landed = open_page.url
     context.close()
 
     assert chips == 2, "one chip a file"
     assert prepared and prepared[0]["uploads"] == ["u1", "u2"], prepared
     assert built == [{"id": "j1"}], "Send was the press"
-    assert "learn.test/learn" in landed["url"], "nobody was sent to another page"
-    assert landed["sheet"] and "/reader/negev-he/reader/index.html" in landed["frame"], (
-        "and the text opened in the sheet"
+    assert "/reader/negev-he/reader/index.html" in landed, landed
+
+
+def test_a_card_follows_its_build_to_open_it_without_a_refresh(browser) -> None:
+    """David, 2026-10-10: a news quote pressed said "We're getting it ready" and nothing
+    more, for a long time, and the finished text showed only after a refresh. The card
+    now draws the stage over the building meter while `/job/<id>` says it is working,
+    and turns into Open it when it is done. Its facts are in the desk's face: the "73
+    sentences" were in a monospace that read as a terminal."""
+    html = chat_page(TOKEN)
+    job = {
+        "id": "j1",
+        "title": "מאמר על הים",
+        "language": "he",
+        "segments": 73,
+        "total": 73,
+        "done": 20,
+        "chapters": 1,
+        "stage": "working",
+        "message": "Finding each word's dictionary form…",
+        "said": "20 of 73 sentences are translated.",
+        "blocked": "",
+        "error": "",
+        "source": "https://www.ynet.co.il/news/article/abc",
+    }
+    asked = {"job": 0}
+
+    def answer(route, request):
+        path = urlparse(request.url).path.strip("/")
+        if path == "chat/list":
+            body: dict = {"chats": [{"id": "a", "title": "news"}], "usable": True, "talk": True}
+        elif path == "chat/a":
+            body = {
+                "chat": {"id": "a"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "news please", "stage": "done"},
+                    {
+                        "n": 2,
+                        "role": "assistant",
+                        "said": "Here.",
+                        "stage": "done",
+                        "quotes": [job],
+                    },
+                ],
+            }
+        elif path == "job/j1":
+            asked["job"] += 1
+            body = (
+                job
+                if asked["job"] < 2
+                else dict(
+                    job, stage="done", reader="sea-he/reader/index.html", said="It's ready to read."
+                )
+            )
+        elif path in ("chat", "chat.html"):
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    page.route("http://chat.test/**", answer)
+    page.goto(f"http://chat.test/chat?k={TOKEN}#a")
+    page.wait_for_selector(".quote-card .quote-meter")
+    working = page.evaluate(
+        """() => {
+          const card = document.querySelector('.quote-card');
+          const fill = card.querySelector('.quote-meter > span').getBoundingClientRect();
+          const rail = card.querySelector('.quote-meter').getBoundingClientRect();
+          return {
+            stage: card.querySelector('.quote-stage').textContent,
+            said: card.querySelector('.quote-said').textContent,
+            share: fill.width / rail.width,
+            face: getComputedStyle(card.querySelector('.quote-meta')).fontFamily,
+          };
+        }"""
     )
-    assert "preview=1" in landed["frame"] and "preview" not in landed["open"]
-    assert landed["heading"] == "From the chat"
+    page.wait_for_selector(".quote-card .quote-open", timeout=6000)
+    done = page.evaluate(
+        """() => {
+          const card = document.querySelector('.quote-card');
+          const open = card.querySelector('.quote-open');
+          return {
+            text: open.textContent,
+            href: open.getAttribute('href'),
+            meter: !!card.querySelector('.quote-meter'),
+            note: card.querySelector('.quote-note').textContent,
+          };
+        }"""
+    )
+    url = page.url
+    context.close()
+
+    assert working["stage"] == "We're reading the words…"
+    assert working["said"] == "20 of 73 sentences are translated."
+    assert 0.2 < working["share"] < 0.35, working
+    assert "monospace" not in working["face"], working["face"]
+    assert done["text"] == "Open it" and "/reader/sea-he/reader/index.html" in done["href"]
+    assert done["meter"] is False and done["note"] == "It's ready to read."
+    assert "/chat" in url, "the card offers the reader; it does not take them there"
+
+
+@pytest.mark.parametrize(("language", "width"), [("en", 320), ("en", 375), ("ru", 320)])
+def test_see_all_fits_a_phone_and_its_menus_come_up_as_sheets(
+    browser, language: str, width: int
+) -> None:
+    """QA 2026-10-11: on a phone See all's Kind, Level and Language were one row that
+    could not wrap — 386px wide at 320 in English, 436px in Russian — so the page went
+    sideways and the bar of places with it. Wrapped, the menu on the second line opened
+    past the window's edge; on a phone it is a sheet from the foot, as every panel is."""
+    html = library_page(TOKEN, language=language)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        elif "/jobs" in request.url:
+            body = {"jobs": []}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(
+        viewport={"width": width, "height": 700}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    page.route("http://library.test/**", answer)
+    page.goto(f"http://library.test/library?k={TOKEN}#see/kind/article")
+    page.wait_for_selector(".see-menu-press")
+    page.wait_for_timeout(300)
+    sideways = page.evaluate(
+        "() => document.documentElement.scrollWidth > document.documentElement.clientWidth"
+    )
+    page.locator(".see-menu-press").last.tap()
+    page.wait_for_timeout(200)
+    menu = page.evaluate(
+        """() => {
+          const list = [...document.querySelectorAll('.see-menu-list')]
+            .find((l) => !l.hidden && l.getBoundingClientRect().width);
+          if (!list) return null;
+          const box = list.getBoundingClientRect();
+          return {left: box.left, right: box.right, bottom: box.bottom};
+        }"""
+    )
+    context.close()
+    assert not sideways, f"See all scrolls sideways at {width}px in {language}"
+    assert menu, "the menu opens"
+    assert menu["left"] >= 0 and menu["right"] <= width + 1, menu
+    assert abs(menu["bottom"] - 700) <= 1, f"a sheet from the foot: {menu}"
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -1869,23 +1887,24 @@ def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
             .map((d) => Math.round(d.getBoundingClientRect().top));
           return {
             doors: [...document.querySelectorAll('.door-card')].map((d) => d.dataset.door),
-            controls: ['subject-chips', 'subject-label', 'said', 'sorts', 'shape', 'crumbs']
-              .filter(shown),
-            texts: document.querySelectorAll('#cards .card-item').length,
+            controls: ['see-menus', 'lib-doors', 'picked', 'crumbs', 'shelves'].filter(shown),
+            texts: document.querySelectorAll('#catalogue > li').length,
             sameRow: tops.length > 1 && tops[0] === tops[1],
-            on: document.querySelector('#where [aria-selected="true"]').textContent,
+            back: shown('see-back'),
             sideways: document.documentElement.scrollWidth > window.innerWidth,
           };
         }"""
     )
     page.locator('.door-card[data-door="tanakh"]').click()
-    page.wait_for_selector("#cards .card-item")
+    page.wait_for_selector("#catalogue > li")
     inside = page.evaluate(
         """() => ({
           hash: location.hash,
           crumbs: document.getElementById('crumbs').innerText,
-          titles: [...document.querySelectorAll('#cards .card-title')].map((t) => t.textContent),
-          sorts: getComputedStyle(document.getElementById('sorts')).display !== 'none',
+          titles: [...document.querySelectorAll('#catalogue .row-name')].map((t) => t.textContent),
+          sorts: getComputedStyle(document.getElementById('rows-head')).display !== 'none',
+          map: (document.querySelector('#crumbs a.crumb-map') || {}).href || '',
+          sideways: document.documentElement.scrollWidth > window.innerWidth,
         })"""
     )
     page.locator("#crumbs button").click()
@@ -1893,12 +1912,14 @@ def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
     back = page.evaluate("() => location.hash")
     context.close()
 
-    assert at_doors["on"] == "Beit Midrash" and at_doors["doors"] == ["tanakh", "targum"]
+    assert at_doors["back"] and at_doors["doors"] == ["tanakh", "targum"]
     assert at_doors["controls"] == [], f"nothing that narrows a list there is not: {at_doors}"
     assert at_doors["texts"] == 0 and at_doors["sameRow"] and not at_doors["sideways"], at_doors
     assert inside["hash"] == "#bm/tanakh" and "Tanakh" in inside["crumbs"], inside
-    assert "רות" in inside["titles"], "the tab, then Tanakh, and Ruth is on the page"
-    assert inside["sorts"], "and inside a door the list has its sorts back"
+    assert "רות" in inside["titles"], "the door, then Tanakh, and Ruth is on the page"
+    assert inside["sorts"], "and inside a door the list has its heads"
+    assert "/tanakh-map" in inside["map"], "the Tanakh door leads on to its map (#144)"
+    assert not inside["sideways"], inside
     assert back == "#bm"
 
 
@@ -1907,7 +1928,8 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     """2026-09-11: "'talk to targum' can be in the sticky CTA on every page that opens
     up for you". On the Library: the pill is on screen, nothing is loaded until it is
     pressed, the drawer then stands on screen with the conversation in it, Escape closes
-    it, and it is open again on the next page since the conversation is not over. A text
+    it, and at a desk it is open again on the next page since the conversation is not
+    over; on a phone the next page has it closed (QA 2026-10-11, D7). A text
     the conversation offers on a page without a sheet opens the reader itself."""
     html = library_page(TOKEN)
 
@@ -1959,6 +1981,9 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
         drawer: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
         loaded: !!document.getElementById('talk-frame').getAttribute('src'),
         remembered: localStorage.getItem('targum:talk'),
+        dimmed: getComputedStyle(document.getElementById('talk-scrim')).display !== 'none',
+        title: getComputedStyle(drawer.querySelector('.talk-drawer-title')).fontFamily,
+        head: document.querySelector('.site-head').getBoundingClientRect().bottom,
       };
     }"""
     before = page.evaluate(measure)
@@ -1975,6 +2000,10 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     page.wait_for_selector("#talk-open", state="attached")
     page.wait_for_timeout(200)
     again = page.evaluate(measure)
+    if width < 1024:
+        # On a phone the next page does not bring it back (QA 2026-10-11, D7), so the
+        # pill is pressed again, and the conversation is there behind it.
+        page.click("#talk-open")
     # A text offered where there is no sheet: the reader itself.
     page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
     frame = [f for f in page.frames if "embed=1" in f.url][0]
@@ -1991,7 +2020,27 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     assert 0 <= opened["drawer"]["left"] and opened["drawer"]["right"] <= width + 1, opened
     assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
     assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
-    assert again["open"] and again["remembered"] == "open", "open again on the next page"
+    if width < 1024:
+        # QA 2026-10-11, decision D7: on a phone the drawer is a sheet over the whole
+        # page, so leaving the page closes it and the next page forgets it was open.
+        assert not again["open"] and again["remembered"] is None, again
+        assert again["pillShown"] and not again["dimmed"], again
+    else:
+        assert again["open"] and again["remembered"] == "open", "open again on the next page"
+        # Audit 2, 2026-10-09: open on the next page because it was left open, not
+        # because it was pressed there — so beside the page, undimmed, under its bar.
+        assert not again["dimmed"], "a drawer brought back does not dim the page"
+        assert abs(again["drawer"]["right"] - width) <= 1, again
+        assert again["drawer"]["top"] >= again["head"] - 1 > 0, again
+    # design.md §12, "Talk is a sheet over a dimmed page" (2026-10-09; boards ChatDesk
+    # and ChatPhone): the page dims under it at every width, the title is in the serif,
+    # and at a desk it stands 460px from the end edge, top to foot.
+    assert opened["dimmed"] and not before["dimmed"] and not closed["dimmed"], opened
+    assert "Iowan" in opened["title"], opened["title"]
+    if width >= 1024:
+        box = opened["drawer"]
+        assert abs(box["right"] - width) <= 1 and box["top"] <= 1, box
+        assert abs((box["right"] - box["left"]) - 460) <= 1, box
 
 
 @pytest.mark.parametrize("width", [320, 390, 1440])
@@ -2010,7 +2059,7 @@ def test_the_pages_in_front_of_the_door_stand_on_the_desk(browser, tmp_path: Pat
     seen = {}
     for name, html in pages.items():
         page_file = tmp_path / f"{name}.html"
-        page_file.write_text(html, encoding="utf-8")
+        page_file.write_text(carried(html), encoding="utf-8")
         open_page = context.new_page()
         open_page.goto(page_file.as_uri())
         open_page.wait_for_timeout(100)
@@ -2040,12 +2089,103 @@ def test_the_pages_in_front_of_the_door_stand_on_the_desk(browser, tmp_path: Pat
         )
 
 
+def test_the_drawer_takes_the_keyboard_in_and_gives_it_back(browser) -> None:
+    """QA 2026-10-11: pressed open from the keyboard the drawer left focus on the page's
+    body; Escape typed in its box did nothing, because a key pressed in a frame never
+    reaches the page around it; and a close left focus on the body again. Now the box
+    takes focus, Escape from inside closes the drawer, and the pill has focus after."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        u = request.url
+        if "/chat/list" in u:
+            body: dict[str, object] = {"chats": [], "usable": True, "talk": True}
+        elif "/readers" in u:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False}
+        elif "/account/me" in u or "/account/follows" in u:
+            body = {"signedIn": False}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None}
+        elif "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
+        elif "/library" in u:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": 1366, "height": 800})
+    page = context.new_page()
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open")
+    page.focus("#talk-open")
+    page.keyboard.press("Enter")
+    box = page.frame_locator("#talk-frame").locator("#say")
+    box.wait_for()
+    page.wait_for_function(
+        "() => document.activeElement && document.activeElement.id === 'talk-frame'"
+    )
+    page.wait_for_timeout(300)
+    assert box.evaluate("(e) => e === document.activeElement"), "the box has the keyboard"
+    page.keyboard.type("שלום")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    got = page.evaluate(
+        """() => ({
+          open: !document.getElementById('talk-drawer').hidden,
+          focus: document.activeElement && document.activeElement.id,
+          role: document.getElementById('talk-drawer').getAttribute('role'),
+        })"""
+    )
+    context.close()
+    assert not got["open"], "Escape typed in the box closes the drawer"
+    assert got["focus"] == "talk-open", got
+    assert got["role"] == "dialog"
+
+
+def test_find_and_the_account_give_the_keyboard_back_on_escape(browser) -> None:
+    """QA 2026-10-11: Escape closed the search palette and the account panel and left
+    focus on the page's body, so a keyboard user started again from the top of the page.
+    The bell and the language menu already gave it back; now all of them do."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/account/me" in request.url:
+            body = {"signedIn": True, "email": "d@x.test", "initials": "DJ", "language": "he"}
+        elif "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": 1366, "height": 800})
+    page = context.new_page()
+    page.route("http://library.test/**", answer)
+    page.goto(f"http://library.test/library?k={TOKEN}")
+    page.wait_for_selector("#palette-open")
+    page.wait_for_timeout(300)
+    back = {}
+    for opener in ("#palette-open", "#account-open"):
+        page.focus(opener)
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(200)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(200)
+        back[opener] = page.evaluate("() => document.activeElement.id")
+    context.close()
+    assert back == {"#palette-open": "palette-open", "#account-open": "account-open"}, back
+
+
 def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
-    """The drawer's frame loads once and stays up, and Learn switches language in place.
+    """The drawer's frame loads once and stays up, and home switches language in place.
     The conversation read the language for itself as it loaded, so it was one switch
     behind the page: Italian under a Hebrew header, "Write in Hebrew" under an Italian
     one (2026-09-14). It follows the page now, as it opens and after."""
-    html = learn_page(TOKEN)
+    html = list_page(TOKEN, "texts")
     asked: list[str] = []
 
     def answer(route, request):
@@ -2074,6 +2214,7 @@ def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
     page.add_init_script(
         "localStorage.setItem('targum:learning', JSON.stringify(['he', 'it']));"
         "localStorage.setItem('targum:language', 'he');"
+        "sessionStorage.setItem('targum:arrival-over', '1');"
     )
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
@@ -2093,85 +2234,6 @@ def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
     assert italian == "Write in Italian or English", italian
     # Learn asks for its own chips without a language; the drawer asks in the page's.
     assert [code for code in asked if code] == ["he", "it"], asked
-
-
-def test_the_command_palette_finds_a_text_and_goes_there(browser) -> None:
-    """2026-09-11: ⌘K opens one field; typing narrows it to places, texts on the shelf,
-    the catalogue's rows and conversations; arrows move and Enter goes. A text opens its
-    reader, and Escape closes the palette with nothing chosen."""
-    html = library_page(TOKEN)
-
-    def answer(route, request):
-        u = request.url
-        if "/chat/list" in u:
-            body = {"chats": [{"id": "c9", "title": "שיחה על ספרים", "seen": 1}], "usable": True}
-        elif "/readers" in u:
-            body = {
-                "readers": [
-                    {
-                        "name": "mendele-he",
-                        "title": "מסעות בנימין",
-                        "language": "he",
-                        "document": "h1",
-                        "built": 1,
-                    }
-                ],
-                "shared": [],
-                "trash": [],
-                "covers": False,
-            }
-        elif "/reader/" in u:
-            route.fulfill(
-                status=200, content_type="text/html", body="<html><body>the reader</body></html>"
-            )
-            return
-        elif "/account/me" in u or "/account/follows" in u:
-            body = {"signedIn": False}
-        elif "/series" in u:
-            body = {"series": []}
-        elif "embed=1" in u:
-            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
-            return
-        elif "/library" in u:
-            route.fulfill(status=200, content_type="text/html", body=html)
-            return
-        else:
-            body = {}
-        route.fulfill(
-            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
-        )
-
-    context = browser.new_context(viewport={"width": 1280, "height": 800})
-    page = context.new_page()
-    page.route("http://learn.test/**", answer)
-    page.goto(f"http://learn.test/library?k={TOKEN}")
-    page.wait_for_selector("#palette-open")
-    assert page.evaluate("() => document.getElementById('palette').hidden")
-    page.keyboard.press("Meta+k")
-    page.wait_for_function("() => !document.getElementById('palette').hidden")
-    page.wait_for_function("() => document.querySelectorAll('.palette-row').length > 0")
-    at_rest = page.evaluate(
-        "() => [...document.querySelectorAll('.palette-title')].map((t) => t.textContent)"
-    )
-    assert at_rest[:4] == ["Learn", "Your targums", "Library", "Your Progress"], (
-        "the places, with nothing typed, in the nav's order"
-    )
-    page.keyboard.press("Escape")
-    assert page.evaluate("() => document.getElementById('palette').hidden"), "Escape closes it"
-    page.click("#palette-open")
-    page.wait_for_function("() => !document.getElementById('palette').hidden")
-    page.fill("#palette-find", "בנימין")
-    page.wait_for_function(
-        "() => [...document.querySelectorAll('.palette-title')]"
-        ".some((t) => t.textContent.includes('בנימין'))"
-    )
-    found = page.evaluate(
-        "() => [...document.querySelectorAll('.palette-row')].map((r) => r.textContent)"
-    )
-    assert any("Yours" in row for row in found), found
-    page.keyboard.press("Enter")
-    page.wait_for_url("**/reader/mendele-he/**", timeout=5000)
-    context.close()
 
 
 #: What `/describe` says about a link, in the shape `chat.tools._describe` returns.
@@ -2276,7 +2338,7 @@ def test_progress_without_a_total_says_no_percentage(browser, tmp_path: Path) ->
         elif "/prepare" in request.url:
             route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
         elif "/job/" in request.url:
-            body = {"stage": "transcribe", "done": 3, "total": 0, "message": ""}
+            body = {"stage": "working", "done": 3, "total": 0, "message": ""}
             route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
         elif request.url.endswith(("/add", "/add.html")):
             route.fulfill(status=200, content_type="text/html", body=html)
@@ -2290,7 +2352,7 @@ def test_progress_without_a_total_says_no_percentage(browser, tmp_path: Path) ->
     open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
     open_page.click("#go")
     open_page.click("#status button.filled", timeout=4000)
-    open_page.wait_for_selector("#status .bar", timeout=4000)
+    open_page.wait_for_selector("#status .wait-meter", timeout=4000)
     open_page.wait_for_timeout(1200)  # past the first poll
     status = open_page.inner_text("#status")
     context.close()
@@ -2300,10 +2362,10 @@ def test_progress_without_a_total_says_no_percentage(browser, tmp_path: Path) ->
 
 
 def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> None:
-    """The card's title is isolated, so a Hebrew title keeps its facts after it rather
-    than in front of it. And Open: one press while `/build` is answering, and the
-    server's own sentence when the build was lost to a restart — it used to poll a job
-    that no longer existed."""
+    """The card's title is a line of its own in its own direction (board UploadDesk,
+    2026-10-09), so a Hebrew title never takes its facts into its run. And Confirm: one
+    press while `/build` is answering, and the server's own sentence when the build was
+    lost to a restart — it used to poll a job that no longer existed."""
     html = add_page(TOKEN)
     built: list[object] = []
     priced = dict(PRICED, title="זו מדינת אויב?")
@@ -2329,7 +2391,10 @@ def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> 
     open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
     open_page.click("#go")
     open_page.wait_for_selector("#status button.filled", timeout=4000)
-    isolated = open_page.evaluate("() => !!document.querySelector('#status bdi > b')")
+    isolated = open_page.evaluate(
+        "() => { const t = document.querySelector('#status .quote-title');"
+        " return !!t && t.getAttribute('dir') === 'auto' && !t.querySelector('.clock'); }"
+    )
     open_page.evaluate(
         "() => { const b = document.querySelector('#status button.filled'); b.click(); b.click(); }"
     )
@@ -2339,7 +2404,7 @@ def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> 
     )
     context.close()
 
-    assert isolated, "the title in a <bdi>"
+    assert isolated, "the title on a line of its own, in its own direction"
     assert len(built) == 1, "two presses, one build"
 
 
@@ -2486,16 +2551,85 @@ def test_a_box_the_library_does_not_know_says_nothing(browser, tmp_path: Path) -
     assert not drawn
 
 
+def test_the_upload_page_is_the_boards_box_and_card(browser, tmp_path: Path) -> None:
+    """Boards UploadDesk and UploadPhone (design.md §12, "Upload is the board's",
+    2026-10-09): a field for a link, a dashed place to drop that is itself the press for
+    choosing, the language beside Upload, What works, and the priced card at the right
+    with Confirm and Cancel. Record is drawn beside Choose a file and the field invites
+    what the reader wants in their own words (both back on 2026-10-10); Ask targum is
+    not drawn."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if "/prepare" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    drawn = open_page.evaluate(
+        """() => ({
+          record: !!document.getElementById('record'),
+          recordClass: (document.getElementById('record') || {}).className || '',
+          placeholder: document.getElementById('given').placeholder,
+          ask: !!document.getElementById('ask-targum'),
+          works: document.querySelectorAll('.works-list li').length,
+          go: document.getElementById('go').textContent.trim(),
+          label: document.querySelector('.from-field span').textContent.trim(),
+        })"""
+    )
+    with open_page.expect_file_chooser() as chooser:
+        open_page.click("#drop-say")
+    opened = chooser.value is not None
+    open_page.fill("#given", "https://www.kan.org.il/content/kan/podcasts/p-1/12345/")
+    open_page.click("#go")
+    open_page.wait_for_selector("#status .confirm")
+    card = open_page.evaluate(
+        """() => {
+          const box = document.getElementById('bring-box').getBoundingClientRect();
+          const card = document.getElementById('status').getBoundingClientRect();
+          return {
+            beside: card.left > box.right,
+            confirm: document.querySelector('#status .confirm').textContent,
+            cancel: !!document.querySelector('#status .cancel'),
+            until: document.querySelector('#status .quote-until').textContent,
+          };
+        }"""
+    )
+    open_page.click("#status .cancel")
+    put_away = open_page.evaluate("() => document.getElementById('status').hidden")
+    context.close()
+
+    assert drawn["record"] and not drawn["ask"], drawn
+    assert "btn" in drawn["recordClass"] and "outline" in drawn["recordClass"], drawn
+    assert drawn["placeholder"].endswith("or say what you want"), drawn
+    assert drawn["works"] == 6 and drawn["go"] == "Upload", drawn
+    assert drawn["label"] == "The text is in", drawn
+    assert opened, "the dashed place opens the file chooser"
+    assert card["beside"], "the priced card stands to the right of the box at a desk"
+    assert card["confirm"] == "Confirm" and card["cancel"], card
+    assert "Nothing is used until you confirm." in card["until"], card
+    assert put_away, "Cancel puts the card away"
+
+
 def test_add_records_a_voice_note_and_prices_it_like_a_dropped_file(
     browser, tmp_path: Path
 ) -> None:
-    """targum-internal#254. The recorder is `speak.js`'s, the same one the composer's
-    Speak uses; what a clip is for is the caller's, and here it is a file like any
-    dropped one — up the chunked door, priced as a recording."""
+    """targum-internal#254, back on the board's card since 2026-10-10 (design.md §12).
+    The recorder is `speak.js`'s, the same one the composer's Speak uses; what a clip is
+    for is the caller's, and here it is a file like any dropped one — up the chunked
+    door, priced as a recording, and nothing spent until Confirm."""
     html = add_page(TOKEN)
     sent: list[dict] = []
+    asked_paths: list[str] = []
 
     def answer(route, request):
+        asked_paths.append(request.url)
         if "/upload/begin" in request.url:
             route.fulfill(
                 status=200,
@@ -2544,11 +2678,13 @@ def test_add_records_a_voice_note_and_prices_it_like_a_dropped_file(
     chip = open_page.inner_text("#given-files")
     open_page.click("#go")
     open_page.wait_for_timeout(600)
+    built = [one for one in asked_paths if "/build" in one]
     context.close()
 
+    assert not built, "a recording is priced on the card, and only Confirm spends"
     assert while_recording == "Stop", "the word follows the press"
     assert "Recorded just now" in chip, f"the chip says what it is: {chip!r}"
-    assert sent, "Continue sent nothing"
+    assert sent, "Upload sent nothing"
     assert sent[0].get("upload") == "u1", "up the chunked door, like any recording"
 
 
@@ -2577,15 +2713,20 @@ def test_a_browser_that_cannot_record_is_not_offered_the_button(browser, tmp_pat
 
 def test_an_english_phone_is_shown_no_russian(browser) -> None:
     """ "I don't want a non russian to see any russian" (David, 2026-09-28). A browser with
-    no sign of Russian starts on the subjects; the one way into Russian is EN · RU, and
-    nothing on the screen is Cyrillic."""
+    no sign of Russian is not asked which language the page speaks; the one way into
+    Russian is EN · RU, and nothing on the screen is Cyrillic but Russian's own greeting
+    on its card, which is the language to learn and not a word to read (2026-10-09)."""
     context, page, _ = _arrival_page(browser, 375, locale="en-US")
     try:
         seen = page.evaluate(
             """() => ({
               language: !document.getElementById('arrival-language').hidden,
               switch: document.getElementById('arrival-switch').innerText,
-              text: document.getElementById('arrival').innerText,
+              text: (() => {
+                const copy = document.getElementById('arrival').cloneNode(true);
+                copy.querySelectorAll('.arrival-greeting').forEach((g) => g.remove());
+                return copy.textContent;
+              })(),
             })"""
         )
         assert not seen["language"]
@@ -2593,3 +2734,725 @@ def test_an_english_phone_is_shown_no_russian(browser) -> None:
         assert not re.search("[\u0400-\u04ff]", seen["text"]), seen["text"]
     finally:
         context.close()
+
+
+def _home(browser, width: int, readers: list[dict], stored: dict[str, str], over: bool = True):
+    """Home, served as the box would serve it, with `readers` on the shelf and `stored` in
+    this browser's storage. Signed out: the account's places are refused, and this
+    browser's are all there are."""
+    html = list_page(TOKEN, "texts")
+    went: list[str] = []
+
+    def answer(route, request):
+        u = request.url
+        path = urlparse(u).path
+        if path in ("/welcome", "/reader/new/reader/index.html") or path.startswith("/reader/"):
+            went.append(path)
+            return route.fulfill(status=200, content_type="text/html", body="<p>elsewhere</p>")
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        if path == "/readers":
+            body: dict = {"readers": readers, "shared": [], "trash": []}
+        elif path == "/account/places":
+            return route.fulfill(status=401, content_type="application/json", body="{}")
+        elif path == "/account/me":
+            body = {"signedIn": False}
+        elif path == "/suggest":
+            body = {"suggestion": {"id": "ruth", "title": "רות", "language": "he", "minutes": 9}}
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(
+        viewport={"width": width, "height": 844}, is_mobile=width < 640, has_touch=width < 640
+    )
+    page = context.new_page()
+    script = "".join(
+        f"localStorage.setItem({json.dumps(k)}, {json.dumps(v)});" for k, v in stored.items()
+    )
+    if over:
+        script += "sessionStorage.setItem('targum:arrival-over', '1');"
+    page.add_init_script(script)
+    page.route("http://home.test/**", answer)
+    page.goto(f"http://home.test/?k={TOKEN}")
+    return context, page, went
+
+
+def _shelf_row(name: str, title: str, built: int, **extra: object) -> dict:
+    row = {
+        "name": name, "document": name, "entry": "", "title": title, "language": "he",
+        "register": "modern", "kind": "article", "sections": 1, "chapters": [],
+        "readyChapters": 0, "built": built, "drawn": False, "words": 100,
+    }  # fmt: skip
+    row.update(extra)
+    return row
+
+
+@pytest.mark.parametrize("width", [320, 390, 1280])
+def test_home_leads_with_continue_and_picks_up_where_you_stopped(browser, width: int) -> None:
+    """design.md §12, "Home is Your targums, and Continue leads it" (2026-10-08): the last
+    texts opened or uploaded, newest first, four at a desk and on a phone a row to swipe
+    (board HomePhone, P4 2026-10-09), each one press back to the part it was left in —
+    a book's chapter by name; the upload under Continue on a phone and beside the shelf
+    at a desk; and nothing but that row scrolls sideways."""
+    chapters = [
+        {"number": n, "title": str(n), "file": f"sec-000{n}.html", "ready": True} for n in (1, 2, 3)
+    ]
+    readers = [
+        _shelf_row("book", "ספר", 100, kind="novel", chapters=chapters, sections=3),
+        *(_shelf_row(f"up{n}", f"העלאה {n}", 200 + n) for n in range(4)),
+    ]
+    now = 1_900_000_000_000
+    places = {"book": {"section": "2", "path": "/reader/book/reader/sec-0002.html", "segment": "s9",
+                       "seconds": 0, "at": now}}  # fmt: skip
+    context, page, went = _home(browser, width, readers, {"targum:places": json.dumps(places)})
+    page.wait_for_selector("#continue:not([hidden]) .home-card")
+    page.wait_for_selector("#try-next:not([hidden])")
+    got = page.evaluate(
+        """() => {
+          const seen = (el) => !!el && el.getBoundingClientRect().height > 0
+            && getComputedStyle(el).display !== 'none';
+          const cards = [...document.querySelectorAll('#continue-cards > li')];
+          const top = (s) => document.querySelector(s).getBoundingClientRect().top;
+          return {
+            cards: cards.length,
+            shown: cards.filter(seen).length,
+            swipes: (() => {
+              const row = document.getElementById('continue-cards');
+              return getComputedStyle(row).overflowX === 'auto'
+                && row.scrollWidth > row.clientWidth;
+            })(),
+            first: cards[0].querySelector('.home-card-title').textContent,
+            go: cards[0].querySelector('.home-card-go').textContent,
+            href: cards[0].querySelector('.home-card-open').getAttribute('href'),
+            picture: (cards[0].querySelector('img') || {}).src || '',
+            uploadFirst: top('.upload-card') < top('.home-shelf'),
+            sideways: document.documentElement.scrollWidth > window.innerWidth,
+          };
+        }"""
+    )
+    page.locator("#continue-cards .home-card-open").first.click()
+    page.wait_for_timeout(300)
+    context.close()
+    assert got["cards"] == 4, got
+    assert got["shown"] == 4, got
+    assert got["swipes"] == (width < 640), got
+    assert got["first"] == "ספר" and got["go"] == "Pick up at chapter 2", got
+    assert got["href"].startswith("/reader/book/reader/sec-0002.html"), got
+    assert got["uploadFirst"] == (width < 640), got
+    assert not got["sideways"], got
+    assert went == ["/reader/book/reader/sec-0002.html"], went
+
+
+def test_a_new_reader_is_asked_first_and_then_sees_an_honest_home(browser) -> None:
+    """Nothing opened and nothing answered: the arrival's questions, on their own page.
+    Once they are over, home says what will appear here, with one to start with and the
+    upload (the FirstRun boards)."""
+    context, page, went = _home(browser, 1280, [], {}, over=False)
+    page.wait_for_timeout(500)
+    context.close()
+    assert went == ["/welcome"], went
+
+    context, page, went = _home(browser, 1280, [], {})
+    page.wait_for_selector("#first-home:not([hidden])")
+    page.wait_for_selector("#try-next:not([hidden])")
+    got = page.evaluate(
+        """() => ({
+          label: document.querySelector('#try-next .home-label').textContent,
+          tabs: getComputedStyle(document.getElementById('yours-tabs')).display,
+          shelf: document.getElementById('shelf-panel').hidden,
+        })"""
+    )
+    context.close()
+    assert went == []
+    assert got == {"label": "One to start with", "tabs": "none", "shelf": True}, got
+
+
+WORDS_SEEN = """() => ({
+  back: document.querySelector('.words-back').getAttribute('href'),
+  summary: document.getElementById('words-summary').textContent,
+  tabs: [...document.querySelectorAll('.list-tabs a')].map(
+    (a) => a.textContent.trim().replace(/\\s+/g, ' ')
+  ),
+  current: document.querySelector('.list-tabs a[aria-current="page"]').textContent.trim(),
+  chips: [...document.querySelectorAll('#stage-chips .tab')].map((c) => c.textContent),
+  steps: [...document.querySelectorAll('#word-rows tr')].map(
+    (row) => [...row.querySelectorAll('.stage .level')].map((b) => b.textContent)
+  ),
+  met: [...document.querySelectorAll('#word-rows tr')].map(
+    (row) => row.querySelector('.status').textContent
+  ),
+  practise: (() => {
+    const card = document.getElementById('practise');
+    if (!card || card.hidden) return null;
+    const box = card.getBoundingClientRect();
+    const table = document.querySelector('.words-card').getBoundingClientRect();
+    return {
+      word: card.querySelector('.practise-word').textContent,
+      at: document.getElementById('practise-at').textContent,
+      meaningShown: getComputedStyle(card.querySelector('.practise-meaning')).display !== 'none',
+      first: box.top < table.top,
+    };
+  })(),
+  sideways: document.documentElement.scrollWidth > window.innerWidth,
+})"""
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
+    browser, width: int
+) -> None:
+    """design.md §12, "Your Words is reached from Your Progress, by stage", and "Your Words
+    is one table and a practice card" (both 2026-10-09)."""
+    import os
+
+    html = list_page(TOKEN, "words")
+    said = "בְּדַרְכֵי הָעִיר"
+    facts = {
+        "signedIn": True,
+        "met": {"עיר": 3, "דרך": 1},
+        "often": 2,
+        "notes": {},
+        "practise": [
+            {
+                "lemma": "עיר",
+                "line": said,
+                "start": said.index("הָעִיר"),
+                "end": len(said),
+                "word": "הָעִיר",
+                "translation": "in the ways of the city",
+                "title": "רות",
+                "chapter": 2,
+                "name": "ruth",
+                "language": "he",
+                "case": "",
+            }
+        ],
+    }
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body = json.dumps(facts) if "/account/words" in request.url else "{}"
+        route.fulfill(status=200, content_type="application/json", body=body)
+
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = context.new_page()
+    page.add_init_script(
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({"
+        "'ספר': {surface: 'ספר', status: 9, at: 1},"
+        "'דרך': {surface: 'דרכים', status: 2, at: 2},"
+        "'עיר': {surface: 'עיר', status: 1, at: 3}}));"
+        "localStorage.setItem('targum:language', 'he')"
+    )
+    page.route("http://words.test/**", answer)
+    page.goto(f"http://words.test/words?k={TOKEN}")
+    page.wait_for_timeout(500)
+    got = page.evaluate(WORDS_SEEN)
+    shots = os.environ.get("TARGUM_SHOTS")
+    if shots:
+        page.screenshot(path=f"{shots}/words-{width}.png", full_page=True)
+    page.locator("#word-rows tr", has_text="עיר").locator(".level-3").click()
+    page.wait_for_timeout(200)
+    stored = page.evaluate("JSON.parse(localStorage.getItem('targum:vocab:he'))['עיר'].status")
+    # And 3 pressed again changes nothing: still 3, not written again, still pressed (QA
+    # 2026-10-11, decision D8). The row used to write the word again on a second press.
+    word = "JSON.parse(localStorage.getItem('targum:vocab:he'))['עיר']"
+    first = page.evaluate(word)
+    page.wait_for_timeout(20)
+    row = page.locator("#word-rows tr", has_text="עיר")
+    row.locator(".level-3").click()
+    page.wait_for_timeout(200)
+    again = page.evaluate(word)
+    still = row.locator(".level-3").get_attribute("aria-pressed")
+    context.close()
+    assert again == first, f"a second press of 3 wrote the word again: {first} → {again}"
+    assert still == "true"
+
+    assert got["back"].startswith("/progress")
+    assert got["summary"] == "3 on your list · 1 known"
+    assert got["tabs"] == ["Words 3", "Phrases 0", "Grammar"] and got["current"].startswith("Words")
+    assert got["chips"][0] == "To work on" and "Getting there" in got["chips"]
+    five = ["1", "2", "3", "known", "ignore"]
+    assert got["steps"] and all(steps == five for steps in got["steps"])
+    assert not got["sideways"], got
+    assert stored == 3
+    # Most met first, with how often on the row, and the card a line the reader read: the
+    # meaning on show beside the table, asked for first on a phone, where the card leads.
+    assert got["met"][0].startswith("Just met")
+    assert got["practise"]["word"] == "הָעִיר" and got["practise"]["at"] == "1 of 1"
+    assert got["practise"]["meaningShown"] == (width > 640)
+    assert got["practise"]["first"] == (width <= 640)
+
+
+def _words_page(browser, width: int):
+    """Your Words, signed out, on a list of two words still being learned."""
+    html = list_page(TOKEN, "words")
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    page.add_init_script(
+        "if (!sessionStorage.getItem('seeded')) {"
+        "sessionStorage.setItem('seeded', '1');"
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({"
+        "'דרך': {surface: 'דרך', status: 2, at: 2},"
+        "'עיר': {surface: 'עיר', status: 1, at: 3}}));"
+        "localStorage.setItem('targum:language', 'he')}"
+    )
+    page.route("http://words.test/**", answer)
+    page.goto(f"http://words.test/words?k={TOKEN}")
+    page.wait_for_selector("#word-rows tr")
+    return context, page
+
+
+STAGE_OF = "(lemma) => JSON.parse(localStorage.getItem('targum:vocab:he'))[lemma].status"
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_a_word_claimed_from_the_list_shows_its_meaning(browser, width: int) -> None:
+    """Known issues 2026-10-12, 1.8 (DESK-10, targum-internal#378). A word marked known
+    from "Words you may already know" had its meaning written onto its own record, which
+    Your Words never reads, so the row was blank. The page asks for it by name, files it
+    where meanings live, and the row says it."""
+    html = list_page(TOKEN, "words")
+    asked: list[str] = []
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        if "/words/common" in request.url and "forms=" in request.url:
+            asked.append(request.url)
+            body = {
+                "words": [{"form": "עם", "meaning": "with", "band": "easy"}],
+                "next": None,
+                "into": "en",
+            }
+            return route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    page.add_init_script(
+        "if (!sessionStorage.getItem('seeded')) {"
+        "sessionStorage.setItem('seeded', '1');"
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({"
+        "'עם': {surface: 'עם', status: 9, source: 'claimed', meaning: 'with', at: 2},"
+        "'עיר': {surface: 'עיר', status: 1, at: 3}}));"
+        # The meanings moved out of the word's record long before the list existed, so
+        # that move never ran over a claim.
+        "localStorage.setItem('targum:migrated', JSON.stringify({meanings: 1}));"
+        "localStorage.setItem('targum:language', 'he')}"
+    )
+    page.route("http://words.test/**", answer)
+    try:
+        page.goto(f"http://words.test/words?k={TOKEN}")
+        page.wait_for_selector("#word-rows tr")
+        page.wait_for_function(
+            "() => !!JSON.parse(localStorage.getItem('targum:meanings:he:en') || '{}')['עם']",
+            timeout=5000,
+        )
+        known = page.locator("#stage-chips [data-stage]", has_text="Known")
+        if known.count():
+            known.first.click()
+        page.wait_for_selector("#word-rows tr[data-word='עם']")
+        meaning = page.locator("#word-rows tr[data-word='עם'] td.meaning").first.inner_text()
+    finally:
+        context.close()
+    assert len(asked) == 1
+    assert meaning.strip() == "with"
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_an_ignored_word_can_be_undone_in_its_row(browser, width: int) -> None:
+    """QA 2026-10-11, decision D6 (design.md §12, "An ignored word can be taken back"):
+    ignore took the word off the list at once with no way back. Its row stays, says where
+    it went, and holds Undo under the keyboard, clear of the phone's bar of places; Undo
+    puts the word back at the stage it had."""
+    context, page = _words_page(browser, width)
+    try:
+        page.locator("#word-rows tr", has_text="דרך").locator(".level-0").click()
+        page.wait_for_selector("#word-rows tr.held")
+        got = page.evaluate(
+            """() => {
+              const undo = document.querySelector('#word-rows tr.held .held-undo');
+              undo.scrollIntoView({ block: 'end' });
+              undo.focus();
+              const bar = document.querySelector('.site-nav').getBoundingClientRect();
+              const fixed = getComputedStyle(document.querySelector('.site-nav')).position;
+              return {
+                note: document.querySelector('#word-rows tr.held .held-note').textContent,
+                focused: document.activeElement === undo,
+                clear: fixed !== 'fixed' || undo.getBoundingClientRect().bottom <= bar.top,
+                tabs: [...document.querySelectorAll('#stage-chips .tab')].map((c) => c.textContent),
+              };
+            }"""
+        )
+        ignored = page.evaluate(STAGE_OF, "דרך")
+        page.keyboard.press("Enter")
+        page.wait_for_selector("#word-rows tr.held", state="detached")
+        back = page.evaluate(
+            """() => [...document.querySelectorAll('#word-rows tr')].map(
+              (row) => [row.dataset.word, row.querySelector('.status-name').textContent]
+            )"""
+        )
+        stage = page.evaluate(STAGE_OF, "דרך")
+    finally:
+        context.close()
+    assert got["note"] == "דרך is in Ignored" and got["focused"] and got["clear"], got
+    assert "Ignored" in got["tabs"]
+    assert ignored == 0 and stage == 2
+    assert ["דרך", "Getting there"] in back
+
+
+def test_an_ignored_word_is_found_under_ignored_and_put_back_by_a_stage(browser) -> None:
+    """QA 2026-10-11, decision D6: the Ignored tab lists what was ignored, All does not,
+    and pressing a stage there puts the word back on the list."""
+    context, page = _words_page(browser, 1280)
+    try:
+        page.locator("#word-rows tr", has_text="עיר").locator(".level-0").click()
+        page.wait_for_selector("#word-rows tr.held")
+        page.locator("#stage-chips .tab", has_text="All").click()
+        everything = page.evaluate(
+            "() => [...document.querySelectorAll('#word-rows tr')].map((r) => r.dataset.word)"
+        )
+        page.locator("#stage-chips .tab", has_text="Ignored").click()
+        listed = page.evaluate(
+            """() => [...document.querySelectorAll('#word-rows tr')].map(
+              (row) => [row.dataset.word, row.querySelector('.status-name').textContent]
+            )"""
+        )
+        page.locator("#word-rows tr", has_text="עיר").locator(".level-1").click()
+        page.wait_for_timeout(200)
+        after = page.evaluate(
+            """() => ({
+              rows: document.querySelectorAll('#word-rows tr').length,
+              empty: document.getElementById('words-empty').hidden,
+            })"""
+        )
+        stage = page.evaluate(STAGE_OF, "עיר")
+        page.locator("#stage-chips .tab", has_text="To work on").click()
+        working = page.evaluate(
+            "() => [...document.querySelectorAll('#word-rows tr')].map((r) => r.dataset.word)"
+        )
+    finally:
+        context.close()
+    assert everything == ["דרך"], everything
+    assert listed == [["עיר", "Ignored"]], listed
+    assert after == {"rows": 0, "empty": False} and stage == 1
+    assert sorted(working) == ["דרך", "עיר"]
+
+
+#: What a card is, as the browser draws it: the card's paper, a shadow, and a card's
+#: corners (a pill on the card's paper is an outlined press, not a card). Measured rather
+#: than read from the class, so a page that draws its own card under another name is
+#: caught too.
+CARD_SURFACES = """() => {
+  const card = (node) => {
+    const cs = getComputedStyle(node);
+    return cs.backgroundColor === 'rgb(255, 253, 249)'
+      && cs.boxShadow && cs.boxShadow !== 'none'
+      && parseFloat(cs.borderTopLeftRadius) >= 12
+      && parseFloat(cs.borderTopLeftRadius) < 100;  // a pill on the card is a press
+  };
+  const nested = [];
+  for (const node of document.querySelectorAll('main *')) {
+    if (!card(node)) continue;
+    for (let up = node.parentElement; up && up.tagName !== 'MAIN'; up = up.parentElement) {
+      if (card(up)) { nested.push(`${up.className} > ${node.className}`); break; }
+    }
+  }
+  const tabs = [...document.querySelectorAll('.tab')].map((tab) => {
+    const cs = getComputedStyle(tab);
+    return {
+      radius: cs.borderTopLeftRadius, under: cs.borderBottomWidth, line: cs.textDecorationLine,
+    };
+  });
+  return { nested, tabs };
+}"""
+
+
+@pytest.mark.parametrize("name", sorted(pages()))
+def test_no_card_sits_in_a_card_and_no_tab_is_underlined(
+    browser, tmp_path: Path, name: str
+) -> None:
+    """design.md §9 and §12 ("The boards are the desk"): a card is never inside a card — what
+    groups inside one is a hairline — and a tab is a tinted pill, never a word over a line.
+    Every desk page as the server draws it, hidden parts included: a computed style is
+    computed whether or not the part is showing."""
+    page_file = tmp_path / f"{name.replace(':', '-')}.html"
+    page_file.write_text(carried(pages()[name]), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    open_page = context.new_page()
+    open_page.goto(page_file.as_uri())
+    open_page.wait_for_timeout(200)
+    got = open_page.evaluate(CARD_SURFACES)
+    context.close()
+
+    assert not got["nested"], f"{name}: a card inside a card: {got['nested']}"
+    for tab in got["tabs"]:
+        assert tab["radius"] == "999px", f"{name}: a tab that is not a pill: {tab}"
+        assert tab["under"] == "0px" and tab["line"] != "underline", f"{name}: {tab}"
+
+
+#: §4, §12 "The focus ring is teal everywhere" (QA 2026-10-11, decision D3): the gold ring
+#: was 2.31:1 on the ground. Computed, so a rule that names a colour of its own fails too.
+TEAL = "rgb(31, 111, 107)"
+
+
+@pytest.mark.parametrize("name", ["library", "progress", "you"])
+def test_a_desk_page_rings_its_focus_in_teal(browser, tmp_path: Path, name: str) -> None:
+    page_file = tmp_path / f"{name}.html"
+    page_file.write_text(carried(pages()[name]), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.goto(page_file.as_uri())
+    seen = []
+    for _ in range(6):
+        open_page.keyboard.press("Tab")
+        seen.append(
+            open_page.evaluate(
+                """() => { const el = document.activeElement;
+                    if (!el || el === document.body) return null;
+                    const s = getComputedStyle(el);
+                    return [el.className || el.tagName, s.outlineStyle, s.outlineColor]; }"""
+            )
+        )
+    context.close()
+    rings = [one for one in seen if one and one[1] != "none"]
+    assert rings, f"{name}: nothing Tab reached drew a ring: {seen}"
+    for where, _, colour in rings:
+        assert colour == TEAL, f"{name}: {where} rings in {colour}"
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_your_level_is_shown_whole_on_a_desk(browser, language: str) -> None:
+    """Signed-in walk 2026-10-12, m14: "Your Hebrew" was cut to "I follow the news with ·"
+    at a desk, the row's choice held to 13rem. The longest rung is read whole."""
+    import json as _json
+
+    from targum.strings import catalogue
+
+    said = catalogue(language)
+    longest = max((said[key] for key in said if key.startswith("learn.level.")), key=len)
+    css = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "shared.css"
+    ).read_text(encoding="utf-8") + (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "you.css"
+    ).read_text(encoding="utf-8")
+    html = (
+        "<!doctype html><html><head><style>" + css + "</style></head><body>"
+        "<main style='max-inline-size: 58rem; margin: auto'><div class='acct-rows'>"
+        "<div class='row' style='display:flex;justify-content:space-between'>"
+        "<span class='row-main'>Your Hebrew</span>"
+        "<select class='acct-pick' id='pick'></select></div></div></main></body></html>"
+    )
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+    try:
+        page.set_content(html)
+        page.evaluate(
+            "(text) => { const o = document.createElement('option'); o.textContent = text;"
+            " document.getElementById('pick').appendChild(o); }",
+            longest,
+        )
+        fits = page.evaluate(
+            """(text) => {
+              const pick = document.getElementById('pick');
+              const style = getComputedStyle(pick);
+              const ctx = document.createElement('canvas').getContext('2d');
+              ctx.font = style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily;
+              const room = pick.clientWidth - parseFloat(style.paddingLeft)
+                - parseFloat(style.paddingRight);
+              return {room: room, text: ctx.measureText(text).width};
+            }""",
+            longest,
+        )
+    finally:
+        context.close()
+    assert fits["text"] <= fits["room"], _json.dumps({"label": longest, **fits})
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_a_pressed_shelf_card_asks_inside_itself(browser, width: int) -> None:
+    """Signed-in walk 2026-10-12, m1: a card pressed on a shelf drew Start reading and Not
+    now under its own bottom edge, the card stopped filling its cell, and it said "Ready
+    in a moment." beside a press nobody had made yet. The presses sit inside the card's
+    surface now, the line says how long it takes, and Not now puts the card back."""
+    html = library_page(TOKEN, language="en")
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        elif "/jobs" in request.url:
+            body = {"jobs": []}
+        elif "/prepare" in request.url:
+            body = {"id": "j1", "estimate": 0}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+    try:
+        page.route("http://library.test/**", answer)
+        page.goto(f"http://library.test/library?k={TOKEN}")
+        page.wait_for_selector(".band-card[data-build]")
+        page.locator(".band-card[data-build]").first.click()
+        page.wait_for_selector(".band-item.asking .row-go")
+        laid = page.evaluate(
+            """() => {
+              const item = document.querySelector('.band-item.asking');
+              const box = (e) => e.getBoundingClientRect();
+              const surface = getComputedStyle(item).backgroundColor;
+              return {
+                item: box(item).toJSON(),
+                go: box(item.querySelector('.row-go')).toJSON(),
+                not: box(item.querySelector('.row-not')).toJSON(),
+                surface: surface,
+                said: item.querySelector('.row-state').textContent,
+              };
+            }"""
+        )
+        for press in ("go", "not"):
+            assert laid[press]["bottom"] <= laid["item"]["bottom"], (press, laid)
+            assert laid[press]["right"] <= laid["item"]["right"], (press, laid)
+        assert laid["surface"] not in ("rgba(0, 0, 0, 0)", "transparent"), "the card's surface"
+        assert laid["said"] == "It takes a moment."
+        page.locator(".band-item.asking .row-not").click()
+        assert page.locator(".band-item.asking").count() == 0
+        assert page.locator(".band-ask").count() == 0
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_a_first_week_of_words_is_one_column_not_a_block(browser, width: int) -> None:
+    """Signed-in walk 2026-10-12, m7: the chart starts at the first week with anything in
+    it (§12), so on a first day its one week stretched across the whole card as one solid
+    block, which a newcomer read as broken. A week is a twelfth of the row however few
+    there are yet."""
+    from targum.render.builder import progress_page
+
+    html = progress_page(TOKEN)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    try:
+        page.add_init_script(
+            "const v = {}; for (let i = 0; i < 40; i++) v['w' + i] = {surface: 'w' + i,"
+            " status: 9, band: 'easy', at: Date.now() - 3600000};"
+            " localStorage.setItem('targum:vocab:he', JSON.stringify(v));"
+            " localStorage.setItem('targum:language', 'he')"
+        )
+        page.route("http://progress.test/**", answer)
+        page.goto(f"http://progress.test/progress?k={TOKEN}")
+        page.wait_for_selector("#weeks .week-bar")
+        got = page.evaluate(
+            """() => {
+              const row = document.querySelector('#weeks .weeks').getBoundingClientRect();
+              const bars = [...document.querySelectorAll('#weeks .week')];
+              return {row: row.width, columns: bars.length,
+                      bar: bars[0].getBoundingClientRect().width};
+            }"""
+        )
+    finally:
+        context.close()
+    assert got["columns"] == 1, got
+    assert got["bar"] <= got["row"] / 12 + 1, f"one week is a twelfth of the row: {got}"
+
+
+RULE = "The letters added before and after the root say who; their pattern says when."
+PRACTICE = {
+    "signedIn": True,
+    "language": "he",
+    "spots": [
+        {"key": "tense", "kind": "choice", "encounters": 9, "texts": 2, "ready": True,
+         "step": 0, "due": 0, "needs": {"encounters": 6, "texts": 2}},
+        {"key": "construct", "kind": "choice", "encounters": 2, "texts": 1, "ready": False,
+         "step": 0, "due": 0, "needs": {"encounters": 6, "texts": 2}},
+    ],
+    "round": {
+        "spot": "tense",
+        "due": True,
+        "items": [
+            {"key": "a:s1", "spot": "tense", "example": True,
+             "ask": "When, and who?",
+             "options": ["past · I", "past · he"], "answer": 0, "said": "past · I",
+             "rule": RULE,
+             "hard": True, "contrast": None, "line": "כתבתי מכתב", "start": 0, "end": 5,
+             "word": "כתבתי", "translation": "I wrote a letter.", "title": "A Book"},
+            {"key": "a:s2", "spot": "tense", "example": False,
+             "ask": "When, and who?",
+             "options": ["past · he", "future · he"], "answer": 0, "said": "past · he",
+             "rule": RULE,
+             "hard": False, "line": "הוא כתב", "start": 4, "end": 7, "word": "כתב",
+             "translation": "He wrote.", "title": "A Book",
+             "contrast": {"line": "הוא יכתוב", "start": 4, "end": 9, "word": "יכתוב",
+                          "translation": "He will write.", "said": "future · he"}},
+        ],
+    },
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_the_grammar_tab_works_one_example_then_asks_and_says_why(browser, width: int) -> None:
+    """targum-internal#440 (design.md §12, "A practice for every hard spot", 2026-10-13):
+    each spot says how often it was met, a round opens on a worked example, an answer is
+    sent to the server and followed by the rule and a line where the other answer is
+    right, and the end of the round is sent once."""
+    html = list_page(TOKEN, "grammar")
+    posted: list[dict] = []
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        if "/account/practice" in request.url:
+            return route.fulfill(
+                status=200, content_type="application/json", body=json.dumps(PRACTICE)
+            )
+        if request.url.split("?")[0].endswith("/practice") and request.method == "POST":
+            posted.append(json.loads(request.post_data or "{}"))
+            return route.fulfill(status=200, content_type="application/json", body='{"ok": true}')
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = context.new_page()
+    page.add_init_script("localStorage.setItem('targum:language', 'he')")
+    page.route("http://words.test/**", answer)
+    page.goto(f"http://words.test/grammar?k={TOKEN}")
+    page.wait_for_selector("#grammar-round:not([hidden]) .grammar-option")
+    spots = page.eval_on_selector_all(
+        ".grammar-spot",
+        "(rows) => rows.map((r) => [r.dataset.spot,"
+        " r.querySelector('.grammar-spot-met').textContent,"
+        " !!r.querySelector('.grammar-go')])",
+    )
+    assert spots[0] == ["tense", "Met in 9 lines across 2 texts.", True]
+    assert spots[1][0] == "construct" and not spots[1][2] and "So far: 2" in spots[1][1]
+    assert page.text_content("#grammar-round-at") == "Worked example"
+    assert page.text_content(".grammar-verdict") == "Here it's past · I."
+    page.click(".grammar-next")
+    assert page.text_content("#grammar-round-at") == "1 of 1"
+    page.click(".grammar-option >> nth=1")
+    page.wait_for_selector(".grammar-feedback")
+    assert page.text_content(".grammar-verdict") == "It's past · he here."
+    assert page.text_content(".grammar-other") == "Where it's future · he:"
+    assert page.text_content(".grammar-other-line mark") == "יכתוב"
+    page.click(".grammar-next")
+    page.wait_for_selector(".grammar-done")
+    page.wait_for_timeout(100)
+    context.close()
+    assert posted[0] == {"spot": "tense", "key": "a:s2", "right": False, "language": "he"}
+    assert posted[1] == {"spot": "tense", "done": [0, 1], "language": "he"}
+    assert len(posted) == 2

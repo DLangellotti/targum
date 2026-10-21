@@ -52,7 +52,7 @@ def test_a_redirect_into_the_private_network_is_refused(monkeypatch: pytest.Monk
         return Answer(302, {"location": "http://169.254.169.254/latest/"})
 
     answering(monkeypatch, handler)
-    with pytest.raises(TargumError, match="private network"):
+    with pytest.raises(TargumError, match="can't open pages on"):
         get("https://example.com/article")
     # It made the first request and refused the second before sending it.
     assert hops == ["https://example.com/article"]

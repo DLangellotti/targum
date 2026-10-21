@@ -49,6 +49,9 @@ def test_a_scene_knows_its_number_and_nothing_else_has_one() -> None:
     assert scene_number("scene-100-the-same-spot") == 100
     assert scene_number("ruth") == 0
     assert scene_number("") == 0
+    # A scene in another language names it after `scene-` and keeps its own count.
+    assert scene_number("scene-ru-01-at-the-market") == 1
+    assert scene_number("scene-russian-01-x") == 0, "a language is a code, not a word"
 
 
 # -- collections --------------------------------------------------------------
@@ -145,7 +148,7 @@ def _labelled(name: str) -> set[str]:
     return set(re.findall(r'\["([a-z]+)",', block.group(1)))
 
 
-def test_every_kind_and_register_has_a_word_a_reader_would_use() -> None:
+def test_every_kind_has_a_word_a_reader_would_use() -> None:
     """A value with no label shows as an empty column and no chip, and says nothing.
 
     `named()` in library.js returns "" for a value it does not know, so adding to either
@@ -154,14 +157,13 @@ def test_every_kind_and_register_has_a_word_a_reader_would_use() -> None:
     check that makes that loud, added when `Kind.liturgy` went in for the siddur
     (targum-internal#120).
     """
-    from targum.catalogue import Kind, Register
+    from targum.catalogue import Kind
 
-    # `Register.none` is the empty string — "anything not in Hebrew, where the axis does
-    # not apply" — and there is nothing for a Hebrew library to call it.
-    registers = {one.value for one in Register if one.value}
-
+    # Which Hebrew a text is in is no longer said on the Library (design.md §12, "The
+    # Library stands on the ground", 2026-10-09): See all's filters are kind, level and
+    # language. A kind is still said on every row, in both its forms.
     assert {one.value for one in Kind} <= _labelled("KINDS"), "a kind with no word for it"
-    assert registers <= _labelled("REGISTERS"), "a register with no word for it"
+    assert {one.value for one in Kind} <= _labelled("KIND_ONE"), "a kind with no word for one"
 
 
 def test_a_rendering_is_in_the_language_its_source_names() -> None:
@@ -322,6 +324,18 @@ def test_a_collection_written_before_this_still_reads() -> None:
     made = _collection({"id": "x", "title": "ת", "english": "Torah", "members": ["a"]})
     assert made.named == {} and made.blurbs == {}
     assert made.name_in("ru") == "Torah"
+    assert made.channel == "" and made.state()["channel"] == ""
+
+
+def test_a_collection_can_name_the_channel_its_texts_come_from() -> None:
+    """A Library row of it then offers Subscribe to that channel (design.md §12, "The
+    Library stands on the ground", 2026-10-09)."""
+    from targum.catalogue import _collection
+
+    made = _collection(
+        {"id": "kan", "title": "כאן", "english": "Kan", "channel": "https://www.youtube.com/@kan"}
+    )
+    assert made.state()["channel"] == "https://www.youtube.com/@kan"
 
 
 # -- a rendering says where its licence was read (targum-internal#355) -------------------

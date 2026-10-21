@@ -1,0 +1,488 @@
+[
+ {
+  "book": "Genesis",
+  "slug": "bereshit",
+  "name": "Bereshit",
+  "hebrew": "בְּרֵאשִׁית",
+  "chapter": 1,
+  "verse": 1,
+  "summary": "Genesis 1:1-6:8"
+ },
+ {
+  "book": "Genesis",
+  "slug": "noach",
+  "name": "Noach",
+  "hebrew": "נֹחַ",
+  "chapter": 6,
+  "verse": 9,
+  "summary": "Genesis 6:9-11:32"
+ },
+ {
+  "book": "Genesis",
+  "slug": "lech-lecha",
+  "name": "Lech-Lecha",
+  "hebrew": "לֶךְ־לְךָ",
+  "chapter": 12,
+  "verse": 1,
+  "summary": "Genesis 12:1-17:27"
+ },
+ {
+  "book": "Genesis",
+  "slug": "vayera",
+  "name": "Vayera",
+  "hebrew": "וַיֵּרָא",
+  "chapter": 18,
+  "verse": 1,
+  "summary": "Genesis 18:1-22:24"
+ },
+ {
+  "book": "Genesis",
+  "slug": "chayei-sara",
+  "name": "Chayei Sara",
+  "hebrew": "חַיֵּי שָֹרָה",
+  "chapter": 23,
+  "verse": 1,
+  "summary": "Genesis 23:1-25:18"
+ },
+ {
+  "book": "Genesis",
+  "slug": "toldot",
+  "name": "Toldot",
+  "hebrew": "תּוֹלְדוֹת",
+  "chapter": 25,
+  "verse": 19,
+  "summary": "Genesis 25:19-28:9"
+ },
+ {
+  "book": "Genesis",
+  "slug": "vayetzei",
+  "name": "Vayetzei",
+  "hebrew": "וַיֵּצֵא",
+  "chapter": 28,
+  "verse": 10,
+  "summary": "Genesis 28:10-32:3"
+ },
+ {
+  "book": "Genesis",
+  "slug": "vayishlach",
+  "name": "Vayishlach",
+  "hebrew": "וַיִּשְׁלַח",
+  "chapter": 32,
+  "verse": 4,
+  "summary": "Genesis 32:4-36:43"
+ },
+ {
+  "book": "Genesis",
+  "slug": "vayeshev",
+  "name": "Vayeshev",
+  "hebrew": "וַיֵּשֶׁב",
+  "chapter": 37,
+  "verse": 1,
+  "summary": "Genesis 37:1-40:23; Numbers 7:1-17"
+ },
+ {
+  "book": "Genesis",
+  "slug": "miketz",
+  "name": "Miketz",
+  "hebrew": "מִקֵּץ",
+  "chapter": 41,
+  "verse": 1,
+  "summary": "Genesis 41:1-44:17; Numbers 7:54-8:4"
+ },
+ {
+  "book": "Genesis",
+  "slug": "vayigash",
+  "name": "Vayigash",
+  "hebrew": "וַיִּגַּשׁ",
+  "chapter": 44,
+  "verse": 18,
+  "summary": "Genesis 44:18-47:27"
+ },
+ {
+  "book": "Genesis",
+  "slug": "vayechi",
+  "name": "Vayechi",
+  "hebrew": "וַיְחִי",
+  "chapter": 47,
+  "verse": 28,
+  "summary": "Genesis 47:28-50:26"
+ },
+ {
+  "book": "Exodus",
+  "slug": "shemot",
+  "name": "Shemot",
+  "hebrew": "שְׁמוֹת",
+  "chapter": 1,
+  "verse": 1,
+  "summary": "Exodus 1:1-6:1"
+ },
+ {
+  "book": "Exodus",
+  "slug": "vaera",
+  "name": "Vaera",
+  "hebrew": "וָאֵרָא",
+  "chapter": 6,
+  "verse": 2,
+  "summary": "Exodus 6:2-9:35"
+ },
+ {
+  "book": "Exodus",
+  "slug": "bo",
+  "name": "Bo",
+  "hebrew": "בֹּא",
+  "chapter": 10,
+  "verse": 1,
+  "summary": "Exodus 10:1-13:16"
+ },
+ {
+  "book": "Exodus",
+  "slug": "beshalach",
+  "name": "Beshalach",
+  "hebrew": "בְּשַׁלַּח",
+  "chapter": 13,
+  "verse": 17,
+  "summary": "Exodus 13:17-17:16"
+ },
+ {
+  "book": "Exodus",
+  "slug": "yitro",
+  "name": "Yitro",
+  "hebrew": "יִתְרוֹ",
+  "chapter": 18,
+  "verse": 1,
+  "summary": "Exodus 18:1-20:23"
+ },
+ {
+  "book": "Exodus",
+  "slug": "mishpatim",
+  "name": "Mishpatim",
+  "hebrew": "מִשְׁפָּטִים",
+  "chapter": 21,
+  "verse": 1,
+  "summary": "Exodus 21:1-24:18, 30:11-16"
+ },
+ {
+  "book": "Exodus",
+  "slug": "terumah",
+  "name": "Terumah",
+  "hebrew": "תְּרוּמָה",
+  "chapter": 25,
+  "verse": 1,
+  "summary": "Exodus 25:1-27:19"
+ },
+ {
+  "book": "Exodus",
+  "slug": "tetzaveh",
+  "name": "Tetzaveh",
+  "hebrew": "תְּצַוֶּה",
+  "chapter": 27,
+  "verse": 20,
+  "summary": "Exodus 27:20-30:10; Deuteronomy 25:17-19"
+ },
+ {
+  "book": "Exodus",
+  "slug": "ki-tisa",
+  "name": "Ki Tisa",
+  "hebrew": "כִּי תִשָּׂא",
+  "chapter": 30,
+  "verse": 11,
+  "summary": "Exodus 30:11-34:35; Numbers 19:1-22"
+ },
+ {
+  "book": "Exodus",
+  "slug": "vayakhel",
+  "name": "Vayakhel",
+  "hebrew": "וַיַּקְהֵל",
+  "chapter": 35,
+  "verse": 1,
+  "summary": "Exodus 35:1-38:20, 30:11-16"
+ },
+ {
+  "book": "Exodus",
+  "slug": "pekudei",
+  "name": "Pekudei",
+  "hebrew": "פְקוּדֵי",
+  "chapter": 38,
+  "verse": 21,
+  "summary": "Exodus 38:21-40:38"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "vayikra",
+  "name": "Vayikra",
+  "hebrew": "וַיִּקְרָא",
+  "chapter": 1,
+  "verse": 1,
+  "summary": "Leviticus 1:1-5:26"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "tzav",
+  "name": "Tzav",
+  "hebrew": "צַו",
+  "chapter": 6,
+  "verse": 1,
+  "summary": "Leviticus 6:1-8:36"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "shmini",
+  "name": "Shmini",
+  "hebrew": "שְּׁמִינִי",
+  "chapter": 9,
+  "verse": 1,
+  "summary": "Leviticus 9:1-11:47"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "tazria",
+  "name": "Tazria",
+  "hebrew": "תַזְרִיעַ",
+  "chapter": 12,
+  "verse": 1,
+  "summary": "Leviticus 12:1-13:59"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "metzora",
+  "name": "Metzora",
+  "hebrew": "מְצֹרָע",
+  "chapter": 14,
+  "verse": 1,
+  "summary": "Leviticus 14:1-15:33"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "achrei-mot",
+  "name": "Achrei Mot",
+  "hebrew": "אַחֲרֵי מוֹת",
+  "chapter": 16,
+  "verse": 1,
+  "summary": "Leviticus 16:1-18:30"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "kedoshim",
+  "name": "Kedoshim",
+  "hebrew": "קְדֹשִׁים",
+  "chapter": 19,
+  "verse": 1,
+  "summary": "Leviticus 19:1-20:27; Numbers 28:9-15"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "emor",
+  "name": "Emor",
+  "hebrew": "אֱמוֹר",
+  "chapter": 21,
+  "verse": 1,
+  "summary": "Leviticus 21:1-24:23"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "behar",
+  "name": "Behar",
+  "hebrew": "בְּהַר",
+  "chapter": 25,
+  "verse": 1,
+  "summary": "Leviticus 25:1-26:2"
+ },
+ {
+  "book": "Leviticus",
+  "slug": "bechukotai",
+  "name": "Bechukotai",
+  "hebrew": "בְּחֻקֹּתַי",
+  "chapter": 26,
+  "verse": 3,
+  "summary": "Leviticus 26:3-27:34"
+ },
+ {
+  "book": "Numbers",
+  "slug": "bamidbar",
+  "name": "Bamidbar",
+  "hebrew": "בְּמִדְבַּר",
+  "chapter": 1,
+  "verse": 1,
+  "summary": "Numbers 1:1-4:20"
+ },
+ {
+  "book": "Numbers",
+  "slug": "nasso",
+  "name": "Nasso",
+  "hebrew": "נָשׂא",
+  "chapter": 4,
+  "verse": 21,
+  "summary": "Numbers 4:21-7:89"
+ },
+ {
+  "book": "Numbers",
+  "slug": "behaalotcha",
+  "name": "Beha'alotcha",
+  "hebrew": "בְּהַעֲלֹתְךָ",
+  "chapter": 8,
+  "verse": 1,
+  "summary": "Numbers 8:1-12:16"
+ },
+ {
+  "book": "Numbers",
+  "slug": "shlach",
+  "name": "Sh'lach",
+  "hebrew": "שְׁלַח־לְךָ",
+  "chapter": 13,
+  "verse": 1,
+  "summary": "Numbers 13:1-15:41"
+ },
+ {
+  "book": "Numbers",
+  "slug": "korach",
+  "name": "Korach",
+  "hebrew": "קֹרַח",
+  "chapter": 16,
+  "verse": 1,
+  "summary": "Numbers 16:1-18:32"
+ },
+ {
+  "book": "Numbers",
+  "slug": "chukat",
+  "name": "Chukat",
+  "hebrew": "חֻקַּת",
+  "chapter": 19,
+  "verse": 1,
+  "summary": "Numbers 19:1-22:1"
+ },
+ {
+  "book": "Numbers",
+  "slug": "balak",
+  "name": "Balak",
+  "hebrew": "בָּלָק",
+  "chapter": 22,
+  "verse": 2,
+  "summary": "Numbers 22:2-25:9"
+ },
+ {
+  "book": "Numbers",
+  "slug": "pinchas",
+  "name": "Pinchas",
+  "hebrew": "פִּינְחָס",
+  "chapter": 25,
+  "verse": 10,
+  "summary": "Numbers 25:10-30:1"
+ },
+ {
+  "book": "Numbers",
+  "slug": "matot",
+  "name": "Matot",
+  "hebrew": "מַטּוֹת",
+  "chapter": 30,
+  "verse": 2,
+  "summary": "Numbers 30:2-32:42"
+ },
+ {
+  "book": "Numbers",
+  "slug": "masei",
+  "name": "Masei",
+  "hebrew": "מַסְעֵי",
+  "chapter": 33,
+  "verse": 1,
+  "summary": "Numbers 33:1-36:13"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "devarim",
+  "name": "Devarim",
+  "hebrew": "דְּבָרִים",
+  "chapter": 1,
+  "verse": 1,
+  "summary": "Deuteronomy 1:1-3:22"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "vaetchanan",
+  "name": "Vaetchanan",
+  "hebrew": "וָאֶתְחַנַּן",
+  "chapter": 3,
+  "verse": 23,
+  "summary": "Deuteronomy 3:23-7:11"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "eikev",
+  "name": "Eikev",
+  "hebrew": "עֵקֶב",
+  "chapter": 7,
+  "verse": 12,
+  "summary": "Deuteronomy 7:12-11:25"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "reeh",
+  "name": "Re'eh",
+  "hebrew": "רְאֵה",
+  "chapter": 11,
+  "verse": 26,
+  "summary": "Deuteronomy 11:26-16:17"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "shoftim",
+  "name": "Shoftim",
+  "hebrew": "שׁוֹפְטִים",
+  "chapter": 16,
+  "verse": 18,
+  "summary": "Deuteronomy 16:18-21:9"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "ki-teitzei",
+  "name": "Ki Teitzei",
+  "hebrew": "כִּי־תֵצֵא",
+  "chapter": 21,
+  "verse": 10,
+  "summary": "Deuteronomy 21:10-25:19"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "ki-tavo",
+  "name": "Ki Tavo",
+  "hebrew": "כִּי־תָבוֹא",
+  "chapter": 26,
+  "verse": 1,
+  "summary": "Deuteronomy 26:1-29:8"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "nitzavim",
+  "name": "Nitzavim",
+  "hebrew": "נִצָּבִים",
+  "chapter": 29,
+  "verse": 9,
+  "summary": "Deuteronomy 29:9-30:20"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "vayeilech",
+  "name": "Vayeilech",
+  "hebrew": "וַיֵּלֶךְ",
+  "chapter": 31,
+  "verse": 1,
+  "summary": "Deuteronomy 31:1-30"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "haazinu",
+  "name": "Ha'azinu",
+  "hebrew": "הַאֲזִינוּ",
+  "chapter": 32,
+  "verse": 1,
+  "summary": "Deuteronomy 32:1-52"
+ },
+ {
+  "book": "Deuteronomy",
+  "slug": "vzot-haberachah",
+  "name": "V'Zot HaBerachah",
+  "hebrew": "וְזֹאת הַבְּרָכָה",
+  "chapter": 33,
+  "verse": 1,
+  "summary": "Deuteronomy 33:1-34:12"
+ }
+]

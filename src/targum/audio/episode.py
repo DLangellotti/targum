@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urljoin, urlparse
 
 from pydantic import BaseModel
@@ -56,7 +57,7 @@ def find(url: str) -> Episode | None:
     for. An episode page is searched for its own audio, then for the feed it belongs
     to, followed one hop.
     """
-    from ..ingest.url import fetch
+    from ..ingest.url import page
 
     if sounds_like_audio(url):
         return Episode(audio_url=url)
@@ -68,7 +69,7 @@ def find(url: str) -> Episode | None:
         # saying what the episode is and pressing Continue looks for it where it can be
         # had. Offered, never run — the press is the reader's (targum-internal#252).
         raise UnsupportedSource(
-            "Spotify keeps its audio to itself, so we can't fetch it.",
+            "Spotify doesn't let us bring in its audio.",
             "Paste the show's page on Apple Podcasts, its RSS feed or the episode's own "
             "site — or say what the episode is and press Continue, and we'll look.",
             key="episode.spotify",
@@ -79,7 +80,9 @@ def find(url: str) -> Episode | None:
         found = _from_apple(apple.group(1), wanted)
         if found is not None:
             return found
-    got = fetch(url)
+    # Through `page`: an article is asked about here first and read by the ingester next,
+    # and the second read is the first one kept (`ingest.url.Pages`, 2026-10-06).
+    got = page(url)
     kind = got.content_type.split(";")[0].strip().lower()
     if kind.startswith("audio/"):
         return Episode(audio_url=url)
@@ -132,6 +135,61 @@ def _from_apple(show_id: str, episode_id: str) -> Episode | None:
         title=str(chosen.get("trackName") or ""),
         seconds=float(chosen.get("trackTimeMillis") or 0) / 1000,
     )
+
+
+#: A page's own pointer to its feed: `<link rel="alternate" type="application/rss+xml">`.
+_FEED_TYPES = ("application/rss+xml", "application/atom+xml", "application/xml", "text/xml")
+
+
+def feed_of(url: str) -> str:
+    """The feed a podcast's address belongs to, or "" where there is none to be found.
+
+    For a subscription (design.md §12, "A channel or a podcast is subscribed to, never built
+    from its address", 2026-10-09): the address a reader has is the feed itself, the show's
+    page on Apple Podcasts — whose lookup names the feed — or the show's own site, whose
+    head points at it. Through the one outbound door, as everything here is.
+    """
+    from bs4 import BeautifulSoup
+
+    from ..ingest.url import fetch, page
+
+    apple = _APPLE.search(url)
+    if apple:
+        try:
+            got = fetch(_LOOKUP, {"id": apple.group(1), "media": "podcast"})
+            results = json.loads(got.text).get("results") or []
+        except Exception:  # noqa: BLE001 - an unreachable API is no feed
+            return ""
+        return next((str(r["feedUrl"]) for r in results if r.get("feedUrl")), "")
+    got = page(url)
+    kind = got.content_type.split(";")[0].strip().lower()
+    if "xml" in kind or got.text.lstrip()[:100].startswith(("<?xml", "<rss", "<feed")):
+        return url
+    if "html" in kind or not kind:
+        soup = BeautifulSoup(got.text, "html.parser")
+        for link in soup.find_all("link"):
+            rel = " ".join(link.get("rel") or []).lower()
+            if "alternate" in rel and str(link.get("type") or "").lower() in _FEED_TYPES:
+                href = str(link.get("href") or "")
+                if href:
+                    return urljoin(url, href)
+        found = _RSS_IN_TEXT.search(got.text)
+        if found:
+            return found.group(0)
+    return ""
+
+
+def episodes(feed: str, limit: int = 60) -> tuple[str, list[Any]]:
+    """A podcast feed's name and its episodes that carry audio, in the feed's order —
+    newest first, as feeds put them. Every one, not the newest alone, so a subscription
+    can list everything since the last one it saw."""
+    from ..ingest.url import fetch
+    from ..weekly import feeds
+
+    got = fetch(feed)
+    body = got.raw or got.text.encode("utf-8")
+    items = [item for item in feeds.parse(body) if item.enclosure][:limit]
+    return feeds.title(body), items
 
 
 def _bare(url: str) -> str:

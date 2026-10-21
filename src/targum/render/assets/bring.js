@@ -277,7 +277,14 @@
       var seconds = Number(job.seconds) || 0;
       if (seconds <= 0) return "";
       var n = Math.ceil(seconds / 60 - 1e-9);
-      return tn("bring.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+      var whole = tn("bring.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+      // One press gets every part, a part at a time (David, 2026-10-07; design.md §12):
+      // the credits are the whole recording's, and the card says how it arrives.
+      var parts = Number(job.parts) || 0;
+      if (parts > 1) {
+        whole += " · " + tn("bring.in-parts", parts, "in {n} part, each made as you reach it", "in {n} parts, each made as you reach it");
+      }
+      return whole;
     }
     return t("bring.uses-no-credits", "Uses none of your credits");
   }
@@ -304,7 +311,7 @@
       ) +
       " " +
       t("building.credits.rate", "That's about {clock} of audio.", { clock: said(spare) });
-    if (got.ends) line += " " + t("building.hours.reset", "They come back on {date}.", { date: got.ends });
+    if (got.ends) line += " " + t("building.hours.reset", "They reset on {date}.", { date: got.ends });
     return line;
   }
 
@@ -397,17 +404,40 @@
     return !line || JUST_OPEN.test(line);
   }
 
+  //: A build still under way: waiting its turn, being read, or being made. Anything
+  //: else — done, failed, refused, lost to a restart — is where following stops.
+  var UNDER_WAY = { queued: true, working: true, reading: true, "looking up words": true };
+  function underWay(state) {
+    return !!state && !state.error && !state.blocked && UNDER_WAY[state.stage] === true;
+  }
+
+  //: Asks in a row that reach nobody before a follow gives up rather than asking for ever.
+  var MISSES = 5;
+
   // Follow a started build to its end: resolves to the job's state once it is done or
   // has failed. A reader who sent a text to open it is waiting for exactly this.
-  function follow(id) {
+  // `step(state)` hears every answer on the way, which is how a card draws its progress;
+  // `still()`, where given, says whether anybody is still looking — a card taken off the
+  // page stops asking, and resolves to `{}`.
+  function follow(id, step, still) {
     return new Promise(function (resolve) {
+      var misses = 0;
       function look() {
-        ask("/job/" + encodeURIComponent(id)).then(function (state) {
-          if (state.error || !state.stage || state.stage === "done" || state.stage === "failed") {
-            return resolve(state);
+        ask("/job/" + encodeURIComponent(id)).then(
+          function (state) {
+            misses = 0;
+            if (still && !still()) return resolve({});
+            if (step) step(state);
+            if (!underWay(state)) return resolve(state);
+            setTimeout(look, window.TargumBring.POLL);
+          },
+          function () {
+            // A dropped connection is not a failed build: ask again, more slowly.
+            misses += 1;
+            if (misses >= MISSES || (still && !still())) return resolve({});
+            setTimeout(look, window.TargumBring.POLL * (misses + 1));
           }
-          setTimeout(look, window.TargumBring.POLL);
-        });
+        );
       }
       look();
     });
@@ -500,10 +530,125 @@
     }
     var note = document.createElement("p");
     note.className = "quote-note";
+    // Where the card follows its build once it is pressed (David, 2026-10-10: "it wasn't
+    // clear for a long time that it was loading, and it required me to refresh the page
+    // to see it"): the stage in words and the bar while it is made, the Open press when
+    // it is ready. Empty and hidden until then.
+    var progress = document.createElement("div");
+    progress.className = "quote-progress";
+    progress.hidden = true;
+    var bar = null;
+    var fill = null;
+    var stage = null;
+    var said = null;
+    function drawWorking(state) {
+      if (!stage) {
+        progress.textContent = "";
+        stage = document.createElement("p");
+        stage.className = "quote-stage";
+        // Said when the stage changes; the bar carries the count.
+        stage.setAttribute("aria-live", "polite");
+        progress.appendChild(stage);
+        bar = document.createElement("span");
+        bar.className = "meter is-building quote-meter";
+        bar.setAttribute("role", "progressbar");
+        bar.setAttribute("aria-label", t("building.stage.progress", "How much is ready"));
+        bar.setAttribute("aria-valuemin", "0");
+        bar.setAttribute("aria-valuemax", "100");
+        fill = document.createElement("span");
+        bar.appendChild(fill);
+        progress.appendChild(bar);
+        said = document.createElement("p");
+        said.className = "quote-said";
+        progress.appendChild(said);
+      }
+      progress.hidden = false;
+      var behind = Number(state.behind) || 0;
+      stage.textContent =
+        state.stage === "queued" && behind > 0
+          ? tn("shelf.building.behind", behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+          : plain(state.message);
+      // A sliver while nothing is counted yet, as the shelf's building row draws it, so
+      // the bar reads as begun rather than as empty.
+      var total = Number(state.total) || 0;
+      var done = Math.min(Number(state.done) || 0, total);
+      var share = total > 0 ? Math.max(0.04, done / total) : 0.04;
+      fill.style.setProperty("--done", String(share));
+      bar.setAttribute("aria-valuenow", String(Math.round(share * 100)));
+      // The server's own line about it, the one `check_job` gives a host, so the card
+      // here and the card in someone else's chat say the same thing.
+      said.textContent = state.said || "";
+      said.hidden = !state.said;
+    }
+    function drawReady(state) {
+      progress.textContent = "";
+      stage = null;
+      var open = document.createElement("a");
+      open.className = "quote-go quote-open";
+      open.href = door(state.reader);
+      open.textContent = t("bring.open-it", "Open it");
+      progress.appendChild(open);
+      progress.hidden = false;
+      note.textContent = state.said || t("job.said.ready", "It's ready to read.");
+      card.classList.add("ready");
+    }
+    // Pressed: from here the card is its build's progress, to its end, with no refresh.
+    function followBuild(state) {
+      card.classList.add("started");
+      note.textContent = t("bring.started", "We're getting it ready. You'll find it in Your targums.");
+      drawWorking(state);
+      if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+      card.finished = follow(
+        state.id || job.id,
+        function (now) {
+          if (underWay(now)) drawWorking(now);
+        },
+        function () {
+          // Off the page — another conversation opened — nobody is looking.
+          return card.isConnected !== false;
+        }
+      ).then(function (end) {
+        if (end.stage === "done" && end.reader) {
+          drawReady(end);
+        } else if (end.error || end.blocked || end.stage === "failed" || end.stage === "blocked") {
+          progress.hidden = true;
+          progress.textContent = "";
+          stage = null;
+          refuse(
+            { blocked: end.blocked, error: end.said || end.error, fact: end.fact, act: end.act },
+            t("bring.cannot", "We can't get this ready right now.")
+          );
+        } else {
+          // Lost sight of it: the note still says where it will be.
+          progress.hidden = true;
+          return end;
+        }
+        // The bell, told to look again, so the strip and the card agree.
+        if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+        return end;
+      });
+      return card.finished;
+    }
+    // A refusal on the card: the sentence with the clay mark, or, where the rail that
+    // stopped it sent what still works, a panel with its way on (design.md §12,
+    // 2026-10-09). It was a sentence in clay.
+    function refuse(state, fallback) {
+      var said = state.blocked || state.error || fallback;
+      card.classList.add("refused");
+      if (window.TargumFault && state.blocked && (state.fact || state.act)) {
+        note.textContent = "";
+        note.hidden = true;
+        card.appendChild(window.TargumFault.refusal(said, state.fact, state.act));
+        return;
+      }
+      note.textContent = said;
+      note.classList.add("fault-marked");
+    }
     if (job.stage === "ready") {
       var spends = uses(job);
+      var cost = null;
       if (spends) {
-        var cost = document.createElement("p");
+        cost = document.createElement("p");
         cost.className = "quote-uses";
         cost.textContent = spends;
         card.appendChild(cost);
@@ -516,13 +661,15 @@
         go.disabled = true;
         start(job).then(function (state) {
           if (state.error || state.blocked) {
-            note.textContent = state.error || state.blocked;
-            card.classList.add("refused");
+            go.hidden = true;
+            refuse(state, "");
             return;
           }
-          note.textContent = t("bring.started", "We're getting it ready. You'll find it in Your targums.");
-          card.classList.add("started");
-          if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+          // The press is made: the button and its options give way to the progress.
+          go.hidden = true;
+          more.hidden = true;
+          if (cost) cost.hidden = true;
+          followBuild(state);
         });
       };
       card.appendChild(go);
@@ -531,23 +678,18 @@
       more.href = keyed("/add");
       more.textContent = t("bring.more-options", "More options");
       card.appendChild(more);
-    } else if (job.stage === "working" || job.stage === "reading") {
-      // Sent from the box, so already pressed: the card is its progress. "Getting it
-      // ready", never "building" (2026-09-11): a text is getting ready, then ready.
-      note.textContent = t("bring.started", "We're getting it ready. You'll find it in Your targums.");
-      card.classList.add("started");
-      if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+    } else if (underWay(job)) {
+      // Sent from the box, or come back to, so already pressed: the card is its
+      // progress. "Getting it ready", never "building" (2026-09-11): a text is getting
+      // ready, then ready.
+      followBuild(job);
     } else if (job.stage === "done" && job.reader) {
-      var open = document.createElement("a");
-      open.className = "quote-go quote-open";
-      open.href = door(job.reader);
-      open.textContent = t("building.open", "Open");
-      card.appendChild(open);
       card.classList.add("started");
+      drawReady(job);
     } else {
-      note.textContent = job.blocked || job.error || t("bring.cannot", "We can't get this ready right now.");
-      card.classList.add("refused");
+      refuse(job, t("bring.cannot", "We can't get this ready right now."));
     }
+    card.appendChild(progress);
     card.appendChild(note);
     host.appendChild(card);
     return card;
@@ -587,6 +729,7 @@
     start: start,
     door: door,
     follow: follow,
+    underWay: underWay,
     justOpen: justOpen,
     POLL: POLL,
     uploadInChunks: uploadInChunks,

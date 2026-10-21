@@ -683,6 +683,31 @@ def test_a_translation_with_more_verses_than_the_text_is_refused() -> None:
         parallel.pair(source, target, "Ruth")
 
 
+def test_empty_verses_past_the_end_of_a_chapter_are_dropped() -> None:
+    """Metsudah's Rashi on Exodus 38 runs twelve empty verses past the chapter's
+    thirty-one (targum-internal#419). They pair with nothing and shift nothing, so they
+    must not cost the book its Rashi."""
+    source = segment_document(document("he"), _WholeBlocks())
+    target = segment_document(document("en"), _WholeBlocks())
+    whole = parallel.pair(source, target, "Ruth").links
+    blank = target.segments[-1].model_copy(update={"id": "padding", "text": "—"})
+    object.__setattr__(target, "segments", [*target.segments, blank, blank])
+
+    assert parallel.pair(source, target, "Ruth").links == whole
+
+
+def test_a_unit_with_text_past_the_end_is_still_refused() -> None:
+    """Only blank padding is dropped. A comment past the last verse is a different
+    numbering, and pairing through it would misplace it."""
+    source = segment_document(document("he"), _WholeBlocks())
+    target = segment_document(document("en"), _WholeBlocks())
+    blank = target.segments[-1].model_copy(update={"id": "padding", "text": "—"})
+    worded = target.segments[-1].model_copy(update={"id": "worded"})
+    object.__setattr__(target, "segments", [*target.segments, worded, blank])
+    with pytest.raises(TargumError, match="units to"):
+        parallel.pair(source, target, "Ruth")
+
+
 def test_a_sefaria_build_is_shared_between_readers() -> None:
     """Without this every Tanakh is cached per person and the second reader pays."""
     from targum.pipeline import Build
@@ -889,17 +914,16 @@ def test_fill_in_missing_segments_is_never_asked_for(monkeypatch: pytest.MonkeyP
 # -- Rashi on the Torah (targum-internal#200) -------------------------------------------
 
 
-def test_rashi_is_pinned_twice_because_numbers_is_filed_differently() -> None:
-    """Four books share a Hebrew edition and Numbers does not: its title ends four words
-    differently. A build that pinned one string would take four books and miss the fifth
-    in silence, which is why this is a table."""
-    assert len({pair.hebrew for pair in sefaria.RASHI_TORAH.values()}) == 2
-    assert sefaria.version_for("he", "Rashi on Genesis") == sefaria.version_for(
-        "he", "Rashi on Deuteronomy"
-    )
-    assert sefaria.version_for("he", "Rashi on Numbers").endswith("corrected vocalization")
-    # One English edition covers all five.
-    assert len({pair.english for pair in sefaria.RASHI_TORAH.values()}) == 1
+def test_rashi_is_metsudahs_on_both_sides_in_all_five_books() -> None:
+    """targum-internal#414: the Metsudah Rashi Chumash, CC-BY, Hebrew and English. One
+    edition on both sides is what makes a verse's Hebrew comments and its English ones the
+    same comments in the same order, and it is filed under one title in every book, so
+    the Numbers trap Silbermann's set is gone with it."""
+    assert set(sefaria.RASHI_TORAH) == {"Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"}
+    for book in sefaria.RASHI_TORAH:
+        hebrew = sefaria.version_for("he", f"Rashi on {book}")
+        assert hebrew == "Rashi Chumash, Metsudah Publications, 2009"
+        assert sefaria.version_for("en", f"Rashi on {book}") == hebrew
 
 
 def test_rashi_outside_the_torah_is_refused_by_name() -> None:

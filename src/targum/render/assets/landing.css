@@ -1,7 +1,7 @@
 /* The front door (targum-internal#69, 2026-09-16). The one page a stranger meets, and
    the only page that carries a headline at the landing display step (§12, 2026-08-31).
 
-   It stands on the desk (§13) and borrows the whole of it from `reader.css` — the
+   It stands on the desk (§13) and borrows the whole of it from `tokens.css` — the
    ground, the cards, the teal, the corners, the three shadow tiers and the one curve —
    so this file is layout and the page's own furniture, and defines four values of its
    own: the ink panel the media section is drawn on, and the pressed state of a tonal
@@ -10,19 +10,14 @@
    this file is the one that is right. */
 
 /* --- the desk's own values ----------------------------------------------------------
-   Copied from `reader.css` rather than loaded with it, and that is the whole reason
-   this page does not include that file: the reader's sheet styles `.lines`, `.thread`,
-   `.card` and `.stage` for the reader, and this page draws things by those names too.
-   Loading both put the conversation on top of the hero.
+   Copied from `tokens.css` (once the head of `reader.css`) rather than loaded with it:
+   the reader's sheet styles `.lines`, `.thread`, `.card` and `.stage` for the reader,
+   and this page draws things by those names too, and the tokens' base rules were never
+   this page's. Loading the reader's put the conversation on top of the hero.
 
    `tests/test_landing.py` pins the two copies to each other, so a token that changes
    there changes here.
    ------------------------------------------------------------------------------- */
-
-/* targum reader.
-   Logical properties throughout: nothing here says left or right, so one stylesheet
-   serves an RTL source beside an LTR translation and the columns land the right way
-   round on their own. */
 
 :root {
   color-scheme: light;
@@ -57,7 +52,11 @@
   --paper-raised: #f3efe7;
   --rule: #e2dcd1;
   --accent: #7a5c38;
-  --focus: #b8935e;
+  /* Teal, everywhere (design.md §4, §12 "The focus ring is teal everywhere", QA
+     2026-10-11, decision D3): the gold was 2.71:1 on paper and 2.31:1 on the ground,
+     under WCAG 1.4.11's 3:1. An ink surface sets `--focus` to the ink value. */
+  --focus: #1f6f6b;
+  --focus-on-ink: #6fb8b3;
   /* The mark's translation column is its own value on paper: the working accent
      goes muddy at 22px wide, and every brand asset already uses this one. */
   --mark-accent: #a5824f;
@@ -103,6 +102,13 @@
   --card-shadow: 0 1px 2px rgb(28 26 23 / 0.06);
   --page-shadow: 2px 3px 0 rgb(28 26 23 / 0.08), 0 12px 28px rgb(28 26 23 / 0.10);
   --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  /* The face a control is drawn in, wherever it is drawn: the chrome's, on the desk and
+     on the reader alike since 2026-10-09 (design.md §12, "The reader's chrome is the
+     desk's"). §5 gave the reader system-ui because a reader fetches nothing; it carries
+     the face in the page now (`chrome_face`), and where it did not the stack falls back
+     to the platform's. A rule that draws chrome says `var(--ui)` and never a face by
+     name. */
+  --ui: var(--chrome);
   /* The desk grown up (§13, 2026-09-11, "it's from 2016 not 2026"): corners on a scale
      of their own, depth in three tiers rather than a line around every box, a hairline
      only where two same-tone surfaces meet, tint for the ordinary press, glass for the
@@ -116,6 +122,9 @@
   --shadow-raised: 0 1px 2px rgb(28 26 23 / 0.05), 0 8px 24px -12px rgb(28 26 23 / 0.18);
   --shadow-floating: 0 2px 6px rgb(28 26 23 / 0.06), 0 24px 48px -20px rgb(28 26 23 / 0.28);
   --glass: color-mix(in srgb, var(--card) 78%, transparent);
+  /* The page dimmed under a sheet: the reader's menus' value (2026-10-09), now every
+     sheet's and every scrim's, on the reader and on the desk alike. */
+  --scrim: rgb(28 26 23 / 0.38);
   --field: color-mix(in srgb, var(--ground) 65%, var(--card));
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --in: 240ms;
@@ -191,9 +200,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 a { color: var(--teal); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 0.15em; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-/* On the ground the gold ring is 2.31:1; public pages ring in teal, 4.8:1, the colour a
-   focused field already uses (design.md §4, §12, 2026-10-02). */
-:focus-visible, .site-footer a:focus-visible { outline-color: var(--teal); }
 h1, h2, h3 { text-wrap: balance; }
 .he { font-family: var(--reading-hebrew); direction: rtl; unicode-bidi: isolate; }
 .tnum { font-variant-numeric: lining-nums tabular-nums; }
@@ -265,6 +271,11 @@ h1, h2, h3 { text-wrap: balance; }
    Sign in was the fourth, and it wrapped to a second line and took the bar with it; it
    stands in the foot instead, where somebody who already has a key will look for it. */
 @media (max-width: 30rem) { .bar .signin { display: none; } }
+/* Under 22.5rem the bar holds the name and the one thing it is asking for. With EN / RU
+   beside them, at their 44px reach, the bar ran 9px past a 320px phone in English and
+   24px in Russian on /connect, and the whole page scrolled sideways (QA 2026-10-11). The
+   language stays one tap away in the foot. */
+@media (max-width: 22.5rem) { .bar .tongue { display: none; } }
 
 /* hero */
 /* The headline sits against the middle of the column beside it. Bottom-aligned,
@@ -302,7 +313,11 @@ h1, h2, h3 { text-wrap: balance; }
 
 /* The box (targum-internal#399): a link in, one sentence about it out, under the
    headline, and the waitlist on the same card, because joining is what keeps the link. */
-.try { display: grid; gap: var(--space-3); max-inline-size: 34rem; }
+/* One track that can shrink, as the join form's: the field's min-content is the input's
+   own width plus the button, and in Russian («Попробовать») that made the hero 339px
+   wide on a 320px phone (QA 2026-10-11). */
+.try { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); max-inline-size: 34rem; }
+.try-form .field { min-inline-size: 0; }
 .try-form .field { background: var(--card); box-shadow: var(--shadow-rest); }
 .try-form .field input::placeholder { color: var(--muted); }
 /* The answer leads with the thing pasted (2026-10-02): a mark for its kind, its title in

@@ -242,6 +242,12 @@ def features(code: str) -> str | None:
             kept.append(f"Tense={tense}")
         if form:
             kept.append(f"VerbForm={form}")
+        # And the vav-consecutive says it is one, beside the past it means: Hebrew's
+        # eighth hard spot (targum-internal#449, 2026-10-21). Its own key, not `Aspect`,
+        # which the card reads as a Russian verb's aspect. A text annotated before this
+        # has the same mark from the build, read off the pointing (`builder._vav_line`).
+        if code[2] == "w":
+            kept.append("Vav=Cons")
     return "|".join(part for part in kept if part) or None
 
 
@@ -276,7 +282,18 @@ def headword_of(word: oshb.Word) -> str:
     Tanakh" (targum-internal#156). A count keyed to anything but this function is that
     fault again.
     """
+    host = PREPOSITIONS.get(word.lexeme.strip())
+    if host:
+        return host
     return _headword(oshb.headword(word.lexeme) or word.pieces[word.content])
+
+
+#: The prepositions the tagging writes as a letter rather than a number, by that letter,
+#: as their own dictionary form: the word `ל֥וֹ` is filed under once `Word.content` reads
+#: it as the preposition. מן by its name, which is how the lexicon spells 4480 wherever
+#: it stands alone and how the modern path files ממנו; the others have no form but the
+#: letter, and the modern path files בו and לי under the letter too.
+PREPOSITIONS = {"b": "ב", "l": "ל", "k": "כ", "m": "מן"}
 
 
 def built_from(word: oshb.Word) -> str | None:
@@ -334,6 +351,11 @@ class ScriptureLemmatizer:
         `oshb/2` (2026-09-03): a token carries its pointed headword where the spelling is
         shared, so a meaning is filed under the word and not the spelling.
 
+        `oshb/6` (2026-10-12, known issues 1.4): a preposition with a pronoun on the end
+        is filed under the preposition — `בּוֹ` under ב, not ו "and" — and a pointed
+        headword the lexicon gives more than one word carries its Strong's number, so
+        `אִתְּךָ` is "with" and not the object marker it is pointed like.
+
         `oshb/5` (2026-09-05): the piece a word is read from is the one the tagging gave
         a lexeme number, not the last one. Aramaic suffixes its article and Hebrew its
         pronouns, so the old rule read `זַרְעוֹ` — "his seed" — as a pronoun. 16.4% of
@@ -349,7 +371,7 @@ class ScriptureLemmatizer:
         in Daniel and Ezra (targum-internal#64). Hebrew is untouched: the code keyed on
         never trails a Hebrew word.
         """
-        return f"oshb/5+{self.fallback.name}"
+        return f"oshb/6+{self.fallback.name}"
 
     def reads(self, segment: Segment) -> bool:
         """Whether this block can be looked up here rather than guessed at.
@@ -437,6 +459,8 @@ class ScriptureLemmatizer:
             dictionary = pointed or word.pieces[word.content]
             # The same function the band table is counted with, so the two cannot drift.
             lemma = headword_of(word)
+            filed = oshb.filed_as(word.lexeme) if pointed else ""
+            pointed = unicodedata.normalize("NFC", pointed)
             verb = part_of(code) == "VERB"
             out.append(
                 Token(
@@ -457,11 +481,11 @@ class ScriptureLemmatizer:
                     # to stay bare — it is what a reader's marks and the bands are keyed
                     # on, across every text — so the pointed form rides beside it for
                     # the one thing that must not be shared: the meaning.
-                    headword=(
-                        unicodedata.normalize("NFC", pointed)
-                        if pointed and oshb.contested(lemma)
-                        else None
-                    ),
+                    # And the number beside the points where the points are shared
+                    # too — אֵת the object marker and אֵת "with" (`oshb.filed_as`).
+                    headword=filed
+                    if filed and (filed != pointed or oshb.contested(lemma))
+                    else None,
                 )
             )
         return out

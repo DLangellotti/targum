@@ -65,6 +65,32 @@ class Remembered:
             self._held[folder] = entries
         return entries
 
+    def once(self, folder: Path, key: str, work: Callable[[], Any]) -> Any:
+        """The answer to `key` for this reader as it was first worked out, kept for good.
+
+        For a fact about the reader's history rather than its files — when it arrived —
+        which no later rewrite of those files may move. Kept apart from `FORMAT`, so a
+        recount of everything else leaves it where it is.
+        """
+        entries = self._entries(folder)
+        kept = entries.get(key)
+        if isinstance(kept, dict) and "once" in kept:
+            return kept["once"]
+        value = work()
+        self._keep(folder, entries, key, {"once": value})
+        return value
+
+    def _keep(self, folder: Path, entries: dict[str, Any], key: str, entry: Any) -> None:
+        with self._writing:
+            entries[key] = entry
+            text = json.dumps(entries, ensure_ascii=False)
+            # A read-only or full disk costs the saving, not the answer. And a folder the
+            # trash emptied while this was being worked out stays gone: `write_atomic`
+            # would make it again, holding nothing but this.
+            if folder.is_dir():
+                with contextlib.suppress(OSError):
+                    write_atomic(folder / SHELF, text)
+
     def get(self, folder: Path, key: str, inputs: Iterable[Path], work: Callable[[], Any]) -> Any:
         """The answer to `key` for this reader, worked out again only if an input changed.
 
@@ -76,13 +102,5 @@ class Remembered:
         if isinstance(kept, dict) and kept.get("stamp") == marks:
             return kept.get("value")
         value = work()
-        with self._writing:
-            entries[key] = {"stamp": marks, "value": value}
-            text = json.dumps(entries, ensure_ascii=False)
-            # A read-only or full disk costs the saving, not the answer. And a folder the
-            # trash emptied while this was being worked out stays gone: `write_atomic`
-            # would make it again, holding nothing but this.
-            if folder.is_dir():
-                with contextlib.suppress(OSError):
-                    write_atomic(folder / SHELF, text)
+        self._keep(folder, entries, key, {"stamp": marks, "value": value})
         return value

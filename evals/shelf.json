@@ -1,0 +1,108 @@
+{
+ "measured": "2026-10-14",
+ "levels": [
+  "A1",
+  "A2",
+  "B1",
+  "B2+"
+ ],
+ "languages": {
+  "arc": {
+   "A1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "A2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B2+": {
+    "texts": 0,
+    "recordings": 0
+   }
+  },
+  "fr": {
+   "A1": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "A2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B1": {
+    "texts": 5,
+    "recordings": 5
+   },
+   "B2+": {
+    "texts": 9,
+    "recordings": 9
+   }
+  },
+  "he": {
+   "A1": {
+    "texts": 114,
+    "recordings": 114
+   },
+   "A2": {
+    "texts": 98,
+    "recordings": 97
+   },
+   "B1": {
+    "texts": 155,
+    "recordings": 102
+   },
+   "B2+": {
+    "texts": 326,
+    "recordings": 82
+   }
+  },
+  "it": {
+   "A1": {
+    "texts": 3,
+    "recordings": 3
+   },
+   "A2": {
+    "texts": 0,
+    "recordings": 0
+   },
+   "B1": {
+    "texts": 33,
+    "recordings": 33
+   },
+   "B2+": {
+    "texts": 56,
+    "recordings": 42
+   }
+  },
+  "ru": {
+   "A1": {
+    "texts": 93,
+    "recordings": 75
+   },
+   "A2": {
+    "texts": 100,
+    "recordings": 85
+   },
+   "B1": {
+    "texts": 124,
+    "recordings": 94
+   },
+   "B2+": {
+    "texts": 100,
+    "recordings": 65
+   }
+  }
+ },
+ "videos": {
+  "arc": 0,
+  "fr": 0,
+  "he": 88,
+  "it": 78,
+  "ru": 178
+ }
+}

@@ -424,7 +424,11 @@ def test_the_page_lists_every_text_with_a_tick_and_says_the_total_once() -> None
     assert said.count("2 credits") == 2 and "Uses 4 credits in all" in said
     assert page.count('name="keep"') == 2 and 'action="/set/7"' in page
     assert "$" not in said and "!" not in said
-    assert "<script" not in page, "no script at all, so nothing for the CSP to hash"
+    # In the app's shell since 2026-10-09 (design.md §12, "The connector's pages are the
+    # boards'"): the bar's scripts draw the bar, and the press still needs none of them —
+    # it is a plain form post, with checkboxes for the ticks.
+    assert '<form method="post" action="/set/7" id="set-press">' in page
+    assert '<header class="site-head">' in page
 
 
 def test_a_set_already_on_the_shelf_lists_its_texts_and_starts_as_a_playlist() -> None:
@@ -539,7 +543,7 @@ def test_a_set_that_does_not_fit_claims_nothing_and_says_how_many_do(door, monke
     assert status == 402 and said["credits_left"] == 2
     # One line: what the set needs, what is left, what to do.
     assert said["error"] == (
-        "These texts need 3 credits and you have 2 left. Untick some and try again."
+        "These texts need 3 credits and you have 2 left. Untick some, then confirm."
     )
     claimed = store.db.execute("SELECT COUNT(*) AS n FROM job WHERE claimed > 0").fetchone()
     assert int(claimed["n"]) == 0

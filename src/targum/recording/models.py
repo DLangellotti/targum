@@ -154,6 +154,16 @@ class Recording(BaseModel):
                 return part
         return None
 
+    def parts_for(self, refs: list[str]) -> list[Part]:
+        """Every part that holds any of these verses, in the recording's own order.
+
+        `part_for`'s question asked of a section that is not a chapter. An aliyah runs
+        from Genesis 1:1 to 2:3, and a reading cut per chapter holds it in two files;
+        the first alone would leave its last three verses without a voice.
+        """
+        wanted = {ref for ref in refs if ref}
+        return [part for part in self.parts if wanted & part.spans.keys()]
+
     def part_reading(self, block_indexes: list[int]) -> Part | None:
         """The prose part that reads these blocks, or None.
 

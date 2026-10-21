@@ -1,0 +1,6 @@
+{#- A host card's head row (design.md §12, "The connector's pages are the boards'",
+    2026-10-09; board ConnCards): the mark in two bars, the name, and what the card is.
+    Drawn, never fetched: two spans the sheet colours, as the card's whole look is. -#}
+{% macro head() -%}
+<p class="card-head"><span class="card-mark" aria-hidden="true"><i></i><i></i></span><b class="card-name">targum</b><span class="card-dot" aria-hidden="true">·</span>{{ caller() }}</p>
+{%- endmacro %}

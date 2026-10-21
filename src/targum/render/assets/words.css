@@ -1,13 +1,15 @@
 /* Everything kept, and what it adds up to. Built on the reader's palette so the two
    pages read as one thing; the chart colours are one warm ramp off the same accent. */
 
-body.words {
-  font-family: system-ui, sans-serif;
+/* The desk's body size (§13). The face is the chrome's, from chrome.css: this rule used
+   to name system-ui here too, and loaded after chrome.css it won, so every page that
+   carried this file spoke in the platform's face instead (2026-10-09). */
+body {
   font-size: 0.9375rem;
   line-height: 1.5;
 }
 
-.words {
+:root {
   /* An ordered ramp, faint → full, for a scale that runs from "just met" to "known".
      One hue, monotone, four steps, the end nearest the surface clear of it — all as
      before. The hue is what changed: gold on warm paper made every chart on the page
@@ -79,38 +81,10 @@ a.back:hover { color: var(--ink); }
 }
 .langs[hidden] { display: none; }
 
-/* The definition language, beside the words it changes.
-   Quieter than the switcher above it, and deliberately: that one chooses which
-   vocabulary you are looking at, and this one only chooses which of two answers is
-   printed in one column of it. Underlined rather than pilled — the same call `.tab` makes
-   on the library, and for the same reason: the row it sits in already carries a search
-   field and a select, and a third filled thing in it is a row of furniture rather than a
-   row of controls. §4: selection in UI is quiet ink, never the accent. */
-.langs.quiet {
-  margin-block-start: 0;
-  align-items: baseline;
-  gap: 0.75rem;
-}
-.langs.quiet .langs-label {
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-}
-.langs.quiet button {
-  padding: 0.1rem 0;
-  border: 0;
-  border-block-end: 1px solid transparent;
-  border-radius: 0;
-  background: none;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.langs.quiet button:hover { color: var(--ink); }
-.langs.quiet button.on {
-  color: var(--ink);
-  background: none;
-  font-weight: 600;
-  border-block-end-color: var(--ink);
-}
+/* The definition language, beside the words it changes, is a row of the desk's `.tabs`
+   (chrome.css) since 2026-10-09: it was underlined, the Library's old call, which the
+   boards retired. Its label is a quiet word before the pills. */
+.meaning-langs .langs-label { color: var(--ink-soft); font-size: 0.8125rem; }
 
 /* Before the element rule below, which otherwise wins: a display on a type selector
    beats the user agent's [hidden] { display: none }, and the page rendered its empty
@@ -118,7 +92,7 @@ a.back:hover { color: var(--ink); }
 main[hidden] { display: none; }
 
 main {
-  max-width: 62rem;
+  max-width: var(--column);
   margin: 0 auto;
   padding: 1.5rem 1.25rem 5rem;
   display: flex;
@@ -170,22 +144,16 @@ main {
   gap: 1.25rem;
 }
 /* Flat, and the hairline does the grouping. §9 allows one raised layer per view and the
-   cards at the top of Learn have it — learn.css:45 has said so since the three-up strip
+   cards at the top of Learn had it — Learn's sheet said so from the three-up strip
    was written, but the panels below went on wearing the raised fill anyway. Five pages
    share this class, and on four of them it was half the page: measured at 50% of Learn,
    against §9's budget of roughly 15% structural neutral. The page is near-white, not
    beige, and a card inside a card is a hairline. */
-.panel {
-  padding: 1.1rem 1.25rem 1.25rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-card);
-  min-width: 0;
-  /* A card on the desk (§13): it lifts off the ground, and its name is in the
-     chrome's face — the serif here is for a word, never a heading. */
-  background: var(--card);
-  box-shadow: var(--shadow-raised);
-}
-.panel h2 {
+/* The panel is the desk's card (chrome.css, `.card, .panel`): one surface for every page
+   since 2026-10-09. Its name stays in the chrome's face — the serif here is for a word,
+   never a card's heading. */
+/* A card's own name; a section's title in a card keeps the serif (`.section-title`). */
+.panel h2:not(.section-title) {
   margin: 0;
   font-family: var(--chrome);
   font-size: 1.0625rem;
@@ -256,15 +224,13 @@ main {
   margin-block-end: 0.9rem;
 }
 .list-controls h2 { margin-inline-end: auto; }
+/* The search is the desk's `.well` (chrome.css), at a filter row's size. */
 .list-controls input[type="search"] {
   flex: 1 1 12rem;
+  inline-size: auto;
   min-width: 0;
-  padding: 0.28rem 0.55rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-row);
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
+  min-block-size: 2.25rem;
+  padding-block: 0.25rem;
   font-size: 0.8125rem;
 }
 .list-controls select, .list-controls button { font-size: 0.8125rem; }
@@ -291,7 +257,7 @@ table.rows td {
 }
 table.rows tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 table.rows .term { font-family: var(--reading); font-size: 1.05em; }
-/* Same tie as .card-title in learn.css, lost the same way: the term's own class beats
+/* Same tie as .card-title on Learn's cards, lost the same way: the term's own class beats
    reader.css's `:lang(he)`, and a Hebrew word set in a Latin face has no glyphs to
    set it with. */
 table.rows .term:lang(he),
@@ -368,7 +334,6 @@ table.rows tr.editor-row td {
 
 @media (max-width: 40rem) {
   main { padding-inline: 1rem; gap: 1rem; }
-  .panel { padding: 0.9rem 1rem 1rem; }
 }
 
 /* Words you may already know (targum-internal#245): the same rows as Your Words with a
@@ -407,6 +372,9 @@ table.rows tr.editor-row td {
 .claim-no:disabled { opacity: 0.5; cursor: default; }
 .claim-said { font-size: 0.8125rem; color: var(--ink-soft); }
 .claim[hidden] { display: none; }
+/* The table and its presses step aside while the list could not be fetched. */
+.claim .table-wrap[hidden],
+.claim .claim-actions[hidden] { display: none; }
 
 /* §8: a control a thumb presses answers a tap over 44px. */
 @media (hover: none) and (pointer: coarse) {
@@ -417,13 +385,6 @@ table.rows tr.editor-row td {
 }
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
-.panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
-.list-controls input, .list-controls select {
-  border: 1px solid transparent;
-  border-radius: var(--radius-row);
-  background: var(--field);
-}
-.list-controls input:focus, .list-controls select:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
 .claim-yes { border-radius: 999px; background: var(--teal); color: var(--teal-ink); }
 .claim-yes:hover { background: var(--teal); filter: brightness(1.08); }
 .claim-no { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); }
@@ -514,6 +475,17 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
 /* On a phone the strip keeps clear of the pill at the foot of the window. */
 @media (max-width: 40rem) {
   .claim-actions { inset-block-end: calc(4.25rem + env(safe-area-inset-bottom)); padding-inline-end: 4.5rem; }
+}
+/* On Your Words the strip stands above the table and stays at the top of the window
+   while the rows go under it. Held to the foot, it stood over the table's own head
+   whenever the head was low on the screen, and over the first rows a reader was meant to
+   tick (design review, 2026-10-09). In the conversation it keeps the foot. */
+#claim-body { display: flex; flex-direction: column; }
+#claim-body > .claim-actions {
+  order: -1;
+  inset-block: 0.75rem auto;
+  margin-block-end: 0.75rem;
+  padding-inline-end: 0.8rem;
 }
 /* Labels in normal case (2026-09-11). */
 table.rows th, .list-controls .section-sub { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
@@ -688,4 +660,7 @@ table.rows th, .list-controls .section-sub { text-transform: none; letter-spacin
   .claim-table label { display: flex; align-items: center; min-block-size: 44px; }
   .claim-table label.claim-all-reach { justify-content: center; min-inline-size: 44px; }
   .claim-check { inline-size: 1.5rem; block-size: 1.5rem; }
+  /* The rows' boxes in the same 44px column as Check all's, centred as it is: the head's
+     box stood 10px along from the boxes under it (arrival QA, 2026-10-18). */
+  .claim-table .claim-tick { display: flex; align-items: center; justify-content: center; inline-size: 44px; padding: 0; }
 }

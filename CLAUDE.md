@@ -101,6 +101,26 @@ runs *on the box* after the ship, against `/var/lib/targum/targum.db`: the site'
 subscribers live there, and an announce from the laptop reads the laptop's database, where
 they never are (targum-internal#346). A subscription made on the laptop is not mailed.
 
+## The beta keeps a week: triage on Sunday
+
+From batch one (targum-internal#459, #488) outsiders are reading, so what they tell us
+has a day of its own until Launch.
+
+- **Sunday, triage.** `TARGUM_HOST=root@targum.page ./deploy/triage.sh` prints the open
+  Tell us messages and the week's browser faults, read-only, off the box's own database.
+  Each becomes a `beta-found` card with P0–P2 from its draft, or gets an answer and is
+  settled as asked or won't in the back office. A draft names a message by number, page
+  and build only: the reader's words and address stay in our database (clause 3.14), so
+  the card says what is wrong in our words.
+- **Deploys go out as work lands** (David, 2026-10-19: no weekly release train). What a
+  reader was using is protected by the checks, the database backup before each deploy,
+  and the browser faults the next triage counts, not by waiting.
+- **A note to the readers, now and then,** saying what changed because of them, in two
+  or three lines. David writes it.
+- **New work waits.** A new feature, medium or language starts only when a beta reader
+  asked for it or a surface's finish bar (design.md §14) needs it. Everything else is a
+  Backlog card marked "after Launch".
+
 ## The keys are in 1Password, and nothing loads them for you
 
 Every key lives in the `targum` vault in 1Password and nowhere else (targum-internal#326,
@@ -178,6 +198,13 @@ wrong. There is; it is just not in the environment of a fresh shell.
   `CHAT_BUDGET` and the eight hours, and still no second counter. Everything else holds:
   a build needs its own press, the model cannot press anything, and a quote is
   information. Do not widen this to a second tool without an entry in §12 first.
+- **A subscription's monthly cap is the second** (2026-10-09, design.md §12). A YouTube
+  channel or a podcast subscribed to builds each new item by itself, as a `job` row of
+  kind `subscription` through `Library.press` and so `Library.claim`, inside a cap in
+  credits the reader chose on targum's own confirm page — never set by a model:
+  `quote_subscription` returns that page's link and nothing else. The month's use is the
+  subscription's own job rows, so there is still no second counter. Nothing a series or a
+  news topic brings spends; their items are links with a press each.
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.

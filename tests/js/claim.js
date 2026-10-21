@@ -11,16 +11,18 @@
 
 const fs = require("fs");
 const path = require("path");
-const { install, byId } = require("./dom.js");
+const { install, byId, element } = require("./dom.js");
 
 const payload = JSON.parse(fs.readFileSync(process.argv[2], "utf-8"));
 const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 
 const asked = [];
 const touched = { sync: 0, lists: 0 };
+const faults = [];
 const stored = {};
 if (payload.ledger) stored["targum:vocab:he"] = JSON.stringify(payload.ledger);
 if (payload.passed) stored["targum:claim-passed"] = JSON.stringify(payload.passed);
+for (const [name, value] of Object.entries(payload.stored || {})) stored[name] = JSON.stringify(value);
 
 install({
   TARGUM_KEY: "k",
@@ -28,11 +30,36 @@ install({
   TargumLang: { current: () => payload.language || "he" },
   TargumSync: { touched: () => touched.sync++ },
   TargumLists: { changed: () => touched.lists++ },
+  // `fault.js`'s line, as much of it as the panel uses: the sentence, and the press that
+  // asks again (arrival QA, 2026-10-18).
+  TargumFault: {
+    line: (sentence, onAct) => {
+      const line = element("p");
+      line.className = "fault-line";
+      line.textContent = sentence;
+      faults.push({ sentence, onAct });
+      return line;
+    },
+  },
 });
 
+let failing = payload.fail || 0;
 global.fetch = (url) => {
   const clean = String(url).replace(/[?&]k=[^&]*/, "");
   asked.push(clean);
+  // No connection, for the first `fail` asks.
+  if (failing > 0) {
+    failing -= 1;
+    return Promise.reject(new TypeError("Failed to fetch"));
+  }
+  // Asked by name: the words the payload means them to have, the rest bare.
+  const named = /[?&]forms=([^&]*)/.exec(clean);
+  if (named) {
+    const words = decodeURIComponent(named[1])
+      .split(",")
+      .map((form) => ({ form, meaning: (payload.meanings || {})[form] || "", band: "" }));
+    return Promise.resolve({ json: () => Promise.resolve({ words, next: null, into: "en" }) });
+  }
   const offset = Number((/offset=(\d+)/.exec(clean) || [0, 0])[1]);
   const answer = (payload.pages || {})[String(offset)] || { words: [], offset, next: null };
   return Promise.resolve({ json: () => Promise.resolve(answer) });
@@ -57,6 +84,7 @@ const part = (name) => body.querySelector("." + name) || { hidden: true, childre
     // The button is a real one: disabled, a press does nothing, as in a browser.
     if (step.type === "yes" && !part("claim-yes").disabled) part("claim-yes").onclick();
     if (step.type === "no") part("claim-no").onclick();
+    if (step.type === "retry") faults[faults.length - 1].onAct();
     if (step.type === "check") {
       const box = boxOf(step.form);
       box.checked = step.on !== false;
@@ -82,8 +110,12 @@ const part = (name) => body.querySelector("." + name) || { hidden: true, childre
       yesDisabled: !!part("claim-yes").disabled,
       all: { checked: !!part("claim-all").checked, some: !!part("claim-all").indeterminate },
       said: part("claim-said").textContent,
+      fault: (body.querySelector(".fault-line") || { textContent: "" }).textContent,
+      tableHidden: !!part("table-wrap").hidden,
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       passed: JSON.parse(global.localStorage.getItem("targum:claim-passed") || "{}"),
+      meanings: JSON.parse(global.localStorage.getItem("targum:meanings:he:en") || "{}"),
+      claimAsked: JSON.parse(global.localStorage.getItem("targum:claim-asked") || "{}"),
       touched,
     }),
   );

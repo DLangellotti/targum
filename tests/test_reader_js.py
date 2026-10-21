@@ -369,16 +369,16 @@ def test_a_level_says_what_it_did_and_how_much_is_left() -> None:
     assert said[1]["spoken"] == "two, just met. 2 left."
 
 
-def test_saying_a_level_a_word_already_has_takes_it_off() -> None:
-    """The same key both grades a word and undoes itself, and "not marked" is a real
-    answer rather than silence."""
+def test_saying_a_level_a_word_already_has_changes_nothing() -> None:
+    """QA 2026-10-11, decision D8: the level a word has, said again, is no change. It
+    used to take the mark off, so a confirmation silently un-marked the word."""
     said = walk(
         ["one", "two"],
         vocab={"one": KNOWN},
         levels=[{"word": "one", "status": KNOWN}],
     )["said"]
-    assert said[0]["spoken"] == "one, not marked. 2 left."
-    assert [item["lemma"] for item in said[0]["queue"]] == ["one", "two"]
+    assert said[0]["spoken"] == "", "nothing changed, so nothing is announced"
+    assert [item["lemma"] for item in said[0]["queue"]] == ["two"], "still known"
 
 
 # -- the list beside the text ---------------------------------------------------
@@ -446,17 +446,17 @@ def test_a_reader_with_words_already_is_not_told_how_to_mark_one() -> None:
 # -- the offer at the foot of a part ---------------------------------------------
 
 
-def test_the_press_says_both_halves_and_does_both() -> None:
-    """design.md §12, "The foot is one block" (2026-09-25). The words you never marked are
-    offered with the finish, in one press that says both halves before it is pressed —
-    offered, never done for you — and a quiet link under it that finishes alone. The ones
-    you are working on are left alone."""
+def test_the_marking_press_says_both_halves_and_does_both() -> None:
+    """design.md §12, "Done marks nothing; knowing them all is a choice" (2026-10-13). The
+    press says Done and marks nothing; the words you never marked are offered under it, in
+    a quiet press that says both halves before it is pressed — offered, never done for
+    you. The ones you are working on are left alone."""
     words, lemmas = chapter(["a", "b", "c"])
     before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
     assert before["foot"] == {
-        "press": "Done, and mark 2 words known",
+        "press": "Done",
         "pressHidden": False,
-        "plain": "Done without marking",
+        "mark": "Done, and mark 2 words known",
         "finished": False,
     }
     after = run(
@@ -472,7 +472,7 @@ def test_the_press_says_both_halves_and_does_both() -> None:
     assert after["foot"]["finished"] is True and after["foot"]["pressHidden"] is True
 
 
-def test_the_quiet_link_finishes_without_marking() -> None:
+def test_done_finishes_without_marking() -> None:
     words, lemmas = chapter(["a", "b"])
     done = run([], chapter=words, lemmas=lemmas, vocab={}, presses=[False])
     assert done["finished"]["at"] > 0
@@ -484,7 +484,7 @@ def test_one_undo_takes_back_the_finish_and_the_words() -> None:
     done = run([], chapter=words, lemmas=lemmas, vocab={}, presses=[True, "undo"])
     assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
     assert done["finished"]["at"] == 0
-    assert done["foot"]["press"] == "Done, and mark 4 words known"
+    assert done["foot"]["mark"] == "Done, and mark 4 words known"
 
 
 def test_the_batch_still_has_its_own_undo() -> None:
@@ -498,26 +498,85 @@ def test_the_press_takes_the_names_with_it_but_never_counts_them() -> None:
     counts for nothing, so the press does not call it a word."""
     rows = {"s0": [[0, 1, 3, 0, 0, 0, 0], [2, 3, 0, 0, 1, 0, 1], [4, 5, 3, 0, 2, 0, 0]]}
     before = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={})
-    assert before["foot"]["press"] == "Done, and mark 2 words known"
+    assert before["foot"]["mark"] == "Done, and mark 2 words known"
     done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, presses=[True])
     assert done["queue"] == [], "nothing left lit"
     assert done["list"] == [], "and nothing on the list"
 
 
+def test_the_press_never_marks_a_word_of_onkelos() -> None:
+    """Marking the rest known at the foot is the Torah's words only. Onkelos's words, read
+    beside the verse with a table of their own, are marked one at a time or not at all
+    (David, 2026-10-12, targum-internal#446)."""
+    words, lemmas = chapter(["a", "b"])
+    onkelos = {
+        "t1": {
+            "text": {"s0": "אמר"},
+            "language": "arc",
+            "direction": "rtl",
+            "beside": True,
+            "tokens": {
+                "language": "arc",
+                "words": {"s0": [[0, 3, 1, 0, 0, 0, 0]]},
+                "lemmas": ["אמר"],
+            },
+        }
+    }
+    done = run([], chapter=words, lemmas=lemmas, vocab={}, translations=onkelos, presses=[True])
+    assert done["queue"] == [], "the Torah's words are all known"
+    assert set(done["stores"]["he"]) == {"a", "b"}
+    assert done["stores"]["arc"] == {}, "and nothing of Onkelos's was marked with them"
+
+
+def test_chapters_finished_in_the_book_show_the_aliyah_finished_and_write_nothing() -> None:
+    """A portion's page reads its book's own finishes (targum-internal#446): an aliyah all
+    of whose chapters were finished in the book stands finished, as of the last of them.
+    Never written, because the ledger counted each of them once already."""
+    words, lemmas = chapter(["a"])
+    book = {"genesis-book": {"sections": {"12": 100, "13": 200}}}
+    both = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        docs=book,
+        carriesFrom="genesis-book",
+        verseIds=["12:14", "12:20", "13:1"],
+    )
+    assert both["finished"]["at"] == 200
+    assert both["finished"]["sections"] == {}, "nothing written under the portion"
+    half = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        docs=book,
+        carriesFrom="genesis-book",
+        verseIds=["13:18", "14:1"],
+    )
+    assert half["finished"]["at"] == 0, "a chapter not finished in the book is not finished here"
+
+
 def test_nothing_left_to_mark_is_plain_done() -> None:
     words, lemmas = chapter(["a"])
     done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
-    assert done["foot"]["plain"] == ""
+    assert done["foot"]["press"] == "Done" and done["foot"]["mark"] == ""
+
+
+def test_one_word_left_is_asked_as_the_word() -> None:
+    words, lemmas = chapter(["a", "b"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
+    assert done["foot"]["press"] == "Done" and done["foot"]["mark"] == "Done, I know it"
+    nexts = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}}, footWay="next")
+    assert nexts["foot"]["press"] == "Next" and nexts["foot"]["mark"] == "Next, I know it"
 
 
 def test_in_a_playlist_the_press_is_next_and_on_the_last_item_finish() -> None:
     words, lemmas = chapter(["a", "b"])
     middle = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next")["foot"]
-    assert middle["press"] == "Next, and mark 2 words known"
-    assert middle["plain"] == "Next without marking"
+    assert middle["press"] == "Next"
+    assert middle["mark"] == "Next, and mark 2 words known"
     last = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="finish")["foot"]
-    assert last["press"] == "Finish, and mark 2 words known"
-    assert last["plain"] == "Finish without marking"
+    assert last["press"] == "Finish"
+    assert last["mark"] == "Finish, and mark 2 words known"
     # Finished, the press is still the way on in a playlist, and marks nothing.
     finished = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[False])
     assert finished["foot"]["press"] == "Next" and finished["foot"]["pressHidden"] is False
@@ -621,7 +680,7 @@ def test_done_is_said_once_however_often_it_is_pressed() -> None:
     words, lemmas = chapter(["a"])
     fresh = run([], chapter=words, lemmas=lemmas)["finished"]
     assert fresh["at"] == 0 and fresh["said"] == ""
-    assert fresh["button"] == "Done, and mark 1 word known"
+    assert fresh["button"] == "Done", "the press marks nothing, so it says only Done"
     assert fresh["shown"] is False, "the ink block waits for the finish"
 
     done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
@@ -1120,7 +1179,7 @@ def test_a_deck_name_cannot_nest_deeper_than_the_text() -> None:
 #
 # design.md §12, "The finished box is three figures" (2026-09-25), after #174 and #175:
 # "Finished · #N", then three figures of equal weight — words that became known here,
-# the share known here, and words looked up here. This text only, and a zero is a 0.
+# the share known in this part ("this text" in one part), and words looked up here. A zero is a 0.
 
 
 def _days(*ago: int) -> dict[str, int]:
@@ -1142,7 +1201,7 @@ def test_the_box_says_three_figures_for_this_text() -> None:
     said = done["said"]
     assert said.startswith("Finished · #1")
     assert "+1word known" in said, "the word that became known while it was read"
-    assert "50%known here" in said, "the header's own share, after the press"
+    assert "50%known in this text" in said, "the header's own share, after the press"
     assert "1word looked up" in said
     for standing in ("known ·", "saved", "reading", "running"):
         assert standing not in said, f"{standing!r} is a standing, and it lives on Progress"
@@ -1158,7 +1217,7 @@ def test_a_zero_is_said_as_zero_so_the_figures_never_move() -> None:
         stored={"targum:days": json.dumps(_days(0))},
         finish=[True],
     )["finished"]["said"]
-    assert "+0words known" in said and "0%known here" in said and "0words looked up" in said
+    assert "+0words known" in said and "0%known in this text" in said and "0words looked up" in said
 
 
 def test_the_press_that_marks_counts_its_words_as_known() -> None:
@@ -1166,7 +1225,7 @@ def test_the_press_that_marks_counts_its_words_as_known() -> None:
     among the known — "Done, and mark 2 words known" says +2."""
     words, lemmas = chapter(["a", "b"])
     said = run([], chapter=words, lemmas=lemmas, presses=[True])["finished"]["said"]
-    assert "+2words known" in said and "100%known here" in said
+    assert "+2words known" in said and "100%known in this text" in said
 
 
 def test_no_run_and_no_word_list_is_said() -> None:
@@ -1706,6 +1765,25 @@ def test_a_split_words_pieces_are_said_in_the_pages_language() -> None:
     ]
 
 
+def test_a_word_left_whole_names_the_word_it_comes_from() -> None:
+    """DICTA left the Aramaic ־הוֹן on תַּלְמִידֵיהוֹן, so its pieces were itself plus a
+    pronoun and the card said the word came from itself (Boaz, 2026-10-06). The piece
+    that is the whole word again says the dictionary form; a real split is untouched."""
+    said = run(
+        [],
+        builtLines=[
+            ["תַּלְמִידֵיהוֹן + with a pronoun on the end", "תלמידיהון", "תלמיד"],
+            ["ו and + ל to + בית + his", "ולביתו", "בית"],
+            ["ספרו + with a pronoun on the end", "ספרו", "ספרו"],
+        ],
+    )["builts"]
+    assert said == [
+        "תלמיד + with a pronoun on the end",
+        "ו and + ל to + בית + his",
+        "ספרו + with a pronoun on the end",
+    ]
+
+
 def test_a_french_noun_is_kept_on_the_list_with_its_article() -> None:
     """targum-internal#263, change 4: the list and the file store the form a word was met
     in, so a noun met as *l'école* is kept with no way to see it is feminine — and the
@@ -1850,3 +1928,42 @@ def test_a_pronoun_says_what_it_stands_for_only_where_the_page_carries_it() -> N
     assert carried == [{"segment": "s1", "words": "le livre"}, None]
     bare = run([], language="fr", chapter=chapter, texts=texts, standingAsks=[["s2", 0]])
     assert bare["standing"] == [None]
+
+
+# -- the rung named on arrival marks nothing (design.md §12, 2026-10-12) ---------------
+
+#: The builder's band names by a token's third field.
+BANDS = {"1": "easy", "2": "fairly easy", "3": "moderate", "4": "hard"}
+
+
+def banded(declared: str = "", **chapter: Any) -> dict[str, Any]:
+    """`a` is easy, `b` fairly easy, `c` moderate and `d` hard, in one sentence."""
+    rows = {"s0": [[0, 1, 1, 0, 0], [2, 3, 2, 0, 1], [4, 5, 3, 0, 2], [6, 7, 4, 0, 3]]}
+    chapter.setdefault("vocab", {})
+    return run(
+        [],
+        chapter=rows,
+        lemmas=["a", "b", "c", "d"],
+        levelNames=BANDS,
+        stored={"targum:declared": declared} if declared else {},
+        **chapter,
+    )
+
+
+def test_an_advanced_reader_is_asked_about_every_word_too() -> None:
+    """The commonest bands were once drawn plain for a reader who named a high rung
+    (2026-10-07); David took that out on 2026-10-12. A word is known when it is marked."""
+    for declared in ("", "aleph", "dalet", "vav"):
+        done = banded(declared)
+        assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"], declared
+        assert done["counted"]["bar"].startswith("0 of 4 known"), done["counted"]
+        assert done["foot"]["mark"] == "Done, and mark 4 words known"
+
+
+def test_a_hebrew_third_person_pronoun_says_nothing_bare() -> None:
+    """הוא is "he" already, and DICTA files האלה under the third person too, so a bare
+    "they" read as the meaning of "these" (targum-internal#489). Only Hebrew's, and only
+    where no case comes with it."""
+    assert grammar("UPOS=PRON|Number=Plur|Person=3") == [""]
+    assert grammar("UPOS=PRON|Gender=Masc|Number=Sing|Person=3") == [""]
+    assert grammar("UPOS=PRON|Person=1|Number=Plur") == ["we"]

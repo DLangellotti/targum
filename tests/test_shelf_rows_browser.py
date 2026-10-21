@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from targum.render.builder import list_page
+from targum.render.builder import carried, list_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -103,8 +103,10 @@ def _readers() -> list[dict]:
 
 def shelf(browser, tmp_path: Path, width: int):
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
-    context = browser.new_context(viewport={"width": width, "height": 900})
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
+    # Tall enough that the shelf under home's Continue is on screen without a scroll: a
+    # scroll closes an open ⋯, which is right for a reader and not what these are about.
+    context = browser.new_context(viewport={"width": width, "height": 2000})
     page = context.new_page()
     thrown: list[str] = []
     page.on("pageerror", lambda error: thrown.append(str(error)))
@@ -128,14 +130,25 @@ def shelf(browser, tmp_path: Path, width: int):
 
 
 def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> None:
+    """Board Main's row (P4, 2026-10-09): the title with a quiet line under it — where you
+    are with it, its length, its English, its playlists — then its kind as a tag, how
+    much of it you know as a meter, and when at the end."""
     context, page, thrown = shelf(browser, tmp_path, 1280)
-    facts = page.locator("#library-list li").first.locator(".book-facts").inner_text()
-    statuses = page.locator("#library-list .row-status").all_inner_texts()
+    first = page.locator("#library-list li").first
+    facts = first.locator(".book-facts").inner_text()
+    tag = first.locator(".row-tag").inner_text()
+    known = first.locator(".row-meter").get_attribute("aria-label")
+    end = first.locator(".row-end").inner_text()
+    said = first.locator(".row-end").get_attribute("aria-label")
+    statuses = page.locator("#library-list .fact-status").all_inner_texts()
     context.close()
     assert "10 min video" in facts
-    assert "Bet · A2" in facts
-    assert "You know 72%" in facts
-    assert "Added 7 hours ago" in facts
+    # No rung and no CEFR code on a row (design.md §12, "A text is named in everyday
+    # words", 2026-10-09).
+    assert "Bet" not in facts and "A2" not in facts
+    assert tag.strip() == "Video"
+    assert known == "You know 72% of the whole text"
+    assert end.strip() == "7 hours ago" and said == "Uploaded 7 hours ago"
     assert "In Morning" in facts
     assert [one.strip() for one in statuses] == ["Finished", "3 of 6", "New"]
     assert not thrown
@@ -143,10 +156,12 @@ def test_a_row_says_what_the_text_is_at_a_glance(browser, tmp_path: Path) -> Non
 
 def test_a_library_text_says_when_it_was_opened_not_added(browser, tmp_path: Path) -> None:
     context, page, _ = shelf(browser, tmp_path, 1280)
-    facts = page.locator("#library-list li").nth(2).locator(".book-facts").inner_text()
+    row = page.locator("#library-list li").nth(2)
+    facts = row.locator(".book-facts").inner_text()
+    said = row.locator(".row-end").get_attribute("aria-label") or ""
     context.close()
     assert "3 min read" in facts
-    assert "Added" not in facts, "a library text came to everybody at once"
+    assert "Uploaded" not in said, "a library text came to everybody at once"
 
 
 def test_add_to_playlist_never_wraps(browser, tmp_path: Path) -> None:
@@ -185,40 +200,52 @@ def test_escape_closes_the_more_menu(browser, tmp_path: Path) -> None:
     assert gone == 0
 
 
-def test_on_a_phone_the_status_folds_into_the_facts(browser, tmp_path: Path) -> None:
+def test_on_a_phone_the_row_keeps_its_title_and_its_line(browser, tmp_path: Path) -> None:
+    """Board HomePhone: the picture, the title and its line; the tag folds away, the
+    status stays in the line, and a known share keeps its meter under it (audit Q7,
+    2026-10-09). The row keeps ⋯ alone, and Add to playlist is inside it."""
     context, page, thrown = shelf(browser, tmp_path, 390)
     first = page.locator("#library-list li").first
-    pill = first.locator(".row-status").is_visible()
+    pill = first.locator(".row-tag").is_visible()
     folded = first.locator(".fact-status").is_visible()
+    measured = page.locator("#library-list li .row-meter.meter").first
+    meter = measured.count() == 0 or measured.is_visible()
+    plus = page.locator("#library-list li .add-to-list").first.is_visible()
+    page.locator("#library-list .row-more").first.click()
+    page.wait_for_selector(".row-menu")
+    added = page.locator(".row-menu a[href*='/playlists?add=']").count()
     wide = page.evaluate("() => document.documentElement.scrollWidth")
     context.close()
-    assert not pill and folded
+    assert not pill and folded and meter
+    assert not plus and added == 1
     assert wide <= 390, "the page never scrolls sideways"
     assert not thrown
 
 
-def test_the_nav_has_the_shelf_second_and_marks_it_here(browser, tmp_path: Path) -> None:
+def test_the_nav_has_the_shelf_first_and_marks_it_here(browser, tmp_path: Path) -> None:
     context, page, _ = shelf(browser, tmp_path, 1280)
     places = page.eval_on_selector_all(
         ".site-nav a[data-nav]", "all => all.map(a => a.dataset.nav)"
     )
     here = page.get_attribute(".site-nav a[aria-current='page']", "data-nav")
     context.close()
-    assert places == ["learn", "texts", "library", "progress", "add"]
+    # First since 2026-10-08, when Your targums became home (design.md §12).
+    assert places == ["texts", "library", "progress", "add"]
     assert here == "texts"
 
 
 def test_a_phone_calls_the_shelf_targums(browser, tmp_path: Path) -> None:
     """One name (design.md §12, "Yours and everyone's", 2026-09-25). A phone said Texts
     from 2026-09-24, because "targums" alone read as a typo; a place with two names read
-    worse. "Your" drops on a phone, as it does for Progress."""
+    worse. A phone's foot says "Your targums" whole since 2026-10-09, as board HomePhone
+    draws it (design.md §12, "The boards are the desk")."""
     context, page, _ = shelf(browser, tmp_path, 390)
     phone = page.locator(".site-nav a[data-nav='texts']").inner_text()
     context.close()
     context, page, _ = shelf(browser, tmp_path, 1280)
     desk = page.locator(".site-nav a[data-nav='texts']").inner_text()
     context.close()
-    assert phone.strip() == "targums"
+    assert phone.strip() == "Your targums"
     assert desk.strip() == "Your targums"
 
 
@@ -231,7 +258,7 @@ def test_a_video_with_a_poster_shows_its_picture(browser, tmp_path: Path) -> Non
         "ABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q=="
     )
     page_file = tmp_path / "texts.html"
-    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     page = context.new_page()
     drawn = [{**_readers()[0], "drawn": True}]
@@ -285,9 +312,159 @@ def test_a_longer_pill_takes_more_room(browser, tmp_path: Path) -> None:
     too and not only the English the width was first seen in."""
     context, page, _ = shelf(browser, tmp_path, 1024)
     page.evaluate(
-        "() => { document.querySelector('#talk-open span').textContent = 'Поговорить с targum'; }"
+        "() => { document.querySelector('#talk-open .talk-short').textContent ="
+        " 'Поговорить с targum'; }"
     )
     page.wait_for_timeout(100)
     got = page.evaluate(UNDER_THE_PILL)
     context.close()
     assert got["keys"] and got["under"] == 0, got
+
+
+#: Every link, button and field on a desk page that the pill's column of the window
+#: reaches, outside the bar and the pill's own drawer. The pill is fixed and a page
+#: scrolls only up and down, so a control clear of it across the window is clear of it at
+#: every scroll position.
+CLEAR_OF_THE_PILL = """() => {
+  const pill = document.getElementById('talk-open');
+  const box = pill.getBoundingClientRect();
+  const away = '.site-head, #talk-open, .talk-drawer, .palette, .talk-scrim, .palette-scrim';
+  const under = [...document.querySelectorAll('a, button, input, select, textarea, summary')]
+    .filter((el) => !el.closest(away))
+    .filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.right > box.left && r.left < box.right;
+    })
+    .map((el) => el.outerHTML.slice(0, 80));
+  const row = document.querySelector('.site-head-row').getBoundingClientRect();
+  return {
+    shown: !pill.hidden && box.width > 0,
+    pill: [Math.round(box.left), Math.round(box.right)],
+    under,
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    bar: [Math.round(row.left), Math.round(row.right)],
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [1024, 1280, 1440])
+@pytest.mark.parametrize("which", ["texts", "library", "progress", "add"])
+def test_at_a_desk_the_talk_pill_covers_nothing(browser, which: str, width: int) -> None:
+    """Audit 2, gap 3: the pill sat on the Library's second "See all →", the Words table
+    and the Upload card, because only a phone kept room for it. At a desk the page keeps
+    its end edge clear of what the pill reaches; at 1440 the pill says "Talk" and stands
+    in the margin outside the column, and the bar keeps the whole width."""
+    from targum.render.builder import add_page, library_page, progress_page
+
+    html = {
+        "texts": lambda: list_page("test-key", "texts"),
+        "library": lambda: library_page("test-key"),
+        "progress": lambda: progress_page("test-key"),
+        "add": lambda: add_page("test-key"),
+    }[which]()
+
+    def answer(route, request):  # type: ignore[no-untyped-def]
+        if request.resource_type == "document":
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        path = request.url.split("?")[0]
+        said: dict = {"readers": _readers(), "trash": []} if path.endswith("/readers") else {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(said))
+
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = context.new_page()
+    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
+    page.route("http://desk.test/**", answer)
+    page.goto(f"http://desk.test/{which}?k=test-key")
+    page.wait_for_timeout(600)
+    got = page.evaluate(CLEAR_OF_THE_PILL)
+    context.close()
+    assert got["shown"], got
+    assert got["under"] == [], got
+    assert not got["sideways"], got
+    if width == 1440:
+        # The pill stands in the margin: nothing moved, and the column is the board's.
+        assert got["bar"][1] - got["bar"][0] >= 1248, got
+
+
+@pytest.mark.parametrize("which", ["series", "texts", "library", "progress", "add"])
+def test_on_a_phone_the_pill_stands_in_the_band_at_the_foot(browser, which: str) -> None:
+    """Known issues §3 (2026-10-12): on a phone the AI Assistant's pill floated over every
+    page — a series page's aliyot, Home's tabs, the Library's headings, Your Words'
+    filters. It stands in the glass band at the foot now, with the four places, so no
+    row is drawn under it at any scroll position but the band's own."""
+    from targum.parasha import calendar as cal
+    from targum.parasha.models import Portion
+    from targum.render.builder import add_page, library_page, parasha_page, progress_page
+
+    portion = Portion(slug="noach", name="Noach", hebrew="נֹחַ", numbers=[2], summary="x")
+    html = {
+        "series": lambda: parasha_page(portion, schedule=cal.Schedule.diaspora, listed=[portion]),
+        "texts": lambda: list_page("test-key", "texts"),
+        "library": lambda: library_page("test-key"),
+        "progress": lambda: progress_page("test-key"),
+        "add": lambda: add_page("test-key"),
+    }[which]()
+
+    def answer(route, request):  # type: ignore[no-untyped-def]
+        if request.resource_type == "document":
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
+    page.route("http://desk.test/**", answer)
+    page.goto(f"http://desk.test/{which}?k=test-key")
+    page.wait_for_timeout(400)
+    got = page.evaluate(
+        """() => {
+      const pill = document.getElementById('talk-open').getBoundingClientRect();
+      const band = document.querySelector('.site-head-row .site-nav').getBoundingClientRect();
+      return {pill: [pill.top, pill.bottom], band: [band.top, band.bottom], shown: pill.height > 0};
+    }"""
+    )
+    context.close()
+    assert got["shown"], got
+    assert got["band"][0] <= got["pill"][0] and got["pill"][1] <= got["band"][1], got
+
+
+def test_at_a_desk_the_bell_s_panel_opens_over_the_assistant_s_drawer(browser) -> None:
+    """Signed-in walk 2026-10-12: with the AI Assistant's drawer open, the bell's panel
+    opened behind it. A sheet of the bar's stands over the drawer while it is open."""
+    from targum.render.builder import library_page
+
+    html = library_page("test-key")
+
+    def answer(route, request):  # type: ignore[no-untyped-def]
+        if request.resource_type == "document" and "/chat" not in request.url:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="text/html", body="<p>chat</p>")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
+    page.route("http://desk.test/**", answer)
+    page.goto("http://desk.test/library?k=test-key")
+    page.wait_for_timeout(300)
+    page.click("#talk-open")
+    page.wait_for_selector("#talk-drawer:not([hidden])")
+    page.evaluate("() => document.getElementById('notices-open').click()")
+    page.wait_for_selector(".notices-panel:not([hidden])")
+    on_top = page.evaluate(
+        """() => {
+      const panel = document.querySelector('.notices-panel');
+      const drawer = document.getElementById('talk-drawer').getBoundingClientRect();
+      const box = panel.getBoundingClientRect();
+      const x = Math.max(box.left, drawer.left) + 5, y = Math.max(box.top, drawer.top) + 5;
+      const overlap = x < Math.min(box.right, drawer.right)
+        && y < Math.min(box.bottom, drawer.bottom);
+      return {overlap, top: panel.contains(document.elementFromPoint(x, y))};
+    }"""
+    )
+    context.close()
+    assert on_top["overlap"] and on_top["top"], on_top

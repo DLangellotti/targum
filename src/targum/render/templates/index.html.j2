@@ -9,16 +9,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>⁨{{ title }}⁩</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'reader.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 </head>
 <body class="contents">
 <header class="bar">
   {#- The mark holds the corner on its own: at this size the identity is the monogram,
       not the lockup, and the bar already carries the title beside it. -#}
   {#- The mark is the way back, the same as in a reader. -#}
-  <a class="bar-brand" id="home" href="/" title="{{ t("contents.page.your-learn-page", "Your Learn page") }}" aria-label="{{ t("contents.page.targum-learn", "targum — Learn") }}" hidden>
+  <a class="bar-brand" id="home" href="/" title="{{ t("contents.page.your-targums", "Your targums") }}" aria-label="{{ t("contents.page.targum-home", "targum — Your targums") }}" hidden>
     <svg viewBox="20 12 56 72" aria-hidden="true" focusable="false">
       <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
       <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
@@ -68,7 +68,7 @@
      it — for נח that is the chapter-6 file, listed under בראשית — and a chapter is
      listed once, under the portion it starts in. Everything else is one group with no
      portion, and the list is the flat one it always was. #}
-  {% macro row(section) %}<li data-chapter="{{ section.number }}"{% if chapters[section.number] %} data-chapters="{{ chapters[section.number] }}"{% endif %}{% if spans[section.number][0] %} data-from="{{ spans[section.number][0] }}" data-to="{{ spans[section.number][1] }}"{% endif %}{% if has_audio %} data-audio="1"{% if section_parts[section.number] %} data-parts="{{ section_parts[section.number]|join(' ') }}"{% endif %}{% endif %}><a href="{{ section.filename }}">{{ section.title|isolate(source_direction) }}</a> <span class="count">{{ t("contents.page.one-sentence", "{n} sentence", n=counts[section.number]) if counts[section.number] == 1 else t("contents.page.sentences", "{n} sentences", n=counts[section.number]) }} &middot; {{ t("contents.page.minutes", "{n} min", n=minutes[section.number]) }}</span></li>{% endmacro %}
+  {% macro row(section) %}<li data-chapter="{{ section.number }}"{% if chapters[section.number] %} data-chapters="{{ chapters[section.number] }}"{% endif %}{% if spans[section.number][0] %} data-from="{{ spans[section.number][0] }}" data-to="{{ spans[section.number][1] }}"{% endif %}{% if has_audio %} data-audio="1"{% if section_parts[section.number] %} data-parts="{{ section_parts[section.number]|join(' ') }}"{% endif %}{% endif %}><a href="{{ section.filename }}">{{ section.title|isolate(source_direction) }}</a> <span class="count">{{ tn("contents.page.words", section_words[section.number][0], "{count} word", "{count} words", count=section_words[section.number][1]) }} &middot; {{ t("contents.page.minutes", "{n} min", n=minutes[section.number]) }}</span></li>{% endmacro %}
   <ol class="toc" dir="{{ source_direction }}" data-document="{{ document.content_hash }}">
     {% for group in groups %}
     {% if group.portion %}
@@ -88,11 +88,16 @@
     {% endfor %}
   </ol>
   {#- For somebody about to lose their connection. A reader off a disk is the promise
-      this product makes, and half a translated book is not that. -#}
-  <p class="whole" hidden{% if part_seconds %} data-part-seconds="{% for number, seconds in part_seconds|dictsort %}{{ number }}:{{ seconds|round(1) }}{% if not loop.last %} {% endif %}{% endfor %}"{% endif %}><button type="button" id="prepare">{{ t("contents.page.prepare-all", "Prepare all") }}</button> <span class="get-cost" id="prepare-cost" hidden></span></p>
+      this product makes, and half a translated book is not that. A book's only since
+      2026-10-07 (design.md §12, "One press gets the whole video, a part at a time"): a
+      recording's parts are made as the reader opens them, under the press on its quote,
+      and a press here to make them all at once was a second way round that rule. -#}
+  {% if not has_audio %}<p class="whole" hidden><button type="button" id="prepare">{{ t("contents.page.prepare-all", "Prepare all") }}</button> <span class="get-cost" id="prepare-cost" hidden></span></p>{% endif %}
 </main>
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('contents.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('report.js', data_build=build()) }}
+{{ script('fault.js') }}
+{{ script('contents.js') }}
 </body>
 </html>

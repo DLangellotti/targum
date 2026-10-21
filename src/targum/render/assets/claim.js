@@ -16,6 +16,12 @@
  * and the two presses inside `host`; `options.panel` is what to hide when there is
  * nothing to show, `options.once` stops after the first press, and `options.onMarked`
  * hears how many were marked, and `options.onEmpty` that there was nothing to show.
+ *
+ * A claimed word's meaning goes where every meaning lives, `targum:meanings:he:<into>`,
+ * which is what Your Words reads and what the sync carries (known issues 2026-10-12,
+ * 1.8). It went into the word's own record, a field the meanings had moved out of, so
+ * every claimed word showed a blank meaning. `repair` puts back the ones claimed
+ * before this, asking the server for them by name: the same tables, nothing bought.
  */
 (function () {
   "use strict";
@@ -51,6 +57,10 @@
 
   var LEDGER = "targum:vocab:he";
   var PASSED = "targum:claim-passed";
+  var MEANINGS = "targum:meanings:he:";
+  //: Claimed words already asked after by name, so a word no table holds is not asked
+  //: for again on every visit.
+  var ASKED = "targum:claim-asked";
   var PAGE = 50;
   //: The fewest words a page shows while the list has them. A page of fifty set against
   //: a ledger that already holds most of it came down to one or two words at a time
@@ -78,6 +88,84 @@
     var ledger = read(LEDGER, "{}");
     var passed = read(PASSED, "{}");
     return !Object.keys(ledger).length && !Object.keys(passed).length;
+  }
+
+  // File the meanings the list gave into the store Your Words reads, for `into`, the
+  // language the server answered in. A meaning already there is the reader's or a
+  // build's, and it stays. True where anything was written.
+  function fileMeanings(words, into, now) {
+    if (!into) return false;
+    var name = MEANINGS + into;
+    var store = read(name, "{}");
+    var wrote = false;
+    words.forEach(function (word, n) {
+      if (!word.meaning) return;
+      var was = store[word.form] || {};
+      if (was.meaning) return;
+      store[word.form] = {
+        meaning: word.meaning,
+        note: was.note || "",
+        at: was.at || now + n,
+        seen: now + n,
+      };
+      wrote = true;
+    });
+    if (wrote) write(name, store);
+    return wrote;
+  }
+
+  // Whether any language's store already says what this word means.
+  function meant(form) {
+    try {
+      for (var n = 0; n < localStorage.length; n++) {
+        var name = localStorage.key(n) || "";
+        if (name.indexOf(MEANINGS) !== 0) continue;
+        var record = read(name, "{}")[form];
+        if (record && record.meaning) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  // The words claimed before their meanings were filed where they are read: asked for
+  // by name, fifty at a time, and filed. A word the tables do not hold is remembered as
+  // asked and stays bare, as it was on the list.
+  function repair() {
+    var ledger = read(LEDGER, "{}");
+    var asked = read(ASKED, "{}");
+    var wanted = Object.keys(ledger).filter(function (form) {
+      var word = ledger[form] || {};
+      return word.source === "claimed" && !asked[form] && !meant(form);
+    });
+    if (!wanted.length) return Promise.resolve(false);
+    var batch = wanted.slice(0, PAGE);
+    return fetch(
+      keyed("/words/common?language=he&forms=" + encodeURIComponent(batch.join(","))),
+      { headers: keyHeaders({}) }
+    )
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (answer) {
+        if (answer.error) return false;
+        var asked = read(ASKED, "{}");
+        batch.forEach(function (form) {
+          asked[form] = 1;
+        });
+        write(ASKED, asked);
+        var wrote = fileMeanings(answer.words || [], answer.into || "", Date.now());
+        if (wrote) {
+          if (window.TargumSync && window.TargumSync.touched) window.TargumSync.touched();
+          if (window.TargumLists && window.TargumLists.changed) window.TargumLists.changed();
+        }
+        if (wanted.length > batch.length) return repair().then(function (more) {
+          return wrote || more;
+        });
+        return wrote;
+      })
+      .catch(function () {
+        return false;
+      });
   }
 
   function el(tag, className, text) {
@@ -133,6 +221,7 @@
     var shown = [];
     var boxes = [];
     var next = 0;
+    var into = "";
     var uid = "claim-" + Math.random().toString(36).slice(2, 7) + "-";
 
     // What is checked, and the controls that follow it: the press is only offered once
@@ -207,6 +296,7 @@
         })
         .then(function (answer) {
           if (answer.error) return draw(gathered);
+          into = answer.into || into;
           var fresh = (answer.words || []).filter(function (word) {
             return !ledger[word.form] && !passed[word.form];
           });
@@ -218,8 +308,32 @@
           draw(gathered);
         })
         .catch(function () {
-          draw(gathered);
+          // The list could not be fetched at all. As the conversation's first exchange
+          // it simply goes, as an empty list does; where it is a panel of its own, it
+          // says so and offers to ask again rather than vanishing with no word (arrival
+          // QA, 2026-10-18: offline, Your Words drew no panel and no reason).
+          var fault = window.TargumFault;
+          if (options.once || gathered.length || drewSomething || !fault || !fault.line) {
+            return draw(gathered);
+          }
+          unreachable(fault, from);
         });
+    }
+
+    var failed = null;
+    function unreachable(fault, from) {
+      if (failed && failed.parentNode) failed.parentNode.removeChild(failed);
+      wrap.hidden = true;
+      actions.hidden = true;
+      failed = fault.line(t("claim.unreachable", "We couldn't load the list."), function () {
+        if (failed && failed.parentNode) failed.parentNode.removeChild(failed);
+        failed = null;
+        wrap.hidden = false;
+        actions.hidden = false;
+        load(from);
+      });
+      host.appendChild(failed);
+      panel.hidden = false;
     }
 
     // After a press: the next page, or — mounted once, as the first exchange — done.
@@ -254,7 +368,6 @@
         ledger[word.form] = {
           status: 9,
           surface: word.form,
-          meaning: word.meaning || "",
           band: word.band || "",
           learned: 0,
           // Ticked off here rather than met in a text, and the ledger says which
@@ -272,6 +385,7 @@
       });
       write(LEDGER, ledger);
       write(PASSED, passed);
+      fileMeanings(known, into, now);
       said.textContent = tn("claim.marked", known.length, "We've marked {n} word as known.", "We've marked {n} words as known.");
       if (window.TargumSync && window.TargumSync.touched) window.TargumSync.touched();
       if (window.TargumLists && window.TargumLists.changed) window.TargumLists.changed();
@@ -315,5 +429,16 @@
     else panel.hidden = true;
   }
 
-  window.TargumClaim = { mount: mount, untouched: untouched, hebrew: hebrew, PAGE: PAGE, FLOOR: FLOOR };
+  // On the page that carries the list, the claims made before their meanings were filed
+  // where they are read get them back.
+  if (body && panel) repair();
+
+  window.TargumClaim = {
+    mount: mount,
+    untouched: untouched,
+    hebrew: hebrew,
+    repair: repair,
+    PAGE: PAGE,
+    FLOOR: FLOOR,
+  };
 })();

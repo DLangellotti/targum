@@ -32,6 +32,7 @@ from urllib.parse import urlparse
 
 from ..errors import TargumError
 from . import hosts
+from .remembered import DESCRIBED
 from .youtube import _extra_args, fetch_through, run_ytdlp
 
 #: The hosts that only ever redirect: a shared link, with no video id in it.
@@ -82,8 +83,17 @@ def _vetted(url: str) -> None:
 
 
 def describe(url: str) -> dict[str, Any]:
-    """What yt-dlp knows about the video without fetching it: `yt-dlp -J`."""
+    """What yt-dlp knows about the video without fetching it: `yt-dlp -J`.
+
+    Remembered by the video's canonical address, or by the shared link itself where it
+    is a short one that names no video until followed (`remembered.DESCRIBED`).
+    """
     _vetted(url)
+    return DESCRIBED.through(f"tiktok:{home_url(url) or url}", lambda: _asked(url))
+
+
+def _asked(url: str) -> dict[str, Any]:
+    """`describe`, asked of yt-dlp rather than remembered."""
     done = run_ytdlp(
         ["yt-dlp", "-J", "--no-playlist", "--skip-download", url],
         timeout=120,

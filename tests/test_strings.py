@@ -125,7 +125,8 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         "progress.js",
         "charts.js",
         "lang.js",
-        "learn.js",
+        "arrival.js",
+        "home.js",
         "you.js",
         "add.js",
         "building.js",
@@ -141,8 +142,6 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         "chat.js",
         "speak.js",
         "signin.js",
-        "parasha.js",
-        "weekly.js",
     ):
         assert _calls(render / "assets" / name), f"{name} says its words through the catalogue"
     for key, text in page.items():
@@ -153,6 +152,41 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         assert english.get(key) == text, (
             f"{key}: reader.js says {text!r}, en.json {english.get(key)!r}"
         )
+
+
+#: Where a script hands English straight to the reader without a key: a message to
+#: `refused`, `failed`, `tell` or `say`, a label or title set to a literal, either half of
+#: a ternary of two sentences, and a sentence after `||`. Found in the recording player in
+#: October 2026, where a Russian page said its playback messages and step labels in
+#: English.
+_UNKEYED = (
+    r'\b(?:refused|failed|tell|say|announce)\(\s*"[A-Z][^"]*\s[^"]*"',
+    r'setAttribute\(\s*"(?:aria-label|title|placeholder)",\s*(?:[^;]*?\?\s*)?"[A-Z][^"]*"',
+    r'\?\s*"[A-Z][a-z]+\s[^"]*"\s*:\s*"[A-Z][^"]*"',
+    r'\|\|\s*"[A-Z][a-z]+\s[^"]*[.]"',
+    r'textContent\s*=\s*"[A-Z][a-z]+\s[^"]*"',
+    # The reader's QA pass (targum-internal#464, 2026-10-19): a one-word tooltip ("Hear"),
+    # a one-word line told ("Ready."), and the two words of the phrase card's press
+    # ("Keep", "Remove") all slipped past the patterns above, which want a space.
+    r'\btitle\s*=\s*"[A-Z][a-z]+',
+    r'\btell\(\s*"[A-Z][a-z]+\.?"\s*\)',
+    r'\baction:\s*[^\n]*\?\s*"[A-Z][a-z]+"\s*:\s*"[A-Z]',
+)
+
+
+def test_no_script_says_english_without_a_key() -> None:
+    """`t()` falls back to its English, so a sentence written without one looks like a
+    working page in the wrong language rather than like a bug. Every script is scanned,
+    not a list of them, so a new one is covered the day it is written."""
+    assets = Path(strings.__file__).parents[1] / "render" / "assets"
+    found = []
+    for script in sorted(assets.glob("*.js")):
+        source = script.read_text(encoding="utf-8")
+        for pattern in _UNKEYED:
+            for match in re.finditer(pattern, source):
+                line = source.count("\n", 0, match.start()) + 1
+                found.append(f"{script.name}:{line} {match.group()[:80]!r}")
+    assert not found, "said in English with no key:\n" + "\n".join(found)
 
 
 def test_a_desk_script_is_handed_only_its_own_keys_and_english_nothing(
@@ -324,6 +358,26 @@ def test_a_refusal_with_no_key_is_said_as_it_always_was() -> None:
     plain = TargumError("We couldn't open that PDF.", "Try another file.")
     assert refused_in("ru", plain) == "We couldn't open that PDF. Try another file."
     assert refused_in("ru", TargumError("No hint here.")) == "No hint here."
+
+
+def test_a_build_that_broke_on_nothing_written_is_said_in_the_readers_language() -> None:
+    """`broke()` is what a build says when it failed on something nobody wrote a sentence
+    for, and it was the one build failure said in English to everyone (errors QA,
+    targum-internal#468). A picture that would not open says what to try, too."""
+    from targum.errors import TargumError
+    from targum.serve import broke, refused_in
+
+    assert broke("en", RuntimeError("x")) == strings.catalogue("en")["job.broke"]
+    assert broke("ru", RuntimeError("x")) == strings.catalogue("ru")["job.broke"]
+    picture = TargumError(
+        "We couldn't read that picture.",
+        "Try a clearer photo or a screenshot.",
+        key="pictures.unreadable",
+    )
+    ru = strings.catalogue("ru")
+    assert refused_in("ru", picture) == (
+        f"{ru['pictures.unreadable']} {ru['pictures.unreadable.hint']}"
+    )
 
 
 def test_the_english_is_never_formatted_again(
@@ -604,3 +658,128 @@ def test_every_word_a_page_draws_is_said_in_russian() -> None:
         said = catalogue(code)
         missing = [key for key in keys if key not in said]
         assert not missing, f"{code} has no word for {len(missing)}: {missing[:8]}"
+
+
+# -- words from the data layer, kept off the screen (design review, 2026-10-09) --------
+
+#: What the catalogue, the pipeline and the billing call things, which a reader never
+#: should: a series' "instalments", a book "149 of 150 translated", "your hours" for
+#: what are credits since 2026-09-23, and the kind ids themselves. Each pattern is said
+#: per language, because the Russian leaked the same way.
+BANNED = {
+    "en": [
+        r"(?i)\binstalments?\b",
+        r"of \{total\} translated",
+        r"(?i)\byour hours\b",
+        r"(?i)\bpicture-book\b",
+        r"(?i)\bvideo talk\b",
+        # The copy pass (design.md §12, "A text is named in everyday words", and "Plain
+        # words for kinds and ladder steps" in "The boards are the desk", 2026-10-09):
+        # a scene's number, the catalogue's plural kinds, the rung and its CEFR code on a
+        # row, the hard-words measure, the Beit Midrash, and the contents page's states.
+        r"\bScene \{n\}",
+        r"^Scenes?$",
+        r"^Scene number$",
+        r"^Talks$",
+        r"(?i)\bbible narrative\b",
+        r"^Bible story$",
+        r"^(?:Aleph|Bet|Gimel|Dalet|Hey|Vav)\+?$",
+        r"·\s*C[12]\b",
+        r"(?i)\bhard words\b",
+        r"(?i)\bBeit Midrash\b",
+        r"Waiting\. We make it",
+        r"^Being made\.$",
+    ],
+    "ru": [
+        r"из \{total\} переведено",
+        r"(?i)ваших час",
+        r"\bСцена \{n\}",
+        r"^Сцен(?:ы|ка)$",
+        r"^Номер сцены$",
+        r"^Лекции$",
+        r"(?i)библейская проза",
+        r"^Из Библии$",
+        r"^(?:Алеф|Бет|Гимель|Далет|Хей|Вав)\+?$",
+        r"(?i)трудных слов",
+        r"(?i)^трудные слова",
+        r"(?i)бейт-мидраш",
+        r"Ждёт\. Мы подготовим",
+    ],
+}
+
+
+def _interface_english() -> list[tuple[str, str]]:
+    """Every English line a template or a script says through `t()`, with where."""
+    root = Path(__file__).parents[1] / "src" / "targum" / "render"
+    said = []
+    for path in sorted(root.glob("templates/*.j2")) + sorted(root.glob("assets/*.js")):
+        text = path.read_text(encoding="utf-8")
+        for key, english in re.findall(r'\btn?\(\s*"([^"]+)",\s*(?:[^,"]+,\s*)?"([^"]*)"', text):
+            said.append((f"{path.name}: {key}", english))
+    return said
+
+
+def test_no_word_from_the_data_layer_reaches_the_screen() -> None:
+    """A banned term in a catalogue or in the English a page falls back to is the
+    pipeline talking to the reader. The review found "Scene 218", "Instalments",
+    "149 of 150 translated" and "hours" on screen, and nothing guarded against any of
+    them (cause 7)."""
+    from targum.strings import catalogue
+
+    for code, patterns in BANNED.items():
+        said = list(catalogue(code).items())
+        if code == "en":
+            english = _interface_english()
+            assert len(english) > 1000, "the scan is broken, not the pages"
+            said += english
+        for where, text in said:
+            for pattern in patterns:
+                assert not re.search(pattern, text), f"{code} {where}: {text!r}"
+
+
+def test_every_sentence_a_desk_script_asks_for_rides_with_the_page() -> None:
+    """QA 2026-10-11: in Russian, /you said "Learning" and all eight levels in English, the
+    chat's word table said WORD and MEANING, and the arrival's shelf named its kinds in
+    English — every one of them in `ru.json`, and each page's prefix list leaving it out.
+    A page now carries every catalogued key its own scripts call."""
+    from targum.render.builder import (
+        LISTS,
+        add_page,
+        chat_page,
+        library_page,
+        list_page,
+        playlists_page,
+        progress_page,
+        saved_page,
+        subscription_page,
+        tanakh_map_page,
+        welcome_page,
+        you_page,
+    )
+    from targum.strings import catalogue
+
+    known = catalogue("ru")
+    pages = {
+        "progress": progress_page("k", language="ru"),
+        "tanakh": tanakh_map_page("k", language="ru"),
+        "welcome": welcome_page("k", language="ru"),
+        "you": you_page("k", language="ru"),
+        "saved": saved_page("k", language="ru"),
+        "playlists": playlists_page("k", language="ru"),
+        "subscription": subscription_page("k", language="ru"),
+        "add": add_page("k", language="ru"),
+        "library": library_page("k", language="ru"),
+        "chat": chat_page("k", language="ru"),
+        "embedded": chat_page("k", embed=True, language="ru"),
+        **{f"lists:{which}": list_page("k", which, language="ru") for which in LISTS},
+    }
+    unsaid = {}
+    for name, html in pages.items():
+        at = re.search(r"window\.TARGUM_STRINGS\s*=\s*", html)
+        assert at, f"{name} carries no strings in Russian"
+        given = json.JSONDecoder().raw_decode(html, at.end())[0]["strings"]
+        called = set(re.findall(r'\btn?\(\s*"([a-z0-9][a-z0-9._-]*)"', html))
+        gone = sorted(key for key in called if key in known and key not in given)
+        if gone:
+            unsaid[name] = gone
+    assert not unsaid, f"said in English on a Russian page: {unsaid}"

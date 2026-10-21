@@ -22,8 +22,9 @@ is the line targum-internal#147 drew for the same reason.
 
 The parse below is the whole of CoNLL-U that a scorecard needs: which run of the
 sentence's text is one written word, what that word's dictionary form is, what it is, and
-how it is built. The rest of the columns — heads, relations, the empty nodes — are left
-where they are.
+how it is built. Heads and relations are read for one thing only, the preposition between
+a verb and its argument (`GoldSentence.governed`, Hebrew's fourth hard spot); the empty
+nodes are left where they are.
 """
 
 from __future__ import annotations
@@ -94,6 +95,9 @@ class GoldSentence(NamedTuple):
     id: str
     text: str
     tokens: tuple[GoldToken, ...]
+    #: Each verb's case-marked arguments in the core prepositions, as (verb start, verb
+    #: end, preposition, argument start, argument end) in the text (`annotate.governed`).
+    governed: tuple[tuple[int, int, str, int, int], ...] = ()
 
 
 def root() -> Path:
@@ -183,6 +187,8 @@ class _Row(NamedTuple):
     lemma: str
     upos: str
     feats: str
+    head: int = 0
+    relation: str = ""
 
 
 def _sentence(lines: list[str]) -> GoldSentence | None:
@@ -203,6 +209,8 @@ def _sentence(lines: list[str]) -> GoldSentence | None:
         if len(columns) < 6:
             continue
         ident, form, lemma, upos, _, feats = columns[:6]
+        head = int(columns[6]) if len(columns) > 7 and columns[6].isdigit() else 0
+        relation = columns[7] if len(columns) > 7 else ""
         if "-" in ident:
             low, _, high = ident.partition("-")
             order.append((int(low), int(high), form))
@@ -212,7 +220,12 @@ def _sentence(lines: list[str]) -> GoldSentence | None:
             continue
         number = int(ident)
         rows[number] = _Row(
-            form, "" if lemma == "_" else lemma, upos, "" if feats == "_" else feats
+            form,
+            "" if lemma == "_" else lemma,
+            upos,
+            "" if feats == "_" else feats,
+            head,
+            relation,
         )
         if not order or number > order[-1][1]:
             order.append((number, number, form))
@@ -220,6 +233,7 @@ def _sentence(lines: list[str]) -> GoldSentence | None:
         return None
 
     tokens: list[GoldToken] = []
+    spans: dict[int, tuple[int, int]] = {}
     cursor = 0
     for first, last, surface in order:
         start = text.find(surface, cursor)
@@ -227,13 +241,38 @@ def _sentence(lines: list[str]) -> GoldSentence | None:
             return None
         end = start + len(surface)
         cursor = end
+        for number in range(first, last + 1):
+            spans[number] = (start, end)
         parts = [rows[number] for number in range(first, last + 1) if number in rows]
         if not parts:
             return None
         token = _token(start, end, surface, parts)
         if token is not None:
             tokens.append(token)
-    return GoldSentence(sent_id, text, tuple(tokens))
+    return GoldSentence(sent_id, text, tuple(tokens), _governed(rows, spans))
+
+
+def _governed(
+    rows: dict[int, _Row], spans: dict[int, tuple[int, int]]
+) -> tuple[tuple[int, int, str, int, int], ...]:
+    """The treebank's verb, preposition and argument, where the preposition is core."""
+    from .governed import ARGUMENT, CORE, preposition_of
+
+    out: list[tuple[int, int, str, int, int]] = []
+    for number, row in rows.items():
+        if row.upos != "ADP" or not row.relation.startswith("case"):
+            continue
+        argument = rows.get(row.head)
+        if argument is None or argument.relation not in ARGUMENT:
+            continue
+        verb = rows.get(argument.head)
+        if verb is None or verb.upos != "VERB":
+            continue
+        preposition = preposition_of(row.lemma or row.form)
+        if preposition not in CORE or number not in spans:
+            continue
+        out.append((*spans[argument.head], preposition, *spans[row.head]))
+    return tuple(out)
 
 
 def _token(start: int, end: int, surface: str, parts: list[_Row]) -> GoldToken | None:

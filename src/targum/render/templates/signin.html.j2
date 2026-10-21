@@ -1,17 +1,28 @@
+{#- A link that has expired stands in the app's shell (design.md §12, "The boards are the
+    desk", 2026-10-09; board ErrorsDesk): the bar with the one place a stranger may go,
+    and the page on the desk under it. The other doors keep the lockup alone. -#}
+{%- set desk = expired and not closing and not landing %}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1{% if desk %}, viewport-fit=cover{% endif %}">
 <title>targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('signin.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'chrome.css' if desk else '', 'signin.css') }}
 {{ hebrew_face() }}
+{%- if not desk %}
 {{ chrome_face() }}
-<script>{{ asset('keep.js') }}</script>
+{%- endif %}
+{{ script('keep.js') }}
 </head>
-<body class="signin">
+<body class="signin"{% if desk %} data-shell="desk"{% endif %}>
+{%- if desk %}
+{% set here = 'door' %}
+{% include '_nav.html.j2' %}
+{%- endif %}
 <main class="gate">
+  {%- if not desk %}
   {#- The lockup alone. There is no navigation to offer someone who is not in yet, and
       a header with three dead links is worse than no header. -#}
   <a class="brand" href="/" aria-label="targum">
@@ -21,21 +32,48 @@
     </svg>
     <span>targum</span>
   </a>
+  {%- endif %}
 
   {#- The door itself is a card on the desk (§13, 2026-09-14): the lockup and the foot
       stand on the ground around it, the way the places and the footer do on every page
       behind it. -#}
-  <div class="door">
+  <div class="door{% if expired or closing %} whole{% endif %}">
   {#- What went wrong last time, where something did: a Google sign-in that was
       cancelled, took too long, or was for an address that is not on the guest list. Said
       on the door itself rather than on a page of its own, because the way out of every
       one of them is the form underneath. -#}
-  {%- if said %}<p class="said trouble" role="status">{{ said }}</p>{% endif %}
+  {#- A sign-in through Google that took too long or didn't finish is a panel with its
+      one way on, Sign in again (design.md §12, 2026-10-09); anything else said here is a
+      line with the clay mark, ink rather than clay. -#}
+  {%- if said and again %}
+  <div class="fault-panel trouble" role="status">
+    <p class="fault-panel-said">{{ said }}</p>
+    <div class="fault-panel-row"><a class="fault-go" href="{{ again }}">{{ t("signin.page.sign-in-again", "Sign in again") }}</a></div>
+  </div>
+  {%- elif said %}<p class="said trouble fault-marked" role="status">{{ said }}</p>{% endif %}
   {#- Why they are here, when an app sent them: Connect in Claude or ChatGPT asks for an
       account first, and a door that said nothing about it looked like a different
       errand (copy audit, 2026-09-28). -#}
-  {%- if connecting %}<p class="said connecting" role="status">{{ connecting }}</p>{% endif %}
-  {% if landing %}
+  {#- On the door itself the sentence is the heading (design.md §12, "The connector's
+      pages are the boards'", 2026-10-09; board ConnApprove); on the page a mailed link
+      opens, it stands over "Sign in as". -#}
+  {%- if connecting and landing %}<p class="said connecting" role="status">{{ connecting }}</p>{% endif %}
+  {% if landing and lost %}
+  {#- A Connect lost on the way through the mail: started in another browser, or too long
+      ago. A whole page with the clay mark, the reason, and the one press that signs in,
+      as board ConnApprove draws it. -#}
+  <svg class="fault-icon lost" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.25"/><path d="M8 4.75v3.75M8 10.9v.1"/></svg>
+  <h1>{{ t("signin.page.connect-lost-title", "We couldn't finish connecting") }}</h1>
+  <p class="said">{{ t("signin.page.connect-lost-why", "You started in another browser, or too long ago. Sign in, then connect again from Claude or ChatGPT.") }}</p>
+  <form method="post" action="/account/enter{% if asked %}?lang={{ asked }}{% endif %}" class="enter"{% if asked %} data-asked="{{ asked }}"{% endif %}>
+    <input type="hidden" name="t" value="{{ token }}">
+    {%- if back %}
+    <input type="hidden" name="next" value="{{ back }}">
+    {%- endif %}
+    <button class="btn filled go" type="submit">{{ t("signin.page.sign-in", "Sign in") }}</button>
+  </form>
+
+  {% elif landing %}
   {#- The link arrived. Nothing has been spent yet: a mail client that fetches this page
       to preview it has only read it, and the account is opened by the button below. -#}
   {#- A break allowed before the "@", so a long address wraps at its seam rather than
@@ -43,24 +81,38 @@
       heading; nothing is sent from it. -#}
   <h1>{{ t("signin.page.sign-in-as", "Sign in as {address}", address=landing.replace("@", "\u200b@")) }}</h1>
   <p class="said">{{ t("signin.page.press-to-sign-in-on-this-browser", "Press to sign in on this browser.") }}</p>
-  <form method="post" action="/account/enter">
+  <form method="post" action="/account/enter{% if asked %}?lang={{ asked }}{% endif %}" class="enter"{% if asked %} data-asked="{{ asked }}"{% endif %}>
     <input type="hidden" name="t" value="{{ token }}">
-    <button class="go" type="submit">{{ t("signin.page.sign-in", "Sign in") }}</button>
+    {%- if back %}
+    <input type="hidden" name="next" value="{{ back }}">
+    {%- endif %}
+    <button class="btn filled wide go" type="submit">{{ t("signin.page.sign-in", "Sign in") }}</button>
   </form>
   <p class="aside">{{ t("signin.page.didn-t-ask-for-this-you-can", "Didn't ask for this? You can close the page.") }}</p>
 
+  {% elif closing %}
+  {#- A whole page (design.md §12, 2026-10-09): an account inside its grace period is
+      told so at every door, and the one way to keep it is a mail. -#}
+  <h1>{{ t("signin.page.account-closing", "This account is being closed") }}</h1>
+  <p class="said">{{ t("signin.page.to-keep-it-email-us", "To keep it, email us at hello@targum.page.") }}</p>
+  <a class="fault-go" href="mailto:hello@targum.page">{{ t("signin.page.email-us", "Email us") }}</a>
+
   {% elif expired %}
-  <h1>{{ t("signin.page.that-link-has-been-used", "That link no longer works") }}</h1>
-  <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Each link works once, for twenty minutes. Enter your email and we'll send a new one.") }}</p>
-  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
+  {#- A whole page too: a heading, one sentence, and the form whose one button sends a
+      new link. Send a link stays ink, as the door's call to action (§9). The board's
+      line icon over it, an envelope. -#}
+  <svg class="fault-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 3.75h12.5v8.5H1.75zM1.75 4.25 8 9l6.25-4.75"/></svg>
+  <h1>{{ t("signin.page.that-link-has-been-used", "This link has expired") }}</h1>
+  <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Enter your email and we'll send a new one.") }}</p>
+  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}{% if back %} data-next="{{ back }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
-    <button class="go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
+    <button class="btn filled wide go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
   </form>
 
   {% else %}
-  <h1>{{ t("signin.page.sign-in-to-targum", "Sign in to targum") }}</h1>
+  <h1>{% if connecting %}{{ connecting }}{% else %}{{ t("signin.page.sign-in-to-targum", "Sign in to targum") }}{% endif %}</h1>
   {#- One door was the rule here, and the reason was good: "Nobody has to work out which
       of two buttons they are." Google is a second door and not a second answer to that
       question — it proves the same address faster, and the account it reaches is the same
@@ -71,15 +123,15 @@
       an anchor to accounts.google.com, which is a link the reader chooses to follow and
       the one thing §11 lets off the page. -#}
   {%- if google %}
-  <a class="go with-google" href="/account/google">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
+  <a class="btn ghost outline wide go with-google" href="/account/google{% if back %}?next={{ back|urlencode }}{% endif %}">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
   <p class="or">{{ t("signin.page.or", "or") }}</p>
   {%- endif %}
   <p class="said">{{ t("signin.page.no-password-we-ll-email-you-a", "No password. We'll email you a link.") }}</p>
-  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
+  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}{% if back %} data-next="{{ back }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
-    <button class="go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
+    <button class="btn filled wide go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
   </form>
   {% endif %}
 
@@ -94,9 +146,11 @@
 {#- Outside the door's column, as on every other page with it (2026-09-28). Inside, the
     foot laid out its columns by the window's width in a 26rem column, and ran them into
     one another. -#}
-{% include '_public_foot.html.j2' %}
+{% if desk %}{% include '_foot.html.j2' %}{% else %}{% include '_public_foot.html.j2' %}{% endif %}
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
-{% endif %}<script>{{ asset('strings.js') }}</script>
-<script>{{ asset('signin.js') }}</script>
+{% endif %}{{ script('strings.js') }}
+{{ script('report.js', data_build=build()) }}
+{{ script('fault.js') }}
+{{ script('signin.js') }}
 </body>
 </html>

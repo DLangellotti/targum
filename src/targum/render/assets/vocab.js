@@ -118,6 +118,30 @@
     write("targum:migrated", done);
   }
 
+  /* How many words are on the list — being learned, stages 1 to 3 — across every
+     language this browser keeps: what a free word list's cap counts (design.md §12,
+     "Free and Plan, behind a switch", 2026-10-09). */
+  function listed() {
+    var count = 0;
+    var names = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var name = localStorage.key(i);
+        if (name && name.indexOf("targum:vocab:") === 0) names.push(name);
+      }
+    } catch (e) {
+      return 0;
+    }
+    names.forEach(function (name) {
+      var words = read(name, "{}");
+      Object.keys(words).forEach(function (lemma) {
+        var word = words[lemma] || {};
+        if (!word.gone && LEARNING.indexOf(word.status) >= 0) count++;
+      });
+    });
+    return count;
+  }
+
   /* --- meanings, out of the word and into the pair --------------------------- */
 
   /* A word belongs to a language; a meaning belongs to a language pair.
@@ -234,8 +258,8 @@
   // the words page. They ask the same two questions — how well do you know this, and
   // what do you want it to say — so they ask them the same way.
   //
-  // `options.status` is what it is now; `onStatus` is handed the new one, or null when
-  // the setting is taken off by pressing the one already chosen. `onNote` is handed the
+  // `options.status` is what it is now; `onStatus` is handed the new one, and is not
+  // called for a press of the one already chosen (QA 2026-10-11, D8). `onNote` is handed the
   // text you typed, on the way out of the field rather than on every keystroke.
   // `levels: false` draws the field alone: a phrase not kept yet offers its meaning to
   // be written before it offers a scale (2026-09-15).
@@ -293,7 +317,12 @@
         // pressed over a definition you have just written is you saving both — never you
         // taking the mark off, whatever the level happened to be already.
         commitNote();
-        if (options.onStatus) options.onStatus(on && !touched ? null : step.value);
+        // The stage a word already has, pressed again, is no change: it stays, nothing is
+        // written and nothing is sent. It used to take the mark off, so a second tap
+        // meant as a confirmation silently un-marked the word (QA 2026-10-11, decision
+        // D8). A word leaves its stage by another stage, or by ignore.
+        if (on && !touched) return;
+        if (options.onStatus) options.onStatus(step.value);
       });
       scale.appendChild(button);
     });
@@ -309,13 +338,13 @@
       STEPS.forEach(function (step) {
         if (step.value === options.status) pressed = step;
       });
-      // A step whose name is its own label says it once: "known" and "Known" are one
-      // word, and the card printed it twice (targum-internal#398).
-      var named = pressed ? pressed.title.toLowerCase() : "";
+      // The stage's own name, written under the control (design.md §12, "The five
+      // stages are one control, on every card", 2026-10-09): "Getting there", "Known".
+      // It was "2 · getting there", the segment's label said again beside its name.
       legend.textContent = pressed
-        ? named === String(pressed.label).toLowerCase()
-          ? pressed.label
-          : pressed.label + " · " + named
+        ? pressed.value === IGNORED
+          ? t("vocab.legend.ignored", "Ignored: a name or a number")
+          : pressed.title
         : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");
       box.appendChild(legend);
     }
@@ -343,6 +372,7 @@
       // store written a hundred times for one definition.
       note.addEventListener("input", function () {
         touched = true;
+        if (save) save.hidden = false;
         said(false);
         clearTimeout(pending);
         pending = setTimeout(commitNote, 400);
@@ -351,6 +381,22 @@
       note.addEventListener("change", commitNote);
       note.addEventListener("blur", commitNote);
       box.appendChild(note);
+      // Folded, where the caller asks and nothing is written yet: a quiet "Add your
+      // meaning" in its place, which opens the field and puts the cursor in it.
+      if (options.fold && !options.note) {
+        note.hidden = true;
+        var opener = document.createElement("button");
+        opener.type = "button";
+        opener.className = "note-open";
+        opener.textContent = t("vocab.add-meaning", "Add your meaning");
+        opener.addEventListener("click", function (event) {
+          event.stopPropagation();
+          opener.hidden = true;
+          note.hidden = false;
+          note.focus();
+        });
+        box.insertBefore(opener, note);
+      }
 
       // What you typed is kept as you type it, and always was — but a field that saves
       // silently is a field nobody can tell they have finished with. This says where the
@@ -359,6 +405,11 @@
       save.type = "button";
       save.className = "note-save";
       save.textContent = t("vocab.save", "Save");
+      // Out of sight until there is something to save. Shown from the start, a dark Save
+      // was the loudest thing on the card, and on a phrase it stood over Keep: a tester
+      // kept pressing it to keep the phrase (2026-10-06). It comes with the first letter
+      // typed and stays to say Saved.
+      save.hidden = true;
       save.addEventListener("click", function (event) {
         event.stopPropagation();
         commitNote();
@@ -479,7 +530,7 @@
       event.stopPropagation();
       copy(text).then(function (ok) {
         said(ok ? t("vocab.copied", "Copied") : t("vocab.not-copied", "Not copied"));
-        (options.say || announce)(ok ? t("vocab.copied.said", "Copied.") : t("vocab.copy-failed", "We couldn't copy that."));
+        (options.say || announce)(ok ? t("vocab.copied.said", "Copied.") : t("vocab.copy-failed", "We couldn't copy that. Select the text and copy it from there."));
       });
     });
     // Enter on the button is the button's; the reader's Enter opens and closes cards.
@@ -611,6 +662,7 @@
       return steps();
     },
     LEARNING: LEARNING,
+    listed: listed,
     KNOWN: KNOWN,
     IGNORED: IGNORED,
   };

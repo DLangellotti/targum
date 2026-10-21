@@ -1,0 +1,79 @@
+{#- The text card, as a host draws it beside `find_text`, `open_library_text` or
+    `search_sources` (design.md §12, "A card in someone else's chat", 2026-10-06).
+
+    One document with its style and script inline, handed over whole as the resource
+    `ui://targum/text-card.html`, on the build card's bridge (`card-bridge.js`). The only
+    words it starts with are its labels; every text it shows comes in from the tool
+    result (`card-text.js`).
+
+    It fetches nothing but a recording, and only when the reader presses Listen on a text
+    that already has one (§12's second exception): the one `<audio>` below has no address
+    until then; and a library text's cover from our own `/cover/` (§12, "A card's picture
+    comes from targum.page", 2026-10-09). No control here starts, confirms or spends anything. A door opens a page
+    of ours: the text, the library page where it is got ready, or, for an article a
+    publisher put out, the add page with its address in the box. -#}
+{% from '_card_head.html.j2' import head %}
+<!doctype html>
+<html lang="{{ page_language }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>{{ t("card.text.title", "Something to read") }}</title>
+{{ styles('card.css') }}
+</head>
+<body>
+<main class="cards" id="cards" aria-live="polite"
+  data-open="{{ t("card.text.open", "Open") }}"
+  data-library="{{ t("card.text.library", "Open in the library") }}"
+  data-read-on="{{ t("card.text.read-on", "Read on targum") }}"
+  data-watch-on="{{ t("card.text.watch-on", "Watch on targum") }}"
+  data-listen-on="{{ t("card.text.listen-on", "Listen on targum") }}"
+  data-listen="{{ t("reader.page.listen", "Listen") }}"
+  data-pause="{{ t("card.text.pause", "Pause") }}"
+  data-read-by="{{ t("card.text.read-by", "Read by {who}") }}"
+  data-minutes="{{ t("library.minutes", "{n} min") }}"
+  data-found="{{ t("card.text.found", "Today's news") }}"
+  data-kinds='{{ kinds|tojson }}'
+  data-tenths="{{ tenths }}"
+  data-pace="{{ pace }}">
+  <p class="card-said card-none" id="none" hidden>{{ t("card.text.none", "Nothing matched.") }}</p>
+  {#- One card, its head and a row for each text (design.md §12, "The connector's pages
+      are the boards'", 2026-10-09), where each text was a card of its own. -#}
+  <section class="card card-sheet" id="sheet" hidden>
+    {% call head() %}<span class="card-kind" id="kind">{{ t("card.text.title", "Something to read") }}</span>{% endcall %}
+    <div class="card-rows" id="rows"></div>
+  </section>
+</main>
+<template id="one">
+  <article class="card-text">
+    {#- The letter on the colour of its kind first; a library text's cover from
+        `/cover/` replaces it once it has loaded, and never otherwise (§12, "A card's
+        picture comes from targum.page"). -#}
+    <span class="card-tile" aria-hidden="true"><span class="card-letter"></span></span>
+    <div class="card-body">
+      <h2 class="card-title" dir="auto"></h2>
+      <p class="card-english" hidden></p>
+      <p class="card-facts" hidden><span class="card-kind-word" hidden></span><span class="card-from" hidden></span><span class="card-minutes" hidden></span><span class="card-known" hidden></span></p>
+      <span class="card-credit" hidden></span>
+    </div>
+    <div class="card-actions">
+      <button type="button" class="card-play" aria-pressed="false" hidden>
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path class="play" d="M5 3.2 12.8 8 5 12.8Z"></path>
+          <path class="pause" d="M5.5 3.8v8.4M10.5 3.8v8.4"></path>
+        </svg>
+        <span class="card-play-word"></span>
+      </button>
+      <a class="card-door" target="_blank" rel="noopener" hidden></a>
+    </div>
+  </article>
+</template>
+{#- The door's arrow (§7: 16px, a stroke at 1.4, round caps): out of this frame, to a
+    page of ours. Cloned after the door's word, so the word stays the door's whole text. -#}
+<template id="arrow"><svg class="card-arrow" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6.5 3.5h6v6M12.5 3.5 4 12"></path></svg></template>
+<audio id="ear" preload="none"></audio>
+{{ script('card-bridge.js') }}
+{{ script('card-text.js') }}
+</body>
+</html>

@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <title>Пример</title>
+    <link>https://ru.example/</link>
+    <item>
+      <title>В парке открыли новую библиотеку</title>
+      <link>https://ru.example/news/2026/10/06/biblioteka</link>
+      <description><![CDATA[<p>В городском парке открыли библиотеку под открытым небом.</p><p>Книги можно брать <a href="https://ru.example/x">без записи</a>.</p>]]></description>
+      <pubDate>Tue, 06 Oct 2026 21:34:06 +0300</pubDate>
+      <guid>https://ru.example/news/2026/10/06/biblioteka</guid>
+    </item>
+    <item>
+      <title>Врач рассказал о новой клинике &amp;laquo;Здоровье&amp;raquo;</title>
+      <link>https://ru.example/express-news/2026/10/06/klinika</link>
+      <description><![CDATA[Врач-невролог рассказал об&nbsp;открытии клиники на&nbsp;окраине города.]]></description>
+      <dc:creator>Редакция</dc:creator>
+      <pubDate>Tue, 06 Oct 2026 19:05:02 +0300</pubDate>
+    </item>
+    <item>
+      <title>Прямой эфир: день города</title>
+      <link>https://ru.example/live/den-goroda</link>
+      <description><![CDATA[<br/>Праздник продолжается весь день, <a href="https://ru.example/y">программа</a> обновляется.]]></description>
+    </item>
+  </channel>
+</rss>

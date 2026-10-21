@@ -1,0 +1,1155 @@
+"""A video text, in a real browser (targum-internal#422, David, 2026-10-05; design.md §12).
+
+A text that carries a video opens with its picture up, standing one of two ways the reader
+chooses in the bar and keeps: Beside — the picture at the left with one thin row of
+controls under it and the transcript beside it — or Theatre — the picture large, the line
+being said under it with its words tappable, and the transcript one press away, under the
+picture (2026-10-11).
+While it plays everything but the picture, the hairline of where the voice is and the line
+steps back. On a phone it is the picture, its controls and the transcript under them.
+
+It replaced the picture in a corner (picked up, moved and sized), its full-screen mode and
+the floating strip under it. The tests that were about those went with them; the ones
+about what a reader still has — the picture put away and brought back, the strip once it
+is put away, the shape of the film — were carried here or left where they were.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+pytest.importorskip("playwright.sync_api")
+
+# The fixtures live in the browser module rather than a conftest, so they are
+# imported by name to register them here.
+from test_reader_browser import (  # noqa: E402, F401
+    address,
+    browser,
+    open_reader,
+    opened,
+    press_in_aa,
+    press_in_more,
+    settled,
+    video_reader,
+)
+from test_word_tap_browser import QAMATS, talk  # noqa: E402
+
+PHONE = {"width": 390, "height": 844}
+
+#: How the page stands, what the line under the picture says, and which line is lit.
+FILM = r"""
+() => {
+  const b = document.body.classList;
+  const text = (s) => {
+    const el = document.querySelector(s);
+    return el ? el.textContent.replace(/[⁦-⁩]/g, '').trim() : '';
+  };
+  const now = document.querySelector('#reader .pair.voiced.now');
+  return {
+    film: b.contains('film'),
+    beside: b.contains('film-beside'),
+    theatre: b.contains('film-theatre'),
+    panel: b.contains('film-panel'),
+    quiet: b.contains('film-quiet'),
+    card: b.contains('film-card'),
+    pressed: [...document.querySelectorAll('[data-film-view]')]
+      .filter((k) => k.getAttribute('aria-pressed') === 'true')
+      .map((k) => k.getAttribute('data-film-view')),
+    stored: localStorage.getItem('targum:film-view'),
+    now: text('#film-sub .film-now'),
+    tr: text('#film-sub .film-tr'),
+    before: text('#film-sub .film-before'),
+    after: text('#film-sub .film-after'),
+    lit: now ? now.getAttribute('data-id') : null,
+    transcript: document.getElementById('reader').getClientRects().length > 0,
+    paused: document.querySelector('.video-el').paused,
+  };
+}
+"""
+
+#: Where things stand, in the window.
+BOXES = """
+(names) => {
+  const out = {};
+  for (const [name, sel] of Object.entries(names)) {
+    const el = document.querySelector(sel);
+    if (!el || !el.getClientRects().length) { out[name] = null; continue; }
+    const r = el.getBoundingClientRect();
+    out[name] = { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width };
+  }
+  return out;
+}
+"""
+
+FIRST_LINE = "#reader .pair.voiced"
+
+
+def film_open(
+    browser,  # noqa: F811
+    built: Path,
+    viewport=None,
+    view: str | None = None,
+    panel: bool | None = None,
+):
+    """A reader with its picture up, standing `view` way if one is given.
+
+    Theatre opens with the transcript put away and the line being said under the picture
+    (David, 2026-10-11; design.md §12, "Theatre is the picture with its text under it").
+    `panel=True` presses Transcript once it is open, as a reader who wants it does."""
+    context = opened(browser, viewport)
+    if view:
+        context.add_init_script(
+            f"try {{ localStorage.setItem('targum:film-view', '{view}'); }} catch (e) {{}}"
+        )
+    page = context.new_page()
+    page.goto(address(built))
+    # Attached, not visible: in Theatre the transcript waits behind its press.
+    page.wait_for_selector(".pair", state="attached")
+    page.wait_for_selector("#video:not([hidden])")
+    page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
+    if panel and view == "theatre":
+        page.click(".film-transcript")
+        page.wait_for_function("() => document.body.classList.contains('film-panel')")
+    return context, page
+
+
+def seek(page, seconds: float) -> None:
+    page.wait_for_function("() => window.TargumPlayer.seekable()")
+    page.evaluate(f"() => window.TargumPlayer.seek({seconds})")
+    page.wait_for_timeout(120)
+
+
+def test_a_video_text_opens_beside_its_transcript(browser, tmp_path) -> None:  # noqa: F811
+    """Beside is where a reader starts: the picture at the left, one thin row under it,
+    what it is under that, and the transcript to its right. Listen is not in the bar —
+    the row under the picture plays it — and nothing floats at the foot. Nothing plays
+    until pressed, which is the rule that has held since the picture first came on."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built)
+    try:
+        seen = page.evaluate(FILM)
+        assert seen["film"] and seen["beside"] and not seen["theatre"], seen
+        assert seen["pressed"] == ["beside"], seen
+        assert seen["paused"], "nothing plays until pressed"
+        # Play is the bar's teal pill over the picture too (design.md §12, 2026-10-09,
+        # "The reader's chrome is the desk's"), and the row under it keeps its line.
+        assert page.locator(".bar .listen").is_visible(), "play stands in the bar"
+        assert not page.locator(".film-ctl .film-play").is_visible(), "and not twice"
+        assert not page.locator("#player").is_visible(), "and no strip floats at the foot"
+        at = page.evaluate(
+            BOXES,
+            {
+                "picture": ".film-frame",
+                "row": ".film-ctl",
+                "about": ".film-about",
+                "line": FIRST_LINE,
+            },
+        )
+        assert at["row"]["top"] >= at["picture"]["bottom"] - 1, at
+        assert abs(at["row"]["width"] - at["picture"]["width"]) < 2, (
+            "the row is the picture's width"
+        )
+        assert at["about"]["top"] >= at["row"]["bottom"] - 1, at
+        assert at["line"]["left"] >= at["picture"]["right"], f"the transcript is beside it: {at}"
+        assert not page.locator("#film-sub").is_visible(), "the large line is Theatre's"
+    finally:
+        context.close()
+
+
+def test_the_switch_is_kept_for_the_reader_not_for_the_text(browser, tmp_path) -> None:  # noqa: F811
+    """Beside | Theatre in the bar, remembered per reader: how somebody likes to watch is
+    a fact about them, like the speed. So a second text opens the way the first was
+    left, and `v` turns between the two."""
+    one = video_reader(tmp_path / "one")
+    two = video_reader(tmp_path / "two")
+    context, page = film_open(browser, one)
+    try:
+        page.click("[data-film-view='theatre']")
+        seen = page.evaluate(FILM)
+        assert seen["theatre"] and seen["pressed"] == ["theatre"], seen
+        assert seen["stored"] == "theatre", seen
+        # The line being said under the picture, as a reader finds Theatre (2026-10-11).
+        assert not seen["panel"] and not seen["transcript"], seen
+
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(FILM)["theatre"], "kept across the door"
+
+        page.goto(address(two))
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(FILM)["theatre"], "and on the next text"
+
+        page.keyboard.press("v")
+        seen = page.evaluate(FILM)
+        assert seen["beside"] and seen["stored"] == "beside", seen
+    finally:
+        context.close()
+
+
+#: A desk window, as David's was when he asked for the text under the picture.
+DESK = {"width": 1500, "height": 900}
+
+#: The reading area, the picture, the line under it and the transcript's first line.
+STACK = """
+() => {
+  const r = (s) => {
+    const el = document.querySelector(s);
+    if (!el || !el.getClientRects().length) return null;
+    const b = el.getBoundingClientRect();
+    if (!b.width || !b.height) return null;
+    return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width };
+  };
+  const list = document.getElementById('list');
+  const listed = list && document.body.classList.contains('list-open')
+    ? list.getBoundingClientRect().left : document.documentElement.clientWidth;
+  return {
+    area: listed,
+    picture: r('.film-frame'),
+    row: r('.film-ctl'),
+    sub: r('#film-sub'),
+    transcript: r('#reader'),
+    line: r('#reader .pair.voiced'),
+  };
+}
+"""
+
+LIST_OPEN = """() => {
+  const list = document.createElement('aside');
+  list.id = 'list';
+  list.className = 'list';
+  document.body.appendChild(list);
+  document.body.classList.add('has-list', 'list-open');
+  window.dispatchEvent(new Event('resize'));
+}"""
+
+
+def centred(seen) -> bool:
+    """The picture's middle within a few pixels of the reading area's."""
+    picture = seen["picture"]
+    return abs((picture["left"] + picture["right"]) / 2 - seen["area"] / 2) < 4
+
+
+def test_theatre_is_the_picture_in_the_middle_with_its_text_under_it(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """David, 2026-10-11 (design.md §12): "the text is to the right side, the video isn't
+    central. Text is supposed to be underneath." Theatre opens with the picture in the
+    middle and the line being said under it, and the transcript, opened, runs under the
+    picture at the reading measure, centred under it. Nothing about it is kept."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(browser, built, DESK, view="theatre")
+    try:
+        seen = page.evaluate(FILM)
+        assert seen["theatre"] and not seen["panel"] and not seen["transcript"], seen
+        at = page.evaluate(STACK)
+        assert centred(at), at
+        assert at["sub"]["top"] >= at["picture"]["bottom"], at
+        assert abs((at["sub"]["left"] + at["sub"]["right"]) / 2 - at["area"] / 2) < 4, at
+
+        page.click(".film-transcript")
+        seen = page.evaluate(FILM)
+        assert seen["panel"] and seen["transcript"], seen
+        at = page.evaluate(STACK)
+        assert centred(at), at
+        assert at["transcript"]["top"] >= at["picture"]["bottom"], at
+        assert at["line"]["top"] >= at["row"]["bottom"], at
+        line = at["line"]
+        assert abs((line["left"] + line["right"]) / 2 - at["area"] / 2) < 4, at
+        assert 400 < line["width"] <= 640, "at the reading measure, not the window's"
+        assert line["bottom"] < DESK["height"], "and on screen under the picture"
+        # The line being said is the transcript's alone (audit Q10, 2026-10-09).
+        sub = "() => getComputedStyle(document.getElementById('film-sub')).display"
+        assert page.evaluate(sub) == "none"
+
+        # The picture stays at the top while the transcript scrolls under it.
+        page.mouse.move(DESK["width"] / 2, DESK["height"] - 40)
+        page.mouse.wheel(0, 400)
+        page.wait_for_timeout(150)
+        assert page.evaluate("() => window.scrollY") > 0
+        assert page.evaluate(STACK)["picture"]["top"] == at["picture"]["top"]
+
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        seen = page.evaluate(FILM)
+        assert seen["theatre"] and not seen["panel"], "it opens with the line under it again"
+    finally:
+        context.close()
+
+
+def test_theatre_centres_in_what_the_word_list_leaves(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """The word list stays the panel at the right, as on every text, and the picture and
+    its text centre in what is left, with the transcript put away and open. Its lines
+    keep a measure a sentence can be read in (David, 2026-10-10: "theater mode is not
+    working", when the list squeezed a column at the right to a word a line)."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(browser, built, DESK, view="theatre")
+    try:
+        # The fixture has no words, so no list: one is stood in, open, as a reader with
+        # words has it, and the window is told to lay itself out again.
+        page.evaluate(LIST_OPEN)
+        page.wait_for_timeout(200)
+        at = page.evaluate(STACK)
+        assert at["area"] <= DESK["width"] - 240 + 1, at
+        assert centred(at) and at["picture"]["right"] <= at["area"], at
+        assert at["sub"]["top"] >= at["picture"]["bottom"], at
+
+        page.click(".film-transcript")
+        at = page.evaluate(STACK)
+        assert centred(at) and at["picture"]["right"] <= at["area"], at
+        assert at["transcript"]["top"] >= at["picture"]["bottom"], at
+        line = at["line"]
+        assert line["right"] <= at["area"] + 1 and line["width"] > 400, at
+        assert abs((line["left"] + line["right"]) / 2 - at["area"] / 2) < 4, at
+    finally:
+        context.close()
+
+
+def test_the_transcript_opens_under_a_smaller_picture(browser, tmp_path) -> None:  # noqa: F811
+    """In Theatre a press on Transcript opens it under the picture, and the picture makes
+    room for it; the transcript's × and the same press shut it."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        wide = page.evaluate(BOXES, {"picture": ".film-frame"})["picture"]
+        page.click(".film-transcript")
+        seen = page.evaluate(FILM)
+        assert seen["panel"] and seen["transcript"], seen
+        assert page.get_attribute(".film-transcript", "aria-pressed") == "true"
+        at = page.evaluate(BOXES, {"picture": ".film-frame", "line": FIRST_LINE})
+        assert at["picture"]["width"] < wide["width"], "the picture grew smaller for it"
+        assert at["line"]["top"] >= at["picture"]["bottom"], at
+        page.click(".film-panel-close")
+        seen = page.evaluate(FILM)
+        assert not seen["panel"] and not seen["transcript"], seen
+        assert page.evaluate("() => document.activeElement.classList.contains('film-transcript')")
+        page.click(".film-transcript")
+        page.click(".film-transcript")
+        assert not page.evaluate(FILM)["panel"], "the press shuts it as well"
+    finally:
+        context.close()
+
+
+def test_the_line_under_the_picture_follows_the_voice(browser, tmp_path) -> None:  # noqa: F811
+    """The line being said, set large, with its English under it and the lines either
+    side faded — copied from the transcript as the clock reaches it, and lit there too.
+    Between two lines it holds the one just said: it is a line of the transcript, not a
+    caption over a film, so it does not blink out over a breath. (The full-screen
+    subtitle it replaced did, and a test said so; that rule went with the mode.)"""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        seek(page, 0.2)
+        seen = page.evaluate(FILM)
+        assert seen["now"] == "שורה 1" and seen["tr"] == "A line.", seen
+        assert seen["after"] == "שורה 2" and seen["before"] == "", seen
+        assert seen["lit"] == "0001.000-aaaaaa", "the transcript lights the same line"
+
+        seek(page, 0.6)
+        seen = page.evaluate(FILM)
+        assert seen["now"] == "שורה 2" and seen["before"] == "שורה 1", seen
+        assert seen["lit"] == "0002.000-aaaaaa", seen
+
+        seek(page, 0.47)
+        assert page.evaluate(FILM)["now"] == "שורה 1", "between lines, the one just said"
+
+        # Playing, it moves with the clock without anyone seeking.
+        seek(page, 0.3)
+        page.keyboard.press("Space")
+        page.wait_for_function(
+            "() => document.querySelector('#film-sub .film-now').textContent.includes('2')",
+            timeout=4000,
+        )
+    finally:
+        context.close()
+
+
+def test_it_steps_back_while_playing_and_comes_back(browser, tmp_path) -> None:  # noqa: F811
+    """C. Playing, the bar and the row fade until only the picture, the hairline and the
+    line are left; the pointer brings them back, and a pause brings them back for good.
+    Nothing steps back while a panel is out."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        # The fixture film is a second long; held looping so it is still playing when
+        # the row has waited its two and a half seconds.
+        page.evaluate("() => { document.querySelector('.video-el').loop = true; }")
+        page.mouse.move(5, 795)
+        page.keyboard.press("Space")
+        page.wait_for_function("() => document.body.classList.contains('film-quiet')", timeout=6000)
+        shown = page.evaluate(
+            """() => ({
+              bar: getComputedStyle(document.querySelector('.bar')).opacity,
+              play: getComputedStyle(document.querySelector('.film-play')).opacity,
+              track: getComputedStyle(document.querySelector('.film-track')).opacity,
+              line: getComputedStyle(document.querySelector('#film-sub')).opacity,
+            })"""
+        )
+        assert shown == {"bar": "0", "play": "0", "track": "1", "line": "1"}, shown
+
+        page.mouse.move(400, 400)
+        assert not page.evaluate(FILM)["quiet"], "the pointer brings it back"
+        page.wait_for_function("() => document.body.classList.contains('film-quiet')", timeout=6000)
+
+        page.keyboard.press("Space")
+        assert not page.evaluate(FILM)["quiet"], "a pause brings it back"
+        page.wait_for_timeout(3000)
+        assert not page.evaluate(FILM)["quiet"], "and it stays while paused"
+
+        # A panel out holds it, however long it plays.
+        page.click(".film-rate")
+        page.wait_for_selector("#rates.open")
+        page.evaluate("() => document.querySelector('.video-el').play()")
+        page.wait_for_timeout(3200)
+        assert not page.evaluate(FILM)["quiet"], "nothing steps back under an open panel"
+    finally:
+        context.close()
+
+
+def test_a_word_is_tapped_beside_and_in_theatre(browser, tmp_path) -> None:  # noqa: F811
+    """Words in the transcript Beside and in the line under the picture in Theatre open the
+    reader's own card, with the reader's own levels on them. A word tapped while the voice
+    runs stops it, so the card opens over a paused frame; in the line the word stays
+    marked while its card is up, and the frame steps down under it."""
+    built = talk(tmp_path, lines=12)
+    context, page = film_open(browser, built)
+    try:
+        settled(page)
+        page.wait_for_selector("#reader .pair.voiced .w")
+        word = page.locator("#reader .pair.voiced .w").nth(2)
+        said = word.inner_text()
+        word.click()
+        page.wait_for_selector("#gloss-card:not([hidden])")
+        assert page.locator("#gloss-card .lemma").inner_text() == said
+
+        page.keyboard.press("Escape")
+        page.click("[data-film-view='theatre']")
+        # The line under the picture is drawn with the transcript put away: beside an
+        # open transcript the line is the transcript's alone (audit Q10, 2026-10-09).
+        if page.get_attribute(".film-transcript", "aria-pressed") == "true":
+            page.click(".film-transcript")
+        page.wait_for_selector("#film-sub .film-now .w")
+        assert page.evaluate(
+            "() => [...document.querySelectorAll('#film-sub .film-now .w')]"
+            ".every((w) => w.hasAttribute('data-lemma'))"
+        ), "the line's words are the transcript's, levels and all"
+        page.evaluate("() => { document.querySelector('.video-el').loop = true; }")
+        page.keyboard.press("Space")
+        page.wait_for_function("() => !document.querySelector('.video-el').paused")
+
+        word = page.locator("#film-sub .film-now .w").nth(3)
+        said = word.inner_text()
+        word.click()
+        page.wait_for_selector("#gloss-card:not([hidden])")
+        seen = page.evaluate(FILM)
+        assert seen["paused"], "the tap stopped the voice"
+        assert seen["card"], "the frame steps down under the card"
+        assert page.locator("#gloss-card .lemma").inner_text() == said
+        assert page.locator("#film-sub .w.looked-up").count() == 1, "the word stays marked"
+    finally:
+        context.close()
+
+
+#: The line under the picture: whether its Hebrew is on the page, what it says, and how
+#: many of its words a pointer can reach.
+LINE = r"""
+() => {
+  const cell = document.querySelector('#film-sub .film-now .src');
+  const reached = cell
+    ? [...cell.querySelectorAll('.w')].filter((w) => {
+        const r = w.getBoundingClientRect();
+        if (!r.width || !r.height) return false;
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !!hit && (hit === w || w.contains(hit));
+      }).length
+    : 0;
+  return {
+    vowels: document.body.classList.contains('nikkud'),
+    form: cell ? cell.getAttribute('data-form') : null,
+    shown: !!cell && cell.getClientRects().length > 0,
+    text: cell ? cell.textContent.replace(/[⁦-⁩]/g, '').trim() : '',
+    words: cell ? cell.querySelectorAll('.w').length : 0,
+    reached,
+    tr: document.querySelector('#film-sub .film-tr').textContent.trim(),
+  };
+}
+"""
+
+
+def test_the_line_stays_with_the_vowels_on(browser, tmp_path) -> None:  # noqa: F811
+    """Theatre's large line is a copy of the cell the transcript has on show, and with the
+    vowel points on that cell is the pointed one. The rule that shows a pointed cell lives
+    under `.pair.points`, which the copy's holder is not, so the copy kept
+    `.src.pointed { display: none }`: the line vanished, its words could not be pressed,
+    and only its English was left under the picture (David, 2026-10-07, on his own
+    video). Whatever the form, the line is on show and its words answer a tap — through
+    the switch in Aa and `n` alike, and in the gap between two lines."""
+    built = talk(tmp_path, lines=12, pointed=True)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        seek(page, 7.0)
+        page.wait_for_selector("#film-sub .film-now .w")
+        seen = page.evaluate(LINE)
+        assert not seen["vowels"] and seen["form"] == "plain", "a guessed pointing opens bare"
+        assert seen["shown"] and seen["reached"] == seen["words"] == 8, seen
+
+        press_in_aa(page, "[data-nikkud-toggle]")
+        page.wait_for_timeout(150)
+        seen = page.evaluate(LINE)
+        assert seen["vowels"] and seen["form"] == "pointed", seen
+        assert QAMATS in seen["text"], "the line is the pointed one"
+        assert seen["shown"], f"the line is on the page, not just its English: {seen}"
+        assert seen["reached"] == seen["words"] == 8, f"and every word can be pressed: {seen}"
+        assert seen["tr"] == "A line of the talk, in English.", seen
+
+        word = page.locator("#film-sub .film-now .w").nth(2)
+        word.click()
+        page.wait_for_selector("#gloss-card:not([hidden])")
+        assert page.locator("#film-sub .w.looked-up").count() == 1
+        page.keyboard.press("Escape")
+
+        # Between two lines the one just said holds, pointed and on show.
+        seek(page, 8.7)
+        seen = page.evaluate(LINE)
+        assert seen["form"] == "pointed" and seen["shown"] and seen["reached"] == 8, seen
+
+        # And off again with `n`, the switch's key: the bare line, as it was.
+        page.keyboard.press("n")
+        page.wait_for_timeout(150)
+        seen = page.evaluate(LINE)
+        assert not seen["vowels"] and seen["form"] == "plain", seen
+        assert seen["shown"] and seen["reached"] == 8, seen
+    finally:
+        context.close()
+
+
+def test_the_arrow_keys_step_a_line_at_a_time(browser, tmp_path) -> None:  # noqa: F811
+    """↑ and ↓ the line before and after, from wherever the voice is; in Theatre with
+    the transcript put away ← and → as well, the way the page reads (a Hebrew text's
+    next line is ←)."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        seek(page, 0.2)
+        page.keyboard.press("ArrowDown")
+        page.wait_for_timeout(150)
+        assert page.evaluate(FILM)["now"] == "שורה 2"
+        assert page.evaluate("() => window.TargumPlayer.at()") >= 0.5
+        page.keyboard.press("ArrowUp")
+        page.wait_for_timeout(150)
+        assert page.evaluate(FILM)["now"] == "שורה 1"
+        page.keyboard.press("ArrowLeft")
+        page.wait_for_timeout(150)
+        assert page.evaluate(FILM)["now"] == "שורה 2", "← is on, in a text that reads leftward"
+        page.keyboard.press("ArrowRight")
+        page.wait_for_timeout(150)
+        assert page.evaluate(FILM)["now"] == "שורה 1"
+    finally:
+        context.close()
+
+
+def test_loop_this_line_holds_the_voice_on_it(browser, tmp_path) -> None:  # noqa: F811
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, built)
+    try:
+        seek(page, 0.1)
+        page.click(".film-loop")
+        assert page.get_attribute(".film-loop", "aria-pressed") == "true"
+        page.keyboard.press("Space")
+        page.wait_for_timeout(1300)
+        seen = page.evaluate(
+            "() => ({ at: window.TargumPlayer.at(),"
+            " paused: document.querySelector('.video-el').paused })"
+        )
+        assert not seen["paused"] and seen["at"] < 0.5, f"still on the first line: {seen}"
+        page.click(".film-loop")
+        assert page.get_attribute(".film-loop", "aria-pressed") == "false"
+    finally:
+        context.close()
+
+
+def test_the_speed_is_a_panel_under_its_press(browser, tmp_path) -> None:  # noqa: F811
+    """ "1× ▾" opens the six speeds as one of the bar's panels: focus goes in from the
+    keyboard and back on Escape, and a pick sets the speed and shuts it."""
+    built = video_reader(tmp_path)
+    context, page = film_open(browser, built)
+    try:
+        page.focus(".film-rate")
+        page.keyboard.press("Enter")
+        page.wait_for_selector("#rates.open")
+        assert page.get_attribute(".film-rate", "aria-expanded") == "true"
+        assert page.evaluate(
+            "() => document.getElementById('rates').contains(document.activeElement)"
+        )
+        under = page.evaluate(BOXES, {"press": ".film-rate", "panel": "#rates"})
+        assert under["panel"]["top"] >= under["press"]["bottom"] - 1, under
+        page.keyboard.press("Escape")
+        page.wait_for_selector("#rates.open", state="detached")
+        assert page.evaluate("() => document.activeElement.classList.contains('film-rate')")
+
+        page.click(".film-rate")
+        page.click("#rates [data-rate='1.5']")
+        assert page.evaluate("() => document.querySelector('.video-el').playbackRate") == 1.5
+        assert page.inner_text(".film-rate-now") == "1.5×"
+        assert not page.locator("#rates").is_visible()
+    finally:
+        context.close()
+
+
+def test_on_a_phone_the_picture_stands_over_its_controls_and_its_transcript(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """A, stacked: the picture the window's width, its row under it, and the transcript
+    under that. No switch — a phone has the one way of standing — and no line under the
+    picture, which is the transcript's job here."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(browser, built, viewport=PHONE, view="theatre")
+    try:
+        assert not page.locator(".film-views").is_visible()
+        assert not page.locator("#film-sub").is_visible()
+        at = page.evaluate(
+            BOXES, {"bar": ".bar", "picture": ".film-frame", "row": ".film-ctl", "line": FIRST_LINE}
+        )
+        assert at["picture"]["top"] >= at["bar"]["bottom"] - 1, at
+        assert at["picture"]["left"] <= 1 and at["picture"]["right"] >= PHONE["width"] - 1, at
+        assert at["row"]["top"] >= at["picture"]["bottom"] - 1, at
+        assert at["line"]["top"] >= at["row"]["bottom"] - 1, at
+        assert page.evaluate(FILM)["beside"], "it is Beside, whatever the wide window keeps"
+    finally:
+        context.close()
+
+
+def test_every_thing_the_picture_had_is_still_under_more(browser, tmp_path) -> None:  # noqa: F811
+    """The picture on and off, Hear first, the step either side, the file and full
+    screen: what the corner window and the strip carried is in ⋯ while the picture is
+    up. Hear first is one switch with the strip's."""
+    built = video_reader(tmp_path)
+    context, page = film_open(browser, built)
+    try:
+        page.click(".bar-tools [data-more]")
+        for row in (".m-row[data-video]", ".more-first", ".more-back", ".more-on", ".more-get"):
+            assert page.locator(row).is_visible(), f"{row} is under ⋯"
+        assert page.locator("#fullscreen-group [data-fullscreen]").count() == 1
+        page.click(".more-first")
+        assert page.get_attribute(".player-first", "aria-pressed") == "true"
+        assert page.get_attribute(".more-back", "aria-label") in (
+            "Back a word",
+            "Back five seconds",
+        )
+    finally:
+        context.close()
+
+
+def test_a_picture_put_away_is_an_audio_reader_and_comes_back(browser, tmp_path) -> None:  # noqa: F811
+    """Put away, the page is what an audio text is (#421): Listen in the bar, the strip
+    once it is pressed, and the strip's picture toggle to bring the picture back — kept
+    per text, as it was. Back, the strip goes and the row under the picture plays."""
+    built = video_reader(tmp_path)
+    context, page = film_open(browser, built)
+    try:
+        press_in_more(page, ".m-row[data-video]")
+        page.wait_for_selector("#video[hidden]", state="attached")
+        seen = page.evaluate(FILM)
+        assert not seen["film"], seen
+        assert page.locator(".bar .listen").is_visible(), "Listen is back in the bar"
+
+        page.reload()
+        page.wait_for_selector(".pair")
+        assert page.get_attribute("#video", "hidden") is not None, "it stayed away"
+
+        page.click(".bar .listen-play")
+        page.wait_for_selector("#player:not([hidden])")
+        page.click(".player-video")
+        page.wait_for_selector("#video:not([hidden])")
+        assert page.evaluate(FILM)["film"]
+        assert not page.locator("#player").is_visible(), "the row is the transport again"
+    finally:
+        context.close()
+
+
+# -- a film that errors after it has shown a picture (David, 2026-10-12) -------------
+#
+# "It cuts off after the first few lines randomly and we go into full screen text", in
+# every way of standing. The one thing that puts the picture away by itself is the film's
+# error, which took any error as a sidecar that never travelled. A film that has shown a
+# picture did travel: it is loaded again at the second it was on, and the record is told
+# which error it was.
+
+ERRORED = """
+() => {
+  const v = document.querySelector('.video-el');
+  return {
+    up: !document.getElementById('video').hidden,
+    film: document.body.classList.contains('film'),
+    toggle: [...document.querySelectorAll('[data-video], .player-video')]
+      .some((b) => !b.hidden && !(b.closest('.group') && b.closest('.group').hidden)),
+    at: v.currentTime,
+    ready: v.readyState,
+  };
+}
+"""
+
+
+def errors(page, times: int = 1) -> None:
+    """The film's error, as the browser fires it when a stream breaks under it."""
+    for _ in range(times):
+        page.evaluate("() => document.querySelector('.video-el').dispatchEvent(new Event('error'))")
+        page.wait_for_function("() => document.querySelector('.video-el').readyState >= 1")
+
+
+def test_a_film_that_errors_after_a_picture_comes_back_where_it_was(browser, tmp_path) -> None:  # noqa: F811
+    built = video_reader(tmp_path)
+    for view in ("beside", "theatre"):
+        context, page = film_open(browser, built, view=view)
+        warned: list[str] = []
+        page.on("console", lambda m, kept=warned: kept.append(m.text))
+        try:
+            page.wait_for_function("() => document.querySelector('.video-el').readyState >= 2")
+            seek(page, 0.5)
+            errors(page)
+            page.wait_for_timeout(300)
+            seen = page.evaluate(ERRORED)
+            assert seen["up"] and seen["film"], (view, seen)
+            assert seen["toggle"], "the picture's switch is still there"
+            assert abs(seen["at"] - 0.5) < 0.2, ("back at the second it was on", seen)
+            said = [line for line in warned if "film error" in line]
+            assert said and "again" in said[0], warned
+        finally:
+            context.close()
+
+
+def test_a_film_that_keeps_failing_is_given_up_on(browser, tmp_path) -> None:  # noqa: F811
+    """Three times in a minute it is loaded again; the fourth is the audio reader."""
+    built = video_reader(tmp_path)
+    context, page = film_open(browser, built)
+    try:
+        page.wait_for_function("() => document.querySelector('.video-el').readyState >= 2")
+        errors(page, 3)
+        assert page.evaluate(ERRORED)["up"]
+        page.evaluate("() => document.querySelector('.video-el').dispatchEvent(new Event('error'))")
+        page.wait_for_selector("#video[hidden]", state="attached")
+        assert not page.evaluate(ERRORED)["film"]
+    finally:
+        context.close()
+
+
+def test_a_film_that_never_arrived_is_the_audio_reader(browser, tmp_path) -> None:  # noqa: F811
+    """A reader folder copied without its video: the page is the audio reader, as before."""
+    built = video_reader(tmp_path)
+    for film in (built.parent / "video").glob("*"):
+        film.unlink()
+    context = opened(browser)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector(".pair", state="attached")
+        page.wait_for_selector("#video[hidden]", state="attached")
+        assert not page.evaluate(ERRORED)["toggle"], "no switch for a picture that is not there"
+    finally:
+        context.close()
+
+
+# -- Theatre's picture, made smaller (David, 2026-10-07; design.md §12) --------------
+
+#: The picture, its row and the line under it, in Theatre at the suite's 1280x800 on the
+#: fixture film (16:9), measured on master before the grip was drawn. David likes the
+#: default as it is: a reader who never touches the grip must see exactly this.
+THEATRE_AS_IT_WAS = {
+    "frame": [245.5, 80, 789, 443.81],
+    "row": [245.5, 532.61, 789, 36],
+    "sub": [245.5, 583, 789, 193],
+}
+
+SIZE = """
+() => {
+  const grip = document.querySelector('.film-size');
+  const r = (s) => {
+    const el = document.querySelector(s);
+    if (!el || !el.getClientRects().length) return null;
+    const b = el.getBoundingClientRect();
+    return [b.left, b.top, b.width, b.height].map((v) => Math.round(v * 100) / 100);
+  };
+  return {
+    frame: r('.film-frame'),
+    row: r('.film-ctl'),
+    sub: r('#film-sub'),
+    now: r('#film-sub .film-now'),
+    grip: r('.film-size'),
+    shown: grip ? getComputedStyle(grip.querySelector('.film-grip')).opacity : null,
+    value: grip ? Number(grip.getAttribute('aria-valuenow')) : null,
+    least: grip ? Number(grip.getAttribute('aria-valuemin')) : null,
+    stored: localStorage.getItem('targum:film-size'),
+    innerHeight: window.innerHeight,
+  };
+}
+"""
+
+
+def drag_grip(page, dy: float) -> None:
+    """Take the grip in the middle of its band and move it `dy` pixels down."""
+    grip = page.evaluate(SIZE)["grip"]
+    x = grip[0] + grip[2] / 2
+    y = grip[1] + grip[3] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    for step in range(1, 6):
+        page.mouse.move(x, y + dy * step / 5)
+    page.mouse.up()
+    page.wait_for_timeout(50)
+
+
+def line_in_view(seen) -> bool:
+    """The line being said stands under the picture's row and inside the window."""
+    now, row = seen["now"], seen["row"]
+    return now[1] >= row[1] + row[3] - 1 and now[1] + now[3] <= seen["innerHeight"] + 1
+
+
+def test_theatre_opens_at_the_size_it_always_had(browser, tmp_path) -> None:  # noqa: F811
+    """The grip is an option, not a new default: Theatre stands to the pixel where it stood
+    before it was drawn, the grip's bar is not shown until the pointer is over the picture,
+    and nothing is stored."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        settled(page)
+        seek(page, 0.2)
+        page.mouse.move(5, 795)
+        seen = page.evaluate(SIZE)
+        for name, box in THEATRE_AS_IT_WAS.items():
+            assert seen[name] == box, f"{name} moved: {seen[name]} != {box}"
+        assert seen["shown"] == "0", "the grip is quiet until the picture is pointed at"
+        assert seen["value"] == 100 and seen["stored"] is None, seen
+        frame = seen["frame"]
+        page.mouse.move(frame[0] + frame[2] / 2, frame[1] + frame[3] / 2)
+        assert page.evaluate(SIZE)["shown"] == "1", "and there under the pointer"
+        # Its band is 44px and lies over the picture's foot, inside it.
+        grip = seen["grip"]
+        assert grip[3] >= 44 and abs(grip[1] + grip[3] - (frame[1] + frame[3])) < 1, seen
+    finally:
+        context.close()
+
+
+def test_the_grip_drags_the_picture_smaller_and_back(browser, tmp_path) -> None:  # noqa: F811
+    """Dragged up, the picture scales down in its own shape and the line under it takes
+    the room; dragged down it grows back, never past the default, and never under the
+    floor. The line being said stays in view throughout, and the size is kept."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        settled(page)
+        seek(page, 0.2)
+        full = page.evaluate(SIZE)
+        drag_grip(page, -150)
+        small = page.evaluate(SIZE)
+        assert abs(small["frame"][3] - (full["frame"][3] - 150)) < 3, small
+        assert abs(small["frame"][2] / small["frame"][3] - 16 / 9) < 0.02, "kept its shape"
+        assert small["sub"][3] > full["sub"][3] + 140, "the line took the room"
+        assert line_in_view(small), small
+        assert 50 < small["value"] < 75 and small["stored"], small
+
+        drag_grip(page, -800)
+        least = page.evaluate(SIZE)
+        assert least["frame"][2] == 280, "never under 280px wide (3/10 is less, here)"
+        assert least["value"] == least["least"] == round(280 / 789 * 100), least
+        assert line_in_view(least), least
+
+        drag_grip(page, 900)
+        back = page.evaluate(SIZE)
+        assert back["frame"] == full["frame"], "never past the default"
+        assert back["value"] == 100 and back["stored"] is None, "the default is not stored"
+        assert line_in_view(back), back
+    finally:
+        context.close()
+
+
+def test_the_grip_answers_the_keyboard(browser, tmp_path) -> None:  # noqa: F811
+    """A separator: ↑ smaller and ↓ larger by a tenth, Home the smallest, End the full
+    size. Its arrows are its own — they do not step the line as they do elsewhere."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, built, view="theatre")
+    try:
+        seek(page, 0.2)
+        page.focus(".film-size")
+        assert page.get_attribute(".film-size", "role") == "separator"
+        assert page.get_attribute(".film-size", "aria-orientation") == "horizontal"
+        assert page.get_attribute(".film-size", "aria-label") == "Video size"
+        width = page.evaluate(SIZE)["frame"][2]
+        page.keyboard.press("ArrowUp")
+        seen = page.evaluate(SIZE)
+        assert seen["value"] == 90 and abs(seen["frame"][2] - width * 0.9) < 1.5, seen
+        assert page.evaluate(FILM)["now"] == "שורה 1", "the arrow did not step the line"
+        ring = page.evaluate(
+            "() => getComputedStyle(document.querySelector('.film-size')).outlineColor"
+        )
+        # On the film's ink frame the ring is teal on ink (design.md §12, 2026-10-11).
+        assert ring == "rgb(111, 184, 179)", f"the focus colour, on ink: {ring}"
+        page.keyboard.press("ArrowDown")
+        assert page.evaluate(SIZE)["value"] == 100
+        page.keyboard.press("Home")
+        seen = page.evaluate(SIZE)
+        assert seen["value"] == seen["least"] and seen["frame"][2] == 280, seen
+        page.keyboard.press("End")
+        seen = page.evaluate(SIZE)
+        assert seen["value"] == 100 and seen["frame"][2] == width and seen["stored"] is None
+    finally:
+        context.close()
+
+
+def test_a_double_press_resets_and_the_size_is_kept(browser, tmp_path) -> None:  # noqa: F811
+    """The size is the reader's, kept across a reload and onto the next text like the view;
+    a double click on the grip puts the default back."""
+    one = video_reader(tmp_path / "one", spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    two = video_reader(tmp_path / "two", spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, one, view="theatre")
+    try:
+        full = page.evaluate(SIZE)["frame"]
+        drag_grip(page, -120)
+        small = page.evaluate(SIZE)
+        assert small["frame"][2] < full[2] and small["stored"], small
+
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(SIZE)["frame"] == small["frame"], "kept across the door"
+        page.goto(address(two))
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(SIZE)["frame"] == small["frame"], "and on the next text"
+
+        grip = small["grip"]
+        page.mouse.dblclick(grip[0] + grip[2] / 2, grip[1] + grip[3] / 2)
+        page.wait_for_timeout(50)
+        seen = page.evaluate(SIZE)
+        assert seen["frame"] == full and seen["stored"] is None, seen
+        assert page.evaluate(FILM)["paused"], "a press on the grip is not a press on the picture"
+    finally:
+        context.close()
+
+
+def test_beside_and_the_phone_have_no_grip(browser, tmp_path) -> None:  # noqa: F811
+    """The size is Theatre's alone: Beside stands where it stood with a size kept, and a
+    phone, which has no Theatre, has no grip."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(browser, built, view="beside")
+    names = {"picture": ".film-frame", "row": ".film-ctl", "line": FIRST_LINE}
+    try:
+        plain = page.evaluate(BOXES, names)
+        assert not page.locator(".film-size").is_visible()
+        page.evaluate("() => localStorage.setItem('targum:film-size', '0.5')")
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(BOXES, names) == plain, "Beside is unchanged"
+        assert not page.locator(".film-size").is_visible()
+    finally:
+        context.close()
+    context, page = film_open(browser, built, viewport=PHONE, view="theatre")
+    try:
+        assert not page.locator(".film-size").is_visible()
+    finally:
+        context.close()
+
+
+# -- Beside, the line between the picture and the transcript (David, 2026-10-08) ------
+
+SPLIT = """
+() => {
+  const line = document.getElementById('film-split');
+  const r = (s) => {
+    const el = document.querySelector(s);
+    if (!el || !el.getClientRects().length) return null;
+    const b = el.getBoundingClientRect();
+    return [b.left, b.top, b.width, b.height].map((v) => Math.round(v * 100) / 100);
+  };
+  return {
+    frame: r('.film-frame'),
+    line: r('#film-split'),
+    first: r('#reader .pair.voiced'),
+    value: line ? Number(line.getAttribute('aria-valuenow')) : null,
+    least: line ? Number(line.getAttribute('aria-valuemin')) : null,
+    most: line ? Number(line.getAttribute('aria-valuemax')) : null,
+    stored: localStorage.getItem('targum:film-split'),
+  };
+}
+"""
+
+
+def drag_split(page, dx: float) -> None:
+    line = page.evaluate(SPLIT)["line"]
+    x = line[0] + line[2] / 2
+    y = line[1] + line[3] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    for step in range(1, 6):
+        page.mouse.move(x + dx * step / 5, y)
+    page.mouse.up()
+    page.wait_for_timeout(50)
+
+
+def test_beside_the_line_between_picture_and_transcript_is_dragged_and_kept(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """The line is drawn on the picture column's edge, Beside only. Dragged left the picture
+    shrinks in its shape and the transcript takes the room; the place is kept on this
+    device across a reload; a double press puts the layout's own place back and forgets
+    it."""
+    built = video_reader(tmp_path, lines=8)
+    context, page = film_open(
+        browser, built, viewport={"width": 1440, "height": 900}, view="beside"
+    )
+    try:
+        page.wait_for_timeout(100)
+        plain = page.evaluate(SPLIT)
+        assert plain["line"] and plain["stored"] is None, plain
+        assert page.get_attribute("#film-split", "role") == "separator"
+        assert page.get_attribute("#film-split", "aria-orientation") == "vertical"
+        drag_split(page, -200)
+        narrow = page.evaluate(SPLIT)
+        assert narrow["frame"][2] < plain["frame"][2] - 150, narrow
+        assert abs(narrow["frame"][2] / narrow["frame"][3] - 16 / 9) < 0.02, "kept its shape"
+        assert (
+            narrow["first"][0] < plain["first"][0] - 150 or narrow["first"][2] > plain["first"][2]
+        )
+        assert narrow["stored"], "kept"
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert page.evaluate(SPLIT)["frame"] == narrow["frame"], "kept across the door"
+        line = narrow["line"]
+        page.mouse.dblclick(line[0] + line[2] / 2, line[1] + line[3] / 2)
+        page.wait_for_timeout(50)
+        back = page.evaluate(SPLIT)
+        assert back["frame"] == plain["frame"] and back["stored"] is None, back
+    finally:
+        context.close()
+
+
+def test_the_split_answers_the_keyboard_and_stands_only_beside(browser, tmp_path) -> None:  # noqa: F811
+    """← and → move the line a twentieth of the room, Home and End to its ends, and the
+    arrows are its own. Theatre and a phone draw no such line."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(
+        browser, built, viewport={"width": 1440, "height": 900}, view="beside"
+    )
+    try:
+        seek(page, 0.2)
+        page.focus("#film-split")
+        start = page.evaluate(SPLIT)
+        page.keyboard.press("ArrowLeft")
+        seen = page.evaluate(SPLIT)
+        assert seen["value"] < start["value"] and seen["stored"], seen
+        assert page.evaluate(FILM)["now"] == "שורה 1", "the arrow did not step the line"
+        page.keyboard.press("Home")
+        assert page.evaluate(SPLIT)["value"] == start["least"]
+        page.keyboard.press("End")
+        assert page.evaluate(SPLIT)["value"] == start["most"]
+        ring = page.evaluate(
+            "() => getComputedStyle(document.getElementById('film-split')).outlineColor"
+        )
+        assert ring == "rgb(31, 111, 107)", f"the focus colour: {ring}"
+        page.click("[data-film-view='theatre']")
+        assert not page.locator("#film-split").is_visible(), "Theatre has its own grip"
+    finally:
+        context.close()
+    context, page = film_open(browser, built, viewport=PHONE, view="beside")
+    try:
+        assert not page.locator("#film-split").is_visible()
+    finally:
+        context.close()
+
+
+#: A wide window that is short: a laptop with the browser not at full height.
+SHORT = {"width": 1138, "height": 526}
+
+#: Where Theatre's stack stands under the picture, and whether the row fits its box.
+SHORT_STACK = """
+() => {
+  const box = (s) => {
+    const el = document.querySelector(s);
+    if (!el || !el.getClientRects().length) return null;
+    const r = el.getBoundingClientRect();
+    const { left, right, top, bottom, width, height } = r;
+    return { left, right, top, bottom, width, height };
+  };
+  const ctl = document.querySelector('.film-ctl');
+  const bar = document.querySelector('.bar').getBoundingClientRect();
+  return {
+    room: window.innerHeight - bar.bottom,
+    video: box('#video'),
+    frame: box('.film-frame'),
+    ctl: box('.film-ctl'),
+    overflow: ctl.scrollWidth - ctl.clientWidth,
+    tools: box('.film-tools'),
+    sub: box('#film-sub'),
+    known: box('.bar-title .known'),
+    english: box('.bar-title .bar-english'),
+  };
+}
+"""
+
+
+def test_in_a_short_window_the_row_and_the_line_keep_their_measure(browser, tmp_path) -> None:  # noqa: F811
+    """David, 2026-10-11, a screenshot: "design messed up in a few ways". In a window
+    1138 by 526 the picture was a small box in the middle of the page, the row under it
+    ran out to the right, and the line being said wrapped a phrase to a line — because the
+    picture's width is worked out from the window's height, and everything under it took
+    that width. Now the picture keeps half the room, and the row and the line stand at a
+    measure of their own under it, the whole row inside the window."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built, viewport=SHORT, view="theatre")
+    try:
+        seek(page, 0.2)
+        seen = page.evaluate(SHORT_STACK)
+        assert seen["frame"]["height"] >= seen["room"] * 0.5 - 2, seen
+        assert seen["overflow"] <= 0, f"the row runs out of its box: {seen}"
+        assert seen["ctl"]["width"] >= 700 and seen["sub"]["width"] >= 700, seen
+        assert seen["tools"]["right"] <= seen["video"]["right"], seen
+        # The row and the line share one measure, centred on the picture.
+        assert abs(seen["ctl"]["left"] - seen["sub"]["left"]) < 1, seen
+        middle = (seen["frame"]["left"] + seen["frame"]["right"]) / 2
+        assert abs((seen["ctl"]["left"] + seen["ctl"]["right"]) / 2 - middle) < 1, seen
+    finally:
+        context.close()
+
+
+def test_between_961_and_1200_the_bar_keeps_the_title_alone(browser, tmp_path) -> None:  # noqa: F811
+    """The count and the English title wait for a window wider than 75rem (2026-09-14):
+    the rule saying so was overruled by later ones, and at 1138 the count ran under the
+    play button (David, 2026-10-11). Wider, both are there. The fixture has no English
+    title and no count yet, so the test puts both in the bar as the page would."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=8)
+    context, page = film_open(browser, built, viewport=SHORT, view="theatre")
+    try:
+        page.evaluate(
+            """() => {
+              const title = document.querySelector('.bar-title');
+              const english = document.createElement('span');
+              english.className = 'bar-english';
+              english.textContent = 'Improv: a hilarious date';
+              title.insertBefore(english, document.getElementById('known'));
+              const known = document.getElementById('known');
+              known.hidden = false;
+              known.innerHTML = '<b>79</b> of <b>107</b> known';
+            }"""
+        )
+        seen = page.evaluate(SHORT_STACK)
+        assert seen["known"] is None and seen["english"] is None, seen
+        page.set_viewport_size({"width": 1280, "height": 800})
+        seen = page.evaluate(SHORT_STACK)
+        assert seen["known"] and seen["english"], seen
+        controls = page.evaluate(
+            "() => document.querySelector('.bar > .controls').getBoundingClientRect().left"
+        )
+        assert seen["known"]["right"] <= controls, f"the count runs under the controls: {seen}"
+    finally:
+        context.close()

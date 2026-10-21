@@ -1,0 +1,1090 @@
+/* Home — Your targums, led by Continue (design.md §12, "Home is Your targums, and
+ * Continue leads it", 2026-10-08).
+ *
+ * What this file draws is the head of the page: Continue, the one text to try next, and
+ * the way to upload. The shelf under it is `yours.js`, which drew Your targums before it
+ * was home and still does.
+ *
+ * Continue is the last few texts the reader opened or uploaded, newest first, each
+ * picking up exactly where they stopped. "Where" is `Store.places` (targum-internal#430):
+ * the part, the sentence and the second of its recording, on the account and so on every
+ * device, and in this browser (`targum:places`) for somebody signed out. A text still
+ * being built is a card too, and a followed series' newest instalment leads, once.
+ *
+ * Nothing here spends. The suggestion is a link: building it is pressed for on the
+ * page it opens, as it is everywhere else.
+ */
+(function () {
+  "use strict";
+
+  var words = window.TargumStrings;
+  var t = words.t;
+  var tn = words.tn;
+
+  var key = window.TARGUM_KEY;
+  function keyed(path) {
+    if (!key) return path;
+    var parts = String(path).split("#");
+    return (
+      parts[0] +
+      (parts[0].indexOf("?") < 0 ? "?" : "&") +
+      "k=" +
+      encodeURIComponent(key) +
+      (parts[1] ? "#" + parts[1] : "")
+    );
+  }
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
+  function ask(path) {
+    return fetch(keyed(path), {
+      credentials: "same-origin",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+    }).then(function (response) {
+      if (!response.ok) throw new Error(String(response.status));
+      return response.json();
+    });
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function stored(name) {
+    try {
+      return JSON.parse(localStorage.getItem(name) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  var shelf = window.TargumShelf;
+  var covers = window.TargumCovers;
+  var lang = window.TargumLang;
+
+  //: How many cards Continue holds. A phone shows the first two (`home.css`).
+  var CONTINUE_AT_MOST = 4;
+  //: How long since the reader last moved a place before home says welcome back
+  //: (design.md §12, "Home says welcome back after a week away", 2026-10-09).
+  var AWAY_MS = 7 * 24 * 60 * 60 * 1000;
+  var PLACES = "targum:places";
+  //: Set by the arrival for this visit once it is over, so home does not send the reader
+  //: straight back to it (`arrival.js`).
+  var ARRIVAL_OVER = "targum:arrival-over";
+
+  /* --- what a text is, in a word ---------------------------------------------------- */
+
+  // The verb follows the medium (design.md §6, targum-internal#337).
+  function mediumOf(reader) {
+    if (reader && reader.video) return "watch";
+    return reader && reader.heard ? "listen" : "read";
+  }
+
+  // What a text is in one word: the shelf's own, so a card and a row say the same.
+  function kindWord(reader) {
+    return shelf.kind(reader);
+  }
+
+  function partsOf(reader) {
+    return (reader.chapters && reader.chapters.length) || reader.sections || 1;
+  }
+
+  // The share of a text's parts the reader has finished, 0 to 1, off `targum:docs`.
+  function progress(reader, docs) {
+    var record = reader.document ? docs[reader.document] : null;
+    if (!record) return 0;
+    var total = partsOf(reader);
+    if (record.sections && typeof record.sections === "object") {
+      var done = 0;
+      Object.keys(record.sections).forEach(function (part) {
+        if (record.sections[part]) done += 1;
+      });
+      return Math.min(1, done / total);
+    }
+    return record.done ? 1 : 0;
+  }
+
+  function clock(seconds) {
+    var whole = Math.max(0, Math.floor(seconds));
+    var m = Math.floor(whole / 60);
+    var s = whole % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  // Which part a place is in, counted from one: a book's chapter by its number, a long
+  // text's section as the reader numbers it.
+  function partNumber(reader, place) {
+    var section = String((place && place.section) || "");
+    if (!section) return 0;
+    var chapters = reader.chapters || [];
+    for (var i = 0; i < chapters.length; i++) {
+      if (String(chapters[i].number) === section) return i + 1;
+    }
+    return /^\d+$/.test(section) ? Number(section) : 0;
+  }
+
+  /* Where a card picks up: the place, unless the part it is in has been finished, and
+     then the next part not finished (QA, 2026-10-12: "Pick up at chapter 1" under the
+     line that said chapter 1 was finished). A finish writes no place of its own — the
+     place is where the reader was when they pressed Done — so the record of finished
+     parts is what says the place is behind them. Answers `{ n, path }`, `n` counted from
+     one, or null where the place stands. */
+  function nextUnfinished(reader, place, docs) {
+    if (!reader || !place || !place.section) return null;
+    var record = (reader.document && docs && docs[reader.document]) || null;
+    var finished = (record && record.sections) || {};
+    if (!finished[place.section]) return null;
+    var chapters = reader.chapters || [];
+    if (chapters.length) {
+      var from = partNumber(reader, place);
+      if (!from) return null;
+      for (var i = from; i < chapters.length; i++) {
+        var chapter = chapters[i] || {};
+        if (finished[String(chapter.number)]) continue;
+        if (!chapter.ready || !chapter.file) return null;
+        var path = String(place.path || "");
+        var cut = path.lastIndexOf("/");
+        return { n: i + 1, path: cut >= 0 ? path.slice(0, cut + 1) + chapter.file : "" };
+      }
+      return null;
+    }
+    // A long text's parts, numbered as its pages are: `sec-0003.html`.
+    var number = /^\d+$/.test(place.section) ? Number(place.section) : 0;
+    var page = /^(.*\/sec-)(\d+)(\.html)$/.exec(String(place.path || ""));
+    if (!number || !page) return null;
+    var total = partsOf(reader);
+    for (var n = number + 1; n <= total; n++) {
+      if (finished[String(n)]) continue;
+      var digits = String(n);
+      while (digits.length < page[2].length) digits = "0" + digits;
+      return { n: n, path: page[1] + digits + page[3] };
+    }
+    return null;
+  }
+
+  /* --- where the reader left off ----------------------------------------------------- */
+
+  /* The account's places and this browser's, newest per text. A place the account has and
+     this browser does not is kept here too, as the contents page keeps it
+     (targum-internal#430): the reader puts the reader back on its sentence and its second
+     from this browser's copy, so a card that opens a part must find it here. */
+  function mergePlaces(theirs) {
+    var all = stored(PLACES);
+    var touched = false;
+    (theirs || []).forEach(function (row) {
+      if (!row || !row.hash || !row.section) return;
+      var mine = all[row.hash];
+      if (mine && Number(mine.at || 0) >= Number(row.at || 0)) {
+        // This browser's place is newer, and it carries no title: the reader writes the
+        // part and the sentence, never the name. The account's row does, and a text that
+        // is not on the shelf — a Torah portion, a daily page — is named by nothing else.
+        if (!mine.title && row.title) {
+          mine.title = row.title;
+          mine.language = mine.language || row.language || "";
+          touched = true;
+        }
+        return;
+      }
+      all[row.hash] = {
+        section: String(row.section),
+        path: row.path || "",
+        segment: row.segment || "",
+        seconds: Number(row.seconds || 0),
+        at: Number(row.at || 0),
+        title: row.title || "",
+        language: row.language || "",
+      };
+      touched = true;
+    });
+    if (touched) {
+      try {
+        window.targumKeep(PLACES, JSON.stringify(all));
+      } catch (e) {}
+    }
+    // And this browser's own record of the text, which the reader names as it opens:
+    // a portion read on this browser and not yet synced is still a card to come back to
+    // (QA, 2026-10-12: a finished Noach was on no card, though home said it was finished).
+    var docs = stored("targum:docs");
+    return Object.keys(all)
+      .map(function (hash) {
+        var place = all[hash] || {};
+        var doc = docs[hash] || {};
+        return {
+          hash: hash,
+          section: String(place.section || ""),
+          path: place.path || "",
+          seconds: Number(place.seconds || 0),
+          at: Number(place.at || 0),
+          title: place.title || doc.title || "",
+          language: place.language || doc.language || "",
+        };
+      })
+      .sort(function (a, b) {
+        return b.at - a.at;
+      });
+  }
+
+  function accountPlaces() {
+    return ask("/account/places?limit=" + CONTINUE_AT_MOST * 2)
+      .then(function (answer) {
+        return (answer && answer.places) || [];
+      })
+      .catch(function () {
+        // Signed out, or the box went away: this browser's own places are all there is.
+        return [];
+      });
+  }
+
+  /* --- Continue ------------------------------------------------------------------------ */
+
+  /* What Continue holds, newest first: the reader's places, then the texts this browser
+     opened before there were places, then what they uploaded and have not opened, and
+     builds still running. One card a text. */
+  function gatherContinue(readers, places, building, opened, code, most) {
+    var byDocument = {};
+    var byFolder = {};
+    readers.forEach(function (reader) {
+      if (reader.document) byDocument[reader.document] = reader;
+      if (reader.name) byFolder[reader.name] = reader;
+    });
+    var seen = {};
+    var cards = [];
+    function inCode(language) {
+      return !code || !language || shelf.base(language) === code;
+    }
+    places.forEach(function (place) {
+      // A text's hash changes when it is rebuilt, so a place left before a rebuild holds
+      // a hash no reader on the shelf has. Its address still names the text's folder,
+      // which a rebuild keeps: one video was three cards on 2026-10-11, two of them
+      // without a title, until the folder was asked too.
+      var folder = folderOf(place.path);
+      var reader = byDocument[place.hash] || (folder && byFolder[folder]) || null;
+      if (seen[place.hash] || (folder && seen["/" + folder])) return;
+      if (!reader && !place.path) return;
+      // A place with no text on the shelf and no title of its own would be a card with
+      // nothing to say what it is.
+      if (!reader && !place.title) return;
+      var language = reader ? reader.language : place.language;
+      if (!inCode(language)) return;
+      // Places come newest first, so the first one for a text is where Pick up goes.
+      seen[place.hash] = true;
+      if (folder) seen["/" + folder] = true;
+      if (reader && reader.document) seen[reader.document] = true;
+      cards.push({ at: place.at, reader: reader, place: place });
+    });
+    readers.forEach(function (reader) {
+      if (!reader.document || seen[reader.document] || !inCode(reader.language)) return;
+      var when = opened[reader.document] || 0;
+      var upload = !reader.entry && !reader.shared;
+      // An upload counts from when it arrived, opened or not: what you brought is what
+      // you came back for.
+      var at = Math.max(when, upload ? (reader.built || 0) * 1000 : 0);
+      if (!at) return;
+      seen[reader.document] = true;
+      cards.push({ at: at, reader: reader, place: null });
+    });
+    building.forEach(function (job) {
+      if (!inCode(job.language)) return;
+      cards.push({ at: Number(job.made || 0) * 1000 || Date.now(), job: job });
+    });
+    cards.sort(function (a, b) {
+      // A build first: it is the newest thing there is, and the one being waited on.
+      if (!!a.job !== !!b.job) return a.job ? -1 : 1;
+      return b.at - a.at;
+    });
+    return cards.slice(0, most || CONTINUE_AT_MOST);
+  }
+
+  // The folder a reader's address names: `/reader/<name>/…`, for a place whose text is
+  // not on the shelf this page was handed.
+  function folderOf(path) {
+    var found = /^\/reader\/([^/?#]+)/.exec(String(path || ""));
+    if (!found) return "";
+    try {
+      return decodeURIComponent(found[1]);
+    } catch (e) {
+      return found[1];
+    }
+  }
+
+  function coverFor(reader, title, language, path) {
+    return covers.picture(reader || { name: folderOf(path), title: title, language: language }, {
+      keyed: keyed,
+    });
+  }
+
+  function tag(text, kind) {
+    return el("span", "tag home-tag" + (kind ? " is-" + kind : ""), text);
+  }
+
+  /* "New · <name>": the name is what the reader subscribed under, a Hebrew channel's
+     own name as often as not, so it stands in an isolate of its own direction inside
+     the tag's English (design.md §14, line 3; home QA, 2026-10-18). */
+  function newTag(name, language) {
+    var said = t("home.card.new-from", "New · {name}");
+    var span = el("span", "tag home-tag is-new");
+    var parts = said.split("{name}");
+    span.appendChild(document.createTextNode(parts[0]));
+    if (parts.length > 1) {
+      var who = el("bdi", "", name || "");
+      who.setAttribute("dir", "auto");
+      // A name in Hebrew letters is in the language subscribed to; a series' name is
+      // the catalogue's own, in the desk's language, and keeps the tag's.
+      if (/[\u0590-\u05FF]/.test(name || "")) who.setAttribute("lang", language || "he");
+      span.appendChild(who);
+      span.appendChild(document.createTextNode(parts.slice(1).join("{name}")));
+    }
+    return span;
+  }
+
+  function bar(share, building) {
+    var line = el("span", "meter home-bar" + (building ? " is-building" : ""));
+    line.setAttribute("aria-hidden", "true");
+    var fill = el("span", "home-fill");
+    fill.style.setProperty("--done", String(Math.max(0, Math.min(1, share))));
+    line.appendChild(fill);
+    return line;
+  }
+
+  function titled(text, language) {
+    var title = el("bdi", "home-card-title", text);
+    title.setAttribute("lang", language || "und");
+    return title;
+  }
+
+  function textCard(card, docs) {
+    var reader = card.reader || {
+      title: card.place.title,
+      language: card.place.language,
+      document: card.place.hash,
+    };
+    var place = card.place;
+    var item = el("li", "card home-card");
+    var link = el("a", "home-card-open");
+    var ahead = nextUnfinished(card.reader, place, docs);
+    var href =
+      ahead && ahead.path
+        ? ahead.path
+        : place && place.path
+          ? place.path
+          : "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html";
+    link.href = keyed(href);
+    item.appendChild(coverFor(card.reader, reader.title, reader.language, place && place.path));
+
+    var total = partsOf(reader);
+    var at = ahead && ahead.path ? ahead.n : partNumber(reader, place);
+    var what = kindWord(reader);
+    if (total > 1 && at) what = t("home.card.part-of", "{kind} · part {n} of {total}", { kind: what, n: at, total: total });
+    // The tag is what it is and which part (board Main: "Video · part 4 of 4"), an
+    // upload too; that it was yours is said in the line under the title (audit Q7).
+    var upload = card.reader && !card.reader.entry && !card.reader.shared;
+    item.appendChild(tag(what));
+
+    link.appendChild(titled(reader.title, reader.language));
+    item.appendChild(link);
+
+    var facts = [];
+    if (upload) facts.push(t("home.card.uploaded", "Uploaded by you"));
+    if (typeof reader.known === "number" && reader.words && reader.known > 0) {
+      facts.push(t("home.card.known", "You know {share}% of the whole text", { share: Math.round(reader.known * 100) }));
+    }
+    if (!place && card.reader && !(stored("targum:opened")[reader.document] || 0)) {
+      facts.push(t("home.card.not-opened", "Not opened yet"));
+    }
+    if (facts.length) item.appendChild(el("span", "home-card-facts", facts.join(" · ")));
+    // The bar is the figure beside it: how much of the text you know (board Main, "274
+    // of 379 known" over a bar 72% full). It drew the parts finished, so an opened text
+    // showed an empty track under "You know 20%"; where you are in it is the tag's
+    // "part 3 of 150" (2026-10-09). No figure, no bar.
+    if (typeof reader.known === "number" && reader.words && reader.known > 0) {
+      item.appendChild(bar(reader.known));
+    }
+
+    var go;
+    var medium = mediumOf(reader);
+    if (place && place.seconds > 0 && medium !== "read" && !(ahead && ahead.path)) {
+      go = t("home.card.pick-up-at-time", "Pick up at {time}", { time: clock(place.seconds) });
+    } else if (place && total > 1 && at && reader.chapters && reader.chapters.length) {
+      // A book's or a Tanakh book's part is a chapter (board Main: "Pick up at chapter 2").
+      go = t("home.card.pick-up-at-chapter", "Pick up at chapter {n}", { n: at });
+    } else if (place && total > 1 && at) {
+      go = t("home.card.pick-up-at-part", "Pick up at part {n}", { n: at });
+    } else if (place || (card.reader && stored("targum:opened")[reader.document])) {
+      // Opened before there were places: the reader keeps its own place on the page.
+      go = t("home.card.pick-up", "Pick up");
+    } else {
+      go = {
+        read: t("home.card.read", "Read"),
+        listen: t("home.card.listen", "Listen"),
+        watch: t("home.card.watch", "Watch"),
+      }[medium];
+    }
+    var press = el("span", "home-card-go", go);
+    press.setAttribute("aria-hidden", "true");
+    item.appendChild(press);
+    // The link says the whole of it to a screen reader: what, and where it picks up.
+    link.setAttribute("aria-label", reader.title + " — " + go);
+    return item;
+  }
+
+  function buildCard(job) {
+    var item = el("li", "card home-card is-building");
+    item.setAttribute("role", "status");
+    item.appendChild(coverFor(null, job.title, job.language));
+    item.appendChild(tag(t("home.card.getting-ready", "Uploaded · getting ready"), "building"));
+    item.appendChild(titled(job.title, job.language));
+    var facts = [];
+    if (job.total > 1) {
+      facts.push(t("shelf.building.share", "{n}% done", { n: Math.floor((job.done / job.total) * 100) }));
+    }
+    if (facts.length) item.appendChild(el("span", "home-card-facts", facts.join(" · ")));
+    item.appendChild(bar(job.total > 0 ? job.done / job.total : 0.1, true));
+    item.appendChild(el("span", "home-card-go is-waiting", t("home.card.opens-when-ready", "Opens when it’s ready")));
+    return item;
+  }
+
+  /* A followed series' newest instalment, the first time this browser sees it: the first
+     card, marked New, and a line in the bell, as Learn's sheet did (2026-09-11). Seen
+     once it is pressed. Hebrew's: under another language these are not this page's. */
+  function seriesCard(one) {
+    var follow = window.TargumFollow;
+    var inst = one.instalment;
+    var item = el("li", "card home-card is-new");
+    var link = el("a", "home-card-open");
+    link.href = keyed(follow.readerOf(one));
+    var title = inst.hebrew || inst.title;
+    item.appendChild(coverFor(null, title, "he", follow.readerOf(one)));
+    item.appendChild(newTag(one.name, "he"));
+    link.appendChild(titled(title, inst.hebrew ? "he" : "und"));
+    item.appendChild(link);
+    var when = /\d/.test(title || "") ? "" : follow.whenSaid(inst.when);
+    if (when) item.appendChild(el("span", "home-card-facts", when));
+    var go = t("home.card.read", "Read");
+    item.appendChild(el("span", "home-card-go", go));
+    link.setAttribute("aria-label", title + " — " + go);
+    link.addEventListener("click", function () {
+      follow.markSeen(one.id, inst.id);
+    });
+    return item;
+  }
+
+  /* What a subscription brought and the reader has not opened from here (design.md §12,
+     "A subscription is the account's, and what it brings comes under Continue",
+     2026-10-09): first, marked New and named by what it came from. A series' instalment
+     or a video that got ready by itself opens as its text; a news article is a link to
+     the Upload page with its address in the box. Opening one says so to the account, so
+     it is New on no device after. */
+  function topicName(key) {
+    return {
+      world: t("subs.topic.world", "World"),
+      politics: t("subs.topic.politics", "Politics"),
+      economy: t("subs.topic.economy", "Economy"),
+      culture: t("subs.topic.culture", "Culture"),
+      science: t("subs.topic.science", "Science"),
+      tech: t("subs.topic.tech", "Technology"),
+      sport: t("subs.topic.sport", "Sport"),
+      health: t("subs.topic.health", "Health"),
+    }[key] || key;
+  }
+
+  function newCard(item) {
+    var name = item.kind === "topic" ? topicName(item.topic) : item.name;
+    var card = el("li", "card home-card is-new");
+    var link = el("a", "home-card-open");
+    link.href = keyed(item.door);
+    var reader = /^\/reader\//.test(item.door) ? null : undefined;
+    card.appendChild(coverFor(reader, item.title, item.language, item.door));
+    card.appendChild(newTag(name, item.language));
+    link.appendChild(titled(item.title, item.language));
+    card.appendChild(link);
+    var facts = [];
+    if (item.seconds > 0) facts.push(t("home.minutes", "{n} min", { n: Math.max(1, Math.round(item.seconds / 60)) }));
+    if (facts.length) card.appendChild(el("span", "home-card-facts", facts.join(" · ")));
+    var go = {
+      channel: t("home.card.watch", "Watch"),
+      podcast: t("home.card.listen", "Listen"),
+    }[item.kind] || t("home.card.read", "Read");
+    card.appendChild(el("span", "home-card-go", go));
+    link.setAttribute("aria-label", item.title + " — " + go);
+    link.addEventListener("click", function () {
+      seen(item);
+    });
+    return card;
+  }
+
+  function seen(item) {
+    try {
+      fetch(keyed("/subscriptions/seen"), {
+        method: "POST",
+        credentials: "same-origin",
+        keepalive: true,
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ subscription: item.subscription, key: item.key }),
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  //: How many New cards lead Continue at most.
+  var NEW_AT_MOST = 2;
+
+  function drawContinue(cards, fresh, brought) {
+    var host = document.getElementById("continue");
+    var list = document.getElementById("continue-cards");
+    if (!host || !list) return;
+    list.textContent = "";
+    // What leads is said over it (board SubHome): new things first, when there are any.
+    var note = document.getElementById("continue-note");
+    if (note) {
+      note.textContent =
+        (brought && brought.length) || (fresh && fresh.length)
+          ? t("home.continue.note-new", "New from your subscriptions first, then what you opened or uploaded")
+          : t("home.continue.note", "What you opened or uploaded, newest first");
+    }
+    // And counted on the Subscriptions tab, so the tab says there is something in it.
+    var count = document.getElementById("subs-new");
+    if (count) {
+      var n = (brought || []).length;
+      count.textContent = n ? tn("home.subs.new", n, "{n} new", "{n} new") : "";
+    }
+    var docs = stored("targum:docs");
+    (brought || []).slice(0, NEW_AT_MOST).forEach(function (item) {
+      list.appendChild(newCard(item));
+    });
+    (fresh || []).slice(0, 1).forEach(function (one) {
+      list.appendChild(seriesCard(one));
+    });
+    cards.slice(0, CONTINUE_AT_MOST - list.children.length).forEach(function (card) {
+      list.appendChild(card.job ? buildCard(card.job) : textCard(card, docs));
+    });
+    host.hidden = !list.children.length;
+  }
+
+  /* --- welcome back ----------------------------------------------------------------------- */
+
+  /* Boards WelcomeBackDesk and WelcomeBackPhone (design.md §12, "Home says welcome back
+     after a week away", 2026-10-09). Home takes this form when the newest place the reader
+     has in any text, in any language, is seven days old or more: the gap is read off places
+     that already exist and is never shown. Reading anything moves a place and ends it.
+     The text they stopped in, in the menu's language, is the large card; Continue goes on
+     without it. Returns that card, or null for an ordinary day. */
+  function welcomeBack(places, cards, now) {
+    if (!places.length) return null;
+    var newest = 0;
+    places.forEach(function (place) {
+      if (place.at > newest) newest = place.at;
+    });
+    if (!newest || (now || Date.now()) - newest < AWAY_MS) return null;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i].place && !cards[i].job) return cards[i];
+    }
+    return null;
+  }
+
+  function dayOf(ms) {
+    var code = words.language || "en";
+    try {
+      // "24 September", as the board and /about write a day (§12, 2026-09-28).
+      return new Date(Number(ms)).toLocaleDateString(code === "en" ? "en-GB" : code, {
+        day: "numeric",
+        month: "long",
+      });
+    } catch (e) {
+      return new Date(Number(ms)).toDateString();
+    }
+  }
+
+  // A sentence with a title in it: the title in its own isolate and its own face, the
+  // rest in the catalogue's words for the desk's language.
+  function sentenceWith(host, said, title, language) {
+    host.textContent = "";
+    var parts = said.split("{title}");
+    host.appendChild(document.createTextNode(parts[0]));
+    if (parts.length > 1) {
+      var name = el("bdi", "", title);
+      name.setAttribute("lang", language || "und");
+      host.appendChild(name);
+      host.appendChild(document.createTextNode(parts.slice(1).join("{title}")));
+    }
+  }
+
+  function playGlyph() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 14 14");
+    svg.setAttribute("aria-hidden", "true");
+    var path = document.createElementNS(ns, "path");
+    path.setAttribute("d", "M3 1.5v11l9.5-5.5z");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function drawWelcome(card, due) {
+    var host = document.getElementById("welcome-back");
+    if (!host) return;
+    if (!card) {
+      host.hidden = true;
+      return;
+    }
+    var place = card.place;
+    var reader = card.reader || { title: place.title, language: place.language, document: place.hash };
+    var total = partsOf(reader);
+    var at = partNumber(reader, place);
+    // A book's part is a chapter; a recording's or a video's is a part, as the board says.
+    var medium = mediumOf(reader);
+    var chaptered = !!(reader.chapters && reader.chapters.length) && medium === "read";
+    var when = dayOf(place.at);
+    var line;
+    if (total > 1 && at && chaptered) {
+      line = t("home.back.line-chapter", "Welcome back. You stopped at chapter {n} of {title} on {date}.", { n: at, date: when });
+    } else if (total > 1 && at) {
+      line = t("home.back.line-part", "Welcome back. You stopped at part {n} of {title} on {date}.", { n: at, date: when });
+    } else {
+      line = t("home.back.line", "Welcome back. You stopped in {title} on {date}.", { date: when });
+    }
+    sentenceWith(document.getElementById("welcome-back-line"), line, reader.title, reader.language);
+
+    var pick = document.getElementById("welcome-pick");
+    pick.textContent = "";
+    var href = place.path || "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html";
+    var media = el("div", "welcome-media");
+    media.appendChild(coverFor(card.reader, reader.title, reader.language, place.path));
+    var length = Number(reader.seconds || 0);
+    var through = medium !== "read" && place.seconds > 0 && length > 0 ? place.seconds / length : total > 1 && at ? (at - 1) / total : 0;
+    if (through > 0) {
+      var where = el("span", "welcome-where");
+      where.setAttribute("aria-hidden", "true");
+      var done = el("span");
+      done.style.setProperty("--done", String(Math.min(1, through)));
+      where.appendChild(done);
+      media.appendChild(where);
+    }
+    pick.appendChild(media);
+
+    var what = el("div", "welcome-what");
+    var kind = kindWord(reader);
+    if (total > 1 && at) {
+      kind = chaptered
+        ? t("home.back.chapter-of", "{kind} · chapter {n} of {total}", { kind: kind, n: at, total: total })
+        : t("home.card.part-of", "{kind} · part {n} of {total}", { kind: kind, n: at, total: total });
+    }
+    what.appendChild(tag(kind));
+    var title = el("h2", "welcome-title");
+    title.setAttribute("lang", reader.language || "und");
+    title.setAttribute("dir", "auto");
+    title.textContent = reader.title;
+    what.appendChild(title);
+    var facts = el("span", "welcome-facts");
+    if (place.seconds > 0 && medium !== "read") {
+      facts.appendChild(document.createTextNode(t("home.back.stopped-at", "Stopped at {time}", { time: clock(place.seconds) })));
+    }
+    if (typeof reader.known === "number" && reader.words && reader.known > 0) {
+      if (facts.childNodes.length) facts.appendChild(document.createTextNode(" · "));
+      facts.appendChild(el("strong", "", t("home.card.known", "You know {share}% of the whole text", { share: Math.round(reader.known * 100) })));
+    }
+    if (facts.childNodes.length) what.appendChild(facts);
+    if (typeof reader.known === "number" && reader.words && reader.known > 0) what.appendChild(bar(reader.known));
+    var go = el("a", "welcome-go");
+    go.href = keyed(href);
+    if (medium !== "read") go.appendChild(playGlyph());
+    go.appendChild(document.createTextNode(t("home.back.pick-up", "Pick up where you stopped")));
+    what.appendChild(go);
+    pick.appendChild(what);
+
+    var dueLine = document.getElementById("welcome-due");
+    var dueSays = document.getElementById("welcome-due-says");
+    if (dueLine && dueSays) {
+      dueLine.hidden = !(due > 0);
+      if (due > 0) {
+        var said = tn("home.back.due", due, "{n} of your words is due a look", "{n} of your words are due a look", { n: "{count}" });
+        var bits = said.split("{count}");
+        dueSays.textContent = "";
+        dueSays.appendChild(document.createTextNode(bits[0]));
+        dueSays.appendChild(el("strong", "", String(due)));
+        dueSays.appendChild(document.createTextNode(bits.slice(1).join("")));
+      }
+    }
+    host.hidden = false;
+  }
+
+  /* The words still being learned that have not been marked since the reader left
+     (`/account/due`): not a schedule, a count of rows that already exist. Nought, or
+     signed out, and the line is left out. */
+  var dueAsked = {};
+  var dueKnown = {};
+  function dueSince(code, since) {
+    var asked = code + ":" + since;
+    if (!dueAsked[asked]) {
+      dueAsked[asked] = ask("/account/due?language=" + encodeURIComponent(code) + "&since=" + encodeURIComponent(since))
+        .then(function (answer) {
+          return (answer && Number(answer.due)) || 0;
+        })
+        .catch(function () {
+          return 0;
+        });
+    }
+    return dueAsked[asked];
+  }
+
+  /* --- one to try next ------------------------------------------------------------------ */
+
+  // What this reader has finished, by catalogue id, so it is not suggested again.
+  function finished(readers) {
+    var docs = stored("targum:docs");
+    var ids = [];
+    readers.forEach(function (reader) {
+      if (reader.entry && progress(reader, docs) >= 1 && ids.indexOf(reader.entry) < 0) ids.push(reader.entry);
+    });
+    return ids;
+  }
+
+  function drawTry(row, first) {
+    var host = document.getElementById("try-next");
+    if (!host) return;
+    host.textContent = "";
+    var already =
+      !!row &&
+      (continuing.entries.indexOf(String(row.id)) >= 0 ||
+        continuing.folders.some(function (folder) {
+          var to = String(row.reader || "");
+          return (
+            to.indexOf("/reader/" + encodeURIComponent(folder) + "/") >= 0 ||
+            to.indexOf("/reader/" + folder + "/") >= 0
+          );
+        }));
+    if (!row || !row.id || already) {
+      host.hidden = true;
+      return;
+    }
+    var reader = {
+      id: row.id,
+      entry: row.id,
+      title: row.title,
+      language: row.language || "he",
+      kind: row.kind,
+      register: row.register,
+      drawn: row.drawn,
+    };
+    host.appendChild(coverFor(reader, row.title, row.language));
+    var what = el("div", "try-what");
+    what.appendChild(
+      el("p", "home-label", first ? t("home.try.first", "One to start with") : t("home.try.next", "One to try next"))
+    );
+    what.appendChild(titled(row.title, row.language || "he"));
+    var facts = [];
+    if (row.because) facts.push(row.because);
+    if (row.minutes) facts.push(t("home.minutes", "{n} min", { n: row.minutes }));
+    if (facts.length) what.appendChild(el("p", "home-card-facts", facts.join(" · ")));
+    var open = el("a", "try-open", t("home.try.open", "Open it"));
+    // targum-internal#313: the press opens the text, not the library row.
+    open.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
+    what.appendChild(open);
+    host.appendChild(what);
+    host.hidden = false;
+  }
+
+  /* --- what differs by language (the language boards, P4 2026-10-09) ------------------ */
+
+  /* The upload says the language it is for (board RuHome: "Upload something in
+     Russian"); Hebrew, the one the product began with, keeps "to read" (board Main). Each
+     language its own sentence, so Russian can say it in its own grammar. */
+  function dressUpload(code) {
+    var head = document.getElementById("upload-head");
+    var says = document.getElementById("upload-says");
+    if (!head || !says) return;
+    var heads = {
+      he: t("home.upload.head", "Upload something to read"),
+      ru: t("home.upload.head.ru", "Upload something in Russian"),
+      fr: t("home.upload.head.fr", "Upload something in French"),
+      it: t("home.upload.head.it", "Upload something in Italian"),
+      yi: t("home.upload.head.yi", "Upload something in Yiddish"),
+      arc: t("home.upload.head.arc", "Upload something in Aramaic"),
+    };
+    head.textContent = heads[code] || heads.he;
+    // Yiddish is mostly brought from paper (board YiHome).
+    says.textContent =
+      code === "yi"
+        ? t("home.upload.says.yi", "A link, a file, or a photo of a page. Letters, songs and old newspapers all work, in YIVO spelling or not.")
+        : t("home.upload.says", "Paste a link, drop a file, or bring a post");
+  }
+
+  /* A note card beside Continue, for the two languages whose boards draw one. A language
+     the library has nothing in says so plainly, where the suggestion would stand (board
+     YiHome); Aramaic says where its words are met (board ArcHome). */
+  function drawNote(code, libraryHasIt) {
+    var host = document.getElementById("home-note");
+    if (!host) return;
+    host.textContent = "";
+    host.hidden = true;
+    host.removeAttribute("data-kind");
+    var name = (window.TARGUM_LANGUAGES || {})[code] || code;
+    if (libraryHasIt === false) {
+      host.setAttribute("data-kind", "empty");
+      host.appendChild(el("h2", "section-title home-note-head", t("home.note.empty.head", "The library has no {language} texts yet", { language: name })));
+      host.appendChild(
+        el(
+          "p",
+          "home-note-says",
+          t(
+            "home.note.empty.says",
+            "Everything you read in {language} starts as something you bring. When the library has {language} texts, they appear in the Library by level, like every other language.",
+            { language: name }
+          )
+        )
+      );
+      host.hidden = false;
+      return;
+    }
+    if (code === "arc") {
+      host.setAttribute("data-kind", "arc");
+      host.appendChild(el("p", "home-label", t("home.note.arc.label", "Also")));
+      host.appendChild(
+        el(
+          "p",
+          "home-note-says",
+          t(
+            "home.note.arc.says",
+            "Onkelos sits beside every verse in the Hebrew Torah readers. What you mark there goes onto this Aramaic list, never your Hebrew one."
+          )
+        )
+      );
+      var open = el("a", "try-open", t("home.note.arc.open", "Open this week’s portion with Onkelos"));
+      open.href = keyed("/parasha");
+      host.appendChild(open);
+      host.hidden = false;
+    }
+  }
+
+  /* The language the last suggestion was asked in. A switch from Hebrew to French asks
+     again, and the Hebrew answer arriving after the French one put a Hebrew text on the
+     French home (David, 2026-10-10); an answer for a language no longer shown is dropped. */
+  var suggesting = "";
+  // The texts Continue is showing, so the suggestion under it is never one of them: it
+  // offered the very article Continue led with, only finished texts being skipped (QA
+  // 2026-10-11). By catalogue entry, and by folder for a row that came another way.
+  var continuing = { entries: [], folders: [] };
+  function suggest(code, readers, first, cards) {
+    suggesting = code;
+    continuing = { entries: [], folders: [] };
+    (cards || []).forEach(function (card) {
+      var reader = card && card.reader;
+      if (!reader) return;
+      if (reader.entry) continuing.entries.push(String(reader.entry));
+      if (reader.name) continuing.folders.push(String(reader.name));
+    });
+    var skip = finished(readers);
+    continuing.entries.forEach(function (entry) {
+      if (skip.indexOf(entry) < 0) skip.push(entry);
+    });
+    ask(
+      "/suggest?language=" +
+        encodeURIComponent(code) +
+        (skip.length ? "&skip=" + encodeURIComponent(skip.join(",")) : "")
+    )
+      .then(function (got) {
+        if (code !== suggesting) return;
+        drawTry(got && got.suggestion, first);
+        drawNote(code, got ? got.library : undefined);
+      })
+      .catch(function () {
+        drawTry(null, first);
+        drawNote(code, undefined);
+      });
+  }
+
+  /* --- the arrival ------------------------------------------------------------------------ */
+
+  /* A reader who has opened nothing and answered nothing is asked the arrival's questions
+     first, on their own page (`/welcome`). Only Hebrew asks them; the page there says the
+     last word and sends anybody it has nothing to ask back here. */
+  function arriving(me, readers, places, code) {
+    if (code !== "he") return false;
+    try {
+      if (window.sessionStorage.getItem(ARRIVAL_OVER)) return false;
+    } catch (e) {
+      return false;
+    }
+    var answered = "";
+    try {
+      answered = localStorage.getItem("targum:arrived") || "";
+    } catch (e) {
+      answered = "";
+    }
+    // Answered on this browser, whatever the answers were (`arrival.js`): liking nothing
+    // in particular and not being sure are answers too (2026-10-09).
+    try {
+      if (localStorage.getItem("targum:welcomed")) return false;
+    } catch (e) {
+      /* no store: the account's answers below still decide */
+    }
+    if (answered || (me && me.signedIn && ((me.interest || []).length || me.declared))) return false;
+    if (Object.keys(stored("targum:opened")).length || places.length) return false;
+    return !readers.some(function (reader) {
+      return !reader.shared;
+    });
+  }
+
+  /* --- putting it together ------------------------------------------------------------------ */
+
+  var me = ask("/account/me").catch(function () {
+    return null;
+  });
+
+  /* Called by `yours.js` once it has the shelf, in the language the menu is on, and again
+     each time the menu moves. `readers` is everything of the reader's own and every shared
+     text this browser has opened; `building` the builds still running. */
+  var first = true;
+  var placed = null;
+  var brought = null;
+  // Asked once a language and kept for the visit: `yours.js` draws again every few
+  // seconds while something builds, and the series and the suggestion do not move.
+  var seriesIn = {};
+  var suggestedIn = {};
+  var rang = {};
+  function draw(code, readers, building) {
+    var opened = stored("targum:opened");
+    var follow = window.TargumFollow;
+    // The account's subscriptions first; signed out, this browser's follows as before.
+    brought = brought || ask("/subscriptions/new.json").catch(function () {
+      return null;
+    });
+    if (!seriesIn[code]) {
+      seriesIn[code] = brought.then(function (answer) {
+        if (answer && answer.signedIn) return [];
+        return code === "he" && follow ? follow.list() : [];
+      });
+    }
+    var sawSeries = seriesIn[code];
+    placed = placed || accountPlaces();
+    return Promise.all([me, placed, sawSeries, brought]).then(function (all) {
+      var who = all[0];
+      var places = mergePlaces(all[1]);
+      // Only from a page a server is behind: off the disk there is no `/welcome`.
+      var served = !window.location.protocol || /^https?:$/.test(window.location.protocol);
+      if (first && served && arriving(who, readers, places, code)) {
+        window.location.replace(keyed("/welcome"));
+        return false;
+      }
+      first = false;
+      dressUpload(code);
+      var fresh = follow && code === "he" ? follow.fresh(all[2]) : [];
+      var mine = ((all[3] && all[3].items) || []).filter(function (item) {
+        return shelf.base(item.language) === code;
+      });
+      var cards = gatherContinue(readers, places, building, opened, code, CONTINUE_AT_MOST + 1);
+      var back = welcomeBack(places, cards);
+      if (back) {
+        cards = cards.filter(function (card) {
+          return card !== back;
+        });
+        var newest = places.reduce(function (most, place) {
+          return Math.max(most, place.at);
+        }, 0);
+        var dueKey = code + ":" + newest;
+        drawWelcome(back, dueKnown[dueKey] || 0);
+        if (!(dueKey in dueKnown)) {
+          dueSince(code, newest).then(function (due) {
+            dueKnown[dueKey] = due;
+            if (due > 0) drawWelcome(back, due);
+          });
+        }
+      } else {
+        drawWelcome(null);
+      }
+      cards = cards.slice(0, CONTINUE_AT_MOST);
+      drawContinue(cards, fresh, mine);
+      var nothing = !back && !cards.length && !fresh.length && !mine.length;
+      var empty = document.getElementById("first-home");
+      if (empty) empty.hidden = !nothing;
+      if (suggestedIn[code] !== nothing) {
+        suggestedIn[code] = nothing;
+        suggest(code, readers, nothing, cards);
+      }
+      if (mine.length && !rang["subs:" + code]) {
+        rang["subs:" + code] = true;
+        mine.forEach(function (item) {
+          var notices = window.TargumNotices;
+          if (!notices || !notices.note) return;
+          var name = item.kind === "topic" ? topicName(item.topic) : item.name;
+          var line = name + ": " + item.title;
+          if (notices.bdi) {
+            line = document.createDocumentFragment();
+            line.appendChild(notices.bdi(name));
+            line.appendChild(document.createTextNode(": "));
+            line.appendChild(notices.bdi(item.title));
+          }
+          notices.note("sub:" + item.subscription + ":" + item.key, line, {
+            href: keyed(item.door),
+            label: t("home.open", "Open"),
+          });
+        });
+      }
+      if (follow && fresh.length && !rang[code]) {
+        rang[code] = true;
+        fresh.forEach(function (one) {
+          var notices = window.TargumNotices;
+          if (!notices || !notices.note) return;
+          var line = one.name + ": " + (one.instalment.hebrew || one.instalment.title);
+          if (notices.bdi) {
+            // Each name in the bell's own isolate (2026-10-06).
+            line = document.createDocumentFragment();
+            line.appendChild(notices.bdi(one.name));
+            line.appendChild(document.createTextNode(": "));
+            line.appendChild(notices.bdi(one.instalment.hebrew || one.instalment.title));
+          }
+          notices.note("series:" + one.id + ":" + one.instalment.id, line, {
+            href: keyed(one.page || follow.readerOf(one)),
+            label: t("home.open", "Open"),
+          });
+        });
+      }
+      return true;
+    });
+  }
+
+  /* --- where a press landed the reader ----------------------------------------------- */
+
+  /* The first finish in a language comes home (design.md §12, "The first finish goes
+     home", 2026-10-12): the text is at the head of Continue, and this line says what the
+     press did — "Finished <title> · +12 known · 96% of this part · 3 looked up · Undo" — with the one
+     Undo that takes back the finish and the words. Read once, so a reload says nothing.
+     It stays while the visit does: it is how a new reader learns where they are. */
+  (function landHere() {
+    var line = document.getElementById("arrived");
+    var said = document.getElementById("arrived-said");
+    var undo = document.getElementById("arrived-undo");
+    var landed = window.TargumLanded && line && said ? window.TargumLanded.take() : null;
+    if (!landed) return;
+    window.TargumLanded.say(said, landed);
+    line.hidden = false;
+    if (!undo) return;
+    undo.addEventListener("click", function () {
+      if (!landed) return;
+      window.TargumLanded.undo(landed);
+      landed = null;
+      said.textContent = t("reader.arrived.took-back", "Taken back.");
+      undo.hidden = true;
+    });
+  })();
+
+  // The upload card's address carries the key on a machine somebody runs themselves.
+  Array.prototype.forEach.call(document.querySelectorAll("[data-home-link]"), function (link) {
+    link.href = keyed(link.getAttribute("href"));
+  });
+
+  window.TargumHome = {
+    draw: draw,
+    // For the tests: what Continue would hold, without the page.
+    gather: gatherContinue,
+    next: nextUnfinished,
+    places: mergePlaces,
+    welcomeBack: welcomeBack,
+    language: function () {
+      return lang && lang.current ? lang.current(lang.learning ? lang.learning() : ["he"]) : "he";
+    },
+  };
+})();

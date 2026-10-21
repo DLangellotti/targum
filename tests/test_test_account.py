@@ -40,7 +40,7 @@ def test_every_table_that_holds_a_reader_is_emptied_by_the_wipe(tmp_path: Path) 
     so a test account never carries something into its next first visit."""
     Store(tmp_path / "words.db")
     held = person_tables(tmp_path / "words.db")
-    named = set(accounts.WIPED) | set(accounts.WIPE_BY_HAND)
+    named = set(accounts.WIPED) | set(accounts.WIPE_BY_HAND) | set(accounts.KEPT_BY_A_WIPE)
     assert held - named == set(), f"not wiped: {sorted(held - named)}"
 
 
@@ -134,3 +134,83 @@ def test_the_command_makes_one_and_prints_a_link(tmp_path: Path) -> None:
     Store(db).start_sign_in("reader@example.com")
     refused = CliRunner().invoke(app, ["test-account", "reader@example.com", "--store", str(db)])
     assert refused.exit_code != 0
+
+
+# --- one browser, two accounts (2026-10-10) ------------------------------------------
+#
+# David signed out of a test account and into his own on one browser, and his own looked
+# empty until a later sync filled it again. The server had lost nothing — the cause was
+# the browser's durable copy (`tests/test_account_switch_browser.py`) — and these pin why
+# it could not have: a sync and a delete reach the account the cookie names, and nobody
+# else.
+
+
+def test_a_sync_writes_only_to_the_account_whose_cookie_it_carries(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, token, _ = served
+    mine = sign_in(port, postbox, "reader@example.com")
+    theirs = sign_in(port, postbox, "other@example.com")
+    call(port, "POST", f"/sync?k={token}", {"words": [WORD]}, cookie=mine)
+
+    # A delete of the same word from the other account, newer than the first's mark.
+    gone = dict(WORD, status=None, gone=1, seen=99)
+    status, _, _ = call(port, "POST", f"/sync?k={token}", {"words": [gone]}, cookie=theirs)
+    assert status == 200
+
+    _, pulled, _ = call(port, "POST", f"/sync?k={token}", {"since": 0}, cookie=mine)
+    assert [(w["lemma"], w["gone"]) for w in pulled["words"]] == [("ספר", 0)]
+
+
+def test_a_sync_meant_for_another_account_is_refused_whole(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """A page still open from before a change of account holds the last account's
+    record in memory; the cookie is already the new one's. The page says whose record
+    it is pushing, and a push for anybody else writes nothing."""
+    port, token, _ = served
+    mine = sign_in(port, postbox, "reader@example.com")
+    sign_in(port, postbox, "other@example.com")
+    _, before, _ = call(port, "POST", f"/sync?k={token}", {"since": 0}, cookie=mine)
+
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {"who": "other@example.com", "words": [WORD]},
+        cookie=mine,
+    )
+    assert status == 409
+    assert answer.get("otherAccount") is True
+
+    _, after, _ = call(port, "POST", f"/sync?k={token}", {"since": 0}, cookie=mine)
+    assert after["words"] == [], "nothing of the refused push was kept"
+    assert after["revision"] == before["revision"], "not even a revision"
+
+    # Its own name, in any case, is its own.
+    status, _, _ = call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {"who": "Reader@Example.com", "words": [WORD]},
+        cookie=mine,
+    )
+    assert status == 200
+    _, kept, _ = call(port, "POST", f"/sync?k={token}", {"since": 0}, cookie=mine)
+    assert [w["lemma"] for w in kept["words"]] == ["ספר"]
+
+
+def test_closing_an_account_closes_only_that_one(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, token, _ = served
+    mine = sign_in(port, postbox, "reader@example.com")
+    theirs = sign_in(port, postbox, "other@example.com")
+    call(port, "POST", f"/sync?k={token}", {"words": [WORD]}, cookie=mine)
+    call(port, "POST", f"/sync?k={token}", {"words": [WORD]}, cookie=theirs)
+
+    status, _, _ = call(port, "POST", f"/account/forget?k={token}", {}, cookie=theirs)
+    assert status == 200
+
+    _, pulled, _ = call(port, "POST", f"/sync?k={token}", {"since": 0}, cookie=mine)
+    assert [w["lemma"] for w in pulled["words"]] == ["ספר"], "the other account is untouched"

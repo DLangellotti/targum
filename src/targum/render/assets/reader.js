@@ -125,6 +125,19 @@ var targumReader = function () {
       event.preventDefault();
       var to = url.href;
       var where = window;
+      // The next portion in the book, or the one before (targum-internal#446): framed on
+      // the public page, its own page in the window that holds the frame, not its reader
+      // inside a frame that belongs to this one.
+      var page = link.getAttribute("data-page");
+      if (page) {
+        try {
+          where = window.top || window;
+        } catch (e) {
+          where = window;
+        }
+        where.location.assign(page);
+        return;
+      }
       if (url.origin === location.origin && OWN_PAGE.test(url.pathname)) {
         to = framed(to);
       } else {
@@ -214,6 +227,19 @@ var targumReader = function () {
   }
   window.TargumStrings = { t: t, tn: tn };
 
+  // targum out of reach: the connection's banner under the bar (`fault.js`; design.md
+  // §12, 2026-10-09), whose Try again runs `retry`. A reader opened off the disk has
+  // nothing to reach, and its presses say so where they are.
+  function unreachable(retry) {
+    if (window.TargumFault && canAsk()) window.TargumFault.unreachable(retry);
+  }
+
+  // With no connection (design.md §12, 2026-10-09): `offline.js` says so, and a page
+  // opened off a disk is never "away" — it never had anywhere to be.
+  function away() {
+    return !!(window.TargumOffline && window.TargumOffline.away && window.TargumOffline.away());
+  }
+
   var translationData = data.translations || {};
   var wordData = data.words || {};
   var lemmas = data.lemmas || [];
@@ -237,6 +263,9 @@ var targumReader = function () {
   // the tables, the tables themselves, and the feature names they point into. All three
   // absent on a page with no Hebrew verb that has one, which is most pages.
   var paradigmAt = extensions.paradigms || [];
+  // And an occurrence's own, where its pointing names another table than the word's or
+  // refuses it (targum-internal#307): per segment, [row, table]. Absent on most pages.
+  var paradigmsHere = data.paradigmsHere || {};
   var conjugationTables = extensions.conjugations || [];
   var conjugationFeatures = extensions.features || [];
   // The other verbs built on this one's root (targum-internal#301): an index per lemma
@@ -263,6 +292,8 @@ var targumReader = function () {
   // A Russian verb's aspect partner, and a word whose stress moves, stressed, from
   // OpenRussian's tables where the build had them (targum-internal#259).
   var partners = extensions.partners || [];
+  // Which way a Russian verb of motion goes, and its pair: "one:ходить", "both:идти".
+  var motions = extensions.motion || [];
   var stressLines = extensions.stress || [];
   // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
   // which one this text is written in. Codes, not sentences: the words are in
@@ -319,28 +350,58 @@ var targumReader = function () {
    * spelling. So inside this page an Aramaic lemma is `arc:` and its spelling, in the
    * same tables the card reads by index, and the prefix comes off wherever the word
    * leaves the page: its list, its meanings, the counts, a lookup, the card's own lines.
-   * Its rows stand in `besideData`, apart from `wordData`, so nothing that counts or walks
+   * Its rows stand in `besideTables`, apart from `wordData`, so nothing that counts or walks
    * the Hebrew — the queue, the coverage, the foot — meets them.
    */
+  //
+  // Rashi's words come the same way (targum-internal#414), one table per rendering, but
+  // they are Hebrew words: a table marked `own` is filed with the page's own lemmas, a
+  // word Rashi shares with the Torah is the Torah's row, and its meaning is the page's.
   var BESIDE_KEY = "arc:";
+  // Onkelos's language, where the page carries Onkelos with its words.
   var besideTongue = "";
-  var besideData = {};
-  var besideText = {};
+  // Every rendering with words of its own, by translation id: its rows per segment and
+  // its text per segment, and whether its words are the page's own language.
+  var besideTables = {};
+  // Which table a lemma index was added by, for the lemmas only a rendering has.
+  var lemmaTable = {};
+  // The rendering whose words are Onkelos's, which the verse walk draws.
+  var targumTable = "";
   (function () {
     var ids = Object.keys(translationData);
+    var pageAt = null;
     for (var r = 0; r < ids.length; r++) {
       var entry = translationData[ids[r]];
       var table = entry && entry.tokens;
       if (!table || !table.words) continue;
-      besideTongue = String(table.language || "arc");
-      var start = lemmas.length;
-      var meanings = (table.glosses || {}).en || [];
-      if (meanings.length && !glossesBy.en) glossesBy.en = [];
+      var own = !!table.own;
+      if (!own && !besideTongue) {
+        besideTongue = String(table.language || "arc");
+        targumTable = ids[r];
+      }
+      if (own && !pageAt) {
+        pageAt = {};
+        for (var p = 0; p < lemmas.length; p++) pageAt[lemmas[p] + "\u0001" + (heads[p] || "")] = p;
+      }
+      var meant = table.glosses || {};
+      Object.keys(meant).forEach(function (code) {
+        if ((meant[code] || []).length && !glossesBy[code]) glossesBy[code] = [];
+      });
+      var at = [];
       (table.lemmas || []).forEach(function (lemma, i) {
-        lemmas.push(BESIDE_KEY + lemma);
-        heads[start + i] = (table.heads || [])[i] || lemma;
+        var head = (table.heads || [])[i] || "";
+        if (own && pageAt[lemma + "\u0001" + head] !== undefined) {
+          at[i] = pageAt[lemma + "\u0001" + head];
+          return;
+        }
+        var index = lemmas.length;
+        at[i] = index;
+        lemmas.push(own ? lemma : BESIDE_KEY + lemma);
+        heads[index] = head || (own ? "" : lemma);
+        lemmaTable[index] = ids[r];
+        if (own) pageAt[lemma + "\u0001" + head] = index;
         Object.keys(glossesBy).forEach(function (code) {
-          glossesBy[code][start + i] = code === "en" ? meanings[i] || "" : "";
+          glossesBy[code][index] = (meant[code] || [])[i] || "";
         });
       });
       var builtAt = { 0: 0 };
@@ -349,20 +410,43 @@ var targumReader = function () {
         builtAt[i] = builts.length;
         builts.push(built);
       });
+      var held = { rows: {}, text: {}, bare: {}, own: own };
       Object.keys(table.words).forEach(function (sid) {
-        besideData[sid] = (table.words[sid] || []).map(function (row) {
+        held.rows[sid] = (table.words[sid] || []).map(function (row) {
           var copy = row.slice();
-          copy[4] = start + row[4];
+          copy[4] = at[row[4]];
           copy[5] = 0;
           copy[7] = builtAt[row[7]] || 0;
           copy[8] = 0;
           return copy;
         });
-        besideText[sid] = (entry.text && entry.text[sid]) || "";
+        held.text[sid] = (entry.text && entry.text[sid]) || "";
       });
-      return;
+      besideTables[ids[r]] = held;
     }
   })();
+
+  // Which rendering's words a cell draws from, or "" for a cell of the text itself: the
+  // column while it shows a rendering with words, the verse walk's Onkelos line, or a
+  // companion beside the verse.
+  function tableOf(cell) {
+    if (!cell || !cell.classList) return "";
+    var id = "";
+    if (cell.classList.contains("cmp-text")) {
+      var holder = cell.parentNode;
+      id = holder && holder.getAttribute ? holder.getAttribute("data-t") || "" : "";
+    } else if (cell.classList.contains("tr")) {
+      id = showing;
+    } else if (cell.classList.contains("practice-targum")) {
+      id = targumTable;
+    }
+    return id && besideTables[id] ? id : "";
+  }
+  // The rows a rendering has for a segment.
+  function besideRows(id, segmentId) {
+    var held = besideTables[id];
+    return (held && held.rows[segmentId]) || [];
+  }
 
   // Whether a lemma index is one of Onkelos's, and a term with the page's prefix taken off.
   function besideIndex(index) {
@@ -372,9 +456,11 @@ var targumReader = function () {
   function wordOf(term) {
     return term && String(term).indexOf(BESIDE_KEY) === 0 ? String(term).slice(BESIDE_KEY.length) : term;
   }
-  // The Onkelos cell a tapped word stands in, or null for a word of the Hebrew.
+  // The rendering's cell a tapped word stands in — Onkelos, Rashi — or null for a word
+  // of the text itself.
   function besideCell(word) {
-    return besideTongue && word && word.closest ? word.closest(".tr, .practice-targum") : null;
+    var cell = word && word.closest ? word.closest(".tr, .practice-targum, .cmp-text") : null;
+    return cell && tableOf(cell) ? cell : null;
   }
   // Which language a word is in: the page's, or Onkelos's.
   function wordLanguage(index) {
@@ -544,6 +630,11 @@ var targumReader = function () {
     // twice and then its Onkelos (targum-internal#202). Not per document: which custom
     // somebody keeps is a fact about them, the way the chanting marks are.
     practice: "",
+    // Which companions sit beside the verse — "targum", "rashi", "rashi-en", and
+    // "translation" for the column itself — by key, true or false (targum-internal#414).
+    // A key never set takes the page's default. Not per document: whether somebody reads
+    // Rashi is a fact about them.
+    companions: {},
     // Which generation of the defaults this browser has seen. See below.
     defaults: 0,
   };
@@ -605,6 +696,15 @@ var targumReader = function () {
     .split("-")[0]
     .toLowerCase();
   var documentId = data.document || location.pathname;
+  /* A way out to the desk, in this text's language (design.md §12, 2026-10-07). Leaving
+     a Russian text by the mark in the corner landed on Learn in Hebrew, because the link
+     said nothing and the page opened in whatever the menu last held. The desk page takes
+     `learning` as it takes a press of its language menu, and ignores a language it has
+     no desk for, so this carries whatever the text is in and leaves the deciding there. */
+  function inItsLanguage(path) {
+    if (!language || language === "und") return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "learning=" + encodeURIComponent(language);
+  }
   var documentTitle = data.title || document.title || "";
   // Which part of the document this file is, and how many parts there are. A targum
   // finishes at the end of a chapter rather than at the end of a book, so what gets
@@ -612,6 +712,8 @@ var targumReader = function () {
   // carries neither, and is its own single section — which is the shape the record it
   // wrote already had.
   var sectionId = String(data.section || 1);
+  // The book a portion was cut from, for `carriedAt` (targum-internal#446).
+  var carriesFrom = String(data.carriesFrom || "");
   var sectionCount = Number(data.sections || 1);
 
   /* What happens here is said to `events.js`, which decides whether anybody is told
@@ -722,6 +824,13 @@ var targumReader = function () {
   // The reader's own local midnight rather than UTC, because "did I read yesterday" is a
   // question about their evening. Built from the parts rather than sliced off an ISO
   // string, which is UTC and lands on the wrong day either side of midnight.
+  // Whether this text was open before this visit, read before the visit is written: a
+  // lens is offered on a second read (design.md §12, "Lenses wait for a second read").
+  var openedBefore = false;
+  try {
+    openedBefore = !!JSON.parse(localStorage.getItem("targum:opened") || "{}")[documentId];
+  } catch (e) {}
+
   function recordVisit() {
     try {
       var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
@@ -1032,13 +1141,18 @@ var targumReader = function () {
   // takes it back, so a text is finished once however often the button is pressed —
   // and the count on the progress page can only ever move by one.
   var finishedBox = document.getElementById("finished");
-  var finishedMark = document.getElementById("done-mark");
+  var finishedGo = document.getElementById("done-go");
   var finishedSaid = document.getElementById("done-said");
   var finishedUndo = document.getElementById("done-undo");
-  // The rest of the foot (design.md §12, "The foot is one block", 2026-09-25): the press
-  // and the quiet way to press it without marking, and the block they stand in.
+  // The rest of the foot (design.md §12, "The foot is one block", 2026-09-25): the press,
+  // which marks nothing, and the quiet press under it that marks the rest known
+  // (design.md §12, "Done marks nothing", 2026-10-13), and the block they stand in.
   var footPress = document.getElementById("foot-press");
-  var footPlain = document.getElementById("done-plain");
+  var footMark = document.getElementById("done-mark");
+  // The words the press would mark, before it is pressed (design review, 2026-10-09):
+  // the ones met most as chips with what each means, and the rest one press away.
+  var footWords = document.getElementById("foot-words");
+  var footAllWords = false;
   /* Inside a playlist the press moves on. `list.js` says so through `TargumReader.foot`
      once it has the list: which word the press says ("next", or "finish" on the last
      item) and what moving on is. Null on a text read on its own, where the press is Done. */
@@ -1064,11 +1178,37 @@ var targumReader = function () {
    * back-filled, and re-reading fills them in.
    */
   function finishedAt() {
-    var record = read(DOCS, "{}")[documentId];
-    if (!record) return 0;
-    var mine = record.sections && record.sections[sectionId];
+    var all = read(DOCS, "{}");
+    var record = all[documentId];
+    var mine = record && record.sections && record.sections[sectionId];
     if (mine) return Number(mine);
-    return sectionCount === 1 ? Number(record.done || 0) : 0;
+    if (record && sectionCount === 1 && record.done) return Number(record.done);
+    return carriedAt(all);
+  }
+
+  /* An aliyah whose chapters were all finished in the book's own reader, from before the
+     Torah was read as its portions (targum-internal#446): finished here too, as of the
+     last of them. Only ever read. The finishes were counted once, in the book, and a
+     second record of them would count them twice. */
+  function carriedAt(all) {
+    var book = carriesFrom && all[carriesFrom];
+    var done = book && book.sections;
+    if (!done) return 0;
+    var chapters = {};
+    var verses = document.querySelectorAll(".pair.verse[id]");
+    for (var i = 0; i < verses.length; i++) {
+      var chapter = /^(\d+):\d+$/.exec(verses[i].id);
+      if (chapter) chapters[chapter[1]] = true;
+    }
+    var latest = 0;
+    var any = false;
+    for (var number in chapters) {
+      any = true;
+      var at = Number(done[number] || 0);
+      if (!at) return 0;
+      if (at > latest) latest = at;
+    }
+    return any ? latest : 0;
   }
 
   /* Which control was pressed (targum-internal#341): "audit all controls on the reader and
@@ -1078,7 +1218,7 @@ var targumReader = function () {
      hook in the markup, so a new control is counted the day it is drawn. */
   var PRESSABLE =
     ".bar button, .bar select, .bar a, #player button, #player [role=slider], .video button, " +
-    ".turn button, #list-tab, #list button, #done-mark, #done-plain, #done-undo, #arrived-undo, " +
+    ".turn button, #list-tab, #list button, #done-go, #done-mark, #done-undo, #arrived-undo, " +
     "#practice-next, #next-up-else, .say";
   function nameOf(control) {
     var attributes = control.attributes || [];
@@ -1125,6 +1265,8 @@ var targumReader = function () {
 
   function setFinished(on) {
     if (on) sectionRead();
+    // Finishing a part is the end of a first read: the lenses are offered from here.
+    if (on && typeof offerLenses === "function") offerLenses();
     // What moved while this section was read, worked out before the finish is written
     // so the finish itself is not among the movements (targum-internal#175).
     footMoved(on);
@@ -1396,8 +1538,10 @@ var targumReader = function () {
   // Finished: the strip inverts to ink — §9's wake-up move, spent on the one block that
   // earned it — and says what the section came to in three figures of equal weight
   // (design.md §12, "The finished box is three figures", 2026-09-25): "Finished · #14",
-  // then the words known, the share known here, the words looked up. A zero is a 0, so the three
-  // stand where they always stand. Type, not motion.
+  // then the words known, the share known in this part, the words looked up. A zero is a 0, so
+  // the three stand where they always stand. Type, not motion. The share names the part, since
+  // home's card gives the whole text's beside it (§12, "Each share says what it is a share
+  // of", 2026-10-13); a text in one part says "this text".
   function renderFinished() {
     if (!finishedBox || !finishedSaid) return;
     var when = finishedAt();
@@ -1417,7 +1561,14 @@ var targumReader = function () {
             tn("reader.finish.known", tally.known, "word known", "words known")
           )
         );
-        row.appendChild(tile(shareOf(tally) + "%", t("reader.finish.known-here", "known here")));
+        row.appendChild(
+          tile(
+            shareOf(tally) + "%",
+            sectionCount > 1
+              ? t("reader.finish.known-part", "known in this part")
+              : t("reader.finish.known-text", "known in this text")
+          )
+        );
         row.appendChild(
           tile(
             String(tally.looked),
@@ -1447,51 +1598,163 @@ var targumReader = function () {
     renderFoot();
   }
 
+  // The words here never marked, the ones met most first, and how many there are: for
+  // the end of a part under a large picture (design.md §12, 2026-10-08) and for the foot,
+  // each of which asks about them before the press that marks them.
+  function unmarkedWords(limit) {
+    var seen = {};
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (isName(token)) return;
+        var lemma = lemmas[token[4]];
+        if (!lemma || !asksAbout(lemma)) return;
+        if (!seen[lemma]) {
+          // As the text writes it, the first time it does: the form a reader met.
+          var surface = segmentText(segmentId).slice(token[0], token[1]) || lemma;
+          seen[lemma] = { lemma: lemma, surface: surface, n: 0 };
+        }
+        seen[lemma].n++;
+      });
+    });
+    var all = Object.keys(seen).map(function (lemma) {
+      return seen[lemma];
+    });
+    all.sort(function (a, b) {
+      return b.n - a.n;
+    });
+    var shown = all.slice(0, limit || 4);
+    return {
+      count: all.length,
+      words: shown.map(function (entry) {
+        return entry.surface;
+      }),
+      // And what each means, from the glosses the page already carries (design.md §12,
+      // 2026-10-09): the reader's own meaning first, then the text's.
+      glossed: shown.map(function (entry) {
+        var index = lemmas.indexOf(entry.lemma);
+        return {
+          word: entry.surface,
+          gloss: meaningOf(entry.lemma) || (index >= 0 ? glosses[index] || "" : ""),
+          language: targetLanguage,
+        };
+      }),
+    };
+  }
+
   /* How many words the press would mark: vocabulary only, never names and numbers, which
      the press still clears without calling them words (the same count the header gives,
      because two counts disagreeing on one screen read as a bug). */
   function leftToMark() {
-    return lemmasHere(false).filter(function (lemma) {
-      return statusOf(lemma) === undefined;
-    }).length;
+    return lemmasHere(false).filter(asksAbout).length;
   }
 
-  /* The press and the line under it, as they stand. One press, saying both halves of
-     what it does — "Done, and mark 12 words known" — and a text link under it that does
-     the first half alone. Nothing left to mark: "Done", and no link. Finished, the press
-     goes: the ink block says so and holds the Undo — except in a playlist, where the
-     press is still the way on, and moving on from a finished item marks nothing. */
+  /* The press and the line under it, as they stand (design.md §12, "Done marks nothing;
+     knowing them all is a choice", 2026-10-13). The press finishes and marks nothing:
+     "Done". Under it, while words are left, a quiet press that finishes and marks them
+     all: "Done, and mark 12 words known". David: "if they know all the words they know
+     all the words - let them decide that as they like". Finished, the press goes: the ink
+     block says so and holds the Undo — except in a playlist, where the press is still the
+     way on, and moving on from a finished item marks nothing. */
   function renderFoot() {
-    if (!footDrawn || !footPress || !finishedMark) return;
+    countShabbatAhead();
+    if (!footDrawn || !footPress || !finishedGo) return;
     var when = finishedAt();
     var verb = footWay ? footWay.verb : "done";
     var left = when ? 0 : leftToMark();
     footPress.hidden = !!when && !footWay;
-    finishedMark.textContent = pressSays(verb, left);
-    if (footPlain) {
-      footPlain.hidden = !left;
-      footPlain.textContent = left ? plainSays(verb) : "";
+    finishedGo.textContent = goSays(verb);
+    if (footMark) {
+      footMark.hidden = !left;
+      footMark.textContent = left ? markSays(verb, left) : "";
+    }
+    paintFootWords(left);
+  }
+
+  /* What "and mark 66 words known" would mark, said before the press rather than after:
+     a count of the words never marked here, the ones met most as chips with what each
+     means, and the rest behind "+60 more". The same question and chips the end of a part
+     asks under a large picture (design.md §12, 2026-10-08), and the same words the press
+     marks: `unmarkedWords` and `leftToMark` count one set. */
+  var FOOT_CHIPS = 4;
+  function paintFootWords(left) {
+    if (!footWords) return;
+    var list = footWords.querySelector(".foot-chips");
+    var ask = footWords.querySelector(".foot-ask");
+    footWords.hidden = !left;
+    if (list) list.textContent = "";
+    if (!left || !list) return;
+    var rest = unmarkedWords(footAllWords ? left : FOOT_CHIPS);
+    if (ask) ask.textContent = askSays(rest.count);
+    // Shown, not behind "Show them" (design.md §12, "The reader's chrome is the desk's",
+    // 2026-10-09): the end of a part is a card that shows its words, as board
+    // ReaderTheatreEnd draws it. Drawn as the page is first laid out, so the page the
+    // foot stands on is cut for it.
+    rest.glossed.forEach(function (one) {
+      var chip = document.createElement("li");
+      chip.className = "film-end-word";
+      var word = document.createElement("span");
+      word.className = "film-end-he";
+      word.textContent = one.word;
+      chip.appendChild(word);
+      if (one.gloss) {
+        var gloss = document.createElement("span");
+        gloss.className = "film-end-gloss";
+        gloss.setAttribute("lang", one.language || "en");
+        gloss.setAttribute("dir", "ltr");
+        gloss.textContent = String(one.gloss).split(/[;,]/)[0].trim();
+        chip.appendChild(gloss);
+      }
+      list.appendChild(chip);
+    });
+    if (rest.count > rest.words.length) {
+      var more = document.createElement("li");
+      more.className = "film-end-more";
+      more.setAttribute("dir", "ltr");
+      more.setAttribute("lang", document.documentElement.lang || "en");
+      var open = document.createElement("button");
+      open.type = "button";
+      open.className = "foot-plain foot-more";
+      open.textContent = t("reader.film.end-more", "+{n} more", { n: rest.count - rest.words.length });
+      open.addEventListener("click", function () {
+        footAllWords = true;
+        paintFootWords(left);
+      });
+      more.appendChild(open);
+      list.appendChild(more);
     }
   }
-  function pressSays(verb, left) {
+  /* One word is asked about as the word, not as a count of one: the chip under the
+     question already shows it (David, 2026-10-10: "when it's just one word the language
+     is strange"). By the count, not the plural form, since Russian's "one" is 21 too. */
+  function askSays(count) {
+    if (count === 1) return t("reader.film.end-ask-single", "Do you know this word?");
+    return tn(
+      "reader.film.end-ask",
+      count,
+      "{n} word here you haven't marked. Do you know it?",
+      "{n} words here you haven't marked. Do you know them?"
+    );
+  }
+  // The press: finishes, marks nothing.
+  function goSays(verb) {
+    if (verb === "next") return t("reader.list.next", "Next");
+    if (verb === "finish") return t("reader.list.done", "Finish");
+    return t("reader.page.done", "Done");
+  }
+  // The press under it: finishes, and marks the words left (never with none left).
+  function markSays(verb, left) {
+    if (left === 1) {
+      if (verb === "next") return t("reader.foot.next-single", "Next, I know it");
+      if (verb === "finish") return t("reader.foot.finish-single", "Finish, I know it");
+      return t("reader.foot.done-single", "Done, I know it");
+    }
     if (verb === "next") {
-      return left
-        ? tn("reader.foot.next-mark", left, "Next, and mark {n} word known", "Next, and mark {n} words known")
-        : t("reader.list.next", "Next");
+      return tn("reader.foot.next-mark", left, "Next, and mark {n} word known", "Next, and mark {n} words known");
     }
     if (verb === "finish") {
-      return left
-        ? tn("reader.foot.finish-mark", left, "Finish, and mark {n} word known", "Finish, and mark {n} words known")
-        : t("reader.list.done", "Finish");
+      return tn("reader.foot.finish-mark", left, "Finish, and mark {n} word known", "Finish, and mark {n} words known");
     }
-    return left
-      ? tn("reader.foot.done-mark", left, "Done, and mark {n} word known", "Done, and mark {n} words known")
-      : t("reader.page.done", "Done");
-  }
-  function plainSays(verb) {
-    if (verb === "next") return t("reader.foot.next-plain", "Next without marking");
-    if (verb === "finish") return t("reader.foot.finish-plain", "Finish without marking");
-    return t("reader.foot.done-plain", "Done without marking");
+    return tn("reader.foot.done-mark", left, "Done, and mark {n} word known", "Done, and mark {n} words known");
   }
   renderFinished();
 
@@ -1599,19 +1862,23 @@ var targumReader = function () {
   function sentenceOf(word) {
     var pair = word && word.closest ? word.closest("[data-id]") : null;
     if (!pair) return "";
-    return besideCell(word) ? besideBare(pair.getAttribute("data-id")) : segmentText(pair.getAttribute("data-id"));
+    var cell = besideCell(word);
+    return cell
+      ? besideBare(tableOf(cell), pair.getAttribute("data-id"))
+      : segmentText(pair.getAttribute("data-id"));
   }
 
-  // An Onkelos line as the reader counts it: its letters, the points taken off.
-  var besideBareText = {};
-  function besideBare(segmentId) {
-    if (besideBareText[segmentId] === undefined) {
-      var text = besideText[segmentId] || "";
+  // A rendering's line as the reader counts it: its letters, the points taken off.
+  function besideBare(id, segmentId) {
+    var held = besideTables[id];
+    if (!held) return "";
+    if (held.bare[segmentId] === undefined) {
+      var text = held.text[segmentId] || "";
       var out = "";
       for (var i = 0; i < text.length; i++) if (!isMark(text, i)) out += text.charAt(i);
-      besideBareText[segmentId] = out;
+      held.bare[segmentId] = out;
     }
-    return besideBareText[segmentId];
+    return held.bare[segmentId];
   }
 
   // Whether a meaning is already held for this word — never bought. A card opens with
@@ -1662,6 +1929,43 @@ var targumReader = function () {
     });
   }
 
+  // A look-up as `lookUp` would make it, kept for when there is a connection.
+  function laterAsk(index, word) {
+    return {
+      term: lemmas[index],
+      body: {
+        lemma: glossedAs(index),
+        source: wordLanguage(index),
+        target: targetLanguage || "en",
+        document: documentId,
+        sentence: sentenceOf(word) || "",
+      },
+    };
+  }
+
+  // A word asked about with no connection, answered now that there is one: kept as the
+  // tap's answer is (`lookUp`), wherever the request was made from.
+  window.addEventListener("targum:looked-up", function (event) {
+    var told = (event && event.detail) || {};
+    var body = told.body || {};
+    var answer = told.answer || {};
+    if (body.document !== documentId || !told.term) return;
+    var into = body.target || "en";
+    if (answer.meaning) {
+      keepMeaning(told.term, answer.meaning, into);
+      lemmas.forEach(function (lemma, index) {
+        if (lemma !== told.term) return;
+        if (into === targetLanguage) glosses[index] = answer.meaning;
+        if (answer.citation) citations[index] = String(answer.citation);
+        if (answer.plural) plurals[index] = String(answer.plural);
+      });
+      delete lookup[body.lemma];
+    } else {
+      lookup[body.lemma] = answer.error ? String(answer.error) : "none";
+    }
+    if (lookedUp) showCard(lookedUp);
+  });
+
   function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
     if (!lemma || !canAsk()) return;
@@ -1706,7 +2010,11 @@ var targumReader = function () {
       })
       .catch(function () {
         asked[form] = false;
-        onDone(t("reader.error.connect", "We couldn't connect. Try again."));
+        // Said by the connection's banner, whose Try again asks once more.
+        unreachable(function () {
+          lookUp(index, sentence, onDone);
+        });
+        onDone("");
       });
   }
 
@@ -1776,6 +2084,11 @@ var targumReader = function () {
   function statusOf(lemma) {
     var item = vocab[lemma];
     return item ? item.status : undefined;
+  }
+
+  // Unmarked: a word the page is still asking about.
+  function asksAbout(lemma) {
+    return statusOf(lemma) === undefined;
   }
 
   // What you wrote down that a word means. Beside the meaning targum gave and under the
@@ -1895,9 +2208,7 @@ var targumReader = function () {
 
   // What is still unmarked on this page, names included: what the offer counts.
   function unmarkedHere() {
-    return lemmasHere(true).filter(function (lemma) {
-      return statusOf(lemma) === undefined;
-    });
+    return lemmasHere(true).filter(asksAbout);
   }
 
   function markRest() {
@@ -1959,14 +2270,14 @@ var targumReader = function () {
     if (!already) {
       setFinished(true);
       footPressed = { lemmas: taken, counted: taken.length ? counted : 0 };
-      // Only where the page stays: in a playlist the press leaves, and a line said to a
-      // page nobody is on is a line never said.
-      if (!footWay) sayKnownAhead();
+      // Only where the page stays: in a playlist, or on the first finish, the press
+      // leaves, and a line said to a page nobody is on is a line never said.
+      if (!footWay && !leavingHome) sayKnownAhead();
     }
     return { already: already, lemmas: taken, counted: taken.length ? counted : 0 };
   }
 
-  /* The press, from the button or the link under it. Inside a playlist `list.js` has said
+  /* The press, from the button (marking nothing) or the one under it (marking the rest). Inside a playlist `list.js` has said
      what moving on is, and does it after the press; on its own the press is the whole of
      it, and the ink block and the next section appear. */
   function footGo(marking) {
@@ -1975,7 +2286,43 @@ var targumReader = function () {
       return;
     }
     if (finishedAt()) return;
+    if (firstFinishHere()) {
+      goHome(marking);
+      return;
+    }
     pressFoot(marking);
+  }
+
+  /* The first finish in a language goes home (design.md §12, "The first finish goes
+     home", 2026-10-12). A new reader came from the arrival straight into a text, and the
+     ink block and the next part told them what to read next and nothing about where
+     their reading lives. So the first Done in each language leaves for Your targums, the
+     way a playlist's Next leaves for its next item: the text is at the head of Continue
+     there, and the line at the top says what the press did, with its one Undo.
+
+     Once a language, in this browser: the first finish in Russian goes home for a reader
+     who has finished a dozen in Hebrew, and a reader with finishes from before the change
+     is not sent anywhere. Only a press — clearing the last word finishes in place, as it
+     did. Only where home is this server's and the reader is signed in, so never off a
+     disk, in a preview, or on a public page whose "/" is the front door. */
+  var WENT_HOME = "targum:went-home:";
+  var leavingHome = false;
+  function firstFinishHere() {
+    if (PREVIEW || !canAsk() || !window.TargumLanded) return false;
+    if (finishedCount() > 0) return false;
+    try {
+      return !localStorage.getItem(WENT_HOME + language);
+    } catch (e) {
+      return false;
+    }
+  }
+  function goHome(marking) {
+    leavingHome = true;
+    leave(marking, documentTitle);
+    try {
+      targumKeep(WENT_HOME + language, String(Date.now()));
+    } catch (e) {}
+    location.assign(keyed(inItsLanguage("/")));
   }
 
   /* The third moment (targum-internal#335; design.md §12, "Three moments in ten
@@ -2032,6 +2379,8 @@ var targumReader = function () {
   // What the foot is offering, as the server names it: the next section of this text,
   // or a catalogue text by its id off the `/open/<id>` link. Null for anything else.
   function offerNamed(offer) {
+    // A portion's next in the book is another text, which this page has no id for.
+    if (offer.classList.contains("beyond")) return null;
     if (offer.classList.contains("here")) return { next: Number(sectionId) + 1 };
     var link = offer.querySelector(".next-up-link");
     var href = (link && link.getAttribute("href")) || "";
@@ -2097,6 +2446,132 @@ var targumReader = function () {
     if (connect) connect.hidden = true;
   }
 
+  /* --- what a reading leads on to: next Shabbat's, and the next portion's words ---
+   *
+   * A haftarah belongs to a Shabbat, not to the book, so its end offers next Shabbat's
+   * portion: "Next Shabbat · נח · Noach" (targum-internal#416). A portion's last aliyah
+   * already links the next portion in the book (`next-up beyond`, #446); asked here only
+   * for that portion's words, to say how many of them the reader knows.
+   *
+   * Asked of the server, because the readers are built once for everybody and the
+   * calendar moves under them: which portion follows is the calendar's to say, on the
+   * schedule this browser keeps (`targum:schedule`, the Library shelf's own, diaspora
+   * until they say). The answer carries the next portion's words to a reader with a word
+   * list, and the count is made here, against this browser's store, by the header's rule
+   * (`coverage`): a word is known when it is marked known. Signed out, or nothing known
+   * yet, the offer stands without a count rather than saying nought.
+   */
+  var PORTION_READER = /^\/parasha\/read\/([a-z0-9-]+)\/reader\//.exec(location.pathname);
+  var shabbatAhead = null;
+
+  function knownAhead(words) {
+    var known = 0;
+    for (var n = 0; n < words.length; n++) if (statusOf(words[n]) === KNOWN) known += 1;
+    return known;
+  }
+
+  // Again on every redraw of the foot, so a word marked on this page counts at once.
+  function countShabbatAhead() {
+    if (!shabbatAhead || !shabbatAhead.words) return;
+    var known = knownAhead(shabbatAhead.words);
+    shabbatAhead.line.textContent = known
+      ? t("reader.next.shabbat-known", "You already know {n} of its words.", { n: known })
+      : "";
+    shabbatAhead.line.hidden = !known;
+  }
+
+  function knownLine(offer) {
+    var line = document.createElement("span");
+    line.className = "next-up-known";
+    line.hidden = true;
+    offer.appendChild(line);
+    return line;
+  }
+
+  function offerShabbatAhead(next) {
+    var foot = document.getElementById("foot");
+    if (!next || !next.href || !foot || !foot.parentNode) return;
+    var offer = document.createElement("aside");
+    offer.className = "next-up shabbat";
+    offer.id = "next-shabbat";
+    offer.dir = "ltr";
+    var lead = document.createElement("span");
+    lead.className = "next-up-lead";
+    lead.textContent = t("reader.next.shabbat", "Next Shabbat");
+    offer.appendChild(lead);
+    var link = document.createElement("a");
+    link.className = "next-up-link";
+    // Framed on the public page, the portion's own page rather than its reader: that is
+    // what the frame is a part of, and it opens in the window that holds the frame.
+    link.href = PREVIEW && next.page ? next.page : keyed(next.href);
+    var named = document.createElement("bdi");
+    named.lang = "he";
+    named.dir = "auto";
+    named.textContent = next.hebrew || next.name;
+    link.appendChild(named);
+    if (next.name && next.name !== next.hebrew) {
+      var english = document.createElement("span");
+      english.className = "next-up-english";
+      english.lang = document.documentElement.lang || "en";
+      english.textContent = "· " + next.name;
+      link.appendChild(document.createTextNode(" "));
+      link.appendChild(english);
+    }
+    offer.appendChild(link);
+    var line = knownLine(offer);
+    // After whatever already follows the foot, so it ends the page.
+    var after = foot;
+    while (after.nextElementSibling && after.nextElementSibling.classList.contains("next-up")) {
+      after = after.nextElementSibling;
+    }
+    after.parentNode.insertBefore(offer, after.nextSibling);
+    // A haftarah ends on next Shabbat's: the library's own pick of something else to
+    // read stands down for it, rather than two doors out of one page.
+    var elsewhere = document.getElementById("next-up");
+    if (elsewhere && !elsewhere.classList.contains("here")) elsewhere.hidden = true;
+    shabbatAhead = { line: line, words: Array.isArray(next.lemmas) ? next.lemmas : null };
+    countShabbatAhead();
+  }
+
+  // The next portion in the book is linked already; only its words are new.
+  function countBeyond(next) {
+    var offer = document.querySelector("#next-up.beyond");
+    if (!offer || !next || !Array.isArray(next.lemmas)) return;
+    shabbatAhead = { line: knownLine(offer), words: next.lemmas };
+    countShabbatAhead();
+  }
+
+  function askShabbatAhead() {
+    if (!PORTION_READER || !served || typeof fetch !== "function") return;
+    if (Number(sectionId) !== sectionCount) return;
+    var beyond = document.querySelector("#next-up.beyond");
+    var haftarah = /^haftarah-/.test(PORTION_READER[1]);
+    if (!beyond && !haftarah) return;
+    var asked = "?order=book";
+    if (!beyond) {
+      var schedule = "diaspora";
+      try {
+        if (localStorage.getItem("targum:schedule") === "israel") schedule = "israel";
+      } catch (e) {}
+      asked = "?schedule=" + schedule;
+    }
+    fetch(keyed("/parasha/next/" + PORTION_READER[1] + asked), {
+      headers: keyHeaders({}),
+    })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        var next = answer && answer.next;
+        if (beyond) countBeyond(next);
+        else offerShabbatAhead(next);
+      })
+      .catch(function () {
+        /* offline, or no calendar to ask: the page ends where it always did */
+      });
+  }
+  askShabbatAhead();
+
   /* The Undo on the ink block: the finish, and the words this visit's press marked. A
      word the reader has said something else about since is theirs and is left alone. */
   function takeBack(taken) {
@@ -2128,34 +2603,29 @@ var targumReader = function () {
      about this sitting and nothing else — a second tab or tomorrow's visit is told
      nothing. Only a press that did something is carried; moving on from an item already
      finished says nothing where it lands. */
-  var LEFT = "targum:foot:left";
   function leave(marking, title) {
     var pressed = pressFoot(marking);
     if (pressed.already) return pressed;
-    try {
-      sessionStorage.setItem(
-        LEFT,
-        JSON.stringify({
-          document: documentId,
-          section: sectionId,
-          sections: sectionCount,
-          title: String(title || documentTitle || ""),
-          counted: pressed.counted,
-          tally: footFigures(),
-          words: pressed.lemmas.map(function (lemma) {
-            return [tongueOf(lemma), wordOf(lemma)];
-          }),
-          at: Date.now(),
-        })
-      );
-    } catch (e) {}
+    if (window.TargumLanded) {
+      window.TargumLanded.carry({
+        document: documentId,
+        section: sectionId,
+        sections: sectionCount,
+        title: String(title || documentTitle || ""),
+        counted: pressed.counted,
+        tally: footFigures(),
+        words: pressed.lemmas.map(function (lemma) {
+          return [tongueOf(lemma), wordOf(lemma)];
+        }),
+        at: Date.now(),
+      });
+    }
     return pressed;
   }
 
   /* Where that press landed the reader: once and briefly, at the top, "Finished <title> ·
-     12 words marked known · Undo". Read once and taken out of the store at once, so a
-     reload does not say it twice. Twenty seconds, then it goes, unless the reader is on
-     it; nothing about it moves. */
+     12 words marked known · Undo" (`landed.js`, which home shares). Twenty seconds, then
+     it goes, unless the reader is on it; nothing about it moves. */
   var arrived = document.getElementById("arrived");
   var arrivedSaid = document.getElementById("arrived-said");
   var arrivedUndo = document.getElementById("arrived-undo");
@@ -2169,109 +2639,52 @@ var targumReader = function () {
       arrived.hidden = true;
     }, after);
   }
-  function sayLanded(said) {
-    arrivedSaid.textContent = "";
-    var line = t("reader.arrived.finished", "Finished {title}");
-    var cut = line.indexOf("{title}");
-    if (cut < 0) arrivedSaid.appendChild(document.createTextNode(line));
-    else {
-      arrivedSaid.appendChild(document.createTextNode(line.slice(0, cut)));
-      var name = document.createElement("bdi");
-      name.setAttribute("dir", "auto");
-      name.textContent = String(said.title || "");
-      arrivedSaid.appendChild(name);
-      arrivedSaid.appendChild(document.createTextNode(line.slice(cut + 7)));
-    }
-    // The finished box's three figures, in the same order, on one line: "Finished
-    // <title> · +12 known · 96% · 3 looked up" (§12, 2026-09-25).
-    var tally = said.tally;
-    if (tally) {
-      arrivedSaid.appendChild(
-        document.createTextNode(
-          " · " +
-            t("reader.arrived.figures", "+{known} known · {share}% · {looked} looked up", {
-              known: Number(tally.known || 0),
-              share: shareOf(tally),
-              looked: Number(tally.looked || 0),
-            })
-        )
-      );
-    } else if (said.counted) {
-      arrivedSaid.appendChild(
-        document.createTextNode(
-          " · " + tn("reader.rest.done", said.counted, "{n} word marked known", "{n} words marked known")
-        )
-      );
-    }
-  }
   function landHere() {
-    var said = null;
-    try {
-      said = JSON.parse(sessionStorage.getItem(LEFT) || "null");
-      sessionStorage.removeItem(LEFT);
-    } catch (e) {
-      said = null;
-    }
-    if (!said || !arrived || !arrivedSaid) return;
-    // A press is news on the page it led to, not on a page opened ten minutes later.
-    if (Date.now() - Number(said.at || 0) > 10 * 60 * 1000) return;
+    if (!arrived || !arrivedSaid || !window.TargumLanded) return;
+    var said = window.TargumLanded.take();
+    if (!said) return;
     if (said.document === documentId && String(said.section) === sectionId) return;
     landed = said;
-    sayLanded(said);
+    window.TargumLanded.say(arrivedSaid, said);
     if (arrivedUndo) arrivedUndo.hidden = false;
     arrived.hidden = false;
     hideArrived(ARRIVED_FOR);
   }
 
-  /* Undo, from where the reader landed: the section that press finished, and the words
-     it marked, in whichever language's list they went to. The page that marked them is
-     gone, so this goes to the stores directly, the way `sync.js` sweeps them, and leaves
-     a tombstone as a dropped word does so another device does not push them back. A word
-     said something else about since the press is left alone. */
+  /* Sent here for a part that is not in this text (reader QA, 2026-10-20): the server
+     opens the first part instead of a page saying nothing is there, with `gone=` naming
+     the part asked for, and this line says so once. The query is taken off the address,
+     so a reload or a link copied from here is the first part plainly. */
+  function partGone() {
+    if (!arrived || !arrivedSaid || typeof URLSearchParams !== "function") return;
+    var query = new URLSearchParams(location.search);
+    var asked = query.get("gone");
+    if (!asked || !/^\d{1,4}$/.test(asked)) return;
+    arrivedSaid.textContent = t(
+      "reader.page.part-gone",
+      "Part {n} isn't in this text, so we opened the first part.",
+      { n: Number(asked) }
+    );
+    if (arrivedUndo) arrivedUndo.hidden = true;
+    arrived.hidden = false;
+    hideArrived(ARRIVED_FOR);
+    query.delete("gone");
+    try {
+      var rest = query.toString();
+      history.replaceState(history.state, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
+    } catch (e) {}
+  }
+
+  /* Undo, from where the reader landed: `landed.js` takes the section and its words out
+     of the stores, and this page drops its own copies of their meanings, which it would
+     otherwise write back. */
   function undoLanding() {
     var said = landed;
     landed = null;
-    if (!said) return;
-    // Grouped by language, so each list and each store of meanings is read and written
-    // once rather than once a word: a long chapter marks a few thousand.
-    var byTongue = {};
-    (said.words || []).forEach(function (pair) {
-      var tongue = String((pair && pair[0]) || "");
-      var word = String((pair && pair[1]) || "");
-      if (tongue && word) (byTongue[tongue] = byTongue[tongue] || []).push(word);
-    });
-    Object.keys(byTongue).forEach(function (tongue) {
-      var name = "targum:vocab:" + tongue;
-      var theirs = read(name, "{}");
-      var gone = byTongue[tongue].filter(function (word) {
-        var record = theirs[word];
-        if (!record || record.status !== KNOWN || record.learned) return false;
-        delete theirs[word];
-        return true;
-      });
-      if (!gone.length) return;
-      try {
-        targumKeep(name, JSON.stringify(theirs));
-      } catch (e) {}
-      // Their meanings, in the browser's stores and in this page's own copies, which it
-      // would otherwise write back.
-      var head = "targum:meanings:" + tongue + ":";
-      var names = [];
-      try {
-        for (var i = 0; i < localStorage.length; i++) {
-          var key = localStorage.key(i) || "";
-          if (key.indexOf(head) === 0) names.push(key);
-        }
-      } catch (e) {}
-      names.forEach(function (key) {
-        var records = read(key, "{}");
-        gone.forEach(function (word) {
-          delete records[word];
-        });
-        try {
-          targumKeep(key, JSON.stringify(records));
-        } catch (e) {}
-      });
+    if (!said || !window.TargumLanded) return;
+    var taken = window.TargumLanded.undo(said);
+    Object.keys(taken).forEach(function (tongue) {
+      var gone = taken[tongue];
       Object.keys(meaningStores).forEach(function (store) {
         var mine = tongue === language ? store.indexOf(":") < 0 : store.indexOf(tongue + ":") === 0;
         var records = mine && meaningStores[store].records;
@@ -2281,27 +2694,7 @@ var targumReader = function () {
           });
         }
       });
-      if (window.TargumSync) {
-        gone.forEach(function (word) {
-          window.TargumSync.forgetWord(tongue, word);
-        });
-      }
     });
-    var all = read(DOCS, "{}");
-    var record = all[said.document];
-    if (record) {
-      if (record.sections && typeof record.sections === "object") delete record.sections[String(said.section)];
-      if (Number(said.sections) === 1) record.done = 0;
-      record.updated = Date.now();
-      all[said.document] = record;
-      try {
-        targumKeep(DOCS, JSON.stringify(all));
-      } catch (e) {}
-    }
-    if (window.TargumSync) {
-      if (window.TargumSync.forgetSection) window.TargumSync.forgetSection(said.document, String(said.section));
-      window.TargumSync.touched();
-    }
     vocab = readVocab();
     redraw();
     if (arrivedSaid) arrivedSaid.textContent = t("reader.arrived.took-back", "Taken back.");
@@ -2349,13 +2742,12 @@ var targumReader = function () {
     return true;
   }
 
-  // Pressing the level a word already has takes the mark off again, so the same button
-  // both grades a word and undoes a mistake. For the pointer only: a key that lands on
-  // a marked word and says its level again is confirming it. Asked here, before anything
-  // else has written to the store, rather than worked out inside `setStatus` from what
-  // it finds there.
-  function toggled(index, status) {
-    return statusOf(lemmas[index]) === status ? null : status;
+  // Pressing the level a word already has changes nothing (QA 2026-10-11, decision D8).
+  // It used to take the mark off, so a second tap meant as a confirmation silently
+  // un-marked the word. `true` when the press is the level already set, asked here
+  // before anything else has written to the store.
+  function already(index, status) {
+    return statusOf(lemmas[index]) === status;
   }
 
   // `status` is what the reader asked for, and `null` is "take the mark off". Nothing is
@@ -2374,9 +2766,39 @@ var targumReader = function () {
   // `wordEntries`. This session only: it is a receipt, not a state.
   var justSaid = {};
 
+  /* A free word list's cap (design.md §12, "Free and Plan, behind a switch",
+     2026-10-09): the words being learned, stages 1 to 3 across every language, up to
+     `/account/me`'s `plan.words`. Null — no cap — until the server says one, and always
+     with plans off, so nothing here changes anything for a reader who has none. A word
+     already on the list moves freely, and known and ignored are never held. */
+  var planWords = null;
+  var LIST_FULL = "full";
+
+  function listFull(lemma, status) {
+    if (!planWords || !isLearning(status) || isLearning(statusOf(lemma))) return false;
+    return TargumVocab.listed() >= planWords;
+  }
+
+  // The refusal as a panel in place, in the card the press was made on.
+  function sayListFull() {
+    if (!card || card.hidden || !window.TargumFault) return;
+    var was = card.querySelector(".list-full");
+    if (was) was.parentNode.removeChild(was);
+    var full = window.TargumFault.upgrade(
+      t("fault.plan.words", "Your word list holds {n} words on Free, and it's full. A plan keeps every word you meet, however long the list gets.", { n: planWords }),
+      t("fault.plan.words-fact", "Marking a word known still works, and so does everything already on your list.")
+    );
+    full.classList.add("list-full");
+    card.appendChild(full);
+  }
+
   function setStatus(index, surface, band, status) {
     var lemma = lemmas[index];
     if (!lemma) return false;
+    if (listFull(lemma, status)) {
+      sayListFull();
+      return LIST_FULL;
+    }
     recordUndo(index, lemma, surface);
     if (status === null || status === undefined || isLearning(status)) delete justSaid[lemma];
     else justSaid[lemma] = true;
@@ -2399,20 +2821,10 @@ var targumReader = function () {
       // has one answer per language: keeping a word while reading in Russian overwrote
       // the English meaning of every text that word appears in.
       keepMeaning(lemma, glosses[index]);
-      // Where the word went, the first time you keep one — but never in the middle of a
-      // walk. Opening a panel over the translation while somebody is stepping the
-      // chapter a word at a time takes away the thing they are grading against, at the
-      // one moment they are not looking for it. `s` opens it when it is wanted.
-      //
-      // Nor under a card on a phone. The band holds one thing, and a sheet arriving
-      // there put the card away — the card being typed into, four hundred milliseconds
-      // after the first letter of a meaning, because writing a meaning is what keeps a
-      // word for the first time (targum-internal#155). The tab in the corner says where
-      // the word went; the sheet can wait until the card has been let go of.
-      var carded = card && !card.hidden && !roomy.matches;
-      if (isLearning(status) && !standing && !carded && listBox && listBox.hidden) {
-        showList(true);
-      }
+      // The list used to open here the first time a word was kept. Not since 2026-10-09
+      // (design.md §12, "The reader's chrome is the desk's"): the list starts closed, and
+      // opening it under the card a word was just kept from cut the pages again and put
+      // the card away. The tab's count says where the word went; `s` opens the list.
     }
     remember();
     var now = statusOf(lemma);
@@ -2446,6 +2858,14 @@ var targumReader = function () {
   var pointingAtPlay = false;
 
   function keysLine() {
+    // Keys are a keyboard's: on a touch screen the line has said its first thing and
+    // falls quiet, rather than naming keys there are none of (signed-in walk 2026-10-12).
+    // Its room is kept, so nothing on the page moves; the next visit has no line at all.
+    if (window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches) {
+      first.textContent = "\u00a0";
+      first.style.visibility = "hidden";
+      return;
+    }
     // The arrow that actually goes forward on this page — §7, typed characters per
     // reading direction. The card's legend already knew this; the bar did not.
     var forward =
@@ -2466,7 +2886,10 @@ var targumReader = function () {
     // `has-voice` is the player's own word that there is a recording to play. Asking only
     // whether a strip exists was asking the markup, and a page with none still answers.
     var voiced = document.body.classList.contains("has-voice");
-    if (voiced && strip && !strip.hidden && !heard) {
+    // Or the picture, whose controls are its transport while it is up (#422).
+    var picture = document.getElementById("video");
+    var transport = (strip && !strip.hidden) || (picture && !picture.hidden);
+    if (voiced && transport && !heard) {
       pointingAtPlay = true;
       first.textContent = document.getElementById("video")
         ? t("reader.first.watch", "Now press play. The page follows the film, line by line.")
@@ -2502,7 +2925,8 @@ var targumReader = function () {
   function markSegment(cell) {
     // An Onkelos cell stands in the Hebrew pair — the column's, or the verse walk's line
     // under it — and draws from Onkelos's own rows.
-    var beside = !!besideTongue && /(^| )(tr|practice-targum)( |$)/.test(String(cell.className || ""));
+    var table = tableOf(cell);
+    var beside = !!table;
     var holder = beside && cell.closest ? cell.closest(".pair") : cell.parentNode;
     var segmentId = holder ? holder.getAttribute("data-id") : "";
     cell.innerHTML = original(cell);
@@ -2517,7 +2941,7 @@ var targumReader = function () {
     }
 
     var layers = [];
-    ((beside ? besideData : wordData)[segmentId] || []).forEach(function (token) {
+    (beside ? besideRows(table, segmentId) : wordData[segmentId] || []).forEach(function (token) {
       var lemma = lemmas[token[4]];
       var classes = ["w"];
       if (token[3]) classes.push("split");
@@ -2528,6 +2952,16 @@ var targumReader = function () {
       // the one case chosen, so choosing another redraws nothing.
       var inCase = token.length > 8 ? feat(grammarTable[token[8]] || "", "Case") : "";
       if (CASE_LENS.indexOf(inCase) >= 0) classes.push("case-" + inCase);
+      // And whether it is a verb that takes a preposition here, or that preposition's
+      // word, for the prepositions lens (`annotate/governed.py`).
+      var governedLine = token.length > 8 ? grammarTable[token[8]] || "" : "";
+      if (feat(governedLine, "Takes")) classes.push("gov-verb");
+      if (feat(governedLine, "Governor")) classes.push("gov-arg");
+      // And a Russian subject standing after its verb, for the word-order lens
+      // (`annotate/word_order.py`).
+      if (feat(governedLine, "Order") === "VS") classes.push("late-subject");
+      // And a vav-consecutive on a Biblical page, for the vav lens (targum-internal#449).
+      if (feat(governedLine, "Vav") === "Cons") classes.push("vav-cons");
       var status = statusOf(lemma);
       layers.push({
         start: at(token[0]),
@@ -2681,12 +3115,15 @@ var targumReader = function () {
     if (cell) markSegment(cell);
     // Onkelos, where it is on show beside this verse: its words take their levels from
     // the same pass (targum-internal#202).
-    if (besideTongue && besideData[segmentId]) {
-      var column = pair.querySelector(".tr");
-      var onShow = translationData[showing];
-      if (column && onShow && onShow.tokens) markSegment(column);
-      var walked = pair.querySelector(".practice-targum");
-      if (walked) markSegment(walked);
+    var column = pair.querySelector(".tr");
+    if (column && tableOf(column) && besideTables[showing].rows[segmentId]) markSegment(column);
+    var walked = pair.querySelector(".practice-targum");
+    if (walked && targumTable && besideTables[targumTable].rows[segmentId]) markSegment(walked);
+    // And the companions beside the verse that are on and have words (#414).
+    var beside = pair.querySelectorAll ? pair.querySelectorAll(".cmp:not([hidden]) > .cmp-text") : [];
+    for (var b = 0; b < beside.length; b++) {
+      var id = tableOf(beside[b]);
+      if (id && besideTables[id].rows[segmentId]) markSegment(beside[b]);
     }
   }
 
@@ -2698,6 +3135,12 @@ var targumReader = function () {
     // whole chapter for nothing.
     if (paged() && pages.length) {
       for (var p = pages[current][0]; p <= pages[current][1]; p++) markPair(pairs[p]);
+      return;
+    }
+    // Under a large picture with its transcript put away (#422), nothing of the text is
+    // on the page but the line under the picture — the same reason, the same answer.
+    if (main && !main.getClientRects().length) {
+      Array.prototype.forEach.call(document.querySelectorAll(".pair.film-said"), markPair);
       return;
     }
     var margin = window.innerHeight / 2;
@@ -2919,6 +3362,8 @@ var targumReader = function () {
   // know it is choosing what to read next, so it counts this text and not the language.
   function coverage() {
     var here = lemmasHere();
+    // `known` is marks only, as on the contents page and in the Library (QA 2026-10-11,
+    // READER-06, decision D5).
     var counts = { total: here.length, learning: 0, known: 0, ignored: 0, fresh: 0 };
     here.forEach(function (lemma) {
       var status = statusOf(lemma);
@@ -2992,12 +3437,17 @@ var targumReader = function () {
           if (left) {
             // Ink rather than leaf. Leaf is what you know; work still to do is not an
             // achievement, and colouring it as one would say the opposite of the number.
+            // Its own span since the bar became one row (#421): the row says how many of
+            // how many, and this rides with it where there is room.
+            var tail = document.createElement("span");
+            tail.className = "known-left";
             var rest = document.createElement("b");
             rest.className = "left";
             rest.textContent = String(left);
-            headerKnown.appendChild(document.createTextNode(" · "));
-            headerKnown.appendChild(rest);
-            headerKnown.appendChild(document.createTextNode(t("reader.header.left", " left")));
+            tail.appendChild(document.createTextNode(" · "));
+            tail.appendChild(rest);
+            tail.appendChild(document.createTextNode(t("reader.header.left", " left")));
+            headerKnown.appendChild(tail);
           }
         }
       }
@@ -3062,6 +3512,8 @@ var targumReader = function () {
     return TargumVocab.editor({
       status: entry.status,
       note: entry.note,
+      // The stage's name under the control, on every card (§12, 2026-10-09).
+      legend: true,
       placeholder: t("reader.card.own-meaning", "Your own meaning"),
       onStatus: function (value) {
         setPhrase(entry, { status: value });
@@ -3266,7 +3718,10 @@ var targumReader = function () {
     fill(phraseItems, phrases);
     renderEmpty();
     // A sheet grows when a word is kept, and the controls standing on it go up with it.
-    if (seatFoot()) relayout();
+    // On a wide window there is no sheet, only the list's tab, whose count changing is
+    // no reason to cut the pages again under a card the reader is answering (the list
+    // starts closed since 2026-10-09, so the tab is what most readers have there).
+    if (seatFoot() && !roomy.matches) relayout();
   }
 
   function showList(open, remembered) {
@@ -3315,11 +3770,13 @@ var targumReader = function () {
      turning a tablet does not find the state half-kept. */
   var occupant = null;
   var sheetWas = false;
-  /* The same bookkeeping as `sheetWas`, for the picture. A reader on a phone taps a word
-     and the card takes the band, which puts the film away — and the film is the reason
-     they are on the page. Sending them to the strip's toggle to fetch it back turns one
-     tap into three, so the band gives back what it took. */
-  var pictureWas = false;
+  //: The bar's panels by name (targum-internal#421), gathered here because the band's
+  //: bookkeeping below asks after them before the code that opens them has run.
+  var pops = {};
+  ["aa", "print", "voices", "rates"].forEach(function (name) {
+    var panel = document.getElementById(name);
+    if (panel) pops[name] = panel;
+  });
   var restoring = 0;
 
   function occupy(which) {
@@ -3350,12 +3807,8 @@ var targumReader = function () {
       showKeys(false);
     } else if (was === "more") {
       showMore(false);
-    } else if (was === "video") {
-      // Put away through its own closure, which holds the button state and the store.
-      // Remembered, because the reader did not put it away: the band took it, and what
-      // the band takes it gives back — see `vacate`.
-      pictureWas = true;
-      if (window.TargumVideo) window.TargumVideo.hide();
+    } else if (pops[was]) {
+      showPop(was, false);
     }
     if (which === "list") sheetWas = false;
   }
@@ -3368,22 +3821,12 @@ var targumReader = function () {
     // An overlay that leaves a sheet standing hands the band back to the sheet.
     occupant = overlay(which) && listBox && !listBox.hidden ? "list" : null;
     if (which === "list") sheetWas = false;
-    if (which === "video") pictureWas = false;
-    if ((!sheetWas && !pictureWas) || roomy.matches) return;
+    if (!sheetWas || roomy.matches) return;
     restoring = requestAnimationFrame(function () {
       restoring = 0;
       if (occupant !== null) return;
-      /* At most one of these is ever set: the band holds one occupant at a time, so a
-         sheet that was folded and a picture that was put away cannot both be waiting.
-         The sheet first anyway, so its behaviour is exactly what it was. */
-      if (sheetWas) {
-        sheetWas = false;
-        pictureWas = false;
-        showList(true, false);
-        return;
-      }
-      pictureWas = false;
-      if (window.TargumVideo) window.TargumVideo.show();
+      sheetWas = false;
+      showList(true, false);
     });
   }
 
@@ -3455,11 +3898,15 @@ var targumReader = function () {
       said["--foot"] = foot > 0 ? Math.round(foot) + "px" : null;
       var head = 0;
       residents().forEach(function (thing) {
-        if (standing(thing) && !atFoot(thing) && !thing.classList.contains("watching")) {
+        if (standing(thing) && !atFoot(thing)) {
           head = Math.max(head, thing.getBoundingClientRect().height);
         }
       });
       said["--head"] = head ? Math.round(head) + "px" : null;
+    } else if (document.body.classList.contains("film-panel") && standing(videoPanel)) {
+      // Theatre with its transcript open: the picture stands at the top of a wide window
+      // too, and the transcript scrolls under it (2026-10-11).
+      said["--head"] = Math.round(videoPanel.getBoundingClientRect().height) + "px";
     }
     var headWas = headNow;
     headNow = said["--head"] ? parseInt(said["--head"], 10) : 0;
@@ -3508,23 +3955,27 @@ var targumReader = function () {
      by the height of a picture that was nowhere near it — the strip floated a third of
      the way up a phone with empty paper beneath it and the text running behind it. The
      wide window already asks this question in `room`; the narrow one did not. */
+  //
+  // Since targum-internal#422 the picture always stands at the top on a phone, above its
+  // controls, with the transcript running under it — it is never in the band at all.
   function atFoot(thing) {
-    return !(
-      thing === videoPanel &&
-      thing.classList &&
-      (thing.classList.contains("dock-top-start") || thing.classList.contains("dock-top-end"))
-    );
+    return thing !== videoPanel;
   }
 
   // The menu behind ⋯ joined them on 2026-09-14, for the card's reason: it is a visit,
   // and opening it cut Genesis 1 from 26 pages into 31 on a phone (targum-internal#273).
   // A setting inside it that changes the page lays the page out itself.
   function overlays() {
-    return [card, chip, more];
+    return [card, chip, more].concat(
+      Object.keys(pops).map(function (name) {
+        return pops[name];
+      })
+    );
   }
 
+  // The bar's panels (#421) are visits like ⋯, and drawn over the page like it.
   function overlay(which) {
-    return which === "card" || which === "chip" || which === "more";
+    return which === "card" || which === "chip" || which === "more" || !!pops[which];
   }
 
   // Where a thing at the foot will stand once it has stopped moving. The strip, the
@@ -3576,6 +4027,11 @@ var targumReader = function () {
     residents().forEach(function (thing) {
       if (thing) watcher.observe(thing);
     });
+    // And the strip, which is not a resident but stands on the band: a recording that
+    // will not play says so on a row of its own on a phone, and the arrows and the
+    // last lines stood behind the taller strip until something else moved (reader QA,
+    // 2026-10-19).
+    if (scenePlayer) watcher.observe(scenePlayer);
   }
 
   /* --- what a word means --------------------------------------------------- */
@@ -3621,7 +4077,7 @@ var targumReader = function () {
     grab.type = "button";
     grab.className = "grab";
     // The bar carries no text, so it says what it is here rather than in the page.
-    grab.setAttribute("aria-label", "Close");
+    grab.setAttribute("aria-label", t("reader.page.close", "Close"));
     grab.addEventListener("click", close);
     return grab;
   }
@@ -3646,10 +4102,53 @@ var targumReader = function () {
   // The word is let go of straight away. What fades is chrome nobody is reading any
   // more, and a card that still claimed a word could be handed back to `showCard` after
   // the redraw had replaced the span it named.
-  var LINGER = 700;
+  //
+  // 1200ms, from 700: at 700 the card was gone before the stage's name under the control
+  // ("Getting there") could be read, so a press looked like it simply closed the card
+  // (design review, 2026-10-09).
+  var LINGER = 1200;
   // Matches `.gloss-card.going` in reader.css, which is where the fade itself lives.
   var FADE = 220;
   var fading = null;
+
+  // A hold on a word that outlives the redraw. `markSegment` sets its cell's markup
+  // again, so after `redraw()` the span a card was opened for is detached: it has no
+  // rectangle, and a card seated against it went to the top-left corner of the page
+  // (targum-internal#420). The cell itself stays, so the hold is the cell and the word's
+  // place among the cell's words — the same word, not merely the first with its lemma,
+  // which in a verse that says a word twice is the other one, and in an Onkelos or
+  // Rashi column is not in the cell that `wordIn` looks in at all.
+  function holdWord(word) {
+    var cell = word ? word.parentNode : null;
+    while (cell && cell.__targumHTML === undefined) cell = cell.parentNode;
+    var at = cell ? Array.prototype.indexOf.call(cell.querySelectorAll(".w"), word) : -1;
+    var lemma = word ? word.getAttribute("data-lemma") : null;
+    var bare = word ? word.getAttribute("data-bare") : null;
+    return function () {
+      if (!word) return null;
+      if (word.isConnected) return word;
+      if (!cell || !cell.isConnected) return null;
+      var now = cell.querySelectorAll(".w")[at];
+      if (now && now.getAttribute("data-lemma") === lemma && now.getAttribute("data-bare") === bare) {
+        return now;
+      }
+      return cell.querySelector('.w[data-lemma="' + lemma + '"]');
+    };
+  }
+
+  // The card rebuilt for the same word, standing where it stood. Placed by the rule it
+  // was first placed by, then its near edge put back: the rebuild can change its size —
+  // the first card ever carries a line the second does not — and a card centred again on
+  // its word slid sideways under the pointer that had just pressed it. The edge nearest
+  // the word stays (`placeNear` keeps that one) and the inline start stays here.
+  function showCardInPlace(word) {
+    var was = card && !card.hidden && roomy.matches ? card.getBoundingClientRect() : null;
+    showCard(word);
+    if (!was || card.hidden || !roomy.matches) return;
+    var box = card.getBoundingClientRect();
+    var left = Math.max(12, Math.min(was.left, window.innerWidth - box.width - 12));
+    card.style.left = left + window.scrollX + "px";
+  }
 
   function spendCard() {
     if (!card || card.hidden) return;
@@ -3853,7 +4352,7 @@ var targumReader = function () {
   // there is none, or where a comma or a stop comes first.
   var AUXILIARY_REACH = 4;
   function auxiliaryBefore(word) {
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var row = rowOf(word);
     if (!pair || !row || besideCell(word)) return null;
     var id = pair.getAttribute("data-id");
@@ -3932,6 +4431,111 @@ var targumReader = function () {
     }
     if (code === "modern") return gt("reader.grammar.modern-not-tanakh", "modern · not in the Tanakh");
     return "";
+  }
+
+  /* --- the card's list of what a word is (board WordCardDesk) -------------------------
+   * Two columns, a label and its value, drawn only where it holds a row. Rows are added
+   * after it is placed, so the list stands where the first of them belongs. */
+  function cardFacts() {
+    var list = document.createElement("dl");
+    list.className = "card-facts";
+    var placed = false;
+    var tail = null;
+    return {
+      add: function (label, value) {
+        if (!value) return;
+        var name = document.createElement("dt");
+        name.textContent = label;
+        if (!label) name.className = "card-facts-none";
+        var said = document.createElement("dd");
+        said.appendChild(value);
+        list.appendChild(name);
+        list.appendChild(said);
+        list.hidden = false;
+      },
+      place: function (host) {
+        if (placed) return;
+        placed = true;
+        list.hidden = !list.firstChild;
+        host.appendChild(list);
+      },
+      // Something wider than the list's second column, under the list.
+      after: function () {
+        var anchor = tail || list;
+        for (var i = 0; i < arguments.length; i++) {
+          if (!arguments[i]) continue;
+          anchor.parentNode.insertBefore(arguments[i], anchor.nextSibling);
+          anchor = tail = arguments[i];
+        }
+      },
+    };
+  }
+
+  // The kinds of word whose table of cases is worth a look: nouns, adjectives, pronouns.
+  var DECLINES = { NOUN: true, ADJ: true, PRON: true, DET: true, NUM: true };
+
+  // The word as this line has it, with the preposition that governs it where one stands
+  // straight before it: "в Петербурге", not "Петербурге" (board WordCardDesk).
+  function withGoverning(word, shown) {
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
+    var row = rowOf(word);
+    if (!pair || !row || besideCell(word)) return shown;
+    var id = pair.getAttribute("data-id");
+    var rows = wordData[id] || [];
+    var at = rows.indexOf(row);
+    if (at < 1) return shown;
+    var before = rows[at - 1];
+    var line = before.length > 8 ? grammarTable[before[8]] || "" : "";
+    if (feat(line, "UPOS") !== "ADP") return shown;
+    var text = segmentText(id);
+    if (!/^\s+$/.test(text.slice(before[1], row[0]))) return shown;
+    return text.slice(before[0], before[1]) + " " + shown;
+  }
+
+  // A preposition as a learner looks it up: a letter written onto the next word with a
+  // maqaf after it (ל־), a word of its own as it stands (על, את).
+  function prepositionShown(preposition) {
+    return preposition.length === 1 ? preposition + "\u05be" : preposition;
+  }
+
+  // The languages whose board says "noun" with no gender after it.
+  var NOUN_GENDER_UNSAID = { he: true, arc: true };
+
+  // What kind of word it is, in a word or two, at the right of the card's head.
+  function posLabel(line) {
+    var pos = feat(line, "UPOS");
+    var gendered = feat(line, "Gender");
+    var gender =
+      gendered === "Masc"
+        ? gt("reader.grammar.masculine", "masculine")
+        : gendered === "Fem"
+          ? gt("reader.grammar.feminine", "feminine")
+          : gendered === "Neut"
+            ? gt("reader.grammar.neuter", "neuter")
+            : "";
+    var plural = feat(line, "Number") === "Plur";
+    if (pos === "NOUN") {
+      var noun = gt("reader.grammar.pos.noun", "noun");
+      // The Hebrew board says noun alone, and its gender is in the Here line where it matters.
+      if (gender && !NOUN_GENDER_UNSAID[language]) noun = gt("reader.grammar.pos.noun-gender", "noun, {gender}", { gender: gender });
+      return plural ? noun + " · " + gt("reader.grammar.pos.plural", "plural") : noun;
+    }
+    var words = {
+      PROPN: gt("reader.grammar.pos.proper", "noun, proper"),
+      VERB: gt("reader.grammar.pos.verb", "verb"),
+      AUX: gt("reader.grammar.pos.verb", "verb"),
+      ADJ: gt("reader.grammar.pos.adjective", "adjective"),
+      ADV: gt("reader.grammar.pos.adverb", "adverb"),
+      PRON: gt("reader.grammar.pos.pronoun", "pronoun"),
+      DET: gt("reader.grammar.pos.determiner", "determiner"),
+      NUM: gt("reader.grammar.pos.number", "number"),
+      ADP: gt("reader.grammar.preposition", "preposition"),
+      CCONJ: gt("reader.grammar.conjunction", "conjunction"),
+      SCONJ: gt("reader.grammar.conjunction", "conjunction"),
+      PART: gt("reader.grammar.particle", "particle"),
+      INTJ: gt("reader.grammar.pos.interjection", "interjection"),
+    };
+    return Object.prototype.hasOwnProperty.call(words, pos) ? words[pos] : "";
   }
 
   // Case and aspect are said wherever a word carries them, and only Russian's words do:
@@ -4028,6 +4632,11 @@ var targumReader = function () {
         return kept ? role + " · " + kept : role;
       }
       var person = personWord(line);
+      // A Hebrew third person is its meaning again (הוא, "he": he), and DICTA files a
+      // demonstrative there too, so a bare "they" under "these" read as a mistranslation
+      // (targum-internal#489). The first and second keep theirs: "you (m, pl)" says what
+      // "you" cannot.
+      if (!inCase && language === "he" && feat(line, "Person") === "3") return "";
       if (!inCase) return person;
       return (person || gt("reader.grammar.pronoun", "pronoun")) + " · " + inCase;
     }
@@ -4104,12 +4713,22 @@ var targumReader = function () {
     };
     return Object.prototype.hasOwnProperty.call(words, english) ? words[english] : english;
   }
-  function builtIn(text) {
+  /* A piece that is the whole word over again names the word it comes from instead.
+   * DICTA does not always cut a pronoun ending off — the Aramaic ־הוֹן never — so
+   * תַּלְמִידֵיהוֹן came back as itself plus "with a pronoun on the end", and the card
+   * said the word was made from itself while תַּלְמִידֵי beside it said תלמיד. Mended
+   * here rather than in the annotation, because the verb tables read that piece as the
+   * verb as written, which it is.
+   */
+  function builtIn(text, surface, lemma) {
+    var whole = surface ? bareOf(surface) : "";
+    var head = lemma && bareOf(lemma) !== whole ? lemma : "";
     return String(text || "")
       .split(" + ")
       .map(function (piece) {
         var glued = /^([\u0590-\u05FF]+) (.+)$/.exec(piece);
         if (glued) return glued[1] + " " + builtWord(glued[2]);
+        if (head && bareOf(piece) === whole) return head;
         return /[\u0590-\u05FF]/.test(piece) ? piece : builtWord(piece);
       })
       .join(" + ");
@@ -4146,7 +4765,7 @@ var targumReader = function () {
     var button = document.createElement("button");
     button.type = "button";
     button.className = "hear";
-    button.title = "Hear";
+    button.title = label;
     button.setAttribute("aria-label", label);
     button.innerHTML = HEAR_GLYPH;
     button.addEventListener("click", function (event) {
@@ -4159,23 +4778,103 @@ var targumReader = function () {
   function hearFor(word) {
     // The recording is of the Hebrew; an Onkelos word has no clock in it.
     if (besideCell(word)) return null;
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return null;
-    return hearButton(
-      pair.getAttribute("data-id"),
-      parseInt(span[0], 10),
-      parseInt(span[1], 10),
-      t("reader.card.hear-word", "Hear this word")
+    return (
+      hearButton(
+        pair.getAttribute("data-id"),
+        parseInt(span[0], 10),
+        parseInt(span[1], 10),
+        t("reader.card.hear-word", "Hear this word")
+      ) || sayButton(word)
     );
   }
 
+  // The word said by the voice, where no recording covers it (2026-10-07: "would be
+  // nice if there was a way to play the word so I can hear what it sounds like"). The
+  // press is the spend, as a spoken reply's is; the server keeps the clip by the word,
+  // so a word anybody has heard is free. Only in the languages the voice reads
+  // (`speech.SPOKEN`), and only where a server is behind the page — a card offers what
+  // the page can do.
+  var VOICED = { he: true, fr: true, ru: true, it: true };
+  // Ends a word can be cut with that are not the word: spaces, maqaf, sof pasuq,
+  // punctuation.
+  var EDGES = /^[\s־׀׃.,;:!?"'()\[\]–—]+|[\s־׀׃.,;:!?"'()\[\]–—]+$/g;
+  var saidClips = {};
+
+  function sayButton(word) {
+    if (!canAsk() || typeof fetch !== "function" || typeof Audio !== "function") return null;
+    var tongue = wordLanguage(parseInt(word.getAttribute("data-lemma"), 10));
+    if (!VOICED[tongue]) return null;
+    var text = String(bareSurface(word) || "").replace(EDGES, "");
+    if (!text) return null;
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "hear";
+    button.title = t("reader.card.hear-word", "Hear this word");
+    button.setAttribute("aria-label", button.title);
+    button.innerHTML = HEAR_GLYPH;
+    var key = tongue + ":" + text;
+    function play(clip) {
+      var played = new Audio(clip).play();
+      if (played && played.catch) played.catch(function () {});
+    }
+    function failed(why, lost) {
+      button.removeAttribute("aria-busy");
+      if (lost) {
+        // targum out of reach: the banner says it, and its Try again presses again.
+        return unreachable(function () {
+          button.click();
+        });
+      }
+      var sentence = why || t("reader.card.could-not-say", "We couldn't say this word.");
+      say(sentence);
+      // And a line in the card, with Try again (design.md §12, 2026-10-09).
+      var host = button.parentNode;
+      if (!window.TargumFault || !host || !host.parentNode) return;
+      var old = host.parentNode.querySelector(".fault-line.said-fault");
+      if (old) old.parentNode.removeChild(old);
+      var line = window.TargumFault.line(sentence, function () {
+        if (line.parentNode) line.parentNode.removeChild(line);
+        button.click();
+      });
+      line.classList.add("said-fault");
+      host.parentNode.insertBefore(line, host.nextSibling);
+    }
+    button.addEventListener("click", function (event) {
+      event.stopPropagation();
+      if (saidClips[key]) return play(saidClips[key]);
+      if (button.getAttribute("aria-busy") === "true") return;
+      button.setAttribute("aria-busy", "true");
+      fetch(keyed("/say-word"), {
+        method: "POST",
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ text: text, language: tongue }),
+      })
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (answer) {
+          if (!answer || !answer.audio) return failed(answer && answer.error);
+          button.removeAttribute("aria-busy");
+          saidClips[key] = answer.audio;
+          play(answer.audio);
+        })
+        .catch(function () {
+          failed("", true);
+        });
+    });
+    return button;
+  }
+
   function levelOf(word) {
-    var pair = word.closest(".pair");
+    var pair = word.closest(".pair, .film-pair");
     if (!pair) return "";
     var segmentId = pair.getAttribute("data-id");
     var index = parseInt(word.getAttribute("data-lemma"), 10);
-    var match = ((besideCell(word) ? besideData : wordData)[segmentId] || []).filter(function (token) {
+    var cell = besideCell(word);
+    var match = (cell ? besideRows(tableOf(cell), segmentId) : wordData[segmentId] || []).filter(function (token) {
       return token[4] === index;
     })[0];
     return match ? bandOf(match) : "";
@@ -4231,7 +4930,13 @@ var targumReader = function () {
       // Said, not toggled. The back arrow lands on words already marked, and a level
       // pressed to confirm one took the mark off instead and walked on — silently. From
       // the keyboard a level means what it says; `u` is the way back.
-      setStatus(index, surface, levelOf(word), status);
+      if (setStatus(index, surface, levelOf(word), status) === LIST_FULL) {
+        if (!(lookedUp === word && card && !card.hidden)) {
+          showCard(word);
+          sayListFull();
+        }
+        return true;
+      }
       stopHover();
       var from = place;
       var open = asking();
@@ -4239,7 +4944,8 @@ var targumReader = function () {
       // so the span is detached afterwards and has no ancestors left to search — asking
       // a detached word for its sentence answers null, and the card shut itself on every
       // word marked with a pointer.
-      var pair = word.closest ? word.closest(".pair") : null;
+      var pair = word.closest ? word.closest(".pair, .film-pair") : null;
+      var held = holdWord(word);
       redraw();
       // The card asked what the word means and the level is an answer, so it is spent:
       // it fades where it stands rather than being carried on to the next word. See
@@ -4270,16 +4976,12 @@ var targumReader = function () {
         return true;
       }
       // `redraw()` rebuilds the spans, so the element the card was opened for is gone.
-      // Find its replacement by lemma in the same sentence rather than holding a
-      // reference to a node that is no longer in the page.
-      var again =
-        pair && pair.parentNode
-          ? wordIn(pair, '.w[data-lemma="' + index + '"]')
-          : null;
+      // Its replacement, in the same cell and at the same place — see `holdWord`.
+      var again = held();
       // Rebuilt before it is spent, so what the reader watches leave is the card with
       // the level they just said on it rather than the question it answered.
       if (again) {
-        showCard(again);
+        showCardInPlace(again);
         spendCard();
       } else hideCard();
       return true;
@@ -4304,12 +5006,20 @@ var targumReader = function () {
       // The field says what it is for, in the reader's words: the same line is its
       // accessible name, and "Enter text" was the one label on the card that was not.
       placeholder: t("reader.card.own-meaning", "Your own meaning"),
+      // Folded behind "Add your meaning" until asked for, where none is written yet: the
+      // board's card has no field (2026-10-09).
+      fold: true,
       onStatus: function (value) {
-        setStatus(index, surface, band, value);
+        // Held before the redraw, which replaces the span the card stands beside.
+        var held = holdWord(lookedUp);
+        if (setStatus(index, surface, band, value) === LIST_FULL) return;
         redraw();
         // Rebuilt rather than patched, so every button in the row agrees about which
-        // one is now set.
-        if (lookedUp) showCard(lookedUp);
+        // one is now set — and seated against the word's new span, so it stays beside
+        // the word it was opened for rather than going to the corner (#420).
+        var again = held();
+        if (again) showCardInPlace(again);
+        else if (lookedUp) hideCard();
         // And then spent, exactly as the same level said with a key is. A level answers
         // the question the card was opened to ask, whichever way it was said — but only
         // the keyboard path knew that, so a level tapped on a phone left the card
@@ -4336,11 +5046,12 @@ var targumReader = function () {
 
   // The bare surface of the word that was tapped, whichever cell it was tapped in.
   function bareSurface(word) {
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return word.textContent;
-    var text = besideCell(word)
-      ? besideBare(pair.getAttribute("data-id"))
+    var cell = besideCell(word);
+    var text = cell
+      ? besideBare(tableOf(cell), pair.getAttribute("data-id"))
       : segmentText(pair.getAttribute("data-id"));
     return text.slice(parseInt(span[0], 10), parseInt(span[1], 10)) || word.textContent;
   }
@@ -4369,6 +5080,88 @@ var targumReader = function () {
     return out;
   }
 
+  // How a Hebrew word is said, in letters a learner already reads (design.md §12,
+  // "The card says a Hebrew word in letters you read", 2026-10-12). The build stores
+  // phonikud's IPA, and a beginner cannot read χ, ʁ or ˈ: "hithaˈleχ" is "hit-ha-lékh".
+  // Latin for an English interface and Cyrillic for a Russian one, cut into syllables
+  // with hyphens, the stressed vowel under an acute the way a Russian card already marks
+  // stress ("рука́"). One syllable carries no accent: there is nowhere else for it to go.
+  // ʔ (alef, ayin) is not written: the hyphen already says a new syllable starts.
+  var PLAIN = {
+    en: { "χ": "kh", x: "kh", "ʃ": "sh", "ʒ": "zh", "ʁ": "r", j: "y", "tʃ": "ch", "dʒ": "j", "ʔ": "" },
+    ru: {
+      a: "а", e: "е", i: "и", o: "о", u: "у", b: "б", v: "в", g: "г", d: "д", h: "х", z: "з",
+      "χ": "х", x: "х", t: "т", j: "й", k: "к", l: "л", m: "м", n: "н", s: "с", f: "ф", p: "п",
+      ts: "ц", "tʃ": "ч", "dʒ": "дж", "ʒ": "ж", "ʁ": "р", r: "р", "ʃ": "ш", w: "в", "ʔ": ""
+    }
+  };
+  var PLAIN_ACUTE = { a: "á", e: "é", i: "í", o: "ó", u: "ú" };
+  function plainly(ipa, interfaceLanguage) {
+    var table = PLAIN[interfaceLanguage] || PLAIN.en;
+    var cyrillic = table === PLAIN.ru;
+    return String(ipa || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(function (word) {
+        // The sounds, an affricate as one, each vowel knowing whether it carries stress.
+        var units = [];
+        var stress = false;
+        for (var i = 0; i < word.length; i++) {
+          var ch = word.charAt(i);
+          if (ch === "ˈ") {
+            stress = true;
+            continue;
+          }
+          var two = word.substr(i, 2);
+          if (two === "ts" || two === "tʃ" || two === "dʒ") {
+            units.push({ sound: two });
+            i++;
+            continue;
+          }
+          ch = { "ɡ": "g", "ə": "e", "ɛ": "e", "ɔ": "o" }[ch] || ch;
+          if (/[aeiou]/.test(ch)) {
+            units.push({ sound: ch, vowel: true, stressed: stress });
+            stress = false;
+          } else if (/[a-zʃʒʁχʔ]/.test(ch)) {
+            units.push({ sound: ch });
+          }
+        }
+        var vowels = [];
+        units.forEach(function (unit, index) {
+          if (unit.vowel) vowels.push(index);
+        });
+        if (!vowels.length) return "";
+        // Where each syllable starts: one consonant between two vowels opens the next
+        // syllable, and of two or more the first closes the one before.
+        var starts = [0];
+        for (var v = 1; v < vowels.length; v++) {
+          var between = vowels[v] - vowels[v - 1] - 1;
+          starts.push(between < 2 ? vowels[v] - between : vowels[v - 1] + 2);
+        }
+        var syllables = starts.map(function (start, n) {
+          var end = n + 1 < starts.length ? starts[n + 1] : units.length;
+          var out = "";
+          var onset = true;
+          for (var u = start; u < end; u++) {
+            var unit = units[u];
+            var said = unit.sound in table ? table[unit.sound] : unit.sound;
+            if (unit.vowel) {
+              // Russian writes a syllable-initial e as э; after a consonant, е.
+              if (cyrillic && unit.sound === "e" && onset) said = "э";
+              if (unit.stressed && vowels.length > 1)
+                said = cyrillic ? said + "́" : PLAIN_ACUTE[unit.sound] || said;
+            }
+            if (said) onset = false;
+            out += said;
+          }
+          return out;
+        });
+        return syllables.filter(Boolean).join("-");
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+
   // What of this occurrence's reading was guessed rather than read off the text's own
   // marks, as the bits above; 0 where nothing was, or where the page cannot say.
   function guessOf(word) {
@@ -4393,7 +5186,7 @@ var targumReader = function () {
   var accentNames = null;
   function accentOf(word) {
     if (!prefs.nikkud || !prefs.taamim || besideCell(word)) return "";
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return "";
     var id = pair.getAttribute("data-id");
@@ -4449,10 +5242,13 @@ var targumReader = function () {
   // The token row under a tapped word — the one thing that knows this occurrence's
   // sound, build and grammar, which its dictionary form cannot.
   function rowOf(word) {
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return null;
-    var rows = (besideCell(word) ? besideData : wordData)[pair.getAttribute("data-id")] || [];
+    var cell = besideCell(word);
+    var rows = cell
+      ? besideRows(tableOf(cell), pair.getAttribute("data-id"))
+      : wordData[pair.getAttribute("data-id")] || [];
     var start = parseInt(span[0], 10);
     var end = parseInt(span[1], 10);
     for (var i = 0; i < rows.length; i++) {
@@ -4468,13 +5264,15 @@ var targumReader = function () {
     var seen = {};
     var out = [];
     seen[surface.toLowerCase()] = true;
-    var table = besideIndex(index) ? besideData : wordData;
+    // A lemma only a rendering has is looked for in that rendering's lines.
+    var from = lemmaTable[index] || "";
+    var table = from ? besideTables[from].rows : wordData;
     var ids = Object.keys(table).sort();
     for (var i = 0; i < ids.length && out.length < FORMS_SHOWN; i++) {
       var rows = table[ids[i]] || [];
       for (var r = 0; r < rows.length && out.length < FORMS_SHOWN; r++) {
         if (rows[r][4] !== index) continue;
-        var text = table === besideData ? besideBare(ids[i]) : segmentText(ids[i]);
+        var text = from ? besideBare(from, ids[i]) : segmentText(ids[i]);
         var form = text.slice(rows[r][0], rows[r][1]).toLowerCase();
         if (!form || seen[form]) continue;
         seen[form] = true;
@@ -4517,19 +5315,187 @@ var targumReader = function () {
 
   function showCase(name) {
     var chosen = CASE_LENS.indexOf(name) >= 0 ? name : "";
-    if (chosen) body.setAttribute("data-case", chosen);
-    else body.removeAttribute("data-case");
+    if (chosen) {
+      body.setAttribute("data-case", chosen);
+      showGoverned(false, true);
+      showOrder(false, true);
+      showVav(false, true);
+    } else body.removeAttribute("data-case");
     if (caseLens) caseLens.value = chosen;
     say(
       chosen
-        ? t("reader.case.said", "{case}, {n} here.", { case: caseWord(chosen), n: caseCounts[chosen] })
+        ? cueOnce("case", t("reader.case.cue", "Every word lit is in the {case}.", { case: caseWord(chosen) })) ||
+            t("reader.case.said", "{case}, {n} here.", { case: caseWord(chosen), n: caseCounts[chosen] })
         : t("reader.case.none", "No case shown.")
     );
   }
 
+  /* --- lenses wait for a second read -------------------------------------------
+   *
+   * design.md §12, "Lenses wait for a second read" (2026-10-13), from the research in
+   * targum-internal#439: lighting a feature buys a little form at a cost to
+   * comprehension, and only with a line saying what to look at. So no lens is offered on
+   * a first read: its row appears once this part is finished, or when the text is
+   * opened again. One lens is on at a time, the first time one is turned on it says
+   * what it shows, and none is remembered past the page.
+   */
+  var lensRows = document.querySelectorAll(".lens-row");
+  var cued = {};
+
+  function cueOnce(name, line) {
+    if (cued[name]) return "";
+    cued[name] = true;
+    return line;
+  }
+
+  function offerLenses() {
+    Array.prototype.forEach.call(lensRows, function (row) {
+      row.hidden = false;
+    });
+  }
+
+  var governedLens = document.querySelector("[data-governed-lens]");
+  // Counted off the page's data rather than the drawn words, which may not be drawn yet.
+  function governedCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Takes")) count++;
+      });
+    });
+    return count;
+  }
+
+  // One lens at a time: turning one on turns the case and the other switch off, and every
+  // switch says whether it is the one on.
+  function lensOn(name) {
+    if (name) {
+      body.setAttribute("data-lens", name);
+      if (body.getAttribute("data-case")) {
+        body.removeAttribute("data-case");
+        if (caseLens) caseLens.value = "";
+      }
+    } else body.removeAttribute("data-lens");
+    if (governedLens) governedLens.setAttribute("aria-pressed", name === "governed" ? "true" : "false");
+    if (orderLens) orderLens.setAttribute("aria-pressed", name === "order" ? "true" : "false");
+    if (vavLens) vavLens.setAttribute("aria-pressed", name === "vav" ? "true" : "false");
+  }
+
+  function showGoverned(on, quietly) {
+    if (!governedLens) return false;
+    if (on) lensOn("governed");
+    else if (body.getAttribute("data-lens") === "governed") lensOn("");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce(
+            "governed",
+            t("reader.lens.governed-cue", "Each verb lit takes the preposition lit beside it, in this line.")
+          ) || t("reader.lens.governed-said", "Prepositions verbs take, {n} here.", { n: governedCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  /* The word-order lens: a Russian subject that comes after its verb, lit (design.md §12,
+   * "Subjects after their verb, on a lens", 2026-10-13). Russian says who did it with the
+   * ending, so "Книгу написал Толстой" is Tolstoy writing the book, and a reader who takes
+   * the first noun for the subject reads it backwards. */
+  var orderLens = document.querySelector("[data-order-lens]");
+  function orderCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Order") === "VS") count++;
+      });
+    });
+    return count;
+  }
+
+  function showOrder(on, quietly) {
+    if (!orderLens) return false;
+    if (on) lensOn("order");
+    else if (body.getAttribute("data-lens") === "order") lensOn("");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce("order", t("reader.lens.order-cue", "Each word lit is the subject of a verb before it.")) ||
+            t("reader.lens.order-said", "Subjects after their verb, {n} here.", { n: orderCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (orderLens) {
+    orderLens.addEventListener("click", function () {
+      showOrder(body.getAttribute("data-lens") !== "order");
+    });
+  }
+
+  // `w` turns the word-order lens on and off, where the page has it and it is offered.
+  function toggleOrder() {
+    if (!orderLens || orderLens.hidden) return false;
+    return showOrder(body.getAttribute("data-lens") !== "order");
+  }
+
+  /* The vav lens: every vav-consecutive on a Biblical page, lit (targum-internal#449,
+   * 2026-10-21). ויאמר is spelled as the future, "he will say", and read as the past, "he
+   * said"; the narrative runs on it, and a reader who takes the spelling at its word reads
+   * the whole story as yet to happen. */
+  var vavLens = document.querySelector("[data-vav-lens]");
+  function vavCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Vav") === "Cons") count++;
+      });
+    });
+    return count;
+  }
+
+  function showVav(on, quietly) {
+    if (!vavLens) return false;
+    if (on) lensOn("vav");
+    else if (body.getAttribute("data-lens") === "vav") lensOn("");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce("vav", t("reader.lens.vav-cue", "Each word lit is a future form the vav turns into the past.")) ||
+            t("reader.lens.vav-said", "The narrative past, {n} here.", { n: vavCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (vavLens) {
+    vavLens.addEventListener("click", function () {
+      showVav(body.getAttribute("data-lens") !== "vav");
+    });
+  }
+
+  // `y` turns the vav lens on and off, where the page has it and it is offered.
+  function toggleVav() {
+    if (!vavLens || vavLens.hidden) return false;
+    return showVav(body.getAttribute("data-lens") !== "vav");
+  }
+
+  if (openedBefore || finishedAt()) offerLenses();
+
+  if (governedLens) {
+    governedLens.addEventListener("click", function () {
+      showGoverned(body.getAttribute("data-lens") !== "governed");
+    });
+  }
+
+  // `r` turns the prepositions lens on and off, where the page has it and it is offered.
+  function toggleGoverned() {
+    if (!governedLens || governedLens.hidden) return false;
+    return showGoverned(body.getAttribute("data-lens") !== "governed");
+  }
+
   // `c` steps through the cases this page has, and past the last one back to none.
   function nextCase() {
-    if (!caseLens) return false;
+    if (!caseLens || caseLens.closest(".lens-row").hidden) return false;
     var present = CASE_LENS.filter(function (name) {
       return caseCounts[name] > 0;
     });
@@ -4651,14 +5617,29 @@ var targumReader = function () {
     return box;
   }
 
-  function conjugations(index, surface) {
-    var rows = conjugationTables[paradigmAt[index] || 0];
+  // The table this occurrence draws: its own where the page carries one, else the word's.
+  function paradigmOf(index, word, row) {
+    var pair = word && word.closest ? word.closest(".pair, .film-pair") : null;
+    if (pair && row && !besideCell(word)) {
+      var id = pair.getAttribute("data-id");
+      var at = (wordData[id] || []).indexOf(row);
+      var here = paradigmsHere[id] || [];
+      for (var i = 0; i < here.length; i++) {
+        if (here[i][0] === at) return here[i][1];
+      }
+    }
+    return paradigmAt[index] || 0;
+  }
+
+  function conjugations(index, surface, word, row) {
+    var rows = conjugationTables[paradigmOf(index, word, row)];
     if (!rows || !rows.length) return null;
 
     var box = document.createElement("details");
     box.className = "card-conj";
     var head = document.createElement("summary");
-    head.textContent = t("reader.card.the-table", "All its forms");
+    // Board WordCardDesk: "All forms of אָמַר →".
+    mixedLine(head, t("reader.card.all-forms-of", "All forms of {word}", { word: wordOf(lemmas[index]) }) + " \u2192");
     box.appendChild(head);
 
     // Grouped by tense, in the order a table is laid out, with anything the source did
@@ -4801,6 +5782,8 @@ var targumReader = function () {
       })
       .then(function (me) {
         granted = !!(me && me.granted);
+        var plan = (me && me.plan) || {};
+        planWords = plan.on && plan.words ? Number(plan.words) || null : null;
         if (then) then();
       })
       .catch(function () {
@@ -4860,6 +5843,19 @@ var targumReader = function () {
           })
           .then(function (answer) {
             row.innerHTML = "";
+            var lost = t("reader.card.correction-lost", "We couldn't send your correction.");
+            if (!(answer && answer.proposed) && window.TargumFault) {
+              // A line with Try again, which sends what was written once more.
+              row.appendChild(
+                window.TargumFault.line(lost, function () {
+                  row.innerHTML = "";
+                  row.appendChild(form);
+                  go.disabled = false;
+                  go.click();
+                })
+              );
+              return;
+            }
             var thanks = document.createElement("p");
             thanks.className = "fix-said";
             thanks.textContent =
@@ -4868,11 +5864,14 @@ var targumReader = function () {
                     "reader.card.correction-taken",
                     "Thanks. We'll check it before it changes for anyone."
                   )
-                : t("reader.card.correction-lost", "We couldn't send that. Try again later.");
+                : lost;
             row.appendChild(thanks);
           })
           .catch(function () {
             go.disabled = false;
+            unreachable(function () {
+              go.click();
+            });
           });
       });
       row.appendChild(form);
@@ -4904,6 +5903,8 @@ var targumReader = function () {
     var lemma = lemmas[index];
     if (!showsOccurrences()) return null;
     if (Object.prototype.hasOwnProperty.call(comesRound, lemma)) return comesRound[lemma];
+    // Not asked with no connection, so that it is asked once there is one.
+    if (away()) return null;
     comesRound[lemma] = null;
     var query =
       "?lemma=" + encodeURIComponent(lemma) +
@@ -4972,10 +5973,26 @@ var targumReader = function () {
   // How often here and in the Tanakh, and where the reader met it. Null for nothing.
   function roundLines(index, root, redraw) {
     var said = roundOf(index, root, redraw);
+    if (!said && away() && showsOccurrences()) {
+      var later = document.createElement("span");
+      later.className = "card-round card-later";
+      later.textContent = t(
+        "reader.card.met-when-back",
+        "Where else you've met it shows when you're back online."
+      );
+      return later;
+    }
     if (!said) return null;
     var box = document.createElement("span");
     box.className = "card-round";
+    // How many of the reader's texts it was met in, as the board's label over the stage
+    // control says it ("Met in 3 texts"), then how often here and in the Tanakh. The
+    // texts themselves are named on the label for a pointer and a screen reader.
     var counts = [];
+    var texts = said.met && said.met.length ? said.met.length + (Number(said.more) || 0) : 0;
+    if (texts) {
+      counts.push(tn("reader.card.met-in-texts", texts, "Met in {n} text", "Met in {n} texts", { n: texts }));
+    }
     if (said.here) counts.push(t("reader.card.times-here", "{n}× in this text", { n: said.here }));
     if (said.tanakh) {
       counts.push(t("reader.card.times-tanakh", "{n}× in the Tanakh", { n: said.tanakh }));
@@ -4986,18 +6003,17 @@ var targumReader = function () {
       often.textContent = counts.join(" · ");
       box.appendChild(often);
     }
-    if (said.met && said.met.length) {
+    if (texts) {
       var places = said.met.join(", ");
-      var where = document.createElement("span");
-      where.className = "card-met";
+      var named = said.more
+        ? t("reader.card.met-in-more", "met in {places} and {n} more", { places: places, n: said.more })
+        : t("reader.card.met-in", "met in {places}", { places: places });
+      box.title = named;
+      var spoken = document.createElement("span");
+      spoken.className = "card-met card-met-said";
       // A title may be Hebrew in an English line; each run gets its own `bdi`.
-      mixedLine(
-        where,
-        said.more
-          ? t("reader.card.met-in-more", "met in {places} and {n} more", { places: places, n: said.more })
-          : t("reader.card.met-in", "met in {places}", { places: places })
-      );
-      box.appendChild(where);
+      mixedLine(spoken, named);
+      box.appendChild(spoken);
     }
     return box.firstChild ? box : null;
   }
@@ -5014,8 +6030,21 @@ var targumReader = function () {
     // to know what the word was, and that is the whole of the signal the foot reports.
     //
     noteLookUp(index);
+    // Who is reading, once, before a stage is pressed: the plan's word cap rides it. The
+    // card is drawn again only where the answer adds the correction row to it.
+    askGranted(function () {
+      if (granted && lookedUp === word) showCard(word);
+    });
     var askedIn = word.closest ? word.closest("[data-id]") : null;
-    happened({ kind: "lookup", segment: askedIn ? askedIn.getAttribute("data-id") || "" : "" });
+    // And which word, as the ledger files it — its dictionary form, under the language of
+    // the row it stands in — so the week's sheet can list what was looked up
+    // (targum-internal#105). A name is not vocabulary and goes without one.
+    happened({
+      kind: "lookup",
+      segment: askedIn ? askedIn.getAttribute("data-id") || "" : "",
+      word: isNameAt(index) ? "" : wordOf(lemma),
+      language: wordLanguage(index),
+    });
 
     // The old card first, then the band: `hideCard` vacates the band, and taking it
     // before that would hand it straight back to the sheet under the new card.
@@ -5025,6 +6054,19 @@ var targumReader = function () {
     word.classList.add("looked-up");
     card.textContent = "";
     card.appendChild(grabHandle(hideCard));
+    // The sheet's ×, at its start, as board WordCardPhone draws it (design.md §12, "The
+    // reader's chrome is the desk's", 2026-10-09). A wide window's card has Escape and a
+    // press elsewhere, and draws none.
+    var shut = document.createElement("button");
+    shut.type = "button";
+    shut.className = "card-x";
+    shut.setAttribute("aria-label", t("reader.page.close", "Close"));
+    shut.textContent = "\u00d7";
+    shut.addEventListener("click", function (event) {
+      event.stopPropagation();
+      hideCard();
+    });
+    card.appendChild(shut);
 
     // Two different things. The card shows the word as it sits on the page, points and
     // all, because that is what was tapped; the list stores the bare form, so the same
@@ -5079,6 +6121,27 @@ var targumReader = function () {
         // Asked and answered: there is nothing to find. Offering the button again
         // would only buy the same silence twice.
         meaning.textContent = t("reader.card.found-nothing", "we found nothing — write your own");
+      } else if (away()) {
+        // No connection: the press is kept and made when there is one (design.md §12,
+        // 2026-10-09), the same request a tap makes, so the same cost and no other.
+        var later = laterAsk(index, word);
+        if (window.TargumOffline && window.TargumOffline.askedLater(later.body.lemma, later.body.target)) {
+          var waiting = document.createElement("span");
+          waiting.className = "caveat card-later";
+          waiting.textContent = t("reader.card.looking-later", "We'll look it up when you're back.");
+          card.appendChild(waiting);
+        } else if (window.TargumOffline && window.TargumFault) {
+          card.appendChild(
+            window.TargumFault.line(
+              t("reader.card.needs-connection", "Looking this word up needs the connection."),
+              t("reader.card.look-up-later", "Look it up when I'm back"),
+              function () {
+                window.TargumOffline.askLater(later);
+                if (lookedUp === word) showCard(word);
+              }
+            )
+          );
+        }
       } else {
         if (!peeked[glossedAs(index)]) {
           peeked[glossedAs(index)] = true;
@@ -5098,12 +6161,33 @@ var targumReader = function () {
           ask.disabled = true;
           ask.classList.add("looking");
           ask.textContent = t("reader.card.looking", "looking…");
+          // Past three seconds it says it is still at it (design.md §14, slow), so a
+          // look-up the model is slow over does not read as one that died.
+          setTimeout(function () {
+            if (ask.isConnected && ask.classList.contains("looking")) {
+              ask.textContent = t("reader.card.still-looking", "still looking…");
+            }
+          }, 3000);
           lookUp(index, sentenceOf(word), function () {
             if (lookedUp === word) showCard(word);
           });
         };
         card.appendChild(ask);
-        if (outcome) {
+        if (outcome && window.TargumFault) {
+          // A line where the meaning would be, and Try again asks once more (design.md
+          // §12, 2026-10-09). The answer that refused is forgotten first, or the ask
+          // would stop at the one already made.
+          ask.hidden = true;
+          card.appendChild(
+            window.TargumFault.line(outcome, function () {
+              var asking = glossedAs(index);
+              asked[asking] = false;
+              delete lookup[asking];
+              ask.hidden = false;
+              ask.click();
+            })
+          );
+        } else if (outcome) {
           var trouble = document.createElement("span");
           trouble.className = "caveat";
           trouble.textContent = outcome;
@@ -5117,8 +6201,8 @@ var targumReader = function () {
       });
     }
 
-    // How it is said — the IPA bare, its stress mark being the half of the reading a
-    // learner cannot get from the spelling — and, where the page's own recording
+    // How it is said — in letters a learner reads, its stress being the half of the
+    // reading a learner cannot get from the spelling — and, where the page's own recording
     // covers this word, the word itself, said by the voice that read the page.
     var said = readingOf(word);
     var hear = hearFor(word);
@@ -5131,8 +6215,14 @@ var targumReader = function () {
         notation.className = "said";
         var heard = document.createElement("bdi");
         heard.setAttribute("dir", "ltr");
-        heard.setAttribute("lang", "he-fonipa");
-        heard.textContent = syllableStress(said);
+        if (language === "he") {
+          heard.setAttribute("lang", uiLanguage === "ru" ? "he-Cyrl" : "he-Latn");
+          heard.textContent = plainly(said, uiLanguage);
+        } else {
+          // French keeps its IPA: its liaison and its tie are written in it (§12).
+          heard.setAttribute("lang", "he-fonipa");
+          heard.textContent = syllableStress(said);
+        }
         notation.appendChild(heard);
         saying.appendChild(notation);
         // One word after the reading and outside it, where we guessed part of it — the
@@ -5181,22 +6271,72 @@ var targumReader = function () {
     // nothing here.
     var row = rowOf(word);
     var built = row && row.length > 7 ? builts[row[7]] || "" : "";
+    // The rest of what the word is, as a list of two columns (board WordCardDesk):
+    // Dictionary, In this line, Root, Binyan, and the way to all its forms under them.
+    var facts = cardFacts();
     if (built) {
       var pieces = document.createElement("span");
       pieces.className = "form";
-      pieces.appendChild(document.createTextNode(t("reader.card.from", "from ")));
-      mixedLine(pieces, builtIn(built));
-      card.appendChild(pieces);
+      mixedLine(pieces, builtIn(built, surface, wordOf(lemma)));
+      facts.add(t("reader.card.dictionary", "Dictionary"), pieces);
     } else if (wordOf(lemma) !== surface.toLowerCase() && wordOf(lemma) !== surface) {
-      var form = document.createElement("span");
-      form.className = "form";
-      form.appendChild(document.createTextNode(t("reader.card.from", "from ")));
       var bdi = document.createElement("bdi");
+      bdi.className = "form";
       bdi.setAttribute("lang", wordLanguage(index));
       bdi.textContent = wordOf(lemma);
-      form.appendChild(bdi);
-      card.appendChild(form);
+      facts.add(t("reader.card.dictionary", "Dictionary"), bdi);
     }
+    // A word with a case, as this line has it, with the preposition that governs it
+    // ("в Петербурге"), and the way to the whole table (board WordCardDesk, Russian).
+    var caseLine = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
+    if (caseWord(feat(caseLine, "Case"))) {
+      var inLine = document.createElement("bdi");
+      inLine.className = "form";
+      inLine.setAttribute("lang", wordLanguage(index));
+      inLine.textContent = withGoverning(word, shown);
+      facts.add(t("reader.card.in-this-line", "In this line"), inLine);
+      if (language === "ru" && DECLINES[feat(caseLine, "UPOS")]) {
+        var cases = document.createElement("a");
+        cases.className = "card-all";
+        cases.href = "https://en.openrussian.org/ru/" + encodeURIComponent(wordOf(lemma));
+        cases.target = "_blank";
+        cases.rel = "noopener noreferrer";
+        cases.textContent = t("reader.card.all-cases", "All its cases") + " \u2192";
+        facts.add("", cases);
+      }
+    }
+    // Which preposition a verb takes in this line, and which verb a preposition goes
+    // with: Hebrew's fourth hard spot, read off the syntax (design.md §12, "Governed
+    // prepositions on the card", 2026-10-13). The verb's card says what it takes here;
+    // the argument's says the verb it hangs on.
+    var takesLine = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
+    var taken = feat(takesLine, "Takes");
+    if (taken) {
+      var takes = document.createElement("bdi");
+      takes.className = "form";
+      takes.setAttribute("lang", wordLanguage(index));
+      takes.textContent = taken.split(",").map(prepositionShown).join(" \u00b7 ");
+      facts.add(t("reader.card.takes", "Takes"), takes);
+    }
+    var governor = feat(takesLine, "Governor");
+    var by = feat(takesLine, "Prep");
+    if (governor && by) {
+      var goes = document.createElement("bdi");
+      goes.className = "form";
+      goes.setAttribute("lang", wordLanguage(index));
+      goes.textContent = wordOf(governor) + " " + prepositionShown(by);
+      facts.add(t("reader.card.goes-with", "Goes with"), goes);
+    }
+    // A vav-consecutive says why it is past, though it is spelled as the future: Hebrew's
+    // eighth hard spot (targum-internal#449, 2026-10-21). Biblical text only, as the
+    // builder marks it.
+    if (feat(takesLine, "Vav") === "Cons") {
+      var vav = document.createElement("span");
+      vav.className = "card-vav";
+      vav.textContent = t("reader.card.vav-turns", "the vav turns the future form into narrative past");
+      facts.add(t("reader.card.vav-past", "Past"), vav);
+    }
+    facts.place(card);
 
     // The other shapes this word takes in this text. A Russian noun is met in one to three
     // forms far more often than in its table (Janda & Tyers 2018), and seeing руку and
@@ -5223,21 +6363,18 @@ var targumReader = function () {
     // binyan still shows on its own, and Pealim answers the rest.
     var root = roots[index];
     var binyan = binyanim[index];
+    var table = null;
     if (root || binyan) {
-      var verb = document.createElement("span");
-      verb.className = "verb";
       if (root) {
-        verb.appendChild(document.createTextNode(t("reader.card.root", "root ")));
         var shoresh = document.createElement("bdi");
         shoresh.className = "root";
         shoresh.setAttribute("lang", language);
         // Spaced out the way a root is written, so it reads as three letters rather
         // than as a word: כ־ת־ב, not כתב.
         shoresh.textContent = root.split("").join("\u05be");
-        verb.appendChild(rootLink(shoresh, index, root, redrawCard));
+        facts.add(t("reader.card.root-label", "Root"), rootLink(shoresh, index, root, redrawCard));
       }
       if (binyan) {
-        if (root) verb.appendChild(document.createTextNode(" · "));
         // Not `built`: that name is the pieces line above, and `var` is one binding
         // per function — shadowing it here silenced the split caveat for every verb.
         var pattern = document.createElement("bdi");
@@ -5246,10 +6383,14 @@ var targumReader = function () {
         // a worker, or for "verb" (2026-09-14). The stored name stays as the analyser
         // wrote it, so nothing already built needs building again.
         pattern.textContent = POINTED_BINYANIM[binyan] || binyan;
-        verb.appendChild(pattern);
+        facts.add(t("reader.card.binyan", "Binyan"), pattern);
       }
+      // All its forms, under the list: the table this page carries where it carries one
+      // (targum-internal#300, about six verbs in ten), and Pealim for the rest, and for
+      // anybody who wants more than a table.
+      table = conjugations(index, word.textContent, word, row);
       var pealim = document.createElement("a");
-      pealim.className = "pealim";
+      pealim.className = table ? "pealim" : "pealim card-all";
       // Pealim has a Russian site; a Russian page's reader goes to it (targum-internal#287).
       pealim.href =
         "https://www.pealim.com/" +
@@ -5258,14 +6399,15 @@ var targumReader = function () {
         encodeURIComponent(lemma);
       pealim.target = "_blank";
       pealim.rel = "noopener noreferrer";
-      pealim.textContent = t("reader.card.conjugations", "conjugations on Pealim");
-      verb.appendChild(pealim);
-      card.appendChild(verb);
-      // The table itself, where this page carries one (targum-internal#300). About six
-      // verbs in ten have one; Pealim above stays for the rest, and for anybody who
-      // wants more than a table.
-      var drawn = conjugations(index, word.textContent);
-      if (drawn) card.appendChild(drawn);
+      if (table) {
+        pealim.textContent = t("reader.card.conjugations", "conjugations on Pealim");
+      } else {
+        mixedLine(pealim, t("reader.card.all-forms-of", "All forms of {word}", { word: wordOf(lemma) }) + " \u2192");
+      }
+      if (table) facts.after(table, pealim);
+      else facts.add("", pealim);
+    }
+    if (root || binyan) {
       var kin = siblingLine(index);
       if (kin) card.appendChild(kin);
       var rootMet = root ? rootFamilyLine(index, root, redrawCard) : null;
@@ -5297,7 +6439,10 @@ var targumReader = function () {
       // keeps in front of a verb's parsing, the lying plural after a noun's gender.
       var cite = citations[index] || "";
       var lying = plurals[index] || "";
-      if (cite) usage = usage ? cite + " · " + usage : cite;
+      // The citation leads a parse and is never the whole line: alone, "Here: לקחת" names
+      // the infinitive as if it were the word in front of you, and on an infinitive it
+      // only says the word again (targum-internal#489).
+      if (cite && usage && bareOf(cite) !== bareOf(word.textContent)) usage = cite + " · " + usage;
       var rule = endingLine(grammarHere, endings[index]);
       if (rule) usage = usage ? usage + " · " + rule : rule;
       if (lying) {
@@ -5310,15 +6455,38 @@ var targumReader = function () {
       var dated = gt("reader.grammar.date", "date");
       usage = usage ? dated + " · " + usage : dated;
     }
+    // What kind of word it is, at the right of the word (board WordCardDesk: "verb",
+    // "noun, proper"); a name, a place or a number says which.
+    var kindOf = kindWord || posLabel(grammarHere);
+    if (kindOf) {
+      var posTag = document.createElement("span");
+      posTag.className = "card-pos";
+      posTag.textContent = kindOf;
+      headline.appendChild(posTag);
+      if (kindWord && usage === kindWord) usage = "";
+    }
     if (usage) {
       var use = document.createElement("span");
       use.className = "use";
       mixedLine(use, usage);
-      card.appendChild(use);
+      // What the word is here, said as the board's wash line does ("Here: prepositional,
+      // singular"), under the meaning rather than after the verb's lines (2026-10-09).
+      var hereRow = use;
+      if (!kindWord) {
+        hereRow = document.createElement("span");
+        hereRow.className = "use-here";
+        var hereLead = document.createElement("span");
+        hereLead.className = "use-lead";
+        hereLead.textContent = t("reader.card.here", "Here:") + " ";
+        hereRow.appendChild(hereLead);
+        hereRow.appendChild(use);
+      }
+      if (meaning.parentNode === card) card.insertBefore(hereRow, meaning.nextSibling);
+      else card.appendChild(hereRow);
     }
 
     // What a pronoun stands for, and a way to go to it (targum-internal#264).
-    var standsIn = word.closest ? word.closest(".pair") : null;
+    var standsIn = word.closest ? word.closest(".pair, .film-pair") : null;
     var standsHere = standsIn && row ? standingAt(standsIn.getAttribute("data-id"), row) : null;
     if (standsHere) {
       var stand = document.createElement("span");
@@ -5366,6 +6534,26 @@ var targumReader = function () {
       card.appendChild(other);
     }
 
+    // A verb of motion: which way it goes, and the verb that goes the other way. Both
+    // are imperfective, so the aspect line above cannot say it (annotate/motion.py).
+    var motion = (motions[index] || "").split(":");
+    if (motion.length === 2 && motion[1]) {
+      var way = document.createElement("span");
+      way.className = "verb motion";
+      way.appendChild(
+        document.createTextNode(
+          motion[0] === "one"
+            ? t("reader.card.motion-one", "one way, or under way now. There and back, or a habit: ")
+            : t("reader.card.motion-both", "there and back, or a habit. One way, or under way now: ")
+        )
+      );
+      var pair = document.createElement("bdi");
+      pair.setAttribute("lang", language);
+      pair.textContent = motion[1];
+      way.appendChild(pair);
+      card.appendChild(way);
+    }
+
     // Where the stress lands in the forms that move it: рука́ · ру́ку. Only for a word
     // whose stress does move; the dictionary form leads.
     var moves = stressLines[index] || "";
@@ -5399,6 +6587,35 @@ var targumReader = function () {
     // for either is `i`. Everything else keeps the editor exactly as it was.
     var level = levelOf(word);
     if (!(row && isName(row))) card.appendChild(statusRow(index, surface, level));
+    // The word said, at the end of the stage control (board WordCardDesk): the press a
+    // reader makes after reading the meaning, beside the one they make after hearing it.
+    var steps = card.querySelector(".vocab-editor .levels");
+    // The stage's name under the control and ignore at the other end of its line (board
+    // WordCardDesk: "Known · · · ignore").
+    var legendLine = card.querySelector(".vocab-editor .level-legend");
+    var ignoring = steps ? steps.querySelector(".level-" + IGNORED) : null;
+    if (legendLine && ignoring) {
+      var stageLine = document.createElement("div");
+      stageLine.className = "card-stage";
+      legendLine.parentNode.insertBefore(stageLine, legendLine);
+      stageLine.appendChild(legendLine);
+      stageLine.appendChild(ignoring);
+    }
+    if (hear && steps) {
+      var hearFrom = hear.parentNode;
+      hear.classList.add("card-hear");
+      steps.appendChild(hear);
+      if (hearFrom && hearFrom !== card && !hearFrom.textContent.trim() && !hearFrom.querySelector("button")) {
+        hearFrom.parentNode.removeChild(hearFrom);
+      }
+    }
+    // A stage pressed with no connection is kept here and goes when there is one.
+    if (away() && !(row && isName(row))) {
+      var held = document.createElement("span");
+      held.className = "card-held";
+      held.textContent = t("offline.held", "Saved here, sent when you're back");
+      card.appendChild(held);
+    }
 
     // A meaning can only be called wrong where there is one to call wrong.
     if (sense && !own) {
@@ -5463,6 +6680,19 @@ var targumReader = function () {
       q.className = "ask-q";
       q.textContent = turn.asked;
       row.appendChild(q);
+      if (turn.error && window.TargumFault) {
+        // A line with Try again, which asks the same question again in its place
+        // (design.md §12, 2026-10-09). It was the sentence in clay.
+        turn.node = null;
+        row.appendChild(
+          window.TargumFault.line(turn.text, function () {
+            var at = state.turns.indexOf(turn);
+            if (at > -1) state.turns.splice(at, 1);
+            askAbout(index, word, shown, lemma, turn.asked);
+          })
+        );
+        return;
+      }
       var a = document.createElement("p");
       a.className = "ask-a" + (turn.error ? " bad" : "") + (turn.done ? "" : " working");
       drawAnswer(a, turn.text);
@@ -5501,7 +6731,7 @@ var targumReader = function () {
     if (state.chat) {
       var on = document.createElement("a");
       on.className = "ask-on";
-      on.href = keyed("/chat") + "#" + encodeURIComponent(state.chat);
+      on.href = keyed(inItsLanguage("/chat")) + "#" + encodeURIComponent(state.chat);
       on.textContent = t("reader.ask.continue", "Continue in chat");
       // In the drawer, where there is one (2026-09-11): the conversation goes on here,
       // beside the text, rather than on a page of its own.
@@ -5590,11 +6820,11 @@ var targumReader = function () {
         return response.json();
       })
       .catch(function () {
-        return { error: t("reader.error.connect", "We couldn't connect. Try again.") };
+        return { error: t("reader.error.connect", "We can't reach targum.") };
       })
       .then(function (got) {
         if (!got || got.error) {
-          return settle((got && got.error) || t("reader.error.connect", "We couldn't connect. Try again."), true);
+          return settle((got && got.error) || t("reader.error.connect", "We can't reach targum."), true);
         }
         state.chat = got.chat;
         followAsk(got.chat, got.turn, draw, settle);
@@ -5632,7 +6862,7 @@ var targumReader = function () {
             why = {};
           }
           settle(
-            why.message || t("reader.error.conversation", "We couldn't continue the chat. Try again."),
+            why.message || t("reader.error.conversation", "We couldn't answer that."),
             true
           );
         } else if (source.readyState === 2) {
@@ -5651,7 +6881,7 @@ var targumReader = function () {
           return response.json();
         })
         .catch(function () {
-          return { error: t("reader.error.connect", "We couldn't connect. Try again."), done: true };
+          return { error: t("reader.error.connect", "We can't reach targum."), done: true };
         })
         .then(function (state) {
           if (state.error && state.done) return settle(state.error, true);
@@ -5807,14 +7037,81 @@ var targumReader = function () {
     // side of a word in the middle of the window. Growing upwards from a floor of 8px
     // is what used to put it back over the word. It takes the roomier side instead and
     // scrolls inside whatever that side has.
-    var under = window.innerHeight - rect.bottom - 8 - 12;
-    var over = rect.top - 8 - 12;
+    //
+    // Between the bar and the band at the foot, not the whole window (READER-10/12, QA
+    // 2026-10-11): the card stood over the next-page arrow and the words tab, and a
+    // verb's card ran under the foot of an 800px window with its stages out of reach.
+    var span = cardSpan();
+    var under = span.floor - rect.bottom - 8 - 12;
+    var over = rect.top - span.ceiling - 8 - 12;
     var below = box.height <= under || under >= over;
     var room = Math.max(below ? under : over, 0);
     if (box.height > room) element.style.maxHeight = room + "px";
     var height = Math.min(box.height, room);
     var top = below ? rect.bottom + 8 : rect.top - 8 - height;
     element.style.top = top + window.scrollY + "px";
+    // Kept in the page's own terms, so a card that grows after it is placed — a verb's
+    // root, its forms, where it was met, all arrive after the card opens — is placed
+    // again around the same word rather than running on past the floor.
+    element._near = {
+      left: rect.left + window.scrollX,
+      top: rect.top + window.scrollY,
+      width: rect.width,
+      height: rect.height,
+    };
+    element._placedAt = element.offsetHeight;
+    watchGrowth(element);
+  }
+
+  // Where a card may stand: under the bar, and over whatever is at the foot of the
+  // window — the arrows, the words tab, the player — wherever each is showing.
+  function cardSpan() {
+    var ceiling = 0;
+    var head = document.querySelector(".bar");
+    if (head) {
+      var top = head.getBoundingClientRect();
+      if (top.height && top.bottom > 0) ceiling = top.bottom;
+    }
+    var floor = window.innerHeight;
+    [document.getElementById("turn"), document.getElementById("player"), listTab].forEach(
+      function (thing) {
+        if (!thing || thing.hidden) return;
+        var box = thing.getBoundingClientRect();
+        if (!box.height || box.top <= ceiling || box.top >= window.innerHeight) return;
+        floor = Math.min(floor, box.top);
+      }
+    );
+    return { ceiling: ceiling, floor: floor };
+  }
+
+  function watchGrowth(element) {
+    if (element._watched || typeof ResizeObserver !== "function") return;
+    element._watched = true;
+    var asked = false;
+    // Placed again in the next frame, not inside the observer: placing caps a card that
+    // has run past its room, and a card that shrinks inside the callback that watched it
+    // grow is what the browser reports as "ResizeObserver loop completed with
+    // undelivered notifications" (beta triage, 2026-10-21).
+    function again() {
+      asked = false;
+      var near = element._near;
+      if (!near || element.hidden || !roomy.matches) return;
+      // Only growth that came after the placing; the cap placing sets is not news.
+      if (element.style.maxHeight || element.offsetHeight <= element._placedAt) return;
+      placeNear(element, {
+        left: near.left - window.scrollX,
+        top: near.top - window.scrollY,
+        right: near.left - window.scrollX + near.width,
+        bottom: near.top - window.scrollY + near.height,
+        width: near.width,
+        height: near.height,
+      });
+    }
+    new ResizeObserver(function () {
+      if (asked) return;
+      asked = true;
+      window.requestAnimationFrame(again);
+    }).observe(element);
   }
 
   // Named for what it places. It was `place`, which is also what the word queue calls
@@ -6006,7 +7303,6 @@ var targumReader = function () {
       // The span is the phrase and belongs to the source sentence; what it says is a
       // fact about the pair and goes where the words' meanings go.
       keepMeaning(phraseTerm(pick), reading);
-      if (listBox && listBox.hidden) showList(true);
       return pick;
     }
 
@@ -6033,6 +7329,8 @@ var targumReader = function () {
       element: TargumVocab.editor({
         status: pick ? pick.status : undefined,
         note: pick ? noteOn(phraseTerm(pick)) : "",
+        // The stage's name under the control, on every card (§12, 2026-10-09).
+        legend: true,
         placeholder: t("reader.card.own-meaning", "Your own meaning"),
         onStatus: apply,
         onNote: note,
@@ -6165,7 +7463,8 @@ var targumReader = function () {
       });
       placeChip(picked.rect);
       pickLevel = function (status) {
-        setStatus(index, surface, band, toggled(index, status));
+        if (already(index, status)) return;
+        if (setStatus(index, surface, band, status) === LIST_FULL) return;
         redraw();
         showPick(picked);
       };
@@ -6218,7 +7517,7 @@ var targumReader = function () {
           : editing.field(function () {
               showPick(picked);
             }),
-      action: existing > -1 ? "Remove" : "Keep",
+      action: existing > -1 ? t("reader.pick.remove", "Remove") : t("reader.pick.keep", "Keep"),
       onclick: function () {
         var list = picks[picked.segmentId] || (picks[picked.segmentId] = []);
         // A meaning typed into the field has kept the phrase already, under a card still
@@ -6243,7 +7542,6 @@ var targumReader = function () {
             note: "",
             at: nextOrder(),
           }));
-          if (listBox && listBox.hidden) showList(true);
         }
         remember();
         if (window.getSelection) window.getSelection().removeAllRanges();
@@ -6589,6 +7887,23 @@ var targumReader = function () {
     root.style.setProperty("--leading", prefs.leading);
     // Hebrew and Arabic keep their extra room as the leading moves.
     root.style.setProperty("--leading-rtl", (prefs.leading + 0.2).toFixed(2));
+    paintSize();
+    paintLeading();
+  }
+
+  // Line spacing's row in Aa says which of the four it is on, in the words the page was
+  // built with (`data-names`, in the order of LEADINGS), so a press that steps it on
+  // shows where it landed rather than only moving the text.
+  function paintLeading() {
+    var named = document.querySelector("[data-leading-name]");
+    // Asked before the list of spacings below is set, the first time the type is applied.
+    if (!named || !LEADINGS) return;
+    var names = (named.getAttribute("data-names") || "").split("|");
+    var at = 0;
+    for (var i = 0; i < LEADINGS.length; i++) {
+      if (Math.abs(prefs.leading - LEADINGS[i]) < 0.01) at = i;
+    }
+    if (names[at]) named.textContent = names[at];
   }
 
   // A cycle rather than a one-way increase, but one that includes the default and
@@ -6774,7 +8089,7 @@ var targumReader = function () {
   function anchor() {
     var word = standing && standing.parentNode ? standing : null;
     if (!word && lookedUp && lookedUp.parentNode) word = lookedUp;
-    var pair = word ? word.closest(".pair") : null;
+    var pair = word ? word.closest(".pair, .film-pair") : null;
     var top = ceiling();
     var box = pair ? pair.getBoundingClientRect() : null;
     // Unless they have scrolled away from it, in which case the word is somewhere they
@@ -6910,6 +8225,12 @@ var targumReader = function () {
   // would sit in the store for good; a reader coming back to a page they left half-read
   // comes back to it within a hundred pages of reading, or they are not coming back.
   var PLACES = 100;
+  // Whether a place was put back on this page, and whether the reader has moved since:
+  // either means a place arriving late from the account is not wanted (#430).
+  var placeFound = false;
+  var placeLeft = false;
+  // And which sentence it was, so a late answer naming the same one moves nothing.
+  var placeAt = "";
 
   // On the way out. Written from the same anchor a change of layout holds, so leaving a
   // reader and switching it to source keep the same place by the same rule: the word if
@@ -6917,10 +8238,21 @@ var targumReader = function () {
   function leavePlace() {
     var here = living ? anchor() : null;
     if (!here) return;
+    placeLeft = true;
     var span = here.word ? here.word.getAttribute("data-bare") || "" : "";
+    var atTop = !here.word && window.scrollY <= 2;
+    // And the text's one place, for Continue on any device (targum-internal#430): the
+    // part and the sentence. `sync.js` keeps it and decides when the account hears.
+    if (window.TargumSync && window.TargumSync.place) {
+      window.TargumSync.place(documentId, {
+        section: sectionId,
+        path: location.pathname,
+        segment: atTop ? "" : here.pair.getAttribute("data-id") || "",
+      });
+    }
     try {
       var all = read(PLACE, "{}");
-      if (!here.word && window.scrollY <= 2) {
+      if (atTop) {
         // A text the reader never moved in has no place in it: they opened it and left it
         // where it opened, and where it opens is where it opens again. Kept as the
         // absence of a record rather than as a record of the top, so that a place from an
@@ -7033,14 +8365,35 @@ var targumReader = function () {
   // On the way back in: the same words on the same line of the window as when the tab was
   // closed, so that coming back reads as picking the page up rather than as arriving
   // somewhere near where you were. The mark is what says which line it is.
-  function resume() {
+  function resume(late) {
     // Not over a position the browser has already chosen. A reload and the back button
     // both restore a scroll of their own, and both are the better answer: they are where
     // this reader was a moment ago rather than where they were last time.
-    if (location.hash || window.scrollY > 2) return;
+    //
+    // `late` is the account answering after the page opened, with the reader not moved
+    // since: the scroll is then this function's own, and the answer may be better.
+    if (location.hash || (!late && window.scrollY > 2)) return;
     var kept = read(PLACE, "{}")[placeKey] || {};
+    // The text's own place — which may have come from another device
+    // (targum-internal#430) — if it is in this part, and where this browser kept nothing
+    // for the page or kept an older sentence: the laptop read on after the phone stopped.
+    if (window.TargumSync && window.TargumSync.placeOf) {
+      var far = window.TargumSync.placeOf(documentId);
+      if (
+        far &&
+        String(far.section) === sectionId &&
+        far.segment &&
+        far.segment !== kept.segment &&
+        (!kept.segment || Number(far.at || 0) > Number(kept.at || 0))
+      ) {
+        kept = { segment: far.segment };
+      }
+    }
     var pair = kept.segment ? pairBySegment[kept.segment] : null;
     if (!pair) return;
+    if (late && kept.segment === placeAt) return;
+    placeFound = true;
+    placeAt = kept.segment;
     var word = null;
     if (/^\d+$/.test(String(kept.word || ""))) {
       // Its spans may never have been drawn: only a screenful is marked up front, and
@@ -7182,7 +8535,9 @@ var targumReader = function () {
     body.className = body.className.replace(/\bmode-\w+/g, "").trim();
     body.classList.add("mode-" + prefs.mode);
     Array.prototype.forEach.call(document.querySelectorAll("[data-mode]"), function (button) {
-      button.classList.toggle("on", button.getAttribute("data-mode") === prefs.mode);
+      var on = button.getAttribute("data-mode") === prefs.mode;
+      button.classList.toggle("on", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
     });
     placeSlide();
     hideCard();
@@ -7314,10 +8669,11 @@ var targumReader = function () {
    * once per layout with everything shown, which is what the scrolling page has always
    * cost, and never again until something moves.
    *
-   * Nothing here is fixed-height or overflow-hidden. The run fits the room by
-   * construction; a single pair taller than the room gets a page of its own and that
-   * page scrolls, which is the honest answer, and the last page scrolls to reach the
-   * pager and the offer at the foot.
+   * The run fits the room by construction. A single pair taller than the room — a
+   * verse with Rashi beside it — is cut between two of its lines across pages (`sliced`
+   * below), and the foot of the text takes a page of its own when the last page has no
+   * room for it, so no line of any page stands under the arrows, the count or the player
+   * (QA 2026-10-05). Only a cut verse's pair is given a height, and only while paged.
    */
   var turn = document.getElementById("turn");
   // The player floats at the foot too, so a page has to be measured around it the same
@@ -7331,33 +8687,17 @@ var targumReader = function () {
   var current = 0;
   var paging = false;
 
-  /* Whether a docked picture is standing in the way of paging.
+  /* Whether the picture is standing in the way of paging.
 
-     Paging cuts a page to what is left under the band, and on a phone a docked picture
-     takes about a third of the window. What would not fit goes to the next page, so the
-     text stopped short and left up to a full pair of empty paper under it — 182px
-     measured in every dock corner on an 844px window, and it moves with the window
-     height rather than staying still. Scrolling has no remainder, so there is nothing
-     to leave behind.
-
-     Watching is not suspended: the picture is the whole window then and there is no
-     reading column under it to cut. And the reader's own setting is never written to —
-     this reads it, so pages come back the moment the picture is closed or watched.
-
-     Closed by the reader, that is. A word's card takes the band and the band holds one
-     thing at a time, so the card puts the picture away — and gives it back when it goes
-     (`pictureWas`). That is a visit, not a closing, and it un-suspended paging all the
-     same: every tap on a word under a docked picture laid the chapter out in pages and
-     showed page one, the word the reader had asked about nowhere on the screen (David,
-     on his phone, 2026-09-20). A card covers the page and does not move it (design.md
-     §12), so while the picture is only put away for an overlay — or for the frame
-     between the overlay going and the picture coming back — nothing here has changed.
-     Put away for the words sheet is different: the sheet is a mode and means to stay,
-     and pages under it are what they always were. */
+     While a text's picture is up its transcript scrolls, at every width
+     (targum-internal#422): beside the picture it follows the voice down a column, in
+     Theatre it is a panel or not on the page at all, and on a phone it runs under the
+     picture. A page cut to the room the picture leaves would only leave paper under the
+     last line (182px of it, measured on a phone in 2026-09). The reader's own setting is
+     never written to — this reads it, so pages come back the moment the picture is put
+     away. A word's card is a visit and puts nothing away, so it changes nothing here. */
   function pagingSuspended() {
-    if (roomy.matches || !videoPanel) return false;
-    if (pictureWas && (occupant === null || overlay(occupant))) return true;
-    return !videoPanel.hidden && !videoPanel.classList.contains("watching");
+    return !!videoPanel && !videoPanel.hidden;
   }
 
   /* What the last layout was told, so a picture docking or closing can be noticed. */
@@ -7402,11 +8742,195 @@ var targumReader = function () {
     return out;
   }
 
-  function pageFor(index, list) {
+  // The page a pair is on: the first that holds it, which for a verse cut across pages
+  // is the one with the verse itself on it. `offset`, pixels down the pair, picks the
+  // piece of a cut verse that holds that height instead.
+  function pageFor(index, list, offset) {
+    var found = -1;
     for (var n = 0; n < list.length; n++) {
-      if (index >= list[n][0] && index <= list[n][1]) return n;
+      if (index < list[n][0] || index > list[n][1]) continue;
+      if (found < 0) found = n;
+      if (!offset || list[n].pair !== index || offset < list[n].to) return n;
     }
-    return 0;
+    return found < 0 ? 0 : found;
+  }
+
+  /* --- a verse taller than the page (QA 2026-10-05, B2) -------------------------------
+   *
+   * A verse with Rashi beside it runs to thirty lines on a phone and to more than a
+   * window on a laptop, and a pair could not be split: it got a page of its own, ran on
+   * under the arrows, the count and the player, and the reader read Rashi through them.
+   * Now such a pair is cut across pages between two lines — never through one — and each
+   * page shows its piece: the pair is clipped to it and drawn up by what is above the
+   * piece, so the page is still a run of whole lines that fits the room. The verse and
+   * its translation are on the first piece; the commentary carries on over the next.
+   * Print takes the clipping off with the rest of the paging.
+   */
+  // The heights down a pair where a cut would go through a line, merged into bands.
+  function linesOf(pair) {
+    var top = pair.getBoundingClientRect().top;
+    var lines = [];
+    var range = document.createRange();
+    var walker = document.createTreeWalker(pair, NodeFilter.SHOW_TEXT);
+    for (var node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.data.trim()) continue;
+      range.selectNodeContents(node);
+      var rects = range.getClientRects();
+      for (var i = 0; i < rects.length; i++) {
+        if (rects[i].height) lines.push([rects[i].top - top - 2, rects[i].bottom - top + 2]);
+      }
+    }
+    lines.sort(function (a, b) {
+      return a[0] - b[0];
+    });
+    var bands = [];
+    lines.forEach(function (line) {
+      var last = bands[bands.length - 1];
+      if (last && line[0] <= last[1]) last[1] = Math.max(last[1], line[1]);
+      else bands.push([line[0], line[1]]);
+    });
+    return bands;
+  }
+
+  // Where to cut a pair of `height`, the first piece in `first` pixels and every other in
+  // `room`: [0, cut, cut, ..., height]. Each cut is above the line the room ends in.
+  function cutsFrom(bands, height, first, room) {
+    var cuts = [0];
+    var from = 0;
+    var budget = first;
+    while (height - from > budget) {
+      var limit = from + budget;
+      var cut = limit;
+      for (var b = 0; b < bands.length; b++) {
+        if (bands[b][1] <= limit) continue;
+        if (bands[b][0] < limit) cut = bands[b][0];
+        break;
+      }
+      // A single line taller than the room is cut where the room ends, the one case
+      // where a line is split rather than a page left with nothing on it.
+      if (cut <= from + 24) cut = limit;
+      cut = Math.floor(cut);
+      cuts.push(cut);
+      from = cut;
+      budget = room;
+    }
+    cuts.push(height);
+    return cuts;
+  }
+
+  // The pages again, with any page that runs past the room cut at its last pair.
+  function sliced(list, tops, heights, room) {
+    var out = [];
+    list.forEach(function (range) {
+      var last = range[1];
+      var above = tops[last] - tops[range[0]];
+      if (above + heights[last] <= room + 1 || room - above < 80) {
+        out.push(range);
+        return;
+      }
+      var cuts = cutsFrom(linesOf(pairs[last]), heights[last], room - above, room);
+      for (var k = 0; k + 1 < cuts.length; k++) {
+        var page = k === 0 ? [range[0], last] : [last, last];
+        page.pair = last;
+        page.from = cuts[k];
+        page.to = cuts[k + 1];
+        page.height = heights[last];
+        out.push(page);
+      }
+    });
+    return out;
+  }
+
+  // What stands under the last pair on the last page — Done, the credits, the pager and
+  // what comes next — measured as it will stand there.
+  function tailHeight() {
+    var last = pairs[pairs.length - 1];
+    if (!last) return 0;
+    var had = body.classList.contains("last-page");
+    body.classList.add("last-page");
+    var from = last.getBoundingClientRect().bottom;
+    var to = from;
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".pager, .credits, .foot, .practice-step, .next-up"),
+      function (thing) {
+        if (thing.closest(".bar, .bar-pop, .bar-more")) return;
+        var box = thing.getBoundingClientRect();
+        if (box.height) to = Math.max(to, box.bottom);
+      }
+    );
+    if (!had) body.classList.remove("last-page");
+    return Math.max(0, to - from);
+  }
+
+  // Room on the last page for the foot of the text, so the credit line is not read
+  // through the arrows either. The last pair goes over to a page of its own with the
+  // foot where it fits there whole; where it does not, it is cut so that its last lines
+  // stand over the foot — the foot never stands on a page without the end of the text.
+  function withTail(list, tops, heights, room) {
+    var end = list[list.length - 1];
+    if (!end) return list;
+    var first = end[0];
+    var last = end[1];
+    var height = heights[last];
+    var cut = end.pair === last;
+    var from = cut ? end.from : 0;
+    var used = cut && from ? height - from : tops[last] + height - tops[first];
+    var tail = tailHeight();
+    if (!tail || used + tail <= room) return list;
+    var before = list.slice(0, -1);
+    if (!cut && first < last && height + tail <= room) {
+      return before.concat([[first, last - 1], [last, last]]);
+    }
+    // The first gap between lines at or below where the last piece has to begin.
+    var want = Math.max(from + 1, height - (room - tail));
+    var at = height;
+    var bands = linesOf(pairs[last]);
+    for (var b = 0; b < bands.length; b++) {
+      if (bands[b][0] >= want) {
+        at = Math.floor(bands[b][0]);
+        break;
+      }
+      if (bands[b][1] >= want) want = bands[b][1];
+    }
+    var head = end.slice();
+    head.pair = last;
+    head.from = from;
+    head.to = at;
+    head.height = height;
+    var foot = [last, last];
+    foot.pair = last;
+    foot.from = at;
+    foot.to = height;
+    foot.height = height;
+    return before.concat([head, foot]);
+  }
+
+  // A page that only carries on what an earlier page began: the rest of a verse's
+  // commentary. It has no words of the verse on it.
+  function carriesOn(n) {
+    return !!(pages[n] && pages[n].from);
+  }
+
+  var cutPair = null;
+  function unslice() {
+    if (!cutPair) return;
+    cutPair.classList.remove("sliced");
+    cutPair.style.removeProperty("--cut-top");
+    cutPair.style.removeProperty("--cut-size");
+    cutPair = null;
+  }
+
+  // The piece of a cut verse this page shows. The foot's own page shows none of it.
+  function slice(range) {
+    unslice();
+    if (range.pair === undefined) return;
+    var pair = pairs[range.pair];
+    if (!pair) return;
+    if (!range.from && range.to >= range.height) return;
+    pair.style.setProperty("--cut-top", range.from + "px");
+    pair.style.setProperty("--cut-size", range.to - range.from + "px");
+    pair.classList.add("sliced");
+    cutPair = pair;
   }
 
   // What is left of the window under the bar and above whatever floats at its foot.
@@ -7450,34 +8974,13 @@ var targumReader = function () {
         }
         foot = Math.max(foot, window.innerHeight - settledTop(thing, true) + 12);
       });
-    } else if (
-      videoPanel &&
-      !videoPanel.hidden &&
-      !videoPanel.classList.contains("watching") &&
-      !videoPanel.classList.contains("free")
-    ) {
-      /* The dock, on a wide window, where the panel is not in the band. The picture
-         covering the sentence being read was the complaint; §12 answered that a control
-         fixed over a page of text takes its room out of the layout rather than out of the
-         reading, so the corner it stands in is a corner the pages are cut around.
-         Watching is the whole window and budgets nothing: there is no reading column
-         under it to keep clear. Nor does a picture the reader picked up and put
-         somewhere (`free`, §12 2026-09-13): they chose where it covers, and cutting the
-         pages around that spot would move the words away from where they put it. */
-      var picture = videoPanel.getBoundingClientRect();
-      if (picture.height) {
-        var atTop =
-          videoPanel.classList.contains("dock-top-start") ||
-          videoPanel.classList.contains("dock-top-end");
-        if (atTop) top = Math.max(top, picture.bottom + 12);
-        else foot = Math.max(foot, window.innerHeight - picture.top + 12);
-      }
     }
     return Math.max(160, window.innerHeight - top - foot - 24);
   }
 
   function paginate() {
     if (!paged()) return;
+    unslice();
     pairs.forEach(function (pair) {
       pair.hidden = false;
     });
@@ -7505,8 +9008,10 @@ var targumReader = function () {
     var glue = pairs.map(function (pair) {
       return pair.classList.contains("head");
     });
-    pages = boundariesFrom(tops, heights, Math.max(160, room() - lead), opens, glue);
+    var budget = Math.max(160, room() - lead);
+    pages = boundariesFrom(tops, heights, budget, opens, glue);
     if (!pages.length) pages = [[0, pairs.length - 1]];
+    pages = withTail(sliced(pages, tops, heights, budget), tops, heights, budget);
   }
 
   function showPage(n, quiet) {
@@ -7514,6 +9019,7 @@ var targumReader = function () {
     current = Math.max(0, Math.min(pages.length - 1, n));
     var range = pages[current];
     for (var i = 0; i < pairs.length; i++) pairs[i].hidden = i < range[0] || i > range[1];
+    slice(range);
     body.classList.toggle("last-page", current === pages.length - 1);
     // The back arrow does nothing on the first page, and a button that does nothing
     // should say so — dimmed by the stylesheet, named inert for a screen reader. The
@@ -7668,7 +9174,16 @@ var targumReader = function () {
   function verseInHash() {
     var found = /^#(\d+)[:.](\d+)$/.exec(location.hash);
     var pair = found ? document.getElementById(found[1] + ":" + found[2]) : null;
-    return pair && pair.classList.contains("pair") ? pair : null;
+    if (pair && pair.classList.contains("pair")) return pair;
+    // Or a sentence by its id: where search's "Open at this sentence" lands (design.md
+    // §12, "One search, everywhere", 2026-10-09), through `/sentence/`.
+    var named = "";
+    try {
+      named = decodeURIComponent(location.hash.slice(1));
+    } catch (e) {
+      named = "";
+    }
+    return (named && pairBySegment[named]) || null;
   }
 
   function arrive() {
@@ -7680,7 +9195,10 @@ var targumReader = function () {
 
   // The same page after the layout has changed under it — the type a step larger, the
   // vowels on, the list open. Held by the pair the reader is on, not by a number.
-  function relayout() {
+  // `held`, where the caller knows the line better than the layout can tell afterwards:
+  // a picture put away above the transcript, whose going the browser's own scroll
+  // anchoring hides from `lineUnderTheBar` (#422).
+  function relayout(held) {
     /* The band first, and before any early return: a scrolling reader has a band too.
        Moving the picture from the foot to the top changes what stands there without
        changing any size, so no observer fires — and the only other way in returns early
@@ -7698,7 +9216,8 @@ var targumReader = function () {
          page one, and one who opened a picture on page nine was handed the top of the
          transcript. The place is the line they are on — the top of the page that was
          open, or the line under the bar of a scroll — taken before anything moves. */
-      var from = pages.length ? pairs[pages[current][0]] : lineUnderTheBar();
+      var from =
+        held && held.parentNode ? held : pages.length ? pairs[pages[current][0]] : lineUnderTheBar();
       applyPaged();
       /* Past the first line only. At the top of a text there is no place to keep, and
          bringing its first line under the bar takes the title off the screen — which is
@@ -7711,8 +9230,16 @@ var targumReader = function () {
       return;
     }
     if (!paging || !paged()) return;
-    var held = pages.length ? pairs[pages[current][0]] : null;
-    var here = anchor();
+    // A line the caller says the reader is on — the picture put away, then the strip
+    // coming up under it — is the place, before the page's first line: the strip makes
+    // every page shorter, and the line under the picture can go to the next one
+    // (2026-10-09, when the lines grew to the boards' size and it did).
+    var given = held && held.parentNode ? held : null;
+    held = given || (pages.length ? pairs[pages[current][0]] : null);
+    // How far down a cut verse the page was, so a relayout keeps the reader on the piece
+    // of the commentary they were reading rather than sending them back to the verse.
+    var down = held && !given && carriesOn(current) ? pages[current].from : 0;
+    var here = given ? null : anchor();
     // A word the reader stood on, and nothing weaker. `anchor` otherwise falls back to
     // whatever line the middle of the window lands on, which in page mode is a line they
     // have not chosen — and holding that turns the page under them.
@@ -7722,16 +9249,22 @@ var targumReader = function () {
     // line is now on page two — so a reader who had opened the text and touched nothing
     // was moved to page two a moment later. In page mode the page is the place, and only
     // a word the reader marked is a better answer than it.
-    if (here && here.word && here.pair && !here.pair.hidden) held = here.pair;
+    if (here && here.word && here.pair && !here.pair.hidden && here.pair !== held) {
+      held = here.pair;
+      down = 0;
+    }
     // And the verse a link named, while it is still on the page. The link turned to
     // its page in the fallback's metrics; the real face lands, the page is one line
     // shorter, and holding the page's first line hands the reader the page *before*
     // the verse they asked for. Once they have turned away from it, the page is the
     // place again.
     var linked = verseInHash();
-    if (linked && !linked.hidden) held = linked;
+    if (linked && !linked.hidden && linked !== held) {
+      held = linked;
+      down = 0;
+    }
     paginate();
-    showPage(held ? pageFor(pairs.indexOf(held), pages) : current, true);
+    showPage(held ? pageFor(pairs.indexOf(held), pages, down) : current, true);
   }
 
   /* The line a scrolling reader is on: the first whose foot is under the bar. Not
@@ -7762,6 +9295,7 @@ var targumReader = function () {
     if (turn) turn.hidden = !on;
     paging = true;
     if (!paged()) {
+      unslice();
       pairs.forEach(function (pair) {
         pair.hidden = false;
       });
@@ -7843,11 +9377,11 @@ var targumReader = function () {
       cell.textContent = entry.text[segmentId] || "";
       // The cell's text is new, so what was cached about the old one goes; Onkelos's
       // words are drawn into it (targum-internal#202).
-      if (besideTongue) {
+      if (Object.keys(besideTables).length) {
         cell.__targumHTML = undefined;
         cell.__targumText = undefined;
         cell.__targumMap = undefined;
-        if (entry.tokens && besideData[segmentId]) markSegment(cell);
+        if (besideTables[id] && besideTables[id].rows[segmentId]) markSegment(cell);
       }
       // The template stamps these from the first translation, so every other one wore
       // the first one's language — a Russian sentence marked English, punctuated at the
@@ -7930,6 +9464,82 @@ var targumReader = function () {
     });
   });
 
+  /* --- beside the verse (targum-internal#414) ------------------------------------
+   *
+   * On a Torah carrying Onkelos and Rashi, each sits under the verse in a column of its
+   * own, the way a printed chumash sets them, and each is on or off on its own — and so
+   * is the translation. Kept per reader rather than per text (`prefs.companions`, by the
+   * companion's key, the same on every book and portion), because whether somebody reads
+   * Rashi is a fact about them, the way the chanting marks are. A choice never made is
+   * the page's own default: the translation, Onkelos and Rashi on, Rashi in English off.
+   *
+   * The cells are written into the page, hidden where a companion is off, so turning one
+   * on is a class and not a fetch. Their text is put back from the payload here, like the
+   * column's, so a word's offsets are counted against the text the words were read from.
+   */
+  var companionGroup = document.getElementById("companions");
+  var companionKeys = companionGroup
+    ? Array.prototype.slice.call(companionGroup.querySelectorAll(".companion"))
+    : [];
+  if (!prefs.companions || typeof prefs.companions !== "object") prefs.companions = {};
+
+  function companionOn(key) {
+    var kept = prefs.companions[key.getAttribute("data-companion")];
+    if (kept === true || kept === false) return kept;
+    return key.getAttribute("data-on") === "1";
+  }
+
+  function applyCompanions() {
+    var any = false;
+    companionKeys.forEach(function (key) {
+      var name = key.getAttribute("data-companion") || "";
+      var on = companionOn(key);
+      key.classList.toggle("on", on);
+      key.setAttribute("aria-pressed", on ? "true" : "false");
+      if (name === "translation") {
+        body.classList.toggle("translation-off", !on);
+        return;
+      }
+      if (on) any = true;
+      var shown = document.querySelectorAll('.cmp[data-companion="' + name + '"]');
+      for (var i = 0; i < shown.length; i++) shown[i].hidden = !on;
+    });
+    body.classList.toggle("beside-on", any);
+  }
+
+  Array.prototype.slice.call(document.querySelectorAll(".cmp")).forEach(function (cell) {
+    var entry = translationData[cell.getAttribute("data-t") || ""];
+    var pair = cell.closest ? cell.closest(".pair") : null;
+    var text = cell.querySelector(".cmp-text");
+    if (!entry || !entry.text || !pair || !text) return;
+    var line = entry.text[pair.getAttribute("data-id")] || "";
+    text.textContent = line === "\u2014" ? "" : line;
+  });
+  applyCompanions();
+
+  companionKeys.forEach(function (key) {
+    key.addEventListener("click", function () {
+      // Pressed while shnayim mikra holds the columns aside: the practice goes, and the
+      // text comes back to Read with this column on (#421).
+      if (practising && practiceKind()) {
+        choosePractice("");
+        prefs.companions[key.getAttribute("data-companion") || ""] = true;
+        save();
+        applyCompanions();
+        relayout();
+        redraw();
+        return;
+      }
+      prefs.companions[key.getAttribute("data-companion") || ""] = !companionOn(key);
+      save();
+      applyCompanions();
+      // Every verse is taller or shorter now: the pages are measured again, and the
+      // words of a companion just turned on are drawn into it.
+      relayout();
+      redraw();
+    });
+  });
+
   /* --- shnayim mikra --------------------------------------------------------------
    *
    * The weekly practice, on a text that carries Onkelos beside the Hebrew: each verse
@@ -7959,6 +9569,9 @@ var targumReader = function () {
   // again here, so a page whose Onkelos has nothing for this section offers nothing.
   var practising = !!(practiceGroup && besideId && covers(besideId));
   if (practiceGroup && !practising) practiceGroup.hidden = true;
+  // Its switch in Aa and everything under it go with it (#421).
+  var practiceBox = document.getElementById("practice-box");
+  if (practiceBox && !practising) practiceBox.hidden = true;
   var PRACTICE = "targum:practice";
   var practiceStore = read(PRACTICE, "{}");
   var practiceAt = documentId + "#" + sectionId;
@@ -8068,7 +9681,7 @@ var targumReader = function () {
     practiceLine = line;
     // Onkelos under the verse is words, like Onkelos in the column (targum-internal#202).
     var targum = line.querySelector ? line.querySelector(".practice-targum") : null;
-    if (targum && besideData[id]) markSegment(targum);
+    if (targum && targumTable && besideTables[targumTable].rows[id]) markSegment(targum);
   }
 
   function drawPracticeFoot(kind, record) {
@@ -8133,7 +9746,39 @@ var targumReader = function () {
 
     drawVerseWalk(kind === "verse" ? record : null);
     drawPracticeFoot(kind, record);
+    paintPracticeSwitch(kind);
     if (!first) relayout();
+  }
+
+  /* Shnayim mikra is a switch, not a layout (David, 2026-10-05, targum-internal#421).
+     On, it offers the two ways of keeping it, and the columns beside the verse stand
+     aside: their switches go grey and say "Shown in Read", because a switch that looks
+     pressed and does nothing is a switch that lies. */
+  var practiceSwitch = document.getElementById("practice-on");
+  var practiceHow = document.getElementById("practice-how");
+  var columnsHeld = document.getElementById("columns-held");
+  //: The way the practice was last kept, for the switch to turn it back on with.
+  var practiceWay = "verse";
+
+  function paintPracticeSwitch(kind) {
+    if (kind) practiceWay = kind;
+    if (practiceSwitch) {
+      practiceSwitch.classList.toggle("on", !!kind);
+      practiceSwitch.setAttribute("aria-pressed", kind ? "true" : "false");
+    }
+    if (practiceHow) practiceHow.hidden = !kind;
+    if (columnsHeld) columnsHeld.hidden = !kind;
+    companionKeys.forEach(function (key) {
+      key.classList.toggle("held", !!kind);
+      if (kind) key.setAttribute("aria-describedby", "columns-held");
+      else key.removeAttribute("aria-describedby");
+    });
+  }
+
+  if (practiceSwitch) {
+    practiceSwitch.addEventListener("click", function () {
+      choosePractice(practiceKind() ? "" : practiceWay);
+    });
   }
 
   function showPracticeVerse() {
@@ -8173,7 +9818,7 @@ var targumReader = function () {
     applyPractice();
     if (kind === "verse") {
       showPracticeVerse();
-      var done = document.getElementById("done-mark");
+      var done = document.getElementById("done-go");
       if (record.verse === PRACTICE_DONE && done && typeof done.focus === "function") {
         done.focus();
       } else if (practiceLine) {
@@ -8227,6 +9872,8 @@ var targumReader = function () {
 
   function showKeys(open) {
     if (!keysCard) return;
+    // Pressed from ⋯ (#421): the menu has done its job, and the card takes its place.
+    if (open && more && more.classList.contains("open")) showMore(false);
     if (open) occupy("keys");
     keysCard.hidden = !open;
     // The button discloses the panel, so it has to say whether the panel is open. Focus
@@ -8253,21 +9900,211 @@ var targumReader = function () {
     true
   );
 
-  // The menu behind ⋯: on a narrow window, everything the bar has no row for. Under
-  // 60rem it opens in the band like the sheet and the card; on a wide window it is
-  // not a menu at all — its groups lie in the bar — and this is never called.
+  /* The bar's four panels (targum-internal#421): Aa, print, the recording choice and ⋯.
+     One at a time. Under its press on a wide window; from the foot on a phone, where each
+     is an overlay of the band like the card — drawn over the page, laying nothing out
+     (§12, 2026-09-14). Focus goes to the first control inside as one opens, and back to
+     the press that opened it as it closes from the keyboard; Escape closes it, and so
+     does a press anywhere outside it. `aria-expanded` on every press that names it. */
   var more = document.getElementById("more");
   var moreButtons = Array.prototype.slice.call(document.querySelectorAll("[data-more]"));
+  // `pops`, the bar's panels by name, is gathered with the band's bookkeeping above.
+  var popPresses = Array.prototype.slice.call(document.querySelectorAll("[data-pop]"));
+  //: Which panel is out, by name ("more" for ⋯), and the press that opened it.
+  var popOpen = null;
+  var popFrom = null;
 
-  function showMore(open) {
+  function pressOf(name) {
+    if (name === "more") return document.querySelector(".bar-tools [data-more]");
+    // The speed has two presses, the bar's and the one under the picture, and only one
+    // of them is on the screen at a time: that one.
+    var presses = document.querySelectorAll('[data-pop="' + name + '"]');
+    for (var i = 0; i < presses.length; i++) {
+      if (presses[i].getClientRects().length) return presses[i];
+    }
+    return presses[0] || null;
+  }
+
+  // The panel under its own press, on a wide window: its far edge at the press's. One
+  // that is not in the bar's row — the video's speed, under the picture (#422) — is
+  // placed against the window instead, under its press and lined up with its start.
+  function placePop(panel, press) {
+    if (panel.hasAttribute("data-near")) {
+      if (!roomy.matches || !press) return;
+      var at = press.getBoundingClientRect();
+      panel.style.setProperty("--near-top", Math.round(at.bottom + 6) + "px");
+      panel.style.setProperty("--near-left", Math.round(Math.max(12, at.left - 8)) + "px");
+      return;
+    }
+    if (!roomy.matches || !press || !bar) {
+      panel.style.removeProperty("inset-inline-end");
+      return;
+    }
+    var edge = bar.getBoundingClientRect().right - press.getBoundingClientRect().right;
+    panel.style.setProperty("inset-inline-end", Math.max(12, Math.round(edge - 6)) + "px");
+  }
+
+  function firstControl(panel) {
+    var all = panel.querySelectorAll("button:not([disabled]), a[href], select, [tabindex='0']");
+    for (var i = 0; i < all.length; i++) {
+      // Not the sheet's own ×, which is the last thing a reader opening Aa came for.
+      if (all[i].hasAttribute("data-pop-close") || all[i].closest(".more-head")) continue;
+      if (all[i].getClientRects().length) return all[i];
+    }
+    return null;
+  }
+
+  function popped(name, open) {
+    body.classList.toggle("pop-open", !!open);
+    if (open) {
+      popOpen = name;
+      if (typeof CustomEvent === "function") {
+        document.dispatchEvent(new CustomEvent("targum:pop", { detail: name }));
+      }
+    } else if (popOpen === name) {
+      popOpen = null;
+      document.dispatchEvent(new CustomEvent("targum:pop", { detail: "" }));
+    }
+  }
+
+  function showMore(open, focusIn) {
     if (!more) return;
+    var was = more.classList.contains("open");
+    if (open) closePops();
     if (open) occupy("more");
+    if (open) {
+      popFrom = pressOf("more");
+      placePop(more, popFrom);
+    }
     more.classList.toggle("open", !!open);
     moreButtons.forEach(function (button) {
       button.setAttribute("aria-expanded", open ? "true" : "false");
     });
+    if (open !== was) popped("more", !!open);
+    if (open && focusIn) {
+      var first = firstControl(more);
+      if (first) first.focus({ preventScroll: true });
+    }
     if (!open) vacate("more");
     if (seatFoot()) relayout();
+  }
+
+  function showPop(name, open, focusIn) {
+    var panel = pops[name];
+    if (!panel) return;
+    var was = panel.classList.contains("open");
+    if (open) {
+      closePops(name);
+      if (more && more.classList.contains("open")) showMore(false);
+      occupy(name);
+      popFrom = pressOf(name);
+      placePop(panel, popFrom);
+    }
+    panel.classList.toggle("open", !!open);
+    popPresses.forEach(function (press) {
+      if (press.getAttribute("data-pop") !== name) return;
+      press.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    if (open !== was) popped(name, !!open);
+    if (open) {
+      if (name === "aa") paintSize();
+      if (focusIn) {
+        var first = firstControl(panel);
+        if (first) first.focus({ preventScroll: true });
+      }
+    } else {
+      vacate(name);
+    }
+  }
+
+  // Every panel but one shut, ⋯ aside, which has its own door.
+  function closePops(except) {
+    Object.keys(pops).forEach(function (name) {
+      if (name !== except && pops[name].classList.contains("open")) showPop(name, false);
+    });
+  }
+
+  // Put away whatever is out, and hand focus back to its press when the keyboard did it.
+  function closeAnyPop(refocus) {
+    var name = popOpen;
+    if (!name) return false;
+    var back = popFrom;
+    if (name === "more") showMore(false);
+    else showPop(name, false);
+    if (refocus && back && back.getClientRects().length) back.focus({ preventScroll: true });
+    return true;
+  }
+
+  popPresses.forEach(function (press) {
+    press.addEventListener("click", function () {
+      var name = press.getAttribute("data-pop");
+      var panel = pops[name];
+      if (!panel) return;
+      // `detail` is 0 for a press from the keyboard, which is when focus goes inside.
+      showPop(name, !panel.classList.contains("open"), fromKeys());
+    });
+  });
+  Array.prototype.slice.call(document.querySelectorAll("[data-pop-close]")).forEach(function (shut) {
+    shut.addEventListener("click", function () {
+      var name = shut.getAttribute("data-pop-close");
+      showPop(name, false);
+      var press = pressOf(name);
+      if (press && press.getClientRects().length) press.focus({ preventScroll: true });
+    });
+  });
+
+  // Whether the last press came from the keyboard, read off the click that is being
+  // handled: a pointer's click carries the count of presses, a key's carries none.
+  var lastClickDetail = 1;
+  document.addEventListener(
+    "click",
+    function (event) {
+      lastClickDetail = event.detail;
+    },
+    true
+  );
+  function fromKeys() {
+    return lastClickDetail === 0;
+  }
+
+  // A row of ⋯ that takes the reader somewhere else — full screen, the talk, the word
+  // list, the picture, the original — has done the menu's job, and the menu goes.
+  if (more) {
+    more.addEventListener("click", function (event) {
+      var at = event.target;
+      if (!at || !at.closest) return;
+      if (!at.closest('[data-fullscreen], #talk-open, [data-toggle="list"], .home, [data-video]')) return;
+      setTimeout(function () {
+        showMore(false);
+      }, 0);
+    });
+  }
+
+  // A press anywhere outside the panel that is out puts it away — the same as a tap on
+  // the page has always put ⋯ away. Not a press on its own press, which toggles it.
+  document.addEventListener("click", function (event) {
+    if (!popOpen || popOpen === "more") return;
+    var panel = pops[popOpen];
+    var at = event.target;
+    if (!panel || !at || !at.closest) return;
+    if (panel.contains(at)) return;
+    if (at.closest('[data-pop="' + popOpen + '"]')) return;
+    showPop(popOpen, false);
+  });
+
+  // The size of the type, drawn as a line in Aa: where it stands between the smallest
+  // and the largest the reader allows. Asked as the panel opens and as it changes.
+  var sizeMeter = document.querySelector("#aa .aa-meter i");
+  function paintSize() {
+    if (!sizeMeter) return;
+    var at = (prefs.size - 0.875) / (1.75 - 0.875);
+    sizeMeter.style.inlineSize = Math.round(Math.max(0, Math.min(1, at)) * 100) + "%";
+    var steps = document.querySelectorAll("#aa [data-type]");
+    Array.prototype.forEach.call(steps, function (step) {
+      var which = step.getAttribute("data-type");
+      var end = (which === "smaller" && prefs.size <= 0.875) || (which === "larger" && prefs.size >= 1.75);
+      step.setAttribute("aria-disabled", end ? "true" : "false");
+    });
   }
 
   watchFoot();
@@ -8439,15 +10276,6 @@ var targumReader = function () {
   dismissible(chip, hideChip);
   dismissible(keysCard, function () { showKeys(false); });
   dismissible(more, function () { showMore(false); });
-  // The video panel closes through its own closure, which runs after this one and
-  // holds the button state and the store — hence the window indirection, the same
-  // door occupy() uses to put it away. The video carries no controls of its own
-  // (the strip is the transport), so the pull conflicts with nothing.
-  if (videoPanel) {
-    dismissible(videoPanel, function () {
-      if (window.TargumVideo) window.TargumVideo.hide();
-    });
-  }
 
   /* --- clicks -------------------------------------------------------------- */
 
@@ -8458,12 +10286,12 @@ var targumReader = function () {
         showList(!!(listBox && listBox.hidden));
         return;
       }
-      if (button.id === "done-mark") {
-        footGo(true);
+      if (button.id === "done-go") {
+        footGo(false);
         return;
       }
-      if (button.id === "done-plain") {
-        footGo(false);
+      if (button.id === "done-mark") {
+        footGo(true);
         return;
       }
       if (button.id === "done-undo") {
@@ -8489,7 +10317,12 @@ var targumReader = function () {
         return;
       }
       if (button.hasAttribute("data-more")) {
-        showMore(!(more && more.classList.contains("open")));
+        var opening = !(more && more.classList.contains("open"));
+        var from = popFrom;
+        showMore(opening, opening && fromKeys());
+        // Shut from the keyboard, by the panel's own × or the press again: focus goes
+        // back to the ⋯ rather than to a control that has just gone.
+        if (!opening && fromKeys() && from && from.getClientRects().length) from.focus({ preventScroll: true });
         return;
       }
       if (button.hasAttribute("data-keys")) {
@@ -8497,7 +10330,9 @@ var targumReader = function () {
         // Closed from the × on the card itself: the button just pressed is gone with
         // the card, so focus goes back to the one in the bar that opened it.
         if (keysCard && keysCard.hidden && keysCard.contains(button) && keysButton) {
-          keysButton.focus();
+          // Behind ⋯ since #421, where the press is out of sight: then the ⋯ itself.
+          var keysBack = keysButton.getClientRects().length ? keysButton : pressOf("more");
+          if (keysBack) keysBack.focus();
         }
         return;
       }
@@ -8567,7 +10402,7 @@ var targumReader = function () {
     // A row of the menu is one control with its name beside it, and on a phone the
     // name is most of the row. A tap on the name presses the control. Not a row of
     // several — the type sizes, the levels — where the name says nothing about which.
-    var row = event.target.closest ? event.target.closest(".bar-more.open .group") : null;
+    var row = event.target.closest ? event.target.closest(".m-menu.open .m-row") : null;
     if (row && !button) {
       var controls = row.querySelectorAll("button, a");
       if (controls.length === 1 && !row.querySelector("select")) {
@@ -8719,7 +10554,7 @@ var targumReader = function () {
   // word the back arrow returns to are the same one. Null for a page with no words.
   function footOf(n) {
     var range = pages[n];
-    if (!range) return null;
+    if (!range || carriesOn(n)) return null;
     for (var i = range[1]; i >= range[0]; i--) {
       var id = pairs[i].getAttribute("data-id");
       var tokens = wordData[id] || [];
@@ -8766,7 +10601,12 @@ var targumReader = function () {
     if (entry && pageAt(entry) === current) return entry;
     var foot = footOf(current);
     if (foot && (!from || later(foot, from))) return foot;
-    if (!turnBy(1)) return entry;
+    // Over the pages that only carry on a verse's commentary, to the page the next word
+    // is on: they have no word of the verse to stand on.
+    var ahead = 1;
+    var there = entry ? pageAt(entry) : -1;
+    while (current + ahead < there && carriesOn(current + ahead)) ahead++;
+    if (!turnBy(ahead)) return entry;
     if (entry && pageAt(entry) === current) return entry;
     return footOf(current);
   }
@@ -8948,6 +10788,7 @@ var targumReader = function () {
   // rather than doing nothing.
   function walk(forward) {
     if (!card) return false;
+    var pageWas = current;
     var entry = place ? onward(place, forward) : enterFrom(forward);
     var had = !!place;
     // Nothing that way. A card already open stays open: closing it out from under
@@ -8964,9 +10805,16 @@ var targumReader = function () {
     // word of the last page, so nothing is skipped. Done and the next chapter never
     // meet: Done is only on the last part, and a part with a next has no Done.
     if (!entry) {
-      if (forward && place && finishedMark && !finishedAt() && finishedMark.focus) {
-        finishedMark.focus();
+      if (forward && place && finishedGo && !finishedAt() && finishedGo.focus) {
+        finishedGo.focus();
+      } else if (forward && place && paged() && current !== pageWas) {
+        // The way to the end turned the page — to the last line's last piece and the foot
+        // under it, where the foot did not fit beside the line (the end of a part is a
+        // card since 2026-10-09). That page is shown before the next chapter is.
+        return true;
       } else if (forward && place && paged() && current === pages.length - 1 && nextChapter()) {
+        return true;
+      } else if (forward && place && paged() && current < pages.length - 1 && turnBy(1)) {
         return true;
       }
       offPage();
@@ -9022,6 +10870,10 @@ var targumReader = function () {
 
   document.addEventListener("keydown", function (event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
+    // Escape shuts a panel of the bar even from the choice inside it (#421).
+    if (event.key === "Escape" && /^(SELECT)$/.test(event.target.tagName) && closeAnyPop(true)) {
+      return;
+    }
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName)) return;
 
     // A key is the letter on it, whatever the shift and caps lock happened to be. Read
@@ -9143,18 +10995,27 @@ var targumReader = function () {
       case "n":
         toggleVowels();
         return;
+      case "r":
+        if (!toggleGoverned()) return;
+        break;
+      case "w":
+        if (!toggleOrder()) return;
+        break;
+      case "y":
+        if (!toggleVav()) return;
+        break;
       case "c":
         if (!nextCase()) return;
         break;
       case "a":
         toggleTaamim();
         return;
-      // Between watching and reading, on a text that carries a picture and nowhere
-      // else. Handed back where there is none, so the key falls through to whatever
-      // the page would otherwise do with it rather than doing nothing loudly.
+      // Beside or Theatre (targum-internal#422), on a text whose picture is up and
+      // nowhere else. Handed back where there is none, so the key falls through to
+      // whatever the page would otherwise do with it rather than doing nothing loudly.
       case "v": {
         var pictures = window.TargumVideo;
-        if (!pictures || !pictures.watch || !pictures.watch()) return;
+        if (!pictures || !pictures.turn || !pictures.turn()) return;
         break;
       }
       case "?":
@@ -9162,7 +11023,9 @@ var targumReader = function () {
         return;
       case "Escape": {
         // One layer a press. Closing the keys and then dropping out of the queue in the
-        // same keystroke costs a reader their place for looking a shortcut up.
+        // same keystroke costs a reader their place for looking a shortcut up. A panel
+        // of the bar first, with focus back on the press that opened it (#421).
+        if (closeAnyPop(true)) return;
         if (more && more.classList.contains("open")) {
           showMore(false);
           return;
@@ -9218,14 +11081,14 @@ var targumReader = function () {
   var home = document.getElementById("home");
   var homePlain = document.getElementById("home-plain");
   if (home && served) {
-    home.href = keyed("/");
+    home.href = keyed(inItsLanguage("/"));
     home.hidden = false;
     // Two drawings of the same mark, one a link and one not, so a reader opened off the
     // disk shows the mark rather than a link to nowhere.
     if (homePlain) homePlain.hidden = true;
     // Section-to-section links are relative and would drop the key, and with it access:
     // the next chapter would answer 403. No key hosted, where `keyed` is the identity.
-    var carried = document.querySelectorAll(".pager a, .bar-title .up");
+    var carried = document.querySelectorAll(".pager a, .bar-title .up, .next-up.beyond .next-up-link");
     Array.prototype.forEach.call(carried, function (link) {
       var href = link.getAttribute("href");
       if (href && href.indexOf("?") === -1) {
@@ -9359,7 +11222,11 @@ var targumReader = function () {
   applyType();
   applyMode();
   applyMarking();
-  showList(prefs.list === null ? roomy.matches : prefs.list, prefs.list === null ? false : true);
+  // Closed until a reader opens it (design.md §12, "The reader's chrome is the desk's",
+  // 2026-10-09): the boards draw the page with no column beside it, and ⋯ → Word list or
+  // `s` puts it there. It was open by default on a wide window. A reader who opened or
+  // closed it has that kept.
+  showList(prefs.list === null ? false : prefs.list, prefs.list === null ? false : true);
   // A remembered preference for vowels is worth nothing on a text that has none, and
   // leaving it set would hide every sentence on the page. `sourceMarked` means "the
   // source carries its own phonetic layer, so open in the form this text was published
@@ -9394,6 +11261,17 @@ var targumReader = function () {
   // Or where a link said. After the layout, like `resume`, and for the same reason: a
   // verse's page is only known once the pages have been cut.
   arrive();
+  // This part is where the reader is in this text now, for Continue (#430). Served, not
+  // until the account has answered: written now, at the top and stamped this second, it
+  // would be newer than the sentence another device left in this same part a minute ago,
+  // and would win over it here and on the account. Written after, the same part keeps
+  // that sentence and only a different part starts at its top.
+  function notePart() {
+    if (window.TargumSync && window.TargumSync.place) {
+      window.TargumSync.place(documentId, { section: sectionId, path: location.pathname });
+    }
+  }
+  if (!served || !window.TargumSync || !window.TargumSync.settled) notePart();
   took("back where the reader left off");
   showTab(prefs.listTab);
   waitForMeanings();
@@ -9414,14 +11292,18 @@ var targumReader = function () {
       picks = read(PICKED, "{}");
       redraw();
       took("marks redrawn from the account");
+      // A place from another device, newer than the one this page opened on, and the
+      // reader has not moved on yet (targum-internal#430).
+      if (!placeLeft && (!paged() || current === 0)) resume(placeFound);
     });
     window.TargumSync.start();
+    if (window.TargumSync.settled) window.TargumSync.settled().then(notePart, notePart);
   }
 
   /* --- what a test can reach ------------------------------------------------ */
 
   /* Every other script here already hangs its module off `window` — TargumLang,
-     TargumCovers, TargumCharts — so this is the same shape rather than a hatch cut for
+     TargumCovers, TargumVocab — so this is the same shape rather than a hatch cut for
      tests. Two things in this file are worth checking without a browser, and both have
      shipped a bug: where a card lands beside a word, which is arithmetic, and whether a
      hover survives the keypress that marked the word under it, which is a two-state
@@ -9488,6 +11370,7 @@ var targumReader = function () {
 
   // Said once the page is drawn, so the Undo it offers has a page to redraw.
   landHere();
+  partGone();
   // A playlist that arrived before this line left its way on where it could be found.
   if (window.TargumFootWay) {
     footWay = window.TargumFootWay;
@@ -9504,6 +11387,19 @@ var targumReader = function () {
     onFirstPage: function () {
       return !paged() || current <= 0;
     },
+    // The page a pair's own line is on, turned to quietly when it is not the one showing:
+    // for the voice, whose verse has to be in front of the reader (QA 2026-10-05, B1).
+    // True when it turned. A scrolling reader has no page to turn.
+    turnToPair: function (pair) {
+      if (!paged() || !pages.length) return false;
+      var index = pairs.indexOf(pair);
+      if (index < 0) return false;
+      var n = pageFor(index, pages);
+      if (n === current) return false;
+      showPage(n, true);
+      if (window.scrollTo) window.scrollTo(0, 0);
+      return true;
+    },
     where: where,
     placeNear: placeNear,
     stopHover: stopHover,
@@ -9517,7 +11413,8 @@ var targumReader = function () {
     level: function (index, status) {
       // Followed by the redraw every caller in the page does after it, so the counts
       // and the offer at the foot are as a reader would see them.
-      var now = setStatus(index, lemmas[index], "", toggled(index, status));
+      if (already(index, status)) return statusOf(lemmas[index]);
+      var now = setStatus(index, lemmas[index], "", status);
       redraw();
       return now;
     },
@@ -9536,6 +11433,10 @@ var targumReader = function () {
     inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
+    // The words here never marked, the ones met most first, and how many there are: for
+    // the end of a part under a large picture (design.md §12, 2026-10-08), which asks
+    // about them before the press that marks them.
+    unmarked: unmarkedWords,
     // The press at the foot, as a playlist asks for it (design.md §12, "The foot is one
     // block"): what the press says and what moving on is, and the press itself made
     // before the playlist moves on. `press` and `unpress` are the same press and its
@@ -9554,9 +11455,9 @@ var targumReader = function () {
     undoLanding: undoLanding,
     footSays: function () {
       return {
-        press: finishedMark ? finishedMark.textContent : "",
+        press: finishedGo ? finishedGo.textContent : "",
         pressHidden: footPress ? Boolean(footPress.hidden) : true,
-        plain: footPlain && !footPlain.hidden ? footPlain.textContent : "",
+        mark: footMark && !footMark.hidden ? footMark.textContent : "",
         finished: finishedBox ? !finishedBox.hidden : false,
       };
     },
@@ -9629,6 +11530,14 @@ var targumReader = function () {
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,
     through: through,
+    // A pair's words drawn now, wherever it is on the page: the line under a video
+    // copies its words out of the transcript as the voice reaches it (#422), and the
+    // transcript draws only what is on screen.
+    draw: markPair,
+    // And whatever of the transcript has just come on screen, when it comes on without
+    // a scroll: a panel opened beside the picture, or the picture's way of standing
+    // changed.
+    look: markVisible,
     // Putting the player away gives a page its room back, and bringing it out takes the
     // room again. Both are a change of layout like any other, and this is how the rest
     // of the page says so.
@@ -9713,7 +11622,7 @@ var targumReader = function () {
       }
     }
     var say = window.TargumStrings || { t: function (key, english) { return english; } };
-    if (lead) lead.textContent = say.t("reader.next.lead", "Up next") + (pick.scene ? " · " + pick.scene : "");
+    if (lead) lead.textContent = say.t("reader.next.lead", "Up next");
     if (why) {
       why.textContent =
         pick.because +
@@ -9809,9 +11718,181 @@ var targumReader = function () {
     }).catch(function () {});
   }
 
-  window.addEventListener("scroll", maybe, { passive: true });
-  document.addEventListener("targum:page", maybe);
-  maybe();
+  /* An imported recording is not a book (David, 2026-10-07; design.md §12, "One press
+     gets the whole video, a part at a time"): the press on its quote took every part's
+     credits, so the next part is asked for once, the moment this one is opened — the
+     reader is on it — and the box makes it if the part before it, this one, is ready.
+     Never further: the box refuses a part whose page before it is still waiting. And
+     the door under the picture says what became of it, from the answer and from the
+     job the waiting press already watches, so nothing new is fetched. */
+  if (pager.hasAttribute("data-by-part")) {
+    var S = window.TargumStrings || {
+      t: function (k, english) {
+        return english;
+      },
+    };
+    var door = document.getElementById("film-next");
+    var go = door && door.querySelector(".film-next-go");
+    var said = door && door.querySelector(".film-next-said");
+    var again = door && door.querySelector(".film-next-again");
+    var making = "";
+    var wanted = false;
+    var timer = 0;
+    var tell = function (state, text, job) {
+      if (door) door.setAttribute("data-state", state);
+      if (said) said.textContent = text || "";
+      if (again) again.hidden = state !== "failed";
+      // A refusal wears the clay mark, and one that was refused by a rail says what still
+      // works and draws its way on: Top up greyed, until there is somewhere to pay
+      // (design.md §12, 2026-10-09).
+      if (said) said.classList.toggle("fault-marked", state === "failed" || state === "refused");
+      var extra = door && door.querySelector(".film-next-extra");
+      if (extra) extra.parentNode.removeChild(extra);
+      if (state === "refused" && job && job.act === "plan" && said && window.TargumFault) {
+        // A free reader out of credits is offered the plan, as a panel of its own in
+        // place of the line (design.md §12, "A free reader meets the plan where they
+        // reach for it", 2026-10-09).
+        said.textContent = "";
+        said.classList.remove("fault-marked");
+        extra = window.TargumFault.upgrade(text || "", job.fact || "");
+        extra.classList.add("film-next-extra");
+        said.parentNode.insertBefore(extra, said.nextSibling);
+      } else if (state === "refused" && job && (job.fact || job.act === "top-up") && said) {
+        extra = document.createElement("span");
+        extra.className = "film-next-extra fault-panel-row";
+        if (job.act === "top-up") {
+          var up = document.createElement("button");
+          up.type = "button";
+          up.className = "fault-go";
+          up.disabled = true;
+          up.textContent = S.t("fault.top-up", "Top up");
+          extra.appendChild(up);
+          var soon = document.createElement("span");
+          soon.className = "fault-fact";
+          soon.textContent = S.t("fault.payments-soon", "Payments open soon");
+          extra.appendChild(soon);
+        }
+        if (job.fact) {
+          var fact = document.createElement("span");
+          fact.className = "fault-fact";
+          fact.textContent = job.fact;
+          extra.appendChild(fact);
+        }
+        said.parentNode.insertBefore(extra, said.nextSibling);
+      }
+    };
+    var stop = function () {
+      clearInterval(timer);
+      timer = 0;
+      making = "";
+    };
+    var ready = function () {
+      stop();
+      tell("ready", "");
+      // Pressed while it was being made: the press was the reader's, so it opens now,
+      // through the door's own link rather than a second way out of the page.
+      if (wanted && go) go.click();
+    };
+    var failed = function (text) {
+      stop();
+      tell("failed", text || S.t("reader.film.next-part-trouble", "We couldn't get the next part ready."));
+    };
+    var refused = function (text, job) {
+      stop();
+      tell("refused", text, job);
+    };
+    // Looked at only while the door is on screen or was pressed: a part takes minutes
+    // and the reader is watching this one, so nobody needs a clock ticking under it.
+    var look = function () {
+      if (!making) return;
+      if (!wanted && !document.body.classList.contains("film-at-end")) return;
+      fetch(keyed("/job/" + making))
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (state) {
+          if (state.stage === "done") ready();
+          else if (state.stage === "blocked" || state.blocked) refused(state.blocked || state.error, state);
+          else if (state.stage === "failed" || (state.error && !state.stage)) failed(state.error);
+        })
+        .catch(function () {});
+    };
+    var watch = function (id) {
+      making = id;
+      tell(
+        "making",
+        wanted
+          ? S.t("reader.film.next-part-opening", "We'll open it when it's ready.")
+          : S.t("reader.film.next-part-making", "We're getting it ready.")
+      );
+      if (!timer) timer = setInterval(look, 4000);
+    };
+    var ask = function () {
+      var reading = document.querySelector(".pair .tr");
+      fetch(keyed("/chapter"), {
+        method: "POST",
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          name: name,
+          number: Number(link.getAttribute("data-next")),
+          to: reading ? reading.getAttribute("lang") || "" : "",
+          ahead: true,
+        }),
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (job) {
+          if (job.ready || job.stage === "done") return ready();
+          if (job.blocked || job.stage === "blocked") return refused(job.blocked || job.error, job);
+          if (job.stage === "failed") return failed(job.error);
+          if (job.id) return watch(job.id);
+          // `waiting`: this part is not ready itself, so nothing is made ahead of it.
+        })
+        .catch(function () {});
+    };
+    // The door's press, and Next part in the row under the picture (David, 2026-10-11),
+    // which is the same press from the middle of a part: a part still being made is
+    // waited for, and pressed from the row the door comes up under the picture to say
+    // so, with its Try again, rather than a second way of saying it.
+    var pressed = function (event) {
+      if (!making) return;
+      event.preventDefault();
+      wanted = true;
+      document.body.classList.add("film-next-asked");
+      tell("making", S.t("reader.film.next-part-opening", "We'll open it when it's ready."));
+      look();
+    };
+    if (go) go.addEventListener("click", pressed);
+    var onward = document.querySelector(".film-part-next");
+    if (onward) onward.addEventListener("click", pressed);
+    // Within the consent the quote's press gave: the same ask, for the same part.
+    if (again) {
+      again.addEventListener("click", function () {
+        tell("making", S.t("reader.film.next-part-making", "We're getting it ready."));
+        ask();
+      });
+    }
+    ask();
+    return;
+  }
+
+  // Nothing to buy where the next chapter is already on the page's own say, and nothing
+  // that is not a reader's own: a portion is served from its own shelf, and a text off
+  // the shared one is complete. Asked anyway, each answered 404 in the console on every
+  // first text (known issues 2026-10-12, m6). A page built before `data-ready` asks as
+  // it always did, until it is rebuilt.
+  if (link.hasAttribute("data-ready")) return;
+  if (parts[1] !== "reader") return;
+
+  // Fetched ahead only for an account: signed out `/chapter` refuses, and the refusal
+  // was a console error at the foot of every chapter (QA 2026-10-11).
+  (window.TargumSync && window.TargumSync.mayAsk ? window.TargumSync.mayAsk() : Promise.resolve(true)).then(function (may) {
+    if (!may) return;
+    window.addEventListener("scroll", maybe, { passive: true });
+    document.addEventListener("targum:page", maybe);
+    maybe();
+  });
 })();
 
 /* --- a chapter nobody has paid for yet ----------------------------------------
@@ -9845,14 +11926,40 @@ var targumReader = function () {
 
   // The reader's own words (targum-internal#184), where the page is read in another language.
   var said = window.TargumStrings || { t: function (key, english) { return english; } };
-  var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that. Try again.");
+  var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that.");
 
-  press.hidden = false;
+  // A part of an imported recording is not pressed for (David, 2026-10-07; design.md §12,
+  // "One press gets the whole video, a part at a time"): the press on the recording's
+  // quote was consent to every part, so opening the page is what starts it, and the page
+  // says it is being made and opens itself when it is. The button stands only to try
+  // again after a failure, under the same consent. A book's chapter keeps its press.
+  var hearing = note.hasAttribute("data-audio");
+  var status = document.getElementById("waiting-said");
+  press.hidden = hearing;
   // Its cost beside it, where the page knows one; shown with the press it prices.
   var costs = document.getElementById("waiting-cost");
   if (costs) costs.hidden = false;
+  var pressWord = press.textContent;
+  // What went wrong is a line, and the press under it says Try again. A book's chapter
+  // used to put the sentence on the button itself, so the reason became the label of a
+  // press that only asked again (reader QA, 2026-10-19).
+  function fail(text) {
+    press.disabled = false;
+    if (status) {
+      status.textContent = text;
+      status.classList.add("fault-marked");
+    }
+    press.textContent = said.t("reader.film.next-part-again", "Try again");
+    press.hidden = false;
+  }
   press.onclick = function () {
     press.disabled = true;
+    if (status) status.classList.remove("fault-marked");
+    if (status && !hearing) status.textContent = "";
+    if (hearing) {
+      press.hidden = true;
+      if (status) status.textContent = said.t("reader.film.next-part-making", "We're getting it ready.");
+    }
     // The page says which work is owed — a translation, or for an imported recording a
     // transcript — and the working form keeps that promise. Read off the attribute, not
     // the button's word, which is the reader's language.
@@ -9896,22 +12003,27 @@ var targumReader = function () {
                 location.reload();
               } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
-                press.disabled = false;
-                press.textContent = state.error || state.blocked || trouble;
+                fail(state.error || state.blocked || trouble);
               }
             })
             .catch(function () {
               clearInterval(timer);
+              if (!window.TargumFault) return fail(said.t("reader.chapter.could-not-reach", "We can't reach targum."));
+              // The connection's banner (design.md §12, 2026-10-09), whose Try again asks
+              // again; the server hands back the job already under way.
               press.disabled = false;
-              press.textContent = said.t("reader.chapter.could-not-reach", "We couldn't reach targum. Try again.");
+              press.textContent = pressWord;
+              window.TargumFault.unreachable(function () {
+                press.onclick();
+              });
             });
         }, 1500);
       })
       .catch(function (problem) {
-        press.disabled = false;
-        press.textContent = String(problem.message || problem);
+        fail(String(problem.message || problem));
       });
   };
+  if (hearing) press.onclick();
 })();
 
 /* Which chapter this was, written down for the contents page, so "Start reading" can
@@ -9928,1621 +12040,11 @@ var targumReader = function () {
   } catch (e) {}
 })();
 
-/* Playing a dialogue: one line, or the whole scene with the text following along.
- *
- * The scene is one audio file and each turn is a span of it, so a line is played by
- * seeking and then stopping at its end — never by loading a clip per line, because a
- * reader is one file and fifty small files is not a shape it has.
- *
- * A single line stops on a timer rather than a `timeupdate` handler: that event fires
- * about four times a second, which overshoots the end of a short turn by a syllable and
- * reads as the next speaker starting. A timer set from the span's own length lands where
- * the seam is. Following the whole scene is the opposite case — nothing is being stopped,
- * only marked — so there the coarse event is exactly right and costs nothing.
- */
-(function () {
-  "use strict";
-  var node = document.getElementById("targum-data");
-  if (!node) return;
-  var speech;
-  var spokenOf = "";
-  try {
-    var loaded = JSON.parse(node.textContent) || {};
-    speech = loaded.speech;
-    spokenOf = loaded.document || location.pathname;
-  } catch (e) {
-    return;
-  }
-  if (!speech || !speech.audio) return;
-  // Said for the first-run line, which is another closure's: there is something to play.
-  document.body.classList.add("has-voice");
-
-  /* One media element, not two clocks. Where the import kept its pictures the page
-     carries a <video> pointed at the sidecar beside this file, and that element is the
-     player's whole instrument — same HTMLMediaElement, so every span, timer and rate
-     below works on it unchanged. Showing and hiding the panel never touches playback:
-     a hidden video keeps sounding, which is exactly the audio reader. The inlined
-     audio stays in the page for the download button, and as the instrument the player
-     falls back to if the sidecar did not travel with the file. */
-  var videoBox = document.getElementById("video");
-  var videoEl = videoBox ? videoBox.querySelector(".video-el") : null;
-  if (videoEl) {
-    /* The page's own address carries the serve key in its query, and the sidecar
-       request must carry the same or be turned away as a stranger. Off a disk the
-       search is empty and the relative address stands alone. */
-    videoEl.src = videoEl.getAttribute("data-src") + (location.search || "");
-
-    /* The film's own shape, taken from the film (design.md §12, 2026-09-17).
-     *
-     * The stylesheet wrote 16/9 into the docked panel and into the portrait frame, so
-     * anything shot upright — a Short, a reel, a phone held the ordinary way — sat in a
-     * letterbox with two thirds of the frame black. Nothing is fetched to learn better:
-     * the element knows its own dimensions once the metadata lands, and the frame takes
-     * them.
-     *
-     * Written on the panel rather than on the element, so the one custom property serves
-     * the picture, the tap target over it and the full-screen frame at once, and so the
-     * stylesheet keeps the 16/9 it had as the value before the metadata arrives. `tall`
-     * is the switch the layout needs: a picture taller than it is wide is sized by its
-     * height, or a 9:16 at the panel's width would be a column of video down the window.
-     */
-    /* And before it lands, the shape the build measured (2026-09-20). Until the metadata
-     * arrived a reel stood in the 16/9 the stylesheet falls back to and then jumped
-     * upright — on a slow line, for as long as the line was slow. The build reads the
-     * cut's size and the page carries it as `data-film`; `tall` is already in the class
-     * the page came with. As an attribute and not a style: a served page's policy allows
-     * no inline style, and a property set from here is not one. The film still has the
-     * last word below, in the same form, so a page that was told wrong is put right. */
-    var builtFilm = videoBox ? videoBox.getAttribute("data-film") : "";
-    if (builtFilm && /^\d+ \/ \d+$/.test(builtFilm)) videoBox.style.setProperty("--film", builtFilm);
-    videoEl.addEventListener("loadedmetadata", function () {
-      var wide = videoEl.videoWidth;
-      var high = videoEl.videoHeight;
-      if (!wide || !high || !videoBox) return;
-      videoBox.style.setProperty("--film", wide + " / " + high);
-      videoBox.classList.toggle("tall", high > wide);
-      var reader = window.TargumReader;
-      if (reader && reader.relayout) reader.relayout();
-    });
-  }
-  var videoDead = false;
-  var audio = videoEl || new Audio(speech.audio);
-  var spans = speech.spans || {};
-  /* Each written word's clock, where the build could pair one: rows of
-     [charStart, charEnd, start, end] per segment, in the bare text's own offsets. */
-  var wordClocks = speech.words || {};
-  /* In reading order, because the object came from the page in that order and following
-     along means walking it. */
-  var order = Object.keys(spans).map(function (id) {
-    return { id: id, start: spans[id][0], end: spans[id][1] };
-  });
-  // No spans is a shape, not a failure: prose is recorded as one reading and played
-  // straight through. Everything below works without them — what goes is the highlight
-  // that would otherwise crawl down a sentence at a time, which is a thing to do to a
-  // dialogue and not to an article.
-
-  /* However many controls ask for it — the bar's button and the player's — there is one
-     scene and one state, so they are held together rather than each keeping its own. */
-  var scenes = Array.prototype.slice.call(document.querySelectorAll("[data-play-scene]"));
-  var player = document.getElementById("player");
-  var fill = player && player.querySelector(".player-fill");
-  var clock = player && player.querySelector(".player-clock");
-  var said = player && player.querySelector(".player-said");
-  var scene = scenes[0] || null;
-  var stopAt = null;
-  var playing = null;      /* the one-line button, when a single line is playing */
-  var playingEnd = 0;      /* where that line ends, for re-arming its timer at a new speed */
-  var hearFirst = player && player.querySelector(".player-first");
-  var hearing = null;      /* the pair whose text is hidden while its line plays */
-  var following = false;   /* whether the whole scene is running */
-  var marked = null;
-
-  /* The same question the rest of the page asks, asked the same way. Read at the moment
-     of scrolling rather than once at load, because a reader can change the setting while
-     a scene is playing and the page should already be honouring it. */
-  var quiet = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
-  function behaviour() {
-    return quiet && quiet.matches ? "auto" : "smooth";
-  }
-
-  function mark(id) {
-    if (marked && marked.getAttribute("data-id") === id) return;
-    if (marked) marked.classList.remove("now");
-    marked = id ? document.querySelector('.pair.voiced[data-id="' + CSS.escape(id) + '"]') : null;
-    if (!marked) return;
-    marked.classList.add("now");
-    /* Only when it has gone off the page. Scrolling a line that is already in front of
-       the reader moves the text under their eyes for no reason. */
-    var box = marked.getBoundingClientRect();
-    /* The scrolling reader reserves nothing — text passes under a fixed control there by
-       definition — so the floor is the player's own top edge while it is out. The line
-       being spoken is the one line that must not be behind it. */
-    var floor = window.innerHeight - 24;
-    if (player && !player.hidden) {
-      var seat = player.getBoundingClientRect();
-      if (seat.height) floor = Math.min(floor, seat.top - 12);
-    }
-    /* On a narrow window the player is a strip standing on whatever holds the band —
-       the sheet, a card — and the reader's own stylesheet knows how tall the lot is. */
-    var band = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--foot"));
-    if (band > 0) floor = Math.min(floor, window.innerHeight - band - 12);
-    if (box.top < 64 || box.bottom > floor) {
-      marked.scrollIntoView({ block: "center", behavior: behaviour() });
-    }
-  }
-
-  /* Time listened and time watched (targum-internal#339), off the element's own events so a
-     line pressed and a whole scene run are counted alike. Wall-clock seconds, because that
-     is what a person spent; told apart by whether the picture was up, because a film played
-     with its picture put away was listened to. Under a second is a mis-press. */
-  var begun = 0;
-  function pictureUp() {
-    var panel = document.getElementById("video");
-    return !!(panel && !panel.hidden);
-  }
-  function stretchOver() {
-    if (!begun) return;
-    var seconds = Math.round((Date.now() - begun) / 1000);
-    begun = 0;
-    if (seconds < 1 || !window.TargumEvents) return;
-    var saying = document.querySelector(".pair.voiced.now");
-    window.TargumEvents.note({
-      kind: "play",
-      amount: seconds,
-      medium: pictureUp() ? "watch" : "listen",
-      segment: saying ? saying.getAttribute("data-id") || "" : "",
-    });
-  }
-  audio.addEventListener("playing", function () {
-    if (!begun) begun = Date.now();
-  });
-  audio.addEventListener("pause", stretchOver);
-  audio.addEventListener("ended", stretchOver);
-  window.addEventListener("pagehide", stretchOver);
-  //: Lines asked for in this visit: a second press on one is a replay, which is the
-  //: clearest thing a listener can say about a line.
-  var askedFor = {};
-
-  function pressed(on) {
-    scenes.forEach(function (button) {
-      button.setAttribute("aria-pressed", on ? "true" : "false");
-    });
-    if (player) player.classList.toggle("playing", !!on);
-    // The first-run line is another closure's; it hears that a recording has started.
-    if (on && typeof CustomEvent === "function") {
-      document.dispatchEvent(new CustomEvent("targum:playing"));
-    }
-  }
-
-  function clocked(seconds) {
-    var whole = Math.max(0, Math.floor(seconds));
-    return Math.floor(whole / 60) + ":" + ("0" + (whole % 60)).slice(-2);
-  }
-
-  function halt() {
-    if (stopAt) { clearTimeout(stopAt); stopAt = null; }
-    audio.pause();
-    unlight();
-    /* Hear first: the line is over, however it ended, so its text comes back. */
-    if (hearing) { hearing.classList.remove("hearing"); hearing = null; }
-    if (playing) { playing.classList.remove("saying"); playing = null; }
-    if (following) {
-      following = false;
-      pressed(false);
-    }
-    if (marked) { marked.classList.remove("now"); marked = null; }
-    pressed(false);
-  }
-
-  function play(from) {
-    try {
-      audio.currentTime = from;
-    } catch (why) {
-      return refused("We can't play this recording in this browser. Try another browser.", why);
-    }
-    /* Drawn before the first `timeupdate` rather than by it. The clock is empty until
-       that tick, and the strip is anchored to the foot of the window — so when its text
-       arrived the strip grew a line and the whole thing jumped ten pixels upward under
-       whatever the reader had just pressed. Painting here makes it its final size in the
-       frame the play button changes, which is also what stops a test measuring the bar
-       and then pressing where it used to be. */
-    paint();
-    var done = audio.play();
-    if (done && done.catch) {
-      done.catch(function (why) {
-        // Chrome rejects here when the tab is not allowed to make a sound — a site muted
-        // in the address bar, or a policy about autoplay — and the promise is the only
-        // place it says so. Silently stopping made that indistinguishable from a broken
-        // file: the control flipped back and the page had nothing to say for itself.
-        refused(
-          why && why.name === "NotAllowedError"
-            ? "This tab isn't allowed to play sound. Allow sound for this site in the address bar, then try again."
-            : "We couldn't play this recording. Try again.",
-          why
-        );
-      });
-    }
-  }
-
-  /* Playback failed, and the reader is told which. A control that reverts and explains
-     nothing is the worst of both: it looks broken and gives nobody anything to act on. */
-  function refused(message, why) {
-    halt();
-    if (player) {
-      player.classList.add("refused");
-      if (said) said.textContent = message;
-    }
-    // The label is written where sighted eyes are; the live region is where everyone
-    // else's are. A play button that reverts silently looks broken and says nothing.
-    var reader = window.TargumReader;
-    if (reader && reader.say) reader.say(message);
-    try {
-      var trouble = audio.error ? " (media error " + audio.error.code + ")" : "";
-      console.error("targum: " + message + trouble, why || "");
-    } catch (e) {}
-  }
-
-  /* How fast. Steps either side of the recording's own pace, and a pair of buttons rather
-     than one that cycles: a cycle from 2× comes round to 0.5×, which is the one step
-     nobody pressing "faster" means.
-
-     Held per browser rather than per text — the opposite of the closed player below,
-     and for the opposite reason. Which texts you would rather read in silence is a fact
-     about each text; how fast you can follow a voice is a fact about you, like the type
-     size, and a reader who wanted the last scene slower wants this one slower too.
-
-     The pitch is kept. A slowed voice should drop in speed and not turn into somebody
-     else; browsers default to keeping it, but the default is not what the file relies
-     on. */
-  var RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
-  var RATE_STORE = "targum:player-rate";
-  var slower = player && player.querySelector(".player-slower");
-  var faster = player && player.querySelector(".player-faster");
-  var rateNow = player && player.querySelector(".player-rate-now");
-
-  /* Whatever was stored, the nearest step — a number from a version of this table that
-     no longer exists is snapped rather than obeyed, and anything else is the pace it was
-     read at. */
-  function nearestRate(value) {
-    var n = parseFloat(value);
-    if (isNaN(n)) return 1;
-    var best = 1;
-    RATES.forEach(function (rate) {
-      if (Math.abs(rate - n) < Math.abs(best - n)) best = rate;
-    });
-    return best;
-  }
-
-  function setRate(value, chosen) {
-    var rate = nearestRate(value);
-    audio.playbackRate = rate;
-    try {
-      audio.preservesPitch = true;
-      audio.webkitPreservesPitch = true;   // Safari answered to this one for years
-    } catch (e) {}
-    var i = RATES.indexOf(rate);
-    if (rateNow) rateNow.textContent = rate + "×";
-    // aria-disabled rather than disabled: a disabled button drops the keyboard focus that
-    // was on it, and the reader who just pressed it is still standing there.
-    if (slower) slower.setAttribute("aria-disabled", i === 0 ? "true" : "false");
-    if (faster) faster.setAttribute("aria-disabled", i === RATES.length - 1 ? "true" : "false");
-    /* A single line stops on a timer set from its length at the old speed. Re-armed from
-       what is left of it at the new one, or the line runs into the next speaker. */
-    if (playing && stopAt) {
-      clearTimeout(stopAt);
-      stopAt = setTimeout(halt, Math.max(0, ((playingEnd - audio.currentTime) * 1000) / rate));
-    }
-    if (chosen) {
-      try {
-        targumKeep(RATE_STORE, String(rate));
-      } catch (e) {}
-      var reader = window.TargumReader;
-      if (reader && reader.say) reader.say(rate + "×");
-    }
-  }
-
-  function stepRate(by) {
-    var i = RATES.indexOf(nearestRate(audio.playbackRate)) + by;
-    if (i < 0 || i >= RATES.length) return;
-    setRate(RATES[i], true);
-  }
-
-  var keptRate = 1;
-  try {
-    keptRate = localStorage.getItem(RATE_STORE) || 1;
-  } catch (e) {}
-  setRate(keptRate, false);
-  if (slower) slower.addEventListener("click", function () { stepRate(-1); });
-  if (faster) faster.addEventListener("click", function () { stepRate(1); });
-  /* The figure itself steps on, and round: on a phone it is the only speed control there
-     is room for, and one button that cycles is a control, where two arrows for a scale
-     of six were a column. */
-  if (rateNow) {
-    rateNow.addEventListener("click", function () {
-      var i = RATES.indexOf(nearestRate(audio.playbackRate));
-      setRate(RATES[(i + 1) % RATES.length], true);
-    });
-  }
-
-  /* Where in it. The bar was a readout for as long as the only way into the middle of a
-     recording was to press the line said there — which works on a dialogue, where every
-     line has a button, and not at all on an hour of prose read straight through.
-     Dragging it is the one gesture every player on earth has already taught. */
-  var trackEl = player && player.querySelector(".player-track");
-
-  function span() {
-    var length = audio.duration;
-    return length && isFinite(length) ? length : 0;
-  }
-
-  /* The fill, the clock and what the slider tells a screen reader all read off the same
-     two numbers, and all three are wanted when the reader drags the bar with nothing
-     playing — which `timeupdate` never says. */
-  function paint() {
-    var length = span();
-    if (!length) return;
-    var now = audio.currentTime;
-    if (fill) fill.style.inlineSize = (now / length) * 100 + "%";
-    if (clock) clock.textContent = clocked(now) + " / " + clocked(length);
-    if (trackEl) {
-      trackEl.setAttribute("aria-valuemax", String(Math.floor(length)));
-      trackEl.setAttribute("aria-valuenow", String(Math.floor(now)));
-      // The clock and not the percentage: "four ten of nine twenty" is where you are,
-      // and "forty-six percent" is arithmetic about where you are.
-      trackEl.setAttribute("aria-valuetext", clocked(now) + " of " + clocked(length));
-    }
-    caption(saidAt(now));
-  }
-
-  /* Which line the voice is inside, or none: `at` below answers with the first line
-     where this answers with nothing, and the difference is the whole of a subtitle.
-     A caption that holds the last line up over a silence is telling the reader the
-     voice is still saying it. */
-  function saidAt(seconds) {
-    for (var i = 0; i < order.length; i++) {
-      if (seconds >= order[i].start && seconds < order[i].end) return order[i].id;
-    }
-    return null;
-  }
-
-  /* The line, over the picture. Copied out of the pair it belongs to rather than
-     carried a second time in the page: a subtitle is never a translation the reader
-     cannot also read in place, and the form it is copied in is the form the reader
-     chose — pointed, plain or unaccented — because a caption in a form they turned off
-     is the page arguing with them. */
-  var titles = document.querySelector(".video-titles");
-  var titleSrc = titles && titles.querySelector(".video-src");
-  var titleTr = titles && titles.querySelector(".video-tr");
-  var saidNow = null;
-
-  function shownForm(pair) {
-    var forms = pair.querySelectorAll(".src");
-    for (var i = 0; i < forms.length; i++) {
-      // The pair itself may be a page away and hidden; its children's own display is
-      // not, which is what is being asked about here.
-      if (getComputedStyle(forms[i]).display !== "none") return forms[i];
-    }
-    return forms[0] || null;
-  }
-
-  function caption(id) {
-    if (!titles || id === saidNow) return;
-    saidNow = id;
-    var pair = id ? document.querySelector('.pair[data-id="' + id + '"]') : null;
-    if (!pair) {
-      titles.classList.remove("saying");
-      return;
-    }
-    var form = shownForm(pair);
-    var tr = pair.querySelector(".tr");
-    if (titleSrc) titleSrc.textContent = form ? form.textContent : "";
-    if (titleTr) titleTr.textContent = tr ? tr.textContent : "";
-    titles.classList.add("saying");
-  }
-
-  /* Moving the voice. A single line that was running stops being a single line — the
-     timer that would have halted it belongs to a span the reader has just left — and
-     becomes the whole text running, which is what dragging the bar means everywhere
-     else. */
-  function seek(to) {
-    var length = span();
-    if (!length) return;
-    var seconds = Math.min(length, Math.max(0, to));
-    if (playing) {
-      if (stopAt) { clearTimeout(stopAt); stopAt = null; }
-      playing.classList.remove("saying");
-      playing = null;
-      if (!audio.paused) { following = true; pressed(true); }
-    }
-    try {
-      audio.currentTime = seconds;
-    } catch (e) {
-      return;
-    }
-    if (player) player.classList.add("placed");
-    if (following) mark(at(seconds));
-    paint();
-    keepHeard();
-  }
-
-  if (trackEl) {
-    var dragging = false;
-    var along = function (event) {
-      var box = trackEl.getBoundingClientRect();
-      if (!box.width) return 0;
-      var part = (event.clientX - box.left) / box.width;
-      // The bar fills the way the page runs, so on a Hebrew page it starts at its right
-      // edge. Read off the computed direction rather than assumed: the same drag has to
-      // land on the same second in both.
-      if (getComputedStyle(trackEl).direction === "rtl") part = 1 - part;
-      return Math.min(1, Math.max(0, part));
-    };
-
-    trackEl.addEventListener("pointerdown", function (event) {
-      if (!span()) return;
-      dragging = true;
-      if (trackEl.setPointerCapture) {
-        try { trackEl.setPointerCapture(event.pointerId); } catch (e) {}
-      }
-      event.preventDefault();
-      seek(along(event) * span());
-    });
-    trackEl.addEventListener("pointermove", function (event) {
-      if (!dragging) return;
-      event.preventDefault();
-      seek(along(event) * span());
-    });
-    ["pointerup", "pointercancel"].forEach(function (name) {
-      trackEl.addEventListener(name, function () { dragging = false; });
-    });
-
-    /* The keyboard's own way along, stopped here rather than let up to the page: the
-       arrows walk the text a word at a time, and a reader whose focus is on the bar
-       means the bar. Five seconds is the step every transport uses; the word-sized one
-       is on the buttons below, where the label can say so. */
-    trackEl.addEventListener("keydown", function (event) {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      var length = span();
-      if (!length) return;
-      var back = getComputedStyle(trackEl).direction === "rtl" ? "ArrowRight" : "ArrowLeft";
-      var to = null;
-      if (event.key === back) to = audio.currentTime - 5;
-      else if (event.key === (back === "ArrowLeft" ? "ArrowRight" : "ArrowLeft")) {
-        to = audio.currentTime + 5;
-      } else if (event.key === "Home") to = 0;
-      else if (event.key === "End") to = length;
-      if (to === null) return;
-      event.preventDefault();
-      event.stopPropagation();
-      seek(to);
-    });
-  }
-
-  /* A step either side. One word where the recording was aligned word by word, five
-     seconds where it was not — and the label says which, because a control whose size
-     changes silently is a control that lies. */
-  var stepBack = player && player.querySelector(".player-back");
-  var stepOn = player && player.querySelector(".player-on");
-  var wordStarts = null;
-
-  function starts() {
-    if (wordStarts) return wordStarts;
-    var all = [];
-    Object.keys(wordClocks).forEach(function (id) {
-      var rows = wordClocks[id];
-      for (var i = 0; i < rows.length; i++) all.push(rows[i][2]);
-    });
-    all.sort(function (a, b) { return a - b; });
-    wordStarts = all;
-    return all;
-  }
-
-  function stepBy(back) {
-    var all = starts();
-    var now = audio.currentTime;
-    var to;
-    if (!all.length) {
-      to = back ? now - 5 : now + 5;
-    } else if (back) {
-      // A little behind where the voice is, so pressing back at the top of a word goes
-      // to the word before it and not to the top of the one being said.
-      to = 0;
-      for (var i = 0; i < all.length; i++) {
-        if (all[i] >= now - 0.35) break;
-        to = all[i];
-      }
-    } else {
-      to = now + 5;
-      for (var j = 0; j < all.length; j++) {
-        if (all[j] > now + 0.05) { to = all[j]; break; }
-      }
-    }
-    seek(to);
-  }
-
-  if (stepBack || stepOn) {
-    var byWord = starts().length > 0;
-    if (stepBack) {
-      stepBack.setAttribute("aria-label", byWord ? "Back a word" : "Back five seconds");
-      stepBack.setAttribute("title", byWord ? "Back a word" : "Back five seconds");
-      stepBack.addEventListener("click", function () { stepBy(true); });
-    }
-    if (stepOn) {
-      stepOn.setAttribute("aria-label", byWord ? "Forward a word" : "Forward five seconds");
-      stepOn.setAttribute("title", byWord ? "Forward a word" : "Forward five seconds");
-      stepOn.addEventListener("click", function () { stepBy(false); });
-    }
-  }
-
-  /* Where the reader had got to, kept across the door. Per text, like the closed player
-     and the shut picture; capped and pruned like `targum:place` further up, because a
-     store that grows for every text ever opened is a store that one day will not parse.
-
-     A text heard to its end keeps nothing. Resuming a finished text on its last second
-     is a control that appears to do nothing, and a reader who comes back to a text they
-     finished means to hear it again. */
-  var HEARD = "targum:heard";
-  var HEARDS = 100;
-  var keptAt = 0;
-
-  /* How near the end counts as the end. Two seconds on anything long enough for two
-     seconds to be a moment, and a tenth of the way on anything shorter — a fixed two on
-     a three-second turn of dialogue calls two thirds of it "finished", and the reader
-     who stopped in the middle of it comes back to the top. */
-  function tail(length) {
-    return Math.min(2, length / 10);
-  }
-
-  function keepHeard() {
-    if (!spokenOf) return;
-    var length = span();
-    if (!length) return;
-    var now = audio.currentTime;
-    try {
-      var all = JSON.parse(localStorage.getItem(HEARD) || "{}");
-      if (now <= 0.5 || length - now <= tail(length)) delete all[spokenOf];
-      else all[spokenOf] = { at: Math.round(now * 100) / 100, when: Date.now() };
-      Object.keys(all)
-        .sort(function (a, b) { return (all[b].when || 0) - (all[a].when || 0); })
-        .slice(HEARDS)
-        .forEach(function (stale) { delete all[stale]; });
-      targumKeep(HEARD, JSON.stringify(all));
-    } catch (e) {}
-    keptAt = Date.now();
-  }
-
-  function resume() {
-    if (!spokenOf) return;
-    var length = span();
-    if (!length) return;
-    var kept = null;
-    try {
-      kept = JSON.parse(localStorage.getItem(HEARD) || "{}")[spokenOf];
-    } catch (e) {}
-    if (!kept || !kept.at || kept.at >= length - tail(length)) return;
-    try {
-      audio.currentTime = kept.at;
-    } catch (e) {
-      return;
-    }
-    if (player) player.classList.add("placed");
-    paint();
-  }
-
-  /* The duration may already be in hand — a data URI's usually is — or may not, which is
-     the video sidecar's case. Both, rather than either: waiting on an event that has
-     already fired resumes nothing, and reading a duration that is not there yet resumes
-     at the wrong second. */
-  function whenKnown(run) {
-    if (span()) run();
-    else audio.addEventListener("loadedmetadata", run);
-  }
-  whenKnown(resume);
-
-  /* A window on the transport, like `TargumSpeech` below is one on the recording. The
-     instrument is a closure variable and can be swapped once, so where it has got to is
-     not a thing anything outside can read off the page: the clock in the card is rounded
-     to the second, and the bar's width is a percentage of a duration nobody else holds.
-     Asked at call time, so the swap changes nothing here. */
-  window.TargumPlayer = {
-    at: function () { return audio.currentTime; },
-    length: function () { return span(); },
-    seek: seek,
-    /* Whether the transport will actually take a seek. A media element reports its
-       duration as soon as the metadata is in and can still refuse every write to
-       `currentTime` — a response without `Accept-Ranges`, or a decode that has not
-       reached the end of the first cluster — and it refuses silently, leaving the fill,
-       the clock and `aria-valuenow` at nought, because `paint` reads all three off
-       `currentTime`. Nothing in the page needs to ask: `seek` already gives up quietly
-       and the reader presses again. A test does, because knowing the length is not
-       knowing the seek will land, and the two are far enough apart on a cold runner to
-       be the whole of a flake. */
-    seekable: function () {
-      var ranges = audio.seekable;
-      return !!(ranges && ranges.length && ranges.end(ranges.length - 1) > 0);
-    },
-  };
-
-  /* How tall the strip is, for the things that stand above it. The picture's dock used
-     a figure written into the stylesheet, and the strip is not one height: it grows a
-     bar and a clock the moment a text has a place to show, which is every text the
-     reader has been in before — and the picture sat on top of it. Measured rather than
-     guessed, and only when it changes. */
-  if (player && window.ResizeObserver) {
-    var measure = new ResizeObserver(function () {
-      var tall = player.hidden ? 0 : player.offsetHeight;
-      document.documentElement.style.setProperty("--player-tall", tall + "px");
-    });
-    measure.observe(player);
-  }
-
-  /* Hear first (targum-internal#265). A switch and nothing more: off each time the page
-     opens, written nowhere, and said in words when it moves. Pressing it off mid-line
-     brings the text back at once rather than making the reader wait out the sentence. */
-  if (hearFirst) {
-    hearFirst.addEventListener("click", function () {
-      var on = hearFirst.getAttribute("aria-pressed") !== "true";
-      hearFirst.setAttribute("aria-pressed", on ? "true" : "false");
-      if (!on && hearing) { hearing.classList.remove("hearing"); hearing = null; }
-      var reader = window.TargumReader;
-      if (reader && reader.say) {
-        reader.say(on ? "Hear first. Press a line to hear it before you see it." : "Hear first is off.");
-      }
-    });
-  }
-
-  /* Word by word (targum-internal#265, step 2). A line played on its own lights each of
-     its words as the voice reaches it, where the recording was aligned word by word — the
-     sentence broken into the words it is made of, which is the listening a learner is
-     practising. Read off the clocks each frame rather than from `timeupdate`, which comes
-     four times a second and would light a short word late or not at all. Nothing moves:
-     one underline goes from word to word. A line with no word clocks lights nothing. */
-  var lit = null;
-  var litFrame = 0;
-
-  function unlight() {
-    if (litFrame && window.cancelAnimationFrame) window.cancelAnimationFrame(litFrame);
-    litFrame = 0;
-    if (lit) lit.classList.remove("voiced-now");
-    lit = null;
-  }
-
-  // The word on show whose letters a clock covers. Only the source cell: the cells not on
-  // show hold no words, and an Onkelos cell's offsets are its own.
-  function wordAt(id, from, to) {
-    var pair = document.querySelector('.pair[data-id="' + CSS.escape(id) + '"]');
-    if (!pair) return null;
-    var words = pair.querySelectorAll(".src .w[data-bare]");
-    for (var i = 0; i < words.length; i++) {
-      var span = words[i].getAttribute("data-bare").split(",");
-      if (parseInt(span[0], 10) < to && parseInt(span[1], 10) > from) return words[i];
-    }
-    return null;
-  }
-
-  function follow(id) {
-    var rows = wordClocks[id];
-    if (!rows || !rows.length || !window.requestAnimationFrame) return;
-    function tick() {
-      litFrame = 0;
-      if (!playing) return unlight();
-      var now = audio.currentTime;
-      var word = null;
-      for (var i = 0; i < rows.length; i++) {
-        if (now >= rows[i][2] && now < rows[i][3]) {
-          word = wordAt(id, rows[i][0], rows[i][1]);
-          break;
-        }
-      }
-      if (word !== lit) {
-        if (lit) lit.classList.remove("voiced-now");
-        lit = word;
-        if (lit) lit.classList.add("voiced-now");
-      }
-      litFrame = window.requestAnimationFrame(tick);
-    }
-    tick();
-  }
-
-  /* One line. */
-  document.addEventListener("click", function (event) {
-    var button = event.target.closest ? event.target.closest(".say") : null;
-    if (!button) return;
-    var span = spans[button.getAttribute("data-id")];
-    if (!span) return;
-    var again = playing === button;
-    halt();
-    if (again) return;
-    var line = button.getAttribute("data-id") || "";
-    if (askedFor[line] && window.TargumEvents) {
-      window.TargumEvents.note({ kind: "replay", medium: pictureUp() ? "watch" : "listen", segment: line });
-    }
-    askedFor[line] = true;
-    playing = button;
-    playingEnd = span[1];
-    button.classList.add("saying");
-    if (hearFirst && hearFirst.getAttribute("aria-pressed") === "true") {
-      hearing = button.closest ? button.closest(".pair") : null;
-      if (hearing) hearing.classList.add("hearing");
-    }
-    play(span[0]);
-    follow(button.getAttribute("data-id"));
-    // Wall-clock, so the span's length is divided by the speed it is played at.
-    stopAt = setTimeout(halt, Math.max(0, ((span[1] - span[0]) * 1000) / audio.playbackRate));
-  });
-
-  /* One word, or one run of them, for the cards. The audio and its timers live in this
-     closure, so this window is the whole bridge — and it only exists on a page with a
-     recording, which is how a card on a silent page finds no ear to offer. */
-  window.TargumSpeech = {
-    /* Where a tapped span's sound sits: the clocks of every written word it overlaps,
-       breathing a little either side — the chapter cutter's move — but never into the
-       neighbouring word. Null where the recording never said it. */
-    clockFor: function (segmentId, start, end) {
-      var rows = wordClocks[segmentId];
-      if (!rows || !rows.length) return null;
-      var from = null;
-      var until = null;
-      var before = 0;
-      var after = Infinity;
-      for (var i = 0; i < rows.length; i++) {
-        var row = rows[i];
-        if (row[0] < end && row[1] > start) {
-          if (from === null || row[2] < from) from = row[2];
-          if (until === null || row[3] > until) until = row[3];
-        } else if (row[1] <= start) {
-          if (row[3] > before) before = row[3];
-        } else if (row[0] >= end && row[2] < after) {
-          after = row[2];
-        }
-      }
-      if (from === null || until <= from) return null;
-      var PAD = 0.15;
-      /* Rounded like the build side's clocks, so a slice is a tidy number and not
-         float dust the tests would have to forgive. */
-      var opens = Math.max(before, from - PAD, 0);
-      var closes = Math.min(after, until + PAD);
-      return [Math.round(opens * 1000) / 1000, Math.round(closes * 1000) / 1000];
-    },
-    playSlice: function (slice) {
-      halt();
-      play(slice[0]);
-      stopAt = setTimeout(halt, Math.max(0, ((slice[1] - slice[0]) * 1000) / audio.playbackRate));
-    },
-  };
-
-  /* The whole scene: play, and pause where it stands rather than starting over. A
-     control that only restarts is a control nobody presses twice. */
-  function at(seconds) {
-    for (var i = 0; i < order.length; i++) {
-      if (seconds >= order[i].start && seconds < order[i].end) return order[i].id;
-    }
-    return order[0].id;
-  }
-
-  function toggleScene() {
-    if (playing) {                      /* a single line was running; that ends here */
-      if (stopAt) { clearTimeout(stopAt); stopAt = null; }
-      playing.classList.remove("saying");
-      playing = null;
-      audio.pause();
-    }
-    if (following && !audio.paused) {   /* pause: keep the place and the mark */
-      audio.pause();
-      pressed(false);
-      return;
-    }
-    following = true;
-    pressed(true);
-    var opening = order.length ? order[0].start : 0;
-    var from = audio.ended || audio.currentTime <= 0 ? opening : audio.currentTime;
-    play(from);
-    mark(at(from));
-  }
-
-  scenes.forEach(function (button) {
-    button.addEventListener("click", toggleScene);
-  });
-
-  function onTime() {
-    paint();
-    /* Written down as it goes, not only when it stops. A tab closed by the system, a
-       phone that sleeps and never wakes to this page, a browser that crashes — none of
-       them send `pause`, and every one of them is a reader who comes back. Five seconds
-       is often enough to lose nothing worth hearing again and rare enough that a store
-       written on every tick is not what this is. */
-    if (Date.now() - keptAt > 5000) keepHeard();
-    if (!following) return;
-    var now = audio.currentTime;
-    for (var i = 0; i < order.length; i++) {
-      if (now >= order[i].start && now < order[i].end) { mark(order[i].id); return; }
-    }
-  }
-
-  /* Attached through a function because the instrument can be swapped once: a page
-     whose sidecar video is gone falls back to the inlined audio, and the new element
-     needs the same ears. The handlers read `audio` at call time, so nothing else
-     changes hands. */
-  function wire(element) {
-    element.addEventListener("timeupdate", onTime);
-    element.addEventListener("ended", halt);
-    // Every stop the reader can cause arrives here: the play button, the space bar, the
-    // tab going to the background, the end of the text.
-    element.addEventListener("pause", keepHeard);
-    // A text that has finished is not saying anything. Pausing keeps the line up —
-    // stopping to read it is why anyone pauses — but running off the end takes it down.
-    element.addEventListener("ended", function () { caption(null); });
-  }
-  wire(audio);
-
-  /* Space plays and pauses — on a dialogue, and only on a dialogue.
-   *
-   * Space is already spoken for here: in paged mode it turns the page. Two meanings for
-   * one key is the thing this file says elsewhere means neither, so the split is by text:
-   * where a text can be listened to, Space plays it, and nowhere else.
-   *
-   * This was narrower for a day — dialogues only, on the reasoning that a book is fifty
-   * chapters and the pager should keep its key. That was overruled, and it is the right
-   * call: a reader who has pressed Space on one recorded text has learned what Space
-   * does, and having it mean something else on the next one is the confusion the rule
-   * against two meanings exists to prevent. The arrows and the pager still turn pages,
-   * and the help card says which it is.
-   *
-   * Captured, because the pager listens on the way back up and would turn the page as
-   * well — one keystroke doing two things is exactly what this is avoiding.
-   *
-   * `<` and `>` step the speed, the keys every video player has taught. Read off the
-   * physical key as well as the character: under a Hebrew layout Shift on the comma
-   * arrives as something else entirely, the way the letters do further up. */
-  document.addEventListener("keydown", function (event) {
-    if (event.metaKey || event.ctrlKey || event.altKey) return;
-    var key = event.key;
-    if (event.shiftKey && event.code === "Comma") key = "<";
-    if (event.shiftKey && event.code === "Period") key = ">";
-    if (!/^[ <>]$/.test(key)) return;
-    var on = document.activeElement;
-    // SELECT is in this list and not in the argument below: Space is how a keyboard
-    // opens one, and a page that grows one must not lose it to the player.
-    if (
-      on &&
-      (on.tagName === "INPUT" || on.tagName === "SELECT" || on.tagName === "TEXTAREA" || on.isContentEditable)
-    )
-      return;
-    /* Not even for a focused button, which would otherwise answer Space itself. On a page
-       that can be listened to Space plays and does nothing else, so a button under the
-       keyboard must not quietly take it — walking to the end of a text puts the keyboard
-       on Done, and Space there would finish the text instead of playing it. Enter is what
-       presses a button. */
-    event.preventDefault();
-    event.stopPropagation();
-    if (key === " ") toggleScene();
-    else stepRate(key === "<" ? -1 : 1);
-  }, true);
-
-  /* Saving the audio. The file is already in the page, so this asks the network for
-     nothing — the same reason the fonts and the icons ride inside it. */
-  if (player) {
-    /* Both copies: the strip's, and the one the `···` menu carries on a phone, where
-       the strip's row has no width for a one-off action. Distinct classes on purpose —
-       reusing `.player-get` made the selector match two elements and broke four browser
-       tests on strict mode — collected here so one handler drives both. */
-    var gets = Array.prototype.slice.call(document.querySelectorAll(".player-get, .more-get"));
-    var get = gets[0];
-    if (get) {
-      var named = (document.title || "dialogue").replace(/[\\/:*?"<>|\u2066-\u2069]/g, "").trim();
-      /* Named for what it actually is. The build inlines whatever the scene was voiced
-         as, so a suffix written into the page rather than read off it hands the reader a
-         file their machine opens with the wrong thing. */
-      var ENDS = {
-        "audio/mpeg": "mp3",
-        "audio/mp4": "m4a",
-        "audio/aac": "aac",
-        "audio/ogg": "ogg",
-        "audio/wav": "wav",
-        "audio/x-wav": "wav",
-        "audio/webm": "webm",
-        "audio/flac": "flac",
-      };
-      var kind = speech.audio.slice(5).split(";")[0].split(",")[0];
-      gets.forEach(function (one) {
-        one.setAttribute("href", speech.audio);
-        one.setAttribute("download", (named || "dialogue") + "." + (ENDS[kind] || "mp3"));
-      });
-    }
-
-    /* Put away, and stays away. A reader who has met the player once does not need to be
-       shown it every time they open a scene; the bar keeps its button for coming back. */
-    // Per text, not per browser. It was one key for everything, on the reasoning that a
-    // reader who has met the player once need not meet it again — and the cost of that
-    // was closing it on one scene and finding every other scene silent, with a control
-    // that was simply not on the page and no way to know why. Put away means put away
-    // here.
-    // The page needs to know a player is out: the blocks at the foot of a text sit after
-    // the pairs, and the pairs are the only thing `room` budgets for — so the Done line
-    // and the suggestion land inside the band the player is fixed in.
-    function standing(out) {
-      document.body.classList.toggle("has-player", !!out);
-    }
-
-    var STORE = "targum:player-closed:" + spokenOf;
-
-    /* The pages were laid out before this ran, with room kept for a player that may be
-       put away — so whenever that changes, they are laid out again. */
-    function remeasure() {
-      var reader = window.TargumReader;
-      if (reader && reader.relayout) reader.relayout();
-    }
-
-    try {
-      if (localStorage.getItem(STORE) === "1") {
-        player.hidden = true;
-        remeasure();
-      }
-    } catch (e) {}
-    standing(!player.hidden);
-
-    /* Both copies, for the reason above. The bar's play button brings the strip back,
-       so a reader who closes it from the menu still has the way back the §12 rule asks
-       for: a control that can be turned off has to be turnable on from where it was. */
-    Array.prototype.slice.call(document.querySelectorAll(".player-close, .more-close")).forEach(
-      function (shut) {
-        shut.addEventListener("click", function () {
-          halt();
-          player.hidden = true;
-          try { targumKeep(STORE, "1"); } catch (e) {}
-          standing(false);
-          remeasure();
-        });
-      }
-    );
-
-    /* Coming back through the bar's button unhides it, so the two are never out of step. */
-    if (scenes.length > 1) {
-      scenes[0].addEventListener("click", function () {
-        if (!player.hidden) return;
-        player.hidden = false;
-        try { targumForget(STORE); } catch (e) {}
-        standing(true);
-        remeasure();
-      });
-    }
-  }
-
-  /* The picture, on when the text opens and put away by hand. A text that carries media
-     opens as its media (design.md §1, §12, 2026-09-03): the default reversed after the
-     first stranger was shown a page with a recording and never found out it could be
-     heard. The toggle still only decides whether the picture is on the page, never
-     whether anything sounds — nothing plays until pressed, which is the half of the old
-     rule that survived. Kept per text, like the closed player, but stored the other way
-     up: the store now records that a reader put the picture away, because the thing
-     worth remembering is the departure from the default and not the default itself. On a
-     narrow window the panel is an occupant of the band, one at a time with the sheet and
-     the cards. */
-  if (videoBox && videoEl) {
-    var flips = Array.prototype.slice.call(document.querySelectorAll("[data-video]"));
-    /* A new key, not the old one inverted: `targum:video-open` meant "this reader opened
-       the picture", and reading those stored 1s as "put it away" would shut the panel for
-       exactly the readers who liked it. The old key is left where it is and ignored. */
-    var VIDEO_STORE = "targum:video-shut:" + spokenOf;
-
-    var revideo = function () {
-      var reader = window.TargumReader;
-      if (reader && reader.relayout) reader.relayout();
-    };
-
-    /* Watching or reading, and which corner the picture stands in while the reader
-       reads. Two stores, kept the two different ways for the two different reasons the
-       rate and the shut picture are: what the picture is doing is a fact about this
-       text, and where a reader likes it to stand is a fact about the reader, like the
-       type size. The mode store records the departure, so the default can move again
-       without reading old rows backwards.
-
-       And it moved (design.md §12, 2026-09-17): a video text opens as its transcript
-       now, so the departure is watching rather than reading. That inverts what the store
-       means, which is exactly the bug this file has already had once — see
-       `targum:video-open` above. So the key is new, `targum:video-watch:`, a 1 means
-       "this reader chose full screen here", and the old key is left where it is and
-       ignored. Inverting it in place would have opened full screen for precisely the
-       readers who had asked for the opposite. */
-    var WATCH_STORE = "targum:video-watch:" + spokenOf;
-    var CORNER_STORE = "targum:video-corner";
-    var CORNERS = ["bottom-end", "bottom-start", "top-start", "top-end"];
-    var SAID_CORNER = {
-      "bottom-end": "Bottom, reading end.",
-      "bottom-start": "Bottom, reading start.",
-      "top-start": "Top, reading start.",
-      "top-end": "Top, reading end.",
-    };
-    var modeKey = videoBox.querySelector(".video-mode");
-    var cornerKey = videoBox.querySelector(".video-corner");
-    var watching = false;
-    /* Where the transport lives when it is not over the picture. Held rather than
-       looked up, because putting it back has to put it back exactly: the player is a
-       sibling of the pairs and the order it is in decides what Tab reaches after it. */
-    var playerHome = player ? player.parentNode : null;
-    var playerNext = player ? player.nextSibling : null;
-
-    var showWatch = function (on, chosen) {
-      if (videoDead || videoBox.hidden) on = false;
-      watching = !!on;
-      videoBox.classList.toggle("watching", watching);
-      document.body.classList.toggle("watching", watching);
-      if (modeKey) {
-        modeKey.setAttribute("aria-pressed", watching ? "true" : "false");
-        // What pressing it does, not what the page is doing: a button labelled with the
-        // state it is in is a button nobody can predict.
-        var next = watching ? "Show the transcript" : "Watch full screen";
-        modeKey.setAttribute("aria-label", next);
-        modeKey.setAttribute(
-          "title",
-          (watching ? "Minimise and show the transcript" : "Watch full screen") + " (v)"
-        );
-        // And in words beside the glyph (2026-09-14): where pressing it goes.
-        var word = modeKey.querySelector(".video-word");
-        if (word) word.textContent = watching ? "Transcript" : "Full screen";
-      }
-      /* One transport, moved rather than copied. Item 4 of the note asked that the two
-         players never be on screen together, and the honest reading of that on a page
-         with one media element and one strip is that the strip belongs to whichever
-         surface is showing. Moved, so the speed, the place and the bar are the ones the
-         reader already had — a second set of controls would be a second state to keep
-         in step, which is the bug the note was describing. */
-      if (player && playerHome) {
-        if (watching) videoBox.appendChild(player);
-        else if (player.parentNode !== playerHome) playerHome.insertBefore(player, playerNext);
-      }
-      if (chosen) {
-        try {
-          // The store records the departure, and the departure is watching now.
-          if (watching) targumKeep(WATCH_STORE, "1");
-          else targumForget(WATCH_STORE);
-        } catch (e) {}
-        var reader = window.TargumReader;
-        if (reader && reader.say) reader.say(watching ? "Watching." : "Reading.");
-      }
-      // The subtitle is written by the clock, and the clock has not moved: ask for it
-      // again so a mode entered mid-sentence opens with the sentence on it.
-      saidNow = null;
-      caption(saidAt(audio.currentTime));
-      applyPlace();
-      revideo();
-    };
-
-    var setCorner = function (name, chosen) {
-      CORNERS.forEach(function (each) {
-        videoBox.classList.toggle("dock-" + each, each === name);
-      });
-      if (cornerKey) cornerKey.setAttribute("data-corner", name);
-      if (chosen) {
-        try { targumKeep(CORNER_STORE, name); } catch (e) {}
-        var reader = window.TargumReader;
-        if (reader && reader.say) reader.say(SAID_CORNER[name] || "");
-      }
-      applyPlace();
-      revideo();
-    };
-
-    /* Picked up (design.md §12, 2026-09-13). On a wide window the picture can be moved
-       anywhere by its grip and sized from its corner, and both are kept per device, like
-       the corner. Kept as fractions of the window rather than pixels, so a window made
-       smaller keeps the picture on it, and clamped each time they are drawn, so a
-       window made smaller still never loses it off an edge.
-
-       The dock stays the default and the start: nothing here is written until a reader
-       moves something, and the corner key clears the place and docks again. A picture
-       that has been put somewhere floats over the page and takes no room from it — the
-       reader put it where the text is not, and `room()` cutting the pages around a spot
-       they chose would be the layout second-guessing them. The size is kept through a
-       dock: a reader who wants a bigger picture wants it in the corner too.
-
-       Not on a phone. There the panel is full-bleed in the band and pulled down to
-       close; a drag would be a second meaning for the same thumb. The stores are left
-       alone there, so the window that grows wide again finds the picture where it was. */
-    var PLACE_STORE = "targum:video-place";
-    var SIZE_STORE = "targum:video-size";
-    var EDGE = 8;
-    var SMALLEST = 260;
-    var wide = window.matchMedia("(min-width: 60.01rem)");
-    var grip = videoBox.querySelector(".video-grip");
-    var sizer = videoBox.querySelector(".video-size");
-    var place = null;
-    var size = null;
-
-    var viewW = function () { return document.documentElement.clientWidth || window.innerWidth; };
-    var viewH = function () { return document.documentElement.clientHeight || window.innerHeight; };
-    var placeable = function () { return wide.matches && !watching; };
-    var rtl = function () { return getComputedStyle(videoBox).direction === "rtl"; };
-
-    /* Where the panel stands, written as logical insets from its physical box so the
-       page's direction mirrors it the way it mirrors the dock. Clamped to the window. */
-    var standAt = function (left, top) {
-      var box = videoBox.getBoundingClientRect();
-      var w = viewW();
-      var h = viewH();
-      left = Math.max(EDGE, Math.min(left, w - box.width - EDGE));
-      top = Math.max(EDGE, Math.min(top, h - box.height - EDGE));
-      var start = rtl() ? w - left - box.width : left;
-      videoBox.classList.add("free");
-      videoBox.style.insetInline = Math.round(start) + "px auto";
-      videoBox.style.insetBlock = Math.round(top) + "px auto";
-      return { start: start, top: top };
-    };
-
-    /* A width the window can hold: no narrower than a picture worth watching, no wider
-       than nine tenths of the window, and never taller than it. */
-    var sizeTo = function (width) {
-      var w = viewW();
-      var most = Math.min(w * 0.9, w - 2 * EDGE);
-      width = Math.max(Math.min(SMALLEST, most), Math.min(width, most));
-      videoBox.style.inlineSize = Math.round(width) + "px";
-      var box = videoBox.getBoundingClientRect();
-      var over = Math.max(0, EDGE - box.top) + Math.max(0, box.bottom - (viewH() - EDGE));
-      if (over && box.height) {
-        width = Math.max(Math.min(SMALLEST, most), width - (over * box.width) / box.height);
-        videoBox.style.inlineSize = Math.round(width) + "px";
-      }
-      return width;
-    };
-
-    var applyPlace = function () {
-      var style = videoBox.style;
-      if (!placeable()) {
-        videoBox.classList.remove("free");
-        style.insetInline = "";
-        style.insetBlock = "";
-        style.inlineSize = "";
-        return;
-      }
-      if (size) sizeTo(size * viewW());
-      else style.inlineSize = "";
-      if (!place) {
-        videoBox.classList.remove("free");
-        style.insetInline = "";
-        style.insetBlock = "";
-        return;
-      }
-      if (videoBox.hidden) {
-        videoBox.classList.add("free");
-        return;
-      }
-      var w = viewW();
-      var width = videoBox.getBoundingClientRect().width;
-      var start = place.x * w;
-      standAt(rtl() ? w - start - width : start, place.y * viewH());
-    };
-
-    var keepPlace = function () {
-      if (!place) return;
-      try { targumKeep(PLACE_STORE, JSON.stringify(place)); } catch (e) {}
-    };
-    var keepSize = function () {
-      if (!size) return;
-      try { targumKeep(SIZE_STORE, String(size)); } catch (e) {}
-    };
-    var placeFrom = function (at) {
-      place = { x: at.start / viewW(), y: at.top / viewH() };
-    };
-
-    /* While a pointer holds it, it follows the pointer and nothing else (§12,
-       2026-09-04): no transition is on it on a wide window, and the page is laid out
-       again only when it is let go of. */
-    var held = null;
-    var pickUp = function (event, kind) {
-      if (!placeable() || held) return;
-      if (event.pointerType === "mouse" && event.button !== 0) return;
-      var box = videoBox.getBoundingClientRect();
-      var handle = event.currentTarget.getBoundingClientRect();
-      held = {
-        kind: kind,
-        id: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-        box: box,
-        // Which physical side the size key is on decides which way a pull widens.
-        pullsRight: handle.left + handle.width / 2 > box.left + box.width / 2,
-        moved: false,
-        on: event.currentTarget,
-      };
-      try { event.currentTarget.setPointerCapture(event.pointerId); } catch (e) {}
-      videoBox.classList.add("moving");
-      event.preventDefault();
-    };
-    var follow = function (event) {
-      if (!held || event.pointerId !== held.id) return;
-      var dx = event.clientX - held.x;
-      var dy = event.clientY - held.y;
-      if (!held.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
-      held.moved = true;
-      if (held.kind === "move") standAt(held.box.left + dx, held.box.top + dy);
-      else sizeTo(held.box.width + (held.pullsRight ? dx : -dx));
-    };
-    var letGo = function (event) {
-      if (!held || event.pointerId !== held.id) return;
-      var was = held;
-      held = null;
-      videoBox.classList.remove("moving");
-      try { was.on.releasePointerCapture(event.pointerId); } catch (e) {}
-      if (!was.moved) return;
-      settle(was.kind);
-    };
-    var settle = function (kind) {
-      var box = videoBox.getBoundingClientRect();
-      if (kind === "move" || place) {
-        var w = viewW();
-        placeFrom({ start: rtl() ? w - box.right : box.left, top: box.top });
-        keepPlace();
-      }
-      if (kind === "size") {
-        size = box.width / viewW();
-        keepSize();
-      }
-      revideo();
-    };
-
-    [[grip, "move"], [sizer, "size"]].forEach(function (pair) {
-      var handle = pair[0];
-      if (!handle) return;
-      handle.addEventListener("pointerdown", function (event) { pickUp(event, pair[1]); });
-      handle.addEventListener("pointermove", follow);
-      handle.addEventListener("pointerup", letGo);
-      handle.addEventListener("pointercancel", letGo);
-      /* And by keyboard: the arrows move it, or size it, 16px a press and 64 with
-         Shift. Stopped here, so the page's own arrows do not turn a page as well. */
-      handle.addEventListener("keydown", function (event) {
-        var step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
-        if (!step || !placeable() || event.metaKey || event.ctrlKey || event.altKey) return;
-        event.preventDefault();
-        event.stopPropagation();
-        var by = event.shiftKey ? 64 : 16;
-        var box = videoBox.getBoundingClientRect();
-        if (pair[1] === "move") {
-          standAt(box.left + step[0] * by, box.top + step[1] * by);
-        } else {
-          // Right and up grow it, left and down shrink it, whichever corner it is in.
-          sizeTo(box.width + (step[0] || -step[1]) * by);
-        }
-        settle(pair[1]);
-      });
-    });
-
-    var replace = function () {
-      applyPlace();
-      revideo();
-    };
-    if (wide.addEventListener) wide.addEventListener("change", replace);
-    else if (wide.addListener) wide.addListener(replace);
-    window.addEventListener("resize", function () {
-      if (placeable() && (place || size)) applyPlace();
-    });
-
-    var showVideo = function (out, chosen) {
-      if (videoDead) out = false;
-      videoBox.hidden = !out;
-      flips.forEach(function (button) {
-        button.setAttribute("aria-pressed", out ? "true" : "false");
-      });
-      var reader = window.TargumReader;
-      if (out && reader && reader.occupy) reader.occupy("video");
-      if (!out && reader && reader.vacate) reader.vacate("video");
-      if (chosen) {
-        try {
-          if (out) targumForget(VIDEO_STORE);
-          else targumKeep(VIDEO_STORE, "1");
-        } catch (e) {}
-      }
-      // A picture that is not on the page is not being watched. The stored mode is left
-      // alone: putting the picture away and bringing it back should bring back the mode
-      // it was in, not the default.
-      if (!out && watching) showWatch(false, false);
-      applyPlace();
-      revideo();
-    };
-
-    /* How the band puts the picture away when something else takes its place, and how
-       the `v` key reaches a mode that lives inside this closure. */
-    window.TargumVideo = {
-      hide: function () { showVideo(false, false); },
-      /* The mirror of `hide`, for the band to give the picture back with. `chosen` is
-         false in both, so neither writes the store: a picture the band moved aside was
-         never a picture the reader closed, and it must not come back looking like one.
-         Refused if the film is dead or the reader really did shut it — `VIDEO_STORE`
-         holds that, and it outranks anything the band remembers. */
-      show: function () {
-        if (videoDead) return;
-        try {
-          /* Read the way the page reads it at load — there is no `targumRead`, and a
-             helper invented for one call is a helper nobody else will find. */
-          if (localStorage.getItem(VIDEO_STORE) === "1") return;
-        } catch (e) {}
-        showVideo(true, false);
-      },
-      /* Between the two modes. On a page whose picture is put away this brings it back
-         and watches — pressing "watch" and being told the picture is closed would be
-         the page refusing a thing it just offered. */
-      watch: function () {
-        if (videoDead) return false;
-        if (videoBox.hidden) {
-          showVideo(true, true);
-          showWatch(true, true);
-          return true;
-        }
-        showWatch(!watching, true);
-        return true;
-      },
-    };
-
-    flips.forEach(function (button) {
-      button.addEventListener("click", function () {
-        showVideo(videoBox.hidden, true);
-      });
-    });
-    var shutVideo = videoBox.querySelector(".video-close");
-    if (shutVideo) {
-      shutVideo.addEventListener("click", function () { showVideo(false, true); });
-    }
-    if (modeKey) {
-      modeKey.addEventListener("click", function () { showWatch(!watching, true); });
-    }
-    if (cornerKey) {
-      cornerKey.addEventListener("click", function () {
-        /* Four corners on a window that has four. A phone has two: the panel is
-           full-bleed there, so `bottom-end` and `bottom-start` draw in exactly the same
-           place, and so do the two at the top — every second press moved nothing and the
-           button looked broken. Cycling only what the window can actually show means
-           every press does something the reader can see, which is the whole promise of a
-           toggle. The stored corner is untouched: a phone that becomes a wide window
-           again finds the corner it left. */
-        var ring = window.matchMedia("(min-width: 60.01rem)").matches
-          ? CORNERS
-          : ["bottom-end", "top-start"];
-        var at = ring.indexOf(cornerKey.getAttribute("data-corner"));
-        /* A picture that was picked up goes back to the corner it came from, and is
-           docked again: the first press is the way home, the next ones the ring. */
-        if (place && placeable()) {
-          place = null;
-          try { targumForget(PLACE_STORE); } catch (e) {}
-          setCorner(ring[Math.max(0, at)], true);
-          return;
-        }
-        /* A corner the ring does not hold — a wide window's `top-end` met on a phone —
-           steps to the first rather than nowhere: `indexOf` gives -1, and -1 + 1 is 0. */
-        setCorner(ring[(at + 1) % ring.length], true);
-      });
-    }
-
-    /* The sidecar did not travel — a reader folder copied without its video/, or a
-       page opened somewhere the file is not. The player swaps to the inlined audio
-       and the page becomes exactly the audio reader, toggle and all. */
-    videoEl.addEventListener("error", function () {
-      if (videoDead) return;
-      videoDead = true;
-      var rate = nearestRate(audio.playbackRate);
-      halt();
-      showVideo(false, false);
-      flips.forEach(function (button) {
-        var group = button.closest(".group");
-        if (group) group.hidden = true;
-        else button.hidden = true;
-      });
-      audio = new Audio(speech.audio);
-      wire(audio);
-      setRate(rate, false);
-      // The place was restored onto the element that has just been thrown away. The
-      // inlined audio is the same recording at the same seconds, so it is restored
-      // again rather than lost with the sidecar.
-      whenKnown(resume);
-    });
-
-    /* On unless this reader put it away here before, and reading unless they asked for
-       full screen here before (design.md §12, 2026-09-17). Not `chosen` in either case,
-       so opening a text never writes a preference the reader did not express. The corner
-       is a fact about the reader and comes from wherever they last set it, on any text. */
-    var putAway = false;
-    var wantsFullScreen = false;
-    var where = CORNERS[0];
-    try {
-      putAway = localStorage.getItem(VIDEO_STORE) === "1";
-      wantsFullScreen = localStorage.getItem(WATCH_STORE) === "1";
-      var stored = localStorage.getItem(CORNER_STORE);
-      if (CORNERS.indexOf(stored) >= 0) where = stored;
-      /* Read with suspicion: a row from a later build, or a hand, may hold anything,
-         and a picture placed at NaN is a picture nobody can find. */
-      var kept = JSON.parse(localStorage.getItem(PLACE_STORE) || "null");
-      if (kept && isFinite(kept.x) && isFinite(kept.y)) {
-        place = { x: Math.min(1, Math.max(0, +kept.x)), y: Math.min(1, Math.max(0, +kept.y)) };
-      }
-      var keptSize = parseFloat(localStorage.getItem(SIZE_STORE));
-      if (keptSize > 0 && keptSize <= 1) size = keptSize;
-    } catch (e) {}
-    /* Inside a playlist the picture is the item (design.md §12, 2026-09-23): a reader
-       who swiped into a reel came to watch it. So it opens watching, whatever this
-       text's own stores say — and writes neither of them, so the text opened on its own
-       later still opens the way its reader left it. `go` is the swipe that brought the
-       reader here, which was the press; opened any other way, nothing plays. */
-    var inList = false;
-    var swipedHere = false;
-    try {
-      var listed = new URLSearchParams(location.search);
-      inList = /^https?:$/.test(location.protocol) && /^\d+$/.test(listed.get("list") || "");
-      swipedHere = inList && listed.get("go") === "1";
-    } catch (e) {}
-    setCorner(where, false);
-    showVideo(inList || !putAway, false);
-    showWatch(inList || (!putAway && wantsFullScreen), false);
-    if (swipedHere) toggleScene();
-  }
-
-  /* The video's home, opened at the line in front of the reader. The sidecar stays
-     the instrument — it plays on a plane and this does not — and the link is a credit
-     that happens to be useful: YouTube's own page, at the second this sentence starts.
-     The address is fixed in the markup and only the time is decided, at the click
-     rather than on every tick, because an address that changes forty times a minute
-     is one nobody can copy. The spans are into this part's own cut, which begins
-     `offset` seconds into the whole video; the two are added here. */
-  var home = document.querySelector("[data-home]");
-  // Only an address that takes a time is given one. The "at" mark is YouTube's, and an
-  // Instagram reel with `&t=` on the end is an address Instagram does not answer.
-  if (home && home.getAttribute("data-home") === "at") {
-    var homeBase = home.getAttribute("href");
-    var homeOffset = Number(speech.offset) || 0;
-    var homeAt = function () {
-      // The line being spoken, then the one line playing, then the sentence in front
-      // of the reader — and failing all three, the whole video from its start.
-      var pair = marked || (playing && playing.closest(".pair"));
-      if (!pair) {
-        var reader = window.TargumReader;
-        pair = reader && reader.inFront ? reader.inFront() : null;
-      }
-      var id = pair ? pair.getAttribute("data-id") : "";
-      if (id && spans[id]) return homeOffset + spans[id][0];
-      return audio.currentTime ? homeOffset + audio.currentTime : 0;
-    };
-    home.addEventListener("click", function () {
-      var seconds = Math.max(0, Math.floor(homeAt()));
-      home.href = homeBase + (seconds ? "&t=" + seconds + "s" : "");
-    });
-  }
-
-  /* Leaving the page mid-sentence should not leave a voice talking into an empty room. */
-  document.addEventListener("visibilitychange", function () {
-    if (document.hidden) halt();
-  });
-})();
+/* The player, from `player.js`, where a reader whose text has a recording carries it.
+   Run here, where its closure stood, so nothing starts in another order. */
+if (typeof targumPlayer === "function") targumPlayer();
 
 };
 
 if (window.TargumStore) window.TargumStore.ready(targumReader);
 else targumReader();
-
-
-/* --- hear a silent text ---------------------------------------------------------
- *
- * The door in This text on a section with no recording (targum-internal#246): the press
- * asks the server to read the section aloud, waits for the build the way the strip does,
- * and reopens the page, which now carries the audio and every per-line control. Its own
- * scope, like the chapter buy: the key helpers and the folder name and nothing else.
- * Off a disk there is no server to ask, and the door stays hidden.
- */
-(function () {
-  "use strict";
-
-  var offer = document.getElementById("voice-offer");
-  var go = document.getElementById("voice-go");
-  var said = document.getElementById("voice-said");
-  if (!offer || !go) return;
-  if (location.protocol === "file:") {
-    offer.hidden = true;
-    return;
-  }
-  var passKey = "";
-  try {
-    passKey = new URLSearchParams(location.search).get("k") || "";
-  } catch (e) {
-    passKey = "";
-  }
-  function keyed(path) {
-    if (!passKey) return path;
-    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(passKey);
-  }
-  function keyHeaders(extra) {
-    var head = extra || {};
-    if (passKey) head["X-Targum-Key"] = passKey;
-    return head;
-  }
-  var parts = location.pathname.split("/");
-  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
-  if (!name) return;
-
-  function tell(text) {
-    if (said) said.textContent = text || "";
-  }
-
-  //: How often the page asks after the build. A test sets it to 0.
-  var POLL = 2000;
-
-  function follow(id) {
-    fetch(keyed("/job/" + encodeURIComponent(id)), { headers: keyHeaders({}) })
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (state) {
-        if (state.error && !state.stage) return failed(state.error);
-        if (state.stage === "failed" || state.stage === "blocked") {
-          return failed(state.error || state.blocked || "We couldn't make the recording. Try again.");
-        }
-        if (state.stage === "done") {
-          tell("Ready.");
-          location.reload();
-          return;
-        }
-        setTimeout(function () {
-          follow(id);
-        }, window.TargumVoice.POLL);
-      })
-      .catch(function () {
-        failed("We couldn't connect. Try again.");
-      });
-  }
-
-  function failed(message) {
-    tell(message);
-    go.disabled = false;
-  }
-
-  go.onclick = function () {
-    go.disabled = true;
-    var minutes = Math.max(1, Math.round(Number(offer.getAttribute("data-seconds") || 0) / 60));
-    tell("Thanks. We're recording this section now. It runs about " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
-    fetch(keyed("/voice"), {
-      method: "POST",
-      headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ name: name, section: Number(offer.getAttribute("data-section") || 1) }),
-    })
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (state) {
-        if (state.error) return failed(state.error);
-        if (state.ready) {
-          location.reload();
-          return;
-        }
-        follow(state.id);
-      })
-      .catch(function () {
-        failed("We couldn't connect. Try again.");
-      });
-  };
-
-  window.TargumVoice = { POLL: POLL };
-})();
-
-/* Into a playlist (targum-internal#364), from the ⋯ menu.
- *
- * Only where the page arrived over a connection: a playlist is kept on the account, and a
- * reader opened off a disk has none. The address names this reader's folder, read off
- * where the page is, because the built file does not know the name it is served under.
- */
-(function () {
-  "use strict";
-  if (location.protocol === "file:") return;
-  var group = document.getElementById("to-playlist");
-  var link = document.getElementById("more-playlist");
-  var served = /^\/reader\/([^/]+)\/reader\//.exec(location.pathname);
-  if (!group || !link || !served) return;
-  var name = decodeURIComponent(served[1]);
-  var address = "/playlists?add=" + encodeURIComponent(name) +
-    "&title=" + encodeURIComponent(link.getAttribute("data-title") || name);
-  var key = new URLSearchParams(location.search).get("k");
-  if (key) address += "&k=" + encodeURIComponent(key);
-  link.href = address;
-  // A menu in place (2026-09-24); the address above is where a middle-click still goes.
-  if (window.TargumPlaylistMenu) {
-    window.TargumPlaylistMenu.attach(
-      link,
-      { name: name, title: link.getAttribute("data-title") || name },
-      key
-    );
-  }
-  group.hidden = false;
-})();

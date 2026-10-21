@@ -1,0 +1,345 @@
+/* The arrival — the three questions a new reader is asked, on `/welcome`.
+ *
+ * Drawn as the FirstRun boards draw it (David, 2026-10-09: the boards win; design.md
+ * §12, "The arrival is three plain questions"): straight on paper, a bare head with the
+ * lockup and the step in words, the question in the reading face, the answers as cards
+ * on the card colour with a hairline, the one pressed in the primary's ring and wash,
+ * and Continue the one filled press. The site's own head, the pill and the foot are not
+ * drawn: there is nowhere to go yet, and the pill covered Continue on a phone.
+ *
+ * Spacing is in pixels, the boards' own, so the page measures as they do at 1440 and at
+ * 390; type is on §5's scale in rem, which at 1440 is the boards' sizes to a pixel or two.
+ */
+
+body.welcome {
+  background: var(--paper);
+  font-family: var(--chrome);
+  color: var(--ink);
+}
+body.welcome .site-head,
+body.welcome .site-footer,
+body.welcome .talk-cta,
+body.welcome .talk-drawer { display: none; }
+
+/* words.css draws every desk `main` as a 62rem flex column; this one is a block the
+   width of the window, so the head's rule runs edge to edge and a column centres. */
+body.welcome main {
+  display: block;
+  inline-size: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 48px;
+  box-sizing: border-box;
+}
+
+.arrival-waiting {
+  margin: 2rem auto;
+  max-inline-size: 640px;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+.arrival-waiting[hidden],
+body.arriving .arrival-waiting { display: none; }
+
+/* --- the head ---------------------------------------------------------------- */
+
+.arrival-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 96px;
+  border-block-end: 1px solid var(--rule);
+}
+.arrival-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+.arrival-brand .brand-mark { inline-size: 1.05rem; block-size: 1.35rem; }
+.arrival-brand:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 8px; }
+.arrival-step {
+  margin: 0 0 0 auto;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+.arrival-back-mark {
+  display: none;
+  inline-size: 44px;
+  block-size: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+.arrival-back-mark svg {
+  inline-size: 20px;
+  block-size: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.arrival-back-mark:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* EN · RU, where it is drawn (design.md §12, 2026-09-28): two Latin codes, the current
+   one in ink, beside the step. */
+.arrival-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.arrival-switch[hidden] { display: none; }
+.arrival-switch-key {
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  min-block-size: 2rem;
+  padding: 0 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.arrival-switch-key[aria-pressed="true"] { color: var(--ink); cursor: default; }
+.arrival-switch-key:hover:not([aria-pressed="true"]) { background: var(--teal-wash); color: var(--teal); }
+.arrival-switch-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* §8 under a thumb: EN and RU were 32px tall (arrival QA, 2026-10-18). */
+@media (hover: none) and (pointer: coarse) {
+  .arrival-switch-key { min-block-size: 44px; min-inline-size: 44px; }
+}
+
+/* --- the column -------------------------------------------------------------- */
+
+.arrival {
+  max-inline-size: 640px;
+  margin: 0 auto;
+  /* A gutter of its own: with none, a window just wider than a phone (41–64rem, a tablet
+     or a narrow laptop window) put the answers against both edges of the glass. */
+  padding: 56px 24px 0;
+}
+body[data-step="learning"] .arrival { max-inline-size: 960px; }
+.arrival[hidden], .arrival-screen[hidden] { display: none; }
+
+/* A screen arrives, on the desk's one curve (§13): up a little and in. */
+@keyframes arrival-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.arrival-screen { animation: arrival-in 240ms var(--ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  .arrival-screen { animation: none; }
+}
+
+.arrival-asks {
+  margin: 0 0 28px;
+  font-family: var(--reading);
+  font-size: 2.25rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.arrival-asks:has(+ .arrival-hint) { margin-block-end: 8px; }
+/* The interface question, said in each language it offers: a line each. */
+#arrival-asks-language span { display: block; }
+.arrival-hint {
+  margin: 0 0 26px;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+
+/* --- the answers ------------------------------------------------------------- */
+
+.arrival-opts { display: flex; flex-direction: column; gap: 10px; }
+.arrival-doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.arrival-langs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+/* Two across between a phone and a laptop: three columns at 41–48rem left a card too
+   narrow for «Здравствуйте» at the greeting's size (QA 2026-10-11). */
+@media (min-width: 40.01rem) and (max-width: 48rem) {
+  .arrival-langs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.arrival-opt {
+  font: inherit;
+  font-size: 1.0625rem;
+  text-align: start;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: 20px 22px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease), background-color 160ms var(--ease);
+}
+.arrival-opt:hover { border-color: var(--well); }
+.arrival-opt.is-on,
+.arrival-door[aria-pressed="true"],
+.arrival-rung[aria-pressed="true"],
+.arrival-rung[aria-checked="true"],
+.arrival-lang[aria-pressed="true"],
+.arrival-lang[aria-checked="true"] { border-color: var(--teal); background: var(--teal-wash); }
+.arrival-opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* A language: its greeting large, its name and badge under it. */
+.arrival-lang {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-block-size: 168px;
+}
+.arrival-greeting {
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  line-height: 1.3;
+}
+.arrival-greeting.is-rtl { font-family: var(--reading-hebrew); }
+.arrival-lang-name { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-inline-size: 0; max-inline-size: 100%; }
+.arrival-lang-word { font-size: 1.0625rem; font-weight: 600; }
+
+.arrival-unsure {
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  min-block-size: 44px;
+  padding: 16px 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  cursor: pointer;
+}
+.arrival-unsure:hover { text-decoration: underline; }
+.arrival-unsure:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+
+/* --- the foot ---------------------------------------------------------------- */
+
+.arrival-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 32px 0 0;
+}
+body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
+.arrival-foot-note { font-size: 0.8125rem; color: var(--ink-soft); }
+.arrival-foot-note[hidden] { display: none; }
+#arrival-later { display: none; }
+.arrival-back {
+  font: inherit;
+  font-size: 0.875rem;
+  min-block-size: 44px;
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.arrival-back[hidden] { display: none; }
+.arrival-back:hover { color: var(--ink); }
+.arrival-back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+.arrival-done {
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-inline-start: auto;
+  min-block-size: 48px;
+  padding: 12px 32px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  cursor: pointer;
+}
+.arrival-done[hidden] { display: none; }
+.arrival-done:disabled { opacity: 0.4; cursor: default; }
+.arrival-done:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* --- a phone ----------------------------------------------------------------- */
+
+/* The FirstRunPhone board: no lockup, a chevron back and the step in the middle, the
+   question at 27px, the answers in one column of rows, and Continue across the foot of
+   the screen, which is the one place a fixed control is right because there is no page
+   under it yet (design.md §12, 2026-09-19). */
+@media (max-width: 40rem) {
+  .arrival-head {
+    min-block-size: 44px;
+    padding: 12px 8px 0 4px;
+    border: 0;
+  }
+  .arrival-brand { display: none; }
+  .arrival-back-mark { display: inline-flex; }
+  .arrival-back-mark[hidden] { display: inline-flex; visibility: hidden; }
+  .arrival-step {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: 12px;
+    margin: 0;
+    line-height: 44px;
+    text-align: center;
+    pointer-events: none;
+  }
+  .arrival-switch { margin-inline-start: auto; }
+  /* The first screen has no way back, and the board closes the row up to the step. */
+  .arrival-head:has(.arrival-back-mark[hidden]) { min-block-size: 20px; }
+  .arrival-head:has(.arrival-back-mark[hidden]) .arrival-back-mark { display: none; }
+  .arrival-head:has(.arrival-back-mark[hidden]) .arrival-step { line-height: 20px; }
+
+  .arrival { padding: 6px 16px 104px; }
+  /* The waiting line, and what it says when the page could not load, keep the column's
+     gutter: they stood against the window's edge (arrival QA, 2026-10-18). */
+  .arrival-waiting { margin: 24px 16px; }
+  body[data-step="learning"] .arrival { max-inline-size: none; }
+  .arrival-asks { font-size: 1.75rem; margin-block-end: 14px; }
+  .arrival-asks:has(+ .arrival-hint) { margin-block-end: 6px; }
+  .arrival-hint { margin-block-end: 16px; }
+
+  .arrival-opts, .arrival-doors, .arrival-langs { display: flex; flex-direction: column; gap: 8px; }
+  .arrival-opt {
+    font-size: 1em;
+    min-block-size: 56px;
+    padding: 10px 14px;
+    border-radius: var(--radius-row);
+  }
+  .arrival-lang {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    min-block-size: 56px;
+  }
+  /* Physical, not logical: a Hebrew greeting is right-to-left itself, and its own
+     inline start is the right-hand side. */
+  .arrival-lang .arrival-greeting { order: 2; margin-left: auto; font-size: 1.25rem; flex: none; white-space: nowrap; }
+  /* The name and its badge give way first, the badge folding under the name: in Russian
+     «Арамейский» and «Экспериментальный» side by side pushed the greeting past the
+     edge of a 320px phone (QA 2026-10-11). */
+  .arrival-lang .arrival-lang-name { flex: 1 1 auto; }
+  .arrival-lang-name { gap: 8px; }
+  #arrival-later { display: block; margin: 12px 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+  .arrival-foot-note, .arrival-back { display: none; }
+  .arrival-unsure { font-size: 1em; padding: 14px 0; margin-block-start: 6px; }
+
+  .arrival-foot {
+    position: fixed;
+    inset-inline: 16px;
+    inset-block-end: 24px;
+    margin: 0;
+  }
+  .arrival-done { inline-size: 100%; padding: 12px 22px; font-size: 1em; }
+}

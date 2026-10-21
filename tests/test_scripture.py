@@ -145,7 +145,7 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
     suffixed definite article (targum-internal#64). Each is free to re-run: the lookup
     happens on this machine and `SCHEMA_VERSION` never moves.
     """
-    assert ScriptureLemmatizer(Stub()).name == "oshb/5+stub/1"
+    assert ScriptureLemmatizer(Stub()).name == "oshb/6+stub/1"
 
 
 @pytest.mark.parametrize(
@@ -154,8 +154,12 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
         ("Vqp3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
         # The waw-consecutive, which is the form biblical narrative is told in. Read as
         # the imperfect it is spelled as, the card would tell a learner that ויאמר is
-        # "he will say".
-        ("Vqw3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
+        # "he will say". And it says it is one, for the card's line and the vav lens
+        # (targum-internal#449, 2026-10-21).
+        (
+            "Vqw3ms",
+            "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin|Vav=Cons",
+        ),
         ("Vqi3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Fut|VerbForm=Fin"),
         # A participle writes no person, so its gender and number sit two places earlier.
         # On the finite layout this came out with no morphology at all.
@@ -581,3 +585,61 @@ def test_a_model_read_annotation_records_no_share_at_all(tagged: Path) -> None:
         one_verse("Genesis 1:1", FIRST)
     )
     assert annotation.scripture_share is None
+
+
+#: Genesis 8:17 as the shelf holds it: the read form, bare. Its אִתְּךָ and אִתָּךְ are
+#: Strong's 854, "with", pointed exactly as 853, the object marker.
+EIGHT_SEVENTEEN = (
+    "כל החיה אשר אתך מכל בשר בעוף ובבהמה ובכל הרמש הרמש על הארץ היצא אתך ושרצו בארץ "
+    "ופרו ורבו על הארץ׃"
+)
+
+
+def test_with_is_not_the_object_marker(tagged: Path) -> None:
+    """אִתְּךָ, "with you", said "[marks the direct object]" all through Genesis: 853 and
+    854 are both אֵת, so the pointed headword filed them as one word and the commoner
+    lent the other its meaning (known issues 1.4, 2026-10-12). The number goes beside
+    the points wherever the lexicon points two words alike."""
+    from targum.annotate.gloss import from_the_tagging
+    from targum.models import Annotation, shown
+
+    (tagged / oshb.LEXICON_FILE).write_text(
+        json.dumps({"853": "אֵת", "854": "אֵת", "776": "אֶרֶץ", "9999": "אָרַץ"}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    oshb.forget()
+    got = ScriptureLemmatizer(Stub()).lemmas([verse("Genesis 8:17", EIGHT_SEVENTEEN)], "he")["s1"]
+    with_you = got[3]
+    assert with_you.surface == "אתך"
+    assert with_you.lemma == "את", "the identity is still the bare spelling"
+    assert with_you.headword == "אֵת (H854)"
+    assert shown(with_you.headword) == "אֵת", "and a reader is shown the word, not the key"
+    assert oshb.filed_as("853") == "אֵת (H853)"
+    assert oshb.filed_as("776") == "אֶרֶץ", "a pointing with one word to it carries no number"
+
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="oshb/6+stub/1",
+        method="frequency",
+        method_note="note",
+        tokens={"s1": got},
+    )
+    meanings = from_the_tagging(annotation)
+    assert meanings["אֵת (H854)"].gloss == "with; near"
+    assert oshb.sense_for("אֵת (H854)") == "", "the fixture's lexicon has no senses"
+
+
+def test_in_it_is_filed_under_in_and_not_and() -> None:
+    """בּוֹ in אֲשֶׁר־בּוֹ (Genesis 6:17) is בְּ + וֹ with no number on either piece. It was
+    filed under its suffix, ו, and a reader was told "and" (known issues 1.4). It is the
+    preposition's now, as the modern path files בו and as אִתּוֹ always was."""
+    from targum.annotate import closed
+    from targum.annotate.scripture import headword_of
+
+    in_it = oshb.Word(text="בּוֹ", pieces=("בּ", "וֹ"), lexemes=("b",), morph=("R", "Sp3ms"))
+    to_him = oshb.Word(text="לוֹ", pieces=("לּ", "וֹ"), lexemes=("l",), morph=("R", "Sp3ms"))
+    from_them = oshb.Word(text="מֵהֶם", pieces=("מֵ", "הֶם"), lexemes=("m",), morph=("R", "Sp3mp"))
+    assert [headword_of(word) for word in (in_it, to_him, from_them)] == ["ב", "ל", "מן"]
+    assert part_of(in_it.code) == "ADP"
+    assert closed.gloss_for(in_it.lexeme, "ב") == "in; at; with; by"

@@ -28,8 +28,8 @@ install({
   // What the page is built with: every language targum has, and which stay on.
   TARGUM_READING: [
     { code: "he", name: "Hebrew", stage: "alpha", label: "alpha" },
-    { code: "arc", name: "Aramaic", stage: "R&D", label: "Experimental" },
-    { code: "yi", name: "Yiddish", stage: "R&D", label: "Experimental" },
+    { code: "arc", name: "Aramaic", stage: "experimental", label: "Experimental" },
+    { code: "yi", name: "Yiddish", stage: "experimental", label: "Experimental" },
   ],
   TARGUM_INTO: [
     { code: "en", name: "English", stage: "alpha", label: "alpha" },
@@ -62,25 +62,26 @@ require(path.join(assets, "you.js"));
 
 const at = (id) => byId[id] || { textContent: "", value: "", hidden: true, children: [] };
 
-/** The tick boxes in one list, as a person would read them. */
-function ticks(id) {
-  return at(id).children.map((label) => {
-    const box = label.children[0];
-    return {
-      code: box.value,
-      on: box.checked,
-      fixed: box.disabled,
-      experimental: label.children.some((child) => child.className === "beta"),
-    };
-  });
+/** The languages being learned, as rows: which, and whether it has a Remove. */
+function learningRows() {
+  return at("you-learning").children.map((row) => ({
+    code: row.getAttribute("data-code"),
+    removable: row.children.length > 1,
+  }));
+}
+
+/** A select's options, as a person would read them. */
+function options(id) {
+  return at(id).children.map((option) => ({
+    value: option.value,
+    label: option.textContent,
+    on: Boolean(option.selected),
+  }));
 }
 
 /** Do something to the page, the way a person would. */
 function act(step) {
-  if (step.type === "name") {
-    at("you-name").value = step.value;
-    at("you-name").fire("input", {});
-  } else if (step.type === "press") {
+  if (step.type === "press") {
     /* `id`, or `id:row:child` for a press inside a list the page drew — a connector's
        Disconnect is a button in a row that did not exist when the page loaded. */
     const path = String(step.id).split(":");
@@ -89,10 +90,12 @@ function act(step) {
     node.fire("click", {});
   } else if (step.type === "write") {
     at(step.id).value = step.value;
-  } else if (step.type === "tick") {
-    const box = at(step.list).children.map((label) => label.children[0]).find((one) => one.value === step.code);
-    box.checked = !box.checked;
-    box.fire("change", {});
+  } else if (step.type === "pick") {
+    at(step.id).value = step.value;
+    at(step.id).fire("change", {});
+  } else if (step.type === "remove") {
+    const row = at("you-learning").children.find((one) => one.getAttribute("data-code") === step.code);
+    row.children[1].fire("click", {});
   }
 }
 
@@ -105,34 +108,46 @@ setTimeout(() => {
       JSON.stringify({
         stranger: at("stranger").hidden,
         panels: {
-          who: at("who").hidden,
           languages: at("languages").hidden,
-          reading: at("reading").hidden,
           ending: at("ending").hidden,
         },
-        /* Its own key and not one of `panels` above: those four are shown to everybody
-           who is signed in, and this one is drawn only where there is something in it. */
+        /* Its own key and not one of `panels` above: those are shown to everybody who is
+           signed in, and this one is drawn only where there is something in it. */
         connectionsPanel: at("connections").hidden,
-        name: at("you-name").value,
         email: at("you-email").textContent,
-        avatar: at("you-avatar").textContent,
-        kept: at("you-kept").textContent,
-        learning: ticks("you-learning"),
-        reads: ticks("you-reads"),
-        said: { text: at("you-said").textContent, hidden: at("you-said").hidden },
+        learning: learningRows(),
+        start: options("you-start"),
+        reads: options("you-reads"),
+        /* The rung named on arrival: what the picker offers, which it shows as chosen, and
+           the browser's copy the reader page reads. */
+        level: at("you-level").children.map((option) => ({
+          value: option.value,
+          label: option.textContent,
+          on: Boolean(option.selected),
+        })),
+        declaredHere: localStorage.getItem("targum:declared"),
+        /* How the conversation says "you" in Hebrew: whether its row is drawn, and which
+           of the two forms is marked. */
+        address: {
+          hidden: at("you-address-row").hidden,
+          m: byId["address-m"] ? byId["address-m"].getAttribute("aria-checked") : null,
+          f: byId["address-f"] ? byId["address-f"].getAttribute("aria-checked") : null,
+        },
         languagesSaid: {
           text: at("you-languages-said").textContent,
           hidden: at("you-languages-said").hidden,
         },
         ending: { text: at("you-ending-said").textContent, hidden: at("you-ending-said").hidden },
         forget: { label: at("you-forget").textContent, disabled: at("you-forget").disabled },
-        /* One row a connector: what it says it is, what it may do, and nothing that
-           could be a credential (targum-internal#80). */
+        /* One row an app: what it says it is, what it may do, and nothing that could be
+           a credential (targum-internal#80). */
         connections: Array.from(at("connection-rows").children).map((row) => ({
-          name: row.children[0].textContent,
-          says: row.children[1].textContent,
-          press: row.children[2].textContent,
-          when: row.children[3] ? row.children[3].textContent : "",
+          name: (row.querySelector(".conn-name") || {}).textContent,
+          when: (row.querySelector(".conn-when") || {}).textContent,
+          may: row.querySelector(".conn-scopes")
+            ? row.querySelector(".conn-scopes").children.map((line) => line.children[1].textContent)
+            : [],
+          press: row.children[row.children.length - 1].textContent,
         })),
         promptsPanel: at("prompts").hidden,
         prompts: Array.from(at("prompt-rows").children).map((row) => ({
@@ -143,6 +158,20 @@ setTimeout(() => {
         connectionsSaid: {
           text: at("connections-said").textContent,
           hidden: at("connections-said").hidden,
+        },
+        /* The plan with plans on (design.md §12, "Free and Plan, behind a switch"): which
+           card is drawn and what it says. Off, none of it is touched. */
+        plan: {
+          on: at("plan-on").hidden,
+          free: at("plan-free").hidden,
+          paid: at("plan-paid").hidden,
+          freeSays: at("plan-free-says").textContent,
+          offer: at("plan-offer").textContent,
+          words: at("plan-words").textContent,
+          wordsHidden: at("plan-words-row").hidden,
+          paidSays: at("plan-paid-says").textContent,
+          back: at("plan-back").textContent,
+          topUps: at("plan-top-ups").children.map((one) => one.textContent),
         },
         posted,
         restarted,

@@ -20,12 +20,20 @@ biblical, where the Open Scriptures morphology is the better source anyway.
 **Bare, always.** Nikkud is where two sources most easily disagree — the same verb is
 written with and without points, and with different points by different editors — so
 every comparison here is on letters alone. The pointed spelling is kept for showing, never
-for matching.
+for matching — with one exception, decided 2026-10-03 (targum-internal#307): where verbs
+share a word's letters, the vowel the reader's own pointed text opens it on picks between
+them (`Table.pointed_as`), and only where nothing else in the table could be that word.
 
 The table is built by `scripts/hebrew_paradigms.py` out of the lexeme dump and ships
 gzipped beside this file: 145,000 forms over 4,700 verbs, 0.9 MB in the wheel. Nothing
 here reaches the network, and a build with no table draws no conjugations rather than
 failing.
+
+**A stub is filled by rule.** A few dozen lexemes came through with a handful of forms —
+`אָכַל` with ten and no `אוכל`. `conjugate` fills what they lack from their root and
+binyan, by the patterns the complete tables follow, and refuses wherever the forms the
+source has could be some other pattern's. What it adds ships under `filled`, apart from
+the source's forms, and every such `Form` says `ruled` (targum-internal#307).
 """
 
 from __future__ import annotations
@@ -37,6 +45,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .conjugate import Filled
 
 #: Beside this module, so the wheel carries it and a reader never fetches it.
 TABLE = Path(__file__).parent / "paradigms.json.gz"
@@ -306,12 +318,308 @@ def written_form(surface: str, built: str | None = None) -> str:
     return _letters(surface)
 
 
+def pointed_form(surface: str, built: str | None = None) -> str:
+    """The verb as it was written, points and all, without the letters clinging to it.
+
+    `written_form` is the same thing on letters alone. This keeps the vowels and the
+    dagesh, which are what tell `אוֹכֵל` from `אוּכַל`, and drops what is not a point —
+    cantillation, a maqaf — so it compares the way a grammar spells. The verb is the last
+    run of the surface whose letters are `written_form`'s: a clitic comes before it.
+    Empty where the surface has no such run.
+    """
+    letters = written_form(surface, built)
+    units = _units(unicodedata.normalize("NFD", surface or ""))
+    if not letters:
+        return ""
+    for start in range(len(units) - len(letters), -1, -1):
+        run = units[start : start + len(letters)]
+        if "".join(letter for letter, _ in run) == letters:
+            return "".join(letter + points for letter, points in run)
+    return ""
+
+
+#: The vowel a word opens on, by the mark that says it. A shuruk is a ו with a dagesh
+#: and no vowel of its own. A holam on a ו is told from one on the letter itself
+#: (`_vowel_at`): `אוֹכֵל` is a present, and `אֹכַל`, `יֹאכַל` a future.
+_VOWELS = {
+    _SHVA: "shva",
+    _HIRIQ: "hiriq",
+    _TSERE: "tsere",
+    _SEGOL: "segol",
+    _PATACH: "patach",
+    _QAMATS: "qamats",
+    _HOLAM: "o",
+    "ֺ": "o",
+    _QUBUTS: "u",
+    _QATAN: "qatan",
+    "ֱ": "hataf",
+    "ֲ": "hataf",
+    "ֳ": "hataf",
+}
+
+
+def _vowel_at(units: list[tuple[str, str]], at: int) -> tuple[str | None, int]:
+    """The vowel the letter at `at` carries, and where the next letter is. A letter with no
+    vowel of its own, followed by a ו with a holam or a shuruk, is said with that ו's —
+    "vo" for the holam, because a פעל writes its present that way (`אוֹכֵל`) and never its
+    future (`יֹאכַל`), and the future 1st person of `יָכֹל` is spelled `אוכל` too."""
+    if at >= len(units):
+        return None, at
+    marks = [_VOWELS[mark] for mark in units[at][1] if mark in _VOWELS]
+    if len(marks) == 1:
+        return marks[0], at + 1
+    if not marks and at + 1 < len(units) and units[at + 1][0] == _VAV:
+        vav = units[at + 1][1]
+        if _HOLAM in vav or "\u05ba" in vav:
+            return "vo", at + 2
+        if vav == _DAGESH:
+            return "u", at + 2
+    return None, at + 1
+
+
+def opening_of(pointed: str) -> str | None:
+    """The vowel a pointed word opens on, or None where it is not pointed enough to say.
+
+    The first letter's own vowel, or — where it has none and a ו follows — the o or the u
+    that ו carries: `אוֹכֵל` opens on an o and `אוּכַל` on a u, and nothing else about the
+    two words differs on letters.
+
+    Three openings are told apart by the letter after them, because one vowel there is
+    two binyanim's: a hiriq closing its syllable (`יִכְתֹּב`, `נִכְנַס`) against one before
+    a doubled letter (`יִכָּתֵב`, `דִּבֵּר`) or an open one (`טִהֵר`); a tsere before a
+    qamats, which only a נִפְעַל's future writes (`יֵאָכֵל`, against `יֵשֵׁב`); and a shva
+    or hataf before a u, the פֻּעַל's (`מְשֻׁלָּח`, against `מְשַׁלֵּחַ`).
+    """
+    units = _units(unicodedata.normalize("NFD", pointed or ""))
+    opens, after = _vowel_at(units, 0)
+    if opens == "hiriq":
+        # A י after a hiriq is how the vowel is written in full (`יִיכָּתֵב`), not a letter.
+        if after < len(units) and units[after][0] == "\u05d9" and not units[after][1]:
+            after += 1
+        if after >= len(units):
+            return opens
+        marks = units[after][1]
+        if _SHVA in marks or any(mark in _HATAF for mark in marks):
+            return "hiriq"
+        return "hiriq-dagesh" if _DAGESH in marks else "hiriq-open"
+    following, _ = _vowel_at(units, after)
+    if opens == "tsere" and following == "qamats":
+        return "tsere-qamats"
+    if opens in ("shva", "hataf") and following == "u":
+        return f"{opens}-u"
+    return opens
+
+
+#: A final letter as the same letter anywhere else in a word: `קומם` doubles its מ.
+_UNFINAL = str.maketrans("\u05da\u05dd\u05df\u05e3\u05e5", "\u05db\u05de\u05e0\u05e4\u05e6")
+
+
+def binyan_unpointed(lemma: str) -> str | None:
+    """The binyan an *unpointed* lemma's letters alone say, where they say only one.
+
+    The source carries `אוכל` and `הוכל` unpointed, and `binyan_of` rightly refuses them.
+    Three shapes are a binyan however they are read: a third person past that opens `הת`
+    and has no י before its last letter is a הִתְפַּעֵל; one that opens `הו`, has no י and
+    does not end in ה is a הֻפְעַל (`הוסף`; with the י, or ending in ה, it is the הִפְעִיל
+    of a root beginning with י — `הוליד`, `הודה`); four letters with a ו second and the
+    last two not the same is a פֻּעַל written full (`אוכל`; doubled, `קומם` is a פּוֹלֵל).
+    Everything else is None.
+    """
+    if not lemma or bare(lemma) != lemma:
+        return None
+    letters = _letters(lemma)
+    if letters.startswith("הת") and len(letters) >= 5 and letters[-2] != "י":
+        return "התפעל"
+    if (
+        letters.startswith("הו")
+        and len(letters) >= 4
+        and "י" not in letters
+        and not letters.endswith("ה")
+    ):
+        return "הופעל"
+    if (
+        len(letters) == 4
+        and letters[1] == _VAV
+        and letters[0] not in "הנמת"
+        and letters[2] != letters[3].translate(_UNFINAL)
+    ):
+        return "פועל"
+    return None
+
+
+#: The cells `binyan_from_forms` reads, as the shipped table names them.
+_PAST_3MS = frozenset({"3rd", "masculine", "past", "singular"})
+_PRESENT_MS = (
+    frozenset({"masculine", "present", "singular"}),
+    frozenset({"masculine", "participle", "present", "singular"}),
+)
+_MEM, _YOD = "מ", "י"
+
+
+def binyan_from_forms(lemma: str, forms: Iterable[Form]) -> str | None:
+    """The binyan a verb's own forms are built in, where its lemma cannot say.
+
+    **The source stores many a פעל unpointed** — `ילד`, `קרב`, `חטא` beside a pointed
+    `יִלֵּד`, `קֵרֵב`, `חִטֵּא` — and `binyan_of` rightly reads nothing off bare letters. So
+    a word tagged פעל had one candidate it could not check and none it could match, and
+    drew no table: 6,598 verb tokens on the laptop's shelf on 2026-10-08, `ילד` alone 510
+    (targum-internal#307). The lemma is not all the source has, though. It has the forms.
+
+    **The past against the present.** The third person masculine singular past and the
+    masculine singular present are each a binyan's own frame around the root, and
+    between them they say which: `ילד` / `יולד` is a פעל, the present the past with a ו
+    after its first letter; `קרב` / `קרב` a stative פעל, the present the past itself;
+    `ניתן` / `ניתן` a נִפְעַל, the same but opening on נ; `הכה` / `מכה` a הִפְעִיל, the ה
+    traded for a מ; `קירב` / `מקרב` a פִּיעֵל, a מ before the root. Nothing else is read.
+    The passives and the הִתְפַּעֵל are left alone: unpointed, a הֻפְעַל `הקנה` is spelled
+    letter for letter like the הִפְעִיל `הקנה`, and a פֻּעַל `ארגן` like the פִּיעֵל.
+
+    **Refused wherever that is not decisive.** The past must be one spelling, and the
+    lemma's own where the lemma is unpointed; every present the verb has must read the
+    same way; a past that opens `הו` or `הת`, or `הס` before a ת, cannot be told from
+    the binyanim beside it and is not read as a הִפְעִיל. A פִּיעֵל or a הִפְעִיל must have
+    an imperative, since a passive written without its vowel letters has none and is
+    otherwise the same word. Only the source's own forms are asked, never what
+    `conjugate` filled in by rule.
+
+    Checked 2026-10-08 against every verb whose pointed lemma `binyan_of` *can* read: of
+    the 2,015 this decides, it agrees on 1,990. Each of the other 25 was the lemma read
+    wrong — `הִדְהֵד` and `נִטְרֵל` are quadriliteral פִּיעֵלים, `נָסוֹג` and `נָמוֹג` are
+    נִפְעָלִים of hollow roots — or a lexeme whose forms are another verb's: Wikidata's
+    `קִבֵּל` is conjugated `קובל`, the פעל "complained". Where it disagreed, it was the
+    forms it read that were right.
+    """
+    pasts: set[str] = set()
+    presents: set[str] = set()
+    imperative = False
+    for form in forms:
+        if form.ruled:
+            continue
+        features = frozenset(form.features)
+        letters = _letters(form.written)
+        if features == _PAST_3MS and letters:
+            pasts.add(letters)
+        elif features in _PRESENT_MS and letters:
+            presents.add(letters)
+        elif "imperative" in features:
+            imperative = True
+    pointed = bare(lemma) != lemma
+    own = _letters(lemma)
+    if not pointed and own:
+        pasts.add(own)
+    if len(pasts) != 1 or not presents:
+        return None
+    (past,) = pasts
+    if pointed and _thin(own) != _thin(past):
+        # A pointed lemma is the past without its vowel letters; one that is not is
+        # another word, and its forms say nothing about it.
+        return None
+    read = {_past_and_present(past, present) for present in presents}
+    if len(read) != 1:
+        return None
+    (binyan,) = read
+    if binyan in ("פיעל", "הפעיל") and not imperative:
+        return None
+    return binyan
+
+
+def _past_and_present(past: str, present: str) -> str | None:
+    """The one binyan a past third masculine singular and a present masculine singular,
+    in letters, can both be — or None. See `binyan_from_forms`."""
+    if len(past) < 2:
+        return None
+    if present == past[0] + _VAV + past[1:]:
+        return "פעל"
+    if present == past:
+        # A נִפְעַל's present is its past. So is a stative or hollow פעל's, `קרב`, `קם`,
+        # which does not open on a נ — or does, in two letters: `נח`.
+        return "נפעל" if past[0] == _NUN and len(past) > 2 else "פעל"
+    if (
+        past[0] == _HE
+        and past[1] not in (_VAV, _TAV)
+        and not (past[1] in _SIBILANTS and past[2:3] in _SWAPPED_TAV)
+        and present == _MEM + past[1:]
+    ):
+        # Not `הוליד` / `מוליד`, which is `הולד` / `מולד` with a י; nor `התקין` / `מתקין`
+        # or `הסתיר` / `מסתיר`, which are `התכתב` / `מתכתב` and `הסתדר` / `מסתדר` with one.
+        return "הפעיל"
+    if past[1] != _VAV and (
+        present == _MEM + past or (past[1] == _YOD and present == _MEM + past[0] + past[2:])
+    ):
+        # Not `כובד` / `מכובד`, the פֻּעַל, nor `צווה` / `מצווה`, the פִּיעֵל: the same shape.
+        return "פיעל"
+    return None
+
+
+def _thin(letters: str) -> str:
+    """The letters with every ו and י after the first set aside: a pointed spelling and a
+    full one of the same word come out the same."""
+    return letters[:1] + letters[1:].replace(_VAV, "").replace(_YOD, "")
+
+
+def _tense_of(form: Form) -> str:
+    """Which of past, present, future and imperative a form of the table is, or "" for
+    anything else."""
+    features = set(form.features)
+    if not _PRESENT.isdisjoint(features):
+        return "present"
+    for tense in ("past", "future", "imperative"):
+        if tense in features:
+            return tense
+    return ""
+
+
+_HIRIQS = frozenset({"hiriq", "hiriq-dagesh", "hiriq-open"})
+_NIFAL = frozenset({"hiriq", "hiriq-dagesh", "segol", "patach", "vo", "qamats"})
+_HUFAL = frozenset({"u", "qatan", "qamats"})
+#: The vowels each binyan opens each tense on (`opening_of`): the first letter's in the
+#: past, the prefix's in the present and the future. Wide rather than narrow, because a
+#: vowel left out here rules out the right verb: the פעל's future opens on a u for
+#: `יוּכַל`, its past on a patach for `קַמְתִּי`, and on a doubled hiriq for `יִגַּשׁ`. A
+#: binyan and tense not here — the פעל's imperative, which opens on nearly anything —
+#: rules nothing out.
+_OPENING: dict[tuple[str, str], frozenset[str]] = {
+    ("פעל", "past"): frozenset({"qamats", "patach", "shva", "hataf"}),
+    ("פעל", "present"): frozenset({"vo", "o", "qamats"}),
+    ("פעל", "future"): frozenset(
+        {"hiriq", "hiriq-dagesh", "o", "patach", "segol", "tsere", "qamats", "u"}
+    ),
+    ("נפעל", "past"): _NIFAL,
+    ("נפעל", "present"): _NIFAL,
+    ("נפעל", "future"): frozenset({"hiriq-dagesh", "tsere-qamats", "segol"}),
+    ("נפעל", "imperative"): frozenset({"hiriq-dagesh", "tsere-qamats"}),
+    ("פיעל", "past"): _HIRIQS | {"tsere"},
+    ("פיעל", "present"): frozenset({"shva"}),
+    ("פיעל", "future"): frozenset({"shva", "hataf"}),
+    ("פיעל", "imperative"): frozenset({"patach"}),
+    # Not the o a guttural lengthens it to, `בֹּרַךְ`: that is the vowel the פעל's present
+    # opens on, and `דֹּבֵר` "speaks" and `יוֹצְאָה` "goes out" were read as פֻּעַל pasts.
+    ("פועל", "past"): frozenset({"u", "qatan"}),
+    ("פועל", "present"): frozenset({"shva-u"}),
+    ("פועל", "future"): frozenset({"shva-u", "hataf-u"}),
+    ("הפעיל", "past"): frozenset({"hiriq", "hiriq-dagesh", "segol", "tsere", "vo", "hataf"}),
+    ("הפעיל", "present"): frozenset({"patach", "tsere", "vo"}),
+    ("הפעיל", "future"): frozenset({"patach", "qamats", "vo", "tsere"}),
+    ("הפעיל", "imperative"): frozenset({"patach", "qamats", "vo"}),
+    ("הופעל", "past"): _HUFAL,
+    ("הופעל", "present"): _HUFAL,
+    ("הופעל", "future"): _HUFAL,
+    ("התפעל", "past"): frozenset({"hiriq", "hiriq-dagesh"}),
+    ("התפעל", "present"): frozenset({"hiriq", "hiriq-dagesh"}),
+    ("התפעל", "future"): frozenset({"hiriq", "hiriq-dagesh", "segol"}),
+    ("התפעל", "imperative"): frozenset({"hiriq", "hiriq-dagesh"}),
+}
+
+
 @dataclass(frozen=True)
 class Form:
     """One inflected form: how it is written, and what it is."""
 
     written: str
     features: tuple[str, ...]
+    #: Spelled by rule from the verb's root and binyan rather than taken from the source,
+    #: where the source's table was a stub (`conjugate`, targum-internal#307). Unpointed.
+    ruled: bool = False
 
     def matches(self, surface: str) -> bool:
         """Whether this is the form in front of the reader, compared on letters."""
@@ -340,6 +648,12 @@ class Table:
     _present: dict[str, list[tuple[str, Form]]] = field(
         default_factory=dict, repr=False, compare=False
     )
+    #: And every form, the same way, for the pointing (`pointed_as`).
+    _spelled: dict[str, list[tuple[str, Form]]] = field(
+        default_factory=dict, repr=False, compare=False
+    )
+    #: Each verb's binyan as `binyan_of` gives it, worked out once per verb.
+    _binyans: dict[str, str | None] = field(default_factory=dict, repr=False, compare=False)
 
     def of(
         self,
@@ -348,6 +662,7 @@ class Table:
         binyan: str | None = None,
         written: Iterable[str] = (),
         said: Iterable[tuple[str, str, str]] = (),
+        infinitive: bool = False,
     ) -> Paradigm | None:
         """The paradigm for a lemma or any inflected form of it.
 
@@ -363,8 +678,9 @@ class Table:
 
         `binyan` is the conjugation targum already worked out for the occurrence, and it
         is the stronger of the two signals (targum-internal#307). The source carries no
-        binyan statement, so each candidate's is read off its own pointed lemma
-        (`binyan_of`); the candidate whose binyan is the one in the text is the verb.
+        binyan statement, so each candidate's is read off its own pointed lemma, or where
+        the source stores it unpointed, off its own forms (`Table.binyan_of`); the
+        candidate whose binyan is the one in the text is the verb.
         Measured over 114,291 verb tokens on the built shelf, this is what takes the
         table from 55.4% of them to 72.4%.
 
@@ -384,6 +700,12 @@ class Table:
         tagged present is the one and not the other. Where it names a verb, it also
         refuses a table anything else settled on another.
 
+        `infinitive`, where the occurrence was tagged one, keeps the pointing from settling
+        it (targum-internal#307, 2026-10-08). No table holds an infinitive, so its vowel is
+        matched against some other cell that happens to open the same way: `רְבוֹת` was
+        read as `רַב` and `לִשְׂחוֹת` as `שָׂח`. Its binyan, its readings and its present still
+        have their say, and `seen` still answers shin against sin.
+
         None where nothing matches at all, and None where nothing settles it: a wrong
         conjugation table is worse than no table, and the way out to Pealim is still on
         the card.
@@ -393,24 +715,10 @@ class Table:
             return None
         if len(found) == 1:
             return self.verbs.get(found[0])
-        pointed = []
-        if seen:
-            pointed = [
-                lid
-                for lid in found
-                if (verb := self.verbs.get(lid))
-                # The lemma as well as the forms: a source lists a verb's dictionary form
-                # once, at the head, and not again among its own inflections. Checking
-                # only the forms missed `הָלַךְ` — the very word that made this necessary.
-                and (verb.lemma == seen or any(form.written == seen for form in verb.forms))
-            ]
+        pointed = [] if infinitive else self.pointed_as(found, seen)
         built = []
         if binyan:
-            built = [
-                lid
-                for lid in found
-                if (verb := self.verbs.get(lid)) and binyan_of(verb.lemma) == binyan
-            ]
+            built = [lid for lid in found if self.binyan_of(lid) == binyan]
         written = tuple(written)
         present = self._by_present(found, said)
         chosen: str | None = None
@@ -420,26 +728,159 @@ class Table:
             chosen = built[0]
         elif len(pointed) == 1:
             chosen = pointed[0]
+            # The word's own binyan still has a say against the verb its vowel named.
+            if binyan and (named := self.binyan_of(chosen)) and named != binyan:
+                return None
         else:
             read = self._by_reading(found, written) if not binyan and self.readings else None
             if read is not None:
                 lid = next((lid for lid in found if self.verbs.get(lid) is read), None)
                 if present is not None and present != lid:
                     return None
-                return read
+                return None if lid is not None and self.dotted_otherwise(lid, seen) else read
             if present is None:
                 return None
             # The word's own binyan, where it has one that no candidate's lemma could be
             # read as: it still has a say against the verb the present names.
-            named = binyan_of(self.verbs[present].lemma)
+            named = self.binyan_of(present)
             if binyan and named and named != binyan:
                 return None
             chosen = present
         if chosen is None or (present is not None and present != chosen):
             return None
-        if self._read_otherwise(found, chosen, written):
+        if self._read_otherwise(found, chosen, written) or self.dotted_otherwise(chosen, seen):
             return None
         return self.verbs.get(chosen)
+
+    def dotted_otherwise(self, lid: str, seen: str) -> bool:
+        """Whether the word was pointed with a שׂ where the verb's lemma has a שׁ, or the
+        other way round: two roots, whatever else matched.
+
+        The source's forms are letters alone, so `שָׂטִית` "you went astray" is spelled
+        like a form of `שָׁט` "roamed", and `וְנִגַּשׂ` "was oppressed" like `נִגַּשׁ` "came
+        near". Those were refused only because neither lemma's binyan could be read; once
+        it could (targum-internal#307, 2026-10-08), the dot is the one thing left that
+        says they are not the word. `_by_present` has asked it since 2026-09-27.
+        """
+        verb = self.verbs.get(lid)
+        if verb is None:
+            return False
+        dots, told = shin_of(seen), shin_of(verb.lemma)
+        return bool(dots and told and dots.isdisjoint(told))
+
+    def binyan_of(self, lid: str) -> str | None:
+        """The binyan a verb of the table is built in: from its lemma, pointed or not, and
+        where the lemma says nothing, from its own forms (`binyan_from_forms`).
+
+        Every signal that matches a candidate by its binyan asks this, so a verb the
+        source stores unpointed — `ילד`, `קרב` — can be the one a word's binyan names
+        (targum-internal#307, 2026-10-08). The pointed lemma is asked first and is never
+        overruled. Where the bare lemma's letters and the forms both say something and
+        disagree, the answer is None.
+        """
+        if lid in self._binyans:
+            return self._binyans[lid]
+        verb = self.verbs.get(lid)
+        if verb is None:
+            return None
+        said = binyan_of(verb.lemma)
+        if said is None:
+            letters = binyan_unpointed(verb.lemma)
+            forms = binyan_from_forms(verb.lemma, verb.forms)
+            said = letters if forms is None else forms if letters in (None, forms) else None
+        self._binyans[lid] = said
+        return said
+
+    def pointed_as(self, found: tuple[str, ...], seen: str) -> list[str]:
+        """The candidates this occurrence's own pointing allows, where it says anything.
+
+        First the spelling itself: a candidate whose lemma or one of whose forms is
+        pointed exactly as the word was. The lemma as well as the forms, because a source
+        lists a verb's dictionary form once, at the head, and not again among its own
+        inflections — checking only the forms missed `הָלַךְ`, the word that made this
+        necessary.
+
+        **Then the vowel the word opens with** (targum-internal#307, decided 2026-10-03:
+        pass the pointing per occurrence). The source writes its forms without points, so
+        an exact match is rare, and `אוכל` — 819 verb tokens on the shelf — is `אָכַל`'s
+        present, `אֻכַּל`'s past and `יָכֹל`'s and `הוּכַל`'s future, letter for letter. The
+        reader's text is pointed, and `אוֹכֵל` opens on an o, which only the פעל's present
+        does. So each candidate is kept only where it has a form spelled with these
+        letters (fuller or thinner) whose binyan and tense open on this vowel
+        (`_OPENING`); a candidate with no such form is out.
+
+        **Refused wherever anything else could be it.** A form the table does not
+        constrain — the פעל's imperative — rules nothing out. A verb whose binyan cannot
+        be read off its lemma cannot be checked, so where it has such a form nothing is
+        chosen. And any verb *outside* the candidates with such a form refuses too, for
+        the verb the word is may not be a candidate at all.
+
+        Measured 2026-10-03 over the shelf's current builds: `אוכל` draws a table for 422
+        of its 828 tokens, against 102. Read by hand, the tables it newly settles are
+        right but for a handful. `נֶעֱבָד` "is worshipped", filed under `עבד`, is the shape
+        of them: `עָבַד` writes its future `נעבוד` in those letters, a פעל future may open on
+        a segol (`אֶעֱבֹד`), and the נִפְעַל it is spells nothing `נעבד` in the table.
+
+        Empty where the word is unpointed, or nothing is spelled with its letters: the
+        pointing then says nothing, and the other signals are asked as before. What it
+        names, `of` still refuses where the word's binyan or the page says otherwise.
+        """
+        if not seen or bare(seen) == seen:
+            # Unpointed, the word says nothing its letters did not already say.
+            return []
+        exact = [
+            lid
+            for lid in found
+            if (verb := self.verbs.get(lid))
+            and (verb.lemma == seen or any(form.written == seen for form in verb.forms))
+        ]
+        if exact:
+            return exact
+        opens = opening_of(seen)
+        letters = _letters(seen)
+        if opens is None or not letters:
+            return exact
+        # The Mishnah's plural in ין is the table's ים, as for the present (`_plural`).
+        spelled = {letters, _plural(letters, "Number=Plur")}
+        wanted = {key for one in spelled for key in _orthographies(one)}
+        cells: dict[str, list[Form]] = {}
+        for key in wanted:
+            for lid, form in self._spelling_index().get(key, ()):
+                cells.setdefault(lid, []).append(form)
+        kept: list[str] = []
+        unread: list[str] = []
+        rivals = False
+        for lid, forms in cells.items():
+            binyan = self.binyan_of(lid)
+            if binyan is not None and not any(
+                (allowed := _OPENING.get((binyan, _tense_of(form)))) is None or opens in allowed
+                for form in forms
+            ):
+                continue
+            if lid not in found:
+                # **Asked of the whole table**, as the present is (`_by_present`): the verb
+                # the word really is may not be one of the lemma's candidates. `נִכְתֹּב`
+                # "we shall write" filed under `נכתב` has only `נִכְתַּב` to choose from,
+                # whose past opens the same way; `כָּתַב` writes it `נכתוב`, and is a rival.
+                rivals = True
+            elif binyan is None:
+                unread.append(lid)
+            else:
+                kept.append(lid)
+        # A verb whose binyan nobody can read is never ruled out, and never chosen either:
+        # the vowel can only vouch for a verb whose pattern it can be checked against.
+        if rivals or unread:
+            return []
+        return kept
+
+    def _spelling_index(self) -> dict[str, list[tuple[str, Form]]]:
+        """Every form in the table, under both of its `_orthographies`."""
+        if not self._spelled:
+            for lid, verb in self.verbs.items():
+                for form in verb.forms:
+                    for key in _orthographies(_letters(form.written)):
+                        self._spelled.setdefault(key, []).append((lid, form))
+        return self._spelled
 
     def _present_index(self) -> dict[str, list[tuple[str, Form]]]:
         """Every present-tense form in the table, under both of its `_orthographies`."""
@@ -570,7 +1011,7 @@ class Table:
             for lid in found
             if (verb := self.verbs.get(lid))
             and bare(verb.lemma) == lemma
-            and binyan_of(verb.lemma) == binyan
+            and self.binyan_of(lid) == binyan
         ]
         return hits[0] if len(hits) == 1 else None
 
@@ -791,24 +1232,85 @@ def table(path: Path | None = None) -> Table:
         return EMPTY
     if not isinstance(loaded, dict):
         return EMPTY
+    return from_shipped(loaded, readings())
+
+
+def from_shipped(
+    loaded: dict[str, Any], read: dict[str, tuple[str, str]] | None = None, ruled: bool = True
+) -> Table:
+    """A table out of the shipped file's shape. `ruled=False` leaves out what `conjugate`
+    filled in, which is the table that filling is worked out from."""
     names = [str(name) for name in loaded.get("features") or ()]
+
+    def forms_of(rows: list[Any], by_rule: bool = False) -> list[Form]:
+        return [
+            Form(
+                written=str(written),
+                features=tuple(names[at] for at in codes if 0 <= at < len(names)),
+                ruled=by_rule,
+            )
+            for written, codes in rows
+        ]
+
+    filled = loaded.get("filled") if ruled else None
+    filled = filled if isinstance(filled, dict) else {}
     verbs: dict[str, Paradigm] = {}
-    for lid, row in (loaded.get("verbs") or {}).items():
-        if not isinstance(row, list) or len(row) != 2:
-            continue
-        lemma, forms = row
-        verbs[str(lid)] = Paradigm(
-            lemma=str(lemma),
-            forms=tuple(
-                Form(
-                    written=str(written),
-                    features=tuple(names[at] for at in codes if 0 <= at < len(names)),
-                )
-                for written, codes in forms[:MOST]
-            ),
-        )
     by_form = {
         str(form): tuple(str(lid) for lid in ids)
         for form, ids in (loaded.get("by_form") or {}).items()
     }
-    return Table(verbs=verbs, by_form=by_form, readings=readings())
+    for lid, row in (loaded.get("verbs") or {}).items():
+        if not isinstance(row, list) or len(row) != 2:
+            continue
+        lemma, rows = row
+        forms = forms_of(rows[:MOST])
+        added = filled.get(lid)
+        if isinstance(added, list) and added:
+            more = forms_of(added, by_rule=True)
+            forms = _in_order(forms + more)
+            for form in more:
+                spelled = bare(form.written)
+                if str(lid) not in by_form.get(spelled, ()):
+                    by_form[spelled] = (*by_form.get(spelled, ()), str(lid))
+        verbs[str(lid)] = Paradigm(lemma=str(lemma), forms=tuple(forms))
+    return Table(verbs=verbs, by_form=by_form, readings=read or {})
+
+
+def _in_order(forms: list[Form]) -> list[Form]:
+    """A filled table in the order a grammar lays one out, so a cell the rule added sits
+    where the reader looks for it rather than at the end. Anything in no standard cell
+    keeps its place after them."""
+    from .conjugate import CELLS
+
+    at = {cell: index for index, cell in enumerate(CELLS)}
+    return sorted(forms, key=lambda form: at.get(tuple(sorted(form.features)), len(CELLS)))
+
+
+def fill(attested: Table) -> dict[str, Filled]:
+    """What `conjugate` adds to each verb of a table that is the source's alone.
+
+    The patterns are learned from the same table — every complete, unpointed verb whose
+    lemma says its binyan and whose root comes out at three letters — and every verb is
+    then asked for what it lacks. Most lack nothing.
+    """
+    from .conjugate import fill as fill_one
+    from .conjugate import learn
+    from .hebrew import root_of
+
+    def taught() -> Iterable[tuple[str, str, str, list[tuple[str, tuple[str, ...]]]]]:
+        for verb in attested.verbs.values():
+            binyan = binyan_of(verb.lemma)
+            root = root_of(verb.lemma, binyan) if binyan else None
+            if binyan and root:
+                yield verb.lemma, binyan, root, [(f.written, f.features) for f in verb.forms]
+
+    patterns = learn(taught())
+    return {
+        lid: fill_one(
+            verb.lemma,
+            [(form.written, form.features) for form in verb.forms],
+            patterns,
+            binyan_of(verb.lemma),
+        )
+        for lid, verb in attested.verbs.items()
+    }

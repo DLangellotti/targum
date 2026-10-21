@@ -20,30 +20,37 @@ import pytest
 
 from targum.render.builder import (
     add_page,
+    carried,
     chat_page,
-    learn_page,
     library_page,
     list_page,
     progress_page,
+    welcome_page,
     you_page,
 )
 
 TEMPLATES = Path(__file__).resolve().parents[1] / "src" / "targum" / "render" / "templates"
 
+#: Read with their files put back inside them (`carried`): a desk page names its scripts
+#: and stylesheets by address since 2026-10-18, and what these check is what the page
+#: runs and draws, wherever it is kept.
 PAGES = {
-    "learn": learn_page("k"),
-    "you": you_page("k"),
-    "library": library_page("k"),
-    "progress": progress_page("k"),
-    "texts": list_page("k", "texts"),
-    "words": list_page("k", "words"),
-    "phrases": list_page("k", "phrases"),
-    "add": add_page("k"),
-    "chat": chat_page("k"),
+    name: carried(page)
+    for name, page in {
+        "welcome": welcome_page("k"),
+        "you": you_page("k"),
+        "library": library_page("k"),
+        "progress": progress_page("k"),
+        "texts": list_page("k", "texts"),
+        "words": list_page("k", "words"),
+        "phrases": list_page("k", "phrases"),
+        "add": add_page("k"),
+        "chat": chat_page("k"),
+    }.items()
 }
 #: The conversation page framed in the front page (2026-09-11): not a place of its own,
 #: so not in the table every-page tests walk — it has no bar to walk.
-EMBED = chat_page("k", embed=True)
+EMBED = carried(chat_page("k", embed=True))
 
 
 # -- nothing was lost in the move ---------------------------------------------
@@ -74,9 +81,9 @@ def test_the_library_and_the_progress_page_build_nothing() -> None:
         page = PAGES[name]
         assert 'type="file"' not in page, f"{name} should not take uploads"
         assert 'id="source"' not in page, f"{name} should not take a source"
-    learn = PAGES["learn"]
-    assert 'id="source"' not in learn and 'id="drop"' not in learn, "no form on the front door"
-    assert learn.count('type="file"') == 0, "the + is in the framed conversation (2026-09-11)"
+    home = PAGES["texts"]
+    assert 'id="source"' not in home and 'id="drop"' not in home, "no form on the front door"
+    assert home.count('type="file"') == 0, "the + is in the framed conversation (2026-09-11)"
     # One hidden input behind the +, and one behind Speak for a device that cannot record
     # live, which opens its own recorder (2026-09-14).
     assert EMBED.count('type="file"') == 2, "a hidden input behind the + and one behind Speak"
@@ -93,27 +100,39 @@ def test_the_library_carries_nothing_personal() -> None:
     assert 'href="/add"' in library, "but it says where to go when nothing fits"
 
 
-def test_learn_carries_what_belongs_to_the_reader() -> None:
-    learn = PAGES["learn"]
-    assert 'id="known-line"' in learn, "how much of the language you have"
-    assert 'id="carry"' in learn, "what you came back for"
-    assert 'id="doors"' in learn, "the row: what is next, what you read lately, what you follow"
-    assert 'id="library-list"' not in learn and 'id="trash-list"' not in learn, (
-        "the shelf and the trash are Your targums since 2026-09-11"
-    )
-    assert 'id="word-table"' not in learn and 'id="phrase-list"' not in learn, (
-        "the lists left for Your Words on 2026-09-11: Learn is the room you learn in"
-    )
-    assert 'id="suggest"' not in learn and "data-door=" not in learn, "and not a lobby"
-    assert 'id="catalogue"' not in learn, "the catalogue has its own page"
+def test_home_carries_what_belongs_to_the_reader() -> None:
+    """Home is Your targums since 2026-10-08 (design.md §12): Continue at the top, the
+    shelf under it, one text to try next and the upload beside it. Learn's count, sheet
+    and row of doors went with Learn."""
+    home = PAGES["texts"]
+    assert 'id="continue-cards"' in home, "what you came back for"
+    assert 'id="library-list"' in home and 'id="trash-list"' in home, "the shelf and the trash"
+    assert 'id="try-next"' in home and 'class="upload-card"' in home
+    assert home.index('id="continue"') < home.index('id="shelf-panel"'), "Continue leads"
+    for gone in ('id="known-line"', 'id="carry"', 'id="doors"', 'id="carry-frame"'):
+        assert gone not in home, f"{gone} went with Learn"
+    assert 'id="word-table"' not in home and 'id="phrase-list"' not in home
+    assert 'id="catalogue"' not in home, "the catalogue has its own page"
+
+
+def test_the_arrival_is_a_page_of_its_own() -> None:
+    """The questions a new reader is asked, on `/welcome`, and nothing of Learn's around
+    them (design.md §12, 2026-10-08)."""
+    welcome = PAGES["welcome"]
+    assert 'id="arrival"' in welcome and 'id="arrival-doors"' in welcome
+    assert "TargumArrival" in welcome
+    for gone in ('id="carry"', 'id="doors"', 'id="known-line"', 'id="library-list"'):
+        assert gone not in welcome, gone
 
 
 def test_the_numbers_belong_to_the_progress_page() -> None:
-    """Learn used to carry a smaller, worse copy of both charts. One place counts, and it
-    is the page somebody goes to on purpose."""
-    learn, progress = PAGES["learn"], PAGES["progress"]
-    assert 'id="tiles"' not in learn and 'id="growth"' not in learn
-    assert 'id="growth"' in progress
+    """Learn used to carry a smaller, worse copy of the charts. One place counts, and it
+    is the page somebody goes to on purpose: a story in three parts (§12, 2026-10-09)."""
+    home, progress = PAGES["texts"], PAGES["progress"]
+    assert 'id="tiles"' not in home and 'id="growth"' not in home
+    for part in ('id="where"', 'id="how"', 'id="next"'):
+        assert part in progress, part
+    assert progress.index('id="where"') < progress.index('id="how"') < progress.index('id="next"')
 
 
 def test_the_progress_page_is_only_the_numbers() -> None:
@@ -122,7 +141,9 @@ def test_the_progress_page_is_only_the_numbers() -> None:
     progress = PAGES["progress"]
     for gone in ('id="word-table"', 'id="phrase-list"', 'id="search"', 'id="export-all"'):
         assert gone not in progress, f"{gone} belongs to Learn now"
-    assert 'id="ledger"' in progress and 'id="milestones"' in progress
+    assert 'id="ledger"' in progress and 'id="touchstones"' in progress
+    for gone in ('id="milestones"', 'id="days"', 'id="rung"', 'id="bands"'):
+        assert gone not in progress, f"{gone} left with the story (§12, 2026-10-09)"
 
 
 def test_the_progress_page_says_it_is_empty_above_its_foot() -> None:
@@ -135,25 +156,19 @@ def test_the_progress_page_says_it_is_empty_above_its_foot() -> None:
 # -- the nav -------------------------------------------------------------------
 
 
-def test_every_page_carries_the_same_five_places() -> None:
+def test_every_page_carries_the_same_four_places() -> None:
     """One nav file, because copies drift — they had drifted into three different orders
-    once already. Three from 2026-09-06, when the chat became the box at the top of
-    Learn and uploading the `+` on it; four since 2026-09-13, when Add came back last,
-    because with the box in a drawer the Add page had no door of its own; five since
-    2026-09-24, when the shelf got its own, second (design.md §12)."""
+    once already. Five from 2026-09-24 until 2026-10-08, when Learn was taken apart and
+    Your targums became home (design.md §12): Your targums, Library, Your Progress, and
+    Upload last."""
     for name, page in PAGES.items():
         found = re.findall(r'data-nav="(\w+)"', page)
-        assert found == ["learn", "texts", "library", "progress", "add"], name
+        assert found == ["texts", "library", "progress", "add"], name
 
 
 #: Reached from somewhere other than the nav — a profile is not one of the places you
 #: can be, it is who you are while you are in one of them.
-NOT_IN_THE_NAV = {"you", "words", "phrases"}
-
-#: Learn's lists, gone to a page of their own, and the conversation, which is where a
-#: line typed into Learn's box goes. They mark Learn, which is where they came from and
-#: the only nav entry that could honestly be current.
-UNDER_LEARN = {"chat"}
+NOT_IN_THE_NAV = {"you", "words", "phrases", "welcome", "chat"}
 
 
 def test_the_nav_marks_where_you_are() -> None:
@@ -161,9 +176,6 @@ def test_the_nav_marks_where_you_are() -> None:
         current = re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', page)
         if name in NOT_IN_THE_NAV:
             assert current == [], f"{name} is not a nav destination and marks nothing"
-            continue
-        if name in UNDER_LEARN:
-            assert current == ["learn"], f"{name} is one of Learn's lists"
             continue
         assert current == [name], f"{name} should mark itself and nothing else"
 
@@ -175,46 +187,43 @@ def test_bringing_a_text_is_the_box_and_a_place() -> None:
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert 'id="chat-bring"' in page and 'id="chat-file"' in page, name
         assert 'class="upload' not in page, name
-    assert 'id="talk-frame"' in PAGES["learn"], "every page carries the drawer that frames it"
+    assert 'id="talk-frame"' in PAGES["texts"], "every page carries the drawer that frames it"
     bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
     assert 'keyed("/add")' in bring, "the Add page is one link away, on the card"
-    order = re.findall(r'data-nav="(\w+)"', PAGES["learn"])
-    assert order.index("learn") == 0
-    add = re.search(r'<a href="/add" data-nav="add"[^>]*>(.*?)</a>', PAGES["learn"])
-    assert add and 'class="nav-glyph"' in add.group(1) and "<span>Add</span>" in add.group(1)
+    order = re.findall(r'data-nav="(\w+)"', PAGES["texts"])
+    assert order.index("texts") == 0, "home leads"
+    add = re.search(r'<a href="/add" data-nav="add"[^>]*>(.*?)</a>', PAGES["texts"])
+    # Upload, never Add (design.md §12, 2026-10-08).
+    assert add and 'class="nav-glyph"' in add.group(1) and "<span>Upload</span>" in add.group(1)
 
 
-def test_the_front_page_is_the_reader_s_own_highlight() -> None:
-    """design.md §13 (2026-09-11): the text to read, drawn as a working page on the desk
-    across the row, then the shelf, and nothing else — "Learn page can literally just be
-    a highlight of the reader". The chrome's face is carried in every page that wears the
-    bar; the reader never loads it."""
-    learn = PAGES["learn"]
-    assert learn.index('class="front"') < learn.index('id="carry-sheet"')
-    assert 'id="shelf-panel"' not in learn and 'id="trash-panel"' not in learn, (
-        "nothing under the sheet since 2026-09-11: the shelf is the Recently opened menu"
-    )
-    assert 'id="carry-frame"' in learn and 'class="open" id="carry"' in learn
-    assert 'id="carry-expand"' not in learn and 'id="talk-hide"' not in learn
-    assert 'id="talk-title"' not in learn and 'class="talk card"' not in learn
+def test_every_desk_page_wears_the_chrome_s_face() -> None:
+    """design.md §13 (2026-09-11): the chrome's face is carried in every page that wears
+    the bar; the reader never loads it. Home frames no reader since 2026-10-08."""
+    home = PAGES["texts"]
+    # The sheet went with Learn (2026-10-08): home frames no reader.
+    assert 'id="carry-frame"' not in home and 'id="talk-title"' not in home
     for name, page in list(PAGES.items()) + [("embed", EMBED)]:
         assert page.count('font-family:"Source Sans 3"') == 2, (
             f"{name}: the chrome face, upright and italic"
         )
     from targum.render.builder import ASSETS
 
-    reader = (ASSETS / "reader.css").read_text(encoding="utf-8")
-    assert "--chrome:" in reader and "--ground:" in reader and "--teal:" in reader
+    tokens = (ASSETS / "tokens.css").read_text(encoding="utf-8")
+    assert "--chrome:" in tokens and "--ground:" in tokens and "--teal:" in tokens
 
 
-def test_the_command_palette_is_on_every_page() -> None:
-    """2026-09-11: ⌘K, or the search in the bar, finds a place, a text, a series or a
-    conversation and goes there. Its markup and script ride in the bar's partial."""
+def test_the_one_search_is_on_every_page() -> None:
+    """2026-09-11, and one search since 2026-10-09 (design.md §12, "One search,
+    everywhere"): the bar's search, ⌘K and / open it on every page with the bar. Its
+    markup, its script and the tile path its rows draw with ride in the bar's partial."""
     for name, page in PAGES.items():
         if 'class="site-head"' not in page:
             continue
         assert 'id="palette"' in page and 'id="palette-find"' in page, name
         assert 'id="palette-open"' in page and "TargumPalette" in page, name
+        assert 'id="palette-filters"' in page and 'id="palette-lang"' in page, name
+        assert "TargumCovers" in page, name
 
 
 def test_talk_to_targum_is_a_pill_on_every_page_that_opens_the_conversation() -> None:
@@ -240,10 +249,8 @@ def test_talk_to_targum_is_a_pill_on_every_page_that_opens_the_conversation() ->
 
 
 def test_the_box_is_the_front_door() -> None:
-    """Learn carries the box under the ledger's own sentence, and the conversation page
-    carries the same one from the same file: one field, the `+`, Speak, Send."""
-    learn = PAGES["learn"]
-    assert learn.index('id="known-line"') < learn.index('id="carry-sheet"'), "under the count (§13)"
+    """The conversation page carries the box, and the drawer frames the same one from the
+    same file: one field, the `+`, Speak, Send."""
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         for control in ('id="chat-bring"', 'id="chat-mic"', 'id="chat-send"', 'id="chat-said"'):
             assert page.count(control) == 1, f"{name}: {control} once"
@@ -293,12 +300,18 @@ def test_the_box_s_actions_are_glyphs_with_the_word_as_their_label() -> None:
 
 def test_the_hours_are_where_a_reader_looks_for_them_and_not_in_their_face() -> None:
     """Until 2026-09-10 the month's hours stood in the conversation page's side column on
-    every visit. Now the count is under the ledger on Your Progress and in the account
-    panel on every page, and the box says it only when the hours are nearly gone
-    (targum-internal#237)."""
+    every visit. Now the count is in the account panel on every page and on the account
+    page's Credits panel — off Your Progress since it became a story (§12, 2026-10-09) —
+    and the box says it only when the hours are nearly gone (targum-internal#237)."""
     for name, page in PAGES.items():
         assert page.count('id="account-hours"') == 1, f"{name}: the panel, once"
-    assert PAGES["progress"].count('id="hours-line"') == 1
+    assert PAGES["progress"].count('id="hours-line"') == 0
+    assert PAGES["you"].count('id="hours-line"') == 1
+    you = PAGES["you"]
+    assert you.index('id="credits"') < you.index('id="plan"') < you.index('id="languages"'), (
+        "credits first, then the plan, as board AccountDesk"
+    )
+    assert 'id="credits-rate"' in you, "the rate under the balance"
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert page.count('id="chat-hours"') == 1, f"{name}: one line, above the box"
         assert page.index('id="chat-hours"') < page.index('id="composer"'), name
@@ -329,44 +342,72 @@ def test_the_first_visit_s_question_stands_on_both_pages_with_the_languages_it_m
 def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases() -> None:
     """2026-09-11: "words/phrases should be moved into a dedicated page you access by
     clicking on your picture in the top right", and the checklist "after onboarding
-    accessible only on the words/phrases page". The account panel on every page links to
-    Your Words; the page holds the words, the may-already-know checklist and the
-    phrases, in that order; Learn holds none of them."""
+    accessible only on the words/phrases page". Your Words is reached from Your Progress
+    since 2026-10-09, not the account menu; the page holds the words and the
+    may-already-know checklist, with the phrases a tab away; Learn holds none of them."""
     words = PAGES["words"]
-    assert (
-        'id="word-table"' in words and 'id="claim-panel"' in words and 'id="phrase-list"' in words
-    )
-    assert (
-        words.index('id="word-table"')
-        < words.index('id="claim-panel"')
-        < words.index('id="phrase-list"')
-    )
+    assert 'id="word-table"' in words and 'id="claim-panel"' in words
+    assert words.index('id="word-table"') < words.index('id="claim-panel"')
+    # The phrases are the Phrases tab's page since the words have a head (§12, 2026-10-09).
+    assert 'id="phrase-list"' not in words and 'href="/phrases"' in words
+    assert 'id="phrase-list"' in PAGES["phrases"]
     assert "Words you may already know" in words and "TargumClaim" in words
     assert 'id="claim-body"' in words, "the script builds the table into the panel's body"
+    # Reached from Your Progress since 2026-10-09 (design.md §12), and no longer from the
+    # account menu, which held a second copy of the navigation.
+    assert 'href="/words"' in PAGES["progress"]
     for name, page in PAGES.items():
         if 'class="site-head"' not in page:
             continue
-        assert 'class="to-you" href="/words"' in page, f"{name}: Your Words is in the account panel"
-    # Your Words keeps the grid itself. Learn carries the same script and a panel of its
-    # own — `claim-here`, not this one — offered once to a reader who has read something
-    # and has few words, and hidden the rest of the time (targum-internal#297). The rule
-    # this used to hold was "the grid is not on Learn"; the rule now is that Learn never
-    # *stands* it there, which is what `hidden` in the markup says.
-    assert 'id="claim-panel"' not in PAGES["learn"], "the grid's own panel is Your Words'"
-    assert 'id="claim-here" hidden' in PAGES["learn"], "Learn's offer starts hidden"
+        panel = page[page.index('id="account-panel"') : page.index('id="account-said"')]
+        assert 'href="/words"' not in panel, f"{name}: the account menu does not repeat the nav"
+    # Your Words keeps the grid itself. Learn offered it once on the way in until Learn was
+    # taken apart (2026-10-08); home carries none of it.
+    assert 'id="claim-panel"' not in PAGES["texts"] and 'id="claim-here"' not in PAGES["texts"]
 
 
-def test_your_subscriptions_stand_on_the_profile_and_every_page_hears_them() -> None:
+def test_the_account_menu_is_who_what_is_left_and_three_rows() -> None:
+    """David, 2026-10-09: "this menu can now be cleaned up as many things are accessible
+    elsewhere" (design.md §12). Signed in, it says who you are and what is left of the
+    month, then three rows with the reader menus' anatomy: Your account, Saved on this
+    device and Sign out, a plain row rather than a pill. Words, subscriptions and
+    playlists are the navigation's, not the menu's."""
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        panel = page[page.index('id="account-panel"') : page.index('id="account-said"')]
+        signed_in = panel[panel.index('class="signed-in"') :]
+        rows = re.findall(r'class="menu-row"[^>]*>([^<]+)<', signed_in)
+        # Tell us since 2026-10-18 (design.md §12, "Tell us is a row in the menu and a
+        # press on every fault"): the one row that is not navigation.
+        assert rows == ["Your account", "Saved on this device", "Tell us", "Sign out"], (name, rows)
+        assert 'class="menu-row" data-tell-us' in signed_in, name
+        assert 'class="menu-row" href="/you"' in signed_in, name
+        assert 'class="menu-row" href="/you/saved"' in signed_in, name
+        assert 'class="menu-row" id="account-out"' in signed_in, name
+        assert signed_in.index('id="account-whom"') < signed_in.index('id="account-hours"')
+        assert signed_in.index('id="account-hours"') < signed_in.index('id="account-rate"')
+        for gone in ('href="/playlists"', "show=subscriptions", 'href="/words"', "Your profile"):
+            assert gone not in panel, f"{name}: {gone} left the menu"
+
+
+def test_your_subscriptions_are_a_tab_of_home_and_every_page_hears_them() -> None:
     """2026-09-11: "subscriptions should be under the profile dropdown (perhaps on /you)
-    — let's keep the main pages as simple as possible". The row is a panel on the
-    profile, the account panel links to it, the Library carries nothing of it, and the
-    script that asks is in the bar on every page so the bell hears a landed instalment."""
+    — let's keep the main pages as simple as possible". Since 2026-10-08 they are a tab
+    of Your targums (design.md §12), the account menu no longer links there (2026-10-09),
+    the account page no longer carries a line to it (board AccountDesk, 2026-10-09), the
+    Library carries nothing of it, and the script that asks is in the bar on every page so
+    the bell hears a landed instalment."""
     you = PAGES["you"]
-    assert 'id="subscriptions"' in you and 'id="series"' in you and "Following" in you
-    assert 'id="subscriptions"' not in PAGES["library"] and 'id="series"' not in PAGES["learn"]
+    assert 'id="series"' not in you, "one list of subscriptions, on home"
+    assert 'id="subscriptions"' not in PAGES["library"] and 'id="series"' not in PAGES["texts"]
+    assert 'id="subs-panel"' in PAGES["texts"] and 'id="home-series"' in PAGES["texts"]
     for name, page in PAGES.items():
         if 'class="site-head"' in page:
-            assert 'class="to-you" href="/you#subscriptions"' in page, name
+            # Home's Subscriptions tab since 2026-10-08 (design.md §12), and no longer a
+            # link in the account menu (2026-10-09).
+            panel = page[page.index('id="account-panel"') : page.index('id="account-said"')]
+            assert "show=subscriptions" not in panel, name
             assert "TargumFollow" in page, f"{name}: the bell hears a landed instalment"
             assert page.index("TargumFollow") < page.index('getElementById("notices-open")'), name
 
@@ -380,7 +421,7 @@ def test_add_no_longer_introduces_the_product() -> None:
     add = PAGES["add"]
     assert "Hebrew, with the translation beside it" not in add
     # "Add", since a recording is as welcome as a text: the page's one word is the act.
-    assert '<h1 class="lede">Add</h1>' in add
+    assert '<h1 class="page-title">Upload</h1>' in add
 
 
 def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
@@ -389,30 +430,33 @@ def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
     "Library", card "Explore the Library", route /library — so it is Library everywhere
     now, and the route it always was."""
     add = PAGES["add"]
-    said = add[add.index('<h1 class="lede">Add</h1>') : add.index('id="drop"')]
-    assert "Library" in said and 'href="/library"' in said
+    # The line above the box went with the board (UploadDesk, 2026-10-09); the library
+    # still answers while the box is typed in, before anything is priced (#251).
+    assert 'id="already"' in add
+    source = (ASSETS / "add.js").read_text(encoding="utf-8")
+    assert 'ask("/already"' in source
 
 
-def test_learn_is_honest_when_there_is_nothing() -> None:
-    """Signed out, or the server gone, the page says so and points at the shelves."""
-    learn = PAGES["learn"]
-    empty = learn[learn.index('id="nothing"') :]
-    assert "Nothing here yet" in empty
-    assert 'href="/library"' in empty, "which is where to go"
-    assert 'href="/add"' in empty, "with your own text as the quieter option"
+def test_home_is_honest_when_there_is_nothing() -> None:
+    """A reader with nothing yet is told what will appear, with one to start with and the
+    upload under it (FirstRun); a shelf that could not be asked for says so, rather than
+    telling a reader with a shelf that they have nothing (2026-09-14)."""
+    home = PAGES["texts"]
+    assert "Nothing here yet. What you open or upload appears here." in home
+    assert 'href="/add"' in home, "the upload"
+    failed = home[home.index('id="nothing"') :]
+    assert "We couldn" in failed and "load your texts" in failed
 
 
 def test_an_empty_shelf_still_draws_the_page() -> None:
-    """The sheet — the one thing on Learn that says where to start — lives inside
-    `#page`, and an empty shelf used to hide `#page` wholesale. So the reader with nothing
-    was the one reader who never saw it, and the first alpha reader's first words were
-    "no idea where to start"."""
+    """The first alpha reader's first words were "no idea where to start", on a page that
+    hid everything when the shelf was empty. Home's empty line and its one to start with
+    live inside `#page`, and the script shows `#page` whatever the shelf holds."""
     from targum.render.builder import ASSETS
 
-    learn = PAGES["learn"]
-    assert learn.index('id="page"') < learn.index('id="carry-sheet"') < learn.index('id="nothing"')
-    script = (ASSETS / "learn.js").read_text(encoding="utf-8")
-    assert 'getElementById("page").hidden = nothing' not in script
+    home = PAGES["texts"]
+    assert home.index('id="page"') < home.index('id="first-home"') < home.index('id="try-next"')
+    script = (ASSETS / "yours.js").read_text(encoding="utf-8")
     assert 'getElementById("page").hidden = false' in script
 
 
@@ -427,7 +471,7 @@ def test_the_growth_chart_is_defined_once() -> None:
     """
     charts = (ASSETS / "charts.js").read_text(encoding="utf-8")
     assert "function drawGrowth(" in charts
-    for page in ("progress.js", "learn.js"):
+    for page in ("progress.js", "arrival.js"):
         source = (ASSETS / page).read_text(encoding="utf-8")
         assert "function drawGrowth(" not in source, f"{page} should use the shared one"
 
@@ -444,7 +488,7 @@ def baked(name: str) -> str:
     return _strip(name, (ASSETS / name).read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize("page", ["progress", "learn"])
+@pytest.mark.parametrize("page", ["progress", "welcome"])
 def test_a_page_that_draws_charts_loads_them_first(page: str) -> None:
     """The first version of this said `"charts.js" in html or "TargumCharts" in html`,
     which passes on any page whose own script merely *mentions* the global — so Learn
@@ -454,7 +498,7 @@ def test_a_page_that_draws_charts_loads_them_first(page: str) -> None:
     charts = baked("charts.js")
     body = charts[charts.index("window.TargumCharts =") :][:80]
     assert body in html, f"{page} does not inline charts.js"
-    own = baked(f"{page}.js")[:200]
+    own = baked({"welcome": "arrival.js"}.get(page, f"{page}.js"))[:200]
     assert html.index(body) < html.index(own), "and before the page that uses them"
 
 
@@ -488,7 +532,9 @@ def test_a_refused_upload_says_what_the_server_said_not_check_your_connection() 
     caught = press[press.index("    prepared\n") :][:1800]
     assert ".catch(function (why)" in caught
     assert 'typeof why === "string"' in caught
-    assert caught.index('typeof why === "string"') < caught.index('t("add.unreachable"')
+    # A sentence goes under the box; anything else is the connection's banner
+    # (design.md §12, 2026-10-09), and the string is asked about first.
+    assert caught.index('typeof why === "string"') < caught.index("unreachable(")
     bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
     assert "if (opened.error) throw opened.error;" in bring, "the door rejects with its sentence"
 
@@ -501,16 +547,19 @@ def test_the_library_is_one_list() -> None:
     which room a text was in before they could find it, which is backwards for the one
     page whose whole job is finding something."""
     library = PAGES["library"]
-    assert 'id="shelves"' not in library, "no room switcher"
+    assert 'id="where"' not in library, "no tabs: the Jewish texts are a door"
+    # The shelves by level (design.md §12, 2026-10-09) are not rooms: each is the one
+    # list under one band, and its See all is that list. What stays gone is the switch.
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert "SHELVES" not in source and "drawShelves" not in source
+    assert "SHELVES" not in source, "no room switcher"
+    assert "function seeBand(" in source and 'view.where = "library";' in source
     # The name came back on 2026-09-19 (design.md §12, targum-internal#340) and the rooms
     # did not: the Beit Midrash is a tab over the same list, which is the thing this test
     # was always protecting. It draws with the list's own rows and cards, it has no
     # address of its own for a text, and `test_library_js.py` holds it to every row being
     # a row under All texts too.
     assert "/beit-midrash/" not in library and "/beit-midrash/" not in source
-    assert source.count("function card(row)") == 1 and source.count("function draw(row") == 1
+    assert "function card(row)" not in source and source.count("function draw(row") == 1
 
 
 def test_a_row_says_what_the_text_is() -> None:
@@ -518,27 +567,29 @@ def test_a_row_says_what_the_text_is() -> None:
     news in one list, the reader who cares which is which needs the row to say so — and
     it has to be the same vocabulary the catalogue is written in, so the two cannot
     drift."""
-    from targum.catalogue import Kind, Register
+    from targum.catalogue import Kind
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     for kind in Kind:
         assert f'["{kind.value}", ' in source, f"the library cannot name a {kind.value}"
-    for register in Register:
-        if register.value:
-            assert f'["{register.value}", ' in source
-    # And filters by both, which is the point of naming them. `state` is whichever set of
+    # And filters by it, which is the point of naming it. `state` is whichever set of
     # filters is being asked about — the live ones, or the same minus one, which is how
-    # the page works out which chips are worth offering.
-    assert "state.kind && row.kind !== state.kind" in source
-    assert "state.register && row.register !== state.register" in source
+    # the page works out which kinds are worth offering. Which Hebrew is no longer one
+    # (design.md §12, "The Library stands on the ground", 2026-10-09).
+    assert "var kinds = KIND_SETS[state.kind] || [state.kind];" in source
 
 
 def test_the_library_has_one_heading() -> None:
     """ "Picked for you" was a panel title on a page that also held the reader's shelf
-    and their trash. With nothing else on the page it only repeated the h1."""
+    and their trash. With nothing else on the page it only repeated the h1.
+
+    The h2s are the Weekly portion shelf's (targum-internal#411), a shelf of its own,
+    and See all's name, which stands in for the h1 while the list is up (design.md §12,
+    "The Library stands on the ground", 2026-10-09)."""
     library = PAGES["library"]
     assert "Picked for you" not in library
-    assert len(re.findall(r"<h2\b", library)) == 0
+    assert re.findall(r"<h2\b[^>]*\bid=\"([^\"]+)\"", library) == ["see-title", "portions-head"]
+    assert len(re.findall(r"<h2\b", library)) == 2
 
 
 # -- the header every page wears --------------------------------------------------
@@ -660,7 +711,7 @@ console.log(JSON.stringify({
     assert got["phrases"] == [["בית ספר", "judenstaat"]]
 
 
-@pytest.mark.parametrize("page", ["progress", "learn"])
+@pytest.mark.parametrize("page", ["progress", "arrival"])
 def test_the_chart_kit_is_bound_before_it_is_used(page: str) -> None:
     """`var` hoists the name and not the value.
 
@@ -677,25 +728,16 @@ def test_the_chart_kit_is_bound_before_it_is_used(page: str) -> None:
     assert bound < first.start(), f"{page}.js reads {first.group(0)} before binding charts"
 
 
-def test_the_library_is_browsed_as_cards_and_sifted_as_a_list() -> None:
-    """Both shapes, over one list (design.md §12, 2026-09-17).
-
-    This asserted for months that "the card grid is gone", and it was right: a card
-    cannot be sorted, and the grid it replaced could not answer "which of these can I
-    read". The page is browsed now, so the grid is back — and the complaint that retired
-    it is answered rather than forgotten, because the sortable table is still here and is
-    one press away.
-    """
+def test_see_all_is_a_table_with_three_menus() -> None:
+    """Board SeeAllDesk (design.md §12, "The Library stands on the ground", 2026-10-09):
+    the search, then Kind, Level and Language as menus, a table whose heads sort it, and
+    Show more under fifty rows. What the boards do not draw is not on the page."""
     library = PAGES["library"]
-    for control in ("find", "register-chips", "kind-chips", "length", "difficulty"):
-        assert f'id="{control}"' in library, f"the library cannot filter by {control}"
-    assert 'id="rows-head"' in library, "the columns still sort"
-    assert 'id="catalogue"' in library, "and the table is still a table"
-    assert 'id="cards"' in library, "and the grid is what it opens in"
-    assert 'id="shape"' in library, "with one control to change between them"
-    # What it is browsed by, and how much of it is shown: the two the browse view adds.
-    assert 'id="subject-chips"' in library, "the subjects are the row it browses by"
-    assert 'id="said"' in library, "and the line that says how far it is narrowed"
+    for part in ("find", "see-menus", "rows-head", "catalogue", "see-more", "lib-doors"):
+        assert f'id="{part}"' in library, part
+    for gone in ("register-chips", "kind-chips", "subject-chips", "said", "shape", "sorts"):
+        assert f'id="{gone}"' not in library, gone
+    assert "<select" not in library, "the menus are the desk's own"
 
 
 def test_the_library_is_everyone_s_and_your_targums_is_yours() -> None:
@@ -703,11 +745,9 @@ def test_the_library_is_everyone_s_and_your_targums_is_yours() -> None:
     uploads tab, which listed what Your targums already listed. It is gone; the tab strip
     stays for the Beit Midrash."""
     library = PAGES["library"]
-    assert 'id="where"' in library and 'role="tablist"' in library
     assert 'id="access"' not in library, "the Access filter stays gone too"
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert '["library", t("library.where.library", "All texts")]' in source
     assert "library.where.mine" not in source
     assert '"row-state", row.entry ? "Public" : "Private"' not in source
 
@@ -716,7 +756,9 @@ def test_a_row_carries_a_cover_and_falls_back_to_the_text() -> None:
     """The covers are drawn one at a time and arrive over months. A library with none of
     them yet has to look deliberate rather than broken."""
     library = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert 'keyed("/thumb/"' in library, "it asks for a cover"
+    # Through the one helper, `?drawn=1`, since 2026-10-09: the server answers with the
+    # letter on the colour of its kind where there is no picture.
+    assert "window.TargumCovers.picture(" in library, "it asks for a cover"
 
     covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
     assert "glyph.textContent = letter" in covers, "and draws the first letter meanwhile"
@@ -729,19 +771,25 @@ def test_the_cover_tile_is_defined_once() -> None:
     tile that drifts: one page would keep a fix and the other would not."""
     covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
     assert "function tile(" in covers
-    for page in ("library.js", "learn.js"):
+    for page, helper in (
+        ("library.js", "TargumCovers.picture("),
+        ("shelf.js", "TargumCovers.picture("),
+    ):
         source = (ASSETS / page).read_text(encoding="utf-8")
         assert "function thumb(" not in source, f"{page} should use the shared tile"
-        assert "TargumCovers.tile(" in source, f"{page} does not draw one"
+        assert helper in source, f"{page} does not draw one"
+    # Home draws its pictures through the one helper (targum-internal#429 swaps it).
+    home = (ASSETS / "home.js").read_text(encoding="utf-8")
+    assert "covers.picture(" in home and "function tile(" not in home
 
 
-@pytest.mark.parametrize("page", ["library", "learn"])
-def test_a_page_that_draws_covers_loads_them_first(page: str) -> None:
+@pytest.mark.parametrize(("page", "script"), [("library", "library.js"), ("texts", "home.js")])
+def test_a_page_that_draws_covers_loads_them_first(page: str, script: str) -> None:
     html = PAGES[page]
     covers = baked("covers.js")
     body = covers[covers.index("function tile(") :][:60]
     assert body in html, f"{page} does not inline covers.js"
-    own = baked(f"{page}.js")[:200]
+    own = baked(script)[:200]
     assert html.index(body) < html.index(own), "and before the page that uses it"
 
 
@@ -777,12 +825,19 @@ def test_the_shelf_grid_outranks_the_list_it_shares_a_class_with() -> None:
 
 
 def test_the_profile_page_holds_what_an_account_is() -> None:
-    """An account used to be an address, a session and a shelf. This is the page that
-    says who you are, how you read, and how to end it."""
+    """Board AccountDesk (2026-10-09): Credits, Plan, Your languages and Account — the
+    address, Saved on this device, the export, and the way out. The name is no longer
+    asked here; the Hebrew form of address is a row of Your languages, a `.seg` of its two
+    forms, because the conversation still reads it."""
     you = PAGES["you"]
-    assert 'id="you-name"' in you, "what to call you"
-    assert 'id="you-email"' in you and 'id="you-avatar"' in you
-    assert 'id="you-export"' in you and 'id="you-forget"' in you, "and the way out"
+    assert 'id="you-name"' not in you
+    assert '<span class="seg" id="you-address" role="radiogroup"' in you
+    assert 'id="address-m"' in you and 'id="address-f"' in you
+    languages = you[you.index('id="languages"') : you.index('id="connections"')]
+    assert 'id="you-address-row"' in languages, "a row of Your languages"
+    assert 'id="you-email"' in you and 'href="/you/saved"' in you
+    assert 'id="you-export"' in you and 'href="/account/export" download' in you
+    assert 'id="you-forget"' in you, "and the way out"
 
 
 def test_the_profile_page_says_something_to_a_stranger() -> None:
@@ -805,31 +860,30 @@ def test_the_corner_is_a_circle_rather_than_an_address() -> None:
 # -- the three lists, and where the rest of each one lives ------------------------
 
 
-def test_learn_caps_every_list_and_says_where_the_rest_is() -> None:
-    """A page somebody lands on with four hundred rows on it is not a landing page. The
-    shelf itself left on 2026-09-11: the last few read are a menu in the row of doors,
-    drawn by the script, and the whole list is Your targums."""
-    learn = PAGES["learn"]
-    assert 'id="doors"' in learn and 'id="library-list"' not in learn
+def test_home_holds_the_whole_shelf() -> None:
+    """Learn capped its shelf and pointed at Your targums for the rest; home is Your
+    targums, so the whole shelf is on it, under Continue (2026-10-08)."""
+    home = PAGES["texts"]
+    assert 'id="library-list"' in home and 'id="doors"' not in home
 
 
-def test_nothing_on_learn_folds() -> None:
-    """Phase 2 (2026-09-11): a shelf of five rows is not worth a control to put away."""
-    learn = PAGES["learn"]
-    assert learn.count('class="fold"') == 0
+def test_nothing_on_home_folds() -> None:
+    """Phase 2 (2026-09-11): a shelf is not worth a control to put away."""
+    home = PAGES["texts"]
+    assert home.count('class="fold"') == 0
 
 
 def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
     """The product calls a built text a targum everywhere and had never once said what
-    one is. Not "a text you have built", either: the glosses are cached per lemma across
-    every text and every reader, and a public text is built once for everybody, so most
-    reading is opening something already made rather than making it."""
-    page = PAGES["texts"]
-    # Shown, not only said, since 2026-09-26 (design.md §12, "Your targums has tabs").
-    assert "What&#39;s a targum?" in page or "What's a targum?" in page
-    assert "with its translation held line by line" in page
-    assert 'class="defined-example"' in page
-    assert "A targum is a text you have built" not in page
+    one is. Home drew a definition from 2026-09-26 until 2026-10-08, and the arrival's
+    welcome until 2026-10-09, when the FirstRun boards' three questions replaced it
+    (design.md §12, "The arrival is three plain questions"). Everybody who reaches the
+    arrival came through the front door, and that is where it is said."""
+    from targum.render.builder import front_page
+
+    assert "English beside every line" in front_page()
+    assert "with a translation beside every line" not in PAGES["welcome"]
+    assert 'class="defined-example"' not in PAGES["texts"]
 
 
 @pytest.mark.parametrize(
@@ -906,19 +960,6 @@ def test_the_suggestion_points_at_a_row_without_pressing_it() -> None:
     assert "focus(" in pointing, "it does put the press under their hand"
 
 
-def test_which_hebrew_is_a_switch_rather_than_two_more_filter_pills() -> None:
-    """Biblical and modern Hebrew are close to two languages, and which one somebody is
-    learning is the first question this page asks. As pills it sat beside the kind filter
-    with a second chip also saying "All", and the two rows read as one row of ten."""
-    library = PAGES["library"]
-    assert 'class="segmented" id="register-chips"' in library
-    assert '<span class="switch-label">Which Hebrew</span>' in library, "and it says what it is"
-    assert 'class="chips" id="register-chips"' not in library
-
-    source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert '"register",\n        redraw,\n        "segment",' in source, "segments, not chips"
-
-
 # -- bringing your own text ------------------------------------------------------
 
 
@@ -940,13 +981,33 @@ def test_the_upload_page_takes_anything_in_one_box() -> None:
     assert "btoa(unescape(encodeURIComponent(" in source, "and Hebrew survives the trip"
 
 
+def test_upload_records_and_invites_what_the_reader_wants() -> None:
+    """Record and the "say what you want" box are back on the board's card (David,
+    2026-10-10; design.md §12). Record is the composer's recorder, drawn only where the
+    browser can record, and its clip is taken like a dropped file — nothing new is
+    fetched or spent on the press itself."""
+    add = PAGES["add"]
+    said = html.unescape(add)
+    assert 'id="record"' in add and "btn ghost outline bring-record" in add
+    assert "or say what you want" in said
+    assert add.index("window.TargumSpeak") < add.index("var recordButton"), (
+        "speak.js comes before add.js, which asks it whether this browser can record"
+    )
+    source = (ASSETS / "add.js").read_text(encoding="utf-8")
+    recording = source[source.index("var recordButton") : source.index("function extensionOf")]
+    assert "take([note])" in recording
+    assert "fetch(" not in recording and "ask(" not in recording, "the press spends nothing"
+
+
 def test_a_description_is_said_in_the_conversation_by_the_reader_s_press() -> None:
     """A sentence about what the reader wants is a turn of conversation, not a text to
-    price (2026-09-13, targum-internal#249). Ask targum hands it to the talk drawer, and
-    the framed conversation says it only when it came from its own parent on this origin
-    — the model is never the one who sends it, and no other page can."""
+    price (2026-09-13, targum-internal#249). Ask targum went with the board (UploadDesk,
+    2026-10-09); a description typed anyway is looked for in place by the reader's own
+    press, and the framed conversation says only what came from its own parent on this
+    origin — the model is never the one who sends it, and no other page can."""
     add = (ASSETS / "add.js").read_text(encoding="utf-8")
-    assert "window.TargumTalk.say(read.text)" in add, "Ask targum is the reader's press"
+    assert "TargumTalk.say" not in add and "ask-targum" not in add
+    assert "return look(read.text);" in add, "a description is looked for on the press"
     go = add[add.index("go.onclick") :]
     assert 'read.kind !== "link"' in go, "Continue never prices a description"
 
@@ -977,14 +1038,13 @@ def test_a_cover_is_drawn_for_an_upload_without_being_asked() -> None:
     assert "draw-cover" not in add, "the tick nobody was going to untick"
 
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
-    drawing = source[source.index('if (state.stage === "done")') :][:600]
+    # Where the wait ends with a reader (`opening`, since the finish pass of
+    # targum-internal#466): after the text is readable, never before it. Nobody waits on
+    # a picture to read.
+    drawing = source[source.index("function opening(state)") :][:1600]
     assert 'ask("/cover"' in drawing, "asked for every time"
     assert "checked" not in drawing, "and not off a control"
-
-    source = (ASSETS / "add.js").read_text(encoding="utf-8")
-    # After the text is readable, never before it. Nobody waits on a picture to read.
-    drawing = source[source.index('if (state.stage === "done")') :][:800]
-    assert 'ask("/cover"' in drawing
+    assert 'end.stage === "done" && end.reader) return opening(end)' in source
 
 
 def test_the_upload_page_offers_only_the_pairs_that_have_been_taken_end_to_end() -> None:
@@ -993,14 +1053,10 @@ def test_the_upload_page_offers_only_the_pairs_that_have_been_taken_end_to_end()
     upload has actually been through."""
     add = PAGES["add"]
     said_in_page = html.unescape(add)
-    for said in (
-        "Hebrew (alpha)",
-        "Aramaic (Experimental)",
-        "Yiddish (Experimental)",
-        "French (Experimental)",
-        "Italian (Experimental)",
-    ):
-        assert said in said_in_page, said
+    # The language the text is in is named alone, as board UploadDesk draws it
+    # (2026-10-09); how far along it is is the note under the box.
+    for said in ("Hebrew", "Aramaic", "Yiddish", "French", "Italian"):
+        assert f">{said}</option>" in said_in_page, said
     assert "English (alpha)" in said_in_page
     assert "Russian (Experimental)" in said_in_page
     for gone in ("Spanish", "German", "Latin", "Arabic"):
@@ -1052,7 +1108,7 @@ def test_reader_links_are_percent_encoded() -> None:
     """A folder is named from a title, and a title can carry anything. The one that broke
     it had a raw `%` — a browser sent it as-is, and the proxy refused the request before
     targum saw it."""
-    for name in ("library.js", "shelf.js", "learn.js", "add.js"):
+    for name in ("library.js", "shelf.js", "home.js", "add.js"):
         source = (ASSETS / name).read_text(encoding="utf-8")
         assert '"/reader/" + reader.name' not in source, name
         assert '"/reader/" + row.built.name' not in source, name
@@ -1091,43 +1147,32 @@ def test_a_youtube_address_is_no_longer_turned_away_at_the_paste() -> None:
     assert "run targum on your own computer" not in add
 
 
-def test_your_words_carries_the_fold_and_promises_nothing_by_it() -> None:
-    """What to work on (targum-internal#103): the words flagged and never come back to,
-    above the table they are also in.
+def test_your_words_is_one_table_and_a_practice_card_that_promises_nothing() -> None:
+    """design.md §12, "Your Words is one table and a practice card", 2026-10-09: the fold
+    that listed the words being learned over the table they are also in is gone, and the
+    card beside the table goes over them one at a time.
 
-    It starts hidden, because a reader with nothing to work on sees no fold at all —
+    It starts hidden, because a reader with no line to practise sees no card at all —
     not an empty state and not an invitation — and `lists.js` is what decides.
     """
     words = PAGES["words"]
-    assert 'id="work-on"' in words and 'id="work-rows"' in words
-    assert 'id="work-on" hidden' in words, "hidden until there is something in it"
-    assert "What to work on" in words, "a question answered, not an instruction"
+    assert 'id="work-on"' not in words, "one list, not two"
+    assert 'id="practise" aria-labelledby="practise-heading" hidden' in words
+    assert "Practise these" in words
 
     # And nothing that schedules, counts or chases. "if smth gonna ping me or bother me
     # like duolingo I'll fucking delete it" — Dmitry Z, 2026-09-16, in the same minute he
     # asked for the list itself.
-    fold = words[words.index('id="work-on"') : words.index('id="word-table"')]
+    start = words.index('id="practise"')
+    card = words[start : words.index("</aside>", start)]
     for chasing in ("due", "streak", "goal", "reminder", "review", "overdue"):
-        assert chasing not in fold.lower(), f"the fold must not say {chasing!r}"
+        assert chasing not in card.lower(), f"the card must not say {chasing!r}"
 
 
-def test_the_fold_stands_on_the_words_page_and_on_the_front_door() -> None:
-    """Both, and nowhere else (David, 2026-09-18).
-
-    This test used to say "only on the words page", because Learn stopped carrying the
-    lists on 2026-09-11 and should not get them back one section at a time. What changed
-    is not that argument but what the fold turned out to be: the lists are an inventory,
-    which is what did not belong on a landing page, and the fold is five rows of the one
-    thing a reader came back to do. It is capped here and says where the rest are, which
-    is the arrangement every list on Learn had before the move.
-
-    Progress, Phrases and Your targums still do not carry it: the fold answers "what is
-    worth going over", and a page that answers something else should not ask it too.
-    """
-    assert 'id="work-on"' in PAGES["learn"], "the front door carries it"
-    assert 'id="work-all"' in PAGES["learn"], "and says where the rest of it is"
-    for name in ("progress", "phrases", "texts"):
-        assert 'id="work-on"' not in PAGES[name], name
+def test_the_practice_card_stands_on_the_words_page_alone() -> None:
+    assert 'class="card practise"' in PAGES["words"]
+    for name in ("progress", "phrases", "texts", "welcome"):
+        assert 'class="card practise"' not in PAGES[name], name
 
 
 def test_the_key_is_set_before_any_script_that_reads_it() -> None:
@@ -1148,3 +1193,18 @@ def test_the_key_is_set_before_any_script_that_reads_it() -> None:
         reads = [m.start() for m in re.finditer(r"window\.TARGUM_KEY \|\|", built)]
         assert reads, f"{name} sets a key nothing reads"
         assert key_at < min(reads), f"{name}: a script reads the key before the page sets it"
+
+
+def test_every_desk_page_says_who_is_signed_in() -> None:
+    """The bar's corner is drawn by `account.js` from what `sync.js` hears: a page that
+    carries the bar without both says "Sign in" to a reader who is signed in, as the
+    Tanakh map did until #677 and Saved on this device until 2026-10-09."""
+    templates = Path(__file__).resolve().parents[1] / "src/targum/render/templates"
+    for page in sorted(templates.glob("*.j2")):
+        text = page.read_text(encoding="utf-8")
+        if page.name.startswith("_") or "_nav.html.j2" not in text:
+            continue
+        if page.name == "signin.html.j2":
+            continue  # the expired link's bar is the door's: no account, no places
+        assert "script('sync.js')" in text, f"{page.name} cannot hear who is signed in"
+        assert "script('account.js')" in text, f"{page.name} cannot draw who is signed in"

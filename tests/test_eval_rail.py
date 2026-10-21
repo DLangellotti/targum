@@ -55,7 +55,9 @@ def test_the_checks_are_record_turns_own_and_stop_before_the_claim(tmp_path: Pat
     assert script.checks({"wrote": "what does this mean", "language": "he"}, tmp_path)
     assert script.checks({"wrote": "שלום", "language": "yi"}, tmp_path)
     assert script.checks({"wrote": " ".join(["מילה"] * 61), "language": "he"}, tmp_path)
-    assert script.checks({"wrote": " ".join(["מילה"] * 60), "language": "he"}, tmp_path) is None
+    sixty = {"wrote": " ".join(["מילה"] * 60), "language": "he"}
+    assert script.checks(sixty, tmp_path, rail=False) is None, "the word limit's own edge"
+    assert script.checks(sixty, tmp_path), "and the rail's repeats, in front of the claim"
 
 
 def test_precision_and_recall_count_a_block_as_the_positive() -> None:
@@ -121,3 +123,15 @@ def test_the_labelled_set_is_whole() -> None:
     for one in cases:
         assert isinstance(one["spend"], bool) and one["why"] and "wrote" in one["args"]
     assert {one["spend"] for one in cases} == {True, False}
+
+
+def test_the_table_says_what_the_rail_adds_to_the_checks() -> None:
+    script = load_script()
+    cases = [case("own", True), case("paste", False), case("markup", False)]
+    before = {"own": False, "paste": False, "markup": False}
+    after = {"own": False, "paste": False, "markup": True}
+    table = script.report(cases, after, {}, (0.5,), before)
+    assert "| checks alone | 0 | 2 | 0 | 1.00 | 0.00 |" in table
+    assert "| checks + deterministic rail | 1 | 1 | 0 | 1.00 | 0.50 |" in table
+    assert "The rail catches (1): markup" in table
+    assert "The rail's false blocks (0)" in table

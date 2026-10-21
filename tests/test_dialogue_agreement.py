@@ -9,6 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
+from targum.annotate.dicta import _moved, _tokens
+from targum.dialogue import agreement
 from targum.dialogue.agreement import (
     Word,
     article_on_construct,
@@ -19,13 +23,24 @@ from targum.dialogue.agreement import (
     numeral_agreement,
     numeral_state,
     teen,
+    words_from_annotation,
     words_from_dicta,
+    words_from_tokens,
 )
+from targum.models import Annotation, Segment, Syntax, Token
 
 M, F = {"Gender": "Masc"}, {"Gender": "Fem"}
 
 
-def said(line: str, *words: tuple[str, str, dict[str, str], list[str], int, str]) -> list[Word]:
+Said = tuple[str, str, dict[str, str], list[str], int, str]
+
+
+def said(line: str, *words: Said) -> list[Word]:
+    """DICTA's reading of `line` as the checks see it, made by `reply`."""
+    return words_from_dicta(reply(line, *words), line)
+
+
+def reply(line: str, *words: Said) -> dict[str, Any]:
     """DICTA's JSON for `line`, one tuple per word: (surface, pos, feats, seg, head, rel).
 
     The surface is found in the line to get the offsets, as DICTA reports them.
@@ -46,7 +61,7 @@ def said(line: str, *words: tuple[str, str, dict[str, str], list[str], int, str]
                 "syntax": {"dep_head_idx": head, "dep_func": rel},
             }
         )
-    return words_from_dicta({"tokens": tokens}, line)
+    return {"tokens": tokens}
 
 
 def plain(surface: str, pos: str = "NOUN", feats: dict[str, str] | None = None) -> Word:
@@ -339,3 +354,173 @@ def test_a_word_split_at_a_geresh_is_not_a_chain() -> None:
         (".", "PUNCT", {}, ["."], 1, "punct"),
     )
     assert list(article_on_construct(words, 0)) == []
+
+
+# ------------------------------------------------- the stored annotation (targum-internal#134)
+
+#: The two errors the gate found on the shelf, as DICTA reads them, and the same two
+#: lines corrected.
+REFUND: tuple[str, tuple[Said, ...]] = (
+    "אֲבָל הָיִיתִי חוֹלָה גַּם בַּיּוֹם הַבִּיטּוּל.",
+    (
+        ("אֲבָל", "CCONJ", {}, ["אבל"], 2, "cc"),
+        ("הָיִיתִי", "AUX", M, ["הייתי"], 2, "cop"),
+        ("חוֹלָה", "VERB", M, ["חולה"], -1, "root"),
+        ("גַּם", "ADV", {}, ["גם"], 4, "advmod"),
+        ("בַּיּוֹם", "NOUN", M, ["ב", "יום"], 2, "obl"),
+        ("הַבִּיטּוּל", "NOUN", M, ["ה", "ביטול"], 4, "compound:smixut"),
+        (".", "PUNCT", {}, ["."], 2, "punct"),
+    ),
+)
+LAWYER: tuple[str, tuple[Said, ...]] = (
+    "מִכְתָּב אֶחָד, שְׁמוֹנָה מֵאוֹת.",
+    (
+        ("מִכְתָּב", "NOUN", M, ["מכתב"], -1, "root"),
+        ("אֶחָד", "NUM", M, ["אחד"], 0, "nummod"),
+        (",", "PUNCT", {}, [","], 4, "punct"),
+        ("שְׁמוֹנָה", "NUM", F, ["שמונה"], 4, "nummod"),
+        ("מֵאוֹת", "NUM", F, ["מאות"], 0, "appos"),
+        (".", "PUNCT", {}, ["."], 0, "punct"),
+    ),
+)
+
+
+def _fixed(
+    case: tuple[str, tuple[Said, ...]], wrong: str, right: str
+) -> tuple[str, tuple[Said, ...]]:
+    line, words = case
+    return line.replace(wrong, right), tuple(
+        (w[0].replace(wrong, right), *w[1:])
+        for w in words  # type: ignore[misc]
+    )
+
+
+def stored(line: str, *words: Said) -> list[Token]:
+    """What the annotator keeps of DICTA's reply, which is what the shelf holds."""
+    return _tokens(reply(line, *words))
+
+
+def test_the_annotator_keeps_which_word_governs_which() -> None:
+    tokens = stored(*REFUND[0:1], *REFUND[1])
+    by = {token.surface: token for token in tokens}
+    # Punctuation is no token, so the heads are counted without it.
+    assert by["הַבִּיטּוּל"].syntax == Syntax(
+        head=4, relation="compound:smixut", prefixes=("DET",), lead=1
+    )
+    assert by["בַּיּוֹם"].syntax is not None and by["בַּיּוֹם"].syntax.prefixes == ("ADP",)
+    # The head of the chain says so where the card reads it.
+    assert by["בַּיּוֹם"].feats is not None and "Definite=Cons" in by["בַּיּוֹם"].feats
+    assert "Definite" not in (by["הַבִּיטּוּל"].feats or "")
+    assert by["חוֹלָה"].syntax is not None and by["חוֹלָה"].syntax.head == -1
+
+
+def test_a_number_hanging_off_a_noun_does_not_make_it_a_construct() -> None:
+    tokens = stored(
+        "בָּעַמּוּד מָאתַיִים",
+        ("בָּעַמּוּד", "NOUN", M, ["ב", "עמוד"], -1, "root"),
+        ("מָאתַיִים", "NUM", {}, ["מאתיים"], 0, "compound:smixut"),
+    )
+    assert "Definite" not in (tokens[0].feats or "")
+
+
+@pytest.mark.parametrize("case", [REFUND, LAWYER])
+def test_the_stored_reading_finds_what_dicta_finds(case: tuple[str, tuple[Said, ...]]) -> None:
+    line, words = case
+    from_dicta = check_words(said(line, *words), 3)
+    from_store = words_from_tokens(stored(line, *words), line)
+    assert from_store is not None
+    assert from_dicta and check_words(from_store, 3) == from_dicta
+
+
+@pytest.mark.parametrize(
+    "case",
+    [_fixed(REFUND, "בַּיּוֹם", "בְּיוֹם"), _fixed(LAWYER, "שְׁמוֹנָה", "שְׁמוֹנֶה")],
+)
+def test_the_two_lines_corrected_are_quiet(case: tuple[str, tuple[Said, ...]]) -> None:
+    line, words = case
+    from_store = words_from_tokens(stored(line, *words), line)
+    assert from_store is not None and check_words(from_store, 3) == []
+    assert check_words(said(line, *words), 3) == []
+
+
+def test_punctuation_comes_back_between_the_stored_words() -> None:
+    # `בְּיוֹם שְׁנֵי.` is 'two of' and then a full stop: the stop has to be there.
+    line = "בְּיוֹם שְׁנֵי."
+    words = (
+        ("בְּיוֹם", "NOUN", M, ["ב", "יום"], -1, "root"),
+        ("שְׁנֵי", "NUM", M, ["שני"], 0, "nummod"),
+        (".", "PUNCT", {}, ["."], 0, "punct"),
+    )
+    from_store = words_from_tokens(stored(line, *words), line)
+    assert from_store is not None
+    assert [w.pos for w in from_store] == ["NOUN", "NUM", "PUNCT"]
+    assert from_store[1].head == 0
+    assert check_words(from_store, 0) == check_words(said(line, *words), 0) != []
+
+
+def test_an_annotation_from_before_the_rename_has_no_reading() -> None:
+    old = [t.model_copy(update={"syntax": None}) for t in stored(LAWYER[0], *LAWYER[1])]
+    assert words_from_tokens(old, LAWYER[0]) is None
+
+
+def _scene(line: str, tokens: list[Token], second: str = "") -> tuple[list[Segment], Annotation]:
+    segments = [Segment(id="s0", block_id="b0000", block_index=0, index=0, text=line)]
+    held = {"s0": tokens}
+    if second:
+        segments.append(Segment(id="s1", block_id="b0000", block_index=0, index=1, text=second))
+        held["s1"] = stored(LAWYER[0], *LAWYER[1])
+    annotation = Annotation(
+        document_hash="x", language="he", annotator="dicta", method="m", method_note=""
+    )
+    annotation.tokens = held
+    return segments, annotation
+
+
+def test_a_turn_of_two_sentences_is_one_list_with_its_heads_moved() -> None:
+    first = "גַּם בַּיּוֹם הַבִּיטּוּל."
+    tokens = stored(
+        first,
+        ("גַּם", "ADV", {}, ["גם"], 1, "advmod"),
+        ("בַּיּוֹם", "NOUN", M, ["ב", "יום"], -1, "root"),
+        ("הַבִּיטּוּל", "NOUN", M, ["ה", "ביטול"], 1, "compound:smixut"),
+        (".", "PUNCT", {}, ["."], 1, "punct"),
+    )
+    segments, annotation = _scene(first, tokens, second=LAWYER[0])
+    turns = words_from_annotation(segments, annotation)
+    assert turns is not None and list(turns) == [0]
+    words = turns[0]
+    # Four words and a stop, then the second sentence: its root's dependents point past them.
+    assert words[4].surface == "מִכְתָּב" and words[5].head == 4
+    assert len(check_words(words, 0)) == 2
+
+
+def test_turn_words_reads_the_store_and_falls_back_to_dicta(monkeypatch: Any) -> None:
+    line = LAWYER[0]
+    tokens = stored(line, *LAWYER[1])
+    segments, annotation = _scene(line, tokens)
+    asked: list[list[str]] = []
+
+    def local(texts: list[str], dicta: Any = None) -> list[list[Word]]:
+        asked.append(list(texts))
+        return [said(line, *LAWYER[1])]
+
+    monkeypatch.setattr(agreement, "words_by_dicta", local)
+    assert check_words(agreement.turn_words([line], segments, annotation)[0], 0)
+    assert asked == []
+    # An annotation from before the rename: read again.
+    annotation.tokens = {"s0": [t.model_copy(update={"syntax": None}) for t in tokens]}
+    agreement.turn_words([line], segments, annotation)
+    assert asked == [[line]]
+    # A scene edited since it was annotated: its stored words are not its words.
+    annotation.tokens = {"s0": tokens}
+    agreement.turn_words(["מִכְתָּב אֶחָד, שְׁמוֹנֶה מֵאוֹת וְעוֹד."], segments, annotation)
+    assert len(asked) == 2
+
+
+def test_a_later_piece_keeps_its_heads_pointing_at_its_own_words() -> None:
+    tokens = stored(LAWYER[0], *LAWYER[1])
+    moved = _moved(tokens[1], 100, 7)
+    assert moved.start == tokens[1].start + 100
+    assert moved.syntax is not None and moved.syntax.head == 7
+    root = _moved(tokens[0], 100, 7)
+    assert root.syntax is not None and root.syntax.head == -1

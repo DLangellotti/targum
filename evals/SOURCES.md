@@ -225,7 +225,16 @@ off and asking where the stress falls has an answer on the page (`pronounce.stre
   scripture, and the credit ships with it.
 - **Scored by:** `scripts/eval_hebrew_stress.py`. `--baseline-only` needs no key; a model
   run sends the unaccented words to a paid endpoint.
-- **Ledger:** `stress/tanakh-taamim`.
+- **Ledger:** `stress/tanakh-taamim`, and `stress/tanakh-taamim-v2` since 2026-10-02: the
+  same words with an accent written before a holam male read as the holam's
+  (targum-internal#325).
+- **Also scored by:** `scripts/eval_stress_tagger.py`, which feeds the stress rule a local
+  tagger's morphology instead of OSHB's. Its small tagger is trained on OSHB's tags for
+  words 3,001 to 23,000 of the sample's order and never on the 3,000 it is scored on;
+  nothing trained there ships.
+- **And by:** `scripts/eval_vav_consecutive.py` (`lemma/oshb-wlc`, targum-internal#449),
+  which scores the vav-consecutive rule's reading of the pointing against OSHB's `w` tag
+  outside the Torah. Nothing is trained.
 
 ## Wiktionary Russian examples
 

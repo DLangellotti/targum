@@ -27,7 +27,9 @@ from __future__ import annotations
 import http.server
 import io
 import json
+import os
 import re
+import signal
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +93,12 @@ def coin(n: int) -> str:
     return "".join(ALEPHBET[(n // 22**power) % 22] for power in range(5))
 
 
-def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
+def chapter(
+    out: Path,
+    taamim: bool = False,
+    parts: int = 1,
+    beyond: dict[str, dict[str, str]] | None = None,
+) -> Path:
     """A built reader with everything the bar can change: words, vowels, translation.
 
     With `taamim`, the pointed text also carries accents, which is what gives the switch
@@ -181,12 +188,16 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
         out,
         annotation=annotation,
         vocalization=vocalization,
+        beyond=beyond,
     )
     return pages[0]
 
 
 def bilingual(
-    out: Path, second: tuple[str, str, str] = ("Russian", "ru", "На земле Израиля")
+    out: Path,
+    second: tuple[str, str, str] = ("Russian", "ru", "На земле Израиля"),
+    commentary_words: dict[str, Annotation] | None = None,
+    meanings: dict[str, str] | None = None,
 ) -> Path:
     """The same chapter with two translations and a glossary for each.
 
@@ -256,7 +267,10 @@ def bilingual(
                 source_language="he",
                 target_language="en",
                 provider="test",
-                entries={lemma: f"the English of {lemma}" for lemma in lemmas},
+                entries={
+                    **{lemma: f"the English of {lemma}" for lemma in lemmas},
+                    **(meanings or {}),
+                },
             ),
             # Deliberately thinner than the English one: the last word has a meaning in
             # one language and none in the other, which is the case where a page that
@@ -268,6 +282,7 @@ def bilingual(
                 entries={lemma: f"по-русски {lemma}" for lemma in lemmas[:-1]},
             ),
         },
+        commentary_words=commentary_words,
     )
     return pages[0]
 
@@ -287,24 +302,25 @@ def two_languages(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return bilingual(tmp_path_factory.mktemp("bilingual") / "reader")
 
 
-@pytest.fixture(scope="module")
-def browser():
-    """One Chromium for the file. Launching one a test is most of the run."""
-    try:
-        driver = playwright_api.sync_playwright().start()
-    except Exception as why:  # pragma: no cover - environment, not behaviour
-        pytest.skip(f"Playwright will not start: {why}")
-    try:
-        # Muted, because a dialogue's tests watch the media clock and Chromium will not
-        # advance an unmuted one with no audio device under it — it reports playing and
-        # sits at zero. Nothing here listens; what is asserted is the clock.
-        running = driver.chromium.launch(args=["--mute-audio"])
-    except Exception as why:  # pragma: no cover - the browser itself is not installed
-        driver.stop()
-        pytest.skip(f"no Chromium: run `playwright install chromium` ({why})")
-    yield running
-    running.close()
-    driver.stop()
+@pytest.fixture
+def browser(chromium):
+    """One Chromium for the file, launched once and again only if a test lost it —
+    `conftest.Chromium` says why (2026-10-07)."""
+    return chromium.browser()
+
+
+def test_a_browser_lost_in_one_test_is_launched_again_for_the_next(chromium) -> None:
+    lost = chromium.browser()
+    told = lost.new_browser_cdp_session().send("SystemInfo.getProcessInfo")
+    pid = next(one["id"] for one in told["processInfo"] if one["type"] == "browser")
+    # Killed rather than closed, because that is what CI saw: a Chromium gone without a
+    # word, and the file's next `new_context` failing on it (targum-internal#427).
+    os.kill(pid, signal.SIGKILL)
+    with pytest.raises(playwright_api.Error):
+        lost.new_context()
+    found = chromium.browser()
+    assert found is not lost and found.is_connected()
+    found.new_context().close()
 
 
 #: These tests are about the scrolling reader, and pages are the default now — every
@@ -402,6 +418,60 @@ def address(reader: Path) -> str:
         _SERVED["port"] = server.server_address[1]
         threading.Thread(target=server.serve_forever, daemon=True).start()
     return f"http://127.0.0.1:{_SERVED['port']}{reader}"
+
+
+def press_in_aa(page, selector: str) -> None:
+    """Press a control that lives in the Aa panel (targum-internal#421): open the panel,
+    press, and put it away again with Escape, the way a reader goes back to the text —
+    so the panel is never standing over whatever the test presses next."""
+    # Some of what Aa held stands in the bar since 2026-10-08 (design.md §12): the vowels.
+    # Pressed where it is, then, the way a reader would.
+    if page.locator(f".bar .bar-tools > {selector}").count():
+        page.click(f".bar .bar-tools > {selector}")
+        return
+    if not page.evaluate("() => !!document.querySelector('#aa.open')"):
+        page.click("#aa-open")
+    page.click(selector)
+    page.keyboard.press("Escape")
+
+
+def practise_by_section(page) -> None:
+    """Shnayim mikra, kept a section at a time. A switch in Aa since targum-internal#421:
+    on, it offers its two ways, and By aliyah (or By chapter) is the second."""
+    if not page.evaluate("() => !!document.querySelector('#aa.open')"):
+        page.click("#aa-open")
+    if page.get_attribute("#practice-on", "aria-pressed") != "true":
+        page.click("#practice-on")
+    page.click('#practice [data-practice="section"]')
+    page.keyboard.press("Escape")
+
+
+def press_in_more(page, selector: str) -> None:
+    """Press a control that lives behind ⋯ (targum-internal#421), opening it first.
+    The view's drawings stand in the bar since 2026-10-08, and the switches that set the
+    page out moved to Aa: each is pressed where it is."""
+    if page.locator(f".bar .bar-tools {selector}").first.is_visible():
+        page.click(f".bar .bar-tools {selector} >> nth=0")
+        return
+    if page.locator(f"#aa {selector}").count():
+        press_in_aa(page, selector)
+        return
+    if not page.evaluate("() => !!document.querySelector('.bar-more.open')"):
+        page.click(".bar-tools [data-more]")
+    page.click(selector)
+
+
+def strip_up(page) -> None:
+    """Bring the player strip up without starting the voice.
+
+    Since targum-internal#421 (David, 2026-10-05) the strip waits for the bar's Listen: a
+    recorded text opens with nothing at the foot, and pressing Listen starts the voice
+    and brings the strip up. The tests here are about the transport itself — its step,
+    speed, line and seat — so they bring it up the way Listen does (`TargumPlayer.show`)
+    and leave the voice where it was. `test_reader_bar_browser.py` presses Listen."""
+    page.wait_for_function("() => !!(window.TargumPlayer && window.TargumPlayer.show)")
+    page.evaluate("() => window.TargumPlayer.show()")
+    page.wait_for_selector("#player")
 
 
 def opened(browser, viewport=None, scrolling: bool = True):
@@ -965,6 +1035,87 @@ def test_the_card_never_ends_up_over_its_own_word(page) -> None:
         assert now["cardOnScreen"], f"the card was not on the screen at {size}"
 
 
+#: Where the word card stands in the window, or null when it is not up.
+CARD_BOX = """
+() => {
+  const card = document.getElementById('gloss-card');
+  if (!card || card.hidden) return null;
+  const box = card.getBoundingClientRect();
+  return { left: box.left, top: box.top, width: box.width, height: box.height };
+}
+"""
+
+
+@pytest.mark.parametrize("step", ["1", "2", "3", "known", "ignore"])
+def test_a_level_pressed_on_the_card_leaves_it_where_it_was(page, step: str) -> None:
+    """A level pressed on the card rebuilds it, so every step agrees which one is set,
+    and then lets it fade where it stands. The rebuild seated it against the span the
+    card was opened for — which the redraw that showed the new level had just replaced,
+    so it had no rectangle, and the card jumped from beside the word to the top-left
+    corner of the page for the moment before it went (targum-internal#420, found
+    filming Bereshit at 1280×800)."""
+    was = page.evaluate(TAP_ABOVE)
+    assert was, "no word in the top half of the window to tap"
+    before = page.evaluate(CARD_BOX)
+    assert before, "the card did not open"
+
+    page.locator("#gloss-card .level", has_text=step).first.click()
+    after = page.evaluate(CARD_BOX)
+    assert after, "the card shut at once instead of lingering with the level on it"
+    moved = max(abs(after["left"] - before["left"]), abs(after["top"] - before["top"]))
+    assert moved <= SLACK, f"the card moved from {before} to {after} when {step} was pressed"
+    # And the card is still about the word that was tapped: its level says so.
+    level = page.evaluate(
+        "() => document.querySelector('#gloss-card .level[aria-pressed=\"true\"]')?.textContent"
+    )
+    assert level == step, f"the rebuilt card shows {level!r} pressed, not {step!r}"
+
+
+#: Counts every change the reader hands on to the account: `remember()` ends in
+#: `TargumSync.touched()`, which is what sends a change up a moment later.
+COUNT_SENT = """
+() => {
+  window.__sent = 0;
+  const sync = window.TargumSync || (window.TargumSync = {});
+  sync.touched = () => { window.__sent += 1; };
+}
+"""
+
+#: Every word this browser has a stage for, by lemma, as the reader stored it.
+STAGES = """
+() => {
+  const out = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key.startsWith('targum:vocab:')) continue;
+    const words = JSON.parse(localStorage.getItem(key) || '{}');
+    for (const lemma in words) out[lemma] = words[lemma].status;
+  }
+  return out;
+}
+"""
+
+
+def test_the_stage_a_word_has_pressed_again_stays(page) -> None:
+    """QA 2026-10-11, decision D8: pressing the stage a word already has used to take the
+    mark off, so a second tap meant as a confirmation silently un-marked the word. Now it
+    changes nothing: the word stays at 3, one change is sent, and the card still shows 3
+    pressed. The second press lands on the card while it lingers, as a double tap does."""
+    assert page.evaluate(TAP_ABOVE), "no word in the top half of the window to tap"
+    page.evaluate(COUNT_SENT)
+
+    page.locator("#gloss-card .level", has_text="3").first.click()
+    assert list(page.evaluate(STAGES).values()) == [3]
+    page.locator("#gloss-card .level", has_text="3").first.click()
+
+    assert list(page.evaluate(STAGES).values()) == [3], "the second press took the mark off"
+    assert page.evaluate("() => window.__sent") == 1, "the second press sent a change"
+    pressed = page.evaluate(
+        "() => document.querySelector('#gloss-card .level[aria-pressed=\"true\"]')?.textContent"
+    )
+    assert pressed == "3", f"the card shows {pressed!r} pressed after a second press of 3"
+
+
 #: A word looked up: what the card says it means, and whether it is still offering to
 #: find out. A reader who has already asked should meet the answer, not the button.
 CARD = """
@@ -1059,6 +1210,127 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     context.close()
 
 
+#: The word card's refusal, as `fault.js` draws it: the sentence, its button, and
+#: whether the look-up button it stands in for is out of sight.
+FAULT_IN_CARD = """
+() => {
+  const card = document.getElementById('gloss-card');
+  const line = card && card.querySelector('.fault-line');
+  if (!line) return null;
+  const ask = card.querySelector('.look-up');
+  return {
+    said: line.querySelector('.fault-said').textContent,
+    act: (line.querySelector('.fault-act') || {}).textContent || "",
+    askHidden: !!ask && ask.hidden,
+    ink: getComputedStyle(line).color,
+    mark: getComputedStyle(line.querySelector('.fault-icon')).stroke,
+  };
+}
+"""
+
+
+def test_a_look_up_that_fails_is_a_line_with_try_again(browser, built: Path) -> None:
+    """design.md §12, "A refusal is drawn on one of five surfaces" (2026-10-09). The
+    server's sentence stood under the button as a caveat, and the button beside it asked
+    nothing, because the refused answer was still held. It is a line in the card now: the
+    sentence in ink with the clay mark, and Try again, which really asks again."""
+    html = built.read_text(encoding="utf-8")
+    bought: list[str] = []
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/gloss" in request.url:
+            if request.post_data_json.get("free"):
+                body: dict = {"meaning": None}
+            else:
+                bought.append(request.url)
+                if len(bought) == 1:
+                    body = {"error": "We couldn't look this word up."}
+                    route.fulfill(
+                        status=502, content_type="application/json", body=json.dumps(body)
+                    )
+                    return
+                body = {"meaning": MEANING, "grounded": True}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair")
+    page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    page.eval_on_selector(".look-up", "button => button.click()")
+    page.wait_for_selector("#gloss-card .fault-line")
+    refused = page.evaluate(FAULT_IN_CARD)
+    page.click("#gloss-card .fault-act")
+    page.wait_for_timeout(300)
+    after = page.evaluate(CARD)
+    context.close()
+
+    assert refused["said"] == "We couldn't look this word up."
+    assert refused["act"] == "Try again" and refused["askHidden"]
+    assert refused["ink"] == "rgb(28, 26, 23)", "the sentence is ink, never clay"
+    assert refused["mark"] == "rgb(180, 85, 63)", "the mark is clay"
+    assert len(bought) == 2, "Try again asked once more"
+    assert after == {"meaning": MEANING, "asking": False}
+
+
+def test_targum_out_of_reach_is_a_band_under_the_bar(browser, built: Path) -> None:
+    """The connection's banner (2026-10-09): one band under the reader's bar that says
+    the page stays open, with no ×, and whose Try again asks again. The look-up that
+    could not reach targum used to say nothing at all."""
+    html = built.read_text(encoding="utf-8")
+    asked: list[str] = []
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/gloss" in request.url:
+            if request.post_data_json.get("free"):
+                route.fulfill(status=200, content_type="application/json", body='{"meaning": null}')
+                return
+            asked.append(request.url)
+            if len(asked) == 1:
+                route.abort()
+                return
+            body = {"meaning": MEANING, "grounded": True}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair")
+    page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    page.eval_on_selector(".look-up", "button => button.click()")
+    page.wait_for_selector("#fault-banner:not([hidden])")
+    band = page.evaluate(
+        """() => {
+          const band = document.getElementById('fault-banner');
+          const bar = document.querySelector('body > header.bar');
+          return {
+            said: band.querySelector('.fault-said').textContent,
+            buttons: [...band.querySelectorAll('button')].map((b) => b.textContent),
+            underBar: band.previousElementSibling === bar,
+            top: Math.round(band.getBoundingClientRect().top),
+            barBottom: Math.round(bar.getBoundingClientRect().bottom),
+          };
+        }"""
+    )
+    page.click("#fault-banner .fault-act")
+    page.wait_for_timeout(400)
+    hidden = page.evaluate("() => document.getElementById('fault-banner').hidden")
+    context.close()
+
+    assert band["said"] == "We can't reach targum. This page stays open."
+    assert band["buttons"] == ["Try again"], "one way on, and no ×"
+    assert band["underBar"] and band["top"] == band["barBottom"]
+    assert len(asked) == 2 and hidden
+
+
 #: A card's answer in the conversation's shape: the Hebrew, then "= " and its English.
 HEBREW_ANSWER = "הַצּוּרָה הִיא רַבִּים.\n= Plural."
 
@@ -1134,7 +1406,8 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     page.wait_for_function("() => document.querySelector('.gloss-card .ask-a.working') === null")
     first = page.evaluate(ASKED)
     assert first["questions"] == ["why this form?"] and first["answers"] == ["Answer 1."]
-    assert first["on"] == "/chat?k=test#c1", "the way on carries the key and the conversation"
+    # And the text's language, so the chat opens in it (2026-10-07, design.md §12).
+    assert first["on"] == "/chat?learning=he&k=test#c1", "the way on carries language, key, chat"
     assert first["field"], "one more question is offered"
 
     sent = said[0]
@@ -1156,7 +1429,7 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     )
     assert said[1]["chat"] == "c1", "the same conversation, continued"
     assert not second["field"], "two turns, then the conversation page"
-    assert second["on"] == "/chat?k=test#c1"
+    assert second["on"] == "/chat?learning=he&k=test#c1"
 
     # Tapping the word again redraws the card with the exchange still in it.
     page.evaluate(TAP_AGAIN, word)
@@ -1296,24 +1569,46 @@ def beside_onkelos(tmp_path_factory: pytest.TempPathFactory) -> Path:
     )
 
 
-def test_onkelos_changes_the_column_and_the_card_stays_in_english(
+def test_onkelos_sits_under_the_verse_and_the_card_stays_in_english(
     browser, beside_onkelos: Path
 ) -> None:
-    """Targum Onkelos is read beside the Hebrew, not into a language (targum-internal#65).
-    Pressed, the column turns Aramaic and right to left — and a word tapped under it still
-    means what it means in English, written as English, rather than looking for a meaning
-    in Aramaic that nobody holds and a lookup would buy."""
+    """Targum Onkelos is read beside the Hebrew, not into a language (targum-internal#65),
+    and since targum-internal#414 it sits under each verse in a cell of its own, on until
+    a reader turns it off, while the column stays English. A word tapped in the Hebrew
+    still means what it means in English, rather than looking for a meaning in Aramaic
+    that nobody holds and a lookup would buy."""
     context, page = open_reader(browser, beside_onkelos)
-    page.evaluate(SWITCH, "t1")
 
     cells = page.evaluate(CELLS)
-    assert cells["langs"] == ["arc"] and cells["dirs"] == ["rtl"]
-    assert "בְּאַרְעָא" in cells["first"]
+    assert cells["langs"] == ["en"], "the column is the translation's"
+    beside = page.evaluate(BESIDE, "targum")
+    assert beside["shown"] and beside["langs"] == ["arc"] and beside["dirs"] == ["rtl"]
+    assert "בְּאַרְעָא" in beside["first"]
 
     card = page.evaluate(TAP_FIRST)
     assert card["meaning"] == f"the English of {card['text']}"
     assert card["lang"] == "en" and not card["asking"]
     context.close()
+
+
+#: One companion's cells under the verses (targum-internal#414): whether they are on
+#: show, in what language and direction, the first one's text and how it wraps.
+BESIDE = """
+(key) => {
+  const cells = [...document.querySelectorAll('.cmp[data-companion="' + key + '"]')];
+  const text = cells.length ? cells[0].querySelector('.cmp-text') : null;
+  return {
+    shown: cells.length > 0 && cells.every((c) => getComputedStyle(c).display !== 'none'),
+    langs: [...new Set(cells.map((c) => c.getAttribute('lang')))],
+    dirs: [...new Set(cells.map((c) => c.getAttribute('dir')))],
+    first: text ? text.textContent : '',
+    space: text ? getComputedStyle(text).whiteSpace : '',
+  };
+}
+"""
+
+#: The reader's kept preferences.
+PREFS = "() => JSON.parse(localStorage.getItem('targum:prefs') || '{}')"
 
 
 @pytest.fixture(scope="module")
@@ -1322,6 +1617,60 @@ def beside_rashi(tmp_path_factory: pytest.TempPathFactory) -> Path:
         tmp_path_factory.mktemp("rashi") / "reader",
         ("Rashi on Genesis", "he", "פירוש ראשון\nפירוש שני"),
     )
+
+
+@pytest.fixture(scope="module")
+def rashi_with_words(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Rashi in Hebrew with his words read, as the build reads them (targum-internal#414)."""
+    from targum.renderings import words_key
+
+    saying = "פירוש ראשון\nפירוש שני"
+    ids = [f"{n:04d}.000-aaaaaa" for n in range(VERSES // 20)]
+    words = Annotation(
+        document_hash="r",
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens={
+            sid: [
+                Token(start=0, end=5, surface="פירוש", lemma="פירוש", band=3),
+                Token(start=6, end=11, surface="ראשון", lemma="ראשון", band=3),
+            ]
+            for sid in ids
+        },
+    )
+    rashi = Translation(
+        name="Rashi on Genesis",
+        document_hash="h",
+        source_language="he",
+        target_language="he",
+        provider="null",
+        segments={},
+    )
+    return bilingual(
+        tmp_path_factory.mktemp("rashi-words") / "reader",
+        ("Rashi on Genesis", "he", saying),
+        commentary_words={words_key(rashi): words},
+        meanings={"פירוש": "commentary; explanation"},
+    )
+
+
+def test_a_word_of_rashi_is_a_hebrew_word_with_its_meaning(browser, rashi_with_words: Path) -> None:
+    """targum-internal#414. Rashi's words are tappable, read at build time, and a word of
+    his is a Hebrew word: its card is Hebrew, with the meaning the page's own glossary
+    holds for it, looked up in advance rather than bought on the tap."""
+    context, page = open_reader(browser, rashi_with_words)
+    page.wait_for_selector(".cmp-text .w")
+    words = page.evaluate(
+        "() => [...document.querySelectorAll('.cmp[data-companion=\"rashi\"] .w')]"
+        ".slice(0, 2).map(w => w.textContent)"
+    )
+    assert words == ["פירוש", "ראשון"]
+    card = page.evaluate(TAP_WORD, ".cmp-text .w")
+    assert card["lang"] == "he"
+    assert card["meaning"] == "commentary; explanation"
+    context.close()
 
 
 #: How the translation column is drawing right now: whether it is stamped a commentary,
@@ -1342,28 +1691,43 @@ COMMENTED = """
 def test_pressing_a_commentary_separates_its_comments_in_the_browser(
     browser, beside_rashi: Path
 ) -> None:
-    """targum-internal#200. A verse of Rashi is several comments joined with a newline,
-    and only the rendering the page opens on is stamped as a commentary by the template.
-    So on a text carrying both, pressing Rashi drew its comments run together — the exact
-    thing that was fixed, undone by one press.
+    """targum-internal#200 and #414. A verse of Rashi is several comments joined with a
+    newline, and drawn run together they read as one. Rashi sits under the verse in a
+    column of its own whose comments keep their breaks, on for a new reader (David,
+    2026-10-04); turned off it stays off for that reader, on this text and every other.
 
     The computed `white-space` is what is asserted rather than the class, because a class
     that nothing styles would satisfy a test looking only for the class.
     """
-    context, page = open_reader(browser, beside_rashi)
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(address(beside_rashi))
+    page.wait_for_selector(".pair")
 
+    rashi = page.evaluate(BESIDE, "rashi")
+    assert rashi["shown"], "a new reader starts with Rashi on"
+    assert rashi["space"] == "pre-line"
+    assert rashi["first"] == "פירוש ראשון\nפירוש שני (0)"
     english = page.evaluate(COMMENTED)
     assert not english["marked"] and english["space"] == "normal"
+    assert page.evaluate(CELLS)["langs"] == ["en"], "the translation stays where it was"
 
-    page.evaluate(SWITCH, "t1")
-    rashi = page.evaluate(COMMENTED)
-    assert rashi["marked"], "the swap never stamped the commentary"
-    assert rashi["space"] == "pre-line"
+    press_in_aa(page, '#companions [data-companion="rashi"]')
+    assert not page.evaluate(BESIDE, "rashi")["shown"]
+    assert page.evaluate(PREFS)["companions"] == {"rashi": False}
 
-    # And back: English is prose again, so a newline in it goes on collapsing.
-    page.evaluate(SWITCH, "t0")
-    back = page.evaluate(COMMENTED)
-    assert not back["marked"] and back["space"] == "normal"
+    page.reload()
+    page.wait_for_selector(".pair")
+    assert not page.evaluate(BESIDE, "rashi")["shown"], "the press was not kept"
+    press_in_aa(page, '#companions [data-companion="rashi"]')
+    assert page.evaluate(BESIDE, "rashi")["shown"]
+
+    # And the translation is turned off and on the same way.
+    press_in_aa(page, '#companions [data-companion="translation"]')
+    assert (
+        page.evaluate("() => getComputedStyle(document.querySelector('.pair .tr')).display")
+        == "none"
+    )
     context.close()
 
 
@@ -1402,7 +1766,7 @@ def test_a_word_in_onkelos_is_a_word_and_kept_in_the_aramaic_list(
     """Tapping works in Onkelos as in the Hebrew (targum-internal#202, criterion 5). The
     word opens an Aramaic card with the hand table's meaning, and a level set on it goes
     to the Aramaic list — never the Hebrew one, whose same-spelled entry does not colour
-    it either (David, 2026-09-15)."""
+    it either (David, 2026-09-15). Under the verse as it was in the column (#414)."""
     context, page = open_reader(browser, beside_onkelos)
     page.evaluate(
         """() => {
@@ -1411,16 +1775,15 @@ def test_a_word_in_onkelos_is_a_word_and_kept_in_the_aramaic_list(
         }"""
     )
     page.reload()
-    page.wait_for_selector(".pair")
-    page.evaluate(SWITCH, "t1")
+    page.wait_for_selector(".cmp-text .w")
 
     words = page.evaluate(
-        "() => [...document.querySelectorAll('.tr .w')].slice(0, 2)"
+        "() => [...document.querySelectorAll('.cmp-text .w')].slice(0, 2)"
         ".map(w => [w.textContent, w.getAttribute('data-status')])"
     )
     assert words[0] == ["בְּאַרְעָא", None], "the Hebrew list's ארעא is not Onkelos's"
 
-    card = page.evaluate(TAP_WORD, ".tr .w")
+    card = page.evaluate(TAP_WORD, ".cmp-text .w")
     assert card["lang"] == "arc"
     assert card["meaning"].startswith("land; earth; ground")
     assert "ב + ארעא" in card["form"]
@@ -1435,7 +1798,8 @@ def test_a_word_in_onkelos_is_a_word_and_kept_in_the_aramaic_list(
     assert not any("arc:" in text for text in stores.values()), "the page's key never leaves it"
     assert "ארעא" in json.loads(stores.get("targum:meanings:arc:en", "{}"))
     assert (
-        page.evaluate("() => document.querySelector('.tr .w').getAttribute('data-status')") == "1"
+        page.evaluate("() => document.querySelector('.cmp-text .w').getAttribute('data-status')")
+        == "1"
     )
     context.close()
 
@@ -1447,7 +1811,7 @@ def test_a_word_of_onkelos_under_the_verse_is_a_word_too(browser, with_onkelos: 
     page = context.new_page()
     page.goto(address(with_onkelos / "sec-0001.html"))
     page.wait_for_selector(".pair.verse")
-    page.click('#practice [data-practice="verse"]')
+    press_in_aa(page, "#practice-on")  # a switch since #421; on, it keeps it verse by verse
     page.click(".practice-line button")
     page.click(".practice-line button")
     assert page.evaluate(WALK)["onkelos"][0] == "ארמית Ruth 2:1", "the line reads as before"
@@ -1650,7 +2014,7 @@ def test_a_change_of_type_keeps_you_on_the_same_page(paged) -> None:
     paged.keyboard.press("Space")
     paged.keyboard.press("Space")
     before = paged.evaluate(PAGE)
-    paged.click('[data-type="larger"]')
+    press_in_aa(paged, '[data-type="larger"]')
     paged.wait_for_timeout(100)
     after = paged.evaluate(PAGE)
     assert after["first"] <= before["first"] <= after["last"], (
@@ -1852,14 +2216,17 @@ def test_off_the_foot_of_the_last_page_forward_is_the_next_chapter(
     forward = forward_key(page)
 
     # Foot, turn, foot, turn — to the last page.
+    # The last page, not the first page the last line is on: where the foot does not fit
+    # beside the last line it stands on a page of its own, and the walk turns to it.
     for _ in range(40):
         seen = page.evaluate(PAGE)
-        if seen["last"] == seen["total"] - 1:
+        if seen["last"] == seen["total"] - 1 and page.evaluate(
+            "() => document.body.classList.contains('last-page')"
+        ):
             break
         page.keyboard.press(forward)
     else:
         raise AssertionError("forty presses and the last page never came")
-    assert page.evaluate("() => document.body.classList.contains('last-page')")
 
     # The last page's foot, then the door.
     foot = foot_of(page.evaluate(CHAPTER), seen["first"], seen["last"])
@@ -2034,7 +2401,7 @@ def paged_scene(browser, tmp_path, monkeypatch):
     context = opened(browser, scrolling=False)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     open_page.wait_for_function("() => document.body.classList.contains('paged')")
     yield open_page
     context.close()
@@ -2062,7 +2429,7 @@ def scene(browser, tmp_path, monkeypatch):
     context = opened(browser)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     yield open_page
     context.close()
 
@@ -2136,7 +2503,7 @@ def worded_scene(browser, tmp_path, monkeypatch):
     context = opened(browser)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     yield open_page
     context.close()
 
@@ -2187,6 +2554,9 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
         )
 
     page.route("**/known-ahead*", answer)
+    # A reader whose first finish in Hebrew already went home (design.md §12, "The first
+    # finish goes home"): this moment is said where a finish stays in place.
+    page.add_init_script("localStorage.setItem('targum:went-home:he', '1')")
     # With a key, as a page served by targum is: it is what lets a page ask anything.
     page.goto(address(first) + "?k=test")
     page.wait_for_selector(".pair")
@@ -2207,7 +2577,9 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
     moved = page.evaluate(
         """() => {
           const link = document.querySelector('#next-up .next-up-link');
-          const at = () => link.getBoundingClientRect().top;
+          // Where it stands on the page, not in the window: at the very foot of a phone's
+          // page, a line taken away clamps the scroll, which is not the row moving.
+          const at = () => link.getBoundingClientRect().top + window.scrollY;
           const said = at();
           const line = document.getElementById('next-up-known');
           line.hidden = true;
@@ -2230,6 +2602,79 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
     page.reload()
     page.wait_for_selector(".pair")
     assert line.is_hidden()
+    context.close()
+
+
+@pytest.mark.parametrize("viewport", [WINDOW, PHONE], ids=["desk", "phone"])
+def test_the_foot_shows_the_words_its_press_would_mark(browser, tmp_path, viewport) -> None:
+    """ "Done, and mark 66 words known" marked words nobody had been shown (design review,
+    2026-10-09). The foot asks about them above the press, as the end of a part does
+    under a large picture: how many, then the ones met most as chips,
+    and the rest one press away. The count is the press's own."""
+    first = chapter(tmp_path / "reader", parts=2).parent / "sec-0001.html"
+    context = opened(browser, viewport)
+    page = context.new_page()
+    page.goto(address(first))
+    page.wait_for_selector(".pair")
+    page.locator("#done-mark").scroll_into_view_if_needed()
+    press = page.inner_text("#done-mark")
+    count = int(press.split("mark ", 1)[1].split(" ", 1)[0])
+    assert page.locator("#foot-words").is_visible()
+    ask = page.inner_text("#foot-words .foot-ask")
+    assert ask.startswith(f"{count} word"), (ask, press)
+    chips = page.locator("#foot-words .film-end-word")
+    # Shown, not behind "Show them": the end of a part is a card that shows its words
+    # (design.md §12, "The reader's chrome is the desk's", 2026-10-09).
+    assert 0 < chips.count() <= min(count, 4)
+    assert chips.first.is_visible()
+    assert page.inner_text(".foot-title").startswith("End of chapter 1 of 2")
+    if count > 4:
+        page.click("#foot-words .foot-more")
+        assert chips.count() == count, "the rest, one press away"
+    # Marked, there is nothing left to ask about.
+    page.click("#done-mark")
+    page.wait_for_function("() => !document.getElementById('finished').hidden")
+    assert page.locator("#foot-words").is_hidden()
+    context.close()
+
+
+WORDS_KEPT = """() => Object.keys(localStorage)
+  .filter((key) => key.startsWith('targum:vocab:'))
+  .map((key) => Object.keys(JSON.parse(localStorage.getItem(key) || '{}')).length)
+  .reduce((sum, n) => sum + n, 0)"""
+
+
+@pytest.mark.parametrize("viewport", [WINDOW, PHONE], ids=["desk", "phone"])
+@pytest.mark.parametrize("which", ["done-go", "done-mark"])
+def test_done_marks_nothing_and_the_press_under_it_marks_what_it_says(
+    browser, tmp_path, viewport, which
+) -> None:
+    """design.md §12, "Done marks nothing; knowing them all is a choice" (2026-10-13).
+    David: "if they know all the words they know all the words - let them decide that as
+    they like". The press says "Done" and finishes alone; under it, a quiet press says
+    "Done, and mark N words known" and marks them, names and numbers cleared with them."""
+    first = chapter(tmp_path / "reader", parts=2).parent / "sec-0001.html"
+    context = opened(browser, viewport)
+    page = context.new_page()
+    page.goto(address(first))
+    page.wait_for_selector(".pair")
+    page.locator("#done-go").scroll_into_view_if_needed()
+    assert page.inner_text("#done-go") == "Done"
+    said = page.inner_text("#done-mark")
+    assert said.startswith("Done, and mark ") and said.endswith(" words known"), said
+    count = int(said.split("mark ", 1)[1].split(" ", 1)[0])
+    assert count > 1
+    for button in ("#done-go", "#done-mark"):
+        box = page.locator(button).bounding_box()
+        assert box and box["x"] >= 0 and box["x"] + box["width"] <= viewport["width"], button
+    assert page.evaluate(WORDS_KEPT) == 0
+    page.click(f"#{which}")
+    page.wait_for_function("() => !document.getElementById('finished').hidden")
+    if which == "done-go":
+        assert page.evaluate(WORDS_KEPT) == 0, "Done marks nothing"
+    else:
+        assert page.evaluate(WORDS_KEPT) >= count, "the press marks every word it counted"
+        assert page.locator("#foot-words").is_hidden(), "and nothing is left to ask about"
     context.close()
 
 
@@ -2257,7 +2702,7 @@ def _sitting(browser, tmp_path, monkeypatch, me: dict) -> list[dict]:
     page.route("**/account/me*", answer)
     page.route("**/events*", answer)
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     page.wait_for_timeout(400)  # the account's answer, which decides everything
     page.locator(".w").first.click()
     page.keyboard.press("Escape")
@@ -2287,6 +2732,8 @@ def test_a_sitting_reaches_the_account_and_says_nothing_it_should_not(
 
     looked = next(event for event in sent if event["kind"] == "lookup")
     assert looked["segment"] and looked["document"] and looked["language"] == "he"
+    # And which word, as the ledger files it (targum-internal#105): a dictionary form.
+    assert looked.get("word"), looked
     played = next(event for event in sent if event["kind"] == "play")
     assert played["medium"] == "listen" and 1 <= played["amount"] <= 5, played
 
@@ -2530,7 +2977,7 @@ def test_hear_first_is_never_remembered(scene) -> None:
     scene.click(".player-first")
     assert scene.evaluate(HEARD)["on"] == "true"
     scene.reload()
-    scene.wait_for_selector("#player")
+    strip_up(scene)
     assert scene.evaluate(HEARD)["on"] == "false"
 
 
@@ -2561,7 +3008,7 @@ def test_the_speed_is_kept(scene) -> None:
     one slower too."""
     scene.click(".player-faster")
     scene.reload()
-    scene.wait_for_selector("#player")
+    strip_up(scene)
     assert scene.evaluate(SPEED)["rate"] == "1.25×"
 
 
@@ -2756,7 +3203,7 @@ def test_a_step_on_an_aligned_text_is_a_word(browser, tmp_path: Path) -> None:
     context = opened(browser)
     page = context.new_page()
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     assert page.locator(".player-back").get_attribute("aria-label") == "Back a word"
     assert page.locator(".player-on").get_attribute("aria-label") == "Forward a word"
 
@@ -2845,7 +3292,7 @@ def test_a_text_is_picked_up_where_it_was_left(scene) -> None:
     assert stopped > 0.3, stopped
 
     scene.reload()
-    scene.wait_for_selector("#player")
+    strip_up(scene)
     scene.wait_for_function("() => document.getElementById('player').classList.contains('placed')")
     seen = scene.evaluate(ALONG)
     assert abs(seen["at"] - stopped) < 0.5, seen
@@ -2862,7 +3309,7 @@ def test_a_text_heard_to_its_end_starts_again(scene) -> None:
         "() => !document.getElementById('player').classList.contains('playing')", timeout=8000
     )
     scene.reload()
-    scene.wait_for_selector("#player")
+    strip_up(scene)
     scene.wait_for_timeout(300)
     seen = scene.evaluate(ALONG)
     assert seen["at"] < 0.3, seen
@@ -2904,7 +3351,7 @@ def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> Non
     context = opened(browser, viewport=PHONE)
     page = context.new_page()
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     box = page.locator("#player").bounding_box()
     assert box["x"] == 0 and box["width"] == PHONE["width"], box
     assert box["height"] <= 56, "a strip, not a card"
@@ -2928,6 +3375,38 @@ def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> Non
     context.close()
 
 
+def test_on_a_phone_the_recording_has_a_foot_bar_from_the_start(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """Board ReaderPhone (design.md §12, 2026-10-09): on a phone the strip is the foot
+    bar and stands as the text opens — play, the track, the speed and the view — and the
+    bar's own play at the top stands down. The view is the same press as everywhere."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader")
+    context = opened(browser, viewport=PHONE)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#player:not([hidden])")
+    shown = page.evaluate(
+        """() => {
+          const seen = (sel) => [...document.querySelectorAll(sel)]
+            .filter((el) => el.getClientRects().length > 0).length;
+          return {
+            play: seen('#player .player-play'),
+            rate: seen('#player .player-rate-now'),
+            modes: seen('#player .player-modes button'),
+            step: seen('#player .player-step'),
+            barPlay: seen('.bar .listen-play'),
+          };
+        }"""
+    )
+    assert shown == {"play": 1, "rate": 1, "modes": 2, "step": 0, "barPlay": 0}, shown
+    page.click('#player .player-modes [data-mode="source"]')
+    assert page.evaluate("() => document.body.classList.contains('mode-source')")
+    assert page.get_attribute('#player [data-mode="source"]', "aria-pressed") == "true"
+    context.close()
+
+
 # The foot of a phone.
 #
 # Everything fixed at the foot of a narrow window — the words sheet, the turning arrows,
@@ -2945,7 +3424,7 @@ def phone(browser, tmp_path, monkeypatch, scrolling: bool):
     context = opened(browser, viewport=PHONE, scrolling=scrolling)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     open_page.wait_for_selector("#list-tab")
     if not scrolling:
         open_page.wait_for_function("() => document.body.classList.contains('paged')")
@@ -3184,7 +3663,7 @@ def read_aloud(browser, tmp_path, monkeypatch):
     context = opened(browser, scrolling=False)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     open_page.wait_for_function("() => document.body.classList.contains('paged')")
     yield open_page
     context.close()
@@ -3258,7 +3737,7 @@ def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
     context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
     page = context.new_page()
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     page.wait_for_function("() => document.body.classList.contains('paged')")
     first = page.evaluate(
         """() => ({
@@ -3288,46 +3767,44 @@ def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
     assert "Rabbi Somebody" in menu, "beside the control that carries the recording off"
 
 
-def test_the_recording_row_wraps_rather_than_splitting_into_columns(
-    browser, tmp_path, monkeypatch
-) -> None:
-    """targum-internal#397. The open menu lays each group out as one flex line, and the
-    recording's row has four things in it since the credit joined: at 390px each got a
-    quarter of the width and broke a word to a line — "Close / the / player". It wraps
-    now: the label, the credit under it, and the two controls together, each on one line."""
+def test_the_recording_s_rows_each_keep_a_line_of_their_own(browser, tmp_path, monkeypatch) -> None:
+    """targum-internal#397. The recording's row once held four things on one flex line, and
+    at 390px each got a quarter of the width: "Close / the / player", a word to a line. Since
+    the menus became the board's (design.md §12, 2026-10-09) each is a row of its own —
+    Save the audio, whose reading it is under it, then Close the player — and none of
+    them breaks a word to a line."""
     monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
     built = recorded(tmp_path / "recordings", tmp_path / "reader")
     context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
     page = context.new_page()
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     page.click(".bar .more")
     page.wait_for_selector(".bar-more.open")
     laid = page.evaluate(
         """() => {
-          const row = document.querySelector('.more-player');
           const box = (sel) => {
-            const el = row.querySelector(sel);
+            const el = document.querySelector('.bar-more.open ' + sel);
             const r = el.getBoundingClientRect();
             const line = parseFloat(getComputedStyle(el).lineHeight) || 20;
-            return { top: r.top, height: r.height, line };
+            return { top: r.top, height: r.height, line, width: r.width };
           };
           return {
-            label: box('.label'),
+            get: box('.more-get .m-label'),
             credit: box('.more-credit'),
-            get: box('.more-get'),
-            close: box('.more-close'),
+            close: box('.more-close .m-label'),
+            row: box('.more-get'),
           };
         }"""
     )
     context.close()
 
-    for name in ("label", "get", "close"):
+    for name in ("get", "close"):
         part = laid[name]
-        assert part["height"] < part["line"] * 1.6 + 16, (name, part)
-    assert laid["credit"]["top"] > laid["label"]["top"], "the credit stands under the label"
-    assert laid["get"]["top"] > laid["credit"]["top"], "the controls come after the credit"
-    assert abs(laid["get"]["top"] - laid["close"]["top"]) < 2, "the two controls share a line"
+        assert part["height"] < part["line"] * 1.6, (name, part)
+    assert laid["row"]["height"] >= 44, "a row a thumb can find"
+    assert laid["credit"]["top"] > laid["get"]["top"], "the credit stands under Save the audio"
+    assert laid["close"]["top"] > laid["credit"]["top"], "and Close the player after it"
 
 
 def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
@@ -3335,6 +3812,151 @@ def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
     assert laid["seat"] and laid["shown"]
     for line in laid["shown"]:
         assert line["bottom"] <= laid["seat"]["top"], line["id"]
+
+
+# -- a portion's two readings (targum-internal#412) ------------------------------------
+#
+# The chanting and the plain reading of the same verses, as two files beside the page,
+# and a switch between them. Told apart here by length: the plain reading is slower.
+
+SPOKEN_SPAN = 0.6
+
+
+def two_readings(home: Path, out: Path, monkeypatch) -> Path:
+    """Ruth 1:1-12 as a portion is built: chanted for itself, and Ruth read plainly."""
+    from targum.errors import TargumError
+    from targum.recording import Part, Recording
+    from targum.recording import index as recording_index
+    from targum.recording import splice as splicing
+
+    # The plain reading is one chapter here, so the file whole is the cut; standing
+    # ffmpeg aside keeps the test off a binary CI may not have.
+    def no_splice(*_: object) -> None:
+        raise TargumError("no ffmpeg here")
+
+    monkeypatch.setattr(splicing, "splice", no_splice)
+    portion = "sefaria:Ruth 1:1-12"
+    for source, name, span, credit in (
+        (portion, "chanted.wav", READ_SPAN, "Somebody Chanting"),
+        ("sefaria:Ruth", "spoken.wav", SPOKEN_SPAN, "Somebody Reading"),
+    ):
+        folder = home / recording_index.slug(source)
+        folder.mkdir(parents=True, exist_ok=True)
+        voice(folder / name, span * READ_VERSES)
+        recording = Recording(
+            source=source,
+            credit=credit,
+            licence="CC BY-SA 3.0",
+            parts=[
+                Part(
+                    ref="Ruth 1",
+                    audio=name,
+                    spans={
+                        f"Ruth 1:{n + 1}": [n * span, (n + 1) * span] for n in range(READ_VERSES)
+                    },
+                )
+            ],
+        )
+        (folder / recording_index.MANIFEST).write_text(
+            recording.model_dump_json(), encoding="utf-8"
+        )
+    segments = [
+        Segment(
+            id=f"{n:04d}.000-aaaaaa",
+            block_id=f"b{n:04d}",
+            block_index=n,
+            index=0,
+            kind=BlockKind.verse,
+            text=" ".join(coin(n * 4 + i) for i in range(4)),
+            ref=f"Ruth 1:{n + 1}",
+        )
+        for n in range(READ_VERSES)
+    ]
+    document = Document(
+        source=portion,
+        title="Ruth",
+        language="he",
+        blocks=[Block(id=s.block_id, kind=s.kind, text=s.text, ref=s.ref) for s in segments],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"Verse {s.ref}." for s in segments},
+    )
+    return render(document, segmented, [translation], out, recordings_beside=True)[0]
+
+
+READINGS = """
+() => ({
+  pressed: [...document.querySelectorAll("[data-recording]")]
+    .filter((b) => b.getAttribute("aria-pressed") === "true")
+    .map((b) => b.getAttribute("data-recording")),
+  length: window.TargumPlayer.length(),
+  get: document.querySelector(".player-get").getAttribute("href"),
+})
+"""
+
+
+@pytest.fixture
+def portion_page(browser, tmp_path, monkeypatch):
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    built = two_readings(tmp_path / "recordings", tmp_path / "reader", monkeypatch)
+    context = opened(browser, scrolling=False)
+    open_page = context.new_page()
+    open_page.goto(address(built))
+    strip_up(open_page)
+    open_page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
+    yield open_page
+    context.close()
+
+
+def test_a_portion_opens_chanted_and_switches_to_spoken(portion_page) -> None:
+    opened_on = portion_page.evaluate(READINGS)
+    assert opened_on["pressed"] == ["chanted"]
+    assert opened_on["length"] == pytest.approx(READ_SPAN * READ_VERSES, abs=0.05)
+    assert opened_on["get"].startswith("audio/chanted-0001.wav")
+
+    # Inside the player since targum-internal#421: the bar's "Chanted ▾" opens the choice.
+    portion_page.click("#voices-open")
+    portion_page.click('[data-recording="spoken"]')
+    portion_page.wait_for_function(
+        f"() => Math.abs(window.TargumPlayer.length() - {SPOKEN_SPAN * READ_VERSES}) < 0.05"
+    )
+    switched = portion_page.evaluate(READINGS)
+    assert portion_page.inner_text("#voice-now") == "Spoken", "and the player says which"
+    assert switched["pressed"] == ["spoken"]
+    assert switched["get"].startswith("audio/spoken-0001.wav"), "saving takes what is playing"
+
+    # A verse pressed now is the plain reading's verse, at the plain reading's seconds.
+    portion_page.locator(".pair.voiced .say").nth(2).click()
+    portion_page.wait_for_function(
+        "() => window.TargumPlayer.at() >= %s" % (2 * SPOKEN_SPAN), timeout=3000
+    )
+    assert portion_page.locator(".say.saying").count() == 1
+
+
+def test_the_choice_of_reading_is_kept(portion_page) -> None:
+    portion_page.click("#voices-open")
+    portion_page.click('[data-recording="spoken"]')
+    portion_page.reload()
+    strip_up(portion_page)
+    portion_page.wait_for_function(
+        f"() => Math.abs(window.TargumPlayer.length() - {SPOKEN_SPAN * READ_VERSES}) < 0.05"
+    )
+    assert portion_page.evaluate(READINGS)["pressed"] == ["spoken"]
+
+
+def test_both_readers_are_credited(portion_page) -> None:
+    credits = portion_page.text_content("#credits") or ""
+    assert "Chanted by Somebody Chanting" in credits
+    assert "Read by Somebody Reading" in credits
 
 
 # -- keeping a phrase ----------------------------------------------------------------
@@ -3690,61 +4312,71 @@ def test_a_phrase_and_a_row_on_the_list_copy_themselves_too(page) -> None:
     assert label and label.startswith("Copy "), "the row beside the text carries one"
 
 
-@pytest.mark.parametrize(("width", "says"), [(1100, "?"), (1280, "Keys"), (1600, "Keys")])
-def test_the_keys_say_keys_where_the_bar_has_room(
-    browser, built: Path, width: int, says: str
-) -> None:
-    """targum-internal#338. The bar's `?` read as help to the first stranger, and opened a
-    table of keyboard shortcuts. It says "Keys" now.
-
-    A word is wider than a mark, in a bar that already puts away its English title between
-    60 and 75rem so as not to wrap — and measured at 1100px the word cost it a second row.
-    So it is the word from 75rem and the mark below it, and what is pinned is that the
-    word never makes the bar taller than the mark did.
-    """
+@pytest.mark.parametrize("width", [1100, 1280, 1600])
+def test_the_keys_are_a_named_row_behind_the_more_press(browser, built: Path, width: int) -> None:
+    """targum-internal#338, and #421. The bar's `?` read as help to the first stranger, so
+    it said "Keys" — and at 1100px the word cost the two-row bar a third row, so between
+    60 and 75rem it was the mark again. The bar is one row now (#421, David, 2026-10-05)
+    and Keys is behind ⋯ at every width, a row named Keys whose press keeps the mark: the
+    name is said by the row, never by a `?` alone in a corner. What is pinned is that the
+    row says Keys, a screen reader hears the whole of it, the bar stays one row, and the
+    press still opens the card."""
     context = opened(browser, viewport={"width": width, "height": 800})
     open_page = context.new_page()
     open_page.goto(address(built))
     open_page.wait_for_timeout(300)
+    in_bar = open_page.evaluate(
+        "() => [...document.querySelectorAll('.bar [data-keys]')]"
+        ".filter((b) => b.getClientRects().length).length"
+    )
+    open_page.click(".bar-tools [data-more]")
     got = open_page.evaluate(
         """() => {
-          const press = document.querySelector('.bar [data-keys]');
-          const bar = () => document.querySelector('.bar').getBoundingClientRect().height;
-          const word = press.querySelector('.keys-word');
-          const mark = press.querySelector('.keys-mark');
-          const tall = bar();
-          word.style.display = 'none';
-          mark.style.display = 'inline';
-          const withMark = bar();
-          word.style.display = '';
-          mark.style.display = '';
+          const press = document.querySelector('.bar-more.open [data-keys]');
+          const row = press.closest('.m-row');
           return {
-            says: press.innerText.trim(),
-            named: press.getAttribute('aria-label'),
-            tall, withMark,
+            row: row.getAttribute('data-what'),
+            says: press.querySelector('.m-label').innerText.trim(),
+            key: press.querySelector('.m-key').innerText.trim(),
+            named: press.getAttribute('title'),
+            tall: document.querySelector('.bar').getBoundingClientRect().height,
             sideways: document.documentElement.scrollWidth > window.innerWidth,
           };
         }"""
     )
-    open_page.locator(".bar [data-keys]").click()
+    open_page.locator(".bar-more.open [data-keys]").click()
     opens = open_page.evaluate("() => !document.getElementById('keys').hidden")
+    menu_gone = open_page.evaluate("() => !document.querySelector('.bar-more.open')")
     context.close()
 
-    assert got["says"] == says, got
-    assert got["named"] == "Keyboard shortcuts", "and a screen reader is told the whole of it"
-    assert got["tall"] == got["withMark"], f"the word cost the bar a row at {width}px: {got}"
+    assert in_bar == 0, "not in the row itself"
+    # One row since the menus became the board's (design.md §12, 2026-10-09): the row
+    # says the word and its key is at its end; the hover says the whole of it.
+    assert got["row"] == "Keys" and got["says"] == "Keys" and got["key"] == "?", got
+    assert got["named"] == "Keyboard shortcuts (?)"
+    assert got["tall"] <= 60, f"one row at {width}px: {got}"
     assert not got["sideways"]
     assert opens, "and it still opens the card"
+    assert menu_gone, "and the card takes the menu's place"
 
 
 @pytest.mark.parametrize("direction", ["rtl", "ltr"])
 def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     browser, built: Path, tmp_path: Path, direction: str
 ) -> None:
-    """Under 60rem the bar is one row: the mark, the title, the three modes and ⋯. Left
-    to wrap on its own it once put the mark on a line by itself, the controls on the next
-    two, and the title on the last, a full bar's height below the corner. Everything the
-    row has no room for is behind ⋯, and none of it is drawn in the bar."""
+    """Under 60rem the bar is one row: the mark, the title, Aa and ⋯ (and Listen and
+    print where a text has them). Left to wrap on its own it once put the mark on a line
+    by itself, the controls on the next two, and the title on the last, a full bar's
+    height below the corner.
+
+    Since targum-internal#421 (David, 2026-10-05) the row is the same at every width:
+    the vowel points and the type are in Aa, and the reading modes are behind ⋯ with the
+    other rare things. They were in the phone's row because a reader reaches for the
+    vowels mid-sentence; Aa is one press from them, and the row is calmer for it.
+
+    And since 2026-10-08 (David, calmer surfaces, design.md §12) the vowels are back in
+    the row as a pointed letter, because that is how often they are pressed; the view's
+    drawings stand in the row on a wide window and are a row of ⋯ on a phone."""
     html = built.read_text(encoding="utf-8")
     if direction == "ltr":
         html = html.replace(
@@ -3770,10 +4402,12 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
             titleBetween: title.left >= mark.right && title.right <= controls.left,
             height: bar.height,
             more: shown('.bar .more').length,
+            aa: shown('.bar #aa-open').length,
             modes: shown('.bar .modes button').length,
-            parallel: shown('.bar .modes [data-mode="parallel"]').length,
             nikkud: shown('.bar [data-nikkud-toggle]').length,
-            others: shown('.bar .bar-more button, .bar .bar-more select').length,
+            others: shown(
+              '.bar .bar-more button, .bar .bar-more select, .bar .bar-pop button'
+            ).length,
             width: document.documentElement.scrollWidth,
           };
         }"""
@@ -3781,12 +4415,12 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     context.close()
 
     assert measured["titleBeside"] and measured["controlsBeside"], "one row"
-    assert measured["titleBetween"], "the title sits between the mark and the modes"
+    assert measured["titleBetween"], "the title sits between the mark and the tools"
     assert measured["height"] <= 56, f"a bar {measured['height']}px tall is not one row"
-    # Two modes, not three: one column makes parallel and interlinear the same page.
-    assert measured["more"] == 1 and measured["modes"] == 2 and measured["parallel"] == 0
-    assert measured["nikkud"] == 1, "the vowel points are in the row, not behind the ⋯"
-    assert measured["others"] == 0, "everything else is behind the ⋯"
+    assert measured["more"] == 1 and measured["aa"] == 1
+    assert measured["modes"] == 0, "on a phone the reading modes are behind ⋯"
+    assert measured["nikkud"] == 1, "the vowel points are the row's own press"
+    assert measured["others"] == 0, "nothing of a panel is drawn until it is opened"
     assert measured["width"] <= 390
 
 
@@ -3919,6 +4553,8 @@ def test_a_meaning_typed_on_a_phone_keeps_its_card(phone_chapter) -> None:
     page = phone_chapter
     assert page.evaluate(TAP_CLEAR)
     page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    # Folded behind "Add your meaning" since 2026-10-09; the press opens and focuses it.
+    page.click("#gloss-card .note-open")
     page.focus("#gloss-card .note-field")
     page.keyboard.type("milk")
     # Past the field's own commit, and past the frame the band takes to change hands.
@@ -3959,6 +4595,8 @@ def test_the_keyboard_does_not_lay_the_pages_out_again(phone_chapter) -> None:
     page = phone_chapter
     assert page.evaluate(TAP_CLEAR)
     page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    # Folded behind "Add your meaning" since 2026-10-09; the press opens and focuses it.
+    page.click("#gloss-card .note-open")
     page.focus("#gloss-card .note-field")
 
     # The same page and the same lines on it, not the same pixels: under 40rem the
@@ -4023,13 +4661,19 @@ def test_the_menu_is_drawn_over_the_sheet_and_a_tap_on_the_page_closes_it(
     )
     assert on_top, "drawn over the sheet, not under it"
     names = page.evaluate(
-        "() => [...document.querySelectorAll('.bar-more.open .group[data-what]')]"
-        ".map((g) => g.getAttribute('data-what'))"
+        "() => [...document.querySelectorAll('.bar-more.open .m-row[data-what]')]"
+        ".filter((g) => g.getClientRects().length).map((g) => g.getAttribute('data-what'))"
     )
-    assert "Type" in names and "Pages, or one long scroll" in names, names
-    size = page.evaluate("() => parseFloat(getComputedStyle(document.body).fontSize)")
-    page.click('.bar-more.open [data-type="larger"]')
-    assert page.evaluate("() => parseFloat(getComputedStyle(document.body).fontSize)") > size
+    # The type moved to Aa with targum-internal#421, and the pages with it on
+    # 2026-10-08; on a phone the view is the setting that lays the page out again from
+    # inside ⋯, because the bar has no room for its drawings.
+    assert "View" in names, names
+    assert "Type" not in names, "the type is in Aa"
+    assert "Pages" not in names, "the pages are in Aa"
+    press = '.bar-more.open .more-modes [data-mode="source"]'
+    assert page.get_attribute(press, "aria-pressed") == "false"
+    page.click(press)
+    assert page.get_attribute(press, "aria-pressed") == "true"
     assert page.evaluate(BAND)["menu"], "the menu stayed up for its own control"
     page.mouse.click(page.viewport_size["width"] / 2, 200)
     assert not page.evaluate(BAND)["menu"], "a tap on the page closed it"
@@ -4043,6 +4687,7 @@ def test_the_keys_wait_for_a_keyboard_on_a_phone(phone_scene_scrolling) -> None:
     assert page.evaluate(BAND)["keysButton"] is None, "no keys button before a keyboard"
     page.click(".pair:not([hidden]) .src:not([hidden]) .w >> nth=1")
     page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    page.click("#gloss-card .note-open")
     page.fill(".gloss-card input, .gloss-card textarea", "milk")
     assert page.evaluate("() => document.body.classList.contains('has-keyboard')") is False
     page.keyboard.press("Escape")
@@ -4213,6 +4858,8 @@ def test_the_reader_goes_full_screen_on_f_and_from_the_bar(browser, built: Path)
     # loudly and with both values, if the button never catches up.
     pressed = playwright_api.expect(page.locator("[data-fullscreen]"))
     pressed.to_have_attribute("aria-pressed", "true")
+    # From ⋯ since targum-internal#421, which goes once the press has done its work.
+    page.click(".bar-tools [data-more]")
     page.click("[data-fullscreen]")
     page.wait_for_function("() => !document.fullscreenElement")
     pressed.to_have_attribute("aria-pressed", "false")
@@ -4317,7 +4964,7 @@ def test_the_page_is_laid_out_for_where_the_band_will_be_not_where_it_is(
     page = context.new_page()
     page.goto(address(built))
     page.wait_for_function("() => document.body.classList.contains('paged')")
-    page.wait_for_selector("#player")
+    strip_up(page)
 
     def pages_and_ceiling() -> dict:
         return page.evaluate(
@@ -4367,7 +5014,7 @@ def test_opening_the_menu_on_a_phone_leaves_the_pages_where_they_were(
     page = context.new_page()
     page.goto(address(built))
     page.wait_for_function("() => document.body.classList.contains('paged')")
-    page.wait_for_selector("#player")
+    strip_up(page)
     page.wait_for_timeout(450)
     look = """() => ({
       pages: document.getElementById('page-of').textContent,
@@ -4710,10 +5357,12 @@ def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) 
 # contents page has to send it on to the file that holds the chapter.
 
 
-def tanakh(out: Path) -> Path:
+def tanakh(out: Path, accented: bool = False) -> Path:
     """A built book: two chapters of sixty verses under their headings, each verse with
     its ref, the way `sefaria/3` ingests one. From chapter 2, because a range does not
-    start at one and the file that holds a chapter is not the chapter's number."""
+    start at one and the file that holds a chapter is not the chapter's number.
+    `accented` puts an etnahta in each verse, which is what makes a page scripture's,
+    with the credit that says so at its foot."""
     segments: list[Segment] = []
     for chapter in (2, 3):
         n = len(segments)
@@ -4731,6 +5380,8 @@ def tanakh(out: Path) -> Path:
         for number in range(1, 61):
             n = len(segments)
             words = [coin(n * 16 + i) for i in range(14)]
+            if accented:
+                words[6] = words[6][:1] + "\u0591" + words[6][1:]
             segments.append(
                 Segment(
                     id=f"{n:04d}.000-aaaaaa",
@@ -4756,7 +5407,18 @@ def tanakh(out: Path) -> Path:
         provider="null",
         segments={s.id: f"And it came to pass ({s.ref or s.text})." for s in segments},
     )
-    render(document, segmented, [translation], out)
+    vocalization = (
+        Vocalization(
+            document_hash="h",
+            language="he",
+            vocalizer="test/1",
+            segments={s.id: s.text for s in segments if s.kind is BlockKind.verse},
+            machine=[],
+        )
+        if accented
+        else None
+    )
+    render(document, segmented, [translation], out, vocalization=vocalization)
     return out
 
 
@@ -4793,6 +5455,50 @@ VERSE_SHOWN = """
   return box.top >= 0 && box.bottom <= window.innerHeight;
 }
 """
+
+
+CREDITS_CLEAR = """
+() => {
+  const band = Math.min(
+    ...['#turn', '#list-tab', '#player']
+      .map((s) => document.querySelector(s))
+      .filter((e) => e && e.getClientRects().length)
+      .map((e) => e.getBoundingClientRect().top)
+  );
+  const credits = document.getElementById('credits');
+  const pager = document.querySelector('.pager');
+  return {
+    band,
+    bottom: credits.getBoundingClientRect().bottom,
+    gap: pager ? credits.getBoundingClientRect().top - pager.getBoundingClientRect().bottom : null,
+    direction: getComputedStyle(credits).direction,
+  };
+}
+"""
+
+
+def test_the_credits_stand_clear_of_the_arrows_on_a_phone_s_last_page(
+    browser, tmp_path: Path
+) -> None:
+    """Known issues 2026-10-12, 1.7. On a phone the Done line, the pager and the credits
+    each kept the room the arrows need, so the three stood too tall for the last page and
+    the credits were drawn under the arrows and the words tab; and laid out right to left
+    on a Hebrew page, the English sentence read ".on a c" on its last line."""
+    context = opened(browser, viewport=PHONE, scrolling=False)
+    page = context.new_page()
+    page.goto(address(tanakh(tmp_path / "reader", accented=True) / "sec-0001.html"))
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    pages = int(page.inner_text("#page-of").split()[-1])
+    for _ in range(pages - 1):
+        page.click(".turn .forward")
+    page.wait_for_function("() => document.body.classList.contains('last-page')")
+    page.wait_for_timeout(200)
+    clear = page.evaluate(CREDITS_CLEAR)
+    context.close()
+
+    assert clear["bottom"] <= clear["band"], clear
+    assert clear["gap"] < 48, "the credits stand under the pager, not a screen below it"
+    assert clear["direction"] == "ltr", "the chrome's sentences read left to right"
 
 
 @pytest.mark.parametrize("hash", ["#2:55", "#2.55"])
@@ -4970,6 +5676,8 @@ def portion(out: Path, onkelos: bool = False) -> Path:
         for number in numbers:
             n = len(segments)
             words = [coin(n * 16 + i) for i in range(14)]
+            if accented:
+                words[6] = words[6][:1] + "\u0591" + words[6][1:]
             segments.append(
                 Segment(
                     id=f"{n:04d}.000-aaaaaa",
@@ -5066,7 +5774,7 @@ def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
     page.wait_for_selector(".pair.verse")
     assert page.evaluate(WALK)["label"] == ["Read", "By verse", "By aliyah"]
 
-    page.click('#practice [data-practice="verse"]')
+    press_in_aa(page, "#practice-on")  # a switch since #421; on, it keeps it verse by verse
     walk = page.evaluate(WALK)
     assert (walk["at"], walk["read"], walk["press"], walk["columns"]) == (
         "Ruth 2:1",
@@ -5098,7 +5806,7 @@ def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
         ["Ruth 2:1", "Ruth 2:2", "Ruth 2:3", "Ruth 2:4"],
     )
 
-    page.click('#practice [data-practice=""]')
+    press_in_aa(page, "#practice-on")  # off is Read
     walk = page.evaluate(WALK)
     assert (walk["at"], walk["read"], walk["columns"]) == (None, [], 30), "reading as usual again"
     context.close()
@@ -5134,7 +5842,7 @@ def test_by_aliyah_the_whole_of_it_twice_then_its_onkelos_and_then_done(
     page = context.new_page()
     page.goto(address(with_onkelos / "sec-0001.html"))
     page.wait_for_selector(".pair.verse")
-    page.click('#practice [data-practice="section"]')
+    practise_by_section(page)
 
     def last_page() -> None:
         for _ in range(20):
@@ -5164,7 +5872,7 @@ def test_by_aliyah_the_whole_of_it_twice_then_its_onkelos_and_then_done(
     assert (foot["said"], foot["press"], foot["done"]) == ("Once in Onkelos", "Start again", True)
     assert foot["column"] == ["arc", True]
 
-    page.click('#practice [data-practice=""]')
+    press_in_aa(page, "#practice-on")  # off is Read
     foot = page.evaluate(FOOT)
     assert foot["said"] is None and foot["column"] == ["en", True]
     context.close()
@@ -5372,1046 +6080,10 @@ def video_reader(tmp_path: Path, spans=None, lines: int = 2, film: str = "tiny.w
     return render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
 
 
-def test_a_text_with_a_picture_opens_with_the_picture_on(browser, tmp_path) -> None:
-    """design.md §1 and the §12 entry of 2026-09-03: a text that carries media opens as
-    its media. The default reversed after the first stranger was shown a page with a
-    recording and never found out it could be heard — the toggle stays, so the picture
-    can still be put away, and nothing plays until pressed."""
-    built = video_reader(tmp_path)
-    assert 'id="video"' in built.read_text(encoding="utf-8"), "the fixture has a picture"
-
-    context, page = open_reader(browser, built)
-    try:
-        page.wait_for_selector("#video:not([hidden])")
-        assert page.is_visible("#video"), "the picture is on when the text opens"
-        assert page.get_attribute(".group [data-video]", "aria-pressed") == "true"
-        # Nothing plays until pressed: the half of the withdrawn sentence that survived.
-        assert page.evaluate(
-            "() => Array.from(document.querySelectorAll('video, audio')).every((m) => m.paused)"
-        ), "nothing sounds until the reader presses something"
-    finally:
-        context.close()
-
-
-def test_the_picture_can_be_put_away_and_stays_away(browser, tmp_path) -> None:
-    """The toggle stays and the reader's choice outlives the page. Stored the other way
-    up from before: the store records a reader who put the picture away, because the
-    departure from the default is the thing worth remembering."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        page.wait_for_selector("#video:not([hidden])")
-        page.click(".video-close")
-        page.wait_for_selector("#video[hidden]", state="attached")
-        assert page.get_attribute(".group [data-video]", "aria-pressed") == "false"
-
-        page.reload()
-        page.wait_for_selector(".pair")
-        assert page.get_attribute("#video", "hidden") is not None, "it stayed away"
-        assert page.get_attribute(".group [data-video]", "aria-pressed") == "false"
-
-        # And the toggle brings it back, which is what "the toggle stays" means.
-        page.click(".group [data-video]")
-        page.wait_for_selector("#video:not([hidden])")
-    finally:
-        context.close()
-
-
-# -- a video text opens as video, and the picture docks -----------------------------------
-#
-# design.md §12, 2026-09-03, and targum-internal#182. Two rules settled together:
-# a text carrying a sidecar opens full screen with its text as subtitles, and the
-# picture docks in a corner. The second was amended 2026-09-13: the reader may pick the
-# picture up, put it anywhere and size it, and the corner key docks it again.
-
-
-#: Which mode the picture is in, where the transport is, and what the subtitle says.
-WATCHING = """
-() => {
-  const box = document.getElementById("video");
-  const player = document.getElementById("player");
-  const titles = document.querySelector(".video-titles");
-  const tr = document.querySelector(".video-tr");
-  return {
-    watching: box.classList.contains("watching"),
-    body: document.body.classList.contains("watching"),
-    transportInside: !!player && box.contains(player),
-    dock: [...box.classList].filter((name) => name.startsWith("dock-"))[0] || null,
-    saying: titles.classList.contains("saying"),
-    src: document.querySelector(".video-src").textContent.replace(/[⁦-⁩]/g, "").trim(),
-    tr: tr ? tr.textContent.replace(/[⁦-⁩]/g, "").trim() : "",
-  };
-}
-"""
-
-
-def watch(page) -> None:
-    """Put the page into full screen, which it used to open in.
-
-    A video text opens as its transcript since 2026-09-17 (design.md §12), so the mode
-    most of these tests are about is now one press away rather than the state they are
-    handed. `#video.watching` was doing two jobs in every one of them — waiting for the
-    panel to exist, and being the mode under test — and this separates them.
-    """
-    page.wait_for_selector("#video:not([hidden])")
-    page.click(".video-mode")
-    page.wait_for_selector("#video.watching")
-
-
-def test_a_text_with_a_picture_opens_reading(browser, tmp_path) -> None:
-    """Reversed 2026-09-17 (design.md §12). The picture came on as the whole page, which
-    is right for the reader who imported an hour of speech to watch it and wrong for
-    everybody who came to read Hebrew — they were handed a film and dismissed it every
-    time. It opens docked and on: still visible, still named, one press from full screen.
-    """
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        page.wait_for_selector("#video:not([hidden])")
-        seen = page.evaluate(WATCHING)
-        assert not seen["watching"] and not seen["body"], seen
-        assert seen["dock"], "the picture stands in a corner"
-        assert not seen["transportInside"], "and the strip is in its own"
-        # The text is the page, which is the whole of the change.
-        assert page.locator(".pair").count() > 0
-        # Still nothing plays until pressed, which never depended on the mode.
-        assert page.evaluate(
-            "() => Array.from(document.querySelectorAll('video, audio')).every((m) => m.paused)"
-        )
-    finally:
-        context.close()
-
-
-def test_one_press_puts_the_picture_on_the_whole_page(browser, tmp_path) -> None:
-    """And it is still one transport, moved rather than copied, so the speed and the
-    place are the ones the reader already had."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        watch(page)
-        seen = page.evaluate(WATCHING)
-        assert seen["watching"] and seen["body"], seen
-        # Item 4 of the note: one transport on screen, never two. It is the same strip,
-        # moved rather than copied, so the speed and the place are the ones it had.
-        assert seen["transportInside"], "the transport is over the picture"
-        assert page.locator("#player").count() == 1, "and there is only ever one of it"
-        # The reading page is left standing underneath rather than torn down, so leaving
-        # this mode puts the reader back on the sentence they were on.
-        assert page.locator(".pair").count() > 0
-        # Still nothing plays until pressed, which is the half of the old rule that lived.
-        assert page.evaluate(
-            "() => Array.from(document.querySelectorAll('video, audio')).every((m) => m.paused)"
-        )
-    finally:
-        context.close()
-
-
-def test_choosing_to_watch_is_remembered_for_that_text(browser, tmp_path) -> None:
-    """One press in, remembered per text, and the transport comes with it.
-
-    The store is the other way up since 2026-09-17: it records the departure, and the
-    departure is watching now. `targum:video-read:` recorded the old one and was left
-    where it is rather than inverted, because reading those stored 1s backwards would
-    have opened full screen for exactly the readers who had asked for the opposite.
-    """
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        watch(page)
-        seen = page.evaluate(WATCHING)
-        assert seen["watching"] and seen["body"], seen
-        assert seen["transportInside"], "the strip came with it"
-
-        page.reload()
-        page.wait_for_selector(".pair")
-        page.wait_for_selector("#video:not([hidden])")
-        assert page.evaluate(WATCHING)["watching"] is True, "the choice outlived the page"
-        assert page.evaluate(
-            "() => Object.keys(localStorage).some((k) => k.indexOf('targum:video-watch:') === 0)"
-        ), "under the new key"
-
-        # And back out, which is what having two modes means.
-        page.click(".video-mode")
-        seen = page.evaluate(WATCHING)
-        assert seen["watching"] is False
-        assert not seen["transportInside"], "the strip went back to its own corner"
-        assert seen["dock"], "and the picture stands in one"
-    finally:
-        context.close()
-
-
-def test_a_reader_who_chose_to_read_alongside_is_left_reading(browser, tmp_path) -> None:
-    """The old key, honoured by being ignored. A `1` in `targum:video-read:` meant "this
-    reader chose to read alongside", which is what the page does by default now — so the
-    right thing to do with it is nothing at all, and the wrong thing was to read it as a
-    request for the opposite."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        page.wait_for_selector("#video:not([hidden])")
-        page.evaluate(
-            "() => { const k = Object.keys(localStorage);"
-            " localStorage.setItem('targum:video-read:whatever', '1'); }"
-        )
-        page.reload()
-        page.wait_for_selector("#video:not([hidden])")
-        assert page.evaluate(WATCHING)["watching"] is False, "still reading, as they asked"
-    finally:
-        context.close()
-
-
-def test_the_line_being_said_is_drawn_over_the_picture(browser, tmp_path) -> None:
-    """Hebrew above English, copied out of the pair the clock is inside — a subtitle is
-    never a translation the reader cannot also read in place. Gone between the lines:
-    one that holds the last line up over a silence says the voice is still saying it."""
-    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]])
-    context, page = open_reader(browser, built)
-    try:
-        watch(page)
-        page.wait_for_function("() => window.TargumPlayer.length() > 0")
-        page.evaluate("() => window.TargumPlayer.seek(0.2)")
-        seen = page.evaluate(WATCHING)
-        assert seen["saying"], seen
-        assert seen["src"] == "שורה 1", seen
-        assert seen["tr"] == "A line.", seen
-
-        page.evaluate("() => window.TargumPlayer.seek(0.6)")
-        assert page.evaluate(WATCHING)["src"] == "שורה 2", "it follows the clock"
-
-        # 0.47 is between the two spans, and between them the scrim goes entirely.
-        page.evaluate("() => window.TargumPlayer.seek(0.47)")
-        assert page.evaluate(WATCHING)["saying"] is False, "nothing is being said here"
-    finally:
-        context.close()
-
-
-def test_the_picture_docks_in_a_corner_the_reader_picks(browser, tmp_path) -> None:
-    """Four corners, cycled, and where a reader likes the picture is a fact about the
-    reader — kept per browser like the speed, not per text like the mode."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        watch(page)
-        page.click(".video-mode")
-        first = page.evaluate(WATCHING)["dock"]
-        page.click(".video-corner")
-        second = page.evaluate(WATCHING)["dock"]
-        assert second and second != first, (first, second)
-        assert page.get_attribute(".video-corner", "data-corner") == second.replace("dock-", "")
-
-        page.reload()
-        page.wait_for_selector("#video:not([hidden])")
-        assert page.evaluate(WATCHING)["dock"] == second, "the corner outlived the page"
-    finally:
-        context.close()
-
-
-def test_every_press_of_the_corner_moves_the_picture_on_a_phone(browser, tmp_path) -> None:
-    """On a phone the panel is full-bleed, so `bottom-end` and `bottom-start` draw in
-    exactly the same place and so do the two at the top: four corners are two positions.
-    Cycling all four meant every second press moved nothing, which reads as a broken
-    button rather than a corner the reader chose. The ring is cut to what the window can
-    actually show, so every press does something visible."""
-    built = video_reader(tmp_path)
-    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
-    page = context.new_page()
-    try:
-        page.goto(address(built))
-        watch(page)
-        page.click(".video-mode")
-        page.wait_for_timeout(400)
-        top = "() => Math.round(document.getElementById('video').getBoundingClientRect().top)"
-        seen = []
-        for _ in range(4):
-            seen.append(page.evaluate(top))
-            page.click(".video-corner")
-            page.wait_for_timeout(350)
-        after = seen[1:] + [page.evaluate(top)]
-        moves = [a != b for a, b in zip(seen, after, strict=True)]
-        assert all(moves), f"a press that moved nothing: {seen}"
-        assert len(set(seen)) == 2, f"a phone has two positions, saw {sorted(set(seen))}"
-    finally:
-        context.close()
-
-
-DOCK_GEOMETRY = """() => {
-  const panel = document.getElementById('video').getBoundingClientRect();
-  const film = document.querySelector('.video-el').getBoundingClientRect();
-  const glyph = document.querySelector('.video-tap-glyph').getBoundingClientRect();
-  const strip = document.getElementById('player').getBoundingClientRect();
-  return {
-    panelW: Math.round(panel.width),
-    filmW: Math.round(film.width),
-    glyphOff: Math.round((glyph.left + glyph.width / 2) - (film.left + film.width / 2)),
-    gapBelowStrip: Math.round(window.innerHeight - strip.bottom),
-    pictureTop: Math.round(panel.top),
-  };
-}"""
-
-
-def test_a_docked_picture_keeps_the_panel_and_the_foot(browser, tmp_path) -> None:
-    """Three things a phone found the hard way, in both docks.
-
-    The keys stand ON the picture, not beside it: as a flex item they took 140px of a
-    360px panel and the film was left 184px wide, 64px at the top. The tap glyph centres
-    on the film rather than on the panel, or it sits half the keys' width off. And a
-    picture docked at the TOP is not a foot occupant — its height went into `--occupant`
-    anyway and lifted the strip a third of the way up the window, with empty paper under
-    it and the text running behind.
-
-    Both docks, because the phone stylesheet had re-stated the two at the bottom and
-    forgotten the two at the top, which kept the wide window's 96px corner box on
-    specificity.
-    """
-    built = video_reader(tmp_path, lines=40)
-    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
-    page = context.new_page()
-    try:
-        page.goto(address(built))
-        watch(page)
-        page.click(".video-mode")
-        page.wait_for_timeout(450)
-        seen = []
-        for _ in range(2):
-            m = page.evaluate(DOCK_GEOMETRY)
-            seen.append(m)
-            assert m["panelW"] >= 320, f"the panel is full-bleed on a phone: {m}"
-            assert m["filmW"] >= m["panelW"] - 40, (
-                f"the keys stand on the picture, not beside it: {m}"
-            )
-            assert abs(m["glyphOff"]) <= 2, f"the tap glyph centres on the film: {m}"
-            page.click(".video-corner")
-            page.wait_for_timeout(450)
-        top_dock = min(seen, key=lambda m: m["pictureTop"])
-        assert top_dock["gapBelowStrip"] == 0, (
-            "a picture at the top does not lift the strip off the foot: " + str(top_dock)
-        )
-    finally:
-        context.close()
-
-
-def test_the_glyph_goes_while_the_film_plays_on_a_touch_screen(browser, tmp_path) -> None:
-    """A phone keeps `:hover` on whatever it last tapped until something else is tapped,
-    so tapping the film to play left the glyph lit over a playing film — a stop square in
-    the middle of the picture with no way to make it go. The hover rule is behind
-    `@media (hover: hover)` now, and only the keyboard brings it back on a touch screen.
-
-    The keys are checked here too: absolutely positioned to the panel they were measured
-    to its padding box and overhung the film by 12px above and 16px along, a pale block
-    on the corner of a black film.
-    """
-    built = video_reader(tmp_path, spans=[[0.1, 0.4], [0.4, 0.8]])
-    context = browser.new_context(
-        viewport=PHONE_TALL, has_touch=True, is_mobile=True, reduced_motion="reduce"
-    )
-    page = context.new_page()
-    try:
-        page.goto(address(built))
-        watch(page)
-        assert not page.evaluate("() => matchMedia('(hover: hover)').matches"), (
-            "the emulated device cannot hover, or this test proves nothing"
-        )
-        page.click(".video-mode")
-        page.wait_for_timeout(450)
-
-        fit = page.evaluate(
-            """() => {
-              const film = document.querySelector('.video-el').getBoundingClientRect();
-              const keys = document.querySelector('.video-keys').getBoundingClientRect();
-              return [Math.round(film.top - keys.top), Math.round(keys.right - film.right)];
-            }"""
-        )
-        assert fit == [0, 0], f"the keys sit on the film's corner, not the panel's: {fit}"
-
-        page.locator(".video-tap").tap()
-        page.wait_for_timeout(600)
-        assert page.evaluate("() => !document.querySelector('.video-el').paused"), "it plays"
-        # The tap is what leaves a phone hovering; the mouse hover is the same state
-        # arriving the other way, and neither may light the glyph here.
-        page.hover(".video-tap")
-        # Waited for rather than slept on. A fixed pause passed alone and in this file and
-        # failed inside the full suite, where the machine is busy and a frame is late; the
-        # assertion is the same, it just stops racing the paint. If it never arrives the
-        # state that decides it is reported, because "got opacity 1" says nothing about
-        # which of the three inputs was wrong.
-        try:
-            page.wait_for_function(
-                "() => getComputedStyle(document.querySelector('.video-tap-glyph'))"
-                ".opacity === '0'",
-                timeout=4000,
-            )
-        # Through the module the file already imported under `importorskip`, so a
-        # machine without Playwright still skips rather than failing to import.
-        except playwright_api.TimeoutError:  # pragma: no cover - only on a failure
-            state = page.evaluate(
-                """() => ({
-                  opacity: getComputedStyle(document.querySelector('.video-tap-glyph')).opacity,
-                  pressed: document.querySelector('.video-tap').getAttribute('aria-pressed'),
-                  paused: document.querySelector('.video-el').paused,
-                  canHover: matchMedia('(hover: hover)').matches,
-                })"""
-            )
-            raise AssertionError(f"the glyph stayed over a playing film: {state}") from None
-    finally:
-        context.close()
-
-
-def test_the_band_gives_the_picture_back_after_a_word(browser, tmp_path) -> None:
-    """A reader on a phone taps a word and the card takes the band, which puts the film
-    away — and the film is why they are on the page. The band already remembers a sheet
-    it folded and unfolds it again; it now remembers a picture the same way, so saving a
-    word and getting back to the film is one tap rather than a trip to the strip.
-
-    The guard is the second half: the band gives back only what the band took. A picture
-    the reader closed themselves is recorded in `targum:video-shut:` and stays shut
-    through as many word cards as they like.
-
-    Driven through `occupy`/`vacate` rather than by tapping a word, because the video
-    fixture builds no word spans. That is the same entry point a card uses; the tap into
-    it is covered by the card tests.
-    """
-    built = video_reader(tmp_path, lines=40)
-    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
-    page = context.new_page()
-    showing = "() => !document.getElementById('video').hidden"
-    try:
-        page.goto(address(built))
-        watch(page)
-        page.click(".video-mode")
-        page.wait_for_timeout(450)
-        assert page.evaluate(showing), "the picture is docked"
-
-        page.evaluate("() => window.TargumReader.occupy('card')")
-        page.wait_for_timeout(300)
-        assert not page.evaluate(showing), "a word card takes the band"
-
-        page.evaluate("() => window.TargumReader.vacate('card')")
-        page.wait_for_timeout(400)
-        assert page.evaluate(showing), "and the band gives the picture back"
-
-        page.click(".video-close")
-        page.wait_for_timeout(350)
-        page.evaluate("() => window.TargumReader.occupy('card')")
-        page.wait_for_timeout(250)
-        page.evaluate("() => window.TargumReader.vacate('card')")
-        page.wait_for_timeout(400)
-        assert not page.evaluate(showing), (
-            "a picture the reader closed stays closed through a word card"
-        )
-    finally:
-        context.close()
-
-
-#: The panel's box, whether it floats, and what the two stores hold.
-PLACED = """() => {
-  const box = document.getElementById('video');
-  const r = box.getBoundingClientRect();
-  return {
-    x: r.left, y: r.top, w: r.width, h: r.height,
-    vw: document.documentElement.clientWidth, vh: document.documentElement.clientHeight,
-    free: box.classList.contains('free'),
-    dock: [...box.classList].filter((name) => name.startsWith('dock-'))[0] || null,
-    place: localStorage.getItem('targum:video-place'),
-    size: localStorage.getItem('targum:video-size'),
-  };
-}"""
-
-
-def pull(page, selector: str, dx: float, dy: float) -> None:
-    """Press on a handle's middle, move by (dx, dy) in steps, and let go."""
-    handle = page.locator(selector).bounding_box()
-    assert handle, f"{selector} is not drawn"
-    x = handle["x"] + handle["width"] / 2
-    y = handle["y"] + handle["height"] / 2
-    page.mouse.move(x, y)
-    page.mouse.down()
-    page.mouse.move(x + dx, y + dy, steps=10)
-    page.mouse.up()
-
-
-def reading_alongside(page) -> None:
-    watch(page)
-    page.click(".video-mode")
-    page.wait_for_timeout(100)
-
-
-def inward(page) -> int:
-    """+1 when the docked panel is on the left, so a move toward the middle is rightward.
-    The reader's direction is the text's, and a Hebrew page docks at its end on the left."""
-    box = page.evaluate(PLACED)
-    return 1 if box["x"] + box["w"] / 2 < box["vw"] / 2 else -1
-
-
-def outward(page, selector: str) -> int:
-    """Which way from the panel's middle a handle stands: +1 right, -1 left."""
-    panel = page.locator("#video").bounding_box()
-    handle = page.locator(selector).bounding_box()
-    middle = handle["x"] + handle["width"] / 2
-    return 1 if middle > panel["x"] + panel["width"] / 2 else -1
-
-
-def test_the_picture_is_picked_up_by_its_grip_and_stays_put(browser, tmp_path) -> None:
-    """§12, 2026-09-13: the owner reversed "the picture is never dragged". It is moved by
-    its grip to anywhere on a wide window, and it is there after the page is opened
-    again. A press dragged across the picture itself still moves nothing — the picture
-    is the play button, and a press on it has to stay a press."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        reading_alongside(page)
-        before = page.evaluate(PLACED)
-        assert before["dock"] and not before["free"], before
-
-        film = page.locator(".video-el").bounding_box()
-        page.mouse.move(film["x"] + film["width"] / 2, film["y"] + 10)
-        page.mouse.down()
-        page.mouse.move(film["x"] - 200, film["y"] - 150, steps=8)
-        page.mouse.up()
-        still = page.evaluate(PLACED)
-        assert abs(still["x"] - before["x"]) < 1 and abs(still["y"] - before["y"]) < 1, still
-
-        way = inward(page)
-        pull(page, ".video-grip", way * 500, -300)
-        moved = page.evaluate(PLACED)
-        assert moved["free"], moved
-        assert abs(moved["x"] - (before["x"] + way * 500)) <= SLACK, (before, moved)
-        assert abs(moved["y"] - (before["y"] - 300)) <= SLACK, (before, moved)
-        assert moved["place"], "the place is kept"
-
-        # Far past the edge, and it stops at the window.
-        pull(page, ".video-grip", -3000, -3000)
-        edge = page.evaluate(PLACED)
-        assert edge["x"] >= 0 and edge["y"] >= 0, edge
-
-        pull(page, ".video-grip", 3000, 3000)
-        edge = page.evaluate(PLACED)
-        assert edge["x"] + edge["w"] <= edge["vw"] and edge["y"] + edge["h"] <= edge["vh"], edge
-
-        pull(page, ".video-grip", -300, -200)
-        kept = page.evaluate(PLACED)
-        page.reload()
-        page.wait_for_selector("#video:not([hidden])")
-        page.wait_for_timeout(100)
-        again = page.evaluate(PLACED)
-        assert again["free"], again
-        assert abs(again["x"] - kept["x"]) <= SLACK and abs(again["y"] - kept["y"]) <= SLACK, (
-            kept,
-            again,
-        )
-    finally:
-        context.close()
-
-
-def test_the_picture_is_sized_from_its_corner_within_the_window(browser, tmp_path) -> None:
-    """The size key sits across from the corner the panel is held by, so a pull outward
-    widens it; it keeps the picture's shape, never passes nine tenths of the window or
-    its foot, never shrinks past a picture worth watching, and is kept."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        reading_alongside(page)
-        before = page.evaluate(PLACED)
-        film = page.locator(".video-el").bounding_box()
-        ratio = film["width"] / film["height"]
-
-        # Docked at the end, the key is at the start: pulling it away from the panel widens.
-        way = outward(page, ".video-size")
-        pull(page, ".video-size", way * 160, 0)
-        wider = page.evaluate(PLACED)
-        assert wider["w"] > before["w"] + 100, (before, wider)
-        assert wider["dock"] == before["dock"] and not wider["free"], "still docked"
-        film = page.locator(".video-el").bounding_box()
-        assert abs(film["width"] / film["height"] - ratio) < 0.05, "the picture keeps its shape"
-        assert wider["size"], "the size is kept"
-
-        pull(page, ".video-size", way * 3000, 0)
-        widest = page.evaluate(PLACED)
-        assert widest["w"] <= widest["vw"] * 0.9 + SLACK, widest
-        assert widest["x"] >= 0 and widest["y"] >= 0, widest
-        assert widest["y"] + widest["h"] <= widest["vh"], widest
-
-        way = outward(page, ".video-size")
-        pull(page, ".video-size", -way * 3000, 0)
-        smallest = page.evaluate(PLACED)
-        assert smallest["w"] >= 260 - SLACK, smallest
-
-        page.reload()
-        page.wait_for_selector("#video:not([hidden])")
-        page.wait_for_timeout(100)
-        assert abs(page.evaluate(PLACED)["w"] - smallest["w"]) <= SLACK
-    finally:
-        context.close()
-
-
-def test_the_corner_key_docks_a_picture_that_was_picked_up(browser, tmp_path) -> None:
-    """Docking is the default and the way home: the first press of the corner key puts a
-    picked-up picture back in the corner it came from and forgets the place."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        reading_alongside(page)
-        before = page.evaluate(PLACED)
-        pull(page, ".video-grip", inward(page) * 400, -250)
-        assert page.evaluate(PLACED)["free"]
-
-        page.click(".video-corner")
-        home = page.evaluate(PLACED)
-        assert not home["free"] and home["dock"] == before["dock"], (before, home)
-        assert abs(home["x"] - before["x"]) <= SLACK and abs(home["y"] - before["y"]) <= SLACK
-        assert home["place"] is None, "the place is forgotten"
-        assert page.evaluate("() => document.getElementById('video').style.insetBlock") == ""
-
-        page.click(".video-corner")
-        assert page.evaluate(PLACED)["dock"] != before["dock"], "and then the ring turns"
-
-        page.reload()
-        page.wait_for_selector("#video:not([hidden])")
-        assert not page.evaluate(PLACED)["free"]
-    finally:
-        context.close()
-
-
-def test_a_picked_up_picture_takes_no_room_from_the_pages(browser, tmp_path) -> None:
-    """Docked, the pages are cut above the picture. Put somewhere by the reader, it
-    floats: the page gets its full height back, and turning pages still works."""
-    built = video_reader(tmp_path, lines=60)
-    context = opened(browser, scrolling=False)
-    page = context.new_page()
-    shown = "() => document.querySelectorAll('.pair:not([hidden])').length"
-    try:
-        page.goto(address(built))
-        reading_alongside(page)
-        page.wait_for_function("() => document.body.classList.contains('paged')")
-        page.wait_for_timeout(250)
-        docked = page.evaluate(shown)
-
-        pull(page, ".video-grip", inward(page) * 600, -400)
-        page.wait_for_timeout(250)
-        floating = page.evaluate(shown)
-        assert floating > docked, (docked, floating)
-        assert page.evaluate("() => document.body.classList.contains('paged')")
-    finally:
-        context.close()
-
-
-def test_the_picture_is_not_picked_up_on_a_phone(browser, tmp_path) -> None:
-    """On a phone the panel is full-bleed in the band and pulled down to close, so there
-    is no grip and no size key, and a place kept on a wide window is not drawn here."""
-    built = video_reader(tmp_path)
-    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
-    context.add_init_script(
-        "localStorage.setItem('targum:video-place', JSON.stringify({x: 0.3, y: 0.3}));"
-        "localStorage.setItem('targum:video-size', '0.5');"
-    )
-    page = context.new_page()
-    try:
-        page.goto(address(built))
-        reading_alongside(page)
-        page.wait_for_timeout(350)
-        assert not page.locator(".video-grip").is_visible()
-        assert not page.locator(".video-size").is_visible()
-        seen = page.evaluate(PLACED)
-        assert not seen["free"] and seen["w"] >= 320, seen
-    finally:
-        context.close()
-
-
-def test_v_moves_between_watching_and_reading(browser, tmp_path) -> None:
-    """One key, beside the p/l/o that set what the translation does. This one is about
-    what the picture is doing."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built)
-    try:
-        watch(page)
-        page.keyboard.press("v")
-        assert page.evaluate(WATCHING)["watching"] is False
-        page.keyboard.press("v")
-        assert page.evaluate(WATCHING)["watching"] is True
-    finally:
-        context.close()
-
-
-def test_the_docked_picture_takes_its_room_out_of_the_layout(browser, tmp_path) -> None:
-    """§12's rule, and the whole answer to the note's drag: a control fixed over a page
-    of text takes its room out of the layout, never out of the reading. The pages are
-    cut above the corner the picture stands in rather than running under it."""
-    built = video_reader(tmp_path, lines=60)
-    context = opened(browser, scrolling=False)
-    page = context.new_page()
-    try:
-        page.goto(address(built))
-        watch(page)
-        page.click(".video-mode")
-        page.wait_for_function("() => document.body.classList.contains('paged')")
-        page.wait_for_timeout(250)
-
-        picture = page.locator("#video").bounding_box()
-        shown = page.evaluate(
-            "() => [...document.querySelectorAll('.pair:not([hidden])')]"
-            ".map((pair) => pair.getBoundingClientRect().bottom)"
-        )
-        assert shown, "the page is showing something"
-        assert max(shown) <= picture["y"] + SLACK, (
-            f"a line runs to {max(shown):.0f}, under a picture that starts at {picture['y']:.0f}"
-        )
-    finally:
-        context.close()
-
-
-PHONE_TALL = {"width": 360, "height": 780}
-
-DOCKED_STATE = """() => {
-  const vis = [...document.querySelectorAll('.pair:not([hidden])')];
-  const turn = document.querySelector('.turn');
-  return {
-    paged: document.body.classList.contains('paged'),
-    setting: document.querySelector('[data-paged]')
-      ? document.querySelector('[data-paged]').getAttribute('aria-pressed') : null,
-    arrowsHidden: turn.hidden,
-    shown: vis.length,
-    total: document.querySelectorAll('.pair').length,
-  };
-}"""
-
-
-def test_a_docked_picture_reads_as_one_scroll_on_a_phone(browser, tmp_path) -> None:
-    """The room a docked picture takes is reserved whether or not the page can fill it,
-    and on a phone it takes about a third of the window — so the pair that would not fit
-    went to the next page and left up to its own height of empty paper under the text.
-    182px, measured in every dock corner. Scrolling has no remainder.
-
-    The reader's own setting is never written to: pages come back when the picture is
-    closed, and the toggle goes on saying what the reader chose throughout. Watching is
-    not suspended — the picture is the whole window then, with no column under it."""
-    built = video_reader(tmp_path, lines=60)
-    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
-    page = context.new_page()
-    try:
-        page.goto(address(built))
-        watch(page)
-        page.click(".video-mode")
-        page.wait_for_timeout(450)
-        docked = page.evaluate(DOCKED_STATE)
-        assert docked["paged"] is False, "a docked picture reads as one scroll"
-        assert docked["arrowsHidden"] is True, "the arrows leave the band with the pages"
-        assert docked["shown"] == docked["total"], "every pair is shown"
-        assert docked["setting"] == "true", "and the reader's own setting is untouched"
-
-        page.click(".video-close")
-        page.wait_for_timeout(450)
-        back = page.evaluate(DOCKED_STATE)
-        assert back["paged"] is True, "pages come back when the picture goes"
-        assert back["arrowsHidden"] is False, "and so do the arrows"
-        assert back["shown"] < back["total"], "cut into pages again"
-    finally:
-        context.close()
-
-
-REACH = """(sels) => {
-  // What actually answers a tap, not what the stylesheet says it should: a box with
-  // `overflow: hidden` reports a 44px `::after` and clips it away, which is the bug
-  // this helper was written after.
-  const out = {};
-  for (const sel of sels) {
-    const el = document.querySelector(sel);
-    if (!el) { out[sel] = 'absent'; continue; }
-    const b = el.getBoundingClientRect();
-    if (!b.width || !b.height) { out[sel] = 'hidden'; continue; }
-    const x = Math.round(b.left + b.width / 2);
-    let top = Math.round(b.top), bottom = Math.round(b.bottom);
-    for (let y = Math.round(b.top); y > b.top - 24; y--) {
-      const hit = document.elementFromPoint(x, y);
-      if (!hit || !(hit === el || el.contains(hit))) break;
-      top = y;
-    }
-    for (let y = Math.round(b.bottom); y < b.bottom + 24; y++) {
-      const hit = document.elementFromPoint(x, y);
-      if (!hit || !(hit === el || el.contains(hit))) break;
-      bottom = y;
-    }
-    // Both ends are pixels that answered, so the span includes them both.
-    out[sel] = bottom - top + 1;
-  }
-  return out;
-}"""
-
-
-def test_the_transport_is_thumb_sized_on_a_touch_screen(browser, tmp_path) -> None:
-    """Every control a listening reader presses answers a tap over 44px.
-
-    They were left out of that block and `.video-close` was not, so the × was
-    comfortable and the play button beside it was not, on the device where it matters.
-
-    `.say` stays out on purpose: it is inline in the text at 22px, and a 44px box would
-    reach into the lines above and below and take taps meant for the words, which are
-    what the reader is actually aiming at. Each control is measured in the state where
-    it is meant to be reachable — the strip's picture toggle stands down while the
-    picture is out, so it is measured once the picture has gone."""
-    built = video_reader(tmp_path, lines=20)
-    context = browser.new_context(
-        viewport=PHONE_TALL, has_touch=True, is_mobile=True, reduced_motion="reduce"
-    )
-    page = context.new_page()
-    try:
-        page.goto(address(built))
-        watch(page)
-        assert page.evaluate("() => matchMedia('(hover: none) and (pointer: coarse)').matches"), (
-            "the emulated device is a touch screen, or this test proves nothing"
-        )
-        page.click(".video-mode")
-        page.wait_for_timeout(450)
-        # The picture's own keys, while there is a picture to press them on.
-        keys = page.evaluate(REACH, [".video-mode", ".video-corner", ".video-close"])
-        for sel, block in keys.items():
-            assert block != "absent", sel
-            assert block >= 44, f"{sel} answers a tap over only {block}px, not 44"
-
-        page.click(".video-close")
-        page.wait_for_timeout(450)
-        # The transport, and the picture toggle now that it is back on the row.
-        strip = page.evaluate(
-            REACH,
-            [".player-play", ".player-back", ".player-on", ".player-rate-now", ".player-video"],
-        )
-        for sel, block in strip.items():
-            assert block != "absent", sel
-            assert block >= 44, f"{sel} answers a tap over only {block}px, not 44"
-    finally:
-        context.close()
-
-
-def test_the_strip_stands_its_toggle_down_while_the_picture_is_out(browser, tmp_path) -> None:
-    """A docked picture carries watch, move and close of its own, so the strip's copy of
-    the toggle is a fourth control on a thing already under three. It stands down — and
-    comes back in the same place the moment the picture goes, because `showVideo` holds
-    `aria-pressed` in step on every `[data-video]`. Nothing is stored, so nothing about
-    it can be remembered wrongly, and the way back is never further than one press."""
-    built = video_reader(tmp_path, lines=20)
-    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
-    page = context.new_page()
-    try:
-        page.goto(address(built))
-        watch(page)
-        page.click(".video-mode")
-        page.wait_for_timeout(450)
-        seen = """() => {
-          const el = document.querySelector('.player-video');
-          const b = el.getBoundingClientRect();
-          return { w: Math.round(b.width), vis: getComputedStyle(el).visibility,
-                   pressed: el.getAttribute('aria-pressed'),
-                   right: Math.round(b.right) };
-        }"""
-        out = page.evaluate(seen)
-        assert out["pressed"] == "true", "the picture is out"
-        assert out["w"] == 0 and out["vis"] == "hidden", "so the strip's copy stands down"
-
-        page.click(".video-close")
-        page.wait_for_timeout(450)
-        back = page.evaluate(seen)
-        assert back["pressed"] == "false", "the picture is away"
-        assert back["w"] > 0 and back["vis"] == "visible", "and the toggle is back"
-        # Reversible, and one press each way: pressing it returns the picture.
-        page.click(".player-video")
-        page.wait_for_timeout(450)
-        assert page.evaluate("() => !document.getElementById('video').hidden"), (
-            "one press brings the picture back"
-        )
-    finally:
-        context.close()
-
-
-def test_watching_fills_the_window_whatever_size_it_is(browser, tmp_path) -> None:
-    """Two rules of equal weight sat between the picture and the window, and both won
-    for a while: the corner's insets, written after the mode's, kept the full-screen
-    picture a 20rem box in the margin; and below 60rem the band's own sheet capped it at
-    45svh with the reading page showing underneath. Both are ordering, so both are the
-    kind of thing that comes back."""
-    built = video_reader(tmp_path, lines=40)
-    for size in ({"width": 1280, "height": 800}, {"width": 390, "height": 844}):
-        context, page = open_reader(browser, built, viewport=size)
-        try:
-            watch(page)
-            page.wait_for_timeout(150)
-            box = page.locator("#video").bounding_box()
-            assert abs(box["width"] - size["width"]) < 2, (size, box)
-            assert abs(box["height"] - size["height"]) < 2, (size, box)
-            # And nothing of the page beneath is showing through beside it.
-            assert page.evaluate("() => getComputedStyle(document.body).overflow") == "hidden"
-        finally:
-            context.close()
-
-
-def test_watching_on_a_phone_is_picture_line_and_one_transport(browser, tmp_path) -> None:
-    """Portrait watching is the picture, the line under it and the strip at the foot, on
-    paper. Three things broke that on a 390px phone (the audit's R-07,
-    targum-internal#274): the docked keys' pale box stayed on under pills written for a
-    dark frame, so Close and Transcript could not be read; the tap that plays spread
-    over the whole panel and floated its disc in the empty paper, a second play button;
-    and the strip kept the words tab's start while the tab was under the panel, which
-    cut "Watch the video" short."""
-    built = video_reader(tmp_path)
-    context, page = open_reader(browser, built, viewport={"width": 390, "height": 844})
-    try:
-        watch(page)
-        page.wait_for_timeout(150)
-        got = page.evaluate(
-            """() => {
-              const box = (s) => document.querySelector(s).getBoundingClientRect();
-              const keys = document.querySelector('#video .video-keys');
-              const close = getComputedStyle(document.querySelector('#video .video-close'));
-              const said = document.querySelector('#video .player-said');
-              const discs = [...document.querySelectorAll('.player-play, .video-tap-glyph')]
-                .filter((el) => getComputedStyle(el).display !== 'none'
-                  && el.getBoundingClientRect().width > 0);
-              return {
-                keysGround: getComputedStyle(keys).backgroundColor,
-                closeInk: close.color, closeGround: close.backgroundColor,
-                keysBottom: box('#video .video-keys').bottom,
-                picture: box('#video .video-el').toJSON(),
-                tap: box('#video .video-tap').toJSON(),
-                plays: discs.length,
-                cut: said.scrollWidth > said.clientWidth + 1,
-              };
-            }"""
-        )
-    finally:
-        context.close()
-    assert got["keysGround"] == "rgba(0, 0, 0, 0)", f"no box behind the keys: {got}"
-    assert got["closeGround"] != got["closeInk"], got
-    assert got["keysBottom"] <= got["picture"]["top"] + 1, "the keys stand above the picture"
-    for edge in ("top", "bottom", "left", "right"):
-        assert abs(got["tap"][edge] - got["picture"][edge]) < 2, f"the tap is the picture: {got}"
-    assert got["plays"] == 1, "one play button on the screen"
-    assert not got["cut"], "the label is not cut"
-
-
-def test_the_docked_picture_stands_clear_of_the_transport(browser, tmp_path) -> None:
-    """The dock's offset was a figure written into the stylesheet, and the strip is not
-    one height: it grows a bar and a clock the moment a text has a place to show, which
-    is every text the reader has been in before. The picture sat on it."""
-    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=40)
-    context, page = open_reader(browser, built)
-    try:
-        watch(page)
-        page.wait_for_function("() => window.TargumPlayer.length() > 0")
-        # A place to show, which is what makes the strip its taller self.
-        page.evaluate("() => window.TargumPlayer.seek(0.2)")
-        page.click(".video-mode")
-        page.wait_for_timeout(250)
-        assert page.evaluate("() => document.getElementById('player').classList.contains('placed')")
-
-        picture = page.locator("#video").bounding_box()
-        strip = page.locator("#player").bounding_box()
-        assert picture["y"] + picture["height"] <= strip["y"] + SLACK, (picture, strip)
-    finally:
-        context.close()
-
-
-def test_a_text_with_no_picture_is_untouched_by_the_modes(scene) -> None:
-    """The modes are the sidecar's, and a text without one has none of them: no scrim,
-    no full-screen state, and `v` is a letter the page hands back."""
-    assert scene.locator(".video-titles").count() == 0
-    assert scene.locator("#video").count() == 0
-    scene.keyboard.press("v")
-    assert scene.evaluate("() => document.body.classList.contains('watching')") is False
-    assert scene.evaluate("() => !window.TargumVideo")
-    # And its own transport is where it always was, with the gaps the note found closed.
-    assert scene.locator("#player .player-track").get_attribute("role") == "slider"
-    assert scene.locator("#player .player-back").count() == 1
-
-
-# -- the picture and the transport do not stand on each other ---------------------------
-#
-# Both were reported from a phone on 2026-09-04, off a live reader: the strip drawn across
-# the top of the docked picture, and no way back once the picture was closed.
-
-BOXES = """
-() => {
-  const v = document.getElementById("video"), p = document.getElementById("player");
-  const r = (e) => { const b = e.getBoundingClientRect();
-    return {top: Math.round(b.top), bottom: Math.round(b.bottom),
-            left: Math.round(b.left), right: Math.round(b.right)}; };
-  return {video: v.hidden ? null : r(v), player: p.hidden ? null : r(p),
-          inside: v.contains(p)};
-}
-"""
-
-
-def overlapping(a: dict, b: dict) -> bool:
-    across = min(a["right"], b["right"]) - max(a["left"], b["left"])
-    down = min(a["bottom"], b["bottom"]) - max(a["top"], b["top"])
-    return across > 0 and down > 0
-
-
-@pytest.mark.parametrize(("width", "height"), [(412, 915), (1440, 900)], ids=["phone", "desktop"])
-def test_the_docked_picture_and_the_strip_never_cover_each_other(
-    browser, tmp_path, width: int, height: int
-) -> None:
-    """They each made room for the other, so both moved and they met in the middle.
-
-    The strip rose by the picture's height — a docked picture is a band occupant and
-    `--occupant` is what the foot obeys — while the picture rose by the strip's, and the
-    result was the transport drawn across the top of the film with the room saved under
-    it standing empty. On a wide window the same sum came apart differently: the paged
-    reader lifts the strip over the turning arrows to `5.5rem` and the dock was still
-    adding `1.25rem`, so the picture's foot came down 68px inside it.
-
-    One number drives both now, which is the property worth pinning: whatever moves the
-    strip moves the picture with it.
-    """
-    built = video_reader(tmp_path, lines=40)
-    context = opened(browser)
-    page = context.new_page()
-    page.set_viewport_size({"width": width, "height": height})
-    try:
-        page.goto(built.as_uri())
-        page.wait_for_selector("#video:not([hidden])")
-        # Reading alongside, which is the mode with two things at the foot. Watching puts
-        # the strip inside the picture on purpose — one transport, moved rather than
-        # copied — and boxes that contain one another are not boxes that collide.
-        #
-        # It is what the page opens in since 2026-09-17, so this waits rather than
-        # presses; pressing took it *into* the watch, which is the one mode where these
-        # two cannot collide and so the one where this proves nothing.
-        page.wait_for_selector("#video:not(.watching)")
-        page.wait_for_timeout(300)
-        where = page.evaluate(BOXES)
-        assert where["video"] and where["player"]
-        assert not where["inside"], "docked, the strip stands on its own again"
-        assert not overlapping(where["video"], where["player"]), (
-            f"the strip and the picture cover each other at {width}x{height}: {where}"
-        )
-    finally:
-        context.close()
-
-
-def test_a_closed_picture_can_be_brought_back_from_the_strip(browser, tmp_path) -> None:
-    """The bar's copy of the toggle folds into the `···` menu on a phone, so closing the
-    picture with its own × left a reader nothing on screen to undo it with — the way back
-    was two taps into a menu they had no reason to open. A control that can be turned off
-    has to be turnable on from where it was turned off."""
-    built = video_reader(tmp_path)
-    context = opened(browser)
-    page = context.new_page()
-    page.set_viewport_size({"width": 412, "height": 915})
-    try:
-        page.goto(built.as_uri())
-        page.wait_for_selector("#video:not([hidden])")
-        # The bar's copy is behind the menu at this width, and that is the whole point.
-        assert not page.locator(".group [data-video]").is_visible()
-
-        page.click(".video-close")
-        page.wait_for_selector("#video[hidden]", state="attached")
-        assert page.locator(".player-video").is_visible(), "nothing on screen brings it back"
-        assert page.get_attribute(".player-video", "aria-pressed") == "false"
-
-        page.click(".player-video")
-        page.wait_for_selector("#video:not([hidden])")
-        assert page.get_attribute(".player-video", "aria-pressed") == "true"
-        # Both copies say the same thing, or the page shows a state it is not in.
-        assert page.get_attribute(".group [data-video]", "aria-pressed") == "true"
-    finally:
-        context.close()
+# The picture's own tests — how it stands, its controls, the line under it, the step back
+# and the phone — are in `test_video_viewer_browser.py` since targum-internal#422, which
+# replaced the corner window, its drag and size, the full-screen mode and the strip that
+# stood under it. `video_reader` stays here because every file about a film builds with it.
 
 
 # -- a sheet under a thumb ---------------------------------------------------------
@@ -6516,7 +6188,10 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
     page = context.new_page()
 
     def answer(route, request):
-        if "/voice" in request.url:
+        if "/voice" in request.url and request.method == "GET":
+            # The question on load: nothing underway.
+            route.fulfill(status=200, content_type="application/json", body='{"job": null}')
+        elif "/voice" in request.url:
             posted.append(request.post_data_json)
             route.fulfill(
                 status=200, content_type="application/json", body=json.dumps({"ready": True})
@@ -6527,7 +6202,8 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
 
     page.route("http://reader.test/**", answer)
     page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
-    page.wait_for_selector("#voice-go")
+    # Behind ⋯ since targum-internal#421: there, not necessarily on show.
+    page.wait_for_selector("#voice-go", state="attached")
     page.evaluate("() => document.getElementById('voice-go').click()")
     page.wait_for_timeout(600)
     context.close()
@@ -6535,6 +6211,214 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
         "the folder and the section, and nothing else"
     )
     assert len(loads) >= 2, "reopened once the audio was there"
+
+
+#: What the Hear this section offer shows: the button, the line, the meter and its share.
+VOICE_OFFER = """() => {
+  const meter = document.getElementById('voice-meter');
+  return {
+    button: !document.getElementById('voice-go').hidden,
+    said: document.getElementById('voice-said').textContent,
+    making: !document.getElementById('voice-making').hidden,
+    waiting: meter.classList.contains('is-waiting'),
+    now: meter.getAttribute('aria-valuenow'),
+    share: document.getElementById('voice-share').textContent,
+  };
+}"""
+
+
+def _voice_page(browser, tmp_path: Path, monkeypatch, underway, states):
+    """A served chapter whose server says `underway` to the question on load and then
+    each of `states` in turn to `/job/<id>`, the last one for good."""
+    import json
+
+    from targum import speech
+
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
+    html = chapter(tmp_path / "out").read_text(encoding="utf-8")
+    seen: dict[str, list] = {"posted": [], "asked": [], "loads": [], "polled": []}
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/voice" in request.url and request.method == "GET":
+            seen["asked"].append(request.url)
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"job": underway})
+            )
+        elif "/voice" in request.url:
+            seen["posted"].append(request.post_data_json)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(states[0]))
+        elif "/job/" in request.url:
+            state = states[min(len(seen["polled"]), len(states) - 1)]
+            seen["polled"].append(request.url)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(state))
+        else:
+            seen["loads"].append(request.url)
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    return context, page, seen
+
+
+def test_audio_already_on_its_way_shows_how_far_and_offers_no_second_press(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """2026-10-10: pressed, left and come back to, the offer was there again with nothing
+    to say the audio was being made. Now the page asks on load, and a section underway
+    shows the line and a meter at the share of lines said, never the button, and is
+    followed to the end like a press is: reopened once the audio is there."""
+    working = {"id": "v1", "stage": "working", "done": 2, "total": 5}
+    context, page, seen = _voice_page(
+        browser,
+        tmp_path,
+        monkeypatch,
+        working,
+        [working, {"id": "v1", "stage": "done", "done": 5, "total": 5}],
+    )
+    try:
+        page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+        page.wait_for_function("() => !document.getElementById('voice-making').hidden")
+        shown = page.evaluate(VOICE_OFFER)
+        assert shown["button"] is False, "no second press is offered"
+        assert shown["said"].startswith("We're making the audio")
+        assert shown["making"] and not shown["waiting"]
+        assert shown["now"] == "40" and shown["share"] == "40% done"
+        assert "name=a-build" in seen["asked"][0] and "section=1" in seen["asked"][0]
+        page.wait_for_timeout(4500)
+    finally:
+        context.close()
+    assert seen["posted"] == [], "asking is not a press"
+    assert len(seen["loads"]) >= 2, "reopened once the audio was there"
+
+
+def test_audio_waiting_its_turn_shows_a_meter_that_only_says_working(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """Queued, the job has not counted its lines yet: the meter says only that it is on
+    its way, rather than a share nobody counted."""
+    queued = {"id": "v2", "stage": "queued", "done": 0, "total": 0}
+    context, page, _ = _voice_page(browser, tmp_path, monkeypatch, queued, [queued])
+    try:
+        page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+        page.wait_for_function("() => !document.getElementById('voice-making').hidden")
+        shown = page.evaluate(VOICE_OFFER)
+        assert shown["button"] is False and shown["waiting"]
+        assert shown["now"] is None and shown["share"] == ""
+    finally:
+        context.close()
+
+
+def test_a_press_shows_the_meter_and_a_failure_gives_the_button_back(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """After the press the same meter shows, not only a sentence; a job that fails says
+    so and offers the press again."""
+    context, page, seen = _voice_page(
+        browser,
+        tmp_path,
+        monkeypatch,
+        None,
+        [
+            {"id": "v3", "stage": "working", "done": 1, "total": 4},
+            {"id": "v3", "stage": "failed", "error": "The voice did not answer."},
+        ],
+    )
+    try:
+        page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+        page.wait_for_selector("#voice-go", state="attached")
+        page.wait_for_function("() => document.readyState === 'complete'")
+        page.wait_for_timeout(200)
+        assert page.evaluate(VOICE_OFFER)["making"] is False, "nothing underway: the offer"
+        page.evaluate("() => document.getElementById('voice-go').click()")
+        page.wait_for_function("() => document.getElementById('voice-share').textContent")
+        shown = page.evaluate(VOICE_OFFER)
+        assert shown["button"] is False and shown["making"]
+        assert shown["share"] == "25% done"
+        page.wait_for_function("() => !document.getElementById('voice-go').hidden", timeout=6000)
+        shown = page.evaluate(VOICE_OFFER)
+        assert shown["said"] == "The voice did not answer."
+        assert shown["making"] is False
+        assert page.evaluate("() => document.getElementById('voice-go').disabled") is False
+    finally:
+        context.close()
+    assert seen["posted"] == [{"name": "a-build", "section": 1}]
+
+
+def test_a_link_to_hear_a_section_opens_the_offer_and_presses_nothing(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """targum-internal#407: a chat hands over the section's link ending `?hear=1`. The
+    page opens This text with "Hear this section" in focus, what it uses beside it, and
+    posts nothing: the press is still the reader's own."""
+    from targum import speech
+
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
+    html = chapter(tmp_path / "out").read_text(encoding="utf-8")
+    posted: list[str] = []
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+
+    def answer(route, request):
+        if request.method == "POST":
+            posted.append(request.url)
+        route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?hear=1")
+    page.wait_for_function(
+        "() => document.activeElement && document.activeElement.id === 'voice-go'"
+    )
+    assert page.locator("[data-more]").first.get_attribute("aria-expanded") == "true"
+    assert page.locator("#voice-go").is_visible(), "the offer is on show, not only in the page"
+    page.wait_for_timeout(300)
+    context.close()
+    assert posted == [], "a link opens the offer; it never makes the press"
+
+
+def test_a_word_on_a_silent_served_page_is_said_by_the_voice(browser, tmp_path: Path) -> None:
+    """2026-10-07: a word with no recording behind it still has a Hear on its card where
+    a server is behind the page. The press posts the word as it is spelt and the text's
+    language, plays what comes back, and a second press asks nothing more."""
+    import json
+
+    from targum import speech
+
+    built = chapter(tmp_path / "out")
+    html = built.read_text(encoding="utf-8")
+    posted: list[dict] = []
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    page.add_init_script(
+        "window.__played = []; HTMLMediaElement.prototype.play = function () {"
+        " window.__played.push(this.src.slice(0, 15)); return Promise.resolve(); };"
+    )
+    clip = "data:audio/wav;base64,UklGRg=="
+
+    def answer(route, request):
+        if "/say-word" in request.url:
+            posted.append(request.post_data_json)
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"audio": clip})
+            )
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair .src .w")
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_selector("#gloss-card .hear")
+    assert page.evaluate("() => !window.TargumSpeech"), "no recording on this page"
+    page.click("#gloss-card .hear")
+    page.wait_for_timeout(300)
+    page.click("#gloss-card .hear")
+    page.wait_for_timeout(200)
+    played = page.evaluate("() => window.__played")
+    context.close()
+    assert len(posted) == 1, "asked once; the second press plays what came back"
+    assert posted[0]["language"] in speech.SPOKEN and posted[0]["text"].strip()
+    assert played == [clip[:15], clip[:15]]
 
 
 def test_a_framed_reader_counts_a_visit_at_the_first_press_and_not_before(
@@ -6613,6 +6497,36 @@ def test_a_served_reader_offers_to_talk_and_knows_where_you_are(browser, built: 
     context.close()
 
 
+@pytest.mark.parametrize("width", [390, 1440])
+def test_a_reader_left_with_the_drawer_open_closes_it_on_a_phone(
+    browser, built: Path, width: int
+) -> None:
+    """QA 2026-10-11, decision D7: a drawer left open came back on the next page, and on
+    a phone that is a sheet over the whole of the page the reader just chose. On a phone
+    the reader forgets it was open; at a desk it comes back beside the text, undimmed,
+    as before (design.md §12, 2026-10-09 and 2026-10-11)."""
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#talk-open", state="attached")
+    page.evaluate("() => localStorage.setItem('targum:talk', 'open')")
+    page.reload()
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    page.wait_for_timeout(200)
+    state = page.evaluate(
+        """() => ({
+          open: !document.getElementById('talk-drawer').hidden,
+          dimmed: !document.getElementById('talk-scrim').hidden,
+          remembered: localStorage.getItem('targum:talk'),
+        })"""
+    )
+    context.close()
+    if width < 1024:
+        assert state == {"open": False, "dimmed": False, "remembered": None}, state
+    else:
+        assert state == {"open": True, "dimmed": False, "remembered": "open"}, state
+
+
 def russian(out: Path, stressed: bool = False) -> Path:
     """A Russian reader whose words carry the tagger's grammar (targum-internal#258)."""
     lines = ["Он взял её за руку.", "Рука болела, и рукой он брал хлеб."]
@@ -6624,6 +6538,7 @@ def russian(out: Path, stressed: bool = False) -> Path:
                 "взять",
                 "UPOS=VERB|Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Fin",
             ),
+            ("за", "за", "UPOS=ADP"),
             ("руку", "рука", "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing|Animacy=Inan"),
         ],
         1: [
@@ -6739,6 +6654,38 @@ def test_a_russian_card_says_the_case_and_the_other_forms_here(
     context.close()
 
 
+def test_a_russian_card_lists_what_the_word_is_as_the_board_draws_it(
+    browser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Board WordCardDesk (audit Q6, 2026-10-09): the kind of word at the right of the
+    head, then Dictionary and In this line as a list of two columns, the line's form with
+    the preposition that governs it, the way to all its cases under them, and ignore at
+    the end of the stage's line."""
+    from targum.annotate import openrussian
+
+    monkeypatch.setattr(openrussian, "lexicon", lambda: None)
+    context, page = open_reader(browser, russian(tmp_path / "reader"))
+    page.evaluate(CARD_LINES, "руку")
+    said = page.evaluate(
+        """() => {
+          const card = document.querySelector('.gloss-card');
+          const all = card.querySelector('.card-facts .card-all');
+          return {
+            kind: card.querySelector('.copy-line .card-pos').textContent,
+            facts: [...card.querySelectorAll('.card-facts dt, .card-facts dd')]
+              .map((el) => el.textContent),
+            href: all ? all.getAttribute('href') : null,
+            stage: [...card.querySelectorAll('.card-stage > *')].map((el) => el.className),
+          };
+        }"""
+    )
+    context.close()
+    assert said["kind"] == "noun, feminine"
+    assert said["facts"] == ["Dictionary", "рука", "In this line", "за руку", "", "All its cases →"]
+    assert said["href"] == "https://en.openrussian.org/ru/%D1%80%D1%83%D0%BA%D0%B0"
+    assert said["stage"] == ["level-legend", "level level-0"]
+
+
 def test_a_russian_verb_names_its_partner_and_goes_to_it(
     browser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -6776,11 +6723,13 @@ def test_stress_marks_ride_the_vowel_switch_and_move_no_word(browser, tmp_path: 
     (targum-internal#260)."""
     reader = russian(tmp_path / "reader", stressed=True)
     html = reader.read_text(encoding="utf-8")
-    assert 'aria-label="Stress marks"' in html and 'aria-label="Vowel points"' not in html
+    # The bar's own press since 2026-10-08: the name on it is what is read out.
+    assert 'data-nikkud-toggle aria-pressed="false" aria-label="Stress marks"' in html
+    assert 'aria-label="Vowel points"' not in html
     context, page = open_reader(browser, reader)
     bare = page.evaluate(CARD_LINES, "руку")
     page.keyboard.press("Escape")
-    page.click("[data-nikkud-toggle]")
+    press_in_aa(page, "[data-nikkud-toggle]")
     page.wait_for_timeout(200)
     shown = page.evaluate(
         "() => [...document.querySelectorAll('.pair .src')].filter((c) => !c.hidden"
@@ -6808,12 +6757,30 @@ def test_one_case_is_shown_at_a_time_and_only_when_asked(browser, tmp_path: Path
     reader = russian(tmp_path / "reader")
     context, page = open_reader(browser, reader)
     assert page.evaluate(CASES_SHOWN) == [], "off by default"
+    # Not on a first read (design.md §12, "Lenses wait for a second read", 2026-10-13):
+    # the row is hidden and `c` does nothing, until the text is opened again.
+    assert page.evaluate(
+        "() => document.querySelector('[data-case-lens]').closest('.lens-row').hidden"
+    )
+    page.keyboard.press("c")
+    assert page.evaluate("() => document.body.getAttribute('data-case')") is None
+    page.reload()
+    page.wait_for_selector(".pair")
+    assert not page.evaluate(
+        "() => document.querySelector('[data-case-lens]').closest('.lens-row').hidden"
+    )
     options = page.evaluate(
         "() => [...document.querySelector('[data-case-lens]').options].map((o) => o.textContent)"
     )
-    assert options[:3] == ["cases", "nominative · 2", "genitive · 0"]
+    assert options[:3] == ["none", "nominative · 2", "genitive · 0"]
     assert "accusative · 1" in options and "instrumental · 1" in options
+    # A row of Aa since 2026-10-08, how the text looks. Escape takes the panel off
+    # first, one layer a press, and the case stays shown.
+    page.click("#aa-open")
     page.select_option("[data-case-lens]", "Acc")
+    assert page.evaluate(CASES_SHOWN) == ["руку"]
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => !document.querySelector('#aa.open')")
     assert page.evaluate(CASES_SHOWN) == ["руку"]
     page.keyboard.press("c")
     assert page.evaluate("() => document.body.getAttribute('data-case')") == "Ins"
@@ -6885,9 +6852,18 @@ def test_a_part_still_waiting_to_be_heard_buys_nothing_ahead_of_it(
         context.close()
         return asked
 
-    assert "data-audio" in (folder / "sec-0002.html").read_text(encoding="utf-8")
-    assert bought("sec-0002.html") == []
-    assert [ask["number"] for ask in bought("sec-0001.html")] == [2], "a heard part still does"
+    page = (folder / "sec-0002.html").read_text(encoding="utf-8")
+    assert "data-audio" in page
+    # Since 2026-10-07 (design.md §12, "One press gets the whole video, a part at a time")
+    # a waiting part asks for itself as it opens — the quote's press covered every part —
+    # and still for nothing ahead of it. Its page has no translation column, so it names
+    # no language and the box answers in the one the folder holds.
+    assert 'class="tr"' not in page
+    assert bought("sec-0002.html") == [{"name": "talk-en", "number": 2, "to": ""}]
+    ahead = bought("sec-0001.html")
+    assert [(ask["number"], ask.get("ahead")) for ask in ahead] == [(2, True)], (
+        "a heard part asks for the next, once, as it opens"
+    )
 
 
 def french(out: Path) -> Path:
@@ -7104,8 +7080,10 @@ def test_a_vertical_film_gets_a_vertical_frame(browser, tmp_path) -> None:
 
 
 def test_a_vertical_film_docks_as_a_narrow_panel(browser, tmp_path) -> None:
-    """At the landscape panel's width a 9:16 picture is six hundred pixels of video down
-    the corner of the page, which is not a dock — it is a takeover."""
+    """At the landscape picture's width a 9:16 picture is a column of video down the whole
+    window. Beside its transcript (targum-internal#422) an upright film is sized by the
+    window's height, so it is narrower than a landscape one and the transcript has the
+    rest of the width."""
     wide = video_reader(tmp_path, film="tiny.webm")
     context, page = open_reader(browser, wide)
     try:
@@ -7216,10 +7194,12 @@ SAYS = """
   if (!card || card.hidden) return null;
   const meaning = card.querySelector('.meaning');
   const use = card.querySelector('.use');
+  const kind = card.querySelector('.card-pos');
   return {
     meaning: meaning ? meaning.textContent : null,
     asking: !!card.querySelector('.look-up'),
     use: use ? use.textContent : "",
+    kind: kind ? kind.textContent : "",
   };
 }
 """
@@ -7278,12 +7258,13 @@ def test_a_name_is_one_chip_that_says_what_it_is_and_means_nothing(browser, tmp_
 
     page.evaluate(TAP_AGAIN, "דוד בן־גוריון")
     card = page.evaluate(SAYS)
-    assert card["use"] == "name"
+    # What kind of word it is stands at the right of the word (audit Q6, 2026-10-09).
+    assert card["kind"] == "name" and card["use"] == ""
     assert not card["meaning"] and not card["asking"], f"a name was glossed: {card}"
 
     page.evaluate(TAP_AGAIN, "בירושלים")
     card = page.evaluate(SAYS)
-    assert card["use"] == "place" and not card["meaning"] and not card["asking"]
+    assert card["kind"] == "place" and not card["meaning"] and not card["asking"]
 
     page.evaluate(TAP_AGAIN, "רבי")
     assert page.evaluate(SAYS)["meaning"] == "rabbi", "a title keeps its meaning"
@@ -7294,13 +7275,93 @@ def test_a_name_is_one_chip_that_says_what_it_is_and_means_nothing(browser, tmp_
     context.close()
 
 
+def test_here_says_what_this_occurrence_is_and_nothing_else(browser, tmp_path: Path) -> None:
+    """targum-internal#489, found on the gyoza short. "Here" leads with the citation only
+    in front of a parse: never the infinitive alone, never the word again, and never a bare
+    English pronoun under a pronoun's meaning."""
+    text = "לוקחים להוסיף האלה ומערבבים"
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    tokens = [
+        Token(
+            start=0, end=6, surface="לוקחים", lemma="לקח", band=2, pos="VERB",
+            feats="UPOS=VERB",
+        ),
+        Token(
+            start=7, end=13, surface="להוסיף", lemma="הוסיף", band=2, pos="VERB",
+            feats="UPOS=VERB|VerbForm=Inf",
+        ),
+        Token(
+            start=14, end=18, surface="האלה", lemma="אלה", band=1, pos="PRON",
+            feats="UPOS=PRON|Number=Plur|Person=3",
+        ),
+        Token(
+            start=19, end=27, surface="ומערבבים", lemma="ערבב", band=2, pos="VERB",
+            feats="UPOS=VERB|Gender=Masc|Number=Plur|Person=3|VerbForm=Part",
+        ),
+    ]  # fmt: skip
+    pages = render(
+        Document(
+            source="memory",
+            title="Gyoza",
+            language="he",
+            blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
+            content_hash="h",
+        ),
+        SegmentedDocument(document_hash="h", language="he", segmenter="t", segments=[segment]),
+        [
+            Translation(
+                name="English",
+                document_hash="h",
+                source_language="he",
+                target_language="en",
+                provider="null",
+                segments={segment.id: "We take, add these and mix."},
+            )
+        ],
+        tmp_path / "gyoza",
+        annotation=Annotation(
+            document_hash="h",
+            language="he",
+            annotator="t",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: tokens},
+        ),
+        glossaries={
+            "en": Glossary(
+                source_language="he",
+                target_language="en",
+                provider="p",
+                entries={
+                    "לקח (verb)": "to take",
+                    "הוסיף (verb)": "to add",
+                    "אלה": "these",
+                    "ערבב (verb)": "to mix",
+                },
+                citations={"לקח (verb)": "לקחת", "הוסיף (verb)": "להוסיף", "ערבב (verb)": "לערבב"},
+            )
+        },
+    )
+    context, page = open_reader(browser, pages[0])
+    page.evaluate(TAP_AGAIN, "לוקחים")
+    assert page.evaluate(SAYS)["use"] == "", "the infinitive alone is not this word"
+    page.evaluate(TAP_AGAIN, "להוסיף")
+    assert page.evaluate(SAYS)["use"] == "infinitive", "the citation is the word itself"
+    page.evaluate(TAP_AGAIN, "האלה")
+    card = page.evaluate(SAYS)
+    assert card["meaning"] == "these" and card["use"] == "", card
+    page.evaluate(TAP_AGAIN, "ומערבבים")
+    assert page.evaluate(SAYS)["use"] == "לערבב · present · they"
+    context.close()
+
+
 # -- "inferred" ---------------------------------------------------------------------
 #
 # design.md §12, "What we inferred says so" (2026-09-27): after a reading we
 # guessed part of, one muted word; tapped, the sentence it stands for, under the reading.
 
 
-def guessing(out: Path) -> Path:
+def guessing(out: Path, into: str = "en") -> Path:
     """Three words: the source pointed the first and left the second bare, so the
     menaked supplied its vowels; the third carries phonikud's own stress mark."""
     marked = "מֶ\u05ab" + "לֶךְ"
@@ -7323,10 +7384,10 @@ def guessing(out: Path) -> Path:
         SegmentedDocument(document_hash="h", language="he", segmenter="test/1", segments=[segment]),
         [
             Translation(
-                name="English",
+                name="English" if into == "en" else "Russian",
                 document_hash="h",
                 source_language="he",
-                target_language="en",
+                target_language=into,
                 provider="null",
                 segments={segment.id: "An onion, an onion, a king."},
             )
@@ -7427,6 +7488,38 @@ def test_an_inferred_reading_says_so_and_what_was_inferred(
     page.wait_for_timeout(150)
     card = page.evaluate(PROBABLY)
     assert card == {"word": None}, "a stress read off its mark is never qualified"
+    context.close()
+
+
+SAID_AS = """
+() => {
+  const reading = document.querySelector('#gloss-card .said bdi');
+  return reading ? [reading.textContent, reading.getAttribute('lang')] : null;
+}
+"""
+
+
+@pytest.mark.parametrize("size", [WINDOW, PHONE], ids=["desk", "phone"])
+def test_a_hebrew_reading_is_said_in_letters_a_learner_reads(
+    browser, guessed_reader: Path, size: dict[str, int]
+) -> None:
+    """design.md §12, "The card says a Hebrew word in letters you read" (2026-10-12): no
+    IPA on a Hebrew card. Syllables, and the stressed vowel under an acute."""
+    context, page = open_reader(browser, guessed_reader, viewport=size)
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(150)
+    assert page.evaluate(SAID_AS) == ["ba-tsál", "he-Latn"]
+    page.evaluate(TAP_NTH, 2)
+    page.wait_for_timeout(150)
+    assert page.evaluate(SAID_AS) == ["mé-lekh", "he-Latn"]
+    context.close()
+
+
+def test_a_russian_reader_says_it_in_cyrillic(browser, tmp_path: Path) -> None:
+    context, page = open_reader(browser, guessing(tmp_path / "reader", into="ru"))
+    page.evaluate(TAP_NTH, 2)
+    page.wait_for_timeout(150)
+    assert page.evaluate(SAID_AS) == ["ме\u0301-лех", "he-Cyrl"]
     context.close()
 
 
@@ -7603,4 +7696,410 @@ def test_a_psalm_names_no_accent(browser, tmp_path: Path) -> None:
     page.wait_for_timeout(150)
     card = page.evaluate(ACCENT_LINE)
     assert card == {"line": None}, card
+    context.close()
+
+
+def test_the_way_home_answers_a_thumb_over_44px(browser, built: Path) -> None:
+    """§8: the mark at the head of the bar is the way home from a text, and on a phone it
+    answered a tap over 13 by 17px — the size of the drawing (QA 2026-10-11). Measured
+    where a thumb lands: 44px across towards the title, and 20px above and below its
+    middle — and never over the bar's edge, where a tap only brings the bar back."""
+    context = browser.new_context(
+        viewport=PHONE, has_touch=True, is_mobile=True, reduced_motion="reduce"
+    )
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    reach = page.evaluate(
+        """() => {
+      const home = document.querySelector('a.bar-brand');
+      if (!home || home.hidden) return {missing: true};
+      const box = home.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const hits = (dx, dy) => home.contains(document.elementFromPoint(x + dx, y + dy));
+      // Towards the title it reaches; the strip at the window's edge stays the bar's,
+      // where a tap brings a quiet bar back (test_reader_qa_browser).
+      const edge = document.elementFromPoint(4, y);
+      return {across: hits(20, 0) && hits(30, 0), up: hits(0, -20) && hits(0, 20),
+              edgeIsTheBars: !home.contains(edge),
+              drawn: [box.width, box.height]};
+    }"""
+    )
+    context.close()
+    assert not reach.get("missing"), "a served reader has its way home"
+    assert reach["across"] and reach["up"] and reach["edgeIsTheBars"], reach
+
+
+def test_the_reader_rings_its_focus_in_teal(browser, built: Path) -> None:
+    """§4, §12 "The focus ring is teal everywhere" (QA 2026-10-11, decision D3): the gold
+    was 2.71:1 on the reader's paper. Computed off a control reached by the keyboard."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    seen = []
+    for _ in range(8):
+        page.keyboard.press("Tab")
+        seen.append(
+            page.evaluate(
+                """() => { const el = document.activeElement;
+                    if (!el || el === document.body) return null;
+                    const s = getComputedStyle(el);
+                    return [el.className || el.tagName, s.outlineStyle, s.outlineColor]; }"""
+            )
+        )
+    context.close()
+    rings = [one for one in seen if one and one[1] != "none"]
+    assert rings, f"nothing Tab reached drew a ring: {seen}"
+    for where, _, colour in rings:
+        assert colour == "rgb(31, 111, 107)", f"{where} rings in {colour}"
+
+
+def test_a_touch_screen_is_never_told_the_keys(browser, built: Path) -> None:
+    """Signed-in walk 2026-10-12: after the first mark, a phone's first-run line read
+    "k known · 1 2 3 · ← next word · ? every key" on a screen with no keys. On a touch
+    screen it falls quiet instead, keeping its room so nothing moves."""
+    context = browser.new_context(
+        viewport=PHONE, has_touch=True, is_mobile=True, reduced_motion="reduce"
+    )
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    line = page.locator("#first")
+    assert "Tap a word" in line.inner_text()
+    tall = page.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
+    page.locator(".w").first.tap()
+    page.locator("#gloss-card .vocab-editor .level").first.tap()
+    page.wait_for_function("() => document.getElementById('first').style.visibility === 'hidden'")
+    said = page.evaluate("() => document.getElementById('first').textContent")
+    same = page.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
+    context.close()
+    assert "key" not in said and same == tall, (said, same, tall)
+
+
+def hebrew_governed(out: Path) -> Path:
+    """A Hebrew reader whose words carry DICTA's syntax: a verb and the preposition its
+    argument takes (design.md §12, "Governed prepositions on the card", 2026-10-13)."""
+    from targum.models import Syntax
+
+    text = "דיבר עם המנהל"
+    said = [
+        ("דיבר", "דיבר", "VERB", "UPOS=VERB|Tense=Past", -1, "root", (), 0),
+        ("עם", "עם", "ADP", "UPOS=ADP", 2, "case", (), 0),
+        ("המנהל", "מנהל", "NOUN", "UPOS=NOUN|Gender=Masc", 0, "obl", ("DET",), 1),
+    ]
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    placed, cursor = [], 0
+    for surface, lemma, pos, feats, head, relation, prefixes, lead in said:
+        start = text.index(surface, cursor)
+        cursor = start + len(surface)
+        placed.append(
+            Token(
+                start=start,
+                end=cursor,
+                surface=surface,
+                lemma=lemma,
+                band=1,
+                pos=pos,
+                feats=feats,
+                syntax=Syntax(head=head, relation=relation, prefixes=prefixes, lead=lead),
+            )
+        )
+    document = Document(
+        source="memory",
+        title="מנהל",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
+        content_hash="g",
+    )
+    segmented = SegmentedDocument(
+        document_hash="g", language="he", segmenter="test/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="g",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "He spoke with the manager."},
+    )
+    annotation = Annotation(
+        document_hash="g",
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens={segment.id: placed},
+    )
+    return render(document, segmented, [translation], out, annotation=annotation)[0]
+
+
+FACTS = """
+(text) => {
+  [...document.querySelectorAll('.w')].find((w) => w.textContent === text).click();
+  const card = document.querySelector('.gloss-card');
+  return [...card.querySelectorAll('.card-facts dt, .card-facts dd')].map((el) => el.textContent);
+}
+"""
+
+
+def test_a_hebrew_verb_says_what_it_takes_and_its_argument_the_verb(
+    browser, tmp_path: Path
+) -> None:
+    context, page = open_reader(browser, hebrew_governed(tmp_path / "reader"))
+    verb = page.evaluate(FACTS, "דיבר")
+    noun = page.evaluate(FACTS, "המנהל")
+    context.close()
+    assert verb[-2:] == ["Takes", "עם"], verb
+    assert noun[-2:] == ["Goes with", "דיבר עם"], noun
+
+
+GOVERNED_SHOWN = """
+() => [...document.querySelectorAll('.w')]
+  .filter((w) => getComputedStyle(w).textDecorationStyle === 'dotted')
+  .map((w) => w.textContent)
+"""
+
+
+def test_the_prepositions_lens_waits_for_a_finish_and_says_once_what_it_shows(
+    browser, tmp_path: Path
+) -> None:
+    """targum-internal#439: off on a first read, offered once the part is finished, one
+    lens at a time, a cue line the first time it is turned on and its count after."""
+    context, page = open_reader(browser, hebrew_governed(tmp_path / "reader"))
+    lens = "[data-governed-lens]"
+    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    page.keyboard.press("r")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.click("#done-go")
+    assert not page.evaluate(f"() => document.querySelector('{lens}').hidden")
+    page.keyboard.press("r")
+    assert page.evaluate(GOVERNED_SHOWN) == ["דיבר", "עם", "המנהל"]
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each verb lit takes the preposition lit beside it, in this line."
+    page.keyboard.press("r")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.keyboard.press("r")
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Prepositions verbs take, 1 here.", "the cue is said once"
+    context.close()
+
+
+def russian_order(out: Path) -> Path:
+    """A Russian reader with its subject after its verb (design.md §12, "Subjects after
+    their verb, on a lens", 2026-10-13)."""
+    text = "Книгу написал Толстой."
+    said = [
+        ("Книгу", "книга", "NOUN", "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing"),
+        ("написал", "написать", "VERB", "UPOS=VERB|Gender=Masc|Number=Sing|VerbForm=Fin"),
+        ("Толстой", "Толстой", "PROPN", "UPOS=PROPN|Case=Nom|Gender=Masc|Number=Sing"),
+    ]
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    placed = [
+        Token(
+            start=text.index(surface),
+            end=text.index(surface) + len(surface),
+            surface=surface,
+            lemma=lemma,
+            band=1,
+            pos=pos,
+            feats=feats,
+        )
+        for surface, lemma, pos, feats in said
+    ]
+    document = Document(
+        source="memory",
+        title="Книга",
+        language="ru",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
+        content_hash="o",
+    )
+    segmented = SegmentedDocument(
+        document_hash="o", language="ru", segmenter="test/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="o",
+        source_language="ru",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "Tolstoy wrote the book."},
+    )
+    annotation = Annotation(
+        document_hash="o",
+        language="ru",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens={segment.id: placed},
+    )
+    return render(document, segmented, [translation], out, annotation=annotation)[0]
+
+
+LENS_STATE = """
+(lens) => [
+  document.body.getAttribute('data-lens'),
+  document.body.getAttribute('data-case'),
+  document.querySelector(lens).getAttribute('aria-pressed'),
+]
+"""
+
+
+def test_the_word_order_lens_lights_the_late_subject_and_gives_way_to_a_case(
+    browser, tmp_path: Path
+) -> None:
+    """Russian's word-order lens: hidden on a first read, `w` lights the subject standing
+    after its verb and says once what it shows, and a case turned on turns it off."""
+    context, page = open_reader(browser, russian_order(tmp_path / "reader"))
+    lens = "[data-order-lens]"
+    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    page.keyboard.press("w")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.click("#done-go")
+    page.keyboard.press("w")
+    assert page.evaluate(GOVERNED_SHOWN) == ["Толстой"]
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each word lit is the subject of a verb before it."
+    assert page.evaluate(LENS_STATE, lens) == ["order", None, "true"]
+    page.keyboard.press("c")
+    assert page.evaluate(LENS_STATE, lens) == [None, "Nom", "false"]
+    page.keyboard.press("w")
+    assert page.evaluate(LENS_STATE, lens) == ["order", None, "true"]
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Subjects after their verb, 1 here.", "the cue is said once"
+    context.close()
+
+
+# -- the vav-consecutive ---------------------------------------------------------------
+#
+# targum-internal#449, 2026-10-21: Hebrew's eighth hard spot. ויאמר is past.
+
+GEN_1_3 = "וַיֹּ֥אמֶר אֱלֹהִ֖ים יְהִ֣י א֑וֹר וַֽיְהִי־אֽוֹר׃"
+
+
+def genesis_1_3(out: Path, source: str = "sefaria:Genesis 1", tagged: bool = True) -> Path:
+    """Genesis 1:3 as the shelf builds it: the verse pointed as its edition writes it, the
+    offsets into the pointed text, and וַיֹּ֥אמֶר with Open Scriptures' own morphology.
+    וַֽיְהִי carries none, as a verse the tagging could not line up would, so the build's
+    reading of the pointing is what marks it."""
+    from targum.annotate.scripture import features
+
+    segment = Segment(
+        id="0000.000-aaaaaa",
+        block_id="b0000",
+        block_index=0,
+        index=0,
+        kind=BlockKind.verse,
+        text=GEN_1_3,
+        ref="Genesis 1:3",
+    )
+    tokens = [
+        Token(
+            start=found.start(),
+            end=found.end(),
+            surface=found.group(),
+            lemma=found.group(),
+            band=2,
+            pos="VERB" if found.start() == 0 else None,
+            feats=features("Vqw3ms") if tagged and found.start() == 0 else None,
+        )
+        for found in re.finditer(r"[^\s׃־]+", GEN_1_3)
+    ]
+    pages = render(
+        Document(
+            source=source,
+            title="Genesis 1:3",
+            language="he",
+            blocks=[Block(id="b0000", kind=BlockKind.verse, text=GEN_1_3)],
+            content_hash="v",
+        ),
+        SegmentedDocument(document_hash="v", language="he", segmenter="test/1", segments=[segment]),
+        [
+            Translation(
+                name="English",
+                document_hash="v",
+                source_language="he",
+                target_language="en",
+                provider="null",
+                segments={segment.id: "God said, Let there be light, and there was light."},
+            )
+        ],
+        out,
+        annotation=Annotation(
+            document_hash="v",
+            language="he",
+            annotator="test/1",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: tokens},
+        ),
+    )
+    return pages[0]
+
+
+CARD_FACTS = """
+() => [...document.querySelectorAll('#gloss-card .card-facts dt, #gloss-card .card-facts dd')]
+  .map((el) => el.textContent)
+"""
+
+
+def test_the_card_on_vayomer_in_genesis_1_says_the_vav_makes_it_past(
+    browser, tmp_path: Path
+) -> None:
+    """The acceptance of targum-internal#449: the card opens on ויאמר in Genesis 1, says
+    past, and says why; and the verse's second, read off the pointing, says it too."""
+    context, page = open_reader(browser, genesis_1_3(tmp_path / "genesis"))
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(150)
+    facts = page.evaluate(CARD_FACTS)
+    assert facts[-2:] == ["Past", "the vav turns the future form into narrative past"], facts
+    page.evaluate(TAP_NTH, 4)
+    page.wait_for_timeout(150)
+    assert page.evaluate(CARD_FACTS)[-2:] == [
+        "Past",
+        "the vav turns the future form into narrative past",
+    ]
+    # And not on a word that is not one.
+    page.evaluate(TAP_NTH, 1)
+    page.wait_for_timeout(150)
+    assert "Past" not in page.evaluate(CARD_FACTS)
+    context.close()
+
+
+def test_the_vav_lens_lights_the_narrative_past_and_is_one_lens_at_a_time(
+    browser, tmp_path: Path
+) -> None:
+    """Hidden on a first read like every lens; `y` lights both of the verse's narrative
+    pasts, the tagged one and the one read off the pointing, and says once what it shows."""
+    context, page = open_reader(browser, genesis_1_3(tmp_path / "genesis"))
+    lens = "[data-vav-lens]"
+    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    page.keyboard.press("y")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.click("#done-go")
+    page.keyboard.press("y")
+    assert len(page.evaluate(GOVERNED_SHOWN)) == 2
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each word lit is a future form the vav turns into the past."
+    assert page.evaluate(LENS_STATE, lens) == ["vav", None, "true"]
+    page.keyboard.press("y")
+    assert page.evaluate(LENS_STATE, lens) == [None, None, "false"]
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.keyboard.press("y")
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "The narrative past, 2 here.", "the cue is said once"
+    context.close()
+
+
+def test_a_modern_text_has_no_vav_lens_and_no_vav_line(browser, tmp_path: Path) -> None:
+    """Declared Biblical only: the same pointed words in a text that is not scripture are
+    a verse quoted, and nothing marks them."""
+    page_path = genesis_1_3(tmp_path / "modern", source="memory", tagged=False)
+    context, page = open_reader(browser, page_path)
+    assert page.evaluate("() => document.querySelector('[data-vav-lens]')") is None
+    for n in (0, 4):
+        page.evaluate(TAP_NTH, n)
+        page.wait_for_timeout(150)
+        assert "Past" not in page.evaluate(CARD_FACTS)
     context.close()

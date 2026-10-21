@@ -6,7 +6,8 @@ sized by what is in it: a reel comes down 480x854 (`video.VIDEO_HEIGHT` is the s
 side), and at that size the picture made its own row 2562px tall on a 900px window, with
 the line it was saying and the transport both under the fold. A 64px film never could,
 so every test of this mode passed over a page nobody could use (design review,
-2026-09-20).
+2026-09-20). The mode went with targum-internal#422; the sizes did not, and the picture
+and its controls are held to the window here whichever way it stands.
 
 `reel.webm` is 480x854 and `film.webm` is 854x480: one second of one colour, under 5KB
 each, so they are committed rather than generated.
@@ -26,7 +27,6 @@ from test_reader_browser import (  # noqa: E402, F401
     open_reader,
     opened,
     video_reader,
-    watch,
 )
 
 WINDOWS = [
@@ -42,141 +42,78 @@ LAID_OUT = """
 () => {
   const box = (s) => {
     const r = document.querySelector(s).getBoundingClientRect();
-    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    return {
+      left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+      width: r.width, height: r.height,
+    };
   };
   return {
     window: { right: document.documentElement.clientWidth, bottom: window.innerHeight },
+    panel: box('#video'),
     picture: box('#video .video-el'),
-    transport: box('#video .player'),
-    keys: box('#video .video-keys'),
+    controls: box('#video .film-ctl'),
   };
 }
 """
-
-
-DOCKED = """
-() => {
-  const rect = (el) => {
-    const r = el.getBoundingClientRect();
-    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-  };
-  const panel = document.getElementById('video');
-  return {
-    window: document.documentElement.clientWidth,
-    panel: rect(panel),
-    picture: rect(panel.querySelector('.video-el')),
-    keys: [...panel.querySelectorAll('.video-keys > *')]
-      .filter((el) => getComputedStyle(el).display !== 'none' && el.offsetWidth > 0)
-      .map((el) => Object.assign({ name: el.className }, rect(el))),
-  };
-}
-"""
-
-
-def docked(browser, tmp_path, size):  # noqa: F811
-    built = video_reader(tmp_path, film="reel.webm", lines=12)
-    context, page = open_reader(browser, built, viewport=size)
-    try:
-        page.wait_for_function("() => document.getElementById('video').classList.contains('tall')")
-        page.wait_for_timeout(150)
-        return page.evaluate(DOCKED)
-    finally:
-        context.close()
-
-
-@pytest.mark.parametrize("width", [320, 390, 768])
-def test_a_docked_reel_is_a_band_on_a_phone(browser, tmp_path, width) -> None:  # noqa: F811
-    """Under 60rem the picture is an occupant of the band: the sheet is the window's
-    width, so no line of the page shows beside it, and its keys stand clear of a picture
-    too narrow to carry a row of them."""
-    got = docked(browser, tmp_path, {"width": width, "height": 844})
-    assert got["panel"]["left"] <= 1 and got["panel"]["right"] >= got["window"] - 1, got
-    picture = got["picture"]
-    for key in got["keys"]:
-        clear = key["right"] <= picture["left"] + 1 or key["left"] >= picture["right"] - 1
-        assert clear, f"{key['name']} is over the picture: {got}"
-
-
-def test_a_docked_reel_keeps_its_keys_in_the_panel(browser, tmp_path) -> None:  # noqa: F811
-    """The bar across the panel was written for the landscape dock's 20rem. On the
-    upright one "Full screen" ran off the edge with two keys under it."""
-    got = docked(browser, tmp_path, {"width": 1440, "height": 900})
-    assert len(got["keys"]) == 4, got
-    for key in got["keys"]:
-        assert key["left"] >= got["panel"]["left"] - 1, (key, got["panel"])
-        assert key["right"] <= got["panel"]["right"] + 1, (key, got["panel"])
-    ordered = sorted(got["keys"], key=lambda key: key["left"])
-    for before, after in zip(ordered, ordered[1:], strict=False):
-        assert before["right"] <= after["left"] + 1, f"two keys overlap: {before} {after}"
 
 
 @pytest.mark.parametrize("film", ["reel.webm", "film.webm"])
-def test_watching_keeps_a_real_film_in_the_window(browser, tmp_path, film) -> None:  # noqa: F811
-    """The picture, the keys and the transport are all on the screen, at every size a
-    reader holds — a phone both ways up, a tablet, a laptop, and a laptop window that is
-    short, which is where a landscape film overflowed the same way."""
+@pytest.mark.parametrize("view", ["beside", "theatre"])
+def test_the_picture_and_its_controls_stay_in_the_window(
+    browser,  # noqa: F811
+    tmp_path,
+    film,
+    view,
+) -> None:
+    """The picture and the row under it are on the screen, at every size a reader holds —
+    a phone both ways up, a tablet, a laptop, and a laptop window that is short — whichever
+    way the picture stands (targum-internal#422). It was the full-screen mode that
+    overflowed before: a grid track sized by a film at the importer's size."""
     built = video_reader(tmp_path, film=film)
     for size in WINDOWS:
         context, page = open_reader(browser, built, viewport=size)
         try:
+            page.evaluate(f"() => localStorage.setItem('targum:film-view', '{view}')")
+            page.reload()
+            page.wait_for_selector("#video:not([hidden])")
             page.wait_for_function(
                 "() => document.getElementById('video').style.cssText.includes('--film')"
             )
-            watch(page)
             page.wait_for_timeout(150)
             got = page.evaluate(LAID_OUT)
         finally:
             context.close()
-        for name in ("picture", "transport", "keys"):
+        for name in ("picture", "controls"):
             seen = got[name]
-            assert seen["left"] >= -1 and seen["top"] >= -1, (film, size, name, got)
-            assert seen["right"] <= got["window"]["right"] + 1, (film, size, name, got)
-            assert seen["bottom"] <= got["window"]["bottom"] + 1, (film, size, name, got)
+            assert seen["left"] >= -1 and seen["top"] >= -1, (film, view, size, name, got)
+            assert seen["right"] <= got["window"]["right"] + 1, (film, view, size, name, got)
+            assert seen["bottom"] <= got["window"]["bottom"] + 1, (film, view, size, name, got)
+        # The row is as wide as the picture it plays, and stands under it.
+        assert got["controls"]["top"] >= got["picture"]["bottom"] - 1, (film, view, size, got)
 
 
-BESIDE = """
-() => {
-  const rect = (s) => {
-    const r = document.querySelector(s).getBoundingClientRect();
-    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-  };
-  const keys = document.querySelector('#video .video-keys');
-  return {
-    picture: rect('#video .video-el'),
-    tap: rect('#video .video-tap'),
-    transport: rect('#video .player'),
-    line: rect('#video .video-titles'),
-    keys: rect('#video .video-keys'),
-    keysGround: getComputedStyle(keys).backgroundColor,
-  };
-}
-"""
-
-
-@pytest.mark.parametrize("size", [(667, 375), (844, 390), (1024, 768), (1440, 900)])
-def test_an_upright_film_in_a_wide_window(browser, tmp_path, size) -> None:  # noqa: F811
-    """A reel held to a landscape window's height is a column with a letterbox each side
-    wider than itself, and the line and the transport were both laid across that column:
-    on a phone turned sideways they covered two thirds of the picture. They stand beside
-    it, and the tap that plays is the picture's own size."""
-    built = video_reader(tmp_path, spans=[[0.05, 0.95]], film="reel.webm")
-    context, page = open_reader(browser, built, viewport={"width": size[0], "height": size[1]})
+@pytest.mark.parametrize("width", [320, 390, 768])
+def test_an_upright_film_on_a_phone_is_held_under_half_the_window(
+    browser,  # noqa: F811
+    tmp_path,
+    width,
+) -> None:
+    """On a phone the picture stands above its transcript, the window's width — and a
+    reel at the window's width is a column of film taller than the window, so it is held
+    to under half of it and stands in the middle, with the transcript under it."""
+    built = video_reader(tmp_path, film="reel.webm", lines=12)
+    context, page = open_reader(browser, built, viewport={"width": width, "height": 844})
     try:
         page.wait_for_function("() => document.getElementById('video').classList.contains('tall')")
-        watch(page)
-        page.evaluate("() => { document.querySelector('#video video').currentTime = 0.5; }")
-        page.wait_for_selector("#video .video-titles.saying")
-        got = page.evaluate(BESIDE)
+        page.wait_for_timeout(150)
+        got = page.evaluate(LAID_OUT)
     finally:
         context.close()
-    picture = got["picture"]
-    for name in ("transport", "line", "keys"):
-        seen = got[name]
-        beside = seen["right"] <= picture["left"] + 1 or seen["left"] >= picture["right"] - 1
-        assert beside, f"the {name} is on the picture: {got}"
-    for edge in ("top", "bottom", "left", "right"):
-        assert abs(got["tap"][edge] - picture[edge]) < 2, f"the tap is the picture: {got}"
-    assert got["keysGround"] == "rgba(0, 0, 0, 0)", f"no box behind the keys: {got}"
+    assert got["panel"]["left"] <= 1 and got["panel"]["right"] >= got["window"]["right"] - 1, got
+    assert got["picture"]["height"] <= 844 * 0.46, got
+    assert got["picture"]["height"] > got["picture"]["width"], got
+    middle = (got["picture"]["left"] + got["picture"]["right"]) / 2
+    assert abs(middle - got["window"]["right"] / 2) < 3, f"it stands in the middle: {got}"
 
 
 BEFORE_IT_LOADS = """

@@ -19,6 +19,8 @@ const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 const stored = {};
 if (payload.follows) stored["targum:follows"] = JSON.stringify(payload.follows);
 if (payload.seen) stored["targum:series-seen"] = JSON.stringify(payload.seen);
+// The calendar this reader keeps, which the week's portion is asked for by (#411).
+if (payload.schedule) stored["targum:schedule"] = payload.schedule;
 install({ TARGUM_KEY: "k", stored });
 // The day the fixtures were written about, so "new for a week" is decided by them and
 // not by the day the suite happens to run.
@@ -41,12 +43,13 @@ global.fetch = (url, options) => {
   return Promise.resolve({ ok: true, json: () => Promise.resolve({ series: payload.series || [] }) });
 };
 
-const section = document.getElementById("subscriptions");
-section.hidden = true;
-const host = document.getElementById("series");
+const host = document.getElementById("home-series");
 require(path.join(assets, "follow.js"));
 
 (async () => {
+  // As home's Subscriptions tab draws them (`yours.js`).
+  const named = await global.window.TargumFollow.list();
+  global.window.TargumFollow.draw(host, named);
   for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
   const rowOf = (id) => host.children.find((li) => li.attrs["data-series"] === id);
   for (const step of payload.do || []) {
@@ -56,7 +59,7 @@ require(path.join(assets, "follow.js"));
   process.stdout.write(
     JSON.stringify({
       asked,
-      shown: !section.hidden,
+      shown: named.length > 0,
       rows: host.children.map((li) => {
         const by = (cls) => li.querySelector("." + cls);
         return {

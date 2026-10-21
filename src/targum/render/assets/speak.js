@@ -82,7 +82,7 @@
         say(mic, t("speak.stop", "Stop"), "stop");
       },
       function () {
-        onFail(t("speak.no-microphone", "We couldn't open the microphone. Check that your browser allows it."));
+        onFail(t("speak.no-microphone", "We couldn't open the microphone. Allow it for targum in your browser."));
       }
     );
     return true;

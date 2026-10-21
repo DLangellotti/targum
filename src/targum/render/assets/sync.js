@@ -321,6 +321,63 @@
     return touched;
   }
 
+  /* Where the reader left off in each text (targum-internal#430): the part, the sentence
+     in front of them and the second of its recording, one record a text. `reader.js`
+     writes it through `api.place` as the reader reads; it travels as one row a text, and
+     the newer record wins in both directions, so the device read on last is the one that
+     says where Continue goes. Kept here rather than only on the account so a reader who
+     is signed out still has a Continue, and capped so the store does not grow for every
+     text ever opened. */
+  var PLACES = "targum:places"; // { hash: { section, path, segment, seconds, at } }
+  var PLACES_KEPT = 100;
+
+  function localPlaces(since) {
+    var places = read(PLACES, "{}");
+    var out = [];
+    Object.keys(places).forEach(function (hash) {
+      var place = places[hash] || {};
+      var when = Number(place.at || 0);
+      if (when <= since) return;
+      out.push({
+        hash: hash,
+        section: String(place.section || ""),
+        path: place.path || "",
+        segment: place.segment || "",
+        seconds: Number(place.seconds || 0),
+        at: when,
+        seen: when,
+      });
+    });
+    return out;
+  }
+
+  function applyPlaces(rows) {
+    var places = read(PLACES, "{}");
+    var touched = false;
+    rows.forEach(function (row) {
+      if (!row.hash) return;
+      var mine = Number((places[row.hash] || {}).at || 0);
+      if (row.gone) {
+        if (mine && Number(row.seen || 0) > mine) {
+          delete places[row.hash];
+          touched = true;
+        }
+        return;
+      }
+      if (Number(row.at || 0) <= mine) return;
+      places[row.hash] = {
+        section: String(row.section || ""),
+        path: row.path || "",
+        segment: row.segment || "",
+        seconds: Number(row.seconds || 0),
+        at: Number(row.at),
+      };
+      touched = true;
+    });
+    if (touched) write(PLACES, places);
+    return touched;
+  }
+
   // Every day this browser knows about, or just today.
   //
   // The other collectors filter on `since` by comparing each record's own `seen` stamp
@@ -690,6 +747,69 @@
    */
   var KEEP = [];
 
+  /* The second copy of the same record, emptied the same way (2026-10-10).
+   *
+   * A reader mirrors every write into IndexedDB (`durable.js`), and sign-out happens on
+   * a page that is not a reader, where `targumForget` is `keep.js`'s and knows only
+   * `localStorage`. So the shelf outlived every sign-out, and the next reader opened put
+   * the last account's words, deletes and `targum:sync` back over whoever had signed in
+   * since: David's own account drawn empty from a test account's emptied list, until
+   * sync saw the email did not match and pulled everything again.
+   *
+   * Resolves once the shelf has committed, or after a second whatever happened: the
+   * page goes on to navigate, and a sign-out held hostage by a wedged database is worse
+   * than the reader's own check (`durable.js`) catching what this missed. */
+  var SHELF_DB = "targum";
+  var SHELF = "kept";
+
+  function clearShelf() {
+    return new Promise(function (done) {
+      var finished = false;
+      function finish() {
+        if (finished) return;
+        finished = true;
+        done();
+      }
+      setTimeout(finish, 1000);
+      var ask;
+      try {
+        ask = indexedDB.open(SHELF_DB, 1);
+      } catch (e) {
+        return finish();
+      }
+      ask.onupgradeneeded = function () {
+        if (!ask.result.objectStoreNames.contains(SHELF)) ask.result.createObjectStore(SHELF);
+      };
+      ask.onerror = finish;
+      ask.onsuccess = function () {
+        var db = ask.result;
+        var deal;
+        try {
+          deal = db.transaction(SHELF, "readwrite");
+        } catch (e) {
+          db.close();
+          return finish();
+        }
+        var store = deal.objectStore(SHELF);
+        var listed = store.getAllKeys();
+        listed.onsuccess = function () {
+          listed.result.forEach(function (name) {
+            name = String(name);
+            if (name.indexOf("targum:") === 0 && KEEP.indexOf(name) < 0) store.delete(name);
+          });
+        };
+        deal.oncomplete = function () {
+          db.close();
+          finish();
+        };
+        deal.onerror = deal.onabort = function () {
+          db.close();
+          finish();
+        };
+      };
+    });
+  }
+
   function clearLocal() {
     var doomed = [];
     try {
@@ -698,17 +818,101 @@
         if (name && name.indexOf("targum:") === 0 && KEEP.indexOf(name) < 0) doomed.push(name);
       }
     } catch (e) {
-      return;
+      return Promise.resolve();
     }
     doomed.forEach(drop);
+    // And the texts saved for offline: they are the reader's own as much as the words
+    // are. Waited on as the shelf is, and for no longer than it: a film takes a moment
+    // to delete, and the next page must not be held for one.
+    var offline = null;
+    try {
+      if (window.TargumOffline) offline = window.TargumOffline.removeAll();
+    } catch (e) {}
+    var capped = new Promise(function (done) {
+      setTimeout(done, 1500);
+      Promise.resolve(offline).then(done, done);
+    });
+    return Promise.all([clearShelf(), capped]).then(function () {});
   }
 
-  function exchange(full) {
+  /* A page still running for somebody who is no longer signed in here: another tab
+   * signed out and in again as somebody else, so `localStorage` and the session cookie
+   * are the new account's while this page holds the old one's in memory. Nothing it has
+   * may go up — it would land in the new account — so it is drawn again as the
+   * account that is here now. Once per page. */
+  var reloading = false;
+  function anotherAccount() {
+    if (reloading) return;
+    reloading = true;
+    api.who = null;
+    try {
+      location.reload();
+    } catch (e) {}
+  }
+
+  /* How often a place goes up while somebody reads: at most once every half minute,
+   * and once more as the page is hidden or left. A scroll settles every second or so and
+   * a recording moves every five, so pushing each one would be a request a second for as
+   * long as somebody reads; the browser has the place to the second regardless, and the
+   * account only needs it by the time the reader picks up another device — which is
+   * after this one has been put down, and putting it down is the push that matters. */
+  var PLACE_EVERY = 30 * 1000;
+  var placeTimer = null;
+  var placeOwed = false;
+  var placeWatching = false;
+
+  function placeNow(leaving) {
+    if (placeTimer) {
+      clearTimeout(placeTimer);
+      placeTimer = null;
+    }
+    if (!placeOwed || !api.who) return;
+    // On the way out the page will not wait for a reply, so a push already in flight is
+    // no reason to hold this one back: the merge keeps the newer of the two either way.
+    if (busy && !leaving) {
+      again = true;
+      return;
+    }
+    exchange(false, leaving);
+  }
+
+  function placeSoon() {
+    placeOwed = true;
+    // Listened for from the first place onwards, not from load: the reader writes its
+    // last place from its own `pagehide`, registered before this, and listeners run in
+    // the order they were added — so this one finds that place already written.
+    if (!placeWatching) {
+      placeWatching = true;
+      window.addEventListener("pagehide", function () {
+        placeNow(true);
+      });
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "hidden") placeNow(true);
+      });
+    }
+    if (!api.who || placeTimer) return;
+    placeTimer = setTimeout(function () {
+      placeTimer = null;
+      placeNow(false);
+    }, PLACE_EVERY);
+  }
+
+  function exchange(full, leaving) {
+    // Whatever place is owed rides on this push, whichever page asked for it.
+    placeOwed = false;
     var was = state();
+    if (api.who && was.email !== api.who.email) {
+      anotherAccount();
+      return Promise.resolve(false);
+    }
     var since = full ? 0 : Number(was.pushed || 0);
     var mark = Date.now();
     var dead = tombstones(since);
     var body = {
+      // Whose record this is, as this page knows it: the account refuses a push meant
+      // for anybody but whoever the cookie says, which is what keeps a page left open
+      // from before a change of account from writing into the new one.
+      who: was.email || "",
       since: full ? 0 : Number(was.revision || 0),
       words: localWords(since).concat(dead.words),
       meanings: localMeanings(since).concat(dead.meanings),
@@ -716,9 +920,10 @@
       docs: localDocs(since),
       days: localDays(since),
       sections: localSections(since).concat(dead.sections),
+      places: localPlaces(since),
     };
     busy = true;
-    return ask("/sync", body)
+    return ask("/sync", body, !!leaving)
       .then(function (answer) {
         busy = false;
         if (!answer || answer.signedIn === false) return false;
@@ -735,6 +940,7 @@
         // afterwards is what keeps a chapter from being dropped by a title arriving.
         changed = applySections(answer.sections || []) || changed;
         changed = applyDays(answer.days || []) || changed;
+        changed = applyPlaces(answer.places || []) || changed;
         write(STATE, { email: was.email, revision: answer.revision, pushed: mark });
         if (again) {
           again = false;
@@ -742,15 +948,69 @@
         }
         return changed;
       })
-      .catch(function () {
+      .catch(function (error) {
         busy = false;
+        if (error && error.message === "409") {
+          anotherAccount();
+          return false;
+        }
         // Offline, or the server went away. The browser keeps working from its own
         // store and everything unsent is still unsent, because `pushed` did not move.
         return false;
       });
   }
 
+  /* The account that answered, taken in: what it reads and learns, the rung it named,
+   * its language, and then its record. `asked` is the language this page started on, so
+   * a press made while the account was answering is not undone by the answer. */
+  function adopt(me, asked) {
+    write(READS, me.reads || []);
+    write(LEARNING, me.learning || []);
+    // The rung they named on arrival, a plain string, for the Library's first band
+    // on a browser that never drew the arrival (targum-internal#306, 2026-09-19).
+    // Adopted and never cleared from here, as Learn does with the subjects.
+    if (me.declared) {
+      try {
+        targumKeep("targum:declared", String(me.declared));
+      } catch (e) {}
+    }
+    // The language chosen on another device, for the next page this one opens. Not
+    // the page already drawn: redrawing under somebody's hand is worse than one
+    // page in the language they last saw here.
+    //
+    // And not over a press made on this page while the account was answering: the
+    // account's answer is from before it, and would put the reader back where they
+    // just left (2026-09-14).
+    //
+    // And not over a language this page arrived carrying, from the corner of a text
+    // (design.md §12, 2026-10-07): that is a press too, made one page ago, and the
+    // account is told of it now that there is somebody to tell — with leave to turn
+    // the language on, because the text may be the first thing they have in it.
+    var carried =
+      window.TargumLang && typeof window.TargumLang.carried === "function"
+        ? window.TargumLang.carried()
+        : "";
+    if (carried) {
+      api.language(carried, true);
+    } else if (me.language && local("targum:language") === asked) {
+      try {
+        localStorage.setItem("targum:language", me.language);
+      } catch (e) {}
+    }
+    var fresh = !state().email;
+    write(STATE, {
+      email: me.email,
+      revision: fresh ? 0 : state().revision,
+      pushed: fresh ? 0 : state().pushed,
+    });
+    // First sync on this browser sends everything: whatever was kept while
+    // signed out is claimed by the account rather than stranded.
+    return exchange(fresh);
+  }
+
   /* --- what the pages call -------------------------------------------------- */
+
+  var started = null;
 
   var api = {
     // Called by a page that wants to know when the account handed it something.
@@ -761,6 +1021,15 @@
     // Whoever is signed in, or null. Resolved once and reused.
     who: null,
 
+    // Whether the first start reached the account and finished: false while it is asked,
+    // and after a refusal or a dropped connection.
+    reached: false,
+
+    // True once the server has said this browser is signed out where an account is
+    // needed: hosted, or a machine with an account on it. A fresh install with nobody to
+    // sign into is never signed out, and works as it did.
+    signedOut: false,
+
     /* Which room they read in. On the account rather than in this browser, and for a
        blunt reason: `clearLocal()` below deletes every `targum:*` key on
        sign-out, on purpose, so a local preference would be forgotten every time somebody
@@ -768,49 +1037,29 @@
 
     start: function () {
       var asked = local("targum:language");
-      return ask("/account/me")
+      var going = ask("/account/me")
         .then(function (me) {
           api.who = me && me.signedIn ? me : null;
+          api.signedOut = !api.who && !!(me && me.signedOut);
           if (!api.who) return false;
-          write(READS, me.reads || []);
-          write(LEARNING, me.learning || []);
-          // The rung they named on arrival, a plain string, for the Library's first band
-          // on a browser that never drew the arrival (targum-internal#306, 2026-09-19).
-          // Adopted and never cleared from here, as Learn does with the subjects.
-          if (me.declared) {
-            try {
-              targumKeep("targum:declared", String(me.declared));
-            } catch (e) {}
-          }
-          // The language chosen on another device, for the next page this one opens. Not
-          // the page already drawn: redrawing under somebody's hand is worse than one
-          // page in the language they last saw here.
-          //
-          // And not over a press made on this page while the account was answering: the
-          // account's answer is from before it, and would put the reader back where they
-          // just left (2026-09-14).
-          if (me.language && local("targum:language") === asked) {
-            try {
-              localStorage.setItem("targum:language", me.language);
-            } catch (e) {}
-          }
           var was = state();
+          // Another person signed in on this browser. Nothing of theirs is mixed in
+          // with what is already here, and none of what is here goes up with it. First,
+          // before anything of the new account is written: swept after, it took the
+          // languages they read with it.
           if (was.email && was.email !== me.email) {
-            // Another person signed in on this browser. Nothing of theirs is mixed in
-            // with what is already here, and none of what is here goes up with it.
-            clearLocal();
+            return clearLocal().then(function () {
+              // Swept with the rest: what this page arrived holding was theirs.
+              return adopt(me, "");
+            });
           }
-          var fresh = !state().email;
-          write(STATE, {
-            email: me.email,
-            revision: fresh ? 0 : state().revision,
-            pushed: fresh ? 0 : state().pushed,
-          });
-          // First sync on this browser sends everything: whatever was kept while
-          // signed out is claimed by the account rather than stranded.
-          return exchange(fresh);
+          return adopt(me, asked);
         })
         .then(function (changed) {
+          // The account answered and this browser holds what it said (Your Words QA,
+          // 2026-10-20): a page with nothing in this browser can tell an empty list from
+          // one it could not fetch.
+          api.reached = true;
           announce(!!changed);
           return changed;
         })
@@ -818,6 +1067,67 @@
           announce(false);
           return false;
         });
+      started = going;
+      return going;
+    },
+
+    /* The first start's answer, for a page that must not say "nothing yet" before the
+       account has had its say: signing in on an empty browser is the new phone, and
+       everything is about to arrive. Resolves with whether anything did. */
+    settled: function () {
+      return started || api.start();
+    },
+
+    /* Whether a page may ask the account's own routes on its own — `/jobs`, a chat's
+       list, `/offline.json`, `/voice`, a chapter fetched ahead — once the account has had
+       its say. Signed out each answered 401 or 403 and the console logged it on every
+       reader and series page (QA 2026-10-11). A press is still sent: what it is refused
+       with is what the reader is told. */
+    mayAsk: function () {
+      return api.settled().then(
+        function () {
+          return !api.signedOut;
+        },
+        function () {
+          return true;
+        }
+      );
+    },
+
+    /* How many changes this browser holds that the account has not had: what the
+       connection's banner counts while there is none (design.md §12, 2026-10-09). The
+       same rows a push would send, counted rather than sent. Nothing for somebody who
+       has never signed in here, whose browser is the whole of the record. */
+    owed: function () {
+      var was = state();
+      if (!was.email) return 0;
+      var since = Number(was.pushed || 0);
+      var dead = tombstones(since);
+      return (
+        localWords(since).length +
+        localMeanings(since).length +
+        localPhrases(since).length +
+        localDocs(since).length +
+        localDays(since).length +
+        localSections(since).length +
+        localPlaces(since).length +
+        dead.words.length +
+        dead.meanings.length +
+        dead.phrases.length +
+        dead.sections.length
+      );
+    },
+
+    /* Everything owed, now: what the connection coming back asks for. A page that was
+       opened with no connection never heard who is signed in, so it asks first, and
+       the first exchange after that sends whatever was kept meanwhile. Resolves once
+       the push has been answered, or has failed. */
+    flush: function () {
+      if (!api.who) return api.start();
+      clearTimeout(pending);
+      // Even with one in flight: the merge keeps the newer of the two either way, and
+      // the band that waits on this should not wait on a push it did not start.
+      return exchange(false);
     },
 
     // After any local change. Batched, because marking five words in a sentence is
@@ -832,6 +1142,80 @@
       pending = setTimeout(function () {
         exchange(false);
       }, 1200);
+    },
+
+    /* Where the reader is in a text, as they read it (targum-internal#430). `fields` is
+       any of `section`, `path`, `segment` and `seconds`; what it leaves out is kept,
+       except that a different part starts at its own top. Written to this browser at
+       once, signed in or out, and pushed on the half-minute rule above. A call that
+       moves nothing writes nothing, so a reader sitting still sends nothing. */
+    place: function (hash, fields) {
+      if (!hash || !fields) return;
+      var all = read(PLACES, "{}");
+      var was = all[hash] || {};
+      var section = fields.section !== undefined ? String(fields.section) : String(was.section || "");
+      var moved = section !== String(was.section || "");
+      function kept(name, empty) {
+        if (fields[name] !== undefined) return fields[name];
+        return moved ? empty : was[name] === undefined ? empty : was[name];
+      }
+      var next = {
+        section: section,
+        path: String(kept("path", "")),
+        segment: String(kept("segment", "")),
+        seconds: Math.round((Number(kept("seconds", 0)) || 0) * 100) / 100,
+        // Past the last push's watermark, always: a place written in the millisecond an
+        // exchange began would otherwise sit at the mark and never be sent.
+        at: Math.max(Date.now(), Number(state().pushed || 0) + 1),
+      };
+      if (
+        all[hash] &&
+        next.section === String(was.section || "") &&
+        next.path === String(was.path || "") &&
+        next.segment === String(was.segment || "") &&
+        next.seconds === Number(was.seconds || 0)
+      ) {
+        return;
+      }
+      all[hash] = next;
+      Object.keys(all)
+        .sort(function (a, b) {
+          return Number(all[b].at || 0) - Number(all[a].at || 0);
+        })
+        .slice(PLACES_KEPT)
+        .forEach(function (stale) {
+          delete all[stale];
+        });
+      write(PLACES, all);
+      placeSoon();
+    },
+
+    // Where the reader left off in one text, as this browser has it, or null.
+    placeOf: function (hash) {
+      var place = read(PLACES, "{}")[hash];
+      return place ? place : null;
+    },
+
+    // The last `n` texts the reader was in, newest first, as this browser has them: what
+    // home's Continue falls back to for somebody signed out.
+    places: function (n) {
+      var all = read(PLACES, "{}");
+      return Object.keys(all)
+        .map(function (hash) {
+          var place = all[hash] || {};
+          return {
+            hash: hash,
+            section: String(place.section || ""),
+            path: place.path || "",
+            segment: place.segment || "",
+            seconds: Number(place.seconds || 0),
+            at: Number(place.at || 0),
+          };
+        })
+        .sort(function (a, b) {
+          return b.at - a.at;
+        })
+        .slice(0, n || 5);
     },
 
     // A word or phrase taken off the list. Recorded even when signed out, so that
@@ -884,10 +1268,12 @@
     signOut: function () {
       return ask("/account/sign-out", {}).then(function () {
         // The point of signing out is that the next person to open this browser is
-        // shown nothing. Leaving the words behind would defeat the whole exercise.
-        clearLocal();
+        // shown nothing. Leaving the words behind would defeat the whole exercise —
+        // in either copy, and before the page that called this moves on.
         api.who = null;
-        return true;
+        return clearLocal().then(function () {
+          return true;
+        });
       });
     },
   };
@@ -910,13 +1296,26 @@
 
   // The language menu's press, kept on the account (2026-09-13). Nothing for somebody
   // signed out: the browser keeps it, as it always did.
-  api.language = function (code) {
+  //
+  // `add` turns the language on where the account has not ticked it, for a text left by
+  // its corner (2026-10-07); the menu itself never asks for that. The answer carries the
+  // account's list, mirrored here so the next page offers what was turned on.
+  api.language = function (code, add) {
     if (!api.who || !code) return Promise.resolve(null);
+    var body = add ? { language: code, add: true } : { language: code };
     // Kept alive: the conversation reloads on the press, and a request cut off by the
     // page going left the account in the old language, which the next page then took.
-    return ask("/account/language", { language: code }, true).catch(function () {
-      return null;
-    });
+    return ask("/account/language", body, true)
+      .then(function (answer) {
+        if (answer && answer.learning && answer.learning.length) {
+          write(LEARNING, answer.learning);
+          if (api.who) api.who.learning = answer.learning;
+        }
+        return answer;
+      })
+      .catch(function () {
+        return null;
+      });
   };
 
   /* A language to build into that this account will actually be allowed. What somebody

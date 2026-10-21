@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import os
 import socket
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -108,6 +109,16 @@ def isolated_cache(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest
 
 
 @pytest.fixture(autouse=True)
+def ledger_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The corpus ledger is off unless a test turns it on (targum-internal#162).
+
+    Read from the environment like the shelves below, so a shell that has it exported
+    would otherwise have every build in the suite writing rows into the real file.
+    """
+    monkeypatch.delenv("TARGUM_LEDGER", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
     """The public catalogue is off unless a test says otherwise.
 
@@ -116,6 +127,44 @@ def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
     tests fail with no hint as to why. The suite decides this, not the shell.
     """
     monkeypatch.delenv("TARGUM_PUBLIC_SHELVES", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def nothing_described_yet(monkeypatch: pytest.MonkeyPatch):
+    """Every test starts with no video link remembered and no Data API key (2026-10-06).
+
+    `video/remembered.py` keeps what a link was found to be for an hour, in-process, so
+    without this a test that describes `youtu.be/abc123` would be answered by whatever
+    the test before it was told — and pass or fail in an order nobody chose. And a shell
+    under `op run` has the YouTube key exported, which would send every YouTube lookup in
+    the suite to Google first; the tests that mean to ask the API set a key of their own.
+    """
+    from targum.ingest.url import PAGES, SHUT
+    from targum.translate import anthropic_provider
+    from targum.video import youtube
+    from targum.video.remembered import DESCRIBED
+    from targum.weekly.feeds import HELD
+
+    monkeypatch.delenv(youtube.API_KEY_ENV, raising=False)
+    monkeypatch.setattr(youtube._REST, "until", 0.0)
+    DESCRIBED.clear()
+    # And no article page kept (`ingest.url.Pages`, 2026-10-06), for the same reason: a
+    # test that serves its own page at an address another test used must be read.
+    PAGES.clear()
+    # And no feed's full texts held and no host remembered as refusing (2026-10-07,
+    # `weekly.feeds.HELD`, `ingest.url.SHUT`): a test that follows a feed must be the one
+    # whose articles `page` reads from it.
+    HELD.clear()
+    SHUT.clear()
+    # And no body counted (`anthropic_provider._counted`): each test's stand-in for the
+    # counting endpoint answers its own way.
+    anthropic_provider._counted.clear()
+    yield
+    DESCRIBED.clear()
+    PAGES.clear()
+    HELD.clear()
+    SHUT.clear()
+    anthropic_provider._counted.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -158,6 +207,115 @@ def free_port() -> Callable[[], int]:
             return int(sock.getsockname()[1])
 
     return pick
+
+
+class Chromium:
+    """One Chromium for a file of browser tests, launched again if it has gone.
+
+    One a file rather than one a test, because launching is most of a browser test's
+    time. But a browser that dies in one test used to stay dead for the rest of the file:
+    every later test failed on `Browser.new_context` with an error about the one before
+    it, and a single crash read as a file of failures (targum-internal#427, 2026-10-07).
+    So each test asks for it, and gets the same one only while it is still connected.
+    """
+
+    def __init__(self) -> None:
+        self._driver: Any = None
+        self._running: Any = None
+
+    def browser(self) -> Any:
+        if self._running is not None and self._running.is_connected():
+            return self._running
+        if self._driver is None:
+            from playwright.sync_api import sync_playwright
+
+            try:
+                self._driver = sync_playwright().start()
+            except Exception as why:  # pragma: no cover - environment, not behaviour
+                pytest.skip(f"Playwright will not start: {why}")
+        try:
+            # Muted, because a dialogue's tests watch the media clock and Chromium will
+            # not advance an unmuted one with no audio device under it — it reports
+            # playing and sits at zero. Nothing here listens; what is asserted is the clock.
+            self._running = self._driver.chromium.launch(args=["--mute-audio"])
+        except Exception as why:  # pragma: no cover - the browser itself is not installed
+            pytest.skip(f"no Chromium: run `playwright install chromium` ({why})")
+        return self._running
+
+    def close(self) -> None:
+        if self._running is not None and self._running.is_connected():
+            self._running.close()
+        if self._driver is not None:
+            self._driver.stop()
+
+
+def _answering_desk_files(handler: Callable[..., Any]) -> Callable[..., Any]:
+    """A route handler that answers `/assets/<name>.<hash>.<ext>` as `targum serve` does,
+    and hands every other request to `handler` as Playwright would have.
+
+    A desk page names its stylesheets and scripts by address since 2026-10-18 (design.md
+    §12, "A desk page loads its files once and keeps them"). A browser test serves its
+    page from a made-up origin through a route, and each route answers what the test is
+    about and nothing else, so without this every desk page in a browser test would load
+    without its files. Answered from `asset_files()`, the server's own map, so the page
+    under test runs exactly the files it names, by the addresses it names them at."""
+    import inspect
+    from urllib.parse import urlparse
+
+    from targum.render.builder import asset_files
+
+    parameters = inspect.signature(handler).parameters.values()
+    takes = (
+        2
+        if any(parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in parameters)
+        else sum(
+            parameter.kind
+            in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            for parameter in parameters
+        )
+    )
+
+    def answering(route: Any, request: Any) -> Any:
+        found = asset_files().get(urlparse(request.url).path)
+        if found is not None:
+            body, kind, _ = found
+            return route.fulfill(status=200, content_type=kind, body=body)
+        return handler(*(route, request)[:takes])
+
+    return answering
+
+
+@pytest.fixture(autouse=True, scope="session")
+def desk_files_in_routed_browsers() -> Iterator[None]:
+    """Every `route` a browser test sets answers the desk's files (`_answering_desk_files`)."""
+    try:
+        from playwright.sync_api import BrowserContext, Page
+    except ImportError:  # pragma: no cover - no browser tests without it
+        yield
+        return
+    originals = {kind: kind.route for kind in (Page, BrowserContext)}
+
+    def wrapped(original: Callable[..., Any]) -> Callable[..., Any]:
+        def route(self: Any, url: Any, handler: Callable[..., Any], **options: Any) -> Any:
+            return original(self, url, _answering_desk_files(handler), **options)
+
+        return route
+
+    for kind, original in originals.items():
+        kind.route = wrapped(original)  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        for kind, original in originals.items():
+            kind.route = original  # type: ignore[method-assign]
+
+
+@pytest.fixture(scope="module")
+def chromium() -> Iterator[Chromium]:
+    """The file's Chromium, for `test_reader_browser.browser` and the files importing it."""
+    holder = Chromium()
+    yield holder
+    holder.close()
 
 
 @pytest.fixture(autouse=True)
@@ -284,9 +442,9 @@ def needs_dicta_model() -> None:
     Checked as a directory rather than by loading, because loading it on a box that does
     not have it would fetch 700 MB from a test.
     """
-    from targum.paths import model_dir
+    from targum.paths import hf_home
 
-    weights = model_dir() / "hf" / "hub" / "models--dicta-il--dictabert-joint"
+    weights = hf_home() / "hub" / "models--dicta-il--dictabert-joint"
     if not weights.is_dir():
         pytest.skip("DICTA not downloaded: run `targum models fetch he`")
 

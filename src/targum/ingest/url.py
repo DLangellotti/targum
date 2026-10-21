@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+import html as html_module
 import ipaddress
+import json
+import logging
 import os
 import re
 import socket
 import threading
 import time
+from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from ..errors import TargumError, Unreachable
-from ..models import Document
+from ..models import BlockKind, Document
 from .base import (
     Paragraph,
     blocks_from_paragraphs,
@@ -23,6 +28,8 @@ from .base import (
     with_front_matter,
 )
 from .htmltext import paragraphs_from_html
+
+log = logging.getLogger(__name__)
 
 #: What targum is, kept for the record and for `robots.txt` — but no longer what the
 #: wire sees. Decided 2026-09-08: the door presents a browser, fingerprint and
@@ -80,7 +87,7 @@ def _reachable(url: str) -> None:
     if parsed.scheme not in ("http", "https"):
         raise TargumError(
             f"We only read web pages, and {url} isn't one.",
-            "Paste an http:// or https:// address, or drop in a file.",
+            "Paste a link to a web page, or upload a file.",
             key="fetch.not-a-web-page",
             url=url,
         )
@@ -105,8 +112,8 @@ def _reachable(url: str) -> None:
         # multicast in one check, on both IPv4 and IPv6.
         if not address.is_global:
             raise TargumError(
-                f"{host} is on a private network, so we won't fetch it.",
-                "Paste a public web address, or save the page and drop in the file.",
+                f"We can't open pages on {host}.",
+                "Save the page and upload the file.",
                 key="fetch.private-network",
                 host=host,
             )
@@ -130,7 +137,13 @@ class Fetched:
     raw: bytes = b""
     #: How it was got: `direct`, or `proxy` after a direct knock was refused. Recorded
     #: beside the host (`accounts.Store.reach`) so the memory of a shut door says which.
+    #: `feed` for an article read from its publisher's feed (`page`, 2026-10-07), which
+    #: is no knock on the host at all and so is never recorded as one.
     via: str = "direct"
+    #: The title and language the feed gave, set only where `via` is `feed`: a page
+    #: has its own `<title>`, and the feed knows the language its publisher writes in.
+    title: str = ""
+    language: str = ""
 
     @property
     def is_html(self) -> bool:
@@ -145,6 +158,25 @@ class Fetched:
 #: wrong. 5xx is counted as shut because the effect is the same — nothing opens — and a
 #: site that is down today is not worth offering a reader today.
 REFUSED = frozenset({401, 403, 407, 429, 451})
+
+
+#: The `server` a bot check answers from where it does not say `cf-mitigated`. Russian
+#: publishers sit behind their own vendors rather than Cloudflare, and they answer a
+#: client that runs no script with a status and an empty page that loads one. Measured
+#: 2026-10-06: www.rbc.ru answers every article with `401`, `server: QRATOR` and a
+#: 290-byte page that loads `/__qrator/…js` — not a sign-in wall, so it must not be
+#: called one, and the reader's account would not open it.
+CHALLENGE_SERVERS = ("qrator", "ddos-guard")
+
+
+def _challenged(response: Any) -> bool:
+    """Whether a refusal is a bot check: Cloudflare's header, or a vendor that says so in
+    `server`."""
+    headers = response.headers
+    if (headers.get("cf-mitigated") or "").lower() == "challenge":
+        return True
+    server = (headers.get("server") or "").lower()
+    return any(server.startswith(name) for name in CHALLENGE_SERVERS)
 
 
 def shut(error: Unreachable) -> bool:
@@ -236,7 +268,7 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
             target, params = urljoin(target, location), None
             continue
         if status >= 400:
-            challenge = (response.headers.get("cf-mitigated") or "").lower() == "challenge"
+            challenge = _challenged(response)
             response.close()
             if status == 401 and not challenge:
                 # A sign-in wall, named rather than counted (targum-internal#252). Only
@@ -247,8 +279,8 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
                 # there. Here the hint is a sentence and does travel: the way in is to
                 # paste the text, which is the whole point of naming the refusal.
                 raise Unreachable(
-                    f"{host} asks you to sign in, so we can't open it.",
-                    "Open it yourself and paste the text into the box instead.",
+                    f"{host} asks for a sign-in, so we can't open it.",
+                    "Copy the text and paste it here.",
                     status=status,
                     host=host,
                     challenge=challenge,
@@ -304,6 +336,15 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
     A fallback and not a route, which makes it selective by construction: a host only
     ever leaves through the proxy after a direct attempt refused it, so Gutenberg,
     Wikisource and every feed poll stay off a metered exit that none of them need.
+
+    The proxied knock is the same walk as the direct one (`_open`, `_read`): every hop
+    passes `_reachable` and the body stops at `MAX_BYTES`. What it costs is the page's
+    bytes on the wire, compressed: 43 KB for the median of sixteen Russian articles
+    measured 2026-10-06, 74 KB the largest, which at the residential exit's $1 a gigabyte
+    is a twentieth of a thousandth of a dollar a page.
+
+    Said in the log when it worked, by host alone — no path, no reader — so the box's
+    journal shows which hosts only open this way (2026-10-06).
     """
     try:
         return _read(url, params, via="direct")
@@ -311,7 +352,242 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
         proxy = _retry_through_proxy(url, error)
         if not proxy:
             raise
-        return _read(url, params, via="proxy", proxy=proxy)
+        got = _read(url, params, via="proxy", proxy=proxy)
+        log.info("fetched %s through the proxy", urlparse(url).hostname or "")
+        return got
+
+
+#: How long a page read through `page` is taken as what is there, in seconds.
+PAGE_KEEP_S = 600.0
+#: The most pages held at once, and the most bytes. A page is at most `MAX_BYTES` raw and
+#: about as much again decoded, so the byte bound is what holds; a news article is a few
+#: hundred kilobytes, and sixty-four megabytes is a busy hour's worth of them.
+PAGE_MOST = 64
+PAGE_MOST_BYTES = 64 * 1024 * 1024
+
+
+class Pages:
+    """Pages read through the door in the last ten minutes, by address (2026-10-06).
+
+    An article a host asks about was fetched four times before it was priced: by
+    `episode.find` in `describe_source`, to rule out a podcast page, then by
+    `describe_source` itself to count its words; and the same two again inside the
+    quote, by `episode.find` and the ingester. Each knock after the first on one host
+    also waited out `POLITE_S`. On the box on 2026-10-06 that was 1.6 s a describe and
+    most of a 4.1 s quote, for one page read four times within the minute.
+
+    **Only what came through the door.** A page is kept after `fetch` returned it, so it
+    passed the SSRF check at every hop and the size cap; a refusal is never kept, so a
+    shut host is knocked on again and `Store.reach` hears about it each time. The one
+    other thing kept is an article read from its feed in place of a page behind a bot
+    check (`page`, 2026-10-07), which came through the door as the feed did.
+
+    **Ten minutes**, because what is kept is what the reader is about to be quoted for
+    and then build: the quote prices the text it read, and a build pressed a few minutes
+    later reads the same text rather than a page edited in between, which is the text
+    they agreed to. A page asked about again after that is read fresh. Not a cache of
+    the web: feeds, robots and every other fetch go straight to `fetch`, and only the
+    three readers of one article page above come through here.
+
+    In-process, bounded by count and by bytes, the least recently asked dropped first.
+    """
+
+    def __init__(
+        self,
+        *,
+        keep_s: float = PAGE_KEEP_S,
+        most: int = PAGE_MOST,
+        most_bytes: int = PAGE_MOST_BYTES,
+        clock: Any = time.monotonic,
+    ) -> None:
+        self.keep_s = keep_s
+        self.most = most
+        self.most_bytes = most_bytes
+        self.clock = clock
+        self._lock = threading.Lock()
+        #: key -> (clock time it lapses, the page, its size)
+        self._held: OrderedDict[str, tuple[float, Fetched, int]] = OrderedDict()
+        self._bytes = 0
+
+    @staticmethod
+    def key(url: str) -> str:
+        """The address as the server sees it: scheme and host in lower case, no fragment."""
+        parsed = urlparse(url.strip())
+        return parsed._replace(
+            scheme=parsed.scheme.lower(), netloc=parsed.netloc.lower(), fragment=""
+        ).geturl()
+
+    def clear(self) -> None:
+        with self._lock:
+            self._held.clear()
+            self._bytes = 0
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._held)
+
+    def _drop(self, key: str) -> None:
+        held = self._held.pop(key, None)
+        if held is not None:
+            self._bytes -= held[2]
+
+    def held(self, url: str) -> Fetched | None:
+        """The page read through here within `keep_s`, or None."""
+        key = self.key(url)
+        with self._lock:
+            held = self._held.get(key)
+            if held is not None and self.clock() < held[0]:
+                self._held.move_to_end(key)
+                return held[1]
+            self._drop(key)
+        return None
+
+    def get(self, url: str) -> Fetched:
+        """`fetch(url)`, or the same page read through here within `keep_s`."""
+        held = self.held(url)
+        if held is not None:
+            return held
+        got = fetch(url)
+        self.keep(url, got)
+        return got
+
+    def keep(self, url: str, got: Fetched) -> None:
+        """Hold `got` as what is at `url` for `keep_s`: a page `fetch` returned, or an
+        article read from its feed (`page`)."""
+        key = self.key(url)
+        size = len(got.raw or b"") + len(got.text.encode("utf-8", errors="replace"))
+        if size > self.most_bytes:
+            return
+        with self._lock:
+            self._drop(key)
+            self._held[key] = (self.clock() + self.keep_s, got, size)
+            self._bytes += size
+            while self._held and (len(self._held) > self.most or self._bytes > self.most_bytes):
+                self._drop(next(iter(self._held)))
+
+
+PAGES = Pages()
+
+#: How long a host that refused a page is taken as refusing the next, in seconds, for
+#: `page`'s choice to read an article from its feed without knocking (2026-10-07). An
+#: hour: a bot check is the site's policy and does not lift by the minute, and a host
+#: that has lifted it is knocked on again after this.
+SHUT_KEEP_S = 3600.0
+
+
+class Shut:
+    """Hosts that refused this process lately, for `page` and nothing else (2026-10-07).
+
+    Not `accounts.Store.reached`, which this door cannot see: what a caller that holds a
+    store knows is handed in (`note`), and a refusal `page` meets itself is noted here.
+    Nothing is refused because of it — a link with no feed text behind it is knocked on
+    whatever this says.
+    """
+
+    def __init__(self, keep_s: float = SHUT_KEEP_S, clock: Any = time.monotonic) -> None:
+        self.keep_s = keep_s
+        self.clock = clock
+        self._lock = threading.Lock()
+        self._until: dict[str, float] = {}
+
+    def note(self, host: str) -> None:
+        with self._lock:
+            self._until[host.lower()] = self.clock() + self.keep_s
+
+    def knows(self, host: str) -> bool:
+        with self._lock:
+            until = self._until.get(host.lower())
+            if until is not None and self.clock() >= until:
+                del self._until[host.lower()]
+                return False
+            return until is not None
+
+    def clear(self) -> None:
+        with self._lock:
+            self._until.clear()
+
+
+SHUT = Shut()
+
+
+def remember_shut(url: str, closed: Callable[..., list[str]]) -> None:
+    """Hand `SHUT` what a store remembers of `url`'s host, where `url` is an article a
+    followed feed carries whole (2026-10-07).
+
+    `closed` is `accounts.Store.closed`, asked only for such a link, so describing or
+    quoting any other link costs no query. Without this, the first article of a shut host
+    after a restart is knocked on once before the feed is read; with it, not at all.
+    """
+    from ..weekly import feeds
+
+    if feeds.HELD.find(url) is None:
+        return
+    host = (urlparse(url).hostname or "").lower()
+    if host and host in closed(limit=500):
+        SHUT.note(host)
+
+
+def from_feed(url: str) -> Fetched | None:
+    """The article at `url` as its publisher's feed carries it, or None (2026-10-07).
+
+    None unless `url` is an item of a feed this box follows and that feed carries the
+    item's whole text (`weekly.feeds.HELD`, targum-internal#424). Handed back as a page
+    the article's readers already read — a `<title>` and a `<p>` a paragraph — so
+    `describe_source` counts it and the ingester builds it the way it would a fetched
+    article, and marked `via="feed"` so neither records it as a knock on the host.
+    """
+    import html
+
+    from ..weekly import feeds
+
+    held = feeds.HELD.find(url)
+    if held is None:
+        return None
+    item, language = held
+    body = "".join(f"<p>{html.escape(paragraph)}</p>" for paragraph in item.full_text.split("\n\n"))
+    lang = f' lang="{html.escape(language)}"' if language else ""
+    text = (
+        f'<!doctype html><html{lang}><head><meta charset="utf-8">'
+        f"<title>{html.escape(item.title)}</title></head><body>{body}</body></html>"
+    )
+    return Fetched(
+        text=text,
+        content_type="text/html; charset=utf-8",
+        via="feed",
+        title=item.title,
+        language=language,
+    )
+
+
+def page(url: str) -> Fetched:
+    """One page, read through the door and kept ten minutes (`Pages`). For an article's
+    readers — `describe_source`, `episode.find` and the ingester — and nobody else.
+
+    **Or read from its feed, where the page is behind a bot check** (2026-10-07,
+    targum-internal#424). www.rbc.ru answers every article with `401`,
+    `server: QRATOR` and a page that loads a script, which neither the direct door nor
+    the proxy runs, and its feed carries each article whole. Where `url` is a followed
+    feed's item with its full text (`from_feed`), a host known to refuse (`SHUT`) is not
+    knocked on at all, and a page that refuses when knocked is replaced by the feed's
+    text. Kept like any page, so the quote and the build after it read the same text.
+    Every other link is fetched exactly as it was, and a refusal of one is still raised.
+    """
+    held = PAGES.held(url)
+    if held is not None:
+        return held
+    standin = from_feed(url)
+    if standin is None:
+        return PAGES.get(url)
+    host = (urlparse(url).hostname or "").lower()
+    if not SHUT.knows(host):
+        try:
+            return PAGES.get(url)
+        except Unreachable as error:
+            if not shut(error):
+                raise
+            SHUT.note(host)
+    PAGES.keep(url, standin)
+    return standin
 
 
 def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "") -> Fetched:
@@ -501,12 +777,117 @@ def drop_link_languages(text: str) -> str:
     return _LINK_LANGUAGE.sub("", text).strip()
 
 
+# Where a page states its own article: schema.org's `articleBody`, in an ld+json script,
+# or — on a Next.js page, which writes its head from script — inside the JSON a
+# `self.__next_s.push` hands that script as `children`, a string of JSON in a string of
+# JSON. Maariv does the second (2026-10-14).
+_LD_SCRIPT = re.compile(r"<script[^>]*application/ld\+json[^>]*>(.*?)</script>", re.S | re.I)
+_LD_NEXT = re.compile(
+    r'"type"\s*:\s*"application/ld\+json"\s*,\s*"children"\s*:\s*"((?:[^"\\]|\\.)*)"'
+)
+
+#: How much of what a publisher says its article is an extraction may miss, and how
+#: much of an extraction may be text the publisher never called the article, before the
+#: publisher's own statement is read instead. Measured on 2026-10-14 over every news
+#: feed followed: where a page states an `articleBody`, Ynet, Israel Hayom, Mako and
+#: Haaretz all cover it whole, and Maariv covered between none and 79% of it — an
+#: article read as one paragraph of six, and a breaking-news flash read as nothing but
+#: the five other flashes listed under it.
+MAY_MISS = 0.1
+MAY_ADD = 0.5
+
+# The first letters of a paragraph identify it. Letters and digits only: a publisher's
+# `articleBody` and its page disagree about spacing, entities and punctuation — Mako's
+# drops every quotation mark and runs one paragraph into the next with no space — and
+# rarely about the words a sentence opens on.
+_KEY = 30
+_NOT_A_LETTER = re.compile(r"[\W_]+")
+
+
+def _flat(text: str) -> str:
+    return re.sub(r"\s+", " ", html_module.unescape(text)).strip()
+
+
+def _letters(text: str) -> str:
+    return _NOT_A_LETTER.sub("", html_module.unescape(text))
+
+
+def stated_body(html: str) -> str:
+    """The longest `articleBody` the page states, or "" where it states none."""
+    blobs = [match.group(1) for match in _LD_SCRIPT.finditer(html)]
+    for match in _LD_NEXT.finditer(html):
+        try:
+            blobs.append(json.loads(f'"{match.group(1)}"'))
+        except ValueError:
+            continue
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if isinstance(node.get("articleBody"), str):
+                found.append(node["articleBody"])
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    for blob in blobs:
+        try:
+            walk(json.loads(blob))
+        except ValueError:
+            continue
+    return max(found, key=len, default="")
+
+
+def article_paragraphs(html: str) -> list[Paragraph]:
+    """The article on a page: trafilatura's reading of it, unless the page says otherwise.
+
+    trafilatura decides what on the page is the article, and asking it for HTML rather
+    than text keeps the headings and paragraph boundaries. Where the page states its own
+    `articleBody` and the extraction has missed much of it, or is mostly something else,
+    the statement is read instead. Nothing compared the two before, and a reader opened
+    "Apple's new technology" on five unrelated headlines (2026-10-14).
+    """
+    import trafilatura
+
+    extracted: Any = trafilatura.extract(
+        html,
+        output_format="html",
+        include_comments=False,
+        include_tables=False,
+        include_formatting=False,
+        favor_recall=True,
+    )
+    paragraphs = paragraphs_from_html(extracted) if extracted else paragraphs_from_html(html)
+    stated = [_flat(line) for line in stated_body(html).split("\n") if line.strip()]
+    if not stated:
+        return paragraphs
+    read = _letters("".join(text for _, _, text in paragraphs))
+    whole = _letters("".join(stated))
+    missed = sum(len(line) for line in map(_letters, stated) if line[:_KEY] not in read)
+    added = sum(
+        len(own) for own in (_letters(text) for _, _, text in paragraphs) if own[:_KEY] not in whole
+    )
+    if missed > MAY_MISS * len(whole) or added > MAY_ADD * len(read):
+        return [(BlockKind.paragraph, None, line) for line in stated]
+    return paragraphs
+
+
 class UrlIngester:
     # 5: a line break reads as a space (`htmltext`), which moved one catalogue text of 54
     # measured — a he.wikinews reference line, "2022מסכי" — and a Global Voices edition
     # loses its translators' link-language notes, so the pages already on a shelf are read
     # again rather than kept as though somebody had edited them.
-    name = "url/5"
+    # 6: a page's stated `articleBody` overrules an extraction that missed it
+    # (`article_paragraphs`, 2026-10-14). Every Maariv page reads differently, and nothing
+    # measured elsewhere does.
+    name = "url/6"
+
+    # An article read from its publisher's feed because its page is behind a bot check
+    # (`page`, 2026-10-07): the same article, but not what a page's extractor found, and
+    # what a text arrived as is recorded the way `plain_name` records a text file.
+    feed_name = "url-feed/1"
 
     # A .txt served over http is a text file that happens to live on the web, and the
     # artifact says so: what a text arrived as decides what may later be inferred about
@@ -536,10 +917,33 @@ class UrlIngester:
             structure=True,
         )
 
+    def _from_feed(self, source: str, got: Fetched) -> Document:
+        """An article its feed carried whole (`from_feed`): its paragraphs are already
+        the article, so no extractor decides what on a page is the article."""
+        paragraphs: list[Paragraph] = [
+            (kind, level, normalize(text)) for kind, level, text in paragraphs_from_html(got.text)
+        ]
+        if not paragraphs:
+            raise TargumError(
+                f"We couldn't find any text at {source}.",
+                "Save the page as .txt or .md and drop the file in.",
+            )
+        return build_document(
+            source,
+            blocks_from_paragraphs(with_front_matter(paragraphs, got.title or None, None)),
+            ingester=self.feed_name,
+            language=got.language or None,
+            title=got.title or source,
+        )
+
     def load(self, source: str) -> Document:
         import trafilatura
 
-        got = fetch(source)
+        # Through `page`, so the quote that follows a `describe_source` reads the page
+        # that was described rather than fetching it again (2026-10-06).
+        got = page(source)
+        if got.via == "feed":
+            return self._from_feed(source, got)
         if not got.is_html:
             # A URL that answers with plain text is a text file that happens to live on
             # the web, and running an article extractor over it finds no article and
@@ -547,19 +951,7 @@ class UrlIngester:
             # Yehuda serves its whole library this way, at /download/<id>.txt.
             return self._plain(source, got.text)
         html = got.text
-        # trafilatura decides what on the page is the article. Asking it for HTML
-        # rather than text keeps the headings and paragraph boundaries.
-        extracted: Any = trafilatura.extract(
-            html,
-            output_format="html",
-            include_comments=False,
-            include_tables=False,
-            include_formatting=False,
-            favor_recall=True,
-        )
-        paragraphs: list[Paragraph] = (
-            paragraphs_from_html(extracted) if extracted else paragraphs_from_html(html)
-        )
+        paragraphs = article_paragraphs(html)
         if not paragraphs:
             raise TargumError(
                 f"We couldn't find any text at {source}.",

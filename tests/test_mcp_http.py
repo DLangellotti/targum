@@ -24,8 +24,11 @@ import pytest
 
 from targum import mcp_http, oauth, serve
 from targum.accounts import Store
+from targum.chat import tools as tools_module
 
 PUBLIC = "https://targum.page"
+#: The box's library folder, so a test can put a reader on its shared shelf.
+OUT: list[Path] = []
 HOST = "targum.page"
 CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 
@@ -33,6 +36,7 @@ CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 @pytest.fixture(scope="module")
 def box(tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]) -> tuple[int, str]:
     tmp = tmp_path_factory.mktemp("mcp")
+    OUT.append(tmp / "out")
     store_path = tmp / "targum.db"
     store = Store(store_path)
     signed_in = store.finish_sign_in(store.start_sign_in("reader@example.com"))
@@ -254,7 +258,8 @@ def test_a_notification_is_answered_with_nothing(box: tuple[int, str]) -> None:
 def test_an_unknown_method_is_a_jsonrpc_error_and_not_a_500(box: tuple[int, str]) -> None:
     port, _ = box
     token = a_token(port, "library")
-    said = rpc(port, token, "resources/list")
+    # Resources were the example until 2026-10-06, when the cards made them real.
+    said = rpc(port, token, "completion/complete")
     assert said["error"]["code"] == mcp_http.METHOD_NOT_FOUND
 
 
@@ -294,7 +299,7 @@ def test_the_library_scope_lists_the_library_and_not_the_record(box: tuple[int, 
     port, _ = box
     token = a_token(port, "library")
     names = {one["name"] for one in rpc(port, token, "tools/list")["result"]["tools"]}
-    assert "search_library" in names and "describe_source" in names
+    assert "find_text" in names and "describe_source" in names
     assert "my_vocabulary" not in names, "that is the record, and was not granted"
     assert "quote_build" not in names, "that is `check`, and was not granted"
 
@@ -303,7 +308,7 @@ def test_the_record_scope_adds_the_reader_s_own(box: tuple[int, str]) -> None:
     port, _ = box
     token = a_token(port, "library record")
     names = {one["name"] for one in rpc(port, token, "tools/list")["result"]["tools"]}
-    assert {"my_vocabulary", "my_progress", "search_my_shelf", "my_hours"} <= names
+    assert {"my_vocabulary", "my_progress", "find_text", "my_hours"} <= names
     assert "quote_build" not in names
 
 
@@ -312,6 +317,22 @@ def test_the_check_scope_adds_pricing(box: tuple[int, str]) -> None:
     token = a_token(port, "library record check")
     names = {one["name"] for one in rpc(port, token, "tools/list")["result"]["tools"]}
     assert "quote_build" in names
+
+
+def test_the_build_card_comes_with_the_record_and_not_before(box: tuple[int, str]) -> None:
+    """design.md §12, "A card in someone else's chat": the card asks for check_job, so a
+    connection is offered it only where check_job is held (2026-10-06). The text card
+    comes with find_text, which the library scope holds."""
+    port, _ = box
+    library = rpc(port, a_token(port, "library"), "resources/list")["result"]["resources"]
+    assert [one["uri"] for one in library] == [tools_module.TEXT_CARD]
+    token = a_token(port, "library record")
+    listed = rpc(port, token, "resources/list")["result"]["resources"]
+    assert [one["uri"] for one in listed] == [tools_module.BUILD_CARD, tools_module.TEXT_CARD]
+    assert {one["mimeType"] for one in listed} == {mcp_http.CARD_TYPE}
+    for one in listed:
+        read = rpc(port, token, "resources/read", {"uri": one["uri"]})["result"]
+        assert read["contents"][0]["text"].startswith("<!doctype html>")
 
 
 def test_the_conversation_tool_is_never_listed(box: tuple[int, str]) -> None:
@@ -343,7 +364,7 @@ def test_a_schema_comes_over_as_the_registry_wrote_it(box: tuple[int, str]) -> N
     port, _ = box
     token = a_token(port, "library")
     tools = rpc(port, token, "tools/list")["result"]["tools"]
-    search = next(one for one in tools if one["name"] == "search_library")
+    search = next(one for one in tools if one["name"] == "find_text")
     assert "inputSchema" in search, "MCP's spelling, not the Anthropic API's"
     assert "register" in search["inputSchema"]["properties"]
     assert search["inputSchema"]["additionalProperties"] is False
@@ -368,11 +389,12 @@ def test_the_library_really_answers(box: tuple[int, str]) -> None:
         port,
         token,
         "tools/call",
-        {"name": "search_library", "arguments": {"register": "biblical", "limit": 3}},
+        {"name": "find_text", "arguments": {"register": "biblical", "limit": 3}},
     )["result"]
     found = json.loads(said["content"][0]["text"])
     assert found["count"] >= 1
     assert all(row["register"] == "biblical" for row in found["texts"])
+    assert all(row["from"] == "library" for row in found["texts"]), "no record, no shelf"
 
 
 # --- prompts ---------------------------------------------------------------------
@@ -407,6 +429,47 @@ def test_the_host_is_told_how_to_talk_at_initialize() -> None:
     assert "translation" in mcp_http.INSTRUCTIONS
 
 
+def test_the_host_is_told_every_link_goes_on_a_line_of_its_own() -> None:
+    """2026-10-06, the connector eval: told only that the confirm link goes on its own
+    line, the host wrote find_text's links into the middle of its bullets."""
+    assert "Every link a tool returns goes on a line of its own" in mcp_http.INSTRUCTIONS
+    assert "list item" in mcp_http.INSTRUCTIONS
+
+
+def test_the_host_is_told_to_write_the_name_in_lowercase() -> None:
+    """2026-10-06: ChatGPT, asked for a news article, wrote "Targum" twice. design.md §6:
+    the name is always lowercase, even at sentence start, so the host is told both."""
+    said = mcp_http.INSTRUCTIONS
+    assert "write its name in lowercase, targum, even at the start of a sentence" in said
+    assert "Targum" not in said
+
+
+def test_the_host_is_told_targum_is_for_languages_not_one_language() -> None:
+    """2026-10-07: "a reading app for people learning Hebrew" read, to a host asked for a
+    Russian article, as "not for this". David: it says "learning languages" and names
+    none, so it cannot fall behind the languages targum adds."""
+    from targum.chat.hebrew import TALKED
+    from targum.translate.prompts import language_name
+
+    opening = mcp_http.INSTRUCTIONS.split(";", 1)[0]
+    assert opening == "targum is a reading app for people learning languages"
+    for code in TALKED:
+        assert language_name(code) not in opening, code
+    assert "write its name in lowercase" in mcp_http.INSTRUCTIONS
+
+
+def test_the_host_is_told_to_look_in_targum_before_its_own_web_search() -> None:
+    """2026-10-07: ChatGPT, asked for today's news in Russian, never called
+    search_sources and took pages from its own web search to describe_source."""
+    said = " ".join(mcp_http.INSTRUCTIONS.split())
+    assert (
+        "When the reader asks for something to read, news included, call search_sources "
+        "(today's news) or find_text (the library) first, and use your own web search only "
+        "when they return nothing that fits."
+    ) in said
+    assert len(said) < 1500, "edited, not appended to: a host reads it on every turn"
+
+
 def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]) -> None:
     """One contract, both surfaces: the host is given what targum's own chat is given."""
     from targum.chat import hebrew
@@ -420,9 +483,11 @@ def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]
     )["result"]
     assert said["isError"] is False
     contract = json.loads(said["content"][0]["text"])["contract"]
-    assert hebrew.contract_for("he") in contract
+    # The contract as a host is handed it: the page's sentences said for a host
+    # (`hebrew.for_connector`, 2026-10-06), and nothing else changed.
+    assert hebrew.for_connector(hebrew.contract_for("he")) in contract
     assert "Their ledger" in contract
-    assert "folded" in contract, "the host is told why the translation waits to be asked"
+    assert "Its English only when the reader asks" in contract, "translation waits to be asked"
     assert "record_turn" in contract
 
 
@@ -449,7 +514,7 @@ def test_how_to_talk_talks_a_language_the_reader_never_chose(box: tuple[int, str
     got = json.loads(said["content"][0]["text"])
     assert "error" not in got, got
     assert got["language"] == "fr"
-    assert hebrew.contract_for("fr") in got["contract"]
+    assert hebrew.for_connector(hebrew.contract_for("fr")) in got["contract"]
 
 
 def test_how_to_talk_still_refuses_a_language_with_no_contract(box: tuple[int, str]) -> None:
@@ -481,7 +546,7 @@ def test_how_to_talk_without_record_is_the_contract_without_the_words(
     )["result"]
     assert said["isError"] is False
     contract = json.loads(said["content"][0]["text"])["contract"]
-    assert hebrew.contract_for("he") in contract
+    assert hebrew.for_connector(hebrew.contract_for("he")) in contract
     # Not the first-day branch, which would tell a host that a reader with thousands of
     # words has marked none, and to ask what they have read.
     assert "has marked no words known yet" not in contract
@@ -677,6 +742,19 @@ def test_the_press_card_counts_in_credits_and_agrees_with_itself() -> None:
         assert gone not in one, f"the card still says {gone!r}"
 
 
+def test_the_press_card_says_one_press_gets_every_part() -> None:
+    """design.md §12, "One press gets the whole video, a part at a time" (2026-10-07):
+    the credits on the card are the whole recording's, and the card says how it comes —
+    a part at a time, each as the reader reaches it — so nothing asks again later."""
+    from targum.render import builder
+
+    long = _prose(builder.press_page(_quoted(audio=True, seconds=2805.0, parts=4)))
+    assert "Uses 47 credits" in long, "the whole length, once"
+    assert "In 4 parts, each made as you reach it" in long
+    short = _prose(builder.press_page(_quoted(audio=True, seconds=62.0, parts=1)))
+    assert "each made as you reach it" not in short, "one part has nothing to say"
+
+
 def test_the_press_card_says_the_wait_in_minutes_not_seconds() -> None:
     """`usually` is seconds (`Job.state`) and was drawn as minutes, so a seven-minute
     build promised "Ready in about 420 minutes"."""
@@ -706,7 +784,7 @@ def test_a_build_already_running_is_watched_and_offers_the_way_out() -> None:
     assert 'data-job="abc123"' in page and 'data-made="1758600000000"' in page
     assert 'data-usually="420"' in page
     assert 'id="press-doing"' in page and 'id="press-left"' in page
-    assert "/texts" in page, "no way off the page while it builds"
+    assert '<a href="/">' in page, "no way off the page while it builds: home, the shelf"
 
 
 def test_a_queued_or_costing_build_is_a_wait_and_not_a_refusal() -> None:
@@ -879,12 +957,13 @@ def test_the_press_page_sends_the_reader_where_the_reader_actually_is() -> None:
 def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
     """The pill from the 2026-09-24 sneak peek, brought into the app.
 
-    Its lift travels to every `.gate .go`; its arrow does not. An arrow says "this takes
-    you somewhere", which is true of Read this, Open it and Connect and false of Send a
-    link — so it is written into the buttons that mean it, and a shared rule cannot give
-    it to the ones that do not. Its mark travels nowhere: two bars inside a button say
-    "targum, over here", which is worth saying inside somebody else's app and not on a
-    page that already carries the lockup.
+    Its shape travels to every door's press (`.btn filled go`); its arrow does not. An arrow
+    says "this takes you somewhere", which is true of Open it and Connect and false of
+    Send a link, and of Confirm, which stays to show the build (design.md §12, "The
+    connector's pages are the boards'", 2026-10-09) — so it is written into the buttons
+    that mean it, and a shared rule cannot give it to the ones that do not. Its mark
+    travels nowhere: two bars inside a button say "targum, over here", which is worth
+    saying inside somebody else's app and not on a page that already carries the lockup.
     """
     import re
 
@@ -893,13 +972,13 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
 
     def presses(html: str) -> dict[str, bool]:
         found = {}
-        for one in re.finditer(r'<button[^>]*class="go"[^>]*>(.*?)</button>', html, re.S):
+        for one in re.finditer(r'<button[^>]*class="[^"]*\bgo"[^>]*>(.*?)</button>', html, re.S):
             inner = one.group(1)
             found[" ".join(re.sub(r"<[^>]+>", " ", inner).split())] = "go-arrow" in inner
         return found
 
     job = _quoted(audio=True, seconds=62.0, usually=420.0)
-    assert presses(builder.press_page(job)) == {"Read this": True}
+    assert presses(builder.press_page(job)) == {"Confirm": False}
     assert presses(builder.press_page({**job, "stage": "working"})) == {
         "See how it's going": False
     }, "looking again keeps you here"
@@ -916,7 +995,7 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
     # inline `reader.css`, so the stylesheet mentions plenty this is not asking about.
     import re as _re
 
-    for one in _re.finditer(r'<button[^>]*class="go"[^>]*>(.*?)</button>', granted, _re.S):
+    for one in _re.finditer(r'<button[^>]*class="[^"]*\bgo"[^>]*>(.*?)</button>', granted, _re.S):
         assert "brand-mark" not in one.group(1), "the lockup is above the card already"
 
 
@@ -932,7 +1011,8 @@ def test_every_listed_tool_carries_a_title_and_its_annotations(box: tuple[int, s
     assert by_name["record_turn"]["title"] == "Check what I wrote"
     for one in listed:
         assert one["title"] and one["annotations"]["destructiveHint"] is False, one["name"]
-    assert by_name["search_library"]["annotations"]["readOnlyHint"] is True
+    assert by_name["find_text"]["title"] == "Find something to read"
+    assert by_name["find_text"]["annotations"]["readOnlyHint"] is True
     assert by_name["quote_set"]["annotations"]["readOnlyHint"] is False
 
 
@@ -1092,6 +1172,13 @@ def test_the_walk_from_a_quote_to_an_open_reader(
         time.sleep(0.05)
     assert state["stage"] == "done", state
     assert state["reader"], state
+    # The bell follows a build with the line check_job says (2026-10-06), on both of the
+    # page's routes, and the connector's own answer below is unchanged by it.
+    assert state["said"] == "It's ready to read.", state
+    status, body, _ = send(port, "GET", "/jobs", session=session)
+    listed = {row["id"]: row for row in json.loads(body)["jobs"]}
+    assert listed[job_id]["said"] == "It's ready to read.", listed
+    assert "mail" in listed[job_id] and "behind" in listed[job_id]
 
     # 5a. The link the connector hands over, followed as given.
     checked = json.loads(
@@ -1099,8 +1186,12 @@ def test_the_walk_from_a_quote_to_an_open_reader(
             "result"
         ]["content"][0]["text"]
     )
-    status, body, _ = send(port, "GET", _as_given(checked["open"]), session=session)
-    assert status == 200, (checked["open"], body[:300])
+    # A short link (`tools.shorten`, 2026-10-06), which the box sends on to the long one.
+    assert "/r/" in checked["open"] and "%D7" not in checked["open"], checked["open"]
+    status, _, headers = send(port, "GET", _as_given(checked["open"]), session=session)
+    assert status == 302, (checked["open"], status)
+    status, body, _ = send(port, "GET", headers["location"], session=session)
+    assert status == 200, (headers["location"], body[:300])
     assert "שִׁיר הַשִּׁירִים" in body.decode("utf-8")
 
     # 5b. And the press page, visited again once the text is ready: its one press is the
@@ -1113,3 +1204,235 @@ def test_the_walk_from_a_quote_to_an_open_reader(
     status, body, _ = send(port, "GET", f"/reader/{quote(opens, safe='/%')}", session=session)
     assert status == 200, (opens, body[:300])
     assert "שִׁיר הַשִּׁירִים" in body.decode("utf-8")
+
+
+# --- short links ------------------------------------------------------------------
+
+
+def _shared_reader(name: str) -> None:
+    folder = OUT[0] / "shared" / name
+    (folder / "reader").mkdir(parents=True, exist_ok=True)
+    (folder / "reader" / "index.html").write_text("<p>שלום</p>", encoding="utf-8")
+    (folder / "reader" / "sec-0002.html").write_text("<p>עולם</p>", encoding="utf-8")
+
+
+def test_a_short_link_opens_the_reader_and_its_sections(box: tuple[int, str]) -> None:
+    """`/r/<key>` is the reader a host was handed, by an eight-letter name (2026-10-06)."""
+    from targum.chat import tools as registry
+
+    port, session = box
+    _shared_reader("שלום-עולם")
+    key = registry.short_key("שלום-עולם")
+    long = f"/reader/{quote('שלום-עולם')}/reader"
+
+    status, _, headers = send(port, "GET", f"/r/{key}", session=session)
+    assert (status, headers["location"]) == (302, f"{long}/index.html")
+    status, _, headers = send(port, "GET", f"/r/{key}/sec-0002", session=session)
+    assert (status, headers["location"]) == (302, f"{long}/sec-0002.html")
+    status, body, _ = send(port, "GET", headers["location"], session=session)
+    assert status == 200 and "עולם" in body.decode("utf-8")
+
+
+def test_a_short_link_nobody_made_is_a_404(box: tuple[int, str]) -> None:
+    port, session = box
+    assert send(port, "GET", "/r/aaaaaaaa", session=session)[0] == 404
+    assert send(port, "GET", "/r/not-a-key", session=session)[0] == 404
+    assert send(port, "GET", "/r/aaaaaaaa/sec-0002.html", session=session)[0] == 404
+
+
+def test_the_shelf_comes_over_with_short_links(box: tuple[int, str]) -> None:
+    """Every reader link a host is handed is the short one, on targum's own origin."""
+    from targum.chat import tools as registry
+
+    port, _ = box
+    _shared_reader("שלום-עולם")
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "search_my_shelf", "arguments": {"query": "שלום-עולם", "language": "all"}},
+    )["result"]
+    text = said["content"][0]["text"]
+    assert "/reader/" not in text, text[:300]
+    rows = json.loads(text)["texts"]
+    assert rows[0]["reader"] == f"{PUBLIC}/r/{registry.short_key('שלום-עולם')}"
+
+
+def test_find_text_comes_over_with_short_links_too(box: tuple[int, str]) -> None:
+    """The one finding tool a host holds goes through the same door out (2026-10-06)."""
+    from targum.chat import tools as registry
+
+    port, _ = box
+    _shared_reader("שלום-עולם")
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "find_text", "arguments": {"query": "שלום-עולם", "language": "all"}},
+    )["result"]
+    text = said["content"][0]["text"]
+    assert "/reader/" not in text, text[:300]
+    rows = json.loads(text)["texts"]
+    assert rows[0]["from"] == "mine"
+    assert rows[0]["reader"] == f"{PUBLIC}/r/{registry.short_key('שלום-עולם')}"
+
+
+def test_a_text_with_a_recording_is_played_on_the_box_with_no_cookie(
+    box: tuple[int, str],
+) -> None:
+    """The text card, end to end (design.md §12, 2026-10-06): find_text on a text whose
+    recording is on the disk hands the card, and not the model, a short-lived address;
+    the box answers it with that file and no cookie, and nothing else with it."""
+    from targum import heard
+    from targum.audio import manifest as manifest_module
+
+    port, _ = box
+    _shared_reader("שיחה-מוקלטת")
+    folder = OUT[0] / "shared" / "שיחה-מוקלטת"
+    (folder / "audio").mkdir(exist_ok=True)
+    (folder / "audio" / "part-001.mp3").write_bytes(b"ID3 spoken")
+    manifest_module.write(
+        folder,
+        manifest_module.AudioManifest(
+            source="talk.mp3",
+            sha256="0" * 64,
+            duration=4.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1, start=0.0, end=4.0, audio="audio/part-001.mp3"
+                )
+            ],
+        ),
+    )
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "find_text", "arguments": {"query": "שיחה-מוקלטת", "language": "all"}},
+    )["result"]
+    assert heard.ROUTE not in said["content"][0]["text"]
+    assert said["structuredContent"] == json.loads(said["content"][0]["text"])
+    beside = said["_meta"][mcp_http.TEXT_CARD_META][0]
+    src = beside["audio"]["src"]
+    assert src.startswith(f"{PUBLIC}{heard.ROUTE}?t=")
+    status, body, headers = send(port, "GET", src.removeprefix(PUBLIC))
+    assert status == 200 and body == b"ID3 spoken"
+    assert headers["content-type"] == "audio/mpeg"
+    # The same token on somebody else's name is refused, like every bearer door here.
+    assert send(port, "GET", src.removeprefix(PUBLIC), host="evil.example")[0] != 200
+
+
+# --- one finding tool (design.md §12, 2026-10-06) ----------------------------------
+
+
+def test_hosts_are_listed_find_text_and_not_the_three(box: tuple[int, str]) -> None:
+    port, _ = box
+    for scope in ("library", "library record", "library record check"):
+        names = {
+            one["name"] for one in rpc(port, a_token(port, scope), "tools/list")["result"]["tools"]
+        }
+        assert "find_text" in names, scope
+        assert not names & {"search_library", "search_my_shelf", "suggest_next"}, scope
+
+
+def test_a_host_holding_an_old_name_can_still_call_it(box: tuple[int, str]) -> None:
+    """Mid-conversation across the change; and under the scope it always needed."""
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library"),
+        "tools/call",
+        {"name": "search_library", "arguments": {"limit": 1}},
+    )
+    assert said["result"]["isError"] is False
+    refused = rpc(
+        port, a_token(port, "library"), "tools/call", {"name": "search_my_shelf", "arguments": {}}
+    )
+    assert refused["error"]["code"] == mcp_http.INVALID_PARAMS, "the record was not granted"
+
+
+def test_without_the_record_find_text_will_not_open_the_shelf(box: tuple[int, str]) -> None:
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library"),
+        "tools/call",
+        {"name": "find_text", "arguments": {"where": "mine"}},
+    )["result"]
+    assert said["isError"] is True
+    assert "doesn't share" in json.loads(said["content"][0]["text"])["error"]
+
+
+def test_the_prompts_send_a_host_to_find_text(box: tuple[int, str]) -> None:
+    port, _ = box
+    token = a_token(port, "library record")
+    for name in ("what-next", "read-with-me"):
+        got = rpc(port, token, "prompts/get", {"name": name})["result"]
+        text = got["messages"][0]["content"]["text"]
+        assert "find_text" in text, name
+        assert not any(old in text for old in ("search_library", "search_my_shelf", "suggest"))
+
+
+# --- timing -----------------------------------------------------------------------
+
+
+def test_each_call_logs_its_tool_and_how_long_it_took(
+    box: tuple[int, str], caplog: pytest.LogCaptureFixture
+) -> None:
+    """The name, the milliseconds and whether it failed; nothing the reader said."""
+    import logging
+
+    port, _ = box
+    token = a_token(port, "library")
+    with caplog.at_level(logging.INFO, logger="targum.mcp_http"):
+        rpc(
+            port,
+            token,
+            "tools/call",
+            {"name": "find_text", "arguments": {"query": "secret words", "limit": 1}},
+        )
+        rpc(port, token, "tools/call", {"name": "open_library_text", "arguments": {"id": "nope"}})
+    said = [r.getMessage() for r in caplog.records if r.name == "targum.mcp_http"]
+    assert any(
+        line.startswith("mcp tool find_text took ") and line.endswith(" ms") for line in said
+    ), said
+    assert any(
+        line.startswith("mcp tool open_library_text took ") and line.endswith("ms (failed)")
+        for line in said
+    ), said
+    assert not any("secret" in line or "nope" in line or "@" in line for line in said)
+
+
+def test_instructions_leave_the_following_to_the_card() -> None:
+    """A host that draws the build card is told not to poll beside it (2026-10-06)."""
+    assert "card follows the build" in mcp_http.INSTRUCTIONS
+
+
+def test_the_press_pages_keep_the_full_top_bar_and_say_confirm() -> None:
+    """David, 2026-10-08 (design.md §12, "The connector's pages are the boards'"): the
+    press for one text and for a set stand in the app's shell, the bar over the board's
+    card, and the press says Confirm beside what the month has left. The press itself is
+    still the one form post; the bar adds no way to press."""
+    import re
+
+    from targum.render import builder
+
+    job = _quoted(audio=True, seconds=24 * 60.0, usually=360.0, parts=4)
+    page = builder.press_page(job, credits={"left": 354, "back": "November 1"})
+    assert '<header class="site-head">' in page and "From an assistant" in page
+    assert "Uses 24 credits" in page and "354 left this month · about 5 h 54 min of audio" in page
+    assert re.findall(r'<form[^>]*method="post"[^>]*>', page) == [
+        '<form method="post" action="/build/abc123" id="press" data-job="abc123"\n'
+        '              data-usually="360">'
+    ]
+    assert 'href="/">Not now</a>' in page, "Not now presses nothing"
+
+    items = [{"position": 0, "title": "בבית קפה", "job": "a"}]
+    jobs = [{"id": "a", "stage": "ready", "audio": True, "seconds": 300.0, "known_line": ""}]
+    held = builder.set_page(
+        {"id": 7, "name": "For the bus", "items": items}, jobs, balance={"left": 354, "back": "x"}
+    )
+    assert '<header class="site-head">' in held and "A playlist" in held
+    assert "Uses 5 credits in all" in held and ">Confirm</button>" in held
+    assert "354 left this month · resets on x" in held

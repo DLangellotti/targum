@@ -281,6 +281,12 @@ def main() -> None:
 
     verbs = harvest(args.dump)
     built = compact(verbs) if args.compact else index(verbs)
+    if args.compact:
+        # The stubs filled by rule from their root and binyan (targum-internal#307), kept
+        # apart from the dump's own forms, so a fresh dump does not quietly drop them.
+        from fill_paradigms import filled
+
+        built, _ = filled(built)
     written = json.dumps(built, ensure_ascii=False, separators=(",", ":"))
     if args.out.suffix == ".gz":
         # `mtime=0`, so the same dump makes the same bytes. gzip stamps the time it was

@@ -850,7 +850,8 @@ class Chats:
             ).fetchone()
             if int(known["n"]) > 0:
                 chips.append({"id": "know", "line": said("know")})
-        # Today's news from a publisher in this language: every feed is Hebrew for now.
+        # Today's news from a publisher in this language: Hebrew, and since 2026-10-06
+        # Russian too, which `search_sources` holds to the conversation's language.
         if any(
             one.feed and one.language.split("-")[0].lower() == spoken
             for one in sources_module.load()
@@ -887,11 +888,13 @@ class Chats:
         The one line most readers will press, and the answer to it is `suggest_next` and
         a card: the same card the model's own `quote_build` hands the page, priced and
         not started. No turn is run, no `job` of kind `chat` is written and nothing is
-        spent — the press is the ask, the card's button is still the build's press. The
+        spent — the press is the ask, the card's button is still the build's press. A
+        text already on a shelf gets the card a finished build draws, with Open it. The
         exchange is written into the conversation so the thread reads back whole.
         `skip` names texts already offered, for "Another". Returns what the page draws,
         or `{"error", "status"}`.
         """
+        from .. import catalogue as catalogue_module
         from .. import strings
 
         if self.store is None:
@@ -907,6 +910,23 @@ class Chats:
         top = rows[0]
         quoted = tools_module.quote_build(ctx, {"catalogue_id": top["id"]})
         quote = quoted.get("quote")
+        if quote is None and quoted.get("already_built") and quoted.get("reader"):
+            # On a shelf already, theirs or the shared one: the best answer there is,
+            # because reading it costs nothing. It used to come back as "we can't get
+            # that one ready" (2026-10-11), because only a priced quote counted. The
+            # card is the one a finished build draws — "It's ready to read." and Open
+            # it — from a job's state at `done`; no job is made and nothing is claimed.
+            entry = catalogue_module.by_id(str(top["id"]))
+            folder = tools_module._folder_of(str(quoted["reader"]))
+            quote = {
+                "id": "",
+                "stage": "done",
+                "reader": f"{folder}/reader/index.html",
+                "title": str(top.get("title") or (entry.title if entry else "") or folder),
+                "english": str(top.get("english") or (entry.english if entry else "")),
+                "language": entry.language if entry else ctx.level.language,
+                "source": entry.source if entry else "",
+            }
         if quote is None:
             return {
                 "error": quoted.get("error") or strings.text("chat.suggest.cannot", ui),
@@ -982,7 +1002,7 @@ class Chats:
         from ..serve import said_in
 
         traceback.print_exc()
-        said = said_in(asked.ui, "chat.could-not-carry-on", "We couldn't answer that. Try again.")
+        said = said_in(asked.ui, "chat.could-not-carry-on", "We couldn't answer that.")
         try:
             if self.store is not None:
                 self.store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=said)
@@ -1105,7 +1125,16 @@ class Chats:
             job.blocked = refused
             self.library.remember(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=refused)
-            feed.put("error", {"message": refused})
+            # With what its panel draws beside it, where the refusal carries that
+            # (`serve.Refusal`, design.md §12, 2026-10-09).
+            feed.put(
+                "error",
+                {
+                    "message": refused,
+                    "fact": getattr(refused, "fact", ""),
+                    "act": getattr(refused, "act", ""),
+                },
+            )
             feed.close()
             return
         # The whole conversation so far, as the API needs to see it again: the reader's
@@ -1233,13 +1262,22 @@ class Chats:
             if not timed_out:
                 traceback.print_exc()
             job.stage = "failed"
+            # A provider out of credit is said as that, and the operator is told
+            # (known issues 1.10): "We couldn't answer that" for a day of empty balance
+            # reads as the chat being broken, and nobody would have known why.
+            from ..alerts import out_of_credit
+            from ..serve import ran_out
+
+            detail = f"{error} {error.__cause__ or ''}"
             job.error = (
                 said_in(asked.ui, "chat.too-long", TURN_TOO_LONG)
                 if timed_out
+                else ran_out(asked.ui, detail)
+                if out_of_credit(detail)
                 else said_in(
                     asked.ui,
                     "chat.could-not-carry-on",
-                    "We couldn't answer that. Try again.",
+                    "We couldn't answer that.",
                 )
             )
             self.library.release(job)

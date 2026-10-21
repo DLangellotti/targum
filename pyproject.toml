@@ -27,6 +27,11 @@ dependencies = [
   # resolved fresh, took 1.15.0, and stopped the rebuild at the first Russian text on
   # 2026-10-01. Lift the cap once the box fetches the model in the newer format:
   # `tests/test_annotate.py` checks it.
+  #
+  # Since 2026-10-02 deploy.sh installs the box with uv.lock's versions as constraints
+  # (`tests/test_deploy_constraints.py`), so a floor here no longer lets the box drift
+  # past what CI tested. This cap and the transformers one below stay anyway: they are
+  # what a plain `pip install targum` gets, and they say which release breaks what.
   "stanza>=1.8,<1.15",
   # Hebrew reads through DICTA since targum-internal#116, and this is what loads the
   # weights — so it is a hard dependency rather than an extra, as Stanza is. It was

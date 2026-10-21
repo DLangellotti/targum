@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from . import ledger
 from .ids import content_hash
 from .models import SCHEMA_VERSION
 from .paths import cache_dir, write_atomic
@@ -37,10 +38,14 @@ class Cache:
         """Whole or not at all, because a torn entry reads as a miss and a miss is
         paid for a second time. Warm workers share this directory."""
         write_atomic(self._path(stage, key), json.dumps(value, ensure_ascii=False))
+        # The corpus ledger's second copy, off unless `TARGUM_LEDGER` names a file. The
+        # cache above is still the record and the read path (targum-internal#162).
+        ledger.mirror_put(stage, key, value)
 
     def drop(self, stage: str, key: str) -> bool:
         """Take one record out — the author's hand on a wrong answer. True if it was there."""
         path = self._path(stage, key)
+        ledger.mirror_drop(stage, key)
         if not path.is_file():
             return False
         path.unlink()

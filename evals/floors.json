@@ -385,6 +385,54 @@
   },
   {
     "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "participle_precision",
+    "system": "ru-local",
+    "at_least": 0.89,
+    "why": "on 2026-10-13: 0.9108 over all 8,906 dev sentences (2,522 said); the participles hard spot (stages.HARD_SPOTS)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "participle_recall",
+    "system": "ru-local",
+    "at_least": 0.87,
+    "why": "on 2026-10-13: 0.8907 over all 8,906 dev sentences (2,579 in gold)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "motion_precision",
+    "system": "ru-local",
+    "at_least": 0.98,
+    "why": "on 2026-10-13: 0.9933 over all 8,906 dev sentences (299 said); the verbs-of-motion hard spot, annotate/motion.py"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "motion_recall",
+    "system": "ru-local",
+    "at_least": 0.92,
+    "why": "on 2026-10-13: 0.9459 over all 8,906 dev sentences (314 in gold)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "inverted_subject_precision",
+    "system": "ru-local",
+    "at_least": 0.93,
+    "why": "on 2026-10-13: 0.9514 over all 8,906 dev sentences (1,624 said); the word-order hard spot, annotate/word_order.py, which the lens lights"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "inverted_subject_recall",
+    "system": "ru-local",
+    "at_least": 0.68,
+    "why": "on 2026-10-13: 0.7077 over all 8,906 dev sentences (2,183 in gold)"
+  },
+  {
+    "stage": "lemma",
     "corpus": "ud-fr-gsd",
     "metric": "gender_accuracy",
     "system": "model-lemma",
@@ -614,5 +662,173 @@
     "system": "morphalou-3.1+gruut-liaison",
     "at_least": 0.98,
     "why": "the card's own floor (targum-internal#266); 1.0 on 2026-09-28, 80 of 80, against a model-drafted gold with its own tags"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-he",
+    "metric": "seam_in_gap",
+    "system": "ctc-forced-aligner",
+    "at_least": 0.95,
+    "why": "1.0000 on 2026-10-08 (targum-internal#265): every join between two words falls between the aligner's two words"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-he",
+    "metric": "onset_ms_median",
+    "system": "ctc-forced-aligner",
+    "at_most": 80.0,
+    "why": "45.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-fr",
+    "metric": "seam_in_gap",
+    "system": "ctc-forced-aligner",
+    "at_least": 0.95,
+    "why": "1.0000 on 2026-10-08 (targum-internal#265): every join between two words falls between the aligner's two words"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-fr",
+    "metric": "onset_ms_median",
+    "system": "ctc-forced-aligner",
+    "at_most": 80.0,
+    "why": "20.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-ru",
+    "metric": "seam_in_gap",
+    "system": "ctc-forced-aligner",
+    "at_least": 0.95,
+    "why": "1.0000 on 2026-10-08 (targum-internal#265): every join between two words falls between the aligner's two words"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-ru",
+    "metric": "onset_ms_median",
+    "system": "ctc-forced-aligner",
+    "at_most": 80.0,
+    "why": "35.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-it",
+    "metric": "seam_in_gap",
+    "system": "ctc-forced-aligner",
+    "at_least": 0.95,
+    "why": "1.0000 on 2026-10-08 (targum-internal#265): every join between two words falls between the aligner's two words"
+  },
+  {
+    "stage": "align",
+    "corpus": "tts-it",
+    "metric": "onset_ms_median",
+    "system": "ctc-forced-aligner",
+    "at_most": 80.0,
+    "why": "20.0 ms on 2026-10-08 (targum-internal#265), scored against each clip's own speech; an upper bound, since words said alone have no coarticulation"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "binyan_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.93,
+    "why": "0.9441 on 2026-09-28; the binyan is derived from the lemma (annotate/dicta.py) and is Hebrew's first hard spot (design.md §12, 2026-10-12)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "root_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.92,
+    "why": "0.9290 on 2026-09-28; the root beside the binyan on the card"
+  },
+  {
+    "stage": "stress",
+    "corpus": "tanakh-taamim-v2",
+    "metric": "rule_accuracy",
+    "system": "stress-rule/1",
+    "at_least": 0.95,
+    "why": "0.9630 on 2026-10-02; the rule that places Hebrew stress, measured on the Tanakh's cantillation until a modern gold exists"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-wlc",
+    "metric": "vav_precision",
+    "system": "vav-rule/1",
+    "at_least": 0.99,
+    "why": "0.9946 on 2026-10-21, first scored: the vav-consecutive read off the pointing against Open Scriptures' `w`, outside the Torah; the rule is what the build reads for every Biblical text, and Hebrew's eighth hard spot (targum-internal#449)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-wlc",
+    "metric": "vav_recall",
+    "system": "vav-rule/1",
+    "at_least": 0.99,
+    "why": "0.9989 on 2026-10-21, first scored: the same rule, the same held-out words (targum-internal#449)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "gender_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.95,
+    "why": "0.966 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "number_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.97,
+    "why": "0.984 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "person_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.94,
+    "why": "0.955 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "tense_accuracy",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.97,
+    "why": "0.993 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "construct_precision",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.94,
+    "why": "0.960 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "construct_recall",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.71,
+    "why": "0.738 on 2026-10-12, first scored; a Hebrew hard spot (design.md §12, \"A badge is a promise, checked\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "governed_precision",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.95,
+    "why": "0.976 on 2026-10-13, first scored: which core preposition marks which verb's argument, against the treebank's case-marked arguments (annotate/governed.py); Hebrew's fourth hard spot (design.md §12, \"Governed prepositions on the card\")"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "iahltknesset",
+    "metric": "governed_recall",
+    "system": "dicta/dicta-il/dictabert-joint",
+    "at_least": 0.85,
+    "why": "0.879 on 2026-10-13, first scored: which core preposition marks which verb's argument, against the treebank's case-marked arguments (annotate/governed.py); Hebrew's fourth hard spot (design.md §12, \"Governed prepositions on the card\")"
   }
 ]

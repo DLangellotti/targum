@@ -40,14 +40,13 @@ middle of a build: a machine without them points with Nakdimon and says so.
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 from ..errors import TargumError
 from ..models import Segment
-from ..paths import model_dir
+from ..paths import hf_home, settle_hf_home
 from ..segment.pieces import at_spaces
 from .base import LETTERS
 
@@ -84,9 +83,9 @@ _LOADED: dict[str, tuple[Any, Any]] = {}
 
 
 def hub_root() -> Path:
-    """Where the Hugging Face cache lives: beside the language models, as the annotator
-    keeps its own, so one directory is the whole of what a box has to be given."""
-    return model_dir() / "hf"
+    """Where the Hugging Face cache lives: the annotator's folder, said once in
+    `paths.hf_home()` (2026-10-07)."""
+    return hf_home()
 
 
 def snapshot_dir() -> Path:
@@ -194,7 +193,7 @@ class DictaVocalizer:
         """
         if MODEL in _LOADED:
             return _LOADED[MODEL]
-        os.environ.setdefault("HF_HOME", str(hub_root()))
+        settle_hf_home()
         try:
             import torch
             from huggingface_hub import hf_hub_download
@@ -208,12 +207,13 @@ class DictaVocalizer:
 
         offline = not self.auto_download
         # Named outright rather than left to `HF_HOME`, because `setdefault` above only
-        # holds where nothing set it first, and the service does: targum.service points
-        # `HF_HOME` at models/huggingface for Stanza, while `targum models fetch` runs
-        # without that line and lands the weights in models/hf. `downloaded()` looked in
-        # the one and the load in the other, so on the box every build found the model
-        # "downloaded" and then could not load it (2026-09-13). One directory for the
-        # check, the fetch and the load, whatever the environment says.
+        # holds where nothing set it first. targum.service used to point `HF_HOME` at
+        # models/huggingface for Stanza, while `targum models fetch` ran without that line
+        # and landed the weights in models/hf. `downloaded()` looked in the one and the
+        # load in the other, so on the box every build found the model "downloaded" and
+        # then could not load it (2026-09-13). The unit no longer sets it (2026-10-07),
+        # and this still holds one directory for the check, the fetch and the load,
+        # whatever the environment says.
         hub = str(hub_root() / "hub")
         try:
             tokenizer = PreTrainedTokenizerFast(  # type: ignore[no-untyped-call]

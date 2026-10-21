@@ -231,6 +231,60 @@ def test_a_book_carrying_onkelos_cuts_a_portion_carrying_it(corpus: Path, librar
     assert sorted(by_language) == ["arc", "en"]
     assert by_language["arc"].segments.keys() == verses
     assert all(text.startswith("ארמית") for text in by_language["arc"].segments.values())
+    assert by_language["arc"].name == "Onkelos Deuteronomy", "named for the targum (#414)"
+
+
+def test_rashi_in_two_languages_is_carried_beside_the_english_not_into_it(
+    corpus: Path, library: Path
+) -> None:
+    """targum-internal#414. A portion carried one rendering per language, renamed for the
+    portion: so Rashi in English was merged into the Metsudah English, writing his comments
+    over the verses, and lost the name that says it is a commentary. A commentary is now
+    carried per commentator and language, under its own name, with its words narrowed to
+    the same verses, and the English is the English."""
+    from targum.renderings import rendering_hash, words_key, words_path
+
+    folder = library / "דברים-he"
+    english = read_artifact(Translation, folder / "translations" / "aligned.deuteronomy.en.json")
+    assert english is not None
+    rashi = {
+        language: english.model_copy(
+            update={
+                "name": "Rashi on Deuteronomy",
+                "target_language": language,
+                "segments": {sid: f"{saying} {sid}" for sid in english.segments},
+            }
+        )
+        for language, saying in (("he", "פירוש"), ("en", "Comment"))
+    }
+    for language, one in rashi.items():
+        one.write(folder / "translations" / f"aligned.rashi-on-deuteronomy.{language}.json")
+    hebrew = rashi["he"]
+    Annotation(
+        document_hash=rendering_hash(hebrew),
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="",
+        tokens={
+            sid: [Token(start=0, end=5, surface="פירוש", lemma="פירוש", band=3)]
+            for sid in hebrew.segments
+        },
+    ).write(words_path(folder, hebrew))
+
+    reading = a_reading(corpus)
+    portion = cutmod.cut(reading, cutmod.books_for(reading, library))
+    verses = {s.id for s in portion.segmented.segments if s.kind is BlockKind.verse}
+    by = {(t.target_language, t.name): t for t in portion.translations}
+    assert len(portion.translations) == 3
+    assert ("he", "Rashi on Deuteronomy") in by and ("en", "Rashi on Deuteronomy") in by
+    plain = [t for t in portion.translations if t.target_language == "en" and "Rashi" not in t.name]
+    assert len(plain) == 1
+    assert all(text.startswith("Deuteronomy") for text in plain[0].segments.values())
+    assert by[("en", "Rashi on Deuteronomy")].segments.keys() == verses
+
+    words = portion.commentary_words[words_key(hebrew)]
+    assert words.tokens.keys() == verses, "the words come narrowed to the portion's verses"
 
 
 def test_the_portion_declares_itself_scripture(corpus: Path, library: Path) -> None:
@@ -494,14 +548,27 @@ def test_a_book_answers_to_any_of_its_three_names() -> None:
 
 
 def test_a_book_with_no_portions_has_none(corpus: Path) -> None:
-    """Ruth, and every one of the five on a machine with no corpus built."""
+    """Ruth has none, and neither has an empty index handed in."""
     from targum.parasha import build as corpus_build
 
     assert corpus_build.portions_for("Ruth", genesis_index()) == []
     assert corpus_build.portions_for("sefaria:Ruth", genesis_index()) == []
     assert corpus_build.portions_for("Genesis", Index()) == []
-    # Off the disk, where the fixture corpus has no index written at all.
-    assert corpus_build.portions_for("Genesis") == []
+    assert corpus_build.portions_for("Ruth") == []
+
+
+def test_off_a_disk_with_no_corpus_the_five_take_the_shipped_starts(corpus: Path) -> None:
+    """Where the fixture corpus has no index written at all, the 54 starts shipped with
+    targum answer (audit Q9, 2026-10-09): they are the same every year."""
+    from targum.parasha import build as corpus_build
+
+    genesis = corpus_build.portions_for("Genesis")
+    assert [(s.slug, s.chapter, s.verse) for s in genesis[:2]] == [
+        ("bereshit", 1, 1),
+        ("noach", 6, 9),
+    ]
+    assert len(genesis) == 12
+    assert sum(len(corpus_build.portions_for(book)) for book in corpus_build.BOOKS) == 54
 
 
 def test_a_portion_written_before_opening_ref_starts_where_its_range_line_says() -> None:
@@ -554,6 +621,109 @@ def test_a_festival_has_no_place_in_the_cycle() -> None:
     assert neighbours(festival, listed) == (None, None)
     assert neighbours(listed[0], []) == (None, None)
     assert neighbours(listed[0], [listed[0]]) == (None, None), "nowhere else to go"
+
+
+# -- reading on past the ends, in the order of the book (targum-internal#446) --
+
+
+def the_torah() -> list[Portion]:
+    """The fifty-four as the shelf lists them, in the order the table shipped with targum
+    has them, each with its seven aliyot."""
+    from targum.parasha.build import _fixed
+
+    return [
+        Portion(
+            slug=start.slug,
+            name=start.name,
+            hebrew=start.hebrew,
+            numbers=[number],
+            summary=start.summary,
+            aliyot=7,
+            folder=start.slug,
+        )
+        for number, (_, start) in enumerate(_fixed(), start=1)
+    ]
+
+
+def ends_of(slug: str, language: str = "en", cycle: list[Portion] | None = None) -> dict:
+    from targum.parasha.build import beyond
+    from targum.parasha.models import neighbours
+
+    cycle = cycle or the_torah()
+    portion = next(one for one in cycle if one.slug == slug)
+    return beyond(neighbours(portion, cycle), language)
+
+
+def test_the_last_aliyah_of_bereshit_reads_on_into_noachs_first() -> None:
+    after = ends_of("bereshit")["after"]
+    assert after["href"] == "/parasha/read/noach/reader/sec-0001.html"
+    assert after["name"] == "Noach" and after["hebrew"] == "נֹחַ"
+    assert after["page"] == "/parasha/noach"
+
+
+def test_the_first_aliyah_of_noach_goes_back_to_bereshits_last() -> None:
+    before = ends_of("noach")["before"]
+    assert before["href"] == "/parasha/read/bereshit/reader/sec-0007.html"
+    assert before["name"] == "Bereshit"
+
+
+def test_the_torah_ends_where_it_begins() -> None:
+    assert ends_of("vzot-haberachah")["after"]["href"] == (
+        "/parasha/read/bereshit/reader/sec-0001.html"
+    )
+    assert ends_of("bereshit")["before"]["href"] == (
+        "/parasha/read/vzot-haberachah/reader/sec-0007.html"
+    )
+
+
+def test_a_doubled_reading_reads_on_from_both_its_halves() -> None:
+    """Vayakhel-Pekudei starts where Ki Tisa ends and ends where Vayikra starts — the
+    singles beside it, whether or not its own halves are on the shelf."""
+    doubled = Portion(
+        slug="vayakhel-pekudei",
+        name="Vayakhel-Pekudei",
+        hebrew="וַיַּקְהֵל־פְקוּדֵי",
+        numbers=[22, 23],
+        summary="Exodus 35:1-40:38",
+        aliyot=7,
+        folder="vayakhel-pekudei",
+    )
+    from targum.parasha.build import beyond
+    from targum.parasha.models import neighbours
+
+    ends = beyond(neighbours(doubled, the_torah()))
+    assert ends["before"]["href"] == "/parasha/read/ki-tisa/reader/sec-0007.html"
+    assert ends["after"]["href"] == "/parasha/read/vayikra/reader/sec-0001.html"
+    # And where the halves are not built, the single before reads on into the doubled one.
+    shelf = [one for one in the_torah() if one.slug not in ("vayakhel", "pekudei")] + [doubled]
+    assert ends_of("ki-tisa", cycle=shelf)["after"]["href"] == (
+        "/parasha/read/vayakhel-pekudei/reader/sec-0001.html"
+    )
+    assert ends_of("vayikra", cycle=shelf)["before"]["href"] == (
+        "/parasha/read/vayakhel-pekudei/reader/sec-0007.html"
+    )
+
+
+def test_the_russian_reader_reads_on_into_the_russian_reader() -> None:
+    ends = ends_of("bereshit", "ru")
+    assert ends["after"]["href"] == "/parasha/read/noach-ru/reader/sec-0001.html"
+    assert ends["after"]["name"] == "Ноах"
+    assert ends["after"]["page"] == "/parasha/noach?lang=ru"
+    assert ends["before"]["href"] == "/parasha/read/vzot-haberachah-ru/reader/sec-0007.html"
+
+
+def test_a_reading_of_one_section_is_reached_at_its_one_file() -> None:
+    from targum.parasha.build import beyond
+
+    short = Portion(slug="s", name="S", hebrew="ש", numbers=[1], summary="x", aliyot=1, folder="s")
+    ends = beyond((short, short))
+    assert ends["before"]["href"] == ends["after"]["href"] == "/parasha/read/s/reader/index.html"
+
+
+def test_a_festival_reads_on_nowhere() -> None:
+    from targum.parasha.build import beyond
+
+    assert beyond((None, None)) == {}
 
 
 # -- the haftarah ------------------------------------------------------------

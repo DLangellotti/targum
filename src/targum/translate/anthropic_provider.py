@@ -7,7 +7,11 @@ on its own; the batch around it is not paid for twice.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import threading
+from collections import OrderedDict
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
 from pydantic import BaseModel
@@ -74,6 +78,26 @@ OUTPUT_RATIO = 1.0
 # each; Yiddish is denser than Hebrew because it spells out its vowels in the same script.
 CHARS_PER_TOKEN = {"he": 1.45, "en": 2.73, "fr": 3.1, "it": 3.09, "ru": 2.59, "yi": 1.36}
 DEFAULT_CHARS_PER_TOKEN = 2.5
+
+#: Bodies already counted, by model and the body's digest, and how many tokens each was
+#: (2026-10-06). A count is a fact about the text and the model's tokenizer, so it never
+#: goes stale; the bound is only memory. The quote counts a text, the build pressed a
+#: minute later plans it again, and a reader re-pricing a card counts it a third time —
+#: each a round trip to Anthropic of 200 ms at the median and 700 ms at the worst,
+#: measured from the laptop over 32 library texts. Only answers are kept: a count that
+#: failed fell back to the local rate, and is asked again next time.
+COUNTED_MOST = 512
+_counted: OrderedDict[tuple[str, str], float] = OrderedDict()
+_counted_lock = threading.Lock()
+
+#: Where a count runs while a quote gets on with its own work (`estimate_soon`). Few
+#: workers: a count is one small request, and only a quote being drawn waits on one.
+_counting = ThreadPoolExecutor(max_workers=4, thread_name_prefix="count-tokens")
+
+
+def _local_tokens(body: str, source: str) -> float:
+    language = source.split("-")[0].lower()
+    return len(body) / CHARS_PER_TOKEN.get(language, DEFAULT_CHARS_PER_TOKEN)
 
 
 class _Blocked(Exception):
@@ -149,22 +173,60 @@ class AnthropicProvider:
         side of each batch a second time as context, and a fixed overhead on every call.
         The overhead is counted per batch, so a longer text pays more of it, but the
         estimate stays linear in the length rather than growing with its square.
+
+        **Counted exactly, and kept that way.** This number is what the per-text cap,
+        the box's budget and the account's rail are held to (`Library.why_blocked`,
+        `Store.claim`), and the local rate is no stand-in for it on Hebrew: over 32
+        library texts on 2026-10-06 it read 0.7–6% low on unpointed prose and 30–45% low
+        on pointed text, where a vowel point is close to a token of its own. So the
+        endpoint is asked, its answer is kept (`_counted`), and a quote with other work
+        to do asks early (`estimate_soon`) rather than less exactly.
         """
         if not segments:
             return 0.0
         body = "\n".join(segment.text for segment in segments)
+        batch_count = len(list(batches(segments, self.batch_size)))
+        return self.estimate_from_counts(self._body_tokens(body, source), batch_count)
+
+    def estimate_soon(
+        self, segments: list[Segment], source: str, target: str, style: Style
+    ) -> Future[float]:
+        """`estimate`, on a thread of its own, so the caller can do its own work while
+        the endpoint answers (2026-10-06). The same number, never a rougher one."""
+        return _counting.submit(self.estimate, segments, source, target, style)
+
+    def estimate_floor(self, segments: list[Segment], source: str) -> float:
+        """`estimate` at the local rate, asking nobody. For deciding whether to start
+        work early, never for a decision about spending: on Hebrew it reads low, which
+        is why it is only ever compared and then replaced by the count."""
+        if not segments:
+            return 0.0
+        body = "\n".join(segment.text for segment in segments)
+        batch_count = len(list(batches(segments, self.batch_size)))
+        return self.estimate_from_counts(_local_tokens(body, source), batch_count)
+
+    def _body_tokens(self, body: str, source: str) -> float:
+        """The body's tokens as the endpoint counts them, kept; the local rate offline."""
+        key = (self.model, hashlib.sha256(body.encode("utf-8")).hexdigest())
+        with _counted_lock:
+            if key in _counted:
+                _counted.move_to_end(key)
+                return _counted[key]
         try:
             counted = self.client().messages.count_tokens(
                 model=self.model,
                 messages=[{"role": "user", "content": body}],
             )
-            body_tokens = float(counted.input_tokens)
+            tokens = float(counted.input_tokens)
         except Exception:
             # Offline, or no key yet.
-            language = source.split("-")[0].lower()
-            body_tokens = len(body) / CHARS_PER_TOKEN.get(language, DEFAULT_CHARS_PER_TOKEN)
-        batch_count = len(list(batches(segments, self.batch_size)))
-        return self.estimate_from_counts(body_tokens, batch_count)
+            return _local_tokens(body, source)
+        with _counted_lock:
+            _counted[key] = tokens
+            _counted.move_to_end(key)
+            while len(_counted) > COUNTED_MOST:
+                _counted.popitem(last=False)
+        return tokens
 
     def estimate_from_counts(self, body_tokens: float, batch_count: int) -> float:
         """The estimate's arithmetic, for a text that does not exist yet.

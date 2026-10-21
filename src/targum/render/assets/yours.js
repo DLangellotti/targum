@@ -1,8 +1,9 @@
-/* One of Learn's lists, whole.
+/* Your targums — which is home since 2026-10-08 — and the lists behind the account.
  *
- * Learn caps every list it shows and points here for the rest. Which list this is comes
- * from `window.TARGUM_LIST`; the drawing is the same `TargumShelf` and `TargumLists` that
- * Learn uses, so a row cannot look one way there and another way here.
+ * Which list this is comes from `window.TARGUM_LIST`: `texts` is the shelf under home's
+ * Continue (`home.js` draws the head), `words` and `phrases` the lists behind the account.
+ * The drawing is the same `TargumShelf` and `TargumLists` every page uses, so a row
+ * cannot look one way here and another way there.
  *
  * The language switcher is the same one too, and it decides what a list holds: words are
  * kept per language, and a shelf of Hebrew is not a shelf of Russian.
@@ -56,9 +57,18 @@
     }
   );
 
+  /* A refusal is not an answer (home QA, 2026-10-18): a 500 whose body happened to be
+     JSON was read as a shelf with nothing on it, and home told a reader with six texts
+     "Nothing here yet". Every caller catches, so a refusal lands where a dropped
+     connection does. */
   function ask(path) {
     return fetch(keyed(path), { headers: keyHeaders({ "Content-Type": "application/json" }) }).then(
       function (response) {
+        if (!response.ok) {
+          var refused = new Error(String(response.status));
+          refused.answered = true;
+          throw refused;
+        }
         return response.json();
       }
     );
@@ -73,29 +83,43 @@
   }
 
   /* The lines that came back changed (targum-internal#290), fetched once and handed to
-     the lists. Twice on the words page and once on the phrases page: the queue, which is
-     the fold's Phrases tab and exists only where the fold does, and the record, which
-     stands under Your Phrases wherever that list is.
+     the lists, on the phrases page: the record, which stands under Your Phrases, and the
+     queue, the ones in it the reader has not said they know yet.
 
      Asked for after the lists are drawn rather than before, so a slow answer never holds
-     up the words — the fold appears with its words and gains its lines a moment later,
-     and a reader with neither still sees nothing at all. */
+     up the phrases — the record appears a moment later, and a reader with none still
+     sees nothing at all. */
   function drawRewrote() {
-    if (!lists || !lists.rewrote) return;
-    if (which === "words") {
-      ask("/slips")
-        .then(function (data) {
-          lists.rewrote((data && data.slips) || []);
-        })
-        .catch(function () {});
-    }
-    if (which === "words" || which === "phrases") {
-      ask("/slips?all=1")
-        .then(function (data) {
-          lists.record((data && data.slips) || []);
-        })
-        .catch(function () {});
-    }
+    if (!lists || !lists.rewrote || which !== "phrases") return;
+    ask("/slips")
+      .then(function (data) {
+        lists.rewrote((data && data.slips) || []);
+      })
+      .catch(function () {});
+    ask("/slips?all=1")
+      .then(function (data) {
+        lists.record((data && data.slips) || []);
+      })
+      .catch(function () {});
+  }
+
+  /* What the server knows about one language's word list (design.md §12, "Your Words is
+     one table and a practice card", 2026-10-09): in how many texts each word was met, a
+     line each word being learned was met in, and a row's note. Asked once a language,
+     after the rows are drawn, and never in their way; signed out it is refused, and the
+     table stands without them. Nothing about it spends. */
+  var factsFor = "";
+
+  function drawFacts(code, into) {
+    if (which !== "words" || !lists || !lists.facts) return;
+    var asked = code + ":" + (into || "");
+    if (asked === factsFor) return;
+    factsFor = asked;
+    ask("/account/words?language=" + encodeURIComponent(code) + (into ? "&into=" + encodeURIComponent(into) : ""))
+      .then(function (data) {
+        lists.facts(code, data);
+      })
+      .catch(function () {});
   }
 
   /* --- the shelf ------------------------------------------------------------- */
@@ -103,9 +127,22 @@
   /* Everything of yours (design.md §12, "Yours and everyone's", 2026-09-25): what you
      built, what you brought, what is being built right now, and the shared texts this
      browser has opened. The builds come from `/jobs`, the same answer the bell reads. */
-  function gather(data, opened) {
+  function gather(data, opened, places) {
     var readers = ((data && data.readers) || []).slice();
     var have = {};
+    /* Opened on another device counts as opened here (home QA, 2026-10-18): Continue
+       said "Pick up at chapter 3" from the account's place while the row under it said
+       New, because "opened" was only ever this browser's record. The account's place is
+       when it was last read, so it orders Recent too. */
+    var read = {};
+    (places || []).forEach(function (place) {
+      if (!place || !place.hash) return;
+      read[place.hash] = Math.max(read[place.hash] || 0, Number(place.at || 0));
+    });
+    opened = Object.assign({}, opened);
+    Object.keys(read).forEach(function (hash) {
+      opened[hash] = Math.max(Number(opened[hash] || 0), read[hash]);
+    });
     readers.forEach(function (reader) {
       reader.opened = opened[reader.document] || 0;
       have[reader.document] = true;
@@ -128,20 +165,108 @@
     return readers;
   }
 
+  /* Texts read that are on no shelf (known-issues 1.17): a Torah portion and a daily
+     page are cut once for everybody and served from their own addresses, so `/readers`
+     never lists them and Recent left out the portion home said was finished. Their places
+     name them — the account's rows carry the title, and this browser's own record of the
+     text names it where the account has not yet heard (targum#768) — so each is a row
+     here too, newest place first, opening where the reader left off. Only addresses that
+     are not a reader folder: a folder's text is on the shelf or was taken off it, and a
+     text taken off stays off. */
+  var KINDS_BY_PATH = [
+    [/^\/parasha\//, "prose"],
+    [/^\/(tanakh-yomi|nach-yomi)\//, "prose"],
+    [/^\/tehillim\//, "poetry"],
+  ];
+
+  function away(theirs, readers) {
+    var places = stored("targum:places");
+    var docs = stored("targum:docs");
+    var all = {};
+    Object.keys(places).forEach(function (hash) {
+      all[hash] = Object.assign({}, places[hash] || {});
+    });
+    (theirs || []).forEach(function (row) {
+      if (!row || !row.hash) return;
+      var mine = all[row.hash];
+      if (!mine || Number(row.at || 0) > Number(mine.at || 0)) {
+        all[row.hash] = Object.assign({}, row, {
+          title: row.title || (mine && mine.title) || "",
+          language: row.language || (mine && mine.language) || "",
+        });
+      } else {
+        mine.title = mine.title || row.title || "";
+        mine.language = mine.language || row.language || "";
+      }
+    });
+    var have = {};
+    readers.forEach(function (reader) {
+      if (reader.document) have[reader.document] = true;
+    });
+    var rows = [];
+    Object.keys(all).forEach(function (hash) {
+      var place = all[hash] || {};
+      var path = String(place.path || "");
+      if (have[hash] || !path || path.indexOf("/reader/") === 0 || path.charAt(0) !== "/") return;
+      var doc = docs[hash] || {};
+      var title = place.title || doc.title || "";
+      var language = place.language || doc.language || "";
+      if (!title || !language) return;
+      var kind = "";
+      KINDS_BY_PATH.forEach(function (pair) {
+        if (!kind && pair[0].test(path)) kind = pair[1];
+      });
+      rows.push({
+        document: hash,
+        name: "",
+        title: title,
+        language: language,
+        kind: kind,
+        href: path,
+        opened: Number(place.at || 0) || Number(doc.updated || 0),
+        shared: true,
+        away: true,
+      });
+    });
+    return rows;
+  }
+
+  function accountPlaces() {
+    return ask("/account/places?limit=20")
+      .then(function (answer) {
+        return (answer && answer.places) || [];
+      })
+      .catch(function () {
+        // Signed out, or the box went away: this browser's own places are all there are.
+        return [];
+      });
+  }
+
   /* --- sifting the shelf (design.md §12, "Your targums has tabs", 2026-09-26) ----------
    *
-   * Two tabs over one shelf — everything of yours, and only what you brought — then
-   * chips for where you are with a text, a search, an order, and series folded into one
-   * row. The third tab, Playlists, is a page of its own. */
+   * Two tabs over one shelf — everything of yours, and only what you brought — then a
+   * field to find one, and series folded into one row, last read first. The chips and the
+   * order went with the cards (P4, 2026-10-09): board Main draws a find field and no
+   * more. Playlists is a page of its own, and Subscriptions a table. */
   var view = {
-    tab: new URLSearchParams(location.search).get("show") === "uploads" ? "uploads" : "all",
-    status: "all",
+    // Recent, Uploads or Subscriptions, from `?show=` (design.md §12, 2026-10-08); the
+    // fourth tab, Playlists, is a page of its own.
+    tab: (function () {
+      var show = new URLSearchParams(location.search).get("show");
+      return show === "uploads" || show === "subscriptions" ? show : "recent";
+    })(),
     query: "",
-    order: "read",
     series: "",
+    // Every row, once Show more is pressed; the first few until then (audit Q7).
+    all: false,
   };
 
-  // Chips, search and order are for a shelf long enough to need them.
+  // How many rows the shelf draws before Show more (board Main draws a short list), and
+  // how many it must be hiding before the press is worth drawing at all.
+  var SHOW_FIRST = 8;
+  var SHOW_MORE_FROM = 3;
+
+  // The find field is for a shelf long enough to need it.
   var SIFT_FROM = 6;
 
   /* An episode is read off its title, because nothing else says what a series is: a stem,
@@ -212,7 +337,7 @@
   }
 
   function onTab(reader) {
-    return view.tab === "all" || isUpload(reader);
+    return view.tab !== "uploads" || isUpload(reader);
   }
 
   function matches(reader) {
@@ -252,59 +377,56 @@
     return out;
   }
 
-  var CEFR = ["A1", "A1+", "A2", "A2+", "B1", "B1+", "B2", "B2+", "C1", "C2"];
-
-  function difficulty(reader) {
-    var at = reader.level && reader.level.cefr ? CEFR.indexOf(reader.level.cefr) : -1;
-    return at < 0 ? CEFR.length : at;
-  }
-
-  function known(reader) {
-    return typeof reader.known === "number" && reader.words ? reader.known : -1;
-  }
-
-  // One number per row for each order, a series answering for its best text.
-  function measure(thing, of, best) {
+  // Last read first, a series answering for its latest text; then what came last.
+  function latest(thing, of) {
     if (!thing.members) return of(thing);
     return thing.members.map(of).reduce(function (a, b) {
-      return best(a, b);
+      return Math.max(a, b);
     });
   }
 
-  var ORDERS = {
-    read: function (a, b) {
-      return (
-        measure(b, function (r) { return r.opened || 0; }, Math.max) -
-          measure(a, function (r) { return r.opened || 0; }, Math.max) ||
-        ORDERS.added(a, b)
-      );
-    },
-    added: function (a, b) {
-      return (
-        measure(b, function (r) { return r.built || 0; }, Math.max) -
-        measure(a, function (r) { return r.built || 0; }, Math.max)
-      );
-    },
-    easy: function (a, b) {
-      return measure(a, difficulty, Math.min) - measure(b, difficulty, Math.min) || ORDERS.read(a, b);
-    },
-    known: function (a, b) {
-      return measure(b, known, Math.max) - measure(a, known, Math.max) || ORDERS.read(a, b);
-    },
-  };
-
-  function chip(label, value, count) {
-    var press = document.createElement("button");
-    press.type = "button";
-    press.className = "chip";
-    press.setAttribute("aria-pressed", String(view.status === value));
-    press.appendChild(document.createTextNode(label + " "));
-    var n = document.createElement("span");
-    n.className = "chip-n";
-    n.textContent = String(count);
-    press.appendChild(n);
-    return press;
+  function byRead(a, b) {
+    function opened(r) {
+      return r.opened || 0;
+    }
+    function built(r) {
+      return r.built || 0;
+    }
+    return latest(b, opened) - latest(a, opened) || latest(b, built) - latest(a, built);
   }
+
+  /* The account hears what this browser holds before the shelf is measured against it
+     (QA, 2026-10-12). The first Done in a language comes straight here, and its marks were
+     still on their way: the line said "+79 known · 98%" over a card that said "You know
+     0%". Only when something is owed, so a home with nothing new asks at once, and never
+     for longer than a few seconds: a slow push costs the figure, not the page. */
+  var CAUGHT_UP_MS = 4000;
+  function caughtUp() {
+    var sync = window.TargumSync;
+    var owed = 0;
+    try {
+      owed = sync && sync.owed && sync.flush ? sync.owed() : 0;
+    } catch (e) {
+      owed = 0;
+    }
+    if (!owed) return Promise.resolve();
+    return Promise.race([
+      Promise.resolve(sync.flush()).catch(function () {}),
+      new Promise(function (resolve) {
+        setTimeout(resolve, CAUGHT_UP_MS);
+      }),
+    ]);
+  }
+
+  /* Home drawn again in place once the account has answered (2026-10-18). A browser that
+     had never synced reloaded the whole page when `/sync` came back, and with a big shelf
+     that made a first visit about five seconds: two loads, the second of everything the
+     first had just drawn. What the answer changes is in this browser's own store (which
+     texts were opened, the places, the words), so the shelf, Continue and the counts are
+     drawn again from it, and nothing the server already answered is asked again. Set
+     once home is drawn; an answer that comes before then is kept for it. */
+  var redrawHome = null;
+  var owedRedraw = false;
 
   function drawTexts() {
     var opened = stored("targum:opened");
@@ -313,99 +435,94 @@
         return {};
       });
     };
-    return Promise.all([ask("/readers"), jobs()]).then(function (both) {
-      var readers = gather(both[0], opened);
+    return Promise.all([caughtUp().then(function () {
+      return ask("/readers");
+    }), jobs(), accountPlaces()]).then(function (both) {
+      var theirPlaces = both[2];
+      var readers = gather(both[0], opened, theirPlaces);
       var trash = (both[0] && both[0].trash) || [];
       var building = shelf.building((both[1] && both[1].jobs) || []);
+      // Portions and daily pages, for Recent only: home draws its own Continue from the
+      // places, so they are kept out of the readers it is handed.
+      var elsewhere = away(both[2], readers);
 
       var codes = [lang.HOME];
-      readers.concat(building).forEach(function (thing) {
+      readers.concat(building, elsewhere).forEach(function (thing) {
         var code = shelf.base(thing.language);
         if (code && codes.indexOf(code) < 0) codes.push(code);
       });
       codes = lang.order(codes, names);
 
-      /* What a targum is, folded to one line once the reader has finished one: they
-         know by then (targum-internal#374). Opened again for this visit by its line. */
-      var defined = document.getElementById("defined");
-      var definedOpen = document.getElementById("defined-open");
-      var finishedOne = readers.some(function (reader) {
-        return shelf.status(reader).kind === "finished";
-      });
-      if (defined && definedOpen && finishedOne) {
-        defined.classList.add("is-folded");
-        definedOpen.hidden = false;
-        definedOpen.onclick = function () {
-          var folded = defined.classList.toggle("is-folded");
-          definedOpen.setAttribute("aria-expanded", String(!folded));
-        };
-      }
-
-      // Nothing yet: the page still says what a targum is and where the tabs go, which is
-      // what the reader with nothing needs most; only the shelf's panel stays shut.
-      if (!readers.length && !building.length) {
-        document.getElementById("page").hidden = false;
-        document.getElementById("shelf-panel").hidden = true;
-        document.getElementById("nothing").hidden = false;
-        Array.prototype.forEach.call(document.querySelectorAll("#yours-tabs [data-tab]"), function (link) {
-          var here = link.getAttribute("data-tab");
-          if (here === view.tab) link.setAttribute("aria-current", "page");
-          else if (here !== "playlists") link.removeAttribute("aria-current");
-        });
-        return;
-      }
-      document.getElementById("page").hidden = false;
+      /* Home (design.md §12, "Home is Your targums, and Continue leads it", 2026-10-08):
+         Continue, one text to try next and the way to upload stand over the shelf, and
+         `home.js` draws them. A reader with nothing yet still has a page: it says what
+         will appear here, and offers one to start with and the upload. */
+      var home = window.TargumHome || null;
+      var nothingYet = !readers.length && !building.length && !elsewhere.length;
+      var tabStrip = document.getElementById("yours-tabs");
+      // Subscriptions answer even with nothing on the shelf: a reader may subscribe
+      // before they open anything (design.md §12, 2026-10-09).
+      if (tabStrip) tabStrip.hidden = nothingYet && view.tab !== "subscriptions";
+      document.getElementById("shelf-panel").hidden = nothingYet;
+      var grid = document.querySelector(".home-grid");
+      if (grid) grid.classList.toggle("is-empty", nothingYet);
       var shown = "";
 
-      var sift = document.getElementById("sift-shelf");
-      var chips = document.getElementById("status-chips");
       var find = document.getElementById("shelf-find");
-      var order = document.getElementById("shelf-order");
       var inSeries = document.getElementById("in-series");
       var tabs = document.querySelectorAll("#yours-tabs [data-tab]");
 
-      function drawChips(pool) {
-        var counts = { all: pool.length, new: 0, reading: 0, finished: 0 };
-        pool.forEach(function (reader) {
-          counts[shelf.status(reader).kind] += 1;
-        });
-        chips.textContent = "";
-        [
-          ["all", t("yours.sift.all", "All")],
-          ["new", t("yours.sift.new", "New")],
-          ["reading", t("yours.sift.reading", "Started")],
-          ["finished", t("yours.sift.finished", "Finished")],
-        ].forEach(function (pair) {
-          // The pressed chip stays, at nought, so what is filtering the list is on screen.
-          if (pair[0] !== "all" && !counts[pair[0]] && view.status !== pair[0]) return;
-          var press = chip(pair[1], pair[0], counts[pair[0]]);
-          press.onclick = function () {
-            view.status = view.status === pair[0] ? "all" : pair[0];
-            render();
-          };
-          chips.appendChild(press);
-        });
+      /* Subscriptions (design.md §12, "A subscription is the account's", 2026-10-09):
+         every subscription as a row, drawn by `subs.js` (`TargumSubs.drawTab`), which
+         falls back to `follow.js`'s list of series for a reader signed out. */
+      var subsPanel = document.getElementById("subs-panel");
+      function drawSubscriptions() {
+        var subs = window.TargumSubs;
+        if (!subsPanel || !subs) return;
+        subs.drawTab(subsPanel);
+      }
+
+      /* The one strip of tabs stands in the head of the card of rows on Recent and
+         Uploads (board Main), and under the page's title on Subscriptions, which is the
+         page's whole width with nothing of Continue's beside it (board SubsTab). */
+      var top = document.getElementById("yours-top");
+      var head = document.getElementById("yours-head");
+      function placeTabs(subscribing) {
+        if (!tabStrip || !top || !head) return;
+        var host = subscribing ? top : head;
+        if (tabStrip.parentNode !== host) host.appendChild(tabStrip);
+        top.hidden = !subscribing;
+        if (document.body && document.body.classList) document.body.classList.toggle("is-subscribing", subscribing);
       }
 
       function render() {
-        var mine = readers.filter(function (reader) {
+        var subscribing = view.tab === "subscriptions";
+        if (subsPanel) subsPanel.hidden = !subscribing;
+        document.getElementById("shelf-panel").hidden = subscribing || nothingYet;
+        if (tabStrip) tabStrip.hidden = nothingYet && !subscribing;
+        placeTabs(subscribing);
+        if (subscribing) {
+          drawSubscriptions();
+          return;
+        }
+        var heading = document.getElementById("shelf-title");
+        if (heading) {
+          heading.textContent =
+            view.tab === "uploads"
+              ? t("yours.list.uploads", "Uploaded by you")
+              : t("yours.list.all", "All your targums");
+        }
+        var mine = readers.concat(elsewhere).filter(function (reader) {
           return shelf.base(reader.language) === shown && onTab(reader);
         });
-        sift.hidden = mine.length < SIFT_FROM;
+        find.hidden = mine.length < SIFT_FROM;
         // Nothing sifts what cannot be seen: a search typed on All targums went on
         // emptying Your uploads, which draws no box to clear it from (2026-09-27).
-        if (sift.hidden) {
+        if (find.hidden) {
           view.query = "";
-          view.status = "all";
-          view.order = "read";
           find.value = "";
-          order.value = "read";
         }
-        var searched = mine.filter(matches);
-        var sifted = searched.filter(function (reader) {
-          return view.status === "all" || shelf.status(reader).kind === view.status;
-        });
-        if (!sift.hidden) drawChips(searched);
+        var sifted = mine.filter(matches);
 
         var rows;
         var group = null;
@@ -431,7 +548,7 @@
             view.series = "";
           }
         }
-        if (!group) rows = fold(sifted, mine).sort(ORDERS[view.order]);
+        if (!group) rows = fold(sifted, mine).sort(byRead);
 
         inSeries.hidden = !group;
         if (group) {
@@ -441,23 +558,25 @@
         }
 
         // A build is shown on the whole shelf, before anything is sifted out of it.
-        var plain = !group && view.status === "all" && !view.query;
+        var plain = !group && !view.query;
         var empty = "";
         if (!rows.length && mine.length) {
-          empty = t("yours.sift.none", "Nothing here matches that. Try another search or filter.");
+          empty = t("yours.sift.none-found", "Nothing here matches that. Try another search.");
         } else if (!rows.length && view.tab === "uploads") {
-          empty = t("yours.uploads.empty", "Nothing you've added yet. What you paste, upload or link on Add is kept here.");
+          empty = t("yours.uploads.none", "Nothing you’ve uploaded yet. What you paste, upload or link is kept here.");
         } else if (!rows.length) {
           // The rows are handed over already sifted, so `shelf.draw` cannot tell an empty
           // language from an empty shelf; this can.
           empty = t("shelf.empty.language", "Nothing in {language} yet.", { language: names[shown] || shown });
         }
+        // The first rows, and the rest behind Show more; a search or a series is shown
+        // whole, since there the reader has already said what they want.
+        var moreRows = document.getElementById("shelf-more-rows");
+        var capped = !group && !view.query && !view.all && rows.length >= SHOW_FIRST + SHOW_MORE_FROM;
+        if (capped) rows = rows.slice(0, SHOW_FIRST);
+        if (moreRows) moreRows.hidden = !capped;
         shelf.draw(shown, rows, {
-          // An order is only news where there are two things to put in one.
-          note:
-            sift.hidden && !group && view.order === "read" && rows.length > 1
-              ? t("yours.last-read-first", "Last read first.")
-              : "",
+          note: "",
           building: plain ? building : [],
           empty: empty,
           onSeries: function (folded) {
@@ -472,10 +591,24 @@
       function show(code) {
         shown = code;
         view.series = "";
+        view.all = false;
         lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         // No ceiling: this page is the whole of it, which is what it is for.
-        render();
+        if (!nothingYet || view.tab === "subscriptions") render();
+        // The head of home, in the same language; the page is shown once it is drawn, so
+        // a reader sent on to the arrival never sees it flash first.
+        var drawn = home ? home.draw(code, readers, building) : Promise.resolve(true);
+        return drawn
+          .catch(function () {
+            return true;
+          })
+          .then(function (stay) {
+            if (stay === false) return;
+            var waiting = document.getElementById("home-waiting");
+            if (waiting) waiting.hidden = true;
+            document.getElementById("page").hidden = false;
+          });
       }
 
       Array.prototype.forEach.call(tabs, function (link) {
@@ -485,6 +618,7 @@
           event.preventDefault();
           view.tab = link.getAttribute("data-tab");
           view.series = "";
+          view.all = false;
           Array.prototype.forEach.call(tabs, function (other) {
             if (other === link) other.setAttribute("aria-current", "page");
             else other.removeAttribute("aria-current");
@@ -492,7 +626,7 @@
           // The address says the tab, so a reload or a shared link opens on it. Only the
           // query changes: the key in it stays, and so does the path.
           var query = new URLSearchParams(location.search);
-          if (view.tab === "uploads") query.set("show", "uploads");
+          if (view.tab !== "recent") query.set("show", view.tab);
           else query.delete("show");
           var search = query.toString();
           try {
@@ -511,16 +645,40 @@
         view.query = find.value;
         render();
       });
-      order.addEventListener("change", function () {
-        view.order = order.value;
-        render();
-      });
       document.getElementById("series-back").addEventListener("click", function () {
         view.series = "";
         render();
       });
+      var moreButton = document.getElementById("shelf-more-rows");
+      if (moreButton) {
+        moreButton.addEventListener("click", function () {
+          view.all = true;
+          render();
+        });
+      }
 
       show(lang.current(codes));
+
+      redrawHome = function () {
+        readers = gather(both[0], stored("targum:opened"), theirPlaces);
+        elsewhere = away(theirPlaces, readers);
+        var found = [lang.HOME];
+        readers.concat(building, elsewhere).forEach(function (thing) {
+          var code = shelf.base(thing.language);
+          if (code && found.indexOf(code) < 0) found.push(code);
+        });
+        codes = lang.order(found, names);
+        nothingYet = !readers.length && !building.length && !elsewhere.length;
+        if (tabStrip) tabStrip.hidden = nothingYet && view.tab !== "subscriptions";
+        document.getElementById("shelf-panel").hidden = nothingYet;
+        if (grid) grid.classList.toggle("is-empty", nothingYet);
+        // In the language the account last chose, as the reload opened in.
+        return show(lang.current(codes));
+      };
+      if (owedRedraw) {
+        owedRedraw = false;
+        redrawHome();
+      }
 
       /* While anything is building, ask again every three seconds, and only while: a page
          left open overnight should not ask a question every three seconds until morning.
@@ -543,12 +701,15 @@
             building = now;
             if (!finished) {
               render();
+              if (home) home.draw(shown, readers, building);
               return follow();
             }
             return ask("/readers").then(function (data) {
-              readers = gather(data, stored("targum:opened"));
+              readers = gather(data, stored("targum:opened"), theirPlaces);
               trash = (data && data.trash) || trash;
               render();
+              // Continue's card for the build becomes the text it built.
+              if (home) home.draw(shown, readers, building);
               follow();
             });
           })
@@ -567,9 +728,45 @@
     var data = charts.collect();
     var codes = lang.order(Object.keys(data), names);
     if (!codes.length) {
-      document.getElementById("nothing").hidden = false;
-      return Promise.resolve();
+      // Not before the account has answered (2026-10-10): on a browser just signed in,
+      // the words are on their way, and "nothing yet" read as everything deleted.
+      var sync = window.TargumSync;
+      var answered = sync && sync.settled ? sync.settled() : Promise.resolve(false);
+      awaitingAccount = true;
+      return answered.then(function (changed) {
+        awaitingAccount = false;
+        /* What the account brought is in this browser now, so it is drawn from here
+           rather than by loading the page again: on a phone the reload took a first visit
+           to Your Words from 1.3 s to 3.2 s (Your Words QA, 2026-10-20). */
+        if (changed) {
+          var brought = lang.order(Object.keys(charts.collect()), names);
+          if (brought.length) return drawLists(brought);
+        }
+        /* Your Words QA (2026-10-20): the account answered and holds nothing in any
+           language, which is every new reader — the page itself, empty, with the line
+           that says what fills it and the commonest words to start from. Where the
+           account never answered (a refusal, a dropped connection, offline), the list
+           is not known to be empty, and the page says it could not load. */
+        if (sync && !sync.reached) {
+          var failed = new Error("unanswered");
+          failed.answered = true; // said as ours to load, whichever way it failed
+          throw failed;
+        }
+        var learning = (sync && sync.who && sync.who.learning) || [];
+        var first = lang.current(learning.length ? lang.order(learning, names) : ["he"]);
+        return drawLists([first]);
+      });
     }
+    return drawLists(codes);
+  }
+
+  //: True while a page with nothing in this browser waits on the account's first answer,
+  //: which it draws itself; a change announced meanwhile is not a reason to reload.
+  var awaitingAccount = false;
+
+  function drawLists(codes) {
+    var waiting = document.getElementById("home-waiting");
+    if (waiting) waiting.hidden = true;
     document.getElementById("page").hidden = false;
 
     lists.mount({
@@ -583,7 +780,9 @@
     // Picking another language for the meanings redraws the same rows with the other
     // answer in them. The words themselves do not move: they are the same words.
     lists.onMeaningLanguage(function () {
-      lists.draw(shown, charts.collect(charts.meaningLanguage(shown))[shown]);
+      var into = charts.meaningLanguage(shown);
+      lists.draw(shown, charts.collect(into)[shown]);
+      drawFacts(shown, into);
     });
 
     var shown = "";
@@ -594,29 +793,112 @@
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       // Re-collected rather than sliced out of `data`: which language the meanings are
       // in is a question about the language being shown, and the answer changes with it.
-      lists.draw(code, charts.collect(charts.meaningLanguage(code))[code]);
+      var into = charts.meaningLanguage(code);
+      lists.draw(code, charts.collect(into)[code] || { words: [], phrases: [] });
+      drawFacts(code, into);
     }
 
     show(lang.current(codes));
     return Promise.resolve();
   }
 
-  var drawing = which === "texts" ? drawTexts() : drawKept();
-  // After the lists, and never in their way: the fold appears with its words and gains
-  // its rewritten lines a moment later.
+  // The Grammar tab draws itself (`grammar.js`) from the server: there is nothing of it in
+  // the browser's lists to draw first.
+  var drawing =
+    which === "grammar"
+      ? (window.TargumGrammar && window.TargumGrammar.loaded) || Promise.resolve()
+      : which === "texts"
+        ? drawTexts()
+        : drawKept();
+  // After the lists, and never in their way: the phrases appear first and the record of
+  // corrected lines a moment later.
   drawing.then(drawRewrote).catch(function () {});
 
-  drawing.catch(function () {
+  drawing.catch(function (why) {
     // Signed out, or the server went away. The nav is still there to leave by.
+    clearTimeout(slowly);
+    var waiting = document.getElementById("home-waiting");
+    if (waiting) waiting.hidden = true;
+    couldNot(why);
     document.getElementById("nothing").hidden = false;
   });
 
+  /* Home's wait, said again past three seconds (design.md §14, line 1; home QA,
+     2026-10-18): "Opening your texts…" alone for twenty seconds on a cold box read as a
+     page that had stopped. The lists say theirs the same way (Your Words QA, 2026-10-20). */
+  // Each said through a literal t(), which is how a page's strings are found for it.
+  function stillOpening() {
+    if (which === "texts") return t("home.still-opening", "We're still opening your texts.");
+    if (which === "phrases") return t("lists.still-opening.phrases", "We're still opening your phrases.");
+    if (which === "grammar") return t("practice.page.still-opening", "We're still opening your practice.");
+    return t("lists.still-opening.words", "We're still opening your words.");
+  }
+  var slowly = setTimeout(function () {
+    var waiting = document.getElementById("home-waiting");
+    if (waiting && !waiting.hidden) waiting.textContent = stillOpening();
+  }, 3000);
+  drawing.then(function () {
+    clearTimeout(slowly);
+  }, function () {});
+
+  /* What home says when it could not load, and the press that asks again. Offline says
+     so, and asks again by itself once the connection is back; a server that answered
+     with a refusal, or did not answer at all, is ours to own (§6). */
+  function couldNot(why) {
+    var lede = document.getElementById("nothing-lede");
+    var says = document.getElementById("nothing-says");
+    var again = document.getElementById("nothing-again");
+    var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    if (lede && says) {
+      if (offline) {
+        lede.textContent = t("home.offline.lede", "You're offline.");
+        says.textContent =
+          which === "texts"
+            ? t(
+                "home.offline.says",
+                "Your texts will open when you're back online. Everything you've read is still here."
+              )
+            : which === "grammar"
+              ? t("practice.page.offline", "Your practice opens when you're back online.")
+              : t("lists.offline.says", "Your list opens when you're back online. Everything you've marked is still here.");
+      } else if (!(why && why.answered)) {
+        lede.textContent = t("home.unreachable.lede", "We can't reach targum.");
+      }
+    }
+    function retry() {
+      if (window.location && window.location.reload) window.location.reload();
+    }
+    if (again && !again.getAttribute("data-bound")) {
+      again.setAttribute("data-bound", "1");
+      again.addEventListener("click", retry);
+    }
+    // Offline, the bar's banner (`fault.js`) already says so with its own Try again, and
+    // one press is enough; the page asks again by itself when the connection is back.
+    if (again) again.hidden = offline;
+    // Tell us goes with it: what it sends needs the connection too.
+    var tell = document.getElementById("nothing-tell");
+    if (tell) tell.hidden = offline;
+    if (offline) window.addEventListener("online", retry, { once: true });
+  }
+
   if (window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
-      if (changed) location.reload();
+      if (!changed) return;
+      // Your Words and Your Phrases are drawn again by the load, as they were.
+      if (which !== "texts") return awaitingAccount ? undefined : location.reload();
+      if (redrawHome) return redrawHome();
+      // Home has not drawn yet, and draws again once it has. If it could not draw at
+      // all, the page is the refusal, and the load asks again, as it did before.
+      owedRedraw = true;
+      drawing.catch(function () {
+        owedRedraw = false;
+        location.reload();
+      });
     });
-    window.TargumSync.start().then(function () {
-      if (lists) lists.offerExports(!!window.TargumSync.who);
-    });
+    (window.TargumSync.settled ? window.TargumSync.settled() : window.TargumSync.start()).then(
+      function () {
+        if (lists) lists.offerExports(!!window.TargumSync.who);
+      }
+    );
   }
 })();

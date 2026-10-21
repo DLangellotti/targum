@@ -202,7 +202,7 @@ def test_a_post_card_in_a_request_is_never_taken(served, tmp_path: Path) -> None
     assert "post" not in library.jobs[job["id"]].options
 
     status, refused = bring(port, token, again="0123456789abcdef", pictures=True)
-    assert status == 400 and "Bring it again" in refused["error"]
+    assert status == 400 and "Upload it again" in refused["error"]
 
 
 def test_a_brought_film_asks_nothing_of_instagram(

@@ -53,7 +53,9 @@ NOT_OVER_MCP = frozenset({"quote_conversation"})
 _TYPES: dict[str, type] = {"string": str, "integer": int, "number": float, "boolean": bool}
 
 
-def exposed(scopes: str | None = None, *, person: Person | None = None) -> list[tools_module.Tool]:
+def exposed(
+    scopes: str | None = None, *, person: Person | None = None, calling: bool = False
+) -> list[tools_module.Tool]:
     """What this caller may see of the registry.
 
     Three filters, and which apply depends on who is asking.
@@ -72,11 +74,18 @@ def exposed(scopes: str | None = None, *, person: Person | None = None) -> list[
     `needs_account` drops what can only answer emptily to nobody. Over stdio `Ctx.person`
     is None by design, and a tool offered there that cannot work is worse than one that
     is not offered.
+
+    `here_only` drops the three finding tools `find_text` stands for over a connector
+    (design.md §12, "The connector finds with one tool", 2026-10-06). `calling` keeps
+    them, for `tools/call` alone: a host that listed them before the change still holds
+    their names mid-conversation, and every other filter still applies to them.
     """
     out = []
     following = any(one.feed for one in sources_module.load())
     for tool in tools_module.REGISTRY:
         if tool.needs_consent or tool.name in NOT_OVER_MCP:
+            continue
+        if tool.here_only and not calling:
             continue
         if tool.name == "search_sources" and not following:
             # A tool that can only answer "we don't follow any publishers yet" is a tool
@@ -141,11 +150,9 @@ def context(
         # The ladder is per language and a reader may be on several. Hebrew is the one
         # every reader has, so it is what a tool that names no language is measured
         # against; `my_progress` takes one and re-reads it for whichever it is given.
-        level=(
-            level_module.snapshot(store, person.id, "he")
-            if store is not None
-            else level_module.EMPTY
-        ),
+        # Kept until the record changes (`tools.snapshot`, 2026-10-06): this runs before
+        # every call a host makes, and read the whole ledger each time.
+        level=tools_module.snapshot(store, person.id, "he"),
         reads=reads or {code for code, _ in INTO},
         learning=learning or {code for code, _ in READING},
         admin=store.is_admin(person.email) if store is not None else False,
@@ -159,6 +166,7 @@ def context(
         # never sets this: a turn there has a client already.
         ask=ask,
         sees_record=sees_record,
+        via="connector",
     )
 
 

@@ -69,7 +69,7 @@ def test_a_silent_video_is_refused_with_the_reason(fake_audio, tmp_path, monkeyp
         return answer
 
     monkeypatch.setattr(tools_module, "ffprobe_json", silent)
-    with pytest.raises(TargumError, match="nothing to transcribe in a silent video"):
+    with pytest.raises(TargumError, match="silent, so there's nothing to write down"):
         probe.examine(film(tmp_path), allow_video=True)
 
 

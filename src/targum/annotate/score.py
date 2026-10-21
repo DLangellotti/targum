@@ -37,7 +37,9 @@ from typing import Any
 
 from ..models import Segment, SegmentedDocument, Token
 from .canonical import bare, canonical
+from .dicta import CARRYING, PRONOUNS, TWO
 from .gold import GoldSentence, GoldToken
+from .governed import governed
 from .hebrew import BINYANIM, root_of
 
 #: Sentences per call to the annotator. The number `lemma_map.py` settled on after a box
@@ -107,6 +109,10 @@ class Scorecard:
     pos_misses: collections.Counter[tuple[str, str]] = dataclasses.field(
         default_factory=collections.Counter
     )
+    #: (gold preposition, ours) where one side had a pair the other did not.
+    governed_misses: collections.Counter[tuple[str, str]] = dataclasses.field(
+        default_factory=collections.Counter
+    )
 
     def add(self, gold: GoldToken, ours: Token) -> None:
         self.paired += 1
@@ -116,7 +122,7 @@ class Scorecard:
 
         gold_lemma = bare(gold.lemma)
         our_lemma = bare(ours.lemma)
-        if our_lemma == gold_lemma:
+        if our_lemma == gold_lemma or filed_alike(gold, ours):
             c["lemma"] += 1
             c["lemma_canonical"] += 1
             bucket["lemma"] += 1
@@ -128,7 +134,7 @@ class Scorecard:
                 # The surface stood in for a lemma, and the surface was not it.
                 c["surface_stood_in"] += 1
 
-        if ours.pos == gold.upos:
+        if ours.pos == gold.upos or (ours.pos == "ADP" and carried_alike(gold, ours)):
             c["pos"] += 1
             bucket["pos"] += 1
         else:
@@ -160,6 +166,8 @@ class Scorecard:
                     else:
                         self.root_misses[(gold.lemma, want_root, ours.root)] += 1
 
+        self._features(gold, ours)
+
         gold_split = bool(gold.prefixes)
         if gold_split and ours.split:
             c["prefix_tp"] += 1
@@ -167,6 +175,29 @@ class Scorecard:
             c["prefix_fp"] += 1
         elif gold_split and not ours.split:
             c["prefix_fn"] += 1
+
+    def _features(self, gold: GoldToken, ours: Token) -> None:
+        """The features the card says, scored where the treebank marks them (design.md
+        §12, "A badge is a promise, checked", 2026-10-12): gender and number, which carry
+        agreement; tense and person; and the construct state, as precision and recall
+        because it is a thing named on some words and absent from the rest."""
+        c = self.counts
+        want = _feats(gold.feats)
+        have = _feats(ours.feats)
+        for key in SCORED_FEATS:
+            if key not in want:
+                continue
+            c[f"{key.lower()}_scored"] += 1
+            if have.get(key) == want[key]:
+                c[f"{key.lower()}_right"] += 1
+        gold_cons = want.get("Definite") == "Cons"
+        our_cons = have.get("Definite") == "Cons"
+        if gold_cons and our_cons:
+            c["construct_tp"] += 1
+        elif our_cons:
+            c["construct_fp"] += 1
+        elif gold_cons:
+            c["construct_fn"] += 1
 
     def rate(self, numerator: str, denominator: str | int) -> float | None:
         below = self.counts[denominator] if isinstance(denominator, str) else denominator
@@ -192,7 +223,31 @@ class Scorecard:
             "gold_root_derivable": self.rate("verbs_with_gold_root", "verbs"),
             "prefix_precision": tp / (tp + fp) if tp + fp else None,
             "prefix_recall": tp / (tp + fn) if tp + fn else None,
+            **{
+                f"{key.lower()}_accuracy": self.rate(
+                    f"{key.lower()}_right", f"{key.lower()}_scored"
+                )
+                for key in SCORED_FEATS
+            },
+            "construct_precision": _share(c["construct_tp"], c["construct_fp"]),
+            "construct_recall": _share(c["construct_tp"], c["construct_fn"]),
+            "governed_precision": _share(c["governed_tp"], c["governed_fp"]),
+            "governed_recall": _share(c["governed_tp"], c["governed_fn"]),
         }
+
+    def add_governed(
+        self, gold: set[tuple[int, int, str, int, int]], ours: set[tuple[int, int, str, int, int]]
+    ) -> None:
+        """Hebrew's fourth hard spot: which preposition marks which verb's argument, as
+        (verb span, preposition, argument span), against the treebank's (`governed`)."""
+        c = self.counts
+        c["governed_tp"] += len(gold & ours)
+        c["governed_fp"] += len(ours - gold)
+        c["governed_fn"] += len(gold - ours)
+        for _, _, preposition, _, _ in ours - gold:
+            self.governed_misses[("", preposition)] += 1
+        for _, _, preposition, _, _ in gold - ours:
+            self.governed_misses[(preposition, "")] += 1
 
     def as_dict(self, top: int = TOP) -> dict[str, Any]:
         return {
@@ -222,6 +277,10 @@ class Scorecard:
                 {"lemma": lemma, "gold": g, "ours": o, "n": n}
                 for (lemma, g, o), n in self.binyan_misses.most_common(top)
             ],
+            "governed_misses": [
+                {"gold": g, "ours": o, "n": n}
+                for (g, o), n in self.governed_misses.most_common(top)
+            ],
             "pos_misses": [
                 {"gold": g, "ours": o, "n": n} for (g, o), n in self.pos_misses.most_common(top)
             ],
@@ -243,7 +302,28 @@ ROWS = (
     ("gold_root_derivable", "verbs whose gold root derives"),
     ("prefix_precision", "prefix split precision"),
     ("prefix_recall", "prefix split recall"),
+    ("gender_accuracy", "gender right, where marked"),
+    ("number_accuracy", "number right, where marked"),
+    ("person_accuracy", "person right, where marked"),
+    ("tense_accuracy", "tense right, where marked"),
+    ("construct_precision", "construct state precision"),
+    ("construct_recall", "construct state recall"),
+    ("governed_precision", "governed preposition precision"),
+    ("governed_recall", "governed preposition recall"),
 )
+
+
+#: The features `_features` scores against the treebank, as Universal Dependencies
+#: names them.
+SCORED_FEATS: tuple[str, ...] = ("Gender", "Number", "Person", "Tense")
+
+
+def _feats(feats: str | None) -> dict[str, str]:
+    return dict(part.partition("=")[::2] for part in (feats or "").split("|") if "=" in part)
+
+
+def _share(right: int, wrong: int) -> float | None:
+    return right / (right + wrong) if right + wrong else None
 
 
 def _pct(value: float | None) -> str:
@@ -313,12 +393,61 @@ def score(
                 token = ours.get((gold.start, gold.end))
                 if token is not None:
                     card.add(gold, token)
+            tokens = read.get(segment.id, [])
+            card.add_governed(
+                set(sentence.governed),
+                {
+                    (
+                        tokens[pair.verb].start,
+                        tokens[pair.verb].end,
+                        pair.preposition,
+                        tokens[pair.argument].start,
+                        tokens[pair.argument].end,
+                    )
+                    for pair in governed(tokens)
+                },
+            )
         gc.collect()
         say(f"{min(start + batch, len(held))}/{len(held)} sentences")
 
     if tally is not None:
         card.counts["declined"] = tally.get("declined", 0)
     return card
+
+
+#: Where the treebanks file a word under one name and targum, on purpose, under another
+#: (2026-10-12, known issues 1.1-1.3). IAHLT writes every personal pronoun's lemma as
+#: הוא, אישה's as איש and two's as שתיים; targum gives each pronoun its own card, keeps
+#: wife off "man", and files two under שניים. Scored as disagreement, each of those
+#: would read as a fall in accuracy the day it was fixed — three points on the Knesset
+#: treebank, where 430 of 12,800 words are free pronouns.
+TREEBANK_NAMES: dict[str, str] = {
+    **dict.fromkeys(PRONOUNS, "הוא"),
+    "אישה": "איש",
+    TWO: "שתיים",
+}
+
+
+def filed_alike(gold: GoldToken, ours: Token) -> bool:
+    """Whether a lemma differs from the treebank's only by the treebank's convention."""
+    if TREEBANK_NAMES.get(bare(ours.lemma)) == bare(gold.lemma):
+        return True
+    return carried_alike(gold, ours)
+
+
+def carried_alike(gold: GoldToken, ours: Token) -> bool:
+    """בו as the treebank cuts it and as targum files it.
+
+    The treebank takes the ב off the front as a prefix, the way it takes ו off ובית, and
+    what is left is the pronoun: lemma הוא, a `PRON`. targum files a preposition with a
+    pronoun on the end under the preposition, as both the treebank and DICTA file אותו
+    under את — the ב is only cut off because it is one letter long. Same word, same
+    reading, two conventions.
+    """
+    if gold.upos != "PRON" or not gold.prefixes:
+        return False
+    host = CARRYING.get(gold.prefixes[-1][-1:])
+    return host is not None and bare(ours.lemma) == host
 
 
 def annotator_for(bands: Any | None = None, **kwargs: Any) -> Any:

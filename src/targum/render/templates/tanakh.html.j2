@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("tanakh.page.title-targum", "The Tanakh — targum") }}</title>
+{% include '_icons.html.j2' %}
+{{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'library.css', 'progress.css', 'tanakh.css') }}
+{{ hebrew_face() }}
+{{ script('keep.js') }}
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+{#- The Tanakh map (targum-internal#144; design.md §12, 2026-09-28). Every chapter a
+    square, in three parts and the Hebrew count, shaded on the knowledge ramp by the share
+    of its running words the reader has marked known. A door of the Library since
+    2026-10-09 (§12, "The Tanakh map is a door in the Library"), so the nav lights that
+    and the trail above the heading says Library › The Tanakh. `words` for the ramp's four
+    steps, which are defined on it. -#}
+<body class="tanakh">
+{% set here = 'library' %}{% set title = t("tanakh.page.title", "The Tanakh") %}
+{% set crumbs = [(t("nav.library", "Library"), "/library")] %}
+{% set title_he = "תנ״ך" %}{% set title_aside = "_tanakh_views.html.j2" %}
+{% include '_nav.html.j2' %}
+{{ script('building.js') }}
+
+<main>
+  <p class="tanakh-lede">{{ t("tanakh.page.lede", "Every chapter, shaded by how many of its words you know. Press one to read it.") }}</p>
+
+  {#- The ramp and the three things that are not on it: a square is a share of words
+      known, Aramaic, or a book that is not on the shelf — never two of these at once. -#}
+  {#- The Torah's year (targum-internal#144): a tick a portion, in the order they are
+      read, each the link to its portion and as wide as the chapters it is read from
+      (`tanakh.js` sets that; with no script they are even). Hover or focus on a tick
+      lights its chapters on the map, and a Torah chapter lights its tick. -#}
+  {%- if year %}
+  <nav class="panel tanakh-year" aria-label="{{ t("tanakh.page.year", "The year of portions") }}">
+    {#- Its own card above the map since 2026-10-09 (board LibraryTanakh): the year is
+        read first, and this week's tick is where a Torah reader starts. -#}
+    {#- The year's name, and at the far end this week's portion and its chapters (board
+        LibraryTanakh: "This week: Noach · Genesis 6–11"); a tick pointed at says its own
+        there until the pointer leaves. -#}
+    <div class="year-top">
+      <p class="year-head">{{ t("tanakh.page.year", "The year of portions") }}</p>
+      <p class="year-said" id="year-said" aria-live="polite" data-this-week="{{ t("tanakh.page.this-week-is", "This week:") }}"></p>
+    </div>
+    <ol class="year-ticks" id="tanakh-year">
+      {%- for portion in year %}
+      {%- set span = portion.chapters[0] ~ ('–' ~ portion.chapters[-1].rsplit(' ', 1)[1] if portion.chapters|length > 1 else '') %}
+      <li class="year-item"><a class="year-tick" href="{{ portion.href }}" data-slug="{{ portion.slug }}" data-chapters="{{ portion.chapters|join('|') }}" data-name="{{ portion.name }}" data-span="{{ span }}" aria-label="{{ portion.name }}, {{ span }}"></a></li>
+      {%- endfor %}
+    </ol>
+  </nav>
+  {%- endif %}
+  <section class="panel tanakh-panel" aria-label="{{ t("tanakh.page.every-chapter", "Every chapter") }}">
+  <ul class="tanakh-legend" id="tanakh-legend" data-steps="{{ steps|join(' ') }}">
+    <li><i class="cell" data-step="0"></i>{{ t("tanakh.page.under-half", "Under half") }}</li>
+    {%- for turn in steps %}
+    <li><i class="cell" data-step="{{ loop.index }}"></i>{{ turn }}%</li>
+    {%- endfor %}
+    <li><i class="cell aramaic"></i>{{ t("tanakh.page.aramaic", "Aramaic, not measured yet") }}</li>
+    <li><i class="cell away"></i>{{ t("tanakh.page.not-in-the-library", "Not in the library yet") }}</li>
+    <li><i class="cell week"></i>{{ t("tanakh.page.this-week", "This week's portion") }}</li>
+    <li><i class="cell read"></i>{{ t("tanakh.page.finished", "Read through") }}</li>
+  </ul>
+  {#- The one sentence the shading adds up to, filled by `tanakh.js`, under the legend it
+      counts by (board LibraryTanakh puts nothing over the map). Signed out it says where
+      the shading comes from instead. -#}
+  <p class="tanakh-sum" id="tanakh-sum" aria-live="polite"></p>
+
+  {#- The squares are links, so the map is a table of contents for the whole Tanakh and
+      works with no script at all. `aria-label` is the chapter; the card says the rest. -#}
+
+  <div class="tanakh-map" id="tanakh-map">
+    {%- for part in parts %}
+    <section class="tanakh-part" aria-labelledby="part-{{ part.part }}">
+      <h2 id="part-{{ part.part }}">
+        {%- if part.part == 'torah' %}{{ t("tanakh.page.torah", "Torah") }}
+        {%- elif part.part == 'prophets' %}{{ t("tanakh.page.prophets", "Prophets") }}
+        {%- else %}{{ t("tanakh.page.writings", "Writings") }}{% endif -%}
+      </h2>
+      <div class="tanakh-books">
+        {%- for book in part.books %}
+        <div class="tanakh-book">
+          <p class="tanakh-name"><bdi lang="he" dir="rtl">{{ book.hebrew }}</bdi> <span>{{ book.name }}</span></p>
+          {%- for half in book.halves %}
+          {%- if half.mark %}<p class="tanakh-half">{{ half.mark }}</p>{% endif %}
+          <div class="tanakh-cells">
+            {%- for chapter in half.chapters %}
+            {%- set aramaic = chapter.language != 'he' %}
+            {%- if chapter.href %}
+            <a class="cell{% if aramaic %} aramaic{% endif %}" href="{{ chapter.href }}" aria-label="{{ chapter.ref }}" data-ref="{{ chapter.ref }}" data-verses="{{ chapter.verses }}"{% if aramaic %} data-language="{{ chapter.language }}"{% endif %}{% if chapter.portion %} data-portion="{{ chapter.portion }}"{% endif %}></a>
+            {%- else %}
+            <span class="cell away{% if aramaic %} aramaic{% endif %}" role="img" aria-label="{{ chapter.ref }}" data-ref="{{ chapter.ref }}" data-verses="{{ chapter.verses }}"{% if aramaic %} data-language="{{ chapter.language }}"{% endif %}{% if chapter.portion %} data-portion="{{ chapter.portion }}"{% endif %}></span>
+            {%- endif %}
+            {%- endfor %}
+          </div>
+          {%- endfor %}
+        </div>
+        {%- endfor %}
+      </div>
+    </section>
+    {%- endfor %}
+  </div>
+  </section>
+
+  {#- The card: what a square is, said on hover and on focus, and on a phone on a tap —
+      where a seven-pixel square is a thing to point at, not to press, so the card's Read
+      is the press. `aria-live`, so a keyboard walking the squares hears each one. -#}
+  <div class="tanakh-card" id="tanakh-card" aria-live="polite" hidden>
+    <p class="tanakh-card-title" id="card-title"></p>
+    <p class="tanakh-card-meta" id="card-meta"></p>
+    <p class="tanakh-card-share" id="card-share"></p>
+    <a class="tanakh-read" id="card-read" href="#" hidden>{{ t("tanakh.page.read", "Read") }}</a>
+  </div>
+</main>
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+{{ script('strings.js') }}
+{#- The account's corner asks `sync.js` who is signed in, as on every desk page.
+    Without it the corner said "Sign in" over a map shaded with the reader's own
+    words (2026-10-09). -#}
+{{ script('lang.js') }}
+{{ script('sync.js') }}
+{{ script('account.js') }}
+{{ script('tanakh.js') }}
+</body>
+</html>

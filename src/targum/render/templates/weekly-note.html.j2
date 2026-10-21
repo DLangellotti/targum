@@ -9,9 +9,9 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'reader.css', 'public.css') }}
 {{ hebrew_face() }}
-<script>{{ asset('keep.js') }}</script>
+{{ script('keep.js') }}
 </head>
 <body class="public note">
 <main class="sheet">

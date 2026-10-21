@@ -5,6 +5,72 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Fixed
+- The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
+  words and the column it opens on are written in when it is built, in its first
+  rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
+  Chanted, "0 of 99 known" and the English beside the verse. `targum parasha build` now
+  builds a reading with a Russian rendering twice (`parasha.build.ALSO_IN`): `reader/`
+  as before and `reader-ru/` with the Russian first, served at
+  `/parasha/read/<folder>-ru/reader/…`, whose recordings are the first build's and are
+  not kept twice. The Russian page frames it, and its week list, next Shabbat's offer and
+  print link stay in it. The haftarot have no Russian rendering and keep the reader they
+  have. The companions, the sound's name and its credit line, and the bar's name beside
+  the Hebrew are said in the reader's language. **The corpus has to be rebuilt and
+  shipped for the box to have the Russian readers**; until then the Russian page frames
+  the English one, as before.
+- The Russian portion page says the book («Бытие», not "GENESIS"), «читают в субботу»
+  rather than «читают Shabbat», and every portion's name in Russian («Берешит»), from
+  `portion.name.<slug>`. A language pressed for (`?lang=ru`) rides on the links that stay
+  on the parasha pages. The credit names the Russian Torah (Gerstein and Gordon, 1875)
+  where the frame shows it. «· читать» on a part read this week is «· прочитано», and the
+  haftarah is «Гафтара» throughout.
+- Download PDF on the portion page says «Готовим PDF…» / "Preparing PDF…" until the file
+  arrives, and the one-sentence refusal under the button if the box cannot make it. With
+  no script it is still a plain GET form.
+- The reader's findings from the live QA pass of 2026-10-05, with Rashi kept on by
+  default and at full length (David's call):
+  - **Listen keeps the verse being chanted on screen.** The follow-along centred the
+    whole verse-and-Rashi block, which put the Hebrew off the top of the window; on pages
+    it never turned to the verse's page at all. It now turns to that page
+    (`TargumReader.turnToPair`) and brings the verse's own Hebrew line into the top third
+    of the room, on pages and on a scroll.
+  - **No line stands under the page controls.** A verse taller than the page could not be
+    split, so it ran on under the arrows, "1 of 19", the words tab and the player. Such a
+    verse is now cut across pages between two of its lines — the verse and its
+    translation on the first piece, the commentary carrying on over the next — and the
+    foot of the text (Done, the credits, the pager) takes a page of its own when the last
+    page has no room for it. A relayout keeps the reader on the piece they were reading.
+  - **The sheet printed from any page is the reader's view.** The print press read the
+    vowels and te'amim off the first verse's cell, hidden on every page but the first, so
+    a sheet asked for from page 4 came out bare; it reads the reader's own state now.
+  - **On a phone every press of the bar stays on the screen while the voice plays** (⋯
+    was at x=373–417 on a 390px window): the voice's line gives way first, then the
+    title. And the bar steps back after a tap on Listen: a touch is no longer taken for
+    a pointer resting at the top, and a touch's leftover `:hover` no longer holds it out.
+  - **Chanted → Spoken while playing goes on playing**, from the start of the verse it
+    was on, in the other reading. Paused, it stays paused.
+  - **Download PDF in the reader says "Preparing PDF…"** on the press while the box sets
+    the sheet (five or six seconds for a portion), then saves it under the box's name; a
+    refusal is the box's one sentence under the choice.
+- A level pressed on a word's card (1, 2, 3, known or ignore) leaves the card beside the
+  word while it lingers and fades (targum-internal#420). The card was rebuilt against
+  the span the redraw had just replaced, which has no rectangle, so it jumped to the
+  page's top-left corner and lost the lines read off the word (its pronunciation, its
+  form). The card is now rebuilt for the word's new span, found in the same cell at
+  the same place (`holdWord`), and keeps its inline start (`showCardInPlace`). The
+  keyboard's levels find the word the same way, rather than the first word in the
+  verse with its lemma.
+- While a voice plays, a line under the pointer no longer wears the band of the line
+  being said: it takes a 1px rule outline instead (`body.voicing`, design.md §8).
+- The PDF's foot sets the mark and the address on one line, centred on each other
+  (targum-internal#415). The mark was a margin box's image, which sits on the text's
+  baseline and stood above the address; the foot is now a running element (`.foot`,
+  `content: element(foot)`) laid out with flex, and the address no longer wraps.
+- A long meaning over a word wraps to a second short line instead of widening the word's
+  slot and spreading the Hebrew line apart, and a meaning keeps up to 26 characters
+  (it was cut at 16: "something…" is now "something waited for").
+
 ### Added
 - `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front
   door, which does not change: "Learn Hebrew from your own life in Israel", the four
@@ -15,6 +81,140 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   door is open. It is drawn from the front door's parts and carries no script. design.md
   §12, "Olim have a door of their own".
 
+- Next Shabbat's portion at the end of the last aliyah (targum-internal#416): "Next
+  Shabbat · נֹחַ · Noach", linking that portion's reader, and under it "You already know
+  109 of its words", counted against the reader's own word list (`targum:vocab:he`) by
+  the header's rule, known meaning marked known. The haftarah's end carries the same
+  offer. `GET /parasha/next/<folder>?schedule=` (`parasha.build.following`) says what
+  follows by the calendar on the schedule the browser keeps (`targum:schedule`, as the
+  Weekly portion shelf does), from the occurrence nearest this Shabbat, so a doubled
+  week, a festival Shabbat and the weeks Israel and the diaspora part are as read; where
+  the calendar is silent the cycle answers and the year wraps. The next portion's words
+  go only to a reader with a word list; signed out, or with nothing known, the offer
+  stands without a count. `targum parasha build` now writes each portion's words beside
+  its reader (`read/<slug>/lemmas.json`, names and numbers left out); a corpus built
+  before this offers the portion without a count until it is rebuilt and shipped. On a
+  portion's last aliyah the library's own "Up next" pick stands down for it.
+- Download PDF on a portion (targum-internal#415): the week's shnayim mikra sheet, set on
+  the box when pressed, from the ⋯ menu of a portion's reader and a button on its
+  `/parasha` page. `GET /parasha/<slug>.pdf` sets what `targum export mikra` sets: the
+  portion beside Onkelos (the reader's language where the shelf has no Onkelos yet), the
+  haftarah, and for a reader signed in the words they looked up this week, or kept.
+  Signed out, the sheet has no list and is kept on the box under `<cache>/sheets` by the
+  hash of its page; a reader's own is set each time and kept nowhere. Two at a time, each
+  in a process of its own that is stopped after three minutes; any refusal is one
+  sentence and the reason goes to the log. `targum parasha build` now keeps what the
+  sheet is set from beside each reader (`read/<folder>/print/`: the cut text, its
+  renderings, its pointing and the forms its words are cited in, not the annotation), so
+  **the corpus has to be built and shipped again** for the PDF to work. The box takes the
+  `print` extra on the next deploy, and needs Pango, which `provision.sh` now installs
+  on a fresh box: on the live one, `apt-get install -y --no-install-recommends
+  libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core fonts-urw-base35`
+  as root. The sheet prints the view the reader was on (companions, vowels, te'amim,
+  beside or under, marks, this aliyah or the whole portion and the haftarah), and
+  `/parasha` asks for those in a row of boxes; it carries the lockup over the first title
+  and the mark and its address at every foot, on §4's paper; and the words a reader is
+  learning are lit with their meaning just above them, or signed out, the rarer words'
+  meanings. The build keeps the words and meanings for that beside each reader
+  (`print/words.json`, `print/glossary.<lang>.json`). `targum export mikra` takes the same
+  view (`--with`, `--aliyah`, `--haftarah/--no-haftarah`, `--gloss/--no-gloss`).
+- Two readings on every aliyah, chanted and spoken (targum-internal#412). A portion's
+  section carries the PocketTorah chanting attached to the portion and Rabbi Dan Be'eri's
+  plain reading of the book, with a Chanted / Spoken switch in the bar, kept per browser,
+  and both readers credited. Be'eri reads a chapter to a file, so an aliyah's verses are
+  cut out of each chapter they fall in and joined into one file (`recording/splice.py`,
+  `audio.tools.splice`), kept in the cache by what it was cut from; an aliyah across a
+  chapter hears both. Both files ride beside the reader in `reader/audio/` rather than
+  inlined, and `/parasha/read/…/reader/audio/*.mp3` serves them with ranges. Verse by
+  verse for both. Asked for by the parasha build only (`render(recordings_beside=True)`):
+  every other text keeps its one recording inlined, exactly as before. A portion with no
+  chanting yet has the plain reading alone, and so does a haftarah.
+- A Weekly portion shelf in the Library (targum-internal#411): this Shabbat's portion
+  first, in a wide card that says it is this Shabbat's and when, then the year onward
+  from it and round, each card opening the portion's reader. Above the list and on the
+  Hebrew shelf only. `GET /portions` (`parasha.build.shelf`) says the cycle and which
+  portion each calendar reads this week, and the page picks by the calendar the reader
+  keeps, `targum:schedule`, the diaspora's until they say, as `/parasha` defaults. A
+  Diaspora / Israel switch is drawn only in a week the two read different portions, and
+  a press is kept; Learn's `/series` and the bell now ask by the same calendar.
+- Portions open in the Library (targum-internal#410). A portion's row, among the cards
+  and in the table, is a link to its reader, which the box builds once for everybody, so
+  opening one builds nothing and spends nothing. A signed-in reader opening
+  `/library/parasha-<slug>` or `/open/parasha-<slug>` is sent to the same reader, with a
+  302 because the answer depends on who asks; a stranger still gets the 301 to
+  `/parasha/<slug>`, which stays the public page. The reader answers a signed-in reader
+  even where the shelves are shut to strangers. Learn's door names the reader through
+  the same helper (`parasha.build.reader_href`), and the bell opens a followed series'
+  reader rather than its public page, as Learn's door already did.
+- "Life in Israel", a subject of its own (targum-internal#393): `Tag.israel` and the
+  arrival's `israel` door, said "Life in Israel: money, health, school, home" and in
+  Russian, and a Library chip. One subject for the four olim ones of #386, by decision
+  (2026-10-02). The `everyday` door, which files the dialogues by form, is now said
+  "Everyday conversation" so that it does not read as the same thing.
+  `scripts/file_life_in_israel.py` writes the missing catalogue rows for scenes 101–200,
+  which were on the shelf but not in the Library, and tags the 48 olim clips. It is a
+  dry run unless given `--write`.
+- The corpus ledger, designed and started (targum-internal#162). `LEDGER.md` is the
+  design: one SQLite file, a table per artefact kind, every row naming the tool and the
+  version that made it, the cache becoming a view of it a stage at a time, rebuild from
+  rows, `targum corpus export --exportable`, the migration and the open questions. The
+  first slice is `src/targum/ledger.py`, for the `vocalize` stage only and **off unless
+  `TARGUM_LEDGER` names a file**. With it on, `Cache.put` writes its JSON as before and
+  then the same pointing as rows (`vocalizations`, `pointings`), and `Cache.drop` drops
+  the row too. A value is kept only if the rows give it back byte for byte. Nothing reads
+  the ledger yet: the cache is still the read path. `ledger.rebuild` writes the cache
+  back from rows and `ledger.backfill` reads today's cache in; against this laptop's
+  cache that recorded 936 pointings and refused none.
+- The Hebrew stress rule fed by a local tagger instead of OSHB (targum-internal#325).
+  `scripts/eval_stress_tagger.py` scores `stress-rule/1` on the same 3,000 held-out words
+  of `tanakh-taamim-v2` with two $0 taggers. DICTA's own morphology (`dictabert-joint`,
+  the Hebrew annotator, run over each verse unpointed) gives 0.9377, or 0.9393 with a
+  perfect behind a vav read as vav-consecutive; it misses the possessive suffixes the
+  Bible writes on the noun and the directional he, which it does not tag. A logistic
+  tagger over the pointed word's letters and vowels, trained on words 3,001 to 23,000,
+  gives 0.9510, and 0.9520 reading DICTA's tags as well. Against 0.9137 from the pointing
+  alone and 0.9630 with OSHB. There is no modern Hebrew stress gold to score either on.
+  Nothing shipped reads any of it: `phonikud/2` and `SCHEMA_VERSION` are unchanged.
+- The Hebrew stress eval measures the pause and a grammar rule, both free
+  (targum-internal#325). `scripts/eval_hebrew_stress.py --baseline-only` now also writes
+  the share of the gold under a pausal accent, read by `vocalize/trope.py` (10.4% under
+  etnachta; 24.4% with segol, shalshelet and zakef), each accuracy without those words,
+  and `stress-rule/1`, a binyan and mishkal rule — segolates, the dual, furtive patah,
+  the suffixes and perfect endings that keep the stress back — scored on the 3,000 words
+  it was not written against. Pause barely moves the default (0.7630, 0.7649 without
+  etnachta). The rule takes it to 0.9630 with OSHB's tagging and 0.9137 from the pointing
+  alone. Nothing shipped reads the rule: `phonikud/2` and `SCHEMA_VERSION` are unchanged.
+- `/how`, how targum reads Hebrew (targum-internal#401): the hard parts of Hebrew for a
+  machine, each shown solved on a real text. Vowels put back on the weekly's news with the
+  reader's switch, one spelling read as two different words, prefixes taken off down to the
+  dictionary form, one root across three patterns from Genesis to the news, a recording's
+  sentences and word times, a reel and a chat in their own shapes, and Onkelos with its own
+  word list. Every example is copied out of a build by `scripts/how_examples.py` into
+  `src/targum/how.json`, which the page draws; the script refuses a pick that has moved.
+  Credits for DICTA, Open Scriptures, the Metsudah Chumash and the reel's author. Linked
+  from the foot on every page and from /about, open to strangers, in robots and the
+  sitemap, and in Russian.
+- A rail that can only say no now stands in front of `record_turn`'s claim, the one
+  spend a model decides (targum-internal#324). `chat/rail.py` refuses, before anything is
+  claimed or a model asked, a line carrying the contract's "> ", "= " or "~ " marks, an
+  arrow or a "Corrected:" label; a link, a code fence, HTML, JSON, a snake_case name or a
+  site's menu; fewer than a third of its words in the language's own script; one stray
+  Hebrew letter; one word making most of a long line; and a French, Italian, Spanish,
+  German or Ukrainian line tagged as another language, by wordfreq. A fault in it is a
+  no. On the 86 labelled arguments it takes the checks from 15 of the 59 that should not
+  spend to 36, with no false block on the 27 that should, nor on 32 more of a reader's
+  own lines written after it; `scripts/eval_rail.py` now prints both rows. Jev is not
+  measured here.
+- The week's shnayim mikra sheet as a PDF: `targum export mikra` (targum-internal#105).
+  This Shabbat's portion — or the week of `--on` — with Onkelos beside each verse, the
+  haftarah the calendar names for it with the reader's language beside it, and with
+  `--for` the words that account looked up that week, with the meanings it kept beside
+  them — or, where the record names no look-up, the words it kept, and the heading says
+  which. A look-up in the record of use now names its word (a new `event.word`, schema
+  39), still behind `TARGUM_EVENTS` and the reader's switch; the privacy notice (clause
+  3.6, amended 28 September 2026) and the account page say so. Cut from the books on the
+  shelf as the portion page is, so it costs nothing; the same `print` extra. design.md §12
+  (2026-09-28) says what the sheet adds.
 - `targum video discover`: finds Creative Commons videos to curate through YouTube's Data
   API and prices building them, for approval before anything is bought
   (targum-internal#382).
@@ -178,6 +378,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Yiddish text as it reads now and the page keeps calling a finite past "past".
   `targum rebuild --reread fr` is the paid re-read, and `--dry-run` says what it costs
   first; it reads again only the segments a text already had words for.
+- The Tanakh map, `/tanakh-map` (targum-internal#144): every chapter of the Tanakh a
+  square, in the Torah, the Prophets and the Writings, grouped by book in the Hebrew
+  order and count, and shaded on the knowledge ramp by the share of its running words
+  the reader has marked known — `coverage.chapter_map` from #490, asked once a visit
+  through `/tanakh-map.json`. Every square links to where its chapter is read
+  (`/open/<book>#<chapter>:1`), so the map is also a table of contents; hover or focus
+  shows the chapter's card, and on a phone a tap shows it and the card's Read is the
+  press. The Aramaic chapters are marked as Aramaic and never shaded as Hebrew, a book
+  the library lacks is drawn as unavailable, and this week's portion is ringed in ink.
+  Reached from Your Progress under Hebrew. design.md §12 (2026-09-28) records the ramp's
+  turns and the Aramaic treatment. The public test (`/tanakh-hebrew-test`) is not here.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
@@ -391,6 +602,117 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- A video text has a viewer of its own (targum-internal#422, David's A + B + C from the
+  mockups). **Beside**: the picture at the left with one thin row under it — play and
+  pause, the time, a hairline of where the voice is (the line being said a faint band on
+  it), the length, the speed ("1× ▾", the six speeds as one of the bar's panels) and Loop
+  this line — then the title, the source, the licence, the part and "Watch on YouTube",
+  and the transcript beside it following the voice, the line being said lit as a chanted
+  verse is, English under each line, and the word being said lit where the recording was
+  aligned word by word. **Theatre**: the picture large and, under its row, the line being
+  said set large — the transcript's own words, tappable with their levels, the spoken
+  word lit — its English small under it and the lines either side faded; Transcript
+  opens the transcript as a panel and the picture grows smaller. The bar carries a
+  **Beside | Theatre** switch, kept per reader (`targum:film-view`), and `v` turns between
+  them; Listen stands down while the picture is up. **C**: while it plays, the bar and
+  the row step back to the picture, the hairline and the line; a pause, the pointer, a
+  touch or a key brings them back, and nothing steps back while a panel or a word's card
+  is out. A word tapped while it plays stops it: the card opens over the paused frame,
+  which steps down under it, and the word stays marked in the line. ↑ ↓ step a line
+  (← → too in Theatre with the transcript put away). On a phone: the picture the window's
+  width, its row under it, and the transcript under that. It replaces the picture in a
+  corner (picked up, moved and sized), its own full-screen mode and the floating strip
+  that stood under it: full screen is the browser's, under ⋯, as on every text; ⋯ also
+  carries the picture on and off, Hear first, the step either side and the file while
+  the picture is up. Put away, the page is an audio reader, with Listen and the strip,
+  whose toggle brings the picture back; that is still kept per text. The stores of the
+  corner, the place, the size and full screen are no longer read. Inside a playlist a
+  video opens in Theatre, writing nothing, and its end opens the transcript. 25 Russian
+  strings are new (see the PR). design.md §12 has the entry; the tests that pinned the
+  corner, the drag, the size and full screen went with them
+  (`tests/test_video_viewer_browser.py` has the new ones).
+- The reader's bar is one calm row on every text (targum-internal#421, David's A + B + C
+  from the mockups): the mark, the title, "N of M known", and at the far end Listen (the
+  recording choice inside it, "Chanted ▾", where an aliyah has two), Aa, print (on a
+  portion's reader only) and ⋯. Nothing was taken away. **Aa** holds the translation, the
+  columns beside the verse (Translation, Onkelos, Rashi, Rashi · English, only those the
+  text has), shnayim mikra, the vowels or stress marks,
+  the te'amim, "As said", text size and line spacing, as plain rows with quiet switches.
+  **Print** is a two-line choice, this aliyah or the whole portion and its haftarah. **⋯**
+  holds the view (beside, under, the text alone), pages or one scroll, highlighting, the
+  word list, the case lens, the picture and the original, full screen, talk, keys, Add to
+  playlist and Hear this section. No filled dark pills: the live choice is underlined in
+  leaf. The columns switch themselves: a quiet × on a column's name under the pointer
+  hides it, and a hidden column waits as a faint "+ Rashi · English" at the head of the
+  first verse. The bar steps back while a reader scrolls on or listens, to the mark, the
+  count and pause with a thin line of where the voice is; it comes back for the pointer
+  at the top, a scroll up, a pause, Escape or keyboard focus in it, never steps back
+  while a panel is out, and stays solid paper (it was frosted glass) at one height. Every
+  panel is a dialog or group with `aria-expanded` on its press, takes focus when opened
+  from the keyboard, gives it back on Escape, and shuts on a press outside; on a phone
+  each is a sheet from the foot, and the × is not drawn. Read is the only layout:
+  shnayim mikra is its own switch in Aa ("Each verse twice in Hebrew, then once in
+  Onkelos"), offering By verse and By aliyah while on; meanwhile the column switches
+  are grey with "Shown in Read", and pressing one puts the practice down and brings that
+  column back. The player strip no longer stands at the foot when a recorded text opens
+  (reversing design.md §12, 2026-09-03): ▶ Listen starts the voice and brings up a slim
+  strip with the line, step, speed, Hear first, the file and ×; × puts it away and
+  returns focus to Listen, and nothing is remembered. A text with video keeps its strip,
+  which is the picture's transport. `TargumPlayer.show()` brings it up without playing.
+  Ten new strings, in Russian too.
+
+- How hard a sentence is is now asked, by default, in the `without-register` wording, whose
+  top three rungs say how rare a word is and no longer call it literary, classical,
+  archaic, poetic or rabbinic (targum-internal#320, decided 2026-10-03). The library's
+  sentence levels were scored again in it. The old wording stays askable as
+  `--prompt situations`, and answers that do not name a wording are still read as it.
+- The Hebrew annotator keeps DICTA's syntax (targum-internal#134). Each word now records
+  which word governs it and how, with its prefixes (`Token.syntax`), and the first word of
+  a construct chain says "construct" on its card: בֵּית in בֵּית הַסֵּפֶר. Until now no
+  card ever said it, because DICTA's morphology never marks the construct and the
+  annotator threw away the syntax that does. The scene gate's smichut and numeral checks
+  read the stored annotation where it carries the syntax, and read the scene again with
+  local DICTA where it does not (`dialogue/agreement.py`, and
+  `scripts/score_scene_checks.py --annotations`). The annotator is renamed
+  (`syntax+grammar/3`), so every Hebrew text is re-annotated at the next rebuild: free of
+  spend, not of time (see CLAUDE.md on renames). `SCHEMA_VERSION` is unchanged.
+- A Hebrew verb's own pointing now picks its conjugation table, per occurrence
+  (targum-internal#307, decided 2026-10-03). `אוכל` is `אָכַל`'s present, the past of the
+  פֻּעַל `אוכל` and the future of `יָכֹל` letter for letter, so it drew no table; written
+  `אוֹכֵל`, it opens on the vowel only the פעל's present does. `paradigms.opening_of` reads
+  that vowel, and `Table.pointed_as` keeps a verb only where it has a form in those
+  letters whose binyan and tense open on it. It refuses wherever anything else could be
+  it: a verb whose binyan cannot be read, any verb outside the lemma's candidates spelled
+  alike, the word's own binyan saying otherwise, or the page's present or readings naming
+  another verb. Render-time only, from the surface already stored: no annotator rename,
+  no re-annotation. The page carries an occurrence's table as `paradigmsHere` only where
+  it differs from the word's. Measured over the shelf's current builds (149,521 verb
+  tokens): 77.1% → 77.8%, and `אוכל` 102 → 422 of its 828 tokens. The 77.1% counted
+  letters-only matches on unpointed text as "settled by pointing", though the page never
+  passed a surface; measured with no surface, as the page drew, it is 76.3%.
+- A Russian daily or parasha page says the rest of itself in Russian
+  (targum-internal#188). A reading names its book the way the Russian shelf does —
+  «Числа 4:21-7:89», not "Numbers 4:21-7:89" — and a Hebrew date its month, «19 элуля
+  5786», through new `reference.*` and `hebrew-month.*` keys; a name with no key, a
+  Mishnah tractate or a special Shabbat, stays as Hebcal spells it. The daily page's
+  headline, the line under it, the other cycles, the picture's credit and the cycles the
+  shelf cannot carry are Russian too, and so are the parasha's haftarah line and its
+  translation credit. Today's page of each cycle and every portion's page now canonical
+  to their own `?lang=ru` address, declare their alternates, and are listed in both
+  languages in the sitemap. The weekly's description follows the issue's Hebrew
+  standfirst with what the series is, in the page's language. English pages read as
+  they did, apart from the weekly's description gaining that sentence and a one-verse
+  haftarah saying "1 verse".
+- Verbs whose conjugation table was a stub are filled in by rule from their root and
+  binyan (targum-internal#307). `אָכַל` had ten forms and no `אוכל`; 34 such verbs now
+  carry 523 more forms between them. The rule follows the patterns the complete tables
+  follow, never changes a form the source has, and leaves a cell empty where it cannot
+  tell (the future of `אָכַל`, which could be `יאכל` or `יאכול`). 82 stubs are refused
+  because their forms fit no pattern, or because there was too little to go on. In a
+  leave-one-out check over 2,382 complete tables, it fills 99.8% of cells correctly from
+  three forms and 99.98% from ten. Conjugation coverage on current builds goes from 77.0%
+  to 77.1%. `scripts/fill_paradigms.py` writes the shipped table, and the filled forms are
+  kept under `filled`, apart from the source's.
 - `/about` says its count in English a person would say: "1,174 changes from 31 August
   to 29 September", where it said "1174 changes in the 30 days to 29 September". The
   Russian takes its three plural forms, «1 174 изменения с 31 августа по 29 сентября».
@@ -439,6 +761,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (2026-09-28).
 
 ### Fixed
+- The week's sheet's meanings above words no longer print over each other, and every
+  line of the text is one height while meanings are on (targum-internal#415). A meaning
+  could hang past its word, so two short words side by side, as at Genesis 1:2, printed
+  "a vacuity" over "chaos"; the word's box is now as wide as its meaning. And a line
+  carrying a meaning stood taller than its neighbours, so the Hebrew column ran
+  unevenly; every line now keeps the room for one.
+- The Hebrew stress gold read an accent written before a holam male — the codex puts
+  גָּדוֹל's on the dalet — as stressing the vowel before it, and filed 296 of its 3,000
+  words as mil'el that are milra (targum-internal#325). Read now as the holam's, under a
+  new corpus name, `tanakh-taamim-v2`, so the old row does not seem to move: the default
+  is 0.7630 there against 0.6863 on the first gold. phonikud already read these words
+  right; only the eval was wrong.
 - A deploy no longer stops at the install when somebody has run a targum command on the
   box as root. Such a run, `--help` included, leaves root-owned `__pycache__` inside the
   tool's environment, and the service account could not remove it: "failed to remove

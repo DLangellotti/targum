@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 {% include '_public_head.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ styles('tokens.css', 'shared.css', 'reader.css', 'public.css') }}
 {{ hebrew_face() }}
 </head>
 <body class="public legal">
@@ -76,7 +76,14 @@
     <li><b>Material retained by the Data Subject.</b> Namely words and phrases marked
       by the Data Subject, together with any notes, meanings, documents opened, reading
       positions and dates of reading. Processed for the purpose of providing the Service.
-      Legal basis: Article 6(1)(b).</li>
+      Legal basis: Article 6(1)(b). The Controller may also see, for each account, how
+      many documents it has opened and words it has marked, the dates on which it did so
+      and whether it has signed in, and may write to the Data Subject about their use of
+      the Service in consequence; the words, phrases, notes and titles themselves are not
+      shown to the Controller for that purpose. Legal basis for that processing: Article
+      6(1)(f), the legitimate interest of the Controller in helping the Data Subject to
+      make use of the Service. The Data Subject may object in accordance with clause
+      7.6.</li>
     <li><b>Material uploaded by the Data Subject.</b> Namely any file supplied by the
       Data Subject and any targum generated from it. Processed for the purpose of
       providing the Service. Legal basis: Article 6(1)(b).</li>
@@ -100,13 +107,15 @@
       one day's visitor could be matched with another's. Legal basis: Article
       6(1)(f).</li>
     <li><b>Records of use of the reader.</b> Namely, for each document opened by the
-      Data Subject: the words looked up and the segment in which each occurred; the
-      portions of any recording played, and whether its picture was shown; pages turned
-      and sections marked as finished, with the number of words in each; the position at
-      which a session ended; and the controls of the reader that were pressed. A record
-      of a control pressed identifies neither a document nor a segment. Processed for
-      the purpose of presenting to the Data Subject the time they have listened and
-      watched and the number of words they have read. Legal basis: Article 6(1)(b). The
+      Data Subject: each word looked up, in its dictionary form, and the segment in which
+      it occurred; the portions of any recording played, and whether its picture was
+      shown; pages turned and sections marked as finished, with the number of words in
+      each; the position at which a session ended; and the controls of the reader that
+      were pressed. A record of a control pressed identifies neither a document nor a
+      segment. Processed for the purposes of presenting to the Data Subject the time they
+      have listened and watched and the number of words they have read, and of preparing
+      for the Data Subject, at their request, a printed sheet of the words they looked up
+      in a given week. Legal basis: Article 6(1)(b). The
       Data Subject may at any time cease such recording, and erase the records held,
       from the account page.</li>
     <li><b>Aggregate records of use.</b> Counts, by segment and by control, of the
@@ -114,8 +123,13 @@
       of any of them, and confined to documents the licence of which permits their
       redistribution; no such count is made in respect of material uploaded by a Data
       Subject. Processed for the purposes of measuring the difficulty of the texts
-      offered and of arranging the controls of the reader. Legal basis: Article 6(1)(f),
-      the legitimate interest of the Controller in improving the Service.</li>
+      offered and of arranging the controls of the reader. Also counts, across all Data
+      Subjects and bearing no identifier of any of them, of how many have used each part
+      of the Service at least once, and of how many admitted in a given week have since
+      signed in, opened a document, marked a word and returned on another day. Processed
+      for the purpose of learning which parts of the Service are found and used. Legal
+      basis: Article 6(1)(f), the legitimate interest of the Controller in improving the
+      Service.</li>
     <li><b>Corrections of meaning offered by the Data Subject.</b> Namely, where the
       Data Subject has accepted the grant described in the
       <a href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md">contribution
@@ -160,13 +174,39 @@
     <li>Authentication tokens and session identifiers are stored in the form of a
       one-way cryptographic digest and not in their original form.</li>
     <li>No processing is undertaken for the purposes of advertising or profiling, and
-      no record of the conduct of a Data Subject is kept save as stated at clauses 3.6
-      and 3.7. The Service transmits no data to any provider of analytics, employs no
+      no record of the conduct of a Data Subject is kept save as stated at clauses 3.6,
+      3.7 and 3.14. The Service transmits no data to any provider of analytics, employs no
       third-party script, and sets no cookie other than that which maintains an
-      authenticated session and, while an assistant is being connected to the account,
-      one which holds that request for no more than ten minutes. A generated targum opened from a file makes no network
+      authenticated session; while an assistant is being connected to the account,
+      one which holds that request for no more than ten minutes; and one, named
+      targum_kept, which records only which version of the Service's own
+      stylesheets and scripts the browser last fetched in full. That cookie is set for
+      every visitor, whether signed in or not, once a page of the Service has fetched
+      those files. Its value is the same for every visitor to the same version of the
+      Service: it contains no identifier and nothing unique to any person or browser,
+      it is not used to recognise or follow anyone, and no record of it is kept by the
+      Controller. Its purpose is that the first visit receives each page whole, and
+      later visits use the copies of those files which the browser already holds. It
+      lasts for one year, and is superseded whenever those files change. A generated targum opened from a file makes no network
       request whatsoever; served to an authenticated Data Subject, it communicates with
       the Service alone.</li>
+    <li><b>Messages and fault reports.</b> Namely, where the Data Subject writes to the
+      Controller by means of "Tell us" on a page of the Service: what is written, the
+      address of the page from which it was sent, the size of the window, the language
+      of the page, the version of the Service then running and the account from which it
+      was sent. Each such message is sent on to the Controller by electronic mail, and
+      is kept with a note of whether the matter it raises is open, fixed, declined or
+      awaiting an answer from the Data Subject. And, where a page of the Service fails in
+      the browser of a Data Subject, a report sent by that browser: the message of the
+      error, the place in the Service's own script at which it arose, the address of the
+      page without its query, the version of the Service and, where the Data Subject is
+      signed in, the account. No part of the text being read and no cookie is included
+      in such a report. The number of reports accepted from one browser is limited by
+      reference to its account or, where none is signed in, to a one-way hash of its
+      network address, which is kept for no more than one hour. Processed for the
+      purposes of answering the Data Subject and of finding and correcting faults in the
+      Service. Legal basis: Article 6(1)(f), the legitimate interest of the Controller in
+      providing a Service which works and in answering those who write to it.</li>
   </ol>
 
   <h2>Recipients</h2>
@@ -182,8 +222,9 @@
     <dt>Resend, Inc. (United States of America)</dt>
     <dd>Transmission of the Service's electronic mail: authentication messages,
       invitations, confirmations of the waitlist and of the digest, the digest itself,
-      and notices that a targum is ready. Receives the electronic mail address of the
-      Data Subject and the content of each message.</dd>
+      notices that a targum is ready, and the messages described at clause 3.14, which
+      it carries to the Controller. Receives the electronic mail address of the Data
+      Subject and the content of each message.</dd>
 
     <dt>Anthropic PBC (United States of America)</dt>
     <dd>Translation and explanation of text presented for reading, the reading of
@@ -225,9 +266,9 @@
       Federal Republic of Germany.</li>
     <li>Five of the processors identified at clause 4.2 are established in the United
       States of America. Accordingly, the electronic mail address of the Data Subject,
-      the text presented for translation, what the Data Subject writes in the chat, and
-      pictures and recordings supplied by the Data Subject are transferred to that third
-      country.</li>
+      the text presented for translation, what the Data Subject writes in the chat or
+      sends by means of "Tell us", and pictures and recordings supplied by the Data
+      Subject are transferred to that third country.</li>
     <li>No other transfer of personal data outside the European Economic Area is
       undertaken.</li>
   </ol>
@@ -370,6 +411,14 @@
     <li>The catalogue, the works listed in it and the material accompanying them are not
       so licensed. Nothing in these Terms grants the User any right in a work beyond
       that granted by the person entitled to it.</li>
+    <li>The glosses, translations, grammatical annotations, recordings and other
+      material that the Service generates and publishes alongside the works in the
+      catalogue must not be collected by automated means, or used to train, fine-tune or
+      evaluate a machine-learning model, without the written consent of the Operator.
+      This does not restrict a person retrieving a page at the request of an individual
+      User, nor indexing for a search service. It does not extend to a work itself, nor
+      to any material published under a licence that permits such use, where the terms
+      of that licence prevail.</li>
     <li>The name targum, the mark and the visual design of the Service remain the
       property of the Operator. Nothing in these Terms grants a licence to use them.</li>
   </ol>
@@ -474,8 +523,9 @@
       correction thereafter stands alone.</li>
     <li><b>An account closed by the User.</b> Seven days from the request for closure.
       Upon expiry the following are deleted: words, meanings, phrases, documents, dates
-      of reading, records of use of the reader, sessions, authentication links and the
-      account record itself, together with all files generated for the account.</li>
+      of reading, records of use of the reader, messages sent by means of "Tell us",
+      fault reports bearing the account, sessions, authentication links and the account
+      record itself, together with all files generated for the account.</li>
     <li><b>Material retained by the User.</b> Until deleted by the User or until closure
       of the account. No period of inactivity causes such material to be deleted.</li>
     <li><b>Records of use of the reader.</b> For so long as the account subsists, and
@@ -490,6 +540,13 @@
       misuse.</li>
     <li><b>Aggregate visit counts.</b> Derived from the server access records, and
       containing no personal data. Retained indefinitely.</li>
+    <li><b>A message sent by means of "Tell us".</b> Twelve months from the day upon
+      which the matter it raises is marked fixed or declined, whereupon it is deleted; or
+      sooner, upon the closure of the account from which it was sent in accordance with
+      clause 1.6 above. A message whose matter remains open is retained until it is
+      closed.</li>
+    <li><b>A fault report sent by a browser.</b> Thirty days from receipt, whereupon it
+      is deleted.</li>
   </ol>
 
   <h2>Qualifications</h2>
@@ -498,7 +555,7 @@
       Accordingly a period of seven days stated above is to be construed as a period of
       not less than seven days.</li>
     <li>The database is copied nightly and the fourteen most recent copies are retained.
-      An account deleted in accordance with clause 1.5 above may therefore persist
+      An account deleted in accordance with clause 1.6 above may therefore persist
       within a backup for a further period not exceeding fourteen days. A copy
       transmitted from the server is encrypted before transmission. No backup is read
       save where restoration is required.</li>

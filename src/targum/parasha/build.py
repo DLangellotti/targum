@@ -13,8 +13,10 @@ is what makes it safe to run this every week from a cron.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
+import shutil
 import threading
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Iterator
@@ -22,15 +24,29 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from ..annotate.base import chips, kind_of
 from ..annotate.difficulty import hard_share
 from ..errors import TargumError
 from ..paths import write_atomic
 from ..render.builder import render
 from .calendar import Haftarah as Reference
-from .calendar import Reading, Schedule, always, root
+from .calendar import Reading, ReadingKind, Schedule, always, root
 from .calendar import year as readings_for
-from .cut import BOOKS, NEVIIM, MissingBook, books_for, cut, cut_haftarah, parse_ref
-from .models import Haftarah, Index, Portion, Week
+from .cut import (
+    BOOKS,
+    NEVIIM,
+    MissingBook,
+    Verse,
+    books_for,
+    cut,
+    cut_haftarah,
+    on_shelf,
+    parse_place,
+    parse_ref,
+)
+from .cut import Portion as Cut
+from .models import Haftarah, Index, Portion, Week, neighbours
+from .sheet import keep as keep_sheet
 
 #: How many years of calendar to point at. Enough that a box which cannot reach Hebcal
 #: for a while still knows what this Shabbat is, and few enough that a build is quick.
@@ -275,6 +291,17 @@ def build(
             missing.add(gone.book)
             say(f"  {gone.book} is not built — every reading in it is skipped")
 
+    # The cycle as the shelf will list it, worked out before anything is cut: each
+    # portion's first and last aliyah lead on to the portions either side of it, in the
+    # order of the book (targum-internal#446), and a reader is written once with its
+    # links in it. Only readings whose books are on the shelf, so no link opens a 404.
+    planned = {
+        slug: _planned(reading)
+        for slug, reading in readings.items()
+        if reading.kind is ReadingKind.parasha and on_shelf(reading, library)
+    }
+    cycle = Index(portions=planned).listed()
+
     for slug in sorted(readings):
         reading = readings[slug]
         try:
@@ -289,16 +316,24 @@ def build(
         # per aliyah is one chanted file per page. Built whole, a portion would want all
         # seven files inlined into one document, which is twelve megabytes nobody asked
         # for before they have read a word.
-        render(
-            portion.document,
-            portion.segmented,
-            portion.translations,
-            folder / "reader",
-            annotation=portion.annotation,
-            glossaries=portion.glossaries,
-            vocalization=portion.vocalization,
-            clean=True,
-            folder=folder,
+        #
+        # And each aliyah carries two readings now, the chanting and the plain reading
+        # of the book (targum-internal#412), as files in `reader/audio/` rather than
+        # inside the page, which was three megabytes an aliyah with one.
+        render_readers(
+            portion,
+            folder,
+            around=neighbours(planned[slug], cycle) if slug in planned else (None, None),
+        )
+        # And what the week's sheet is set from, beside the reader: the box has no
+        # books to cut it from again (targum-internal#415).
+        keep_sheet(portion, folder)
+        # And its words, by dictionary form, beside the reader: what the portion page
+        # counts a reader's word list against when it offers this one as next Shabbat's
+        # (targum-internal#416).
+        write_atomic(
+            folder / LEMMAS,
+            json.dumps(vocabulary(portion), ensure_ascii=False) + "\n",
         )
         opening, opening_ref = portion.opening()
         usual = ordinary(occurrences[slug])
@@ -337,6 +372,14 @@ def build(
         )
         say(f"  {reading.name} — {portion.verses} verses")
 
+    # The portions either side of a reader were linked by their count of aliyot, before
+    # they were cut. A reading that came out in another number of files is said, rather
+    # than left behind a link that opens a 404.
+    for slug, plan in planned.items():
+        made = len(list((root() / "read" / slug / "reader").glob("sec-*.html")))
+        if slug in index.portions and plan.aliyot > 1 and made != plan.aliyot:
+            say(f"  {plan.name} is {made} files, not {plan.aliyot}: the links into it miss")
+
     # The haftarot, once each. Every one any occurrence names, whether it is a
     # portion's own or a special Shabbat's, so a week in the pointer years always has
     # its reading built — and the reference is written down whether or not the book is
@@ -364,17 +407,8 @@ def build(
         portion = cut_haftarah(reference, books)
         folder_name = f"haftarah-{key}"
         folder = root() / "read" / folder_name
-        written = render(
-            portion.document,
-            portion.segmented,
-            portion.translations,
-            folder / "reader",
-            annotation=portion.annotation,
-            glossaries=portion.glossaries,
-            vocalization=portion.vocalization,
-            clean=True,
-            folder=folder,
-        )
+        written = render_readers(portion, folder)
+        keep_sheet(portion, folder)
         opening, opening_ref = portion.opening()
         record.opens = (
             "sec-0001.html" if any(one.name == "sec-0001.html" for one in written) else "index.html"
@@ -426,6 +460,163 @@ def build(
         f"{len(index.weeks)} weeks pointed"
     )
     return index
+
+
+#: The languages a reading's reader is built in again, beside the one it is built in first
+#: (QA, 2026-10-05). A reader's own words — Listen, Chanted, "0 of 99 known" — and the
+#: column it opens on are written into the page when it is built, in its first
+#: rendering's language, so the Russian portion page framing the English reader showed a
+#: Russian olah an English one. The second build is the same reading with the Russian
+#: rendering first, in `reader-ru/` beside `reader/`, and is served at the portion's
+#: address with `-ru` after it: `/parasha/read/bereshit-ru/reader/sec-0001.html`. The
+#: folder keeps the shape `reader.js` reads a portion's name off, so the offer of next
+#: Shabbat's reading and the print link find their way without the script knowing.
+#: A reading with no rendering in the language — the haftarot, today — has no second
+#: build, and its page frames the reader it has.
+ALSO_IN = ("ru",)
+
+
+def reader_dir(folder: str, language: str = "en") -> Path:
+    """Where a reading's reader in `language` is written: `reader/` for the first build."""
+    code = language.split("-")[0].lower()
+    return root() / "read" / folder / ("reader" if code not in ALSO_IN else f"reader-{code}")
+
+
+def built_in(folder: str, language: str) -> bool:
+    """Whether `folder` has a reader of its own in `language` (English always has one)."""
+    code = language.split("-")[0].lower()
+    if code not in ALSO_IN:
+        return (reader_dir(folder) / "index.html").is_file()
+    return (reader_dir(folder, code) / "index.html").is_file()
+
+
+def served_as(folder: str, language: str = "en") -> str:
+    """The name a reading's reader in `language` is served under: the folder, or the
+    folder with the language after it where a reader was built in that language. A
+    language with none gets the folder, so a page always frames something."""
+    code = language.split("-")[0].lower()
+    return f"{folder}-{code}" if code in ALSO_IN and built_in(folder, code) else folder
+
+
+def read_as(name: str, folders: Iterable[str]) -> tuple[str, str]:
+    """The folder and the language a served name means: `bereshit-ru` is Bereshit's
+    reader in Russian. A name that is itself a folder is that folder, whatever it ends
+    in, so no portion's own name is ever read as a language."""
+    known = set(folders)
+    if name in known:
+        return name, "en"
+    for code in ALSO_IN:
+        base = name.removesuffix(f"-{code}")
+        if base != name and base in known and built_in(base, code):
+            return base, code
+    return name, "en"
+
+
+def _planned(reading: Reading) -> Portion:
+    """A reading as the index will hold it, before it is cut: as much as the cycle's
+    order and a link to its first and last aliyah need."""
+    return Portion(
+        slug=reading.slug,
+        name=reading.name,
+        hebrew=reading.hebrew,
+        kind=reading.kind,
+        numbers=list(reading.numbers),
+        summary=reading.summary,
+        aliyot=len(reading.aliyot),
+        folder=reading.slug,
+    )
+
+
+def beyond(
+    around: tuple[Portion | None, Portion | None], language: str = "en"
+) -> dict[str, dict[str, str]]:
+    """Where a portion's reader goes past its own ends (targum-internal#446): its first
+    aliyah back to the last aliyah of the portion before, its last on to the first
+    aliyah of the portion after — the book's order, so the Torah reads as fifty-four
+    portions straight through, and the year wraps as `neighbours` has it.
+
+    Not the calendar's: next Shabbat's reading is the portion page's to offer, not the
+    reader's. Said in `language`, with the reader built in it, so a Russian reader leads
+    on to a Russian one. Written as the served address, because the two readers sit in
+    different folders on the disk (`reader_dir`) and in the same place on the server.
+    `page` is the portion's own page, which a reader framed on the public page opens.
+    """
+    from ..strings import said_portion
+
+    code = language.split("-")[0].lower()
+    suffix = f"-{code}" if code in ALSO_IN else ""
+    before, after = around
+    found: dict[str, dict[str, str]] = {}
+    for side, portion in (("before", before), ("after", after)):
+        if portion is None:
+            continue
+        sections = portion.aliyot
+        if sections <= 1:
+            opens = "index.html"
+        else:
+            opens = f"sec-{sections:04d}.html" if side == "before" else "sec-0001.html"
+        found[side] = {
+            "href": f"/parasha/read/{portion.folder}{suffix}/reader/{opens}",
+            "hebrew": portion.hebrew or portion.name,
+            "name": said_portion(portion.slug, portion.name, code),
+            "page": f"/parasha/{portion.slug}" + (f"?lang={code}" if suffix else ""),
+        }
+    return found
+
+
+def render_readers(
+    portion: Cut,
+    folder: Path,
+    around: tuple[Portion | None, Portion | None] = (None, None),
+) -> list[Path]:
+    """Write a reading's reader, and again in each of `ALSO_IN` it has a rendering in.
+
+    Returns the first build's files, index first, as `render` does. The second build's
+    recordings are the first's — the same files, under the same names — so they are not
+    kept twice: the box serves `reader-ru/audio/…` out of `reader/audio/`.
+
+    `around` is the portions before and after this one in the cycle, which its first and
+    last aliyah lead to (`beyond`).
+    """
+    written = render(
+        portion.document,
+        portion.segmented,
+        portion.translations,
+        folder / "reader",
+        annotation=portion.annotation,
+        glossaries=portion.glossaries,
+        vocalization=portion.vocalization,
+        clean=True,
+        folder=folder,
+        recordings_beside=True,
+        commentary_words=portion.commentary_words,
+        carries_from=portion.carries_from,
+        beyond=beyond(around),
+    )
+    for code in ALSO_IN:
+        out = folder / f"reader-{code}"
+        first = [t for t in portion.translations if t.target_language.split("-")[0] == code]
+        if not first:
+            # A reading that has lost its rendering keeps no stale reader in it.
+            shutil.rmtree(out, ignore_errors=True)
+            continue
+        render(
+            portion.document,
+            portion.segmented,
+            first + [t for t in portion.translations if t not in first],
+            out,
+            annotation=portion.annotation,
+            glossaries=portion.glossaries,
+            vocalization=portion.vocalization,
+            clean=True,
+            folder=folder,
+            recordings_beside=True,
+            commentary_words=portion.commentary_words,
+            carries_from=portion.carries_from,
+            beyond=beyond(around, code),
+        )
+        shutil.rmtree(out / "audio", ignore_errors=True)
+    return written
 
 
 #: How many aliyot a reading is cut into, spelled rather than numbered — the blurb is a
@@ -516,6 +707,42 @@ class Start:
     summary: str
 
 
+#: Where each of the 54 portions begins, as the corpus index on the laptop said it on
+#: 2026-10-09: Hebcal's names and ranges, the same five books every year.
+_STARTS = Path(__file__).with_name("starts.json")
+
+
+@functools.cache
+def _fixed() -> tuple[tuple[str, Start], ...]:
+    try:
+        rows = json.loads(_STARTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    return tuple(
+        (
+            str(row["book"]),
+            Start(
+                slug=str(row["slug"]),
+                name=str(row["name"]),
+                hebrew=str(row["hebrew"]),
+                chapter=int(row["chapter"]),
+                verse=int(row["verse"]),
+                summary=str(row["summary"]),
+            ),
+        )
+        for row in rows
+    )
+
+
+def fixed_starts(book: str) -> list[Start]:
+    """The portions that begin in one book of the five, off the table shipped with
+    targum rather than the corpus: what `portions_for` says where the corpus is absent."""
+    return sorted(
+        (start for name, start in _fixed() if name == book),
+        key=lambda one: (one.chapter, one.verse),
+    )
+
+
 def portions_for(book: str, index: Index | None = None) -> list[Start]:
     """Every listed portion that begins in one book, in the order they are read.
 
@@ -535,7 +762,14 @@ def portions_for(book: str, index: Index | None = None) -> list[Start]:
         name = by_hebrew.get(name, "")
     if not name:
         return []
-    index = index or load()
+    if index is None:
+        index = load()
+        # A machine with no corpus still knows where the 54 begin: they are fixed
+        # (design.md §12, "The parasha corpus is fixed"), so a Torah book built here — a
+        # reader's own copy of Genesis included — is grouped by portion as the library's
+        # is (board PartsTanakh, audit Q9, 2026-10-09). The corpus wins where it is.
+        if not index.listed():
+            return fixed_starts(name)
     out: list[Start] = []
     for portion in index.listed():
         if not portion.books or portion.books[0] != name:
@@ -561,6 +795,23 @@ def portions_for(book: str, index: Index | None = None) -> list[Start]:
     return out
 
 
+def chapters_of(portion: Portion) -> list[str]:
+    """The chapters a portion is read from, as the Tanakh map names them —
+    `["Genesis 6", …, "Genesis 11"]` — or nothing for a portion with no range.
+
+    Chapter-level, as targum-internal#144 says it must be for now: a portion that starts
+    or ends mid-chapter takes the whole of that chapter with it, so two portions can
+    share one.
+    """
+    if not portion.books:
+        return []
+    found = [int(n) for n in re.findall(r"(\d+):\d+", portion.summary)]
+    if not found:
+        return []
+    book = portion.books[0]
+    return [f"{book} {n}" for n in range(min(found), max(found) + 1)]
+
+
 def readable(index: Index | None = None) -> set[str]:
     """Every folder that actually has a built reader in it.
 
@@ -573,6 +824,146 @@ def readable(index: Index | None = None) -> set[str]:
     return _built(index)
 
 
+def reader_href(portion: Portion, page: str = "index.html", language: str = "en") -> str:
+    """Where a portion's reader is served: the one copy everybody opens.
+
+    A portion is built once, for the whole box, under the corpus root — never into a
+    reader's own shelf — so opening one builds nothing and spends nothing
+    (targum-internal#410). The Library's row, its Weekly portion shelf and Learn's door
+    all name it through here, so the three can never drift onto different addresses.
+
+    `language` asks for the reader built in it (`ALSO_IN`), where there is one.
+    """
+    return f"/parasha/read/{served_as(portion.folder, language)}/reader/{page}"
+
+
+@dataclass(frozen=True)
+class Place:
+    """Where one verse of the Torah is read: a portion's reader, the file holding it, and
+    the verse's own anchor in that file."""
+
+    slug: str
+    folder: str
+    page: str
+    anchor: str
+
+    def href(self, language: str = "en") -> str:
+        return f"/parasha/read/{served_as(self.folder, language)}/reader/{self.page}#{self.anchor}"
+
+
+_contents: dict[tuple[Path, int], list[tuple[Verse, Verse, str]]] = {}
+
+
+def _aliyot(folder: str) -> list[tuple[Verse, Verse, str]]:
+    """Each section of a portion's reader as (first verse, last verse, file), off the
+    reader's own `contents.json` — the ranges its contents page already draws. Empty where
+    the reader has none, and then the reader's `index.html` is the answer: its contents
+    script forwards a `#c:v` to the section holding it."""
+    path = reader_dir(folder) / "contents.json"
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        return []
+    key = (path, stamp)
+    if key not in _contents:
+        try:
+            sections = json.loads(path.read_text(encoding="utf-8")).get("sections") or []
+        except (OSError, ValueError, AttributeError):
+            sections = []
+        found: list[tuple[Verse, Verse, str]] = []
+        for one in sections:
+            first = parse_place(str(one.get("from") or ""))
+            last = parse_place(str(one.get("to") or ""))
+            if first is not None and last is not None and one.get("file"):
+                found.append((first, last, str(one["file"])))
+        _contents[key] = found
+    return _contents[key]
+
+
+def locate(book: str, chapter: int, verse: int, index: Index | None = None) -> Place | None:
+    """The portion a verse of the Torah is read in, and the aliyah holding it
+    (targum-internal#446).
+
+    Every way into the Torah ends here — the map, the Library, a typed reference, the
+    connector, an old address of a book reader — so the five books read as the 54
+    portions and nothing else (David, 2026-10-12). The portion is the last one on the
+    shelf to begin at or before the verse; `Index.listed` covers the Torah once, so a
+    doubled week is the answer only where its halves are not built.
+
+    None where the verse is before the first portion, past the end of the book, or in a
+    portion with no reader built: an address that would 404 is not an answer.
+    """
+    index = index or load()
+    starts = portions_for(book, index) if index.portions else []
+    wanted = Verse(chapter, verse)
+    holding = None
+    for start in starts:
+        if Verse(start.chapter, start.verse) <= wanted:
+            holding = start
+    if holding is None or chapter < 1 or verse < 1:
+        return None
+    portion = index.portions.get(holding.slug)
+    if portion is None or portion.folder not in readable(index):
+        return None
+    sections = _aliyot(portion.folder)
+    if not sections:
+        return Place(portion.slug, portion.folder, "index.html", f"{chapter}:{verse}")
+    for first, last, page in sections:
+        if first <= wanted <= last:
+            return Place(portion.slug, portion.folder, page, f"{chapter}:{verse}")
+    # Past the portion's last verse is past the book's: the next portion would have held it.
+    return None
+
+
+def shelf(index: Index | None = None, moment: datetime | None = None) -> dict[str, object]:
+    """What the Library's Weekly portion shelf draws (targum-internal#411).
+
+    The cycle in the order of the year, as `Index.listed()` has it, each portion with its
+    reader's address; and which of them is read this Shabbat on each schedule. Which
+    schedule is the reader's is the page's to know — it is kept in their browser, as the
+    other things a page remembers are — so both are said and the page picks.
+
+    Only what is built: a portion with no reader behind it is a card that opens a 404.
+    This week's reading is said even where it is not on the cycle — a doubled week, a
+    festival — because it is still what is read, and the shelf puts it first.
+    """
+    from .calendar import pointing_at
+
+    index = index or load()
+    built = readable(index)
+
+    def card(portion: Portion, listed: bool) -> dict[str, object]:
+        return {
+            "slug": portion.slug,
+            # The catalogue's id, so the page can say the name in the reader's language
+            # the way the row does. A doubled week has none, and is named in English.
+            "id": f"parasha-{portion.slug}",
+            "name": portion.name,
+            "hebrew": portion.hebrew or portion.name,
+            "summary": portion.summary,
+            "numbers": list(portion.numbers),
+            "href": reader_href(portion),
+            "listed": listed,
+        }
+
+    cards = [card(one, True) for one in index.listed() if one.folder in built]
+    on_cycle = {str(one["slug"]) for one in cards}
+    week: dict[str, str] = {}
+    for schedule in Schedule:
+        portion = current(schedule, moment, index=index)
+        if portion is None or portion.folder not in built:
+            continue
+        week[schedule.value] = portion.slug
+        if portion.slug not in on_cycle:
+            cards.append(card(portion, False))
+            on_cycle.add(portion.slug)
+    return {
+        "shabbat": pointing_at(moment).isoformat() if week else "",
+        "week": week,
+        "portions": cards,
+    }
+
+
 def current(
     schedule: Schedule = Schedule.diaspora,
     moment: datetime | None = None,
@@ -583,3 +974,126 @@ def current(
 
     index = index or load()
     return index.on(pointing_at(moment).isoformat(), schedule)
+
+
+#: A portion's words, by dictionary form, in a file beside its reader (targum-internal#416).
+#: Not served on its own: the portion page counts it for a reader who has a word list.
+LEMMAS = "lemmas.json"
+
+
+def vocabulary(portion: Cut) -> list[str]:
+    """Every word of a cut portion by its dictionary form, once each, sorted.
+
+    The reader's own rule for what counts (`lemmasHere` in `reader.js`): each chip as
+    the page draws it, a name of several words as one, and names and numbers left out,
+    because they are never counted as vocabulary. So a count against this list and the
+    header's "N of M known" on that portion's own pages are the same kind of number.
+    """
+    if portion.annotation is None:
+        return []
+    found: set[str] = set()
+    for tokens in portion.annotation.tokens.values():
+        for token in chips(tokens):
+            if token.lemma and not kind_of(token.pos, token.entity):
+                found.add(token.lemma)
+    return sorted(found)
+
+
+_lemmas: dict[tuple[Path, int], list[str]] = {}
+
+
+def lemmas_of(portion: Portion) -> list[str] | None:
+    """The words a built portion holds, or None where its build wrote none.
+
+    None and not an empty list, because a corpus built before this file existed is not
+    a portion with no words: the offer is still made, without a count.
+    """
+    path = root() / "read" / portion.folder / LEMMAS
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        return None
+    key = (path, stamp)
+    if key not in _lemmas:
+        try:
+            words = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(words, list):
+            return None
+        _lemmas.clear()  # one portion is asked about at a time; keep only the latest
+        _lemmas[key] = [str(one) for one in words]
+    return _lemmas[key]
+
+
+def following(
+    folder: str,
+    schedule: Schedule = Schedule.diaspora,
+    moment: datetime | None = None,
+    index: Index | None = None,
+) -> Portion | None:
+    """What is read the Shabbat after the reading in `folder`, on one schedule.
+
+    For the portion page's next Shabbat (targum-internal#416); a reader's own last aliyah
+    leads on in the book's order instead (`beyond`, targum-internal#446). By the calendar
+    first: the occurrence of this reading nearest
+    to this Shabbat — last week's read late, next week's read early — and the week after
+    it on the reader's own schedule, so a doubled week, a festival Shabbat and the weeks
+    Israel and the diaspora part company all come out as they are read. A haftarah is
+    found by the weeks that read it.
+
+    Where the calendar has nothing to say — a portion that is doubled in every year the
+    index points at, the last week the index holds, וזאת הברכה which no Shabbat reads —
+    the cycle's own order answers, as the shelf has it (`neighbours`), and the year wraps.
+
+    Only somewhere a reader can go: None where the next reading has no built reader.
+    """
+    from .calendar import pointing_at
+
+    index = index or load()
+    built = readable(index)
+    portion = next((one for one in index.portions.values() if one.folder == folder), None)
+    haftarah = (
+        None
+        if portion is not None
+        else next((one for one in index.haftarot.values() if one.folder == folder), None)
+    )
+    if portion is None and haftarah is None:
+        return None
+
+    weeks = [week for week in index.weeks if week.schedule is schedule]
+    weeks.sort(key=lambda week: week.day)
+
+    def reads_it(week: Week) -> bool:
+        if portion is not None:
+            return week.slug == portion.slug
+        assert haftarah is not None
+        if week.haftarah:
+            return week.haftarah == haftarah.key
+        own = index.portions.get(week.slug)
+        return own is not None and own.haftarah == haftarah.key
+
+    shabbat = pointing_at(moment)
+    at = [n for n, week in enumerate(weeks) if reads_it(week)]
+    if at:
+
+        def distance(n: int) -> tuple[int, int]:
+            apart = (date.fromisoformat(weeks[n].day) - shabbat).days
+            # Equally far either side, the one still to come.
+            return abs(apart), 0 if apart >= 0 else 1
+
+        nearest = min(at, key=distance)
+        if nearest + 1 < len(weeks):
+            after = index.portions.get(weeks[nearest + 1].slug)
+            if after is not None and after.folder in built:
+                return after
+
+    listed = [one for one in index.listed() if one.folder in built]
+    if portion is None:
+        assert haftarah is not None
+        # The portion this haftarah is ordinarily read with, and the one after that.
+        portion = next((one for one in index.listed() if one.haftarah == haftarah.key), None)
+        if portion is None:
+            return None
+    _, after = neighbours(portion, listed)
+    return after

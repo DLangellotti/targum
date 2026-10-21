@@ -38,10 +38,14 @@ import secrets
 import sqlite3
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+# The folder a reader's address names, `/reader/<name>/…`: what a text keeps through a
+# rebuild that gives it a new hash, and so what tells one text's places apart.
+_READER_FOLDER = re.compile(r"/reader/([^/?#]+)")
 
 # Long enough that guessing is not a strategy, short enough to paste into a browser.
 TOKEN_BYTES = 32
@@ -76,6 +80,20 @@ ACCESS_MINUTES = 60
 # Rows are swept long after they stop working rather than on expiry, so that "expired"
 # and "never existed" stay tellable apart for as long as that is worth anything.
 TOKEN_SWEEP_DAYS = 30
+
+#: How long a message sent through Tell us is kept once its matter is fixed or declined
+#: (privacy notice clause 3.14; the retention schedule says twelve months). An open one
+#: is kept until it is closed: it is still being answered.
+TOLD_KEEP_DAYS = 365
+#: What a Tell us message may hold, and how many one account may send in an hour. Enough
+#: for somebody who hit three things in a row; not a way to fill the operator's inbox.
+TOLD_LENGTH = 4000
+TOLD_PER_HOUR = 10
+#: What `Store.settle` accepts. Fixed and won't close a message; open and asked do not.
+TOLD_STATES = ("open", "fixed", "won't", "asked")
+TOLD_CLOSED = ("fixed", "won't")
+#: How long a fault report is kept (clause 3.14; the schedule says thirty days).
+FAULT_KEEP_DAYS = 30
 
 #: How many prompts one reader may keep, and how long each may be. Enough for somebody
 #: who has worked out a handful of ways they like to be asked; not a place to keep an
@@ -234,10 +252,61 @@ REGISTRATIONS_PER_HOUR = 60
 #    let in. Empty for everybody who joined without one. In MIGRATIONS for the same
 #    reason as `page`.
 #
+# 38→39: event.word — the dictionary form a `lookup` was for (targum-internal#105, David
+#    2026-09-28), so the week's sheet can list the words a reader actually looked up and
+#    not only the ones they kept. On a table every box with the record has, so it is in
+#    MIGRATIONS; empty for every lookup before it, and for every other kind of event.
+#
+# 39→40: person.ledger — a counter bumped by every write to what a reader's record says
+#    that a sync does not already stamp with `revision`: a slip written or marked known,
+#    the address and the rung they named, a test account wiped (2026-10-06). The two
+#    together are what the connector's answers are kept under (`Store.ledger_stamp`), so
+#    a change to either is a new key and nothing kept is read across it. On a table every
+#    box has, so it is in MIGRATIONS.
+#
+# 40→41: the place table — where a reader left off in each text, one row a text, so
+#    Continue picks up on any device (targum-internal#430). A new table, so `CREATE
+#    TABLE IF NOT EXISTS` is the whole of it. Nothing is backfilled: until now the place
+#    lived only in the browser, and the first sync from each browser carries it up.
+#
+# 41→42: playlist.at and playlist.visited — where in a playlist the reader is, and when
+#    they were last in it (targum-internal#434). The playlist visited last, and not yet
+#    gone through, is "the one you're in": its card is marked on the Playlists tab, and
+#    "Play next" puts a text after the item they are on. Columns on a table every box
+#    has, so they are in MIGRATIONS; NULL until the first item opened from a list.
+#
+# 42→43: the subscription and sub_item tables — what a reader subscribed to and what each
+#    one brought (design.md §12, "A subscription is the account's", 2026-10-09). New
+#    tables, so `CREATE TABLE IF NOT EXISTS` makes them; MIGRATIONS carries every `follow`
+#    row across to its account, and every account's own weekly subscription, once each
+#    (`INSERT OR IGNORE`, so running it again on every open changes nothing). `follow` is
+#    no longer written.
+#
+# 43→44: person.said — the language the page was in when somebody asked to be forgotten,
+#    so the mail that says their account is gone is written in it (design.md §12, "Every
+#    mail is the board's", 2026-10-09). A column on a table every box has, so it is in
+#    MIGRATIONS; empty, which is English, for every account before it.
+#
+# 44→45: job.audio, job.seconds, job.parts, job.transcription and job.reading — what a
+#    quote was priced at (targum-internal#436). They lived only on the job in memory, so
+#    a recording quoted before a restart and pressed after it came back with no length:
+#    `claim` held it to no hours, the reader was charged no credits, and it built anyway.
+#    On a table every box has, so they are in MIGRATIONS; zero for every row before
+#    them, which is the truth about every text that is not a recording.
+#
+# 45→46: practised — where a reader is with each hard spot's practice (targum-internal#440,
+#    design.md §12, "A practice for every hard spot", 2026-10-13): the step on the ramp,
+#    when the next round is due, the last answers and the lines already asked about. A new
+#    table, so it needs no MIGRATIONS entry.
+#
+# 46→47: told and fault — what a reader writes to us through Tell us, and what a page
+#    that broke in a browser said about itself (targum-internal#456, #457; privacy notice
+#    clause 3.14, 2026-10-18). Two new tables, so they need no MIGRATIONS entry.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 38
+SCHEMA_VERSION = 47
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -298,19 +367,42 @@ WIPED = (
     "doc",
     "day",
     "section",
+    "place",
     "reading",
     "event",
     "chosen",
     "slip",
+    "practised",
     "telegram",
     "oauth_token",
     "oauth_grant",
     "prompt",
     "session",
     "link",
+    # What its browser reported about pages that broke (targum-internal#457).
+    "fault",
 )
 #: Keyed by person and emptied by hand in `Store.wipe`, their children first.
-WIPE_BY_HAND = ("chat", "playlist")
+WIPE_BY_HAND = ("chat", "playlist", "subscription")
+#: Keyed by person and deliberately left by a wipe. What a test account wrote to us
+#: through Tell us (#456) is a finding of whoever was testing, addressed to the operator,
+#: and the wipe exists to give the account a fresh first visit, not to lose the findings;
+#: it still goes with the account in `purge`.
+KEPT_BY_A_WIPE = ("told",)
+
+#: What can be subscribed to (design.md §12, "A subscription is the account's",
+#: 2026-10-09): targum's series, a news topic, one outlet, a YouTube channel, a podcast.
+SUB_KINDS = ("series", "topic", "outlet", "channel", "podcast")
+#: The two that get each new item ready by themselves, inside a monthly cap.
+SUB_BUILDS = ("channel", "podcast")
+SUB_STATES = ("on", "paused", "off")
+#: The caps a reader chooses from, in credits a month, and the one chosen for them
+#: (David, 2026-10-08: sixty credits, an hour).
+CAPS = (30, 60, 120, 240)
+DEFAULT_CAP = 60
+#: A credit is a minute of audio or video (design.md §12, 2026-09-23) — the same minute
+#: as `serve.SECONDS_A_CREDIT`, said here because the store counts a cap in it.
+SECONDS_A_CREDIT = 60
 
 # Who is not a reader but the person running the box. An address here is exempt from the
 # per-account spend rails — see `serve.Library.claim` — because the limits exist to stop
@@ -363,6 +455,10 @@ CREATE TABLE IF NOT EXISTS reads (
 # person, and only over texts whose licence lets them leave — never over an upload. A
 # control pressed carries no document and no segment: a name, a width and a day.
 #
+# A look-up carries the word, as its dictionary form (David, 2026-09-28,
+# targum-internal#105): the week's sheet lists the words a reader looked up, and the
+# segment alone could not say which. Only a look-up carries one; the aggregate never reads it.
+#
 # And what is *not* decided here: the privacy notice names a legal basis for every
 # category of data it lists, and this is a new category. So the whole of it stands behind
 # `TARGUM_EVENTS`, off unless the deployment says otherwise — see `serve.py`.
@@ -379,7 +475,8 @@ CREATE TABLE IF NOT EXISTS event (
   segment   TEXT    NOT NULL DEFAULT '',
   amount    REAL    NOT NULL DEFAULT 0,
   control   TEXT    NOT NULL DEFAULT '',
-  width     TEXT    NOT NULL DEFAULT ''
+  width     TEXT    NOT NULL DEFAULT '',
+  word      TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
 CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
@@ -407,6 +504,8 @@ CREATE TABLE IF NOT EXISTS chosen (
 
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
+    # The language a deletion was asked for in (schema 44): the last mail's.
+    "ALTER TABLE person ADD COLUMN said TEXT NOT NULL DEFAULT ''",
     # Which surface a mistake came from: '' is targum's own chat and is every row
     # written before 2026-09-22; 'connector' is a line checked through Claude or ChatGPT
     # (targum-internal#80). Not a quality mark — one judge writes both.
@@ -532,6 +631,46 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE waiting ADD COLUMN page TEXT NOT NULL DEFAULT ''",
     # The link somebody tried on the front page and joined with (targum-internal#399).
     "ALTER TABLE waiting ADD COLUMN link TEXT NOT NULL DEFAULT ''",
+    # The dictionary form a look-up was for (targum-internal#105, 2026-09-28): the lemma
+    # the ledger keys a word on, so a week's look-ups meet the reader's own words and
+    # meanings. Empty on every lookup recorded before it and on every other kind.
+    "ALTER TABLE event ADD COLUMN word TEXT NOT NULL DEFAULT ''",
+    # Bumped by every write to the record that `revision` does not stamp (2026-10-06):
+    # see `Store.ledger_stamp`. Zero for everybody until their first such write, which
+    # is a key like any other.
+    "ALTER TABLE person ADD COLUMN ledger INTEGER NOT NULL DEFAULT 0",
+    # Where in a playlist the reader is and when they were last in it (#434): the one
+    # visited last is the one they are in, until they have gone through it.
+    "ALTER TABLE playlist ADD COLUMN at INTEGER",
+    "ALTER TABLE playlist ADD COLUMN visited INTEGER",
+    # What a quote was priced at (schema 45, targum-internal#436): whether it is a
+    # recording, its length, how it divides, what hearing it costs, and what reading
+    # its pages already cost. `length` is not it: that is what a claim took, zero until
+    # the press, so a job read back between quote and press had nothing to be charged.
+    "ALTER TABLE job ADD COLUMN audio INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN seconds REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN parts INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN transcription REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN reading REAL NOT NULL DEFAULT 0",
+    # Every follow, carried to its account (schema 43, design.md §12, 2026-10-09) with
+    # its stop token, so a link in a mail already sent still stops it, and with what it
+    # last sent, so nothing is mailed twice. A follow whose address has no account has
+    # nowhere to go and stays where it was. `OR IGNORE`: a row already carried, or made
+    # since, is never overwritten — this runs on every open, like everything here.
+    "INSERT OR IGNORE INTO subscription"
+    " (person, kind, key, language, state, stop, since, ended, sent, instalment, said)"
+    " SELECT person.id, 'series', follow.series, 'he', follow.state, follow.stop,"
+    " follow.since, follow.ended, follow.sent, follow.instalment, follow.language"
+    " FROM follow JOIN person ON person.email = follow.email",
+    # And each account's own weekly, which lived only in `subscriber`. Its mail stays
+    # there — the Monday mailout reads `subscriber`, and its anonymous subscribers are
+    # left exactly as they are — and this row is what the Subscriptions tab shows.
+    "INSERT OR IGNORE INTO subscription"
+    " (person, kind, key, language, state, stop, since, said)"
+    " SELECT person.id, 'series', 'weekly', 'he', 'on', lower(hex(randomblob(16))),"
+    " MAX(subscriber.joined, subscriber.asked), subscriber.language"
+    " FROM subscriber JOIN person ON person.email = subscriber.email"
+    " WHERE subscriber.state = 'on'",
 )
 
 SCHEMA = """
@@ -548,6 +687,9 @@ CREATE TABLE IF NOT EXISTS person (
   -- until then they are signed out and the account is unusable, so the only thing the
   -- delay buys is the chance to undo a mistake.
   leaving  INTEGER,
+  -- The language the page was in when they asked, so the mail that says it is done is
+  -- in it (design.md §12, "Every mail is the board's", 2026-10-09). Empty for English.
+  said     TEXT    NOT NULL DEFAULT '',
   -- When they accepted the contribution grant (targum-internal#164, door 3), or 0.
   -- CONTRIBUTING.md holds the sentence; this holds that they read it.
   granted  INTEGER NOT NULL DEFAULT 0
@@ -719,6 +861,30 @@ CREATE TABLE IF NOT EXISTS section (
   PRIMARY KEY (person, hash, section)
 );
 
+-- Where a reader left off in a text, one row a text (targum-internal#430): which part of
+-- it, which sentence, and how far into its recording. Continue reads it, on whichever
+-- device the reader picks the text up on next.
+--
+-- One row a text rather than a row a part, because the question it answers is "where
+-- was I", and that has one answer per text: a reader who went back to chapter two to
+-- look something up has their place in chapter two. Last write wins on `seen`, like
+-- every other kind, so the device read on most recently is the one that says. `path` is
+-- the page's own address on this box, for a row that has to link without the contents
+-- page in hand; `seconds` is 0 for a text with no recording or one not started.
+CREATE TABLE IF NOT EXISTS place (
+  person   INTEGER NOT NULL,
+  hash     TEXT    NOT NULL,
+  section  TEXT    NOT NULL DEFAULT '',
+  path     TEXT    NOT NULL DEFAULT '',
+  segment  TEXT    NOT NULL DEFAULT '',
+  seconds  REAL    NOT NULL DEFAULT 0,
+  at       INTEGER NOT NULL DEFAULT 0,
+  seen     INTEGER NOT NULL DEFAULT 0,
+  gone     INTEGER NOT NULL DEFAULT 0,
+  revision INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, hash)
+);
+
 -- What a reader knew of a section, the moment they finished it (targum-internal#291):
 -- its running words, names and numbers left out, and how many of them their ledger held
 -- as known right then. Written once, when the section's row first arrives on a push, and
@@ -769,6 +935,12 @@ CREATE TABLE IF NOT EXISTS job (
   cache_read  INTEGER NOT NULL DEFAULT 0,
   cache_write INTEGER NOT NULL DEFAULT 0,
   cache_cost  REAL    NOT NULL DEFAULT 0,
+  -- What the quote was priced at: see schema 45. `length` is what the claim took.
+  audio         INTEGER NOT NULL DEFAULT 0,
+  seconds       REAL    NOT NULL DEFAULT 0,
+  parts         INTEGER NOT NULL DEFAULT 0,
+  transcription REAL    NOT NULL DEFAULT 0,
+  reading       REAL    NOT NULL DEFAULT 0,
   -- When it stopped, however it stopped. Zero while it is still running, and zero for
   -- every row written before this column existed.
   finished    INTEGER NOT NULL DEFAULT 0
@@ -1019,6 +1191,22 @@ CREATE TABLE IF NOT EXISTS slip (
 );
 CREATE INDEX IF NOT EXISTS slip_person ON slip (person, at);
 
+-- Where a reader is with each hard spot's practice (targum-internal#440). One row per
+-- (person, language, spot): the step on the ramp, when the next round is due, the last
+-- twenty answers as a string of 1s and 0s, and the lines already asked about as JSON, so
+-- no line is asked about twice. Theirs: exported by `everything`, gone in `purge`.
+CREATE TABLE IF NOT EXISTS practised (
+  person   INTEGER NOT NULL,
+  language TEXT    NOT NULL,
+  spot     TEXT    NOT NULL,
+  step     INTEGER NOT NULL DEFAULT 0,
+  due      INTEGER NOT NULL DEFAULT 0,
+  history  TEXT    NOT NULL DEFAULT '',
+  seen     TEXT    NOT NULL DEFAULT '[]',
+  at       INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, language, spot)
+);
+
 -- Who is waiting for a way in (2026-09-16, targum-internal#69). The front door takes an
 -- address and nothing else, and this is where it goes.
 --
@@ -1191,8 +1379,115 @@ CREATE TABLE IF NOT EXISTS playlist_item (
 );
 CREATE INDEX IF NOT EXISTS playlist_item_job ON playlist_item (job);
 
+-- What a reader subscribed to (design.md §12, "A subscription is the account's",
+-- 2026-10-09): one of targum's series, a news topic or outlet, a YouTube channel or a
+-- podcast. On the account, where `follow` was a fact about an address. A row is never
+-- deleted while the account stands: `state` is on, paused or off, because "they asked to
+-- stop" and "they never subscribed" are different facts, as they are for `subscriber`.
+--
+-- `key` is what the kind names it by: the series' id, the topic, the outlet's key in
+-- sources.json, the channel's id (UC…), the podcast's feed address. `source` is the
+-- address the reader gave, where there was one. `language` is the language of what it
+-- brings; `said` the one the reader reads targum in, which the mail and the stop page are
+-- in. `cap` is the month's credits a channel or a podcast may build with (the second
+-- press that lasts, design.md §12); 0 for everything else, which builds nothing. `stop`
+-- is in the clear for the reason `subscriber.stop` is. `sent` and `instalment` are what
+-- the per-series mail last sent, carried from `follow`.
+CREATE TABLE IF NOT EXISTS subscription (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  person     INTEGER NOT NULL,
+  kind       TEXT    NOT NULL,
+  key        TEXT    NOT NULL,
+  name       TEXT    NOT NULL DEFAULT '',
+  language   TEXT    NOT NULL DEFAULT '',
+  source     TEXT    NOT NULL DEFAULT '',
+  cap        INTEGER NOT NULL DEFAULT 0,
+  state      TEXT    NOT NULL DEFAULT 'on',
+  stop       TEXT    NOT NULL,
+  since      INTEGER NOT NULL,
+  paused     INTEGER NOT NULL DEFAULT 0,
+  ended      INTEGER NOT NULL DEFAULT 0,
+  polled     INTEGER NOT NULL DEFAULT 0,
+  sent       INTEGER NOT NULL DEFAULT 0,
+  instalment TEXT    NOT NULL DEFAULT '',
+  said       TEXT    NOT NULL DEFAULT '',
+  UNIQUE (person, kind, key)
+);
+CREATE INDEX IF NOT EXISTS subscription_stop ON subscription (stop);
+
+-- One thing a subscription brought: an instalment, an article, a video, an episode. Keyed
+-- by what its source calls it, so finding it twice finds it once. `state` says what it is
+-- now: `ready` (it opens, at `reader`), `listed` (a link with a press each: news, and
+-- anything from before subscribing or from while paused), `due` (a channel's or a
+-- podcast's, to be got ready by itself), `building` (its `job` is running), `waiting`
+-- (`why` says on what: the cap, the plan, the box) or `failed`. `came` is '' for what
+-- came out while subscribed, `before` for what was already out and `paused` for what came
+-- out while paused: those two are never built by themselves. `seen` is when the reader
+-- opened it from home, `mailed` when it went out in a mail.
+CREATE TABLE IF NOT EXISTS sub_item (
+  subscription INTEGER NOT NULL,
+  key        TEXT    NOT NULL,
+  title      TEXT    NOT NULL DEFAULT '',
+  link       TEXT    NOT NULL DEFAULT '',
+  reader     TEXT    NOT NULL DEFAULT '',
+  published  INTEGER NOT NULL DEFAULT 0,
+  found      INTEGER NOT NULL,
+  seconds    REAL    NOT NULL DEFAULT 0,
+  state      TEXT    NOT NULL DEFAULT 'listed',
+  why        TEXT    NOT NULL DEFAULT '',
+  job        TEXT    NOT NULL DEFAULT '',
+  credits    INTEGER NOT NULL DEFAULT 0,
+  came       TEXT    NOT NULL DEFAULT '',
+  seen       INTEGER NOT NULL DEFAULT 0,
+  mailed     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (subscription, key)
+);
+CREATE INDEX IF NOT EXISTS sub_item_state ON sub_item (state);
+
 CREATE INDEX IF NOT EXISTS oauth_token_person ON oauth_token (person, kind, revoked);
 CREATE INDEX IF NOT EXISTS oauth_grant_person ON oauth_grant (person);
+
+-- What a reader wrote to us through Tell us (targum-internal#456, privacy notice clause
+-- 3.14): the words, the page it was sent from without its query, the window's size, the
+-- page's language, the build that drew it and who sent it. `state` is the operator's:
+-- open, fixed, won't or asked. `closed` is when it became fixed or won't, and nought while
+-- it is not; a closed message goes `TOLD_KEEP_DAYS` after that (`Store.sweep`), and every
+-- message goes with its account (`Store.purge`).
+CREATE TABLE IF NOT EXISTS told (
+  id       INTEGER PRIMARY KEY,
+  person   INTEGER,
+  at       INTEGER NOT NULL,
+  said     TEXT    NOT NULL,
+  page     TEXT    NOT NULL DEFAULT '',
+  build    TEXT    NOT NULL DEFAULT '',
+  viewport TEXT    NOT NULL DEFAULT '',
+  language TEXT    NOT NULL DEFAULT '',
+  state    TEXT    NOT NULL DEFAULT 'open',
+  closed   INTEGER NOT NULL DEFAULT 0
+);
+
+-- What a page said when it broke in a browser (targum-internal#457, clause 3.14): the
+-- error's message, the place in our script, the page's path, the build and, signed in,
+-- whose browser. Never the text being read and never a cookie. One row per report, kept
+-- `FAULT_KEEP_DAYS`; the back office counts them by message and page.
+CREATE TABLE IF NOT EXISTS fault (
+  id      INTEGER PRIMARY KEY,
+  person  INTEGER,
+  at      INTEGER NOT NULL,
+  message TEXT    NOT NULL,
+  place   TEXT    NOT NULL DEFAULT '',
+  page    TEXT    NOT NULL DEFAULT '',
+  build   TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS fault_message ON fault (message, at);
+
+-- When a fault's message was marked fixed in the back office, on every page it was
+-- reported from. A report after this puts it back in front of the operator: the fix did
+-- not hold, or a reader is still on a page built before it. Swept with the reports.
+CREATE TABLE IF NOT EXISTS fault_fixed (
+  message TEXT    PRIMARY KEY,
+  at      INTEGER NOT NULL
+);
 """
 
 
@@ -1264,11 +1559,38 @@ class Person:
     admin: bool = False
 
 
+@dataclass(frozen=True)
+class Kept:
+    """One word of a reader's week, with what it means to them: `Store.looked_up_between`
+    and `Store.kept_between`."""
+
+    language: str
+    lemma: str
+    surface: str
+    #: Their own note where they wrote one, else the meaning the page gave when they kept
+    #: it, else "". Either may run on past its first sense; the sheet cuts it there.
+    meaning: str
+
+
+def _kept(row: sqlite3.Row) -> Kept:
+    return Kept(
+        language=str(row["language"]),
+        lemma=str(row["lemma"]),
+        surface=str(row["surface"] or ""),
+        # Theirs before the page's, and the meaning table's — which is per language —
+        # before the word row's, which is what it held before that table was split off
+        # and may be in another language.
+        meaning=str(row["note"] or row["meaning"] or row["own"] or row["said"] or ""),
+    )
+
+
 # The four kinds of thing a person accumulates, and the columns each one syncs. Kept as
 # data rather than four near-identical functions, because the merge is the same
 # argument four times and the only thing that differs is the shape.
 # Fields that default to a number rather than to empty text when nothing is known.
-NUMERIC = frozenset({"at", "updated", "opened", "done", "span_start", "span_end", "count"})
+NUMERIC = frozenset(
+    {"at", "updated", "opened", "done", "span_start", "span_end", "count", "seconds"}
+)
 
 
 def exportable_corrections(
@@ -1332,6 +1654,10 @@ class Kind:
     fields: tuple[str, ...]
 
 
+#: The word stages that put a word on the list: being learned. Known (9) and ignored (0)
+#: are not on it (`plans.LISTED` says the same for the pages).
+LISTED = (1, 2, 3)
+
 KINDS: dict[str, Kind] = {
     "words": Kind(
         table="word",
@@ -1370,6 +1696,12 @@ KINDS: dict[str, Kind] = {
     # section number the build gave that part, which is the identity its filename, its
     # row on the contents page and its pager all already use.
     "sections": Kind(table="section", key=("hash", "section"), fields=("at",)),
+    # Where the reader left off in each text (targum-internal#430). One row a text; the
+    # browser writes it as the reader reads and pushes it at most every half minute, and
+    # on the way out — see `sync.js`.
+    "places": Kind(
+        table="place", key=("hash",), fields=("section", "path", "segment", "seconds", "at")
+    ),
 }
 
 
@@ -1580,6 +1912,7 @@ class Store:
     #: subject the other has never heard of.
     INTERESTS: tuple[str, ...] = (
         "everyday",
+        "israel",
         "judaism",
         "news",
         "sport",
@@ -1600,11 +1933,9 @@ class Store:
         "language",
     )
 
-    #: How many a reader is asked for. One is a label and two is a preference; three is
-    #: the first number that describes somebody, and it is cheap to give. The page
-    #: holds the reader to it — this is not enforced here, because clearing the answer
-    #: is a legitimate thing to do and a floor would make it impossible.
-    INTERESTS_WANTED = 3
+    #: The arrival offers eight of these and asks for none in particular (design.md §12,
+    #: "The arrival is three plain questions", 2026-10-09); the rest stay so an answer
+    #: given when all twenty were offered still reads.
 
     def interest(self, person_id: int | None) -> tuple[str, ...]:
         """The subjects they named, or empty where they have not answered."""
@@ -1687,7 +2018,10 @@ class Store:
         if said and said not in self.DECLARED:
             raise ValueError("No such choice.")
         with self.write() as db:
-            db.execute("UPDATE person SET declared = ? WHERE id = ?", (said, person.id))
+            db.execute(
+                "UPDATE person SET declared = ?, ledger = ledger + 1 WHERE id = ?",
+                (said, person.id),
+            )
         return said
 
     # -- what a reader did in a text (targum-internal#127) -------------------------
@@ -1750,6 +2084,8 @@ class Store:
                     0.0 if control else min(amount, 86400.0),
                     str(raw.get("control") or "")[:60] if control else "",
                     width if control and width in EVENT_WIDTHS else "",
+                    # Which word, and only for a look-up: nothing else is about a word.
+                    str(raw.get("word") or "")[:80] if kind == "lookup" else "",
                 )
             )
         if not rows:
@@ -1757,7 +2093,8 @@ class Store:
         with self.write() as db:
             db.executemany(
                 "INSERT INTO event (person, kind, day, at, language, medium, document, "
-                "segment, amount, control, width) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "segment, amount, control, width, word)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
         return len(rows)
@@ -1878,7 +2215,10 @@ class Store:
         if value not in self.ADDRESSES:
             raise ValueError("No such choice.")
         with self.write() as db:
-            db.execute("UPDATE person SET address = ? WHERE id = ?", (value, person.id))
+            db.execute(
+                "UPDATE person SET address = ?, ledger = ledger + 1 WHERE id = ?",
+                (value, person.id),
+            )
         return value
 
     def rename(self, person: Person, name: str) -> str:
@@ -1981,6 +2321,7 @@ class Store:
                     "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
                     (now(), address),
                 )
+                self._weekly_row(db, address, False, "")
                 return False
             db.execute(
                 """
@@ -1999,6 +2340,7 @@ class Store:
                     spoken,
                 ),
             )
+            self._weekly_row(db, address, True, spoken)
         return True
 
     def subscription_language(self, token: str) -> str:
@@ -2043,6 +2385,8 @@ class Store:
                 "UPDATE subscriber SET state = 'on', confirm = NULL, joined = ? WHERE email = ?",
                 (now(), row["email"]),
             )
+            # An account at this address sees it on its Subscriptions tab too.
+            self._weekly_row(db, str(row["email"]), True, "")
             return str(row["email"])
 
     def stop_subscription(self, token: str) -> bool:
@@ -2057,6 +2401,7 @@ class Store:
                 "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
                 (now(), row["email"]),
             )
+            self._weekly_row(db, str(row["email"]), False, "")
             return True
 
     # -- the waitlist (2026-09-16) ----------------------------------------------------
@@ -2242,67 +2587,412 @@ class Store:
             )
         return self.person_by_email(address)
 
-    # -- series (2026-09-11) ---------------------------------------------------------
+    # -- subscriptions (design.md §12, "A subscription is the account's", 2026-10-09) ---
+    #
+    # What a reader subscribed to is a row on their account. A series' follow was a row
+    # keyed by address (`follow`, 2026-09-11) and is carried across by MIGRATIONS; the
+    # methods that spoke of following keep their names and their answers, and read and
+    # write `subscription` underneath, so the per-series mail and its stop page go on
+    # working on the rows they always had.
+
+    def _subscription_row(self, row: sqlite3.Row | None) -> dict[str, Any] | None:
+        return dict(row) if row is not None else None
+
+    def add_subscription(
+        self,
+        person_id: int,
+        kind: str,
+        key: str,
+        *,
+        name: str = "",
+        language: str = "",
+        source: str = "",
+        cap: int = 0,
+        said: str = "",
+    ) -> dict[str, Any]:
+        """Subscribe, or subscribe again. Returns the row.
+
+        A subscription that was off is on again from now: what came out while it was off
+        is from before, and is listed rather than built (design.md §12). One that is
+        paused stays paused — subscribing is not resuming, which is its own press. `cap`
+        is written only where one is given; `said` on every press, for the reason
+        `follow_series` gave.
+        """
+        if kind not in SUB_KINDS or not key:
+            raise ValueError("No such subscription.")
+        code = _language_code(said) if said else ""
+        stamp = now()
+        with self.write() as db:
+            db.execute(
+                """
+                INSERT INTO subscription
+                    (person, kind, key, name, language, source, cap, state, stop, since, said)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'on', ?, ?, ?)
+                ON CONFLICT(person, kind, key) DO UPDATE SET
+                    since = CASE WHEN state = 'off' THEN excluded.since ELSE since END,
+                    ended = CASE WHEN state = 'off' THEN 0 ELSE ended END,
+                    state = CASE WHEN state = 'off' THEN 'on' ELSE state END,
+                    name = CASE WHEN excluded.name != '' THEN excluded.name ELSE name END,
+                    language = CASE WHEN excluded.language != '' THEN excluded.language
+                        ELSE language END,
+                    source = CASE WHEN excluded.source != '' THEN excluded.source
+                        ELSE source END,
+                    cap = CASE WHEN excluded.cap > 0 THEN excluded.cap ELSE cap END,
+                    said = CASE WHEN excluded.said != '' THEN excluded.said ELSE said END
+                """,
+                (
+                    person_id,
+                    kind,
+                    key,
+                    name,
+                    language,
+                    source,
+                    max(0, int(cap)),
+                    secrets.token_urlsafe(TOKEN_BYTES),
+                    stamp,
+                    code,
+                ),
+            )
+            row = db.execute(
+                "SELECT * FROM subscription WHERE person = ? AND kind = ? AND key = ?",
+                (person_id, kind, key),
+            ).fetchone()
+        return dict(row)
+
+    def set_subscription_state(self, person_id: int, sub_id: int, state: str) -> bool:
+        """Pause, resume or stop one of this reader's subscriptions. False where it is not
+        theirs or is already off. Pausing stops the building and the mail; resuming
+        builds nothing that came out meanwhile — the poll listed it as `paused`."""
+        if state not in SUB_STATES:
+            raise ValueError("No such state.")
+        stamp = now()
+        with self.write() as db:
+            found = db.execute(
+                "SELECT state FROM subscription WHERE id = ? AND person = ?", (sub_id, person_id)
+            ).fetchone()
+            if found is None or (str(found["state"]) == "off" and state != "on"):
+                return False
+            db.execute(
+                "UPDATE subscription SET state = ?,"
+                " paused = CASE WHEN ? = 'paused' THEN ? ELSE 0 END,"
+                " ended = CASE WHEN ? = 'off' THEN ? ELSE 0 END,"
+                " since = CASE WHEN state = 'off' THEN ? ELSE since END"
+                " WHERE id = ?",
+                (state, state, stamp, state, stamp, stamp, sub_id),
+            )
+            # A paused or stopped subscription builds nothing: what was waiting for its
+            # turn is listed with a press, never left to go by itself on a resume.
+            if state != "on":
+                db.execute(
+                    "UPDATE sub_item SET state = 'listed', why = '', came = 'paused'"
+                    " WHERE subscription = ? AND state IN ('due', 'waiting')",
+                    (sub_id,),
+                )
+        return True
+
+    def set_subscription_cap(self, person_id: int, sub_id: int, cap: int) -> bool:
+        """Change a channel's or a podcast's monthly cap, on the reader's own press. Only
+        to one of the caps the page offers; anything else changes nothing."""
+        if cap not in CAPS:
+            return False
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE subscription SET cap = ? WHERE id = ? AND person = ?"
+                " AND kind IN ('channel', 'podcast')",
+                (cap, sub_id, person_id),
+            ).rowcount
+        return bool(done)
+
+    def subscription(self, person_id: int | None, sub_id: int) -> dict[str, Any] | None:
+        """One of this reader's subscriptions, or None — never somebody else's."""
+        if person_id is None:
+            return None
+        return self._subscription_row(
+            self.db.execute(
+                "SELECT * FROM subscription WHERE id = ? AND person = ?", (sub_id, person_id)
+            ).fetchone()
+        )
+
+    def subscription_for(self, person_id: int | None, kind: str, key: str) -> dict[str, Any] | None:
+        if person_id is None:
+            return None
+        return self._subscription_row(
+            self.db.execute(
+                "SELECT * FROM subscription WHERE person = ? AND kind = ? AND key = ?",
+                (person_id, kind, key),
+            ).fetchone()
+        )
+
+    def subscriptions(self, person_id: int | None, *, every: bool = False) -> list[dict[str, Any]]:
+        """This reader's subscriptions, the ones they stopped left out unless `every`:
+        each row, with how many of its items are new to them and its newest item."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT * FROM subscription WHERE person = ?"
+            + ("" if every else " AND state != 'off'")
+            + " ORDER BY since",
+            (person_id,),
+        ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            one = dict(row)
+            latest = self.db.execute(
+                "SELECT * FROM sub_item WHERE subscription = ? AND came = ''"
+                " ORDER BY published DESC, found DESC LIMIT 1",
+                (one["id"],),
+            ).fetchone()
+            one["latest"] = dict(latest) if latest is not None else None
+            fresh = self.db.execute(
+                "SELECT COUNT(*) AS n FROM sub_item WHERE subscription = ? AND came = ''"
+                " AND seen = 0 AND state IN ('ready', 'listed')",
+                (one["id"],),
+            ).fetchone()
+            one["new"] = int(fresh["n"])
+            out.append(one)
+        return out
+
+    def live_subscriptions(self) -> list[dict[str, Any]]:
+        """Every subscription that is on or paused, for the poll: a paused one is still
+        looked at, so what comes out meanwhile can be listed when it resumes."""
+        rows = self.db.execute(
+            "SELECT s.*, p.email AS email FROM subscription s JOIN person p ON p.id = s.person"
+            " WHERE s.state IN ('on', 'paused') AND p.leaving IS NULL ORDER BY s.polled, s.id"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def polled(self, sub_id: int) -> None:
+        """Stamp a subscription as looked at: the poll's checkpoint, written once its
+        items are, so a run that dies resumes with the ones it had not reached."""
+        with self.write() as db:
+            db.execute("UPDATE subscription SET polled = ? WHERE id = ?", (now(), sub_id))
+
+    def sub_items(self, sub_id: int, limit: int = 60) -> list[dict[str, Any]]:
+        """What one subscription brought, newest first."""
+        rows = self.db.execute(
+            "SELECT * FROM sub_item WHERE subscription = ?"
+            " ORDER BY published DESC, found DESC LIMIT ?",
+            (sub_id, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def add_sub_items(self, sub_id: int, items: Iterable[Mapping[str, Any]]) -> int:
+        """Write what a look found. An item already here is left as it is, so a look that
+        runs twice finds nothing the second time. Returns how many were new."""
+        stamp = now()
+        added = 0
+        with self.write() as db:
+            for item in items:
+                key = str(item.get("key") or "")
+                if not key:
+                    continue
+                added += db.execute(
+                    "INSERT OR IGNORE INTO sub_item"
+                    " (subscription, key, title, link, reader, published, found, seconds,"
+                    " state, came)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        sub_id,
+                        key,
+                        str(item.get("title") or ""),
+                        str(item.get("link") or ""),
+                        str(item.get("reader") or ""),
+                        int(item.get("published") or 0),
+                        stamp,
+                        float(item.get("seconds") or 0),
+                        str(item.get("state") or "listed"),
+                        str(item.get("came") or ""),
+                    ),
+                ).rowcount
+        return added
+
+    #: What `set_sub_item` may change.
+    SUB_ITEM_FIELDS = frozenset({"state", "why", "job", "reader", "credits", "seen", "mailed"})
+
+    def set_sub_item(self, sub_id: int, key: str, **fields: Any) -> None:
+        wrong = set(fields) - self.SUB_ITEM_FIELDS
+        if wrong or not fields:
+            raise ValueError(f"Not a field of a subscription's item: {sorted(wrong)}")
+        sets = ", ".join(f"{name} = ?" for name in fields)
+        with self.write() as db:
+            db.execute(
+                f"UPDATE sub_item SET {sets} WHERE subscription = ? AND key = ?",
+                (*fields.values(), sub_id, key),
+            )
+
+    def sub_items_in(self, states: Iterable[str]) -> list[dict[str, Any]]:
+        """Every item in these states, with its subscription's owner, kind and cap."""
+        wanted = tuple(states)
+        holes = ", ".join("?" for _ in wanted)
+        rows = self.db.execute(
+            "SELECT i.*, s.person AS person, s.kind AS kind, s.cap AS cap, s.state AS sub_state,"
+            " s.language AS language, s.said AS said"
+            f" FROM sub_item i JOIN subscription s ON s.id = i.subscription"
+            f" WHERE i.state IN ({holes}) ORDER BY i.published, i.found",
+            wanted,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def month_credits(self, person_id: int, sub_id: int, month_from: int) -> int:
+        """What one subscription has built with this month, in credits — read off its own
+        job rows, the same `length` `claim` holds the plan to, so there is one ledger."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(length), 0) AS used FROM job"
+            " WHERE kind = 'subscription' AND owner = ? AND made >= ?"
+            " AND json_extract(options, '$.subscription') = ?",
+            (person_id, month_from, sub_id),
+        ).fetchone()
+        return round(float(row["used"]) / SECONDS_A_CREDIT)
+
+    def new_sub_items(self, person_id: int | None, limit: int = 6) -> list[dict[str, Any]]:
+        """What this reader's subscriptions brought that they have not opened from home,
+        newest first: Continue's New cards. Only what came while they were subscribed and
+        that opens or is a link — nothing still being made, and nothing paused."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT i.*, s.kind AS kind, s.key AS sub_key, s.name AS sub_name,"
+            " s.language AS language FROM sub_item i JOIN subscription s"
+            " ON s.id = i.subscription"
+            " WHERE s.person = ? AND s.state = 'on' AND i.came = '' AND i.seen = 0"
+            " AND i.state IN ('ready', 'listed') AND i.found >= s.since"
+            " ORDER BY i.published DESC, i.found DESC LIMIT ?",
+            (person_id, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def saw_sub_item(self, person_id: int, sub_id: int, key: str) -> bool:
+        """The reader opened it from home: it is no longer New."""
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE sub_item SET seen = ? WHERE subscription = ? AND key = ?"
+                " AND subscription IN (SELECT id FROM subscription WHERE person = ?)",
+                (now(), sub_id, key, person_id),
+            ).rowcount
+        return bool(done)
+
+    def items_to_mail(self, since: int) -> list[dict[str, Any]]:
+        """Everything new that has not been mailed, found since `since`, with whose it is
+        and where its subscription stops: the one mail a day (design.md §12, "Everything
+        new comes in one mail a day", 2026-10-09). A paused or stopped subscription is
+        left out, and so is the weekly, which keeps its own Monday mail. What waits on its
+        cap is in it, so the reader hears once; what is still being made is not yet."""
+        rows = self.db.execute(
+            "SELECT i.*, s.id AS sub, s.kind AS kind, s.key AS sub_key, s.name AS sub_name,"
+            " s.language AS language, s.said AS said, s.stop AS stop, s.since AS sub_since,"
+            " p.id AS person, p.email AS email"
+            " FROM sub_item i JOIN subscription s ON s.id = i.subscription"
+            " JOIN person p ON p.id = s.person"
+            " WHERE s.state = 'on' AND p.leaving IS NULL AND i.mailed = 0 AND i.came = ''"
+            " AND i.found >= ? AND NOT (s.kind = 'series' AND s.key = 'weekly')"
+            " AND (i.state IN ('ready', 'listed') OR (i.state = 'waiting' AND i.why = 'cap'))"
+            " ORDER BY p.id, s.since, s.id, i.published DESC, i.found DESC",
+            (since,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_mailed(self, items: Iterable[tuple[int, str]]) -> None:
+        """Stamp items as mailed, so a run that is started again sends none of them."""
+        stamp = now()
+        with self.write() as db:
+            for sub_id, key in items:
+                db.execute(
+                    "UPDATE sub_item SET mailed = ? WHERE subscription = ? AND key = ?",
+                    (stamp, sub_id, key),
+                )
+
+    def waiting_mailed(self, sub_id: int, since: int) -> bool:
+        """Whether this subscription has told its reader this month that something waits:
+        they hear once, and what waits with it is not mailed again."""
+        row = self.db.execute(
+            "SELECT 1 FROM sub_item WHERE subscription = ? AND state = 'waiting'"
+            " AND why = 'cap' AND mailed >= ? LIMIT 1",
+            (sub_id, since),
+        ).fetchone()
+        return row is not None
+
+    def subscription_by_stop(self, token: str) -> dict[str, Any] | None:
+        """The subscription a stop link names, for the page it opens."""
+        if not token:
+            return None
+        return self._subscription_row(
+            self.db.execute("SELECT * FROM subscription WHERE stop = ?", (token,)).fetchone()
+        )
+
+    def _weekly_row(self, db: sqlite3.Connection, email: str, on: bool, said: str) -> None:
+        """Keep an account's own weekly row in step with `subscriber`, which is where the
+        Monday mail is read from. Nothing for an address without an account."""
+        person = db.execute("SELECT id FROM person WHERE email = ?", (tidy(email),)).fetchone()
+        if person is None:
+            return
+        stamp = now()
+        if on:
+            db.execute(
+                "INSERT INTO subscription (person, kind, key, language, state, stop, since, said)"
+                " VALUES (?, 'series', 'weekly', 'he', 'on', ?, ?, ?)"
+                " ON CONFLICT(person, kind, key) DO UPDATE SET state = 'on', ended = 0,"
+                " said = CASE WHEN excluded.said != '' THEN excluded.said ELSE said END",
+                (int(person["id"]), secrets.token_urlsafe(TOKEN_BYTES), stamp, said),
+            )
+        else:
+            # A paused weekly is left paused: pausing is what turned its mail off.
+            db.execute(
+                "UPDATE subscription SET state = 'off', ended = ?"
+                " WHERE person = ? AND kind = 'series' AND key = 'weekly' AND state = 'on'",
+                (stamp, int(person["id"])),
+            )
+
+    # -- series (2026-09-11), on the subscription rows since 2026-10-09 --------------
 
     def follow_series(self, email: str, series: str, on: bool = True, language: str = "") -> bool:
-        """Follow, or stop following, one series. Signed in, so nothing is confirmed.
+        """Subscribe to, or stop, one series, for the account at this address.
 
         `language` is the one the reader was reading in when they pressed, kept so the
-        mail and the stop page can be in it (targum-internal#289). It is written on every
-        press rather than only the first, because a reader who changed language and
-        followed again means the new one; and it is never cleared on a stop, so somebody
-        who follows again after stopping keeps what they last said.
+        mail and the stop page can be in it (targum-internal#289). Written on every press,
+        and never cleared on a stop. An address with no account behind it has nothing to
+        subscribe with since 2026-10-09, and is answered False.
         """
         address = tidy(email)
         if not address or not series:
             raise ValueError("No address or no series given.")
-        code = language.split("-")[0].lower() if language else ""
-        with self.write() as db:
-            if not on:
-                db.execute(
-                    "UPDATE follow SET state = 'off', ended = ? WHERE email = ? AND series = ?",
-                    (now(), address, series),
-                )
-                return False
-            db.execute(
-                """
-                INSERT INTO follow (email, series, state, stop, since, language)
-                VALUES (?, ?, 'on', ?, ?, ?)
-                ON CONFLICT(email, series)
-                    DO UPDATE SET state = 'on', since = ?, language = ?
-                """,
-                (
-                    address,
-                    series,
-                    secrets.token_urlsafe(TOKEN_BYTES),
-                    now(),
-                    code,
-                    now(),
-                    code,
-                ),
-            )
+        person = self.person_by_email(address)
+        if person is None:
+            return False
+        if not on:
+            found = self.subscription_for(person.id, "series", series)
+            if found is not None:
+                self.set_subscription_state(person.id, int(found["id"]), "off")
+            return False
+        self.add_subscription(person.id, "series", series, language="he", said=language)
         return True
 
     def series_followed(self, email: str) -> list[str]:
+        """The series this address's account is subscribed to, the weekly left out: it is
+        `subscriber`'s, and `following` answers for it."""
         rows = self.db.execute(
-            "SELECT series FROM follow WHERE email = ? AND state = 'on' ORDER BY series",
+            "SELECT s.key FROM subscription s JOIN person p ON p.id = s.person"
+            " WHERE p.email = ? AND s.kind = 'series' AND s.key != 'weekly'"
+            " AND s.state = 'on' ORDER BY s.key",
             (tidy(email),),
         ).fetchall()
-        return [str(row["series"]) for row in rows]
+        return [str(row["key"]) for row in rows]
 
     def followers(self, series: str, not_sent: str = "") -> list[tuple[str, str, str]]:
         """Everyone to mail about this instalment, with the token that stops it and the
-        language they follow in.
+        language they subscribed in.
 
         Selected on "has not had this one", as the weekly's are, so a run that died
-        halfway resumes and one started twice sends nothing the second time.
+        halfway resumes and one started twice sends nothing the second time. A paused
+        subscription is not mailed.
         """
         rows = self.db.execute(
-            "SELECT email, stop, language FROM follow WHERE series = ? AND state = 'on' "
-            "AND (? = '' OR instalment != ?) ORDER BY since",
+            "SELECT p.email AS email, s.stop AS stop, s.said AS said"
+            " FROM subscription s JOIN person p ON p.id = s.person"
+            " WHERE s.kind = 'series' AND s.key = ? AND s.state = 'on'"
+            " AND p.leaving IS NULL AND (? = '' OR s.instalment != ?) ORDER BY s.since",
             (series, not_sent, not_sent),
         ).fetchall()
-        return [(str(row["email"]), str(row["stop"]), str(row["language"] or "en")) for row in rows]
+        return [(str(row["email"]), str(row["stop"]), str(row["said"] or "en")) for row in rows]
 
     def following_language(self, token: str) -> str:
         """The language behind a stop token, for the page it opens.
@@ -2310,38 +3000,39 @@ class Store:
         A stop link is followed with no session and no account — that is the whole point
         of it — so the token is the only thing the page has to go on.
         """
-        if not token:
-            return "en"
-        row = self.db.execute("SELECT language FROM follow WHERE stop = ?", (token,)).fetchone()
-        return str(row["language"] or "en") if row is not None else "en"
+        found = self.subscription_by_stop(token)
+        return str(found["said"] or "en") if found is not None else "en"
 
     def following_series(self, token: str) -> str:
         """Which series a stop token is for, or "" — so the page it opens can name it."""
-        if not token:
+        found = self.subscription_by_stop(token)
+        if found is None or found["kind"] != "series":
             return ""
-        row = self.db.execute("SELECT series FROM follow WHERE stop = ?", (token,)).fetchone()
-        return str(row["series"] or "") if row is not None else ""
-
-    def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
-        with self.write() as db:
-            db.execute(
-                "UPDATE follow SET sent = ?, instalment = ? WHERE email = ? AND series = ?",
-                (now(), instalment, tidy(email), series),
-            )
+        return str(found["key"])
 
     def stop_following(self, token: str) -> bool:
-        """One click, from an email, with no account and no JavaScript."""
-        if not token:
+        """One click, from an email, with no account and no JavaScript: stops the one
+        subscription the link names. True where the token names one."""
+        found = self.subscription_by_stop(token)
+        if found is None:
             return False
         with self.write() as db:
-            row = db.execute("SELECT email, series FROM follow WHERE stop = ?", (token,)).fetchone()
-            if row is None:
-                return False
             db.execute(
-                "UPDATE follow SET state = 'off', ended = ? WHERE email = ? AND series = ?",
-                (now(), row["email"], row["series"]),
+                "UPDATE subscription SET state = 'off', ended = ? WHERE id = ?",
+                (now(), int(found["id"])),
             )
-            return True
+            db.execute(
+                "UPDATE sub_item SET state = 'listed', why = '', came = 'paused'"
+                " WHERE subscription = ? AND state IN ('due', 'waiting')",
+                (int(found["id"]),),
+            )
+            if found["kind"] == "series" and found["key"] == "weekly":
+                db.execute(
+                    "UPDATE subscriber SET state = 'off', ended = ?"
+                    " WHERE email = (SELECT email FROM person WHERE id = ?)",
+                    (now(), int(found["person"])),
+                )
+        return True
 
     def subscribers(self, not_sent: str = "") -> list[tuple[str, str, str]]:
         """Everyone to mail about this issue, with the token that stops it and the
@@ -2510,13 +3201,20 @@ class Store:
                 (person.id,),
             )
             db.execute("DELETE FROM playlist WHERE person = ?", (person.id,))
-            # Kept by address rather than by person: the series it followed, and a
-            # language the operator marked it as reading.
+            db.execute(
+                "DELETE FROM sub_item WHERE subscription IN"
+                " (SELECT id FROM subscription WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM subscription WHERE person = ?", (person.id,))
+            # Kept by address rather than by person: the series it followed before
+            # 2026-10-09, and a language the operator marked it as reading.
             db.execute("DELETE FROM follow WHERE email = ?", (person.email,))
             db.execute("DELETE FROM reads WHERE email = ?", (person.email,))
             db.execute(
                 "UPDATE person SET name = '', picture = '', address = '', interest = '',"
-                " declared = '', events = '', granted = 0, revision = revision + 1"
+                " declared = '', events = '', granted = 0, revision = revision + 1,"
+                " ledger = ledger + 1"
                 " WHERE id = ?",
                 (person.id,),
             )
@@ -2902,15 +3600,20 @@ class Store:
         with self.write() as db:
             db.execute("DELETE FROM session WHERE hash = ?", (digest(session),))
 
-    def forget(self, person: Person) -> None:
+    def forget(self, person: Person, language: str = "") -> None:
         """Start forgetting someone. The other half of being allowed to keep it.
 
         Nothing is deleted yet. They are signed out of everywhere, the account stops
         working, and the data goes at the end of the grace period. Deleting an account
         is one click on a bad day, and the only thing that makes that safe is time.
+        `language` is the page's, kept so the mail that says it is done is in it.
         """
+        said = _language_code(language) if language else ""
         with self.write() as db:
-            db.execute("UPDATE person SET leaving = ? WHERE id = ?", (now(), person.id))
+            db.execute(
+                "UPDATE person SET leaving = ?, said = ? WHERE id = ?",
+                (now(), said, person.id),
+            )
             db.execute("DELETE FROM session WHERE person = ?", (person.id,))
             db.execute("DELETE FROM link WHERE person = ?", (person.id,))
             # And every Telegram chat, for the same reason: a bound chat is a way to
@@ -2930,6 +3633,13 @@ class Store:
                 (person.id,),
             )
             db.execute("DELETE FROM playlist WHERE person = ?", (person.id,))
+            # And what they subscribed to: nothing more is built or mailed for them.
+            db.execute(
+                "DELETE FROM sub_item WHERE subscription IN"
+                " (SELECT id FROM subscription WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM subscription WHERE person = ?", (person.id,))
             # The weekly stops too. A subscription is deliberately not part of the
             # account — it outlives one, and that is the point of keeping it in its own
             # table — but somebody who asked to be forgotten did not mean "keep mailing
@@ -2943,6 +3653,16 @@ class Store:
         """Change their mind, while there is still something to change it about."""
         with self.write() as db:
             db.execute("UPDATE person SET leaving = NULL WHERE id = ?", (person.id,))
+
+    def leaving_due(self, days: int = GRACE_DAYS) -> list[dict[str, Any]]:
+        """Whoever `purge` is about to delete: their id, address, when they asked and in
+        which language — what the last mail needs, read while it still exists."""
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        rows = self.db.execute(
+            "SELECT id, email, leaving, said FROM person WHERE leaving IS NOT NULL AND leaving < ?",
+            (cutoff,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def purge(self, days: int = GRACE_DAYS) -> list[int]:
         """Delete everyone whose grace period is up, and say whose files still stand.
@@ -2969,6 +3689,8 @@ class Store:
                     "section",
                     # And what they knew of each one (targum-internal#291).
                     "reading",
+                    # And where they left off in each text (targum-internal#430).
+                    "place",
                     # And what they did in each text (targum-internal#127).
                     "event",
                     "chosen",
@@ -2979,6 +3701,12 @@ class Store:
                     # the most personal row in the database: a record of a learner's own
                     # mistakes, in their own sentences.
                     "slip",
+                    # Where they are with each practice: a record of how they learn.
+                    "practised",
+                    # What they wrote to us, and what their browser reported about a
+                    # page that broke (clause 3.14): theirs, so it goes with them.
+                    "told",
+                    "fault",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 # Conversations too: half of every one is what the person said.
@@ -2987,6 +3715,12 @@ class Store:
                     (person_id,),
                 )
                 db.execute("DELETE FROM chat WHERE person = ?", (person_id,))
+                db.execute(
+                    "DELETE FROM sub_item WHERE subscription IN"
+                    " (SELECT id FROM subscription WHERE person = ?)",
+                    (person_id,),
+                )
+                db.execute("DELETE FROM subscription WHERE person = ?", (person_id,))
                 db.execute("DELETE FROM person WHERE id = ?", (person_id,))
         return gone
 
@@ -3001,12 +3735,52 @@ class Store:
         row = self.db.execute("SELECT revision FROM person WHERE id = ?", (person.id,)).fetchone()
         return int(row["revision"]) if row else 0
 
-    def push(self, person: Person, changes: dict[str, list[dict[str, Any]]]) -> int:
+    @staticmethod
+    def _bump_ledger(db: sqlite3.Connection, person_id: int) -> None:
+        db.execute("UPDATE person SET ledger = ledger + 1 WHERE id = ?", (person_id,))
+
+    def ledger_stamp(self, person_id: int | None) -> tuple[int, int, int] | None:
+        """What changes whenever anything a reader's record says changes, or None.
+
+        The connector's answers are worked out from the record — the words, what they
+        finished, the days they read, their slips, the rung and address they named — and
+        kept under this (`chat.tools`, 2026-10-06), so this has to move on every write to
+        any of it. `revision` already does for everything a sync writes, which is the
+        words and the rest of `KINDS`; `ledger` is bumped by the few writes that are not a
+        sync (`_bump_ledger` and the statements beside it). `made` is there because an
+        `INTEGER PRIMARY KEY` can be given again to a person made after the last one was
+        deleted, and that person's zero counters must not be the old one's.
+
+        Read from the database rather than counted in memory, so a write made by another
+        process — the command line, a second server — moves it too. One row, by its key.
+        """
+        if person_id is None:
+            return None
+        row = self.db.execute(
+            "SELECT made, revision, ledger FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        if row is None:
+            return None
+        return (int(row["made"]), int(row["revision"]), int(row["ledger"]))
+
+    def push(
+        self,
+        person: Person,
+        changes: dict[str, list[dict[str, Any]]],
+        *,
+        word_cap: int | None = None,
+    ) -> int:
         """Take a browser's changes, keeping whichever version of each record is newer.
 
         Everything lands in one transaction and under one revision number, so a client
         pulling at the same moment sees either all of a push or none of it. Half a
         push is how a phrase arrives without the document it belongs to.
+
+        `word_cap` is a free word list's (design.md §12, "Free and Plan, behind a switch",
+        2026-10-09): a word that would go on the list — into stages 1 to 3 from anywhere
+        else — once it already holds that many is not taken. A word already on it moves
+        between stages freely, and known or ignored are never held. None, as it is with
+        plans off, takes everything as it always did.
         """
         with self.write() as db:
             stamp = self._next_revision(db, person)
@@ -3015,8 +3789,44 @@ class Store:
                 if kind is None:
                     continue
                 for item in items:
+                    if (
+                        word_cap is not None
+                        and name == "words"
+                        and self._over_cap(db, person, item, word_cap)
+                    ):
+                        continue
                     self._merge(db, person, kind, item, stamp)
             return stamp
+
+    @staticmethod
+    def _over_cap(db: sqlite3.Connection, person: Person, item: dict[str, Any], cap: int) -> bool:
+        """Whether this word would go on a list already holding `cap` words."""
+        try:
+            status = int(item.get("status"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return False
+        if item.get("gone") or status not in LISTED:
+            return False
+        was = db.execute(
+            "SELECT status, gone FROM word WHERE person = ? AND language = ? AND lemma = ?",
+            (person.id, str(item.get("language") or ""), str(item.get("lemma") or "")),
+        ).fetchone()
+        if was is not None and not was["gone"] and was["status"] in LISTED:
+            return False
+        held = db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status IN (1, 2, 3)",
+            (person.id,),
+        ).fetchone()
+        return int(held["n"]) >= cap
+
+    def listed_words(self, person_id: int) -> int:
+        """How many words this reader is learning (stages 1 to 3), across every language:
+        what a free word list's cap counts."""
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status IN (1, 2, 3)",
+            (person_id,),
+        ).fetchone()
+        return int(row["n"])
 
     def _merge(
         self,
@@ -3084,6 +3894,20 @@ class Store:
             out[name] = [dict(row) for row in rows]
         return out
 
+    def _settings_of(self, person: Person) -> dict[str, Any]:
+        """The account's own settings, as the reader set them, for `everything`."""
+        row = self.db.execute(
+            "SELECT address, interest, declared, events, granted FROM person WHERE id = ?",
+            (person.id,),
+        ).fetchone()
+        return {
+            "address": row["address"],
+            "interest": [word for word in str(row["interest"]).split(",") if word],
+            "declared": row["declared"],
+            "record": "off" if row["events"] == "off" else "kept",
+            "granted": row["granted"],
+        }
+
     def everything(self, person: Person) -> dict[str, Any]:
         """Everything targum holds about one person, for them to take away.
 
@@ -3130,6 +3954,13 @@ class Store:
                     (person.id,),
                 )
             ],
+            # What they set on the account page and on arrival: how the conversation
+            # addresses them, what they came to read, the rung they named, whether the
+            # record of their reading is kept, and when they accepted the grant to
+            # correct. Theirs as much as the name above; the
+            # export left them out until the QA pass of 2026-10-11 found it promising
+            # "everything" and carrying four columns of the person.
+            "settings": self._settings_of(person),
             "exported": now(),
         }
         for name, kind in KINDS.items():
@@ -3147,6 +3978,15 @@ class Store:
         # personal rows in the database, so the first thing that had to be true of them
         # is that somebody can take them away.
         out["slips"] = self.slips(person.id, limit=100_000)
+        # Where they are with each hard spot's practice (targum-internal#440).
+        out["practised"] = [
+            dict(row)
+            for row in self.db.execute(
+                "SELECT language, spot, step, due, history, seen, at FROM practised"
+                " WHERE person = ? ORDER BY language, spot",
+                (person.id,),
+            )
+        ]
 
         # What they said to targum and what it said back. Theirs in the plainest sense.
         out["chats"] = [
@@ -3166,13 +4006,22 @@ class Store:
             dict(row)
             for row in self.db.execute(
                 "SELECT source, title, language, stage, spent, made FROM job"
-                " WHERE owner = ? AND kind = 'build' ORDER BY made DESC",
+                " WHERE owner = ? AND kind IN ('build', 'subscription') ORDER BY made DESC",
                 (person.id,),
             )
         ]
         # Which clients they connected, and what they let each one do. The digests stay
         # out, for the reason at the top of this method.
         out["connections"] = self.connections(person.id)
+        # What they subscribed to, and its cap: their choices, as their playlists are. The
+        # stop token stays out — it is a way to change the row, not a fact about it.
+        out["subscriptions"] = [
+            {
+                key: row[key]
+                for key in ("kind", "key", "name", "language", "source", "cap", "state", "since")
+            }
+            for row in self.subscriptions(person.id, every=True)
+        ]
         # And what they wrote for those clients to offer. Theirs in the plainest sense:
         # they typed it.
         out["prompts"] = self.prompts(person.id)
@@ -3265,6 +4114,17 @@ class Store:
         ).fetchall()
         return [(str(row["hash"]), str(row["section"]), int(row["at"] or 0)) for row in rows]
 
+    def finished_sections(self, person_id: int | None, document: str) -> set[str]:
+        """The sections of one text this person has finished and not un-finished — what a
+        contents page checks as Read or Watched."""
+        if person_id is None or not document:
+            return set()
+        rows = self.db.execute(
+            "SELECT section FROM section WHERE person = ? AND hash = ? AND gone = 0",
+            (person_id, document),
+        ).fetchall()
+        return {str(row["section"]) for row in rows}
+
     def marked(self, person: Person, language: str) -> dict[str, int]:
         """Every dictionary form this person has marked in one language, and how well.
 
@@ -3276,6 +4136,45 @@ class Store:
             (person.id, language.split("-")[0].lower()),
         )
         return {row["lemma"]: row["status"] for row in rows if row["status"] is not None}
+
+    def known_count(self, person: Person, language: str) -> int:
+        """How many words this person knows in one language, as Your Progress's ledger
+        counts them: names and numbers are not vocabulary (`level.NOT_VOCABULARY`), so
+        the story's "You know N words" and the ledger's "N words known" are one figure.
+        They were two, 1,743 against 1,688, on 2026-10-09 (audit Q8)."""
+        from .level import NOT_VOCABULARY
+
+        bands = sorted(NOT_VOCABULARY)
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND language = ? AND gone = 0"
+            f" AND status = 9 AND COALESCE(band, '') NOT IN ({', '.join('?' for _ in bands)})",
+            (person.id, language.split("-")[0].lower(), *bands),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def due_a_look(self, person_id: int, language: str, since: int = 0) -> int:
+        """Words still being learned (steps 1 to 3) in one language that have not been
+        marked since `since`, in milliseconds — the count home's welcome back says
+        (design.md §12, "Home says welcome back after a week away", 2026-10-09). Nought
+        for `since` nought means every word still being learned."""
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND status IN (1, 2, 3) AND (? = 0 OR seen < ?)",
+            (person_id, language.split("-")[0].lower(), since, since),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def meanings(self, person: Person, language: str) -> list[tuple[str, str, int | None]]:
+        """Every word this person keeps in one language, with the meaning they wrote for
+        it and how well they know it: what search meets English against, since an
+        English line finds a word only on the reader's own list (design.md §12, "One
+        search, everywhere", 2026-10-09)."""
+        rows = self.db.execute(
+            "SELECT lemma, meaning, status FROM word WHERE person = ? AND language = ?"
+            " AND gone = 0",
+            (person.id, language.split("-")[0].lower()),
+        )
+        return [(str(row["lemma"]), str(row["meaning"] or ""), row["status"]) for row in rows]
 
     def counts(self, person: Person) -> dict[str, int]:
         """What someone has, for the sake of saying so on the page."""
@@ -3325,6 +4224,112 @@ class Store:
                     out.add(strip_nikkud(str(form))[0])
         return out
 
+    def kept_between(
+        self,
+        person_id: int | None,
+        start: int,
+        end: int,
+        *,
+        languages: Iterable[str],
+        target: str,
+    ) -> list[Kept]:
+        """The words a reader first kept between two moments (ms), still learning, in the
+        order they were kept — the week's sheet's list where there are no look-ups to read
+        (targum-internal#105): the record is off, stopped, or older than the word it carries.
+
+        A word kept this week and since marked known, or ignored, is not one to carry into
+        Shabbat. Names and numbers are not vocabulary. The meaning is the one in `target`,
+        the language the sheet is read in.
+        """
+        codes = sorted({code.split("-")[0].lower() for code in languages})
+        if person_id is None or not codes:
+            return []
+        marks = ", ".join("?" for _ in codes)
+        rows = self.db.execute(
+            "SELECT w.language, w.lemma, w.surface, w.note AS own, w.meaning AS said,"
+            " m.note AS note, m.meaning AS meaning FROM word w"
+            " LEFT JOIN meaning m ON m.person = w.person AND m.source = w.language"
+            " AND m.target = ? AND m.term = w.lemma AND m.gone = 0"
+            " WHERE w.person = ? AND w.gone = 0 AND w.status IN (1, 2, 3)"
+            " AND w.at >= ? AND w.at < ? AND w.band NOT IN ('name', 'number')"
+            f" AND w.language IN ({marks}) ORDER BY w.at",
+            (target.split("-")[0].lower(), int(person_id), int(start), int(end), *codes),
+        ).fetchall()
+        return [_kept(row) for row in rows]
+
+    def learning_words(
+        self, person_id: int | None, *, languages: Iterable[str], target: str
+    ) -> dict[str, tuple[int, str]]:
+        """Every word the reader is learning — steps 1 to 3, the reader's marks — by its
+        dictionary form and the form they met it in, bare of points, with the step and the
+        meaning they keep for it in `target`, as `kept_between` gives one ("" where they
+        keep none). What the week's sheet lights (targum-internal#415). Names and numbers
+        are not vocabulary."""
+        codes = sorted({code.split("-")[0].lower() for code in languages})
+        if person_id is None or not codes:
+            return {}
+        from .vocalize.base import strip_nikkud
+
+        marks = ", ".join("?" for _ in codes)
+        rows = self.db.execute(
+            "SELECT w.language, w.lemma, w.surface, w.status, w.note AS own,"
+            " w.meaning AS said, m.note AS note, m.meaning AS meaning FROM word w"
+            " LEFT JOIN meaning m ON m.person = w.person AND m.source = w.language"
+            " AND m.target = ? AND m.term = w.lemma AND m.gone = 0"
+            " WHERE w.person = ? AND w.gone = 0 AND w.status IN (1, 2, 3)"
+            " AND (w.band IS NULL OR w.band NOT IN ('name', 'number'))"
+            f" AND w.language IN ({marks})",
+            (target.split("-")[0].lower(), int(person_id), *codes),
+        ).fetchall()
+        out: dict[str, tuple[int, str]] = {}
+        for row in rows:
+            kept = _kept(row)
+            for form in (kept.lemma, kept.surface):
+                bare = strip_nikkud(form)[0] if form else ""
+                if bare and bare not in out:
+                    out[bare] = (int(row["status"]), kept.meaning)
+        return out
+
+    def looked_up_between(
+        self,
+        person_id: int | None,
+        start: int,
+        end: int,
+        *,
+        languages: Iterable[str],
+        target: str,
+    ) -> list[Kept]:
+        """The words a reader looked up between two moments (ms), once each, in the order
+        they were first looked up — what the week's sheet lists (targum-internal#105).
+
+        Read off the event log's look-ups, which name their word since 2026-09-28; one
+        recorded before that, or by a box that keeps no record, names none and is not here.
+        A word looked up and then marked known, or ignored, has been answered already, and
+        a name or a number is not vocabulary, where the ledger says so. The meaning is the
+        reader's in `target`, as `kept_between` gives it.
+        """
+        codes = sorted({code.split("-")[0].lower() for code in languages})
+        if person_id is None or not codes:
+            return []
+        marks = ", ".join("?" for _ in codes)
+        rows = self.db.execute(
+            "SELECT e.language AS language, e.word AS lemma, MIN(e.at) AS first,"
+            " COALESCE(w.surface, '') AS surface, w.note AS own, w.meaning AS said,"
+            " m.note AS note, m.meaning AS meaning FROM event e"
+            " LEFT JOIN word w ON w.person = e.person AND w.language = e.language"
+            " AND w.lemma = e.word AND w.gone = 0"
+            " LEFT JOIN meaning m ON m.person = e.person AND m.source = e.language"
+            " AND m.target = ? AND m.term = e.word AND m.gone = 0"
+            " WHERE e.person = ? AND e.kind = 'lookup' AND e.word <> ''"
+            " AND e.at >= ? AND e.at < ?"
+            f" AND e.language IN ({marks})"
+            " AND (w.status IS NULL OR w.status IN (1, 2, 3))"
+            " AND COALESCE(w.band, '') NOT IN ('name', 'number')"
+            " GROUP BY e.language, e.word ORDER BY first",
+            (target.split("-")[0].lower(), int(person_id), int(start), int(end), *codes),
+        ).fetchall()
+        return [_kept(row) for row in rows]
+
     def activity(self, person_id: int | None) -> dict[str, Any]:
         """The days someone read on, and how many sections and texts they finished."""
         if person_id is None:
@@ -3358,6 +4363,51 @@ class Store:
             (person_id,),
         ).fetchall()
         return {str(row["hash"]) for row in rows}
+
+    #: The most places one read hands back. Home shows a few; the rest is the export's.
+    PLACES_AT_MOST = 20
+
+    def places(
+        self, person_id: int | None, limit: int = 5, document: str = ""
+    ) -> list[dict[str, Any]]:
+        """Where this person left off, newest first: the last `limit` texts they were in,
+        each with the part, the sentence and the second of its recording, and the
+        title and language its `doc` row carries (targum-internal#430).
+
+        For Continue — the contents page asks for one text's, home for the last few. A
+        text taken off the shelf is left out; its place stays, so putting it back
+        brings it back where it was.
+
+        One text is one place, newest, though it may have several rows: a rebuild gives
+        it a new hash, and the place left before it keeps the old one. The folder its
+        `path` names survives the rebuild, so places are told apart by that, and by hash
+        where there is no path (2026-10-11).
+        """
+        if person_id is None:
+            return []
+        limit = max(1, min(self.PLACES_AT_MOST, int(limit)))
+        where = "p.person = ? AND p.gone = 0 AND COALESCE(d.gone, 0) = 0"
+        args: list[Any] = [person_id]
+        if document:
+            where += " AND p.hash = ?"
+            args.append(document)
+        rows = self.db.execute(
+            "SELECT p.hash, p.section, p.path, p.segment, p.seconds, p.at,"
+            " COALESCE(d.title, '') AS title, COALESCE(d.language, '') AS language"
+            " FROM place p LEFT JOIN doc d ON d.person = p.person AND d.hash = p.hash"
+            f" WHERE {where} ORDER BY p.at DESC LIMIT ?",
+            (*args, self.PLACES_AT_MOST),
+        ).fetchall()
+        kept: list[dict[str, Any]] = []
+        texts: set[str] = set()
+        for row in rows:
+            found = _READER_FOLDER.match(str(row["path"] or ""))
+            text = "/" + found.group(1) if found else str(row["hash"])
+            if text in texts:
+                continue
+            texts.add(text)
+            kept.append(dict(row))
+        return kept[:limit]
 
     def read_times(self, person_id: int | None) -> dict[str, dict[str, int]]:
         """When this person last opened each text and when they finished it, by hash, in
@@ -3920,6 +4970,7 @@ class Store:
                     source,
                 ),
             )
+            self._bump_ledger(db, person_id)
             return int(cursor.lastrowid or 0)
 
     def slips(
@@ -3976,7 +5027,54 @@ class Store:
                 "UPDATE slip SET known = ? WHERE id = ? AND person = ? AND gone = 0",
                 (now() if known else 0, slip_id, person_id),
             )
+            if cursor.rowcount > 0:
+                self._bump_ledger(db, person_id)
             return cursor.rowcount > 0
+
+    # --- where a reader is with each hard spot (targum-internal#440) -----------------
+
+    def practised(self, person_id: int, language: str) -> dict[str, dict[str, Any]]:
+        """Each spot's row for one reader and language, by the spot's short key."""
+        rows = self.db.execute(
+            "SELECT spot, step, due, history, seen FROM practised"
+            " WHERE person = ? AND language = ?",
+            (person_id, language),
+        ).fetchall()
+        out: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            try:
+                seen = [str(key) for key in json.loads(row["seen"] or "[]")]
+            except (TypeError, ValueError):
+                seen = []
+            out[str(row["spot"])] = {
+                "step": int(row["step"]),
+                "due": int(row["due"]),
+                "history": str(row["history"] or ""),
+                "seen": seen,
+            }
+        return out
+
+    def practise(
+        self,
+        person_id: int,
+        language: str,
+        spot: str,
+        *,
+        step: int,
+        due: int,
+        history: str,
+        seen: list[str],
+    ) -> None:
+        """Write one spot's row whole."""
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO practised (person, language, spot, step, due, history, seen, at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT (person, language, spot) DO UPDATE SET step = excluded.step,"
+                " due = excluded.due, history = excluded.history, seen = excluded.seen,"
+                " at = excluded.at",
+                (person_id, language, spot, step, due, history, json.dumps(seen), now()),
+            )
 
     # --- what a reader wrote for their own connector (targum-internal#80) ----------
 
@@ -4059,7 +5157,7 @@ class Store:
         if person_id is None:
             return []
         rows = self.db.execute(
-            "SELECT p.id, p.name, p.made_by, p.made,"
+            "SELECT p.id, p.name, p.made_by, p.made, p.at, p.visited,"
             " (SELECT COUNT(*) FROM playlist_item i WHERE i.playlist = p.id) AS count,"
             " (SELECT i.reader FROM playlist_item i WHERE i.playlist = p.id"
             "   AND i.reader IS NOT NULL AND i.failed = 0 ORDER BY i.position LIMIT 1) AS first"
@@ -4092,7 +5190,8 @@ class Store:
         if person_id is None:
             return None
         row = self.db.execute(
-            "SELECT id, name, made_by, made FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+            "SELECT id, name, made_by, made, at, visited FROM playlist"
+            " WHERE id = ? AND person = ? AND gone = 0",
             (playlist_id, person_id),
         ).fetchone()
         if row is None:
@@ -4194,7 +5293,128 @@ class Store:
                     "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
                     (new, playlist_id, old),
                 )
+            # The place the reader is at follows the text they are on (#434).
+            db.execute(
+                "UPDATE playlist SET at = CASE at WHEN ? THEN ? WHEN ? THEN ? ELSE at END"
+                " WHERE id = ?",
+                (position, other, other, position, playlist_id),
+            )
         return True
+
+    def move_to_in_playlist(self, person_id: int, playlist_id: int, position: int, to: int) -> bool:
+        """Move one text from its place to another, the ones between closing up behind it
+        or opening in front of it: a drag (targum-internal#434). False if either place is
+        not there. The place the reader is at follows the text they are on."""
+        with self.write() as db:
+            owned = db.execute(
+                "SELECT at FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+                (playlist_id, person_id),
+            ).fetchone()
+            if owned is None:
+                return False
+            count = int(
+                db.execute(
+                    "SELECT COUNT(*) AS n FROM playlist_item WHERE playlist = ?", (playlist_id,)
+                ).fetchone()["n"]
+            )
+            if not (0 <= position < count and 0 <= to < count):
+                return False
+            if position == to:
+                return True
+            step = 1 if to > position else -1
+            # Out of the way at -1, then each between shifted one place towards the gap,
+            # then into its new place: the key is (playlist, position), and a shift in
+            # one statement would collide halfway.
+            db.execute(
+                "UPDATE playlist_item SET position = -1 WHERE playlist = ? AND position = ?",
+                (playlist_id, position),
+            )
+            between = range(position + step, to + step, step)
+            for old in between:
+                db.execute(
+                    "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
+                    (old - step, playlist_id, old),
+                )
+            db.execute(
+                "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = -1",
+                (to, playlist_id),
+            )
+            at = owned["at"]
+            if at is not None:
+                at = int(at)
+                if at == position:
+                    at = to
+                elif at in between:
+                    at -= step
+                db.execute("UPDATE playlist SET at = ? WHERE id = ?", (at, playlist_id))
+        return True
+
+    def playlist_here(self, person_id: int, playlist_id: int, position: int) -> bool:
+        """The reader is at this place in this playlist, now (targum-internal#434). A
+        place past the last item is a playlist gone through, which no longer counts as the
+        one they are in."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist SET at = ?, visited = ? WHERE id = ? AND person = ? AND gone = 0",
+                (max(0, position), now(), playlist_id, person_id),
+            )
+            return cursor.rowcount > 0
+
+    def current_playlist(self, person_id: int | None) -> dict[str, Any] | None:
+        """The playlist the reader is in: the one they were in last, while there is still
+        something in it after where they are. None when there is none, or they finished
+        the last one they were in."""
+        if person_id is None:
+            return None
+        row = self.db.execute(
+            "SELECT p.id, p.name, p.at,"
+            " (SELECT COUNT(*) FROM playlist_item i WHERE i.playlist = p.id) AS count"
+            " FROM playlist p WHERE p.person = ? AND p.gone = 0 AND p.visited IS NOT NULL"
+            " ORDER BY p.visited DESC, p.id DESC LIMIT 1",
+            (person_id,),
+        ).fetchone()
+        if row is None or row["at"] is None or int(row["at"]) >= int(row["count"]):
+            return None
+        return {"id": int(row["id"]), "name": str(row["name"]), "at": int(row["at"])}
+
+    def unfinished_playlists(self, person_id: int | None) -> list[dict[str, Any]]:
+        """Every playlist the reader has been in and not gone through, the one they were
+        in last first: where "Play next" looks for one in a text's own language when the
+        one they are in is in another (2026-10-12)."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT p.id, p.name, p.at,"
+            " (SELECT COUNT(*) FROM playlist_item i WHERE i.playlist = p.id) AS count"
+            " FROM playlist p WHERE p.person = ? AND p.gone = 0 AND p.visited IS NOT NULL"
+            " AND p.at IS NOT NULL ORDER BY p.visited DESC, p.id DESC",
+            (person_id,),
+        ).fetchall()
+        return [
+            {"id": int(row["id"]), "name": str(row["name"]), "at": int(row["at"])}
+            for row in rows
+            if int(row["at"]) < int(row["count"])
+        ]
+
+    def play_next(
+        self, person_id: int, playlist_id: int, title: str, reader: str
+    ) -> dict[str, Any] | None:
+        """Put a text straight after the one the reader is on (targum-internal#434): added
+        if it is not in the playlist, moved if it is. None where it could not be — not
+        theirs, or full."""
+        added = self.add_to_playlist(person_id, playlist_id, title, reader=reader)
+        if added is None:
+            return None
+        found = self.playlist(person_id, playlist_id)
+        if found is None:
+            return None
+        at = found.get("at")
+        here = int(at) if at is not None else -1
+        position = int(added["position"])
+        to = here + 1 if position > here else here
+        to = max(0, min(to, len(found["items"]) - 1))
+        self.move_to_in_playlist(person_id, playlist_id, position, to)
+        return {**added, "position": to}
 
     def drop_from_playlist(self, person_id: int, playlist_id: int, position: int) -> bool:
         """Take one text out, closing the gap it leaves."""
@@ -4221,7 +5441,22 @@ class Store:
                     "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
                     (int(row["position"]) - 1, playlist_id, int(row["position"])),
                 )
+            db.execute(
+                "UPDATE playlist SET at = at - 1 WHERE id = ? AND at > ?", (playlist_id, position)
+            )
         return True
+
+    def playlist_made_by(self, person_id: int, playlist_id: int, made_by: str) -> bool:
+        """Whose hand made a playlist, said after it was made: the end card's next set is
+        quoted through the chat's tool and is targum's pick (#435)."""
+        if made_by not in PLAYLIST_MAKERS:
+            return False
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist SET made_by = ? WHERE id = ? AND person = ? AND gone = 0",
+                (made_by, playlist_id, person_id),
+            )
+            return cursor.rowcount > 0
 
     def rename_playlist(self, person_id: int, playlist_id: int, name: str) -> bool:
         name = " ".join(name.split())[:PLAYLIST_NAME]
@@ -4670,6 +5905,137 @@ class Store:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    # -- what readers tell us, and what broken pages say ------------------------------
+    #
+    # Clause 3.14 of the privacy notice. Both are kept for a stated time and swept by
+    # `sweep` at start-up, and both go with the account in `purge`.
+
+    def tell(
+        self,
+        person: Person | None,
+        said: str,
+        page: str = "",
+        build: str = "",
+        viewport: str = "",
+        language: str = "",
+    ) -> int:
+        """Keep one message written to us, and answer its id."""
+        text = str(said).strip()[:TOLD_LENGTH]
+        if not text:
+            raise ValueError("empty")
+        with self.write() as db:
+            row = db.execute(
+                "INSERT INTO told (person, at, said, page, build, viewport, language)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    person.id if person is not None else None,
+                    now(),
+                    text,
+                    str(page)[:300],
+                    str(build)[:40],
+                    str(viewport)[:20],
+                    str(language)[:12],
+                ),
+            )
+            return int(row.lastrowid or 0)
+
+    def told(self, limit: int = 100) -> list[dict[str, Any]]:
+        """The messages, newest first, each with the address of whoever sent it."""
+        rows = self.db.execute(
+            "SELECT t.id, t.person, t.at, t.said, t.page, t.build, t.viewport, t.language,"
+            " t.state, t.closed, p.email FROM told t LEFT JOIN person p ON p.id = t.person"
+            " ORDER BY t.at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def settle_told(self, told_id: int, state: str) -> bool:
+        """Mark a message open, fixed, won't or asked. Closing it starts its year."""
+        if state not in TOLD_STATES:
+            raise ValueError(state)
+        closed = now() if state in TOLD_CLOSED else 0
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE told SET state = ?,"
+                " closed = CASE WHEN ? = 0 THEN 0 WHEN closed > 0 THEN closed ELSE ? END"
+                " WHERE id = ?",
+                (state, closed, closed, int(told_id)),
+            )
+            return done.rowcount > 0
+
+    def sweep_told(self, days: int = TOLD_KEEP_DAYS) -> int:
+        """Delete the messages closed more than `days` ago."""
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        with self.write() as db:
+            return int(
+                db.execute("DELETE FROM told WHERE closed > 0 AND closed < ?", (cutoff,)).rowcount
+            )
+
+    def fault(
+        self, person: Person | None, message: str, place: str = "", page: str = "", build: str = ""
+    ) -> int:
+        """Keep one report of a page that broke, and answer how many times its message
+        has been reported in the last hour, this one included."""
+        text = " ".join(str(message).split())[:300]
+        if not text:
+            raise ValueError("empty")
+        hour = now() - 60 * 60 * 1000
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO fault (person, at, message, place, page, build)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    person.id if person is not None else None,
+                    now(),
+                    text,
+                    str(place)[:300],
+                    str(page)[:300],
+                    str(build)[:40],
+                ),
+            )
+            row = db.execute(
+                "SELECT COUNT(*) AS n FROM fault WHERE message = ? AND at >= ?", (text, hour)
+            ).fetchone()
+            return int(row["n"])
+
+    def faults(self, days: int = FAULT_KEEP_DAYS, limit: int = 50) -> list[dict[str, Any]]:
+        """The reports counted by message and page, the most often first. `fixed` is
+        when the message was marked fixed, or 0, and `since` how many of the reports
+        came after that: a fixed fault with none since is settled."""
+        since = now() - days * 24 * 60 * 60 * 1000
+        rows = self.db.execute(
+            "SELECT f.message, f.page, COUNT(*) AS count, COUNT(DISTINCT f.person) AS people,"
+            " MIN(f.at) AS first, MAX(f.at) AS last, MAX(f.place) AS place,"
+            " MAX(f.build) AS build, COALESCE(x.at, 0) AS fixed,"
+            " SUM(f.at > COALESCE(x.at, 0)) AS since"
+            " FROM fault f LEFT JOIN fault_fixed x ON x.message = f.message"
+            " WHERE f.at >= ? GROUP BY f.message, f.page"
+            " ORDER BY count DESC, last DESC LIMIT ?",
+            (since, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def fix_fault(self, message: str) -> bool:
+        """Mark a fault's message fixed as of now, on every page. False where nothing
+        was ever reported under that message."""
+        with self.write() as db:
+            if db.execute("SELECT 1 FROM fault WHERE message = ?", (message,)).fetchone() is None:
+                return False
+            db.execute(
+                "INSERT INTO fault_fixed (message, at) VALUES (?, ?)"
+                " ON CONFLICT (message) DO UPDATE SET at = excluded.at",
+                (message, now()),
+            )
+            return True
+
+    def sweep_faults(self, days: int = FAULT_KEEP_DAYS) -> int:
+        """Delete the reports older than `days`, and the fixes that covered only them."""
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        with self.write() as db:
+            gone = int(db.execute("DELETE FROM fault WHERE at < ?", (cutoff,)).rowcount)
+            db.execute("DELETE FROM fault_fixed WHERE at < ?", (cutoff,))
+            return gone
+
     # -- what the services have left ---------------------------------------------
 
     def balance_read(self, service: str, said: str) -> None:
@@ -4698,6 +6064,8 @@ class Store:
                 (now() - SESSION_DAYS * 24 * 60 * 60 * 1000,),
             )
             db.execute("DELETE FROM asked WHERE made < ?", (now() - 60 * 60 * 1000,))
+        self.sweep_told()
+        self.sweep_faults()
 
     # -- the work queue ---------------------------------------------------------
 
@@ -4738,7 +6106,7 @@ class Store:
             "finished > 0",
             "made > 0",
             "finished >= made",
-            "kind = 'build'",
+            "kind IN ('build', 'subscription')",
             "stage = 'done'",
         ]
         params: list[Any] = []
@@ -4762,9 +6130,24 @@ class Store:
         pick = took[middle] if len(took) % 2 else (took[middle - 1] + took[middle]) / 2
         return float(pick) / 1000
 
-    def jobs(self) -> list[dict[str, Any]]:
-        rows = self.db.execute("SELECT * FROM job ORDER BY made").fetchall()
+    def jobs(self, since: int | None = None) -> list[dict[str, Any]]:
+        """Job rows, oldest first. With `since`, only what a process has to hold: every
+        job not yet settled, whenever it was made, and the rest made since then
+        (targum-internal#231). The table itself is never trimmed."""
+        if since is None:
+            rows = self.db.execute("SELECT * FROM job ORDER BY made").fetchall()
+        else:
+            rows = self.db.execute(
+                "SELECT * FROM job WHERE stage NOT IN ('done', 'failed', 'blocked')"
+                " OR made >= ? ORDER BY made",
+                (since,),
+            ).fetchall()
         return [dict(row) for row in rows]
+
+    def job(self, job_id: str) -> dict[str, Any] | None:
+        """One job's row, for a job the process no longer holds."""
+        row = self.db.execute("SELECT * FROM job WHERE id = ?", (job_id,)).fetchone()
+        return dict(row) if row is not None else None
 
     def committed(self, since: int, owner: int | None = -1) -> float:
         """What is still spoken for, counting only the window the budget covers.

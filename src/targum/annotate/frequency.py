@@ -26,6 +26,23 @@ MISSING = (
 CUTS = (5.5, 4.8, 4.1, 3.4, 2.7)
 
 
+@lru_cache(maxsize=1)
+def languages() -> frozenset[str]:
+    """The languages wordfreq has a list for, asked once per process.
+
+    `wordfreq.available_languages()` answers by globbing its data folder on every call,
+    and `band` asked it once a word: `bring_back` bands the reader's whole ledger, and on
+    a ledger of 3,500 words `how_to_talk` took 944 ms, nearly all of it this, and 17 ms
+    without it (measured 2026-10-06).
+    The installed data does not change while a process runs.
+    """
+    try:
+        from wordfreq import available_languages
+    except ImportError:
+        return frozenset()
+    return frozenset(available_languages())
+
+
 class FrequencyBands:
     """Bands from word frequency, via wordfreq's blended corpora."""
 
@@ -53,11 +70,7 @@ class FrequencyBands:
         Latin has none. Without this every Latin word scores as rare, which is worse
         than saying nothing: it looks like an answer.
         """
-        try:
-            from wordfreq import available_languages
-        except ImportError:
-            return False
-        return language.split("-")[0].lower() in available_languages()
+        return language.split("-")[0].lower() in languages()
 
     def zipf(self) -> Callable[[str, str], float]:
         if self._zipf is None:

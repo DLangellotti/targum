@@ -26,7 +26,7 @@ from .cache import Cache
 from .errors import TargumError
 from .ids import slug
 from .models import Document, Style, is_biblical
-from .paths import cache_dir, config_path, model_dir, write_atomic
+from .paths import cache_dir, config_path, model_dir, settle_hf_home, write_atomic
 from .pipeline import Build
 
 if TYPE_CHECKING:
@@ -109,6 +109,20 @@ def fail(error: TargumError) -> NoReturn:
     raise typer.Exit(1)
 
 
+def journal_logging() -> None:
+    """Send INFO and above to stderr, which systemd writes to the journal.
+
+    Nothing configured logging until 2026-10-06, so Python kept its default of WARNING and
+    dropped every `log.info` the server wrote, including the connector's per-tool timings
+    (`mcp_http._call`), which were added so a slow tool could be found. Hosted only: the
+    local server talks to somebody at a terminal, and the lines below are for the box.
+    No timestamp, because the journal stamps each line itself.
+    """
+    import logging
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+
 @app.command()
 def serve(
     port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8420,
@@ -169,6 +183,9 @@ def serve(
             f"session. You see the price before anything is spent.[/dim]"
         )
 
+    if hosted:
+        journal_logging()
+
     if hosted and not os.environ.get("TARGUM_SMTP_HOST", "").strip():
         # Otherwise the door is shut and there is no way to knock: every route asks
         # for an account, and the only way to get one is a link nobody can send.
@@ -197,6 +214,9 @@ def serve(
             budget=budget,
             announce=announce,
             require_account=hosted,
+            keep_feeds=hosted,
+            keep_subscriptions=hosted,
+            keep_purging_nightly=hosted,
             public_address=public,
         )
     except TargumError as error:
@@ -436,6 +456,23 @@ def catalogue_lemmas(
         )
 
 
+@app.command()
+def triage(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    days: Annotated[int, typer.Option("--days", help="How far back faults count.")] = 7,
+) -> None:
+    """Sunday's triage: the open Tell us messages and the week's browser faults.
+
+    Each comes with a draft `beta-found` card to finish and file (targum-internal#459).
+    Reads the database and writes nothing. On the box, `deploy/triage.sh` runs it against
+    the site's own database, where the messages are.
+    """
+    from . import triage as triaging
+    from .serve import default_store
+
+    print(triaging.report(store or default_store(), days=days), end="")
+
+
 @app.command(name="test-account")
 def test_account(
     email: Annotated[str | None, typer.Argument(help="The address to make a test account.")] = None,
@@ -661,7 +698,7 @@ def eval_command(
     A dispatch over the harnesses in `scripts/`, so running any stage is one command
     rather than a path to remember (targum-internal#351). Everything after the name goes
     to the script as it was given, and its exit code comes back. `targum eval lemma`
-    lists the two ways lemmas are measured. The scripts are not in the wheel, so this
+    lists the ways lemmas are measured. The scripts are not in the wheel, so this
     runs from a checkout.
 
     A chat eval spends: load the keys first with `op run --env-file op.env --`.
@@ -1063,6 +1100,103 @@ def watch_weekly(
     except Exception as error:
         fail(TargumError("The weekly is not out and the mail about it did not go.", str(error)))
     console.print(said)
+
+
+subscriptions_app = typer.Typer(
+    help="What readers subscribed to (design.md §12, 2026-10-09).", no_args_is_help=True
+)
+app.add_typer(subscriptions_app, name="subscriptions")
+
+
+@subscriptions_app.command("poll")
+def subscriptions_poll(
+    store: Annotated[
+        Path | None, typer.Option("--store", help="The store the subscriptions are in.")
+    ] = None,
+    kind: Annotated[
+        list[str] | None,
+        typer.Option("--kind", help="Look only at these kinds: series, topic, outlet…"),
+    ] = None,
+) -> None:
+    """Look for what every live subscription's source put out, and write it down.
+
+    Run every half hour by targum-subscriptions.timer on the box. It reads the series this
+    box has built, the news feeds, YouTube's Data API (TARGUM_YOUTUBE_API_KEY) and podcast
+    feeds, and writes each new item; it never builds and never spends. A channel's or a
+    podcast's new item is marked due, and the server gets it ready inside its cap. Safe to
+    run twice: an item already written is found once.
+    """
+    from . import subscriptions as subscriptions_module
+    from .accounts import Store
+    from .serve import default_store, shelves_are_public
+
+    keeping = Store(store or default_store())
+    looked = subscriptions_module.poll(keeping, public=shelves_are_public(), only=tuple(kind or ()))
+    console.print(f"subscriptions: {looked}")
+    for sub_id, why in looked.failed:
+        console.print(f"[yellow]  {sub_id}: {why}[/yellow]")
+
+
+@subscriptions_app.command("mail")
+def subscriptions_mail(
+    store: Annotated[
+        Path | None, typer.Option("--store", help="The store the subscriptions are in.")
+    ] = None,
+) -> None:
+    """Send each reader one mail with everything new from their subscriptions.
+
+    Run once a day by targum-subscriptions-mail.timer on the box (design.md §12,
+    "Everything new comes in one mail a day", 2026-10-09). The daily cycles are in it; the
+    weekly keeps its own Monday mail. An item is stamped as mailed once its mail went, so
+    running it twice sends nothing twice. Needs TARGUM_PUBLIC_ADDRESS and the SMTP
+    settings; without SMTP the letters are printed here.
+    """
+    from . import subscriptions as subscriptions_module
+    from .accounts import Store
+    from .mail import from_environment
+    from .serve import Library, default_store
+
+    where = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip().rstrip("/")
+    if not where:
+        fail(
+            TargumError(
+                "No address to put in the mail.",
+                "Set TARGUM_PUBLIC_ADDRESS=https://targum.page, and run this on the box.",
+            )
+        )
+    keeping = Store(store or default_store())
+    sent = subscriptions_module.daily(
+        keeping,
+        from_environment(),
+        where,
+        month_from=Library._month_from(),
+        back=Library._month_ends,
+    )
+    console.print(f"subscriptions mail: {sent}")
+    for email, why in sent.failed:
+        console.print(f"[yellow]  {email}: {why}[/yellow]")
+
+
+@app.command("mails")
+def mails(
+    out: Annotated[Path, typer.Option("--out", help="Where to write the drawn mails.")],
+    language: Annotated[
+        list[str] | None,
+        typer.Option("--language", help="A language to draw them in; every one if left out."),
+    ] = None,
+) -> None:
+    """Draw every mail from sample data, as HTML and as text, and send nothing.
+
+    For comparing a mail with its board (design.md §12, "Every mail is the board's",
+    2026-10-09): open DIR/index.html, or screenshot each page at a desk's width and a
+    phone's.
+    """
+    from . import mail_samples
+    from . import strings as strings_module
+
+    languages = language or strings_module.languages()
+    written = mail_samples.write(out, languages)
+    console.print(f"{len(written)} mails drawn in {out}")
 
 
 @app.command("roll-visits")
@@ -2106,6 +2240,107 @@ def posters(
 
 
 @app.command()
+def thumbs(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the targums are. Default: ./targum-out"),
+    ] = None,
+    fetch: Annotated[
+        bool,
+        typer.Option(
+            "--fetch/--no-fetch",
+            help="Fetch a row's own picture where its licence allows. Off, only the disk is read.",
+        ),
+    ] = True,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Count what would happen; write nothing.")
+    ] = False,
+) -> None:
+    """Give every library text its picture: its own where its licence allows, drawn if not.
+
+    A row keeps a cover it already has. Then a video's frame from a copy built on this
+    disk; then, with --fetch, a video's own poster or a picture book's own cover, and only
+    where the row's licence (or, for Global Storybooks, the image bank's) allows a
+    derivative and has no NonCommercial term. Everything else is drawn: its first letter
+    on its kind's colour, made when it is asked for, so nothing is written for it.
+
+    Spends no model money. Writes `thumbs/<entry id>.webp` and `thumbs/sources.json`.
+    """
+    from collections import Counter
+
+    from . import catalogue as catalogue_module
+    from . import thumbs as thumbs_module
+    from .audio.manifest import POSTER
+    from .ingest import url as url_module
+
+    root = out or Path.cwd() / "targum-out"
+    where = root / "thumbs"
+    if not thumbs_module.can_keep():
+        fail(TargumError("Nothing here can shrink a picture.", "uv sync --extra covers"))
+    sources = thumbs_module.read_sources(where)
+
+    # A video's frame, from any copy of it built on this disk.
+    frames: dict[str, Path] = {}
+    if root.is_dir():
+        for poster_file in root.rglob(POSTER):
+            try:
+                said = json.loads((poster_file.parent / "document.json").read_text("utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            frames.setdefault(str(said.get("source") or ""), poster_file)
+
+    gsn: dict[str, str] = {}
+    if fetch:
+        try:
+            gsn = thumbs_module.gsn_licences(url_module.get(thumbs_module.GSN_LICENCES))
+        except TargumError as error:
+            console.print(f"[yellow]The image bank's licences did not load:[/yellow] {error}")
+
+    counts: Counter[str] = Counter()
+    by_language: Counter[tuple[str, str]] = Counter()
+    for entry in catalogue_module.CATALOGUE:
+        got = "drawn"
+        if thumbs_module.has_picture(where, entry.id):
+            got = sources.get(entry.id, {}).get("from") or "drawn cover"
+        elif entry.source in frames:
+            target = where / f"{entry.id}.webp"
+            if dry_run or thumbs_module.keep(frames[entry.source].read_bytes(), target):
+                got = "video frame"
+                sources[entry.id] = {"from": got, "licence": entry.licence}
+        elif fetch:
+            try:
+                found = thumbs_module.remote_picture(entry, url_module.fetch, gsn)
+                if found is not None:
+                    address, licence, what = found
+                    target = where / f"{entry.id}.webp"
+                    if dry_run or thumbs_module.keep(url_module.fetch(address).raw, target):
+                        got = what
+                        sources[entry.id] = {"from": what, "url": address, "licence": licence}
+            except (TargumError, ValueError) as error:
+                console.print(f"[dim]{entry.id}: {error}[/dim]")
+        counts[got] += 1
+        by_language[(entry.language, "drawn" if got == "drawn" else "own")] += 1
+
+    if not dry_run and sources:
+        write_atomic(
+            where / thumbs_module.SOURCES,
+            json.dumps(sources, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+        )
+    table = Table("picture", "rows")
+    for what, number in counts.most_common():
+        table.add_row(what, str(number))
+    console.print(table)
+    console.print(
+        "[dim]"
+        + " · ".join(
+            f"{code} {by_language[(code, 'own')]} pictured, {by_language[(code, 'drawn')]} drawn"
+            for code in sorted({language for language, _ in by_language})
+        )
+        + "[/dim]"
+    )
+
+
+@app.command()
 def refs(
     out: Annotated[
         Path | None,
@@ -2386,6 +2621,7 @@ def build(
         # expense. The server has always read both from here; the command line did not,
         # and had no way to know it was buying something already paid for.
         from . import catalogue as catalogue_module
+        from .annotate.gloss import GLOSS_MODEL
 
         known = catalogue_module.matching(source)
         builder = Build(
@@ -2406,6 +2642,10 @@ def build(
             machine=machine,
             difficulty=words,
             gloss=gloss,
+            # The model meanings are bought on, which is what they are cached under: the
+            # server has always named it, and a build from here that took the prose model
+            # instead bought again every meaning the shelf already held (#414).
+            gloss_model=GLOSS_MODEL,
             transcriber_name=transcriber or "",
             transcript=transcript,
             video=video,
@@ -4217,7 +4457,218 @@ def export_pdf(
     console.print(f"[green]Wrote[/green] {written}")
 
 
+@export_app.command("mikra")
+def export_mikra(
+    on: Annotated[
+        str | None,
+        typer.Option(
+            "--on",
+            help="Any day of the week wanted, as 2026-10-03. Default: this week, "
+            "as the portion page counts it.",
+        ),
+    ] = None,
+    israel: Annotated[
+        bool, typer.Option("--israel", help="The Israel schedule, not the diaspora's.")
+    ] = False,
+    reader: Annotated[
+        str | None,
+        typer.Option(
+            "--for", help="An account's email: add the words it looked up (or kept) this week."
+        ),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where to write it. Default: <portion>-<date>.pdf here."),
+    ] = None,
+    library: Annotated[
+        Path | None,
+        typer.Option("--library", help="Where the built books are. Default: ./targum-out/library"),
+    ] = None,
+    into: Annotated[
+        str | None,
+        typer.Option(
+            "--into", help="What stands beside the portion, by language. Default: Onkelos."
+        ),
+    ] = None,
+    under: Annotated[
+        bool, typer.Option("--under", help="The rendering under each verse, not beside it.")
+    ] = False,
+    vowels: Annotated[
+        bool, typer.Option("--vowels/--no-vowels", help="Print the vowel points.")
+    ] = True,
+    accents: Annotated[
+        bool, typer.Option("--accents/--no-accents", help="Print the te'amim.")
+    ] = True,
+    size: Annotated[str, typer.Option("--size", help="a4 or letter.")] = "a4",
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    beside: Annotated[
+        str | None,
+        typer.Option(
+            "--with",
+            help="The companions, in order, as the reader names them: a language for a "
+            "translation, `targum` for Onkelos, `rashi` for Rashi and `rashi-en` for Rashi "
+            "in English — `en,targum,rashi`. Empty for the text alone. "
+            "Overrides --into.",
+        ),
+    ] = None,
+    gloss: Annotated[
+        bool,
+        typer.Option(
+            "--gloss/--no-gloss",
+            help="Meanings above the words: with --for, the words they are learning, lit; "
+            "without, the rarer words.",
+        ),
+    ] = True,
+    aliyah: Annotated[
+        int | None, typer.Option("--aliyah", help="One aliyah, from 1, not the whole portion.")
+    ] = None,
+    with_haftarah: Annotated[
+        bool | None,
+        typer.Option(
+            "--haftarah/--no-haftarah",
+            help="The haftarah after the portion. Default: with the whole portion, not with "
+            "one aliyah.",
+        ),
+    ] = None,
+) -> None:
+    """The week's shnayim mikra sheet as a PDF (targum-internal#105): the portion with
+    Onkelos beside each verse, the haftarah, and with --for the words looked up this week.
+
+    For the Shabbat that has no screen. The portion and the haftarah are cut again from
+    the books on the shelf, which costs nothing; the only thing that may go out to the
+    network is the reading calendar, once a year, as `targum parasha build` fetches it.
+    Needs the `print` extra and Pango on the machine.
+    """
+    from datetime import timedelta
+
+    from .parasha import calendar as reading_calendar
+    from .parasha import cut as cutting
+    from .render.printed import (
+        SIZES,
+        Marker,
+        View,
+        Word,
+        cited_forms,
+        learning_marker,
+        mikra_html,
+        own_language,
+        rare_marker,
+        write_pdf,
+    )
+
+    if size not in SIZES:
+        fail(TargumError(f"No paper called {size}.", f"Try one of: {', '.join(SIZES)}."))
+    if on:
+        try:
+            day = date.fromisoformat(on)
+        except ValueError:
+            fail(TargumError(f"{on} is not a date.", "Write it as 2026-10-03."))
+        shabbat = day + timedelta(days=(5 - day.weekday()) % 7)
+    else:
+        shabbat = reading_calendar.pointing_at()
+    schedule = reading_calendar.Schedule.israel if israel else reading_calendar.Schedule.diaspora
+    shelf = library or cutting.library_root()
+    try:
+        reading = reading_calendar.for_shabbat(shabbat, schedule)
+        if reading is None:
+            fail(TargumError(f"The calendar has no reading for {shabbat}."))
+        portion = cutting.cut(reading, cutting.books_for(reading, shelf))
+    except cutting.MissingBook as gone:
+        fail(TargumError(f"{gone.book} is not built in {shelf}.", "Build it, or pass --library."))
+    except TargumError as error:
+        fail(error)
+    haftarah = None
+    if reading.haftarah is not None:
+        try:
+            haftarah = cutting.cut_haftarah(
+                reading.haftarah, cutting.books_for(reading.haftarah, shelf)
+            )
+        except cutting.MissingBook as gone:
+            # The portion is the practice and the haftarah follows it: a sheet without the
+            # haftarah is still this week's sheet, and says so here rather than on paper.
+            console.print(
+                f"[yellow]No haftarah on the sheet: {gone.book} is not built in {shelf}.[/yellow]"
+            )
+    if into is None and not any(t.target_language == "arc" for t in portion.translations):
+        console.print(
+            "[yellow]No Onkelos on the shelf for this portion, so the reader's own "
+            "language stands beside it.[/yellow]"
+        )
+    week: list[Word] = []
+    looked = True
+    reads: tuple[str, ...] = ("en",)
+    marker: Marker = rare_marker
+    if reader:
+        from .accounts import Store
+        from .parasha.sheet import reader_week
+        from .serve import default_store
+
+        keeping = Store(store or default_store())
+        person = keeping.person_by_email(reader)
+        if person is None:
+            fail(TargumError(f"No account for {reader}."))
+        texts = [one for one in (portion, haftarah) if one is not None]
+        week, looked, reads = reader_week(
+            keeping,
+            person.id,
+            shabbat,
+            portion.translations,
+            lambda language: cited_forms(texts, language),
+        )
+        if not looked:
+            console.print("[dim]No look-ups recorded that week: listing the words kept.[/dim]")
+        marker = learning_marker(
+            keeping.learning_words(
+                person.id, languages=("he",), target=own_language(portion.translations, reads)
+            )
+        )
+    if beside is not None:
+        companions: tuple[str, ...] | None = tuple(
+            key.strip().lower() for key in beside.split(",") if key.strip()
+        )
+    else:
+        companions = (into,) if into else None
+    view = View(
+        companions=companions,
+        vowels=vowels,
+        taamim=accents,
+        under=under,
+        gloss=gloss,
+        aliyah=aliyah,
+        haftarah=with_haftarah if with_haftarah is not None else aliyah is None,
+        size=size,
+    )
+    try:
+        html = mikra_html(
+            portion,
+            haftarah,
+            name=reading.name,
+            hebrew=reading.hebrew,
+            when=reading.hdate,
+            haftarah_note=reading.haftarah.reason if reading.haftarah is not None else "",
+            week=week,
+            looked=looked,
+            into=into,
+            reads=reads,
+            view=view,
+            marker=marker,
+            address=f"targum.page/parasha/{reading.slug}",
+        )
+        written = write_pdf(html, out or Path.cwd() / f"{reading.slug}-{shabbat.isoformat()}.pdf")
+    except TargumError as error:
+        fail(error)
+    console.print(f"[green]Wrote[/green] {written}")
+    if reader and not week:
+        console.print("[dim]No words with a meaning that week, so the sheet has no list.[/dim]")
+
+
 def main() -> None:
+    # Before any command imports `huggingface_hub`, which reads `HF_HOME` once (2026-10-07,
+    # targum-internal#426): the service and deploy.sh's `systemd-run` steps both come in
+    # here, and neither sets `HF_HOME` any more, so both keep their models in the one
+    # folder `paths.hf_home()` names. Here and not in `_root`, so a test driving `app`
+    # leaves the process's environment alone.
+    settle_hf_home()
     try:
         app()
     except KeyboardInterrupt:
@@ -4429,13 +4880,20 @@ def parasha_leyning(
     again: Annotated[
         bool, typer.Option("--again", help="Re-align portions that already have audio.")
     ] = False,
+    torah: Annotated[
+        bool, typer.Option("--torah/--no-torah", help="Attach the portions' aliyot.")
+    ] = True,
+    haftarot: Annotated[
+        bool, typer.Option("--haftarot/--no-haftarot", help="Attach the portions' haftarot.")
+    ] = True,
 ) -> None:
-    """Give the portions their chanted reading, from PocketTorah.
+    """Give the portions, and their haftarot, their chanted reading, from PocketTorah.
 
     CC BY-SA 3.0, Avery-Binder trope, already one file per aliyah — which is one file per
-    section of a built portion, so nothing is cut. The slow part is the forced alignment
-    that puts each verse at its own second of the recording: about a minute an aliyah, so
-    the whole Torah is a few hours. It is cached and resumable, and `--only` does one.
+    section of a built portion, so nothing is cut — and one per haftarah. The slow part
+    is the forced alignment that puts each verse at its own second of the recording:
+    about a minute an aliyah, so the whole Torah is a few hours. It is cached and
+    resumable, and `--only` does one portion and its haftarah.
 
     Run `targum parasha build` afterwards, or before: a reader picks the recording up at
     render time, so the portions have to be rebuilt once their audio is attached.
@@ -4453,19 +4911,28 @@ def parasha_leyning(
             "Run `targum parasha build` first.",
         )
     have = leyning_module.listing()
-    # The same set the corpus was built from, asked for the same way rather than by a
-    # second copy of the loop. Nothing is fetched: a corpus that is not on disk is a
-    # corpus this command has nothing to attach audio to.
+    # The same readings the corpus was built from: every one in its nineteen-year span,
+    # not only the next two years'. The narrow window left out every portion that is
+    # always doubled in it — Matot, Masei, Nitzavim, Vayeilech in 2026-27 — and those
+    # are on the shelf, because the shelf is built from the wide one (targum-internal#413).
+    # Nothing is fetched: a corpus that is not on disk is a corpus this command has
+    # nothing to attach audio to.
     this = date.today().year
-    readings = corpus.distinct(
-        range(this, this + corpus.YEARS_AHEAD),
-        (calendar_module.Schedule.diaspora, calendar_module.Schedule.israel),
-        allow_fetch=False,
-    )
+    schedules = (calendar_module.Schedule.diaspora, calendar_module.Schedule.israel)
+    readings: dict[str, calendar_module.Reading] = {}
+    references: dict[str, calendar_module.Haftarah] = {}
+    for one in corpus.walk(range(this, this + corpus.CORPUS_YEARS), schedules, allow_fetch=False):
+        if one.slug in index.portions:
+            readings.setdefault(one.slug, one)
+        if one.haftarah is not None:
+            references.setdefault(one.haftarah.key, one.haftarah)
 
     wanted = [only] if only else sorted(readings)
+    alone = {
+        leyning_module.pocket_name(one.name): one for one in readings.values() if not one.doubled
+    }
     done = silent = 0
-    for name in wanted:
+    for name in wanted if torah else []:
         found = readings.get(name)
         if found is None:
             console.print(f"[yellow]{name} is not a reading this corpus knows.[/yellow]")
@@ -4482,13 +4949,54 @@ def parasha_leyning(
         portion = cut_module.cut(reading, cut_module.books_for(reading, library))
         if not again and leyning_module.attached(portion.document.source):
             continue
+        # A doubled week is aligned a file at a time, each against its own half's
+        # aliyah, so it is handed the two halves read on their own (targum-internal#413).
+        halves = [
+            alone[leyning_module.pocket_name(half)]
+            for half in reading.name.split("-")
+            if leyning_module.pocket_name(half) in alone
+        ]
         leyning_module.attach(
-            reading, portion, notify=lambda line: console.print(f"[dim]{line}[/dim]")
+            reading,
+            portion,
+            notify=lambda line: console.print(f"[dim]{line}[/dim]"),
+            halves=halves if reading.doubled and len(halves) == 2 else None,
         )
         done += 1
+
+    # The haftarot. PocketTorah files one beside each portion read on its own, and the
+    # corpus keys a haftarah by what it is, so a portion's file is offered to the
+    # haftarah the corpus says that portion ordinarily has. A doubled week's haftarah is
+    # one of its halves', and so is reached through that half. `attach_haftarah` checks
+    # the file really reads that text before keeping it.
+    given = refused = 0
+    sung = leyning_module.haftarah_listing() if haftarot else {}
+    for name in wanted if haftarot else []:
+        found = readings.get(name)
+        record = index.portions.get(name)
+        if found is None or record is None or found.doubled or not record.haftarah:
+            continue
+        file = sung.get(leyning_module.pocket_name(found.name))
+        held = index.haftarot.get(record.haftarah)
+        reference = references.get(record.haftarah)
+        if file is None or held is None or not held.folder or reference is None:
+            continue
+        text = cut_module.cut_haftarah(reference, cut_module.books_for(reference, library))
+        if not again and leyning_module.attached(text.document.source):
+            continue
+        made = leyning_module.attach_haftarah(
+            found.name, text, file, notify=lambda line: console.print(f"[dim]{line}[/dim]")
+        )
+        if made is None:
+            refused += 1
+        else:
+            given += 1
+
     console.print(
         f"[green]{done} portions given their reading[/green]; "
-        f"{silent} have none (doubled weeks and festivals). "
+        f"{silent} have none (festivals). "
+        f"[green]{given} haftarot given theirs[/green]; "
+        f"{refused} whose file did not read the corpus's haftarah. "
         "Run `targum parasha build` to put it in the readers."
     )
 
@@ -4691,6 +5199,99 @@ def levels(
             + (f" — {short} to go" if short else " — target met")
             + "[/dim]\n"
         )
+
+
+@app.command()
+def stages(
+    measure: Annotated[
+        bool,
+        typer.Option(
+            "--measure",
+            help="Count the shelf from the catalogue and the builds on disk into evals/shelf.json.",
+        ),
+    ] = False,
+    out: Annotated[
+        Path,
+        typer.Option(help="Where builds live, read for a sentence length the catalogue lacks."),
+    ] = Path("targum-out"),
+    videos: Annotated[
+        Path | None,
+        typer.Option(help="The curated video shelf. Defaults to TARGUM_VIDEO_DIR's."),
+    ] = None,
+) -> None:
+    """How far along each language is: the word it wears, the one it has earned, and what
+    stands between (design.md §12, "A badge is a promise, checked", 2026-10-12).
+
+    Reads the code, the committed evals and the shelf snapshot; fetches nothing and spends
+    nothing. With --measure, the shelf is counted first from the catalogue and the builds
+    on disk and written to evals/shelf.json, which is what the test and this table read.
+    """
+    from datetime import date
+
+    from . import stages as standard
+
+    if measure:
+        from . import levelmap, spoken
+        from .catalogue import CATALOGUE
+        from .video import store as video_store
+
+        shelves = levelmap.tally(
+            CATALOGUE,
+            sentence=levelmap.Sentences(out, videos or video_store.root()),
+            spoken=spoken.is_spoken,
+            video=spoken.is_video,
+        )
+        counts = {
+            code: {
+                level: standard.Floor(*pair) for level, pair in levelmap.cefr_rows(shelf).items()
+            }
+            for code, shelf in shelves.items()
+        }
+        standard.write_shelf(
+            counts,
+            measured=date.today(),
+            videos={code: levelmap.videos(shelf) for code, shelf in shelves.items()},
+        )
+        console.print(f"[dim]Shelf counted into {standard.SHELF_SNAPSHOT}[/dim]")
+
+    table = Table(title="How far along each language is", title_justify="left")
+    table.add_column("Language")
+    table.add_column("Wears")
+    table.add_column("Earned")
+    table.add_column("Short of what it wears")
+    rows = {code: standard.report(code) for code in standard.DECLARED}
+    for code, row in rows.items():
+        worn = row["declared"].capitalize() + (
+            f", kept until {row['review']}" if row["kept"] else ""
+        )
+        earned = row["earned"].capitalize() if row["earned"] else "nothing"
+        short = "\n".join(row["shortfall"]) if row["shortfall"] else "nothing"
+        table.add_row(code, worn, earned, short)
+    console.print(table)
+
+    # Each language's hard spots, and the register each is claimed in: a spot may be
+    # declared out of one with the reason beside it (design.md §12, "Past Beta, the badge
+    # drops", 2026-10-14; targum-internal#449).
+    for code, row in rows.items():
+        spots = row["spots"]
+        if not spots:
+            continue
+        # Registers are Hebrew's: no other language has a second one on the shelf.
+        registered = any(spot["said"] for spot in spots)
+        listed = Table(title=f"{code}: hard spots", title_justify="left")
+        listed.add_column("Spot")
+        listed.add_column("Covered")
+        listed.add_column("Practice")
+        if registered:
+            listed.add_column("Claimed in")
+        for spot in spots:
+            cells = [
+                spot["name"],
+                "yes" if spot["covered"] else "no",
+                "yes" if spot["practice"] else "no",
+            ]
+            listed.add_row(*cells, *([spot["said"]] if registered else []))
+        console.print(listed)
 
 
 # Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
