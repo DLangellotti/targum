@@ -654,6 +654,11 @@ class Table:
     )
     #: Each verb's binyan as `binyan_of` gives it, worked out once per verb.
     _binyans: dict[str, str | None] = field(default_factory=dict, repr=False, compare=False)
+    #: Every verb by its root and binyan, for a lemma that is a root (`candidates`). Built
+    #: on first use.
+    _roots: dict[tuple[str, str], list[str]] = field(
+        default_factory=dict, repr=False, compare=False
+    )
 
     def of(
         self,
@@ -710,7 +715,7 @@ class Table:
         conjugation table is worse than no table, and the way out to Pealim is still on
         the card.
         """
-        found = self.candidates(word)
+        found = self.candidates(word, binyan)
         if not found:
             return None
         if len(found) == 1:
@@ -752,7 +757,7 @@ class Table:
             return None
         return self.verbs.get(chosen)
 
-    def candidates(self, word: str) -> tuple[str, ...]:
+    def candidates(self, word: str, binyan: str | None = None) -> tuple[str, ...]:
         """The verbs a lemma or form could be, by its letters.
 
         And a pi'el lemma written plene, where the table has it only defective
@@ -765,10 +770,32 @@ class Table:
         """
         letters = bare(word)
         found = self.by_form.get(letters) or ()
-        if found or len(letters) != 4 or letters[1] != "י" or letters[0] == "י":
+        if found:
             return found
-        defective = self.by_form.get(letters[0] + letters[2:]) or ()
-        return tuple(lid for lid in defective if self.binyan_of(lid) == "פיעל")
+        if len(letters) == 4 and letters[1] == "י" and letters[0] != "י":
+            defective = self.by_form.get(letters[0] + letters[2:]) or ()
+            piel = tuple(lid for lid in defective if self.binyan_of(lid) == "פיעל")
+            if piel:
+                return piel
+        # And a lemma that is a root, with the binyan beside it: Open Scriptures files
+        # הִשְׁלִיךְ under שלך and הוֹשִׁיעַ under ישע, and the table knows each verb only by
+        # its forms. Matched on the root `hebrew.root_of` reads off each verb's own lemma,
+        # in that binyan alone; a hollow root (רום for הֵרִים) it cannot read is left out
+        # (targum-internal#307, 2026-10-21).
+        if binyan and len(letters) == 3:
+            return tuple(self._root_index().get((letters, binyan), ()))
+        return ()
+
+    def _root_index(self) -> dict[tuple[str, str], list[str]]:
+        from .hebrew import root_of
+
+        if not self._roots:
+            for lid, paradigm in self.verbs.items():
+                named = self.binyan_of(lid)
+                root = root_of(bare(paradigm.lemma), named) if named else None
+                if named and root:
+                    self._roots.setdefault((root, named), []).append(lid)
+        return self._roots
 
     def dotted_otherwise(self, lid: str, seen: str) -> bool:
         """Whether the word was pointed with a שׂ where the verb's lemma has a שׁ, or the

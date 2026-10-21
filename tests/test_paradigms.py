@@ -87,6 +87,21 @@ def test_a_piel_written_plene_is_found_under_its_defective_spelling(shipped: Tab
     assert shipped.of("שירר") is None, "no pi'el under the defective spelling, no table"
 
 
+def test_a_root_with_its_binyan_finds_its_verb(shipped: Table) -> None:
+    """Open Scriptures files הִשְׁלִיךְ under שלך and הוֹשִׁיעַ under ישע, with the binyan
+    beside them; the table knows each verb by its forms (targum-internal#307)."""
+    for root, binyan, lemma in (
+        ("שלך", "הפעיל", "הִשְׁלִיךְ"),
+        ("ישע", "הפעיל", "הוֹשִׁיעַ"),
+        ("שאר", "נפעל", "נִשְׁאַר"),
+        ("שאר", "הפעיל", "הִשְׁאִיר"),
+    ):
+        found = shipped.of(root, binyan=binyan)
+        assert found is not None and found.lemma == lemma, (root, binyan)
+    assert shipped.of("שלך") is None, "a root without its binyan names no verb"
+    assert shipped.of("רום", binyan="הפעיל") is None, "a hollow root is not read"
+
+
 def test_the_points_settle_a_verb_two_binyanim_share(shipped: Table) -> None:
     """Unpointed `הלך` is both `הָלַךְ` (went) and `הִלֵּךְ` (walked about)."""
     assert shipped.of("הלך") is None, "unpointed, it is genuinely two verbs"

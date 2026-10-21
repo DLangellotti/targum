@@ -141,7 +141,7 @@ def bucket(
 ) -> str:
     """Which bucket one verb token falls in. The same questions `Table.of` asks, kept
     apart here so the answer says *why* rather than only yes or no."""
-    candidates = verbs.candidates(lemma)
+    candidates = verbs.candidates(lemma, str(binyan) if binyan else None)
     written = tuple(written)
     if not candidates:
         return "no candidate"
