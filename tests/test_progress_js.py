@@ -13,6 +13,7 @@ and source greps stood in. Same harness as `test_learn_js.py`: a stub document i
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -713,3 +714,127 @@ def test_a_story_that_cannot_be_reached_says_so_with_try_again() -> None:
 def test_nothing_to_practise_offers_no_practise_press() -> None:
     drawn = story(words=[], texts=[])["next"]
     assert not drawn["practise"]
+
+
+# --- the finish bar's polish (targum-internal#471, design's §14 pass) ------------------
+
+CSS = (
+    Path(__file__).resolve().parent.parent / "src" / "targum" / "render" / "assets" / "progress.css"
+).read_text(encoding="utf-8")
+
+
+def _rule(selector: str, css: str = CSS) -> str:
+    """The body of the first rule whose selector is exactly `selector`."""
+    plain = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    for found, body in re.findall(r"([^{}]+)\{([^{}]*)\}", plain):
+        if found.strip() == selector:
+            return body
+    raise AssertionError(f"no rule for {selector}")
+
+
+def test_the_week_chart_names_its_first_and_last_week_under_it() -> None:
+    """Polish 2: the bars had no dates. The first and the last week's dates sit under
+    them, as wide as the weeks drawn, and are for the eye: the label says every week."""
+    today = date.today()
+    words: dict[str, Any] = {}
+    words |= _on(today, 3, "now")
+    words |= _on(today - timedelta(days=15), 2, "earlier")
+    drawn = draw({"targum:vocab:he": words})["weeks"]
+    assert drawn["columns"] == 3
+    assert len(drawn["dates"]) == 2, "the first week's date and the last's"
+    assert drawn["titles"][0].startswith(f"Week of {drawn['dates'][0]}:")
+    assert drawn["titles"][-1].startswith(f"Week of {drawn['dates'][1]}:")
+    assert drawn["datesSpan"] == "3", "as wide as the three weeks drawn"
+    assert not drawn["legend"]
+
+
+def test_one_week_of_words_names_one_date() -> None:
+    drawn = draw({"targum:vocab:he": _on(date.today(), 2, "now")})["weeks"]
+    assert len(drawn["dates"]) == 1
+
+
+def test_this_week_is_always_at_the_end_edge() -> None:
+    """Polish 2: bars started at the left, so this week moved with how many came before."""
+    assert "justify-content: flex-end" in _rule(".progress .weeks")
+    dates = _rule(".progress .weeks-dates")
+    assert "margin-inline-start: auto" in dates and "var(--weeks" in dates
+
+
+def test_the_period_chips_are_tinted_pills_at_the_control_size() -> None:
+    """Polish 4 (§12 "The mockups win" and "The boards are the desk"; §13 controls):
+    tinted on the wash with no border, the chosen one teal, 0.9375rem and 40px."""
+    chip = _rule(".progress .spent .chip")
+    assert "background: var(--teal-wash)" in chip
+    assert "border: 0" in chip
+    assert "font-size: 0.9375rem" in chip
+    assert "min-block-size: 2.5rem" in chip
+    chosen = _rule('.progress .spent .chip[aria-pressed="true"]')
+    assert "background: var(--teal)" in chosen
+
+
+def test_a_story_step_is_a_label_on_the_scale() -> None:
+    """Polish 5: §13 labels are 0.6875rem uppercase at 0.08em, and the sub is meta."""
+    step = _rule(".progress .story-step")
+    assert "font-size: 0.6875rem" in step and "letter-spacing: 0.08em" in step
+    assert "font-size: 0.875rem" in _rule(".progress .story-sub")
+
+
+def test_the_upload_row_stacks_its_aside_on_a_phone() -> None:
+    """Polish 9: at 390 Yiddish's "A link, a file, or a photo of a page" was cut short.
+    The Upload row is marked to stack, and under 40rem its aside goes under the term."""
+    drawn = draw(
+        {"targum:vocab:yi": vocab(known=5)},
+        chosen="yi",
+        story={
+            "library": False,
+            "known": 5,
+            "ladder": [],
+            "here": None,
+            "said": "",
+            "texts": [],
+            "words": [],
+            "uploads": [{"name": "song", "title": "אויפֿן פּריפּעטשיק", "known": 84}],
+        },
+    )
+    classes = drawn["next"]["levelClasses"]
+    assert "next-stack" in classes[0].split()
+    assert "next-stack" not in classes[1].split(), "an upload's own row is not"
+    phone = CSS[CSS.index("@media (max-width: 40rem)") :]
+    assert "white-space: normal" in _rule(".progress .next-stack .next-aside", phone)
+    assert "flex-direction: column" in _rule(".progress .next-stack .next-link", phone)
+
+
+def test_a_reading_point_rings_round_not_square() -> None:
+    """Polish 11: the outline drew a square box round an 8px dot. The ring is the dot's
+    own stroke, in the focus colour."""
+    ring = _rule(".reading .reading-point:focus-visible")
+    assert "outline: none" in ring
+    assert "stroke: var(--focus)" in ring
+
+
+def test_a_tip_with_no_room_above_goes_under_its_point() -> None:
+    """Polish 11: clamped to the chart's top, the first month's tip sat on its point."""
+    script = """
+const path = require("path");
+const { install, element } = require(path.resolve(DOM_DIR, "dom.js"));
+install({});
+require(path.resolve(CHARTS));
+const host = element("div");
+host.rect = { width: 400, height: 120 };
+const tip = window.TargumCharts.tipFor(host);
+const drawn = host.children[0];
+drawn.rect = { width: 80, height: 30 };
+tip.show("x", 20, 10);
+const low = drawn.style.top;
+tip.show("x", 200, 90);
+process.stdout.write(JSON.stringify({ low: low, high: drawn.style.top }));
+"""
+    charts = HARNESS.parent.parent.parent / "src" / "targum" / "render" / "assets" / "charts.js"
+    script = script.replace("DOM_DIR", json.dumps(str(HARNESS.parent))).replace(
+        "CHARTS", json.dumps(str(charts))
+    )
+    done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    placed = json.loads(done.stdout)
+    assert placed["low"] == "24px", "under a point near the top"
+    assert placed["high"] == "50px", "above a point with room"
