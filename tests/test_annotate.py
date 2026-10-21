@@ -1472,6 +1472,9 @@ def test_an_active_verb_is_not_filed_under_its_nifal() -> None:
         ("יִכָּנֵס", "נכנס", "נכנס"),  # the dagesh
         ("יִמָּצֵא", "נמצא", "נמצא"),
         ("יאמר", "נאמר", "נאמר"),  # no marks, no say
+        ("נִכְנַס", "נכנס", "נכנס"),  # a nif'al past: the נ is the nif'al's own
+        ("וְנִשְׁבַּע", "נשבע", "נשבע"),
+        ("נְתוּנִים", "נתון", "נתון"),
     ],
 )
 def test_a_future_is_told_from_its_nifal_by_the_marks(pointed: str, lemma: str, said: str) -> None:

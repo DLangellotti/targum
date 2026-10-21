@@ -667,8 +667,11 @@ def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | 
     return lemma, pos
 
 
-# A future's prefix letter, and what may stand in front of it: וַיֹּאמֶר, שֶׁיֹּאמַר.
-FUTURE_PREFIXES = frozenset("איתנ")
+# A future's prefix letter, and what may stand in front of it: וַיֹּאמֶר, שֶׁיֹּאמַר. Not נ:
+# in a nif'al past the נ is the nif'al's own, and נִכְנַס read as a future prefix with no
+# dagesh after it lost its nif'al and became כנס, "gathered" (232 tokens on the laptop's
+# shelf, 2026-10-21). "We will say" goes unmended instead.
+FUTURE_PREFIXES = frozenset("אית")
 FUTURE_LEADS = frozenset("ושכלה")
 GUTTURALS = frozenset("אהחער")
 DAGESH = "\u05bc"
