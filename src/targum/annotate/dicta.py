@@ -591,7 +591,9 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
         # The word under whatever prefixes it carries: ועשרים is keyed as עשרים, and a
         # name is never corrected, because בני is a lemma to mend and Benny is a person.
         lex = word.get("lex") or ""
-        present = "Tense=Pres" in (feats or "")
+        # DICTA says a present two ways: Tense=Pres, or the beinoni's every person at once
+        # with no tense (אוֹמְרִים, Person=1,2,3), which a past never has.
+        present = "Tense=Pres" in (feats or "") or "Person=1,2,3" in (feats or "")
         lemma = _lemma(lex, surface, seg[-1] if seg else surface, pos, present)
         offsets = word.get("offsets") or {}
         carried = _carried(seg, pos)

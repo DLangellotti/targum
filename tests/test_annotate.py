@@ -1485,6 +1485,26 @@ def test_a_future_is_told_from_its_nifal_by_the_marks(pointed: str, lemma: str, 
     assert mend_pointed(lemma, "VERB", pointed) == (said, "VERB")
 
 
+def test_a_present_is_read_from_either_way_dicta_says_one() -> None:
+    """Tense=Pres, or every person at once with no tense: אוֹמְרִים came back the second
+    way 822 times on the laptop's shelf and stayed under אומר (targum-internal#490)."""
+    from targum.annotate.dicta import _tokens
+
+    def said(feats: dict[str, str]) -> str:
+        word = {
+            "token": "אומרים",
+            "lex": "אומר",
+            "seg": ["אומרים"],
+            "offsets": {"start": 0, "end": 6},
+        }
+        word["morph"] = {"pos": "VERB", "feats": feats, "prefixes": [], "suffix": False}
+        return _tokens({"tokens": [word]})[0].lemma
+
+    assert said({"Gender": "Masc", "Number": "Plur", "Person": "1,2,3"}) == "אמר"
+    assert said({"Gender": "Masc", "Number": "Plur", "Person": "3", "Tense": "Pres"}) == "אמר"
+    assert said({"Gender": "Masc", "Number": "Plur", "Person": "3", "Tense": "Past"}) == "אומר"
+
+
 def test_a_present_verb_is_filed_under_its_past() -> None:
     """לוקחים was filed under לוקח, the participle; dictionaries and Pealim have לקח
     (targum-internal#490)."""
