@@ -719,6 +719,12 @@ class Table:
         if not found:
             return None
         if len(found) == 1:
+            # One candidate is the verb only where it is in the occurrence's binyan, or
+            # either says none: בוא in hif'il is "brought", and בָּא's table under it said
+            # "came" (ling-he on #841: 8,240 library tokens drew the wrong binyan's table).
+            named = self.binyan_of(found[0])
+            if binyan and named and named != binyan:
+                return None
             return self.verbs.get(found[0])
         pointed = [] if infinitive else self.pointed_as(found, seen)
         built = []
@@ -769,12 +775,28 @@ class Table:
         spelling finds, since דבר is also דֻּבַּר and קרב also קָרַב.
         """
         letters = bare(word)
-        found = self.by_form.get(letters) or ()
+        found = self._distinct(self.by_form.get(letters) or ())
         if found:
+            # A root that is also a qal lemma, with another binyan beside it: עלה in
+            # hif'il is הֶעֱלָה, לחם in nif'al נִלְחַם, not the qal the letters find. Where
+            # every verb the letters find is in a binyan other than the occurrence's, the
+            # verb of the root in that binyan is the one (ling-he on #841); and where the
+            # root has none, nothing, which `of` refuses.
+            if binyan and len(letters) == 3:
+                named = [self.binyan_of(lid) for lid in found]
+                if all(one and one != binyan for one in named):
+                    return self._distinct(tuple(self._root_index().get((letters, binyan), ())))
             return found
-        if len(letters) == 4 and letters[1] == "י" and letters[0] != "י":
+        # A plene pi'el, only for an occurrence that is a pi'el or says no binyan: ניתץ
+        # tagged nif'al is נִתַּץ, "was smashed", never the pi'el נִתֵּץ (qa on #841).
+        if (
+            len(letters) == 4
+            and letters[1] == "י"
+            and letters[0] != "י"
+            and binyan in (None, "", "פיעל")
+        ):
             defective = self.by_form.get(letters[0] + letters[2:]) or ()
-            piel = tuple(lid for lid in defective if self.binyan_of(lid) == "פיעל")
+            piel = self._distinct(tuple(lid for lid in defective if self.binyan_of(lid) == "פיעל"))
             if piel:
                 return piel
         # And a lemma that is a root, with the binyan beside it: Open Scriptures files
@@ -783,8 +805,25 @@ class Table:
         # in that binyan alone; a hollow root (רום for הֵרִים) it cannot read is left out
         # (targum-internal#307, 2026-10-21).
         if binyan and len(letters) == 3:
-            return tuple(self._root_index().get((letters, binyan), ()))
+            return self._distinct(tuple(self._root_index().get((letters, binyan), ())))
         return ()
+
+    def _distinct(self, found: tuple[str, ...]) -> tuple[str, ...]:
+        """Candidates with one entry for each verb: the source holds קִבֵּל twice, as two
+        pi'els with one lemma, and two candidates was a refusal (ling-he on #841: 241
+        library tokens of קיבל drew no table). Kept in order; the first entry stands."""
+        if len(found) < 2:
+            return found
+        seen: set[tuple[str, str | None]] = set()
+        out: list[str] = []
+        for lid in found:
+            verb = self.verbs.get(lid)
+            key = (verb.lemma if verb else lid, self.binyan_of(lid))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(lid)
+        return tuple(out)
 
     def _root_index(self) -> dict[tuple[str, str], list[str]]:
         from .hebrew import root_of

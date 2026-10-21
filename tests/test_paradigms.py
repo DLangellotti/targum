@@ -1116,3 +1116,42 @@ def test_an_infinitive_s_binyan_still_names_its_verb(shipped: Table) -> None:
     assert struck is not None and struck.lemma == "הִכָּה"
     born = shipped.of("ילד", seen="לָלֶדֶת", binyan="פעל", infinitive=True)
     assert born is not None and born.lemma == "ילד"
+
+
+def test_a_plene_word_of_another_binyan_gets_no_piel(shipped: Table) -> None:
+    """ניתץ, ניכר and ניפץ tagged nif'al are נִתַּץ, נִכַּר and נִפַּץ: the plene pi'el is
+    not theirs (qa on #841). Untagged or tagged pi'el, the pi'el still stands."""
+    for plene in ("ניתץ", "ניכר", "ניפץ"):
+        found = shipped.of(plene, binyan="נפעל")
+        assert found is None or "פיעל" != shipped.binyan_of(
+            next(lid for lid, verb in shipped.verbs.items() if verb is found)
+        ), plene
+    assert shipped.of("דיבר", binyan="פיעל") is not None
+    assert shipped.of("דיבר", binyan="נפעל") is None
+
+
+def test_one_candidate_in_another_binyan_is_refused(shipped: Table) -> None:
+    """A root that is also a qal lemma: בוא in hif'il is "brought", and בָּא's table under
+    it said "came"; מות in hif'il drew מֵת, "died" (ling-he on #841). Where the root has
+    a verb in the occurrence's binyan, that one; where not, nothing."""
+    for root, binyan in (("בוא", "הפעיל"), ("מות", "הפעיל"), ("שוב", "הפעיל")):
+        found = shipped.of(root, binyan=binyan)
+        assert found is None or bare(found.lemma) != root, (root, binyan)
+    for root, binyan, lemma in (
+        ("עלה", "הפעיל", "הֶעֱלָה"),
+        ("לחם", "נפעל", "נִלְחַם"),
+    ):
+        found = shipped.of(root, binyan=binyan)
+        assert found is not None and found.lemma == lemma, (root, binyan)
+    # The qal still finds the qal.
+    found = shipped.of("עלה", binyan="פעל")
+    assert found is not None and bare(found.lemma) == "עלה"
+    # ניצב, the nif'al "stands", is not יִצֵּב "stabilized", whose 1pl future it spells.
+    found = shipped.of("ניצב", binyan="נפעל")
+    assert found is None or bare(found.lemma) != "יצב"
+
+
+def test_a_verb_the_source_holds_twice_is_one_candidate(shipped: Table) -> None:
+    """The source holds קִבֵּל twice; two candidates was a refusal (ling-he on #841)."""
+    found = shipped.of("קיבל")
+    assert found is not None and bare(found.lemma) == "קבל"

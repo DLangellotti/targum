@@ -84,6 +84,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   its reader at the line the word first came round in, with the word marked in the
   practice card's teal ring. `/account/met` answers it off builds already on the machine
   (`meetings.texts_lines`), nothing fetched and nothing spent.
+- More verbs find their conjugation table, and fewer find the wrong one
+  (targum-internal#307). A pi'el written plene finds its pointed lemma (דיבר is דִּבֵּר's),
+  and a root with its binyan finds its verb (שלך in hif'il is הִשְׁלִיךְ). An occurrence's
+  binyan now has its say everywhere: a plene word of another binyan gets no pi'el (ניתץ
+  tagged nif'al), one candidate in a binyan other than the occurrence's is refused (בוא in
+  hif'il no longer draws בָּא, "came"), and where the letters find only another binyan the
+  root's verb in the right one is used (עלה in hif'il is הֶעֱלָה, לחם in nif'al נִלְחַם). A
+  verb the source holds twice is one candidate, so קיבל draws its table. Render-time only.
 - `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front
   door, which does not change: "Learn Hebrew from your own life in Israel", the four
   moments that send an oleh looking, four lines of everyday Hebrew from the bank, the
