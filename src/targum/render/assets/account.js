@@ -185,7 +185,7 @@
     }
     if (rateLine) {
       rateLine.textContent = has
-        ? t("account.credits.rate-line", "About {clock} of audio", { clock: spoken(spare) })
+        ? t("account.credits.rate-line", "{clock} of audio or video", { clock: spoken(spare) })
         : "";
       rateLine.hidden = !has;
     }
@@ -199,9 +199,42 @@
     var rateUnder = document.getElementById("credits-rate");
     if (rateUnder) {
       rateUnder.textContent = has
-        ? t("account.credits.rate-line", "About {clock} of audio", { clock: spoken(spare) }) +
-          (got.ends ? " · " + t("account.hours.resets", "resets {date}", { date: got.ends }) : "")
+        ? t("account.credits.rate-line", "{clock} of audio or video", { clock: spoken(spare) }) +
+          (got.ends ? " · " + t("account.hours.resets", "resets on {date}", { date: got.ends }) : "")
         : "";
+    }
+    /* Nearly out and out say what still works and when the credits come back (§14.1:
+       each state says what to do next; targum-internal#469, B4). No new hue: §4 gives
+       none for "low", and the words carry it. */
+    var low = document.getElementById("credits-low");
+    if (low) {
+      var month = has ? Number(got.allowed) || 0 : 0;
+      var out = has && month > 0 && credits(spare) <= 0;
+      var nearly = has && month > 0 && !out && spare / month < 0.1;
+      low.textContent = out
+        ? got.ends
+          ? t("account.credits.out", "You've used this month's credits. They come back on {date}. The library and word cards still work.", { date: got.ends })
+          : t("account.credits.out-plain", "You've used this month's credits. The library and word cards still work.")
+        : nearly
+          ? tn(
+              "account.credits.low",
+              credits(spare),
+              "{n} credit left. The library and word cards use none.",
+              "{n} credits left. The library and word cards use none."
+            )
+          : "";
+      low.hidden = !out && !nearly;
+      // At none left the rate would say "0 minutes": the line above says it instead.
+      if (rateUnder && out) rateUnder.textContent = "";
+      // With plans on, a Free reader is pointed at the plans from here.
+      if ((out || nearly) && plan && plan.on && plan.plan !== "plan") {
+        var see = document.createElement("a");
+        see.className = "acct-inline";
+        see.href = "/plans";
+        see.textContent = t("fault.see-plans", "See plans");
+        low.appendChild(document.createTextNode(" "));
+        low.appendChild(see);
+      }
     }
     var meter = document.getElementById("credits-meter");
     if (meter && has) {
@@ -265,6 +298,9 @@
   // The panel says nothing until sync has been able to ask, which is a moment after
   // load. Until then the button says what this browser last knew (`HELD`, above).
   window.TargumSync.onChange(function () {
+    // Unreached is not signed out: the corner keeps the initials it held rather than
+    // offering Sign in to a reader on a train (targum-internal#469, B1).
+    if (!window.TargumSync.who && window.TargumSync.unreached) return;
     draw(window.TargumSync.who);
   });
 

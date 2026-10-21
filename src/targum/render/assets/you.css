@@ -52,7 +52,9 @@ b.acct-name { font-weight: 600; }
   font-family: var(--chrome);
   font-size: 0.9375rem;
 }
-.acct-pick:focus-visible { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+/* §8: the focus is a 2px ring in --focus, which a 9% wash on a borderless well was not
+   (targum-internal#469, B7). */
+.acct-pick:focus-visible { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 2px var(--focus); }
 
 /* Credits: the balance in the reading serif, "left this month" beside it, the rate and
    the day it comes back under it, and a meter of what is left. */
@@ -181,3 +183,39 @@ b.acct-name { font-weight: 600; }
 :is(.you, .playlists, .subs-page, .saved) .said { margin: 0.6rem 0 0; color: var(--ink); font-size: 0.8125rem; }
 :is(.you, .playlists, .subs-page, .saved) .said.bad { color: var(--ink); }
 :is(.you, .playlists, .subs-page, .saved) .said[hidden] { display: none; }
+
+/* Nearly out and out (targum-internal#469, B4): what still works and when the credits
+   come back, in the line's ink, under the meter. */
+.credits-low { margin: 0.5rem 0 0; color: var(--ink); font-size: 0.875rem; line-height: 1.5; }
+.credits-low[hidden] { display: none; }
+#you-loading .note,
+#you-unreachable .note,
+#you-offline .note,
+#you-closed .note { margin: 0 0 0.5rem; color: var(--ink); font-size: 0.9375rem; line-height: 1.55; }
+#you-slow[hidden] { display: none; }
+#you-closed:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* §8 under a thumb (targum-internal#469, B8): As a man / As a woman, Connect another app
+   and See plans, Read the grant and What that means were 18–36px. The segments are drawn
+   at 44px; the links take a centred reach, which crosses no text that answers a tap. */
+@media (hover: none) and (pointer: coarse) {
+  #you-address > button { min-block-size: 44px; }
+  .acct-link,
+  .acct-inline { position: relative; }
+  .acct-link::after,
+  .acct-inline::after {
+    content: "";
+    position: absolute;
+    inset-inline: -0.25rem;
+    inset-block: 50% auto;
+    block-size: 44px;
+    transform: translateY(-50%);
+    min-inline-size: 44px;
+  }
+}
+
+/* A row's hover wash is the pointer's: after a tap on a phone it stuck, and the Delete
+   row turned teal while it asked to be confirmed (targum-internal#469, polish 9). */
+@media (hover: none) {
+  .account .acct-rows > li:hover { background: none; }
+}

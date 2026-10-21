@@ -704,7 +704,7 @@
 
   /* --- talking to the account ----------------------------------------------- */
 
-  function ask(path, body, keep) {
+  function ask(path, body, keep, refusals) {
     var options = {
       method: body ? "POST" : "GET",
       headers: { "Content-Type": "application/json" },
@@ -719,6 +719,14 @@
     return fetch(path + (key ? "?k=" + encodeURIComponent(key) : ""), options).then(function (
       response
     ) {
+      // `refusals`: a 4xx with a sentence in it is the answer, not a failure. Sign-in is
+      // refused for an account inside its seven days with the one way to keep it, and
+      // that sentence has to reach the field (targum-internal#469, B3).
+      if (refusals && response.status >= 400 && response.status < 500) {
+        return response.json().catch(function () {
+          throw new Error(String(response.status));
+        });
+      }
       if (!response.ok && response.status !== 401) throw new Error(String(response.status));
       return response.json();
     });
@@ -1024,6 +1032,8 @@
     // Whether the first start reached the account and finished: false while it is asked,
     // and after a refusal or a dropped connection.
     reached: false,
+    // Whether the last start could not reach the account at all (a throw, a 5xx).
+    unreached: false,
 
     // True once the server has said this browser is signed out where an account is
     // needed: hosted, or a machine with an account on it. A fresh install with nobody to
@@ -1060,10 +1070,15 @@
           // 2026-10-20): a page with nothing in this browser can tell an empty list from
           // one it could not fetch.
           api.reached = true;
+          api.unreached = false;
           announce(!!changed);
           return changed;
         })
         .catch(function () {
+          // Not reached: who is signed in is unknown, which is not "nobody". The corner
+          // keeps the initials it held and the account page says it could not reach the
+          // account rather than asking to sign in (targum-internal#469, B1).
+          api.unreached = true;
           announce(false);
           return false;
         });
@@ -1262,7 +1277,7 @@
       try {
         into = localStorage.getItem("targum:into") || "";
       } catch (e) {}
-      return ask("/account/sign-in", { email: email, into: into });
+      return ask("/account/sign-in", { email: email, into: into }, false, true);
     },
 
     signOut: function () {

@@ -4703,6 +4703,7 @@ def you_page(token: str, language: str = "en") -> str:
     and a signed-out visitor gets a sentence rather than an empty form. The languages
     are baked in: which exist is a fact about targum, not about the person.
     """
+    from ..accounts import GRACE_DAYS
     from ..translate.prompts import INTO, READING, REQUIRED_LEARNING
 
     return (
@@ -4717,6 +4718,7 @@ def you_page(token: str, language: str = "en") -> str:
             into=_staged(INTO, language),
             required=list(REQUIRED_LEARNING),
             languages=_language_names(language),
+            grace=GRACE_DAYS,
         )
     )
 

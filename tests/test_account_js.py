@@ -48,7 +48,7 @@ def test_your_progress_shows_the_credits_left_and_what_they_are_worth() -> None:
     # The menu says it shorter, with the rate under it: a balance carries its rate
     # wherever it is (design.md §12, 2026-10-09).
     assert seen["panel"] == {"hidden": False, "text": "450 credits left · resets on October 1"}
-    assert seen["rate"] == {"hidden": False, "text": "About 7 hours 30 minutes of audio"}
+    assert seen["rate"] == {"hidden": False, "text": "7 hours 30 minutes of audio or video"}
 
 
 def test_your_progress_says_nothing_about_hours_without_an_allowance() -> None:

@@ -49,7 +49,7 @@
   background: var(--card);
   transition: box-shadow var(--out) var(--ease), border-color var(--out) var(--ease);
 }
-.given-well:focus-within { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.given-well:focus-within { border-color: var(--teal); box-shadow: 0 0 0 2px var(--focus); }
 .bring textarea {
   display: block;
   inline-size: 100%;
@@ -107,7 +107,7 @@
   font: inherit;
   font-size: 0.9375rem;
 }
-.from-field select:focus-visible { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.from-field select:focus-visible { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 2px var(--focus); }
 
 /* What is in the box, one chip a file, with its × on it. */
 .given-files { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }

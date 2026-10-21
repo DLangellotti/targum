@@ -844,7 +844,7 @@ def test_the_profile_page_says_something_to_a_stranger() -> None:
     """Signed out there is nothing to show, and an empty form is not an answer."""
     you = PAGES["you"]
     assert 'id="stranger"' in you
-    assert "Sign in from the corner" in you
+    assert "Sign in to see your account." in you
 
 
 def test_the_corner_is_a_circle_rather_than_an_address() -> None:

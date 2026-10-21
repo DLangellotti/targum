@@ -54,7 +54,15 @@ global.fetch = (url, options) => {
   }
   // An answer of "fail" is a request that never came back.
   if (answers[at] === "fail") return Promise.reject(new Error("offline"));
-  return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
+  // A real answer says whether it was ok, which the page reads (targum-internal#469: a
+  // refusal is not the same as signed out). `status:<path>` in the payload overrides it.
+  const status = (payload.statuses || {})[at] || 200;
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(answers[at] || {}),
+    blob: () => Promise.resolve(new Blob([JSON.stringify(answers[at] || {})])),
+  });
 };
 
 require(path.join(assets, "strings.js"));
@@ -138,6 +146,8 @@ setTimeout(() => {
           hidden: at("you-languages-said").hidden,
         },
         ending: { text: at("you-ending-said").textContent, hidden: at("you-ending-said").hidden },
+        // The card a closed account is told on (targum-internal#469, B5).
+        closed: { text: at("you-closed-said").textContent, hidden: at("you-closed").hidden },
         forget: { label: at("you-forget").textContent, disabled: at("you-forget").disabled },
         /* One row an app: what it says it is, what it may do, and nothing that could be
            a credential (targum-internal#80). */
