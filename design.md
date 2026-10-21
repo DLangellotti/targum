@@ -3399,9 +3399,13 @@ comes from three places, in this order.
   sets (the scenes, the liturgy, the rabbinic shelf), clay things said (a talk, a video),
   muted for books, in card white. It costs no model, and no file is written for it. This
   departs from §4 on purpose: teal is the desk's door and clay is cost and errors, and
-  here both colour a tile. One hue per tile, flat, and never on text. The earlier plan was
-  to draw the missing covers with an image model at about $0.03 each. That is not
-  done; the letter tile is the fallback.
+  here both colour a tile. One hue per tile, flat, and never on text.
+- **A library row with no picture of its own gets a drawn cover.** David approved one
+  estimated batch on 2026-10-08, drawn with the image model at about $0.04 a cover
+  (`catalogue.cover_prompt`, the same rules as every cover). It drew 735 covers on
+  2026-10-08 and 10-10. The 152 rows filed after it were drawn on 2026-10-21, also on
+  David's approval (targum-internal#429). The letter tile is the fallback for the time
+  between filing a row and drawing its cover, and for an upload with no picture of its own.
 
 What it does not overturn: readers fetch nothing (every picture is fetched at most once,
 by the server, and then carried in the page or served from the box), and covers already

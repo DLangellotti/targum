@@ -640,6 +640,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   beside it. Tap any word and we'll explain it." It opened on an aphorism and carried a
   colon list. The headline and the four points under the box are unchanged, as design.md
   holds them (2026-10-02, amended here).
+- design.md §12 "Every text has a picture" now says what happened: the image-model batch
+  David approved on 2026-10-08 drew 735 library covers, and the 152 rows filed after it
+  were drawn on 2026-10-21 (targum-internal#429). The letter tile is the fallback until a
+  row's cover is drawn, and for an upload with no picture of its own. Before this it said
+  the batch "is not done".
 - A video text has a viewer of its own (targum-internal#422, David's A + B + C from the
   mockups). **Beside**: the picture at the left with one thin row under it — play and
   pause, the time, a hairline of where the voice is (the line being said a faint band on
