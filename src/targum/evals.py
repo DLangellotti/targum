@@ -85,6 +85,8 @@ SCRIPTS = {
     "stress/tanakh-taamim-tagger": "eval_stress_tagger.py",
     # The vav-consecutive read off the pointing, against OSHB's own tag (#449).
     "lemma/oshb": "eval_vav_consecutive.py",
+    # The pronoun on the end read off the pieces line, against OSHB's suffix codes (#450).
+    "lemma/oshb-suffixes": "eval_pronoun_suffixes.py",
     "align": "eval_align.py",
     "grading": "eval_grading.py",
     "recast": "eval_recast.py",

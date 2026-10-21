@@ -122,7 +122,8 @@ class HardSpot:
     #: stored syntax, `annotate.governed`), "lookup:openrussian:partners", "lookup:motion"
     #: (`annotate.motion`), "grammar:word_order" (read off the stored grammar,
     #: `annotate.word_order`), "pointing:vav_consecutive" (read off the pointed text,
-    #: `annotate.vav_consecutive`), or "none".
+    #: `annotate.vav_consecutive`), "pieces:suffixes" (read off the pieces line and the
+    #: word's letters, `annotate.suffixes`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -135,6 +136,12 @@ class HardSpot:
     #: spot that is Biblical only. Claimed in every other register in `REGISTERS`. A
     #: declaration with no reason, or one out of every register, is not covered.
     declared_out: tuple[tuple[str, str], ...] = ()
+    #: A floor per register, for a spot claimed in more than one where each has its own
+    #: gold (targum-internal#450, 2026-10-21): pronoun suffixes are scored against IAHLT in
+    #: modern text and against Open Scriptures in Biblical, and one floor holds only one of
+    #: them. Each register claimed must name one that exists. Empty where `floor` speaks
+    #: for the spot, which is every spot before this one.
+    floors: tuple[tuple[str, tuple[str, str, str]], ...] = ()
 
     @property
     def computed_at_all(self) -> bool:
@@ -306,6 +313,22 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
                     "modern Hebrew does not use the form, and ויאמר in a modern text is a verse "
                     "quoted",
                 ),
+            ),
+        ),
+        # The second (targum-internal#450, 2026-10-21). שלו, אותך, לפניהם: the pronoun on
+        # the end, named on the card off the pieces line and the word's own letters
+        # (`annotate.suffixes`), lit by a lens, and asked whose or to whom. Claimed in both
+        # registers, so a floor for each: IAHLT's split-off pronouns for modern text, Open
+        # Scriptures' suffix codes for Biblical.
+        HardSpot(
+            "pronoun suffixes",
+            "pieces:suffixes",
+            "card",
+            (_DICTA, "iahltknesset", "suffix_precision"),
+            lens=True,
+            floors=(
+                ("modern", (_DICTA, "iahltknesset", "suffix_precision")),
+                ("biblical", ("suffix-rule/1", "oshb-wlc", "suffix_precision")),
             ),
         ),
     ),
@@ -492,7 +515,17 @@ def _covered(spot: HardSpot, floors: Iterable[Any]) -> bool:
         return False
     if not spot.declared_honestly:
         return False
-    system, corpus, metric = spot.floor
+    held = list(floors)
+    if spot.floors:
+        named = dict(spot.floors)
+        return all(
+            register in named and _floored(named[register], held) for register in spot.registers
+        )
+    return _floored(spot.floor, held)
+
+
+def _floored(floor: tuple[str, str, str], floors: Iterable[Any]) -> bool:
+    system, corpus, metric = floor
     # A floor names a system by prefix, as `evals.breaches` matches it.
     return any(
         system.startswith(f.system) and f.corpus == corpus and f.metric == metric for f in floors

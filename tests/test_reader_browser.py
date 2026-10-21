@@ -8103,3 +8103,170 @@ def test_a_modern_text_has_no_vav_lens_and_no_vav_line(browser, tmp_path: Path) 
         page.wait_for_timeout(150)
         assert "Past" not in page.evaluate(CARD_FACTS)
     context.close()
+
+
+# -- pronoun suffixes --------------------------------------------------------------------
+#
+# targum-internal#450, 2026-10-21: Hebrew's ninth hard spot. לפניהם is "before them".
+
+GEN_18_8 = "וַיִּתֵּ֖ן לִפְנֵיהֶ֑ם וְהֽוּא עֹמֵ֧ד עֲלֵיהֶ֛ם"
+
+#: Each word of Genesis 18:8's second half as Open Scriptures' tagging stores it: the pieces
+#: line is its own cut, with the suffix a piece of its own.
+GEN_18_8_TOKENS: list[dict[str, Any]] = [
+    {"lemma": "נתן", "pos": "VERB", "built": "ו + יתן"},
+    {"lemma": "פנים", "pos": "NOUN", "built": "ל + פני + הם"},
+    {"lemma": "הוא", "pos": "PRON", "built": "ו + הוא"},
+    {"lemma": "עמד", "pos": "VERB", "built": None},
+    {"lemma": "על", "pos": "ADP", "built": "עלי + הם"},
+]
+
+NEWS = "השרים עמדו לפניהם וספרו שלו היה אצלי. אני רואה אותך."
+
+#: The same kind of line as DICTA stores it: a suffix is a flag on the pieces line.
+NEWS_TOKENS: list[dict[str, Any]] = [
+    {"lemma": "שר", "pos": "NOUN", "built": "ה the + שרים"},
+    {"lemma": "עמד", "pos": "VERB", "built": None},
+    {"lemma": "לפני", "pos": "ADP", "built": "לפניהם + with a pronoun on the end"},
+    {"lemma": "ספר", "pos": "NOUN", "built": "ו and + ספרו + with a pronoun on the end"},
+    {"lemma": "של", "pos": "ADP", "built": "שלו + with a pronoun on the end"},
+    {"lemma": "היה", "pos": "VERB", "built": None},
+    {"lemma": "אצל", "pos": "ADP", "built": "אצלי + with a pronoun on the end"},
+    {"lemma": "אני", "pos": "PRON", "built": None},
+    {"lemma": "ראה", "pos": "VERB", "built": None},
+    {"lemma": "את", "pos": "ADP", "built": "אותך + with a pronoun on the end"},
+]
+
+
+def suffixed(out: Path, text: str, rows: list[dict[str, Any]], source: str, ref: str) -> Path:
+    """One line of Hebrew with its words stored as `rows` say, built into a reader."""
+    kind = BlockKind.verse if ref else BlockKind.paragraph
+    segment = Segment(
+        id="0000.000-aaaaaa",
+        block_id="b0000",
+        block_index=0,
+        index=0,
+        kind=kind,
+        text=text,
+        ref=ref,
+    )
+    found = list(re.finditer(r"[^\s׃־.,]+", text))
+    assert len(found) == len(rows)
+    tokens = [
+        Token(
+            start=match.start(),
+            end=match.end(),
+            surface=match.group(),
+            lemma=row["lemma"],
+            band=2,
+            pos=row["pos"],
+            built=row["built"],
+            split=bool(row["built"]),
+        )
+        for match, row in zip(found, rows, strict=True)
+    ]
+    pages = render(
+        Document(
+            source=source,
+            title="Pronouns",
+            language="he",
+            blocks=[Block(id="b0000", kind=kind, text=text)],
+            content_hash="p",
+        ),
+        SegmentedDocument(document_hash="p", language="he", segmenter="test/1", segments=[segment]),
+        [
+            Translation(
+                name="English",
+                document_hash="p",
+                source_language="he",
+                target_language="en",
+                provider="null",
+                segments={segment.id: "A line."},
+            )
+        ],
+        out,
+        annotation=Annotation(
+            document_hash="p",
+            language="he",
+            annotator="test/1",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: tokens},
+        ),
+    )
+    return pages[0]
+
+
+def card_says(page, n: int) -> list[str]:
+    page.evaluate(TAP_NTH, n)
+    page.wait_for_timeout(150)
+    return page.evaluate(CARD_FACTS)
+
+
+def test_the_card_on_lifneihem_says_before_them_in_genesis_and_in_the_news(
+    browser, tmp_path: Path
+) -> None:
+    """The acceptance of targum-internal#450: the card on לפניהם says "before them" in
+    Genesis, off Open Scriptures' pieces, and in a news text, off DICTA's flag; the other
+    suffixes on each page are named, and a word with none says nothing."""
+    genesis = suffixed(
+        tmp_path / "genesis", GEN_18_8, GEN_18_8_TOKENS, "sefaria:Genesis 18", "Genesis 18:8"
+    )
+    context, page = open_reader(browser, genesis)
+    facts = card_says(page, 1)
+    assert facts[-2:] == ["Pronoun", "before them"], facts
+    assert card_says(page, 4)[-2:] == ["Pronoun", "on them"]
+    # וְהוּא is "and he", a word of its own; וַיִּתֵּן has no suffix.
+    for n in (0, 2):
+        assert "Pronoun" not in card_says(page, n)
+    context.close()
+
+    news = suffixed(tmp_path / "news", NEWS, NEWS_TOKENS, "https://example.com/news", "")
+    context, page = open_reader(browser, news)
+    assert card_says(page, 2)[-2:] == ["Pronoun", "before them"]
+    assert card_says(page, 3)[-2:] == ["Pronoun", "his"]
+    assert card_says(page, 4)[-2:] == ["Pronoun", "his"]
+    assert card_says(page, 6)[-2:] == ["Pronoun", "at me"]
+    # Unpointed, אותך does not say which "you" it is, and the card does not guess.
+    assert card_says(page, 9)[-2:] == ["Pronoun", "you"]
+    assert "Pronoun" not in card_says(page, 0)
+    context.close()
+
+
+def test_the_pointing_says_which_you(browser, tmp_path: Path) -> None:
+    """־ךָ is a man and ־ךְ a woman, and a pointed page says so where the letters cannot."""
+    rows = [
+        {"lemma": "ל", "pos": "ADP", "built": "לך + with a pronoun on the end"},
+        {"lemma": "ל", "pos": "ADP", "built": "לך + with a pronoun on the end"},
+    ]
+    page_path = suffixed(tmp_path / "you", "לְךָ לָךְ", rows, "memory", "")
+    context, page = open_reader(browser, page_path)
+    assert card_says(page, 0)[-2:] == ["Pronoun", "to you (m.)"]
+    assert card_says(page, 1)[-2:] == ["Pronoun", "to you (f.)"]
+    context.close()
+
+
+def test_the_suffix_lens_lights_every_pronoun_ending_and_is_one_lens_at_a_time(
+    browser, tmp_path: Path
+) -> None:
+    """Hidden on a first read like every lens; `e` lights the words with a pronoun on the
+    end and says once what it shows."""
+    news = suffixed(tmp_path / "news", NEWS, NEWS_TOKENS, "https://example.com/news", "")
+    context, page = open_reader(browser, news)
+    lens = "[data-suffix-lens]"
+    assert page.evaluate(f"() => document.querySelector('{lens}').hidden"), "not on a first read"
+    page.keyboard.press("e")
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.click("#done-go")
+    page.keyboard.press("e")
+    assert page.evaluate(GOVERNED_SHOWN) == ["לפניהם", "וספרו", "שלו", "אצלי", "אותך"]
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Each word lit has a pronoun on the end."
+    assert page.evaluate(LENS_STATE, lens) == ["suffix", None, "true"]
+    page.keyboard.press("e")
+    assert page.evaluate(LENS_STATE, lens) == [None, None, "false"]
+    assert page.evaluate(GOVERNED_SHOWN) == []
+    page.keyboard.press("e")
+    said = page.evaluate("() => document.getElementById('spoken').textContent")
+    assert said == "Pronoun endings, 5 here.", "the cue is said once"
+    context.close()

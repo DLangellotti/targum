@@ -371,6 +371,50 @@ def test_a_declaration_without_a_reason_or_out_of_every_register_is_not_covered(
     assert replace(spot, declared_out=()).registers == stages.REGISTERS
 
 
+def _suffixes() -> stages.HardSpot:
+    (spot,) = [one for one in HARD_SPOTS["he"] if one.name == "pronoun suffixes"]
+    return spot
+
+
+def test_pronoun_suffixes_are_covered_in_both_registers_with_a_floor_each() -> None:
+    """targum-internal#450: שלו, אותך, לפניהם. Claimed in modern and Biblical text, on the
+    card and a lens, and measured in each against its own gold: IAHLT for modern, Open
+    Scriptures for Biblical, precision and recall in floors.json."""
+    spot = _suffixes()
+    assert spot.registers == ("modern", "biblical")
+    assert not spot.declared_out
+    assert spot.lens and spot.shown == "card"
+    assert dict(spot.floors).keys() == {"modern", "biblical"}
+    assert stages.facts("he").covered["pronoun suffixes"]
+    limits = evals.floors(stages.FLOORS)
+    for system, corpus in (
+        ("dicta/dicta-il/dictabert-joint", "iahltknesset"),
+        ("suffix-rule/1", "oshb-wlc"),
+    ):
+        for metric in ("suffix_precision", "suffix_recall"):
+            assert any(
+                f.system == system and f.corpus == corpus and f.metric == metric for f in limits
+            ), (corpus, metric)
+    held = evals.breaches(evals.read(stages.LEDGER), limits)
+    assert not [b for b in held if b.floor.metric.startswith("suffix_")], held
+
+
+def test_a_spot_claimed_in_two_registers_needs_a_floor_in_each() -> None:
+    from dataclasses import replace
+
+    limits = evals.floors(stages.FLOORS)
+    spot = _suffixes()
+    modern = dict(spot.floors)["modern"]
+    assert not stages._covered(replace(spot, floors=(("modern", modern),)), limits)
+    nowhere = ("suffix-rule/1", "oshb-wlc", "no_such_metric")
+    assert not stages._covered(
+        replace(spot, floors=(("modern", modern), ("biblical", nowhere))), limits
+    )
+    # Declared out of Biblical, the modern floor would be enough.
+    out = replace(spot, floors=(("modern", modern),), declared_out=(("biblical", "a reason"),))
+    assert stages._covered(out, limits)
+
+
 def test_targum_stages_prints_each_spot_and_where_it_is_claimed() -> None:
     from typer.testing import CliRunner
 
@@ -384,6 +428,9 @@ def test_targum_stages_prints_each_spot_and_where_it_is_claimed() -> None:
     assert "Biblical only, not modern: modern Hebrew does not use the form" in line
     (root,) = [one for one in result.output.splitlines() if "root and binyan" in one]
     assert "modern and Biblical" in root
+    # Pronoun suffixes, covered in both (targum-internal#450).
+    (suffix,) = [one for one in result.output.splitlines() if "pronoun suffixes" in one]
+    assert "yes" in suffix and "modern and Biblical" in suffix and "only" not in suffix
     # Registers are Hebrew's; Russian's spots say none.
     (aspect,) = [one for one in result.output.splitlines() if "│ aspect " in one]
     assert "Biblical" not in aspect

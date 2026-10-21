@@ -89,6 +89,10 @@ class GoldToken(NamedTuple):
     suffix: bool
     #: The morphology of the content word, in the pipe format the rest of targum reads.
     feats: str
+    #: The pronoun written onto the end, as `annotate.suffixes` codes it ("3mp"), or "".
+    #: Wider than `suffix`: בו is a prefix and a pronoun here, and still a pronoun on the
+    #: end to a reader (targum-internal#450).
+    pronoun: str = ""
 
 
 class GoldSentence(NamedTuple):
@@ -295,7 +299,27 @@ def _token(start: int, end: int, surface: str, parts: list[_Row]) -> GoldToken |
         prefixes=tuple(prefixes),
         suffix=any(part.upos == "PRON" for part in rest[1:]),
         feats=content.feats,
+        pronoun=_pronoun(parts),
     )
+
+
+#: What a pronoun cannot be the suffix of: שהם and והם are a conjunction and a word of
+#: their own, ההם is "those", and זהו is "this is".
+_NOT_A_HOST = frozenset({"SCONJ", "CCONJ", "DET", "PRON"})
+
+
+def _pronoun(parts: list[_Row]) -> str:
+    """The suffix pronoun of a written word, as a code: its last piece, where that piece is
+    a pronoun standing on a preposition, a noun or a verb (targum-internal#450)."""
+    from .suffixes import code_of
+
+    if len(parts) < 2 or parts[-1].upos != "PRON" or parts[-2].upos in _NOT_A_HOST:
+        return ""
+    feats = dict(part.partition("=")[::2] for part in parts[-1].feats.split("|") if "=" in part)
+    if feats.get("PronType", "Prs") != "Prs" or parts[-1].relation == "det":
+        # כזה and באותה: a preposition and a word of its own, "like this", "in the same".
+        return ""
+    return code_of(feats.get("Person", ""), feats.get("Gender", ""), feats.get("Number", ""))
 
 
 def describe() -> str:

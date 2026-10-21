@@ -181,6 +181,62 @@ def test_the_vav_consecutive_is_read_off_the_pointed_line_in_scripture_alone(
     assert (one.answer, one.start, one.end) == ("Past", 0, len("וַיֹּ֥אמֶר"))
 
 
+def test_a_pronoun_suffix_is_asked_whose_against_its_look_alike() -> None:
+    """targum-internal#450. לפניהם is "before them"; the look-alike is the hard kind (ם
+    against ן) and another person the easy one, each said in the card's own words."""
+    token = {
+        "start": 0,
+        "end": 6,
+        "surface": "לפניהם",
+        "lemma": "לפני",
+        "pos": "ADP",
+        "built": "לפניהם + with a pronoun on the end",
+    }
+    hard, easy = practices.suffix_candidates(token, "לפניהם", "s")
+    assert (hard.spot, hard.hard, easy.hard) == ("suffix", True, False)
+    assert hard.answer == easy.answer == "3mp:before them"
+    assert hard.contrast == "3fp:before them (f.)"
+    assert easy.contrast == "3ms:before him"
+    assert practices.said("suffix", hard.answer, "en") == "before them"
+    assert "their, or them" in practices.rule("suffix", hard.answer, "en")
+    noun = {
+        **token,
+        "surface": "ספרו",
+        "lemma": "ספר",
+        "pos": "NOUN",
+        "built": "ספרו + with a pronoun on the end",
+    }
+    (one, _) = practices.suffix_candidates(noun, "ספרו", "s")
+    assert (one.answer, one.contrast) == ("3ms:his", "1cs:my")
+    # A word with no pronoun on the end asks nothing.
+    bare = {**token, "built": None}
+    assert list(practices.suffix_candidates(bare, "לפני", "s")) == []
+    assert practices.REGISTERED["he"]["pronoun suffixes"].kind == "choice"
+    assert practices.KEYS["pronoun suffixes"] == "suffix"
+
+
+def test_a_pronoun_suffix_is_asked_in_both_registers(tmp_path: Path) -> None:
+    """Claimed in modern and Biblical text alike: the same line asks it either way."""
+    import json
+
+    line = "וַיִּתֵּן לִפְנֵיהֶם"
+    token = {"surface": "לפניהם", "lemma": "פנים", "pos": "NOUN", "built": "ל + פני + הם"}
+    folder = text(tmp_path / "gen", {1: [(line, [{**token, "surface": "לִפְנֵיהֶם"}])]})
+    modern = practices.count_text(folder)
+    assert modern is not None
+    assert [c.answer for c in modern.by_section[1] if c.spot == "suffix"] == [
+        "3mp:before them",
+        "3mp:before them",
+    ]
+    said = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    said["source"] = "sefaria:Genesis 18"
+    (folder / "document.json").write_text(json.dumps(said), encoding="utf-8")
+    (folder / "practice.json").unlink(missing_ok=True)
+    found = practices.count_text(folder)
+    assert found is not None
+    assert len([c for c in found.by_section[1] if c.spot == "suffix"]) == 2
+
+
 def test_the_ledger_counts_a_line_once_and_needs_two_texts() -> None:
     def met(document: str, segment: str) -> practices.Met:
         return practices.Met(

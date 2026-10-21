@@ -235,6 +235,9 @@ off and asking where the stress falls has an answer on the page (`pronounce.stre
 - **And by:** `scripts/eval_vav_consecutive.py` (`lemma/oshb-wlc`, targum-internal#449),
   which scores the vav-consecutive rule's reading of the pointing against OSHB's `w` tag
   outside the Torah. Nothing is trained.
+- **And by:** `scripts/eval_pronoun_suffixes.py` (`lemma/oshb-suffixes`, targum-internal
+  #450), which scores the pronoun-suffix reading against OSHB's `Sp` codes outside the
+  Torah. Nothing is trained.
 
 ## Wiktionary Russian examples
 

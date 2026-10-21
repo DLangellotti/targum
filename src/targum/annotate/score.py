@@ -41,6 +41,7 @@ from .dicta import CARRYING, PRONOUNS, TWO
 from .gold import GoldSentence, GoldToken
 from .governed import governed
 from .hebrew import BINYANIM, root_of
+from .suffixes import agrees, reading
 
 #: Sentences per call to the annotator. The number `lemma_map.py` settled on after a box
 #: running a build alongside it killed a run that asked for two hundred.
@@ -113,6 +114,10 @@ class Scorecard:
     governed_misses: collections.Counter[tuple[str, str]] = dataclasses.field(
         default_factory=collections.Counter
     )
+    #: (gold suffix, ours, the word) where the two named different pronouns, or one none.
+    suffix_misses: collections.Counter[tuple[str, str, str]] = dataclasses.field(
+        default_factory=collections.Counter
+    )
 
     def add(self, gold: GoldToken, ours: Token) -> None:
         self.paired += 1
@@ -167,6 +172,7 @@ class Scorecard:
                         self.root_misses[(gold.lemma, want_root, ours.root)] += 1
 
         self._features(gold, ours)
+        self._suffix(gold, ours)
 
         gold_split = bool(gold.prefixes)
         if gold_split and ours.split:
@@ -198,6 +204,24 @@ class Scorecard:
             c["construct_fp"] += 1
         elif gold_cons:
             c["construct_fn"] += 1
+
+    def _suffix(self, gold: GoldToken, ours: Token) -> None:
+        """Hebrew's ninth hard spot: the pronoun on the end, as the card names it off the
+        stored token (`annotate.suffixes`, targum-internal#450), against the treebank's
+        split-off pronoun. The gold sentences are unpointed, so ־ך is scored with no
+        gender, which `suffixes.agrees` counts as true of either."""
+        c = self.counts
+        want = gold.pronoun
+        said = reading(surface=ours.surface, built=ours.built, pos=ours.pos, lemma=ours.lemma)
+        if want and said and agrees(said, want):
+            c["suffix_tp"] += 1
+            return
+        if said:
+            c["suffix_fp"] += 1
+        if want:
+            c["suffix_fn"] += 1
+        if said or want:
+            self.suffix_misses[(want, said, gold.surface)] += 1
 
     def rate(self, numerator: str, denominator: str | int) -> float | None:
         below = self.counts[denominator] if isinstance(denominator, str) else denominator
@@ -233,6 +257,8 @@ class Scorecard:
             "construct_recall": _share(c["construct_tp"], c["construct_fn"]),
             "governed_precision": _share(c["governed_tp"], c["governed_fp"]),
             "governed_recall": _share(c["governed_tp"], c["governed_fn"]),
+            "suffix_precision": _share(c["suffix_tp"], c["suffix_fp"]),
+            "suffix_recall": _share(c["suffix_tp"], c["suffix_fn"]),
         }
 
     def add_governed(
@@ -281,6 +307,10 @@ class Scorecard:
                 {"gold": g, "ours": o, "n": n}
                 for (g, o), n in self.governed_misses.most_common(top)
             ],
+            "suffix_misses": [
+                {"gold": g, "ours": o, "word": word, "n": n}
+                for (g, o, word), n in self.suffix_misses.most_common(top)
+            ],
             "pos_misses": [
                 {"gold": g, "ours": o, "n": n} for (g, o), n in self.pos_misses.most_common(top)
             ],
@@ -310,6 +340,8 @@ ROWS = (
     ("construct_recall", "construct state recall"),
     ("governed_precision", "governed preposition precision"),
     ("governed_recall", "governed preposition recall"),
+    ("suffix_precision", "pronoun suffix precision"),
+    ("suffix_recall", "pronoun suffix recall"),
 )
 
 
