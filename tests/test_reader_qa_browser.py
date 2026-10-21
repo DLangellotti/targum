@@ -465,9 +465,13 @@ def test_the_slow_line_goes_when_the_sheet_arrives(browser, served: str) -> None
     assert page.locator("#sheet-said").inner_text() == "Still making your PDF…"
     held[0].fulfill(status=200, body=b"%PDF-1.4\n", headers={"Content-Type": "application/pdf"})
     page.wait_for_timeout(300)
-    gone = page.locator("#sheet-said").is_hidden()
+    # Read off the line itself: the ⋯ panel round it may be hidden either way (qa on #857).
+    line = page.evaluate(
+        "() => { const s = document.getElementById('sheet-said');"
+        " return {hidden: s.hidden, text: s.textContent}; }"
+    )
     context.close()
-    assert gone, "the slow line went with the wait"
+    assert line["hidden"] and line["text"] == "", line
 
 
 # -- S1 and S3: the bar on a phone ---------------------------------------------------------
