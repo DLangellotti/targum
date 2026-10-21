@@ -771,12 +771,15 @@
 
   /* The lines of a card. Each says one thing and carries its own copy, as the reader's
      do: "copy the word" means three different strings to three readers. */
-  function headline(text, language) {
+  function headline(text, language, sounded) {
     var line = el("span", "copy-line");
     var head = el("bdi", "lemma", text);
     head.setAttribute("lang", language);
     line.appendChild(head);
     line.appendChild(window.TargumVocab.copyButton(text, {}));
+    // A word's card says it; a phrase or a line is not one word, and is not said here.
+    var hear = sounded && window.TargumVocab.hearButton && window.TargumVocab.hearButton(text, language);
+    if (hear) line.appendChild(hear);
     return line;
   }
 
@@ -814,7 +817,7 @@
 
   function wordCard(word) {
     return function (host) {
-      host.appendChild(headline(word.term, code));
+      host.appendChild(headline(word.term, code, true));
       if (word.lemma && word.lemma !== word.term) {
         var form = el("span", "form copy-line");
         form.appendChild(document.createTextNode(t("reader.card.from", "from ")));
@@ -1126,6 +1129,10 @@
       // In the word's own cell rather than a column of its own: a copy is about the
       // word, and the table has its columns to hold on a phone.
       term.appendChild(window.TargumVocab.copyButton(word.term, {}));
+      // And its sound, as its card says it (targum-internal#498), where the voice reads
+      // the language and a server is behind the page.
+      var hear = window.TargumVocab.hearButton && window.TargumVocab.hearButton(word.term, code);
+      if (hear) term.appendChild(hear);
       // The dictionary form under the word it was met as, where the two differ: a column
       // of its own was mostly empty (board WordsDesk).
       if (word.lemma !== word.term) {
