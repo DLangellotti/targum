@@ -5006,7 +5006,7 @@ def english_title(document: Document, language: str = "en") -> str:
     its Hebrew one alone.
 
     In `language` where the reader is built in another (QA, 2026-10-05): the row's own
-    name in it, or a portion's from the catalogue's `portion.name.*` — «Берешит» beside
+    name in it, or a portion's from the catalogue's `portion.name.*` — «Берейшит» beside
     בְּרֵאשִׁית on the reader built in Russian, not "Bereshit".
     """
     from .. import catalogue as catalogue_module
