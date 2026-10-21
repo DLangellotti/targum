@@ -5,6 +5,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Changed
+- CI cancels a branch's or a PR's run when a newer push to the same ref arrives, so a
+  round of fixes queues one run. Master's runs are never cancelled, because a deploy
+  may skip the suite only for a commit CI passed there (`TARGUM_CHECKED`).
+
 ### Fixed
 - The press that makes a playlist says "Create", not "Confirm", in the New playlist form
   and the Add-to-playlist menu (David, 2026-10-21; targum-internal#474).
