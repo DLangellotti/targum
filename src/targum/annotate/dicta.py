@@ -661,7 +661,9 @@ HOLAM_AFTER_MEM = re.compile("מ[\u0591-\u05c7]*ו[\u05b9\u05ba]")
 SELLER_PREFIXES = frozenset("ובהכלמש")
 # Spelled מוֹ like a qal present of an מ-first root and are not one: the hif'il presents
 # of a yod-first root, whose מ is the prefix (מוֹרֶה is ירה's, מוֹדֶה ידה's), and nouns of
-# the same shape (מוֹעֵד). ling-he on #836; the pointing cannot tell them from מוֹנֶה.
+# the same shape (מוֹעֵד). ling-he and qa on #836. A hif'il with its hiriq-yod (מוֹסִיף) is
+# told by the yod (`_hiriq_yod`); these end in ה or have none, and the pointing cannot
+# tell them from a qal מוֹנֶה, so they are named.
 HOLAM_NOT_QAL = frozenset({"מורה", "מודה", "מועד", "מוסף", "מוקד", "מושב", "מולד"})
 
 
@@ -678,6 +680,7 @@ def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | 
             and letters[2] != letters[3]
             and letters not in HOLAM_NOT_QAL
             and HOLAM_AFTER_MEM.search(pointed)
+            and not _hiriq_yod(pointed, letters[3])
         ):
             # A qal present filed under its participle, where the marks say qal: מוֹצֵא
             # and מוֹכֵר are מצא's and מכר's; a hof'al present is spelled with a shuruq,
@@ -710,6 +713,14 @@ HIRIQ = "\u05b4"
 SEGOL = "\u05b6"
 
 
+def _hiriq_yod(pointed: str, last: str) -> bool:
+    """Whether a word has a yod before its root's last letter: the hif'il's hiriq-yod
+    (מוֹסִיף, יַאֲמִין), which no qal present or future carries."""
+    bare = "".join(char for char in pointed if "א" <= char <= "ת").translate(FINALS)
+    at = bare.rfind(last.translate(FINALS))
+    return at > 0 and bare[at - 1] == "י"
+
+
 def _future(lemma: str, pointed: str) -> str:
     """A nif'al lemma on a future, settled by the marks (targum-internal#494).
 
@@ -727,9 +738,7 @@ def _future(lemma: str, pointed: str) -> str:
     letters = lemma.translate(FINALS)
     if len(letters) != 4 or letters[0] != "נ" or letters[1] in NIFAL_KEPT:
         return lemma
-    bare = "".join(char for char in pointed if "א" <= char <= "ת").translate(FINALS)
-    last = bare.rfind(letters[3])
-    if last > 0 and bare[last - 1] == "י":
+    if _hiriq_yod(pointed, letters[3]):
         return lemma
     split: list[tuple[str, str]] = []
     for char in pointed:
