@@ -7025,7 +7025,13 @@ var targumReader = function () {
   function watchGrowth(element) {
     if (element._watched || typeof ResizeObserver !== "function") return;
     element._watched = true;
-    new ResizeObserver(function () {
+    var asked = false;
+    // Placed again in the next frame, not inside the observer: placing caps a card that
+    // has run past its room, and a card that shrinks inside the callback that watched it
+    // grow is what the browser reports as "ResizeObserver loop completed with
+    // undelivered notifications" (beta triage, 2026-10-21).
+    function again() {
+      asked = false;
       var near = element._near;
       if (!near || element.hidden || !roomy.matches) return;
       // Only growth that came after the placing; the cap placing sets is not news.
@@ -7038,6 +7044,11 @@ var targumReader = function () {
         width: near.width,
         height: near.height,
       });
+    }
+    new ResizeObserver(function () {
+      if (asked) return;
+      asked = true;
+      window.requestAnimationFrame(again);
     }).observe(element);
   }
 
