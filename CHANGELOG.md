@@ -96,8 +96,6 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the sounds set aside for it says so ("We stopped at the sounds we'd set aside for this
   deck"), the cap line says "used", a deck stuck "making" for six hours is thrown away so
   it never holds the reader's one deck, and the decks are walked under their lock.
-
-### Fixed
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
   rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
@@ -933,8 +931,6 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the kitah letter beside each rung sits on a disc in the Hebrew face. Each screen comes
   in on the desk's curve, and nothing moves under reduced motion. design.md §12
   (2026-09-28).
-
-### Fixed
 - The week's sheet's meanings above words no longer print over each other, and every
   line of the text is one height while meanings are on (targum-internal#415). A meaning
   could hang past its word, so two short words side by side, as at Genesis 1:2, printed
@@ -1864,8 +1860,6 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   to comes out again — the one join the text itself can prove, and a letter an
   abbreviation's gershayim touches is never it. Every built text was scanned and all 611
   are clean (targum-internal#86).
-
-### Fixed
 - A build request can no longer have the server read a file off its own disk. The Add
   page's door took `source` and `translations` as given, and the ingester reads a path
   as readily as a link, so a signed-in request naming a path got that file back as a
@@ -2045,8 +2039,6 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   row now carries the first and last verse its file holds, and a verse takes the file
   whose range has it; a chapter alone, or a verse no file holds, still takes the
   chapter's first file rather than nothing (targum-internal#142).
-
-### Fixed
 - A word is a word of its language. An English name, a clock time or an emoji inside a
   Hebrew line came back a word: tappable, counted against "N of M known", and "Hannah"
   filed in the ledger as extremely hard, from a community notice photographed off a

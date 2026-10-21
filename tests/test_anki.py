@@ -309,7 +309,56 @@ def test_a_deck_stuck_making_is_thrown_away(
         id="done", owner=3, total=1, state="ready", path=done,
         made_at=clock[0] - serve.ANKI_KEPT_MS - 1,
     )  # fmt: skip
-    host = SimpleNamespace(library=SimpleNamespace(decks={d.id: d for d in (old, young, fetched)}))
+    decks = {d.id: d for d in (old, young, fetched)}
+    host = SimpleNamespace(library=SimpleNamespace(decks=decks, jobs={}))
     serve.Handler._decks_expire(host)  # type: ignore[arg-type]
     assert sorted(host.library.decks) == ["young"]
     assert not done.exists(), "a ready deck nobody fetched goes with its file"
+
+
+def test_a_slow_deck_is_not_dropped_and_the_cap_holds(
+    served: tuple[int, str, Path],
+    postbox: Postbox,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """qa on #868: past `ANKI_STUCK_MS` a deck whose voice was still working was thrown
+    away, a second deck then started beside it with the month's whole room, and the two
+    rendered past the cap (cap 2, three clips). A deck whose job is working is slow, not
+    stuck: it stays, the second ask gets it back, and the cap holds."""
+    import threading
+
+    from targum import serve, speech
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setattr(serve, "ANKI_MOST", 2)
+    gate = threading.Event()
+    said: list[str] = []
+
+    def slow(text: str, into: Path, voice: str = speech.VOICE, language: str = "he") -> Any:
+        said.append(text)
+        if len(said) == 1:
+            gate.wait(10)
+        into.parent.mkdir(parents=True, exist_ok=True)
+        target = into.with_suffix(".wav")
+        target.write_bytes(speech.wav(b"\x00" * speech.BYTES_PER_SECOND))
+        return speech.Clip(target, "audio/wav", 1.0)
+
+    monkeypatch.setattr(speech, "render", slow)
+    monkeypatch.setenv(speech.KEY, "k")
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    keep(port, token, cookie, ("ספר", "ספר", 2), ("דרך", "דרך", 2), ("עיר", "עיר", 2))
+    payload = {"language": "he"}
+    _, first, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
+    for _ in range(100):
+        if said:
+            break
+        time.sleep(0.02)
+    # Every deck is now past its patience; the first one's voice is still working.
+    monkeypatch.setattr(serve, "ANKI_STUCK_MS", -1)
+    _, second, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
+    gate.set()
+    done = wait(port, token, cookie, first["id"])
+    assert second["id"] == first["id"], "the working deck is handed back, not replaced"
+    assert done["state"] == "ready" and len(said) <= 2, (said, done)

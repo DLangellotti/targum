@@ -974,7 +974,9 @@ def test_the_anki_deck_says_why_words_have_no_sound(deck: dict[str, Any], said: 
     """targum-internal#496, the page's half (qa on #854): the server's deck is saved as an
     `.apkg`, and the line under the exports says why any word came out silent."""
     drawn = draw(
-        vocabulary(word("ספר", "book", status=2, at=100)),
+        # Two saved, one filtered out by the list's opening stage (known): the deck asks
+        # for the one on screen only (qa on #868).
+        vocabulary(word("ספר", "book", status=2, at=100), word("דרך", "road", status=9, at=90)),
         do=[{"type": "export", "which": "anki"}],
         anki=deck,
     )
