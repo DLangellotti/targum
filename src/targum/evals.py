@@ -87,6 +87,10 @@ SCRIPTS = {
     "lemma/oshb": "eval_vav_consecutive.py",
     # The pronoun on the end read off the pieces line, against OSHB's suffix codes (#450).
     "lemma/oshb-suffixes": "eval_pronoun_suffixes.py",
+    # The construct state from OSHB's state letter, on the build's token (#454).
+    "lemma/oshb-construct": "eval_construct_state.py",
+    # The pointing's stress rules for modern text, against the accents (#454, #500).
+    "stress/tanakh-segolate": "eval_segolate.py",
     "align": "eval_align.py",
     "grading": "eval_grading.py",
     "recast": "eval_recast.py",

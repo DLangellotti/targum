@@ -19,13 +19,14 @@ import re
 import shutil
 import threading
 from collections import Counter, defaultdict
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 
 from ..annotate.base import chips, kind_of
 from ..annotate.difficulty import hard_share
+from ..annotate.moves import gathered
 from ..errors import TargumError
 from ..paths import write_atomic
 from ..render.builder import render
@@ -324,6 +325,7 @@ def build(
             portion,
             folder,
             around=neighbours(planned[slug], cycle) if slug in planned else (None, None),
+            moves=gathered(book.folder for book in books.values()),
         )
         # And what the week's sheet is set from, beside the reader: the box has no
         # books to cut it from again (targum-internal#415).
@@ -407,7 +409,9 @@ def build(
         portion = cut_haftarah(reference, books)
         folder_name = f"haftarah-{key}"
         folder = root() / "read" / folder_name
-        written = render_readers(portion, folder)
+        written = render_readers(
+            portion, folder, moves=gathered(book.folder for book in books.values())
+        )
         keep_sheet(portion, folder)
         opening, opening_ref = portion.opening()
         record.opens = (
@@ -568,6 +572,7 @@ def render_readers(
     portion: Cut,
     folder: Path,
     around: tuple[Portion | None, Portion | None] = (None, None),
+    moves: Mapping[str, object] | None = None,
 ) -> list[Path]:
     """Write a reading's reader, and again in each of `ALSO_IN` it has a rendering in.
 
@@ -576,7 +581,8 @@ def render_readers(
     kept twice: the box serves `reader-ru/audio/…` out of `reader/audio/`.
 
     `around` is the portions before and after this one in the cycle, which its first and
-    last aliyah lead to (`beyond`).
+    last aliyah lead to (`beyond`). `moves` is what the books' words used to be called
+    (`annotate.moves.gathered`), so a reader's marks follow a rename here too.
     """
     written = render(
         portion.document,
@@ -592,6 +598,7 @@ def render_readers(
         commentary_words=portion.commentary_words,
         carries_from=portion.carries_from,
         beyond=beyond(around),
+        moves=moves,
     )
     for code in ALSO_IN:
         out = folder / f"reader-{code}"
@@ -614,6 +621,7 @@ def render_readers(
             commentary_words=portion.commentary_words,
             carries_from=portion.carries_from,
             beyond=beyond(around, code),
+            moves=moves,
         )
         shutil.rmtree(out / "audio", ignore_errors=True)
     return written

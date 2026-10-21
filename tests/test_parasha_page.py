@@ -1036,3 +1036,52 @@ def test_the_credits_are_whole_sentences_with_their_links_inside_them() -> None:
         assert "&lt;a" not in html, "a link was escaped into the sentence"
         assert 'href="https://archive.org/details/PockettorahAudioFiles"' in credits
         assert "</a>, " in credits, "and the sentence closes onto them without a gap"
+
+
+def test_a_portion_carries_its_books_moves(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A portion is cut from library books and never re-annotated itself, so after a
+    rename it carries what its books' words used to be called, or a mark made on a
+    /parasha page is stranded (qa on #836; David, 2026-10-21)."""
+    import json
+
+    from targum.annotate.moves import FILE
+
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
+    a_wednesday = datetime(2026, 9, 2, 12, tzinfo=ZoneInfo(cal.FLIP_ZONE))
+    monkeypatch.setattr(cal, "now_in_flip_zone", lambda moment=None: a_wednesday)
+    (tmp_path / "parasha" / "calendar").mkdir(parents=True)
+    for one in FIXTURES.glob("*.json"):
+        shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
+    library = tmp_path / "library"
+    a_book(library / "דברים-he", "Deuteronomy", "דברים", {29: 29, 30: 20, 31: 30})
+    a_book(library / "ישעיהו-he", "Isaiah", "ישעיהו", {61: 11, 62: 12, 63: 19})
+    a_book(library / "חבקוק-he", "Habakkuk", "חבקוק", {3: 19})
+    (library / "דברים-he" / FILE).write_text(
+        json.dumps({"id": "x", "lemmas": {"נאמר": "אמר"}, "surfaces": {}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    corpus_build.build(
+        years=[2026], corpus_years=[2026], schedules=[cal.Schedule.diaspora], library=library
+    )
+    page = (
+        tmp_path / "parasha" / "read" / "nitzavim-vayeilech" / "reader" / "sec-0001.html"
+    ).read_text(encoding="utf-8")
+    assert '"moves"' in page and "נאמר" in page and "אמר" in page
+
+
+def test_the_moves_of_several_books_are_one_table(tmp_path: Path) -> None:
+    import json
+
+    from targum.annotate.moves import FILE, gathered
+
+    for name, lemmas in (("a", {"נאמר": "אמר", "נעשה": "עשה"}), ("b", {"נאמר": "x"})):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / FILE).write_text(
+            json.dumps({"lemmas": lemmas, "surfaces": {}}, ensure_ascii=False), encoding="utf-8"
+        )
+    (tmp_path / "none").mkdir()
+    said = gathered([tmp_path / "a", tmp_path / "b", tmp_path / "none"])
+    assert said is not None
+    assert said["lemmas"] == {"נאמר": "אמר", "נעשה": "עשה"}, "the first book's move stands"
+    assert said["id"]
+    assert gathered([tmp_path / "none"]) is None

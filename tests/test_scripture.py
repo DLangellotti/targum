@@ -145,7 +145,7 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
     suffixed definite article (targum-internal#64). Each is free to re-run: the lookup
     happens on this machine and `SCHEMA_VERSION` never moves.
     """
-    assert ScriptureLemmatizer(Stub()).name == "oshb/6+stub/1"
+    assert ScriptureLemmatizer(Stub()).name == "oshb/7+stub/1"
 
 
 @pytest.mark.parametrize(
@@ -620,7 +620,7 @@ def test_with_is_not_the_object_marker(tagged: Path) -> None:
     annotation = Annotation(
         document_hash="h",
         language="he",
-        annotator="oshb/6+stub/1",
+        annotator="oshb/7+stub/1",
         method="frequency",
         method_note="note",
         tokens={"s1": got},
@@ -643,3 +643,32 @@ def test_in_it_is_filed_under_in_and_not_and() -> None:
     assert [headword_of(word) for word in (in_it, to_him, from_them)] == ["ב", "ל", "מן"]
     assert part_of(in_it.code) == "ADP"
     assert closed.gloss_for(in_it.lexeme, "ב") == "in; at; with; by"
+
+
+@pytest.mark.parametrize(
+    ("text", "pieces", "lexemes", "morph", "construct"),
+    [
+        # Ruth 1:1 as Open Scriptures tags it (targum-internal#454, oshb/7).
+        ("בִּימֵי", ("בִּ", "ימֵי"), ("b", "3117"), ("R", "Ncmpc"), True),
+        ("וּשְׁנֵי", ("וּ", "שְׁנֵי"), ("c", "8147"), ("C", "Acmdc"), True),
+        ("אִישׁ", ("אִישׁ",), ("376",), ("Ncmsa",), False),
+        # Suffixed: the pronoun-suffix line says it, and "construct" would mislead.
+        ("בָנָיו", ("בָנָי", "ו"), ("1121", ""), ("Ncmpc", "Sp3ms"), False),
+        ("וְאִשְׁתּוֹ", ("וְ", "אִשְׁתּ", "וֹ"), ("c", "802", ""), ("C", "Ncfsc", "Sp3ms"), False),
+        # A proper noun carries no state.
+        ("מִבֵּית", ("מִ", "בֵּית"), ("m", "1035"), ("R", "Np"), False),
+        # The Aramaic emphatic state is not a construct.
+        ("מַלְכָּא", ("מַלְכָּ", "א"), ("4430", ""), ("Ncmsd", "Td"), False),
+    ],
+)
+def test_a_construct_is_read_off_the_state_letter(
+    text: str,
+    pieces: tuple[str, ...],
+    lexemes: tuple[str, ...],
+    morph: tuple[str, ...],
+    construct: bool,
+) -> None:
+    from targum.annotate.scripture import word_features
+
+    word = oshb.Word(text=text, pieces=pieces, lexemes=lexemes, morph=morph)
+    assert ("Definite=Cons" in (word_features(word) or "")) is construct, word.code
