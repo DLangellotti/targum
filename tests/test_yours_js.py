@@ -944,3 +944,43 @@ def test_a_browser_just_signed_in_is_not_told_it_has_nothing_before_the_account_
     assert empty["shown"] and not empty["nothing"]
     assert empty["wordsEmpty"].startswith("Nothing yet")
     assert not waiting["shown"], "and not drawn empty while the account is answering"
+
+
+@pytest.mark.parametrize(
+    ("deck", "said"),
+    [
+        (
+            {"state": "ready", "silent": 0},
+            "Your deck is ready, with a sound for every word.",
+        ),
+        (
+            {"state": "ready", "silent": 2, "capped": True},
+            "Your deck is ready. 2 words have no sound. "
+            "You've used this month's sounds for decks, so the rest have none.",
+        ),
+        (
+            {"state": "ready", "silent": 1, "refused": True},
+            "Your deck is ready. 1 word has no sound. "
+            "We couldn't make new sounds just now, so those words have none.",
+        ),
+        (
+            {"state": "ready", "silent": 3, "stopped": True},
+            "Your deck is ready. 3 words have no sound. "
+            "We stopped at the sounds we'd set aside for this deck, so the rest have none.",
+        ),
+    ],
+)
+def test_the_anki_deck_says_why_words_have_no_sound(deck: dict[str, Any], said: str) -> None:
+    """targum-internal#496, the page's half (qa on #854): the server's deck is saved as an
+    `.apkg`, and the line under the exports says why any word came out silent."""
+    drawn = draw(
+        # Two saved, one filtered out by the list's opening stage (known): the deck asks
+        # for the one on screen only (qa on #868).
+        vocabulary(word("ספר", "book", status=2, at=100), word("דרך", "road", status=9, at=90)),
+        do=[{"type": "export", "which": "anki"}],
+        anki=deck,
+    )
+    assert [file["type"] for file in drawn["saved"]] == ["application/octet-stream"]
+    assert drawn["exportSaid"] == said
+    posted = [one["body"] for one in drawn["told"] if one["url"].startswith("/account/anki")]
+    assert posted and posted[0]["lemmas"] == ["ספר"], "the words on screen"

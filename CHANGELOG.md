@@ -20,6 +20,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   subset in a scratch folder, not the checkout.
 
 ### Fixed
+- The Anki deck's follow-ups from qa on #854 (targum-internal#496): a deck that stops at
+  the sounds set aside for it says so ("We stopped at the sounds we'd set aside for this
+  deck"), the cap line says "used", a deck whose voice is still working is never thrown
+  away (so a second deck cannot start beside it and pass the month's cap), one stuck
+  "making" for six hours with no job working is, each sound is counted as it is made, and
+  the decks are walked under their lock.
 - Russian's surfaces, design's four blockers (targum-internal#476). A page in Russian
   carries Source Sans 3's Cyrillic subset beside its Latin one, so a line is set in one
   face (design.md §13, "Russian is carried too"); a page in English pays nothing, and a

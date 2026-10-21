@@ -1451,10 +1451,12 @@
           saveFile(deck + " words.apkg", blob, "application/octet-stream");
           // Why words came out silent, said plainly where the server says (qa on #854).
           var why = said.capped
-            ? " " + t("lists.anki.capped", "You've had this month's sounds for decks, so the rest have none.")
+            ? " " + t("lists.anki.capped", "You've used this month's sounds for decks, so the rest have none.")
             : said.refused
               ? " " + t("lists.anki.refused", "We couldn't make new sounds just now, so those words have none.")
-              : "";
+              : said.stopped
+                ? " " + t("lists.anki.stopped", "We stopped at the sounds we'd set aside for this deck, so the rest have none.")
+                : "";
           done(
             (said.silent
               ? tn(
