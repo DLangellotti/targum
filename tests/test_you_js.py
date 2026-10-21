@@ -543,7 +543,7 @@ def test_on_free_says_what_it_holds_and_what_a_plan_gives() -> None:
     ("listed", "said"),
     [
         (287, "287 of 300 saved words. You can save 13 more on Free"),
-        (300, "300 of 300 saved words, which is as many as Free keeps."),
+        (300, "300 of 300 saved words, as many as Free keeps."),
     ],
 )
 def test_near_the_free_word_cap_says_how_many_are_left(listed: int, said: str) -> None:

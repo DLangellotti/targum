@@ -960,12 +960,12 @@
           : left
             ? t(
                 "you.plan.words-near",
-                "{n} of {cap} saved words. You can save {left} more on Free, and known words don't count.",
+                "{n} of {cap} saved words. You can save {left} more on Free. Known words don't count.",
                 { n: listed, cap: plan.words, left: left }
               )
             : t(
                 "you.plan.words-full",
-                "{n} of {cap} saved words, which is as many as Free keeps. Marking words known makes room.",
+                "{n} of {cap} saved words, as many as Free keeps. Mark words known to make room.",
                 { n: listed, cap: plan.words }
               );
         var more = document.getElementById("plan-words-more");
