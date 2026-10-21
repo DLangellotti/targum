@@ -513,6 +513,9 @@ THUMBED = (
     ".empty-go",
     ".held-undo",
     ".stage-tabs .tab",
+    # The "Met in" press and the texts it lists (targum-internal#497).
+    ".met-open",
+    ".met-text",
 )
 
 

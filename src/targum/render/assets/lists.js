@@ -954,6 +954,117 @@
     return rows;
   }
 
+  /* --- where a word was met ------------------------------------------------
+   *
+   * "Met in 2 texts" is a press (targum-internal#497, a beta reader: "link the full text
+   * here so when looking at the word, I can find it immediately … context is king"). It
+   * opens a short list under the row, the texts the word was met in, finished latest
+   * first; each opens its text at the line the word first came round in, with the word
+   * marked there (`reader.js`, `?met=`). Asked of `/account/met` on the first press for
+   * a word and kept: off builds already on this machine, nothing fetched from anywhere
+   * else, nothing spent. One list open at a time.
+   */
+  var metOpen = "";
+  var metFocus = "";
+  var metSaid = {};
+
+  function metButton(word, label) {
+    var press = el("button", "met-open", label);
+    press.type = "button";
+    press.setAttribute("data-word", word.lemma);
+    press.setAttribute("aria-expanded", metOpen === word.lemma ? "true" : "false");
+    press.title = t("lists.met.where", "See where you met it");
+    press.addEventListener("click", function (event) {
+      if (event && event.stopPropagation) event.stopPropagation();
+      metOpen = metOpen === word.lemma ? "" : word.lemma;
+      metFocus = word.lemma;
+      // Asked again after a failure: a second press is what "try again" means here.
+      var was = metSaid[word.lemma];
+      if (metOpen && (!was || was.failed)) askMet(word.lemma);
+      renderWords();
+    });
+    return press;
+  }
+
+  // An address of the reader's with the pass key, which goes before the sentence named
+  // after the `#`, not after it.
+  function keyedAt(href) {
+    var at = href.indexOf("#");
+    return at < 0 ? keyed(href) : keyed(href.slice(0, at)) + href.slice(at);
+  }
+
+  function askMet(lemma) {
+    metSaid[lemma] = { waiting: true };
+    var key = window.TARGUM_KEY || "";
+    var head = {};
+    if (key) head["X-Targum-Key"] = key;
+    var asked = code;
+    var done = function (said) {
+      // An answer that comes back after the language changed is the other list's.
+      if (code !== asked) return;
+      metSaid[lemma] = said;
+      if (metOpen === lemma) renderWords();
+    };
+    if (typeof fetch !== "function") return done({ failed: true });
+    fetch(
+      keyed("/account/met?language=" + encodeURIComponent(code) + "&lemma=" + encodeURIComponent(lemma)),
+      { headers: head }
+    )
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        done(answer && answer.texts ? answer : { failed: true });
+      })
+      .catch(function () {
+        done({ failed: true });
+      });
+  }
+
+  function metRow(word) {
+    var tr = el("tr", "met-row");
+    var cell = el("td", "met-cell");
+    cell.colSpan = 5;
+    var said = metSaid[word.lemma] || { waiting: true };
+    if (said.waiting) {
+      cell.appendChild(el("p", "met-note", t("lists.met.finding", "Finding the texts…")));
+    } else if (said.failed) {
+      cell.appendChild(
+        el("p", "met-note", t("lists.met.failed", "We couldn't open that list just now. Try again."))
+      );
+    } else if (!said.texts.length) {
+      // Counted, but no longer on the shelf to open: a text deleted since it was read.
+      cell.appendChild(el("p", "met-note", t("lists.met.gone", "We can't find those texts any more.")));
+    } else {
+      var list = el("ul", "met-texts");
+      said.texts.forEach(function (text) {
+        var item = el("li");
+        var go = el("a", "met-text");
+        go.href = keyedAt(text.href);
+        var title = el("bdi", "met-title", text.title || "");
+        title.setAttribute("dir", "auto");
+        // A Hebrew title is a Hebrew run, with its lang (design.md §14, line 3).
+        if (/[\u0590-\u05ff]/.test(text.title || "")) title.setAttribute("lang", DIRECTION[code] ? code : "he");
+        go.appendChild(title);
+        if (text.chapter) {
+          go.appendChild(
+            document.createTextNode(" · " + t("lists.practise.chapter", "chapter {n}", { n: text.chapter }))
+          );
+        }
+        item.appendChild(go);
+        list.appendChild(item);
+      });
+      cell.appendChild(list);
+      if (said.more) {
+        cell.appendChild(
+          el("p", "met-note", tn("lists.met.more", said.more, "And {n} more text.", "And {n} more texts."))
+        );
+      }
+    }
+    tr.appendChild(cell);
+    return tr;
+  }
+
   function stageName(status) {
     if (status === KNOWN) return t("vocab.step.known.title", "Known");
     if (status === 0) return t("lists.stage.ignored", "Ignored");
@@ -973,6 +1084,11 @@
     var cap = limits.words || 0;
     var drawing = cap ? rows.slice(0, cap) : rows.slice(0, shown);
     var hadUndo = holdsFocus(rowsBody.querySelector && rowsBody.querySelector("tr.held"));
+    // A "Met in" press keeps the focus through the redraw its answer brings.
+    var focused = document.activeElement;
+    if (!metFocus && focused && focused.classList && focused.classList.contains("met-open")) {
+      metFocus = focused.getAttribute("data-word") || "";
+    }
     rowsBody.textContent = "";
     var table = at("word-table");
     if (table) {
@@ -1028,20 +1144,22 @@
       rowNotes(word, meaning);
       tr.appendChild(meaning);
 
-      // In how many texts it was met, inside sections the reader finished.
+      // In how many texts it was met, inside sections the reader finished: a press that
+      // lists them, each opening at the word (targum-internal#497).
       var met = metIn(word);
-      tr.appendChild(
-        el("td", "met", met ? tn("lists.met.texts", met, "{n} text", "{n} texts") : "")
-      );
+      var metCell = el("td", "met");
+      if (met) metCell.appendChild(metButton(word, tn("lists.met.texts", met, "{n} text", "{n} texts")));
+      tr.appendChild(metCell);
 
       // Its stage by name, on the ramp's colour (board WordsDesk's Status column).
       var status = el("td", "status");
       status.appendChild(el("i", "dot dot-" + word.status));
       status.appendChild(el("span", "status-name", stageName(word.status)));
       if (met) {
-        status.appendChild(
-          el("span", "status-met", " · " + tn("lists.met.in", met, "met in {n} text", "met in {n} texts"))
-        );
+        // On a phone the column folds under the word, and the same press with it.
+        var metLine = el("span", "status-met", " · ");
+        metLine.appendChild(metButton(word, tn("lists.met.in", met, "met in {n} text", "met in {n} texts")));
+        status.appendChild(metLine);
       }
       tr.appendChild(status);
 
@@ -1062,7 +1180,20 @@
       // The row opens the word's card, as every list on these pages does (2026-09-18).
       opens(tr, wordCard(word));
       rowsBody.appendChild(tr);
+      if (met && metOpen === word.lemma) rowsBody.appendChild(metRow(word));
     });
+    if (metFocus) {
+      var lemma = metFocus;
+      metFocus = "";
+      var presses = rowsBody.querySelectorAll ? rowsBody.querySelectorAll(".met-open") : [];
+      for (var p = 0; p < presses.length; p++) {
+        // The one on show: the column's at a desk, the line under the word on a phone.
+        if (presses[p].getAttribute("data-word") === lemma && presses[p].offsetParent !== null) {
+          presses[p].focus();
+          break;
+        }
+      }
+    }
 
     var order = at("words-order");
     if (order) {
@@ -1543,6 +1674,9 @@
     if (code !== was) {
       facts = { loaded: false, met: {}, often: 2, practise: [], notes: {} };
       practising = { at: 0, shown: false };
+      // Hebrew and Aramaic share spellings: one language's texts are not another's.
+      metOpen = "";
+      metSaid = {};
       letGo();
       // A card is about a word in one language; another language's lists close it.
       closeCard();

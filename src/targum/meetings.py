@@ -43,6 +43,10 @@ VERSION = 1
 #: How many words the practice card holds at once (board WordsDesk: "[2] of [10]").
 PRACTISE = 10
 
+#: How many texts the "Met in" list names before it says how many more
+#: (targum-internal#497: "a short list of the texts").
+TEXTS = 8
+
 #: A case is said on a row only when it is most of the meetings that carry one, and there
 #: are enough of them to say "often" about.
 CASE_SHARE = 0.5
@@ -266,6 +270,33 @@ def lines_met(
         if len(out) == len(wanted):
             break
     return out
+
+
+def texts_lines(
+    lemma: str,
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "",
+    most: int = TEXTS,
+) -> tuple[list[Line], int]:
+    """A line in each text the reader met `lemma` in, for the "Met in" column's list
+    (targum-internal#497): the text finished latest first, and in each the first place in
+    reading order inside a finished section, as `lines_met` picks it. `most` lines, and
+    how many more texts there are, so the count beside the word and the list agree."""
+    out: list[Line] = []
+    more = 0
+    for document, sections, folder in _finished_folders(finished, folder_for, language):
+        meetings = text_meetings(folder)
+        places = (meetings.first.get(lemma) or {}) if meetings is not None else {}
+        here = sorted(section for section in places if section in sections)
+        if not here:
+            continue
+        if len(out) >= most:
+            more += 1
+            continue
+        segment, start, end, case = places[here[0]]
+        out.append(Line(lemma, document, folder, here[0], segment, start, end, case))
+    return out, more
 
 
 def cases_met(

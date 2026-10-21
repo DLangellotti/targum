@@ -72,6 +72,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (it was cut at 16: "something…" is now "something waited for").
 
 ### Added
+- Your Words' "Met in" opens the text at the word (targum-internal#497, a beta reader:
+  "link the full text here … context is king"). "2 texts" is a press that lists the texts
+  under the row, finished latest first, eight at most and "And 3 more texts."; each opens
+  its reader at the line the word first came round in, with the word marked in the
+  practice card's teal ring. `/account/met` answers it off builds already on the machine
+  (`meetings.texts_lines`), nothing fetched and nothing spent.
 - `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front
   door, which does not change: "Learn Hebrew from your own life in Israel", the four
   moments that send an oleh looking, four lines of everyday Hebrew from the bank, the

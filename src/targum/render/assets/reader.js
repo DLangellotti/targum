@@ -253,6 +253,19 @@ var targumReader = function () {
   function glossedAs(index) {
     return heads[index] || lemmas[index];
   }
+
+  /* The word a "Met in" link on Your Words opened this page at (targum-internal#497):
+     `?met=<dictionary form>#<sentence>`. Its first time round in that sentence wears
+     the practice card's mark, so the reader finds it in its line at a glance. Drawn with
+     the word's other marks rather than after them, so a redraw keeps it. */
+  var metWord = "";
+  var metAt = "";
+  try {
+    metWord = new URLSearchParams(location.search).get("met") || "";
+    metAt = metWord ? decodeURIComponent(location.hash.slice(1)) : "";
+  } catch (e) {
+    metWord = "";
+  }
   // What this language knows about its dictionary forms beyond what every language
   // carries: tables parallel to the lemmas, named for the fact. Only the Hebrew ones are
   // drawn here; a table this reader does not know is left alone.
@@ -2941,9 +2954,14 @@ var targumReader = function () {
     }
 
     var layers = [];
+    var metHere = !beside && !!metWord && segmentId === metAt;
     (beside ? besideRows(table, segmentId) : wordData[segmentId] || []).forEach(function (token) {
       var lemma = lemmas[token[4]];
       var classes = ["w"];
+      if (metHere && (lemma === metWord || heads[token[4]] === metWord)) {
+        classes.push("met-here");
+        metHere = false;
+      }
       if (token[3]) classes.push("split");
       // A name or a numeral is not vocabulary: tappable as ever, never tinted as a word
       // still to learn (2026-09-14). "בְּ־26" and "שָׁרוֹן" were marked like new words.

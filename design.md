@@ -379,6 +379,25 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### "Met in" opens the text at the word — 2026-10-21
+
+A beta reader, 2026-10-21, on Your Words' "Met in" column: "link the full text here so
+when looking at the word, I can find it immediately in the conversation/dialogue etc.
+Gives me context and context is king." (targum-internal#497)
+
+- **The count is a press.** "2 texts" in the column, and "met in 2 texts" under the word
+  on a phone, is a teal text button. It opens a short list under the row: the texts the
+  word was met in, finished latest first, each its title and its part, eight at most and
+  then "And 3 more texts." A second press folds it. One list is open at a time, and the
+  row's own press still opens the word's card.
+- **Each text opens at the word.** The link is the reader's page for that part at the
+  line the word first came round in (`#<sentence>`), with `?met=` naming the word. The
+  reader marks that word's first time round in the line with the practice card's mark, a
+  teal wash inside a teal ring, so it reads as "this one" without resting on colour.
+- **Nothing spends and nothing is fetched from anywhere else.** `/account/met` reads the
+  same meetings the column counts, off builds already on the machine, and is asked on the
+  first press for a word, never with the page.
+
 ### A reader carries only what its text uses, and a missing part opens the first — 2026-10-20
 
 David, 2026-10-20, on the reader's finish (targum-internal#464): readers still fetch

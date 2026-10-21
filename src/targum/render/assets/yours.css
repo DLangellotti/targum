@@ -166,6 +166,30 @@ table.words-table td.meaning { min-inline-size: 7rem; }
 .word-note.friend { color: var(--clay); }
 .word-note .friend-tag { color: var(--clay); border-color: var(--clay); }
 table.words-table td.met { color: var(--ink-soft); white-space: nowrap; }
+/* "Met in 2 texts" is a press that lists the texts (targum-internal#497): a teal text
+   button, as the table's other ways out are, and the list under the row is the texts as
+   links, each opening at the word. */
+.met-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  cursor: pointer;
+}
+.met-open:hover { text-decoration: underline; }
+.met-open[aria-expanded="true"] { font-weight: 600; }
+.met-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+table.words-table tbody tr.met-row { cursor: auto; }
+table.words-table tbody tr.met-row:hover { background: none; }
+table.words-table td.met-cell { padding-block-start: 0; }
+/* The list belongs to the word above it: no rule between them. */
+table.words-table tbody tr:has(+ tr.met-row) td { border-block-end-color: transparent; }
+.met-texts { display: grid; gap: 0.2rem; margin: 0; padding: 0; list-style: none; }
+.met-text { color: var(--teal); font-weight: 600; text-decoration: none; }
+.met-text:hover { text-decoration: underline; }
+.met-text:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+.met-note { margin: 0.2rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
 table.words-table td.status { white-space: nowrap; }
 table.words-table .status-met { display: none; }
 table.words-table td.stage { white-space: nowrap; cursor: auto; }
@@ -316,7 +340,9 @@ table.words-table .copy.copied { opacity: 1; }
   table.words-table td.stage { grid-area: stage; }
   table.words-table td.stage .vocab-editor .level { min-inline-size: 3rem; }
   table.words-table tbody tr.held,
-  table.words-table.is-rtl tbody tr.held { display: block; }
+  table.words-table.is-rtl tbody tr.held,
+  table.words-table tbody tr.met-row { display: block; padding-block-start: 0; }
+  table.words-table tbody tr:has(+ tr.met-row) { border-block-end-color: transparent; }
   .practise-body:not(.is-shown) .practise-meaning,
   .practise-body:not(.is-shown) .practise-stage,
   .practise-body:not(.is-shown) .practise-next,
@@ -387,6 +413,8 @@ body.yours table.words-table[hidden] { display: none; }
   .words-back,
   .words-exports .link-quiet:not([hidden]),
   .practise-go,
+  .met-open,
+  .met-text,
   .empty-go {
     display: inline-flex;
     align-items: center;

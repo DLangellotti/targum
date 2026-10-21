@@ -8688,6 +8688,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._story(parse_qs(urlparse(self.path).query))
         if route == "/account/words":
             return self._words_page(parse_qs(urlparse(self.path).query))
+        if route == "/account/met":
+            return self._met_texts(parse_qs(urlparse(self.path).query))
         if route == "/account/practice":
             return self._practice_page(parse_qs(urlparse(self.path).query))
         if route == "/account/places":
@@ -12826,6 +12828,80 @@ class Handler(BaseHTTPRequestHandler):
                 "notes": self._word_notes(language, into, list(marked), finished, folder_for),
             }
         )
+
+    def _met_texts(self, query: dict[str, list[str]]) -> None:
+        """The texts a word on Your Words was met in, each opened at the word
+        (targum-internal#497): what the "Met in" column lists when it is pressed.
+
+        `texts` is one entry a text, finished latest first, each with its title, the part
+        where the text has more than one, and `href`: the reader's page for that part at
+        the line the word first comes round in (`#<segment>`), with `met=` naming the
+        word so the page marks it there. `more` is how many texts are left unnamed. Met
+        is `meetings.texts_lines`', which is the column's: inside a section the reader
+        finished. Read off builds already on this machine; nothing is fetched, nothing
+        spends. Signed out there is no list.
+        """
+        from . import meetings as meetings_module
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+
+        def one(name: str) -> str:
+            return str((query.get(name) or [""])[0]).strip()
+
+        language = one("language").split("-")[0].lower()
+        lemma = one("lemma")
+        if not language or not lemma:
+            return self._json({"error": "no word"}, 400)
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        lines, more = meetings_module.texts_lines(
+            lemma, self.store.finished(person.id), folder_for, language
+        )
+        texts: list[dict[str, Any]] = []
+        for line in lines:
+            href = self._met_href(line, homes)
+            if not href:
+                more += 1
+                continue
+            parts = len(list((line.folder / "reader").glob("sec-*.html")))
+            texts.append(
+                {
+                    "title": self.library.document_title(line.folder),
+                    "chapter": line.section if parts > 1 else 0,
+                    "name": line.folder.name,
+                    "href": href,
+                }
+            )
+        self._json({"signedIn": True, "texts": texts, "more": more})
+
+    @staticmethod
+    def _met_href(line: Any, homes: list[Path]) -> str:
+        """The address of the reader page that holds `line`, at its sentence and naming
+        its word, or "" where the text is under none of `homes` (`_serve_reader`'s
+        roots, in its order)."""
+        reader = line.folder / "reader"
+        page = f"sec-{line.section:04d}.html"
+        if not (reader / page).is_file():
+            page = "index.html"
+        for root in homes:
+            try:
+                relative = line.folder.resolve().relative_to(root.resolve())
+            except (OSError, ValueError):
+                continue
+            return (
+                "/reader/"
+                + "/".join(quote(part) for part in relative.parts)
+                + f"/reader/{page}?met={quote(line.lemma)}#{quote(line.segment)}"
+            )
+        return ""
 
     def _practice_page(self, query: dict[str, list[str]]) -> None:
         """What the Grammar tab draws for one language (targum-internal#440, design.md
