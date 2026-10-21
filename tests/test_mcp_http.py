@@ -412,15 +412,21 @@ def test_a_prompt_comes_back_as_a_message(box: tuple[int, str]) -> None:
     token = a_token(port, "library record")
     said = rpc(port, token, "prompts/get", {"name": "drill"})["result"]
     text = said["messages"][0]["content"]["text"]
-    assert "my_vocabulary" in text
-    assert "never keep score" in text, "the page it came from promises as much"
+    assert "still learning" in text
+    assert "no score" in text, "the page it came from promises as much"
 
 
 def test_the_talk_prompt_sends_the_host_to_the_contract(box: tuple[int, str]) -> None:
     port, _ = box
     token = a_token(port, "library record")
     said = rpc(port, token, "prompts/get", {"name": "talk"})["result"]
-    assert "how_to_talk" in said["messages"][0]["content"]["text"]
+    assert said["messages"][0]["content"]["text"].startswith("Talk with me in Hebrew")
+    # The tool is named where the model reads it, not in the reader's own message
+    # (ling-en on targum-internal#473): the prompt needs it, and the instructions say
+    # to call it first.
+    (talk,) = [one for one in mcp_http.PROMPTS if one["name"] == "talk"]
+    assert "how_to_talk" in talk["needs"]
+    assert "how_to_talk" in mcp_http.INSTRUCTIONS
 
 
 def test_the_host_is_told_how_to_talk_at_initialize() -> None:
@@ -1037,6 +1043,10 @@ def test_read_with_me_reads_what_it_was_asked_to() -> None:
 def test_our_prompts_are_said_in_the_reader_s_voice() -> None:
     for one in mcp_http.PROMPTS:
         assert "this reader" not in one["says"] and "the reader" not in one["says"], one["name"]
+        # A host puts `says` into the conversation as the reader's own message, so it
+        # names no tool (ling-en on targum-internal#473).
+        for tool in ("find_text", "how_to_talk", "my_vocabulary", "sentences_with"):
+            assert tool not in one["says"], (one["name"], tool)
 
 
 def test_the_contract_carries_no_history_a_host_would_repeat() -> None:

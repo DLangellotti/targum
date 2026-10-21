@@ -71,6 +71,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   slot and spreading the Hebrew line apart, and a meaning keeps up to 26 characters
   (it was cut at 16: "something…" is now "something waited for").
 
+### Changed
+- The connector's four prompts are said in the reader's own words (targum-internal#473,
+  ling-en's plain versions). A host puts each into the chat as the reader's message, so
+  "Call find_text, then find_text with where set to mine" came out of the reader's mouth.
+  The tools are still named where the model reads them: in each prompt's `needs`, in the
+  tool descriptions and in the server's instructions. **Not merged until a live check in
+  Claude and ChatGPT** shows each prompt still reaches its tools.
+
 ### Added
 - Your Words plays a word's sound from the list (targum-internal#498, a beta reader: "And
   be able to play the sounds here too"). Each row, and the word's card on the page, carries
