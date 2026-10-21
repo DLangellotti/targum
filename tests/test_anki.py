@@ -362,3 +362,42 @@ def test_a_slow_deck_is_not_dropped_and_the_cap_holds(
     done = wait(port, token, cookie, first["id"])
     assert second["id"] == first["id"], "the working deck is handed back, not replaced"
     assert done["state"] == "ready" and len(said) <= 2, (said, done)
+
+
+def test_each_sound_is_on_the_job_row_as_it_is_made(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa on #868: the month's cap is read off the job rows, so a deck making its sounds
+    has each on its row as it is made, not at the end; otherwise a second ask in between
+    reads a count that is behind. Store-backed, as the box is."""
+    from types import SimpleNamespace
+
+    from targum import serve, speech
+    from targum.accounts import Store
+
+    library = serve.Library(tmp_path / "out")
+    store = Store(tmp_path / "words.db")
+    store.finish_sign_in(store.start_sign_in("reader@example.org"))
+    person = store.person_by_email("reader@example.org")
+    assert person is not None
+    owner = person.id
+    library.store = store
+    monkeypatch.setattr(library, "claim_turn", lambda job: None)
+    monkeypatch.setattr(library, "settle", lambda job: None)
+    monkeypatch.setattr(library, "release", lambda job: None)
+    counted: list[int] = []
+
+    def render(text: str, into: Path, voice: str = speech.VOICE, language: str = "he") -> Any:
+        counted.append(store.anki_clips_since(owner, 0))
+        into.parent.mkdir(parents=True, exist_ok=True)
+        target = into.with_suffix(".wav")
+        target.write_bytes(speech.wav(b"\x00" * speech.BYTES_PER_SECOND))
+        return speech.Clip(target, "audio/wav", 1.0)
+
+    monkeypatch.setattr(speech, "render", render)
+    deck = serve.Deck(id="d", owner=owner, total=3)
+    found = [({"term": word}, tmp_path / "clips" / word, None) for word in ("ספר", "דרך", "עיר")]
+    host = SimpleNamespace(library=library)
+    serve.Handler._deck_voice(host, deck, found, [0, 1, 2], "he", owner, False, tmp_path, "en")  # type: ignore[arg-type]
+    assert counted == [0, 1, 2], "each sound counted before the next is made"
+    assert store.anki_clips_since(owner, 0) == 3
