@@ -215,7 +215,7 @@ def test_inside_a_playlist_up_next_is_the_playlist_and_play_in_order_is_play_on(
         assert page.evaluate("() => localStorage.getItem('targum:play-on')") == "1"
         assert page.evaluate(
             """() => [...document.querySelectorAll('.list-play-on')]
-              .every((b) => b.getAttribute('aria-pressed') === 'true')"""
+              .every((b) => b.getAttribute('aria-checked') === 'true')"""
         ), "one switch, said in both places"
     finally:
         context.close()

@@ -708,3 +708,146 @@ def test_a_long_name_wraps_inside_its_press(browser, tmp_path: Path, query: str)
     width = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
     context.close()
     assert over == [] and width <= 0, over
+
+
+# --- the finish bar's polish (targum-internal#474) ----------------------------------
+
+
+def test_the_russian_tabs_fit_a_phone(browser, tmp_path: Path) -> None:
+    """Polish 3: at 390 in Russian the fourth tab, «Загрузки», was cut at the edge with
+    no sign the row scrolls. All four fit."""
+    page_file = tmp_path / "playlists.html"
+    page_file.write_text(carried(playlists_page(TOKEN, "ru")), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.add_init_script(fake())
+    page.goto(page_file.as_uri())
+    page.wait_for_selector("#playlists .pl-card")
+    seen = page.evaluate(
+        """() => {
+          const row = document.getElementById('yours-tabs');
+          const last = row.querySelector('[data-tab="uploads"]').getBoundingClientRect();
+          return {over: row.scrollWidth - row.clientWidth, end: last.right,
+                  edge: row.getBoundingClientRect().right, said: row.innerText};
+        }"""
+    )
+    context.close()
+    assert "Загрузки" in seen["said"], seen
+    assert seen["over"] <= 0 and seen["end"] <= seen["edge"] + 0.5, seen
+
+
+def test_a_deleted_playlist_is_said_on_the_tab(browser, tmp_path: Path) -> None:
+    """Polish 4: after the second press the page went to the tab and the playlist was just
+    gone. Delete carries the name, and the tab says what went, once."""
+    context, page, thrown = opened(browser, tmp_path, "?playlist=1")
+    went: list[str] = []
+    page.on("request", lambda request: went.append(request.url))
+    page.locator(".pl-more").click()
+    away = page.locator(".pl-menu .danger")
+    away.click()
+    away.click()
+    page.wait_for_timeout(500)
+    context.close()
+    assert not thrown, thrown
+    assert any("/playlists?deleted=Kitchen" in url for url in went), went
+
+    context, page, thrown = opened(browser, tmp_path, "?deleted=Kitchen")
+    page.wait_for_selector("#lists-said:not([hidden])")
+    said = page.locator("#lists-said").text_content()
+    role = page.locator("#lists-said").get_attribute("role")
+    left = page.evaluate("() => location.search")
+    context.close()
+    assert not thrown, thrown
+    assert said == "Deleted \u2068Kitchen\u2069."
+    assert role == "status"
+    assert "deleted" not in left, "a reload does not say it again"
+
+
+def test_the_sheet_s_choice_says_its_name_and_count_apart(browser, tmp_path: Path) -> None:
+    """Polish 5: a screen reader heard "Kitchen2 texts", the name and count one run."""
+    context, page, thrown = opened(browser, tmp_path, "?add=jonah&title=Jonah")
+    page.wait_for_selector("#choose .named")
+    heard = page.evaluate(
+        "() => document.querySelector('#choose .named').textContent.replace(/\\s+/g, ' ')"
+    )
+    drawn = page.evaluate(
+        "() => document.querySelector('#choose .named .unseen').getBoundingClientRect().width"
+    )
+    context.close()
+    assert not thrown, thrown
+    assert heard.strip() == "Kitchen · 2 texts", heard
+    assert drawn <= 1, "said, not drawn"
+
+
+def test_from_targum_s_share_stays_on_one_line_at_a_desk(browser, tmp_path: Path) -> None:
+    """Polish 7: at 1440 the From targum card wrapped "60% known" onto two lines beside
+    Open. The bar takes the column and the share keeps to one line."""
+    sets = [
+        {
+            "id": "s1",
+            "name": "מילים ראשונות",
+            "nameLanguage": "he",
+            "english": "First words",
+            "count": 6,
+            "seconds": 1500,
+            "known": 0.6,
+            "covers": [],
+        }
+    ]
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        f"""
+        const SETS = {json.dumps(sets)};
+        const before = window.fetch;
+        window.fetch = (url, opts) => {{
+          if (String(url).split('?')[0].endsWith('/playlists.json') && !(opts && opts.method === 'POST')) {{
+            return Promise.resolve(new Response(JSON.stringify(
+              {{playlists: [CARD], current: null, targum: SETS}})));
+          }}
+          return before(url, opts);
+        }};
+        """,
+    )
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.wait_for_selector("#from-targum:not([hidden]) .pl-share")
+    lines = page.evaluate(
+        """() => {
+          const share = document.querySelector('.pl-targum-card .pl-share');
+          const tall = parseFloat(getComputedStyle(share).lineHeight) ||
+            parseFloat(getComputedStyle(share).fontSize) * 1.3;
+          return share.getBoundingClientRect().height / tall;
+        }"""
+    )
+    context.close()
+    assert not thrown, thrown
+    assert lines < 1.5, lines
+
+
+def test_offline_the_tab_says_where_saved_playlists_are_once(browser, tmp_path: Path) -> None:
+    """Polish 8: offline with the page open, the tab drew a clay fault under the band that
+    already says so. It says one quiet line, with the way to Saved on this device, and
+    asks again when the connection is back."""
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        """
+        Object.defineProperty(navigator, 'onLine', {get: () => window.ONLINE === true});
+        const before = window.fetch;
+        window.fetch = (url, opts) => window.ONLINE === true
+          ? before(url, opts) : Promise.reject(new TypeError('offline'));
+        """,
+        wait="#fault:not([hidden])",
+    )
+    panels = page.locator("#fault .fault-panel").count()
+    said = page.locator("#fault .pl-away").text_content()
+    href = page.locator("#fault .pl-away a").get_attribute("href")
+    page.evaluate("() => { window.ONLINE = true; window.dispatchEvent(new Event('online')); }")
+    page.wait_for_selector("#playlists .pl-card")
+    gone = page.locator("#fault").is_hidden()
+    context.close()
+    assert not thrown, thrown
+    assert panels == 0, "no second fault under the band"
+    assert said == "Playlists you saved are under Saved on this device."
+    assert href.startswith("/you/saved")
+    assert gone

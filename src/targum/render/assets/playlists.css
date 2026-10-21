@@ -242,6 +242,12 @@ body.playlists main { gap: 1.75rem; }
   min-inline-size: 0;
 }
 .pl-targum-name { font-family: var(--reading); font-size: 1.0625rem; overflow-wrap: anywhere; }
+/* The known bar takes the column's width under the facts, and the share stays on one
+   line: at a desk a fixed 6rem bar beside Open wrapped "60% known" onto two
+   (targum-internal#474, polish 7). */
+.pl-targum-what .pl-known { display: flex; }
+.pl-targum-what .pl-bar { inline-size: auto; flex: 1 1 auto; min-inline-size: 2rem; }
+.pl-targum-what .pl-share { white-space: nowrap; }
 
 /* --- one playlist ----------------------------------------------------------------- */
 
@@ -674,10 +680,12 @@ a.item-title:hover { text-decoration: underline; }
   .pl-sheet-shut { inline-size: 44px; block-size: 44px; }
   a.item-title,
   .pl-back,
-  .pl-add-link { position: relative; }
+  .pl-add-link,
+  .pl-away a { position: relative; }
   a.item-title::after,
   .pl-back::after,
-  .pl-add-link::after {
+  .pl-add-link::after,
+  .pl-away a::after {
     content: "";
     position: absolute;
     inset-inline: 0;
@@ -801,6 +809,10 @@ body.pl-one-open .page-title { display: none; }
 .pl-fault[hidden] { display: none; }
 .pl-slow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 1.5rem; color: var(--ink-soft); }
 .pl-fault { margin: 1.5rem 0; }
+/* Offline: one quiet line, not a second fault under the band (polish 8). */
+.pl-away { margin: 0; color: var(--ink-soft); }
+.pl-away a { color: var(--teal); font-weight: 600; text-decoration: none; }
+.pl-away a:hover { text-decoration: underline; }
 /* What the grip does, said where a mouse is (B5). A thumb drags it without being told. */
 .pl-reorder-note { margin: 0.25rem 0 0.75rem; color: var(--ink-soft); font-size: 0.875rem; }
 @media (hover: none) and (pointer: coarse) {

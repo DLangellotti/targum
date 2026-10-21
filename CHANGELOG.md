@@ -5,6 +5,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Fixed
+- Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
+  order were one setting under two names and two drawings: both say "Play in order" and
+  are the same switch. An empty Saved page heads its line "Saved by you", not "Saved
+  automatically" beside "Saving automatically". Your targums' four tabs fit a phone in
+  Russian. Deleting a playlist says "Deleted {name}." on the tab. A screen reader hears a
+  playlist's name and count apart in the sheet and the menu. Recent texts' 3, 5 and 10
+  and the playlist switch are 44px across under a thumb. From targum's known share keeps
+  to one line at a desk. Offline, the tab says where the saved playlists are, in one
+  quiet line instead of a second fault, and asks again when the connection is back.
+
 ### Changed
 - CI cancels a branch's or a PR's run when a newer push to the same ref arrives, so a
   round of fixes queues one run. Master's runs are never cancelled, because a deploy

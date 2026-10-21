@@ -1624,6 +1624,10 @@ body .site-footer { max-inline-size: var(--column); }
   }
   .tabs::-webkit-scrollbar { display: none; }
   .tab { flex: none; padding-inline: 0.75rem; }
+  /* Your targums' four fit a phone in Russian too: «Загрузки» was cut at the edge, with
+     nothing to say the row scrolls (targum-internal#474, polish 3). */
+  .yours-tabs { gap: 0.25rem; }
+  .yours-tabs .tab { padding-inline: 0.5rem; }
 }
 
 /* --- a card: `.card` (and `.panel`, its older name) ----------------------------------

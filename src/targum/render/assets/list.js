@@ -1167,7 +1167,7 @@
   window.TargumList.choosePlayOn = function (on) {
     choosePlayOn(on);
     Array.prototype.forEach.call(document.querySelectorAll(".list-play-on"), function (one) {
-      one.setAttribute("aria-pressed", on ? "true" : "false");
+      one.setAttribute("aria-checked", on ? "true" : "false");
     });
   };
 
@@ -1178,15 +1178,25 @@
     var press = document.createElement("button");
     press.type = "button";
     press.className = "list-play-on";
-    press.textContent = t("reader.list.play-on", "Play on");
+    /* One setting, one name and one drawing (targum-internal#474, polish 2): the foot
+       says what Up next says, "Play in order", and is the same switch, its track in the
+       primary while it is on. */
+    press.setAttribute("role", "switch");
+    var said = document.createElement("span");
+    said.textContent = t("reader.list.play-on", "Play in order");
+    press.appendChild(said);
+    var track = document.createElement("span");
+    track.className = "list-sw";
+    track.setAttribute("aria-hidden", "true");
+    press.appendChild(track);
     press.title = t("reader.list.play-on-title", "When a recording ends, the next one starts");
-    press.setAttribute("aria-pressed", playOn() ? "true" : "false");
+    press.setAttribute("aria-checked", playOn() ? "true" : "false");
     press.addEventListener("click", function () {
-      var on = press.getAttribute("aria-pressed") !== "true";
+      var on = press.getAttribute("aria-checked") !== "true";
       choosePlayOn(on);
       // Every copy: the foot's, and the one among the picture's keys in Theatre.
       Array.prototype.forEach.call(document.querySelectorAll(".list-play-on"), function (one) {
-        one.setAttribute("aria-pressed", on ? "true" : "false");
+        one.setAttribute("aria-checked", on ? "true" : "false");
       });
     });
     return press;

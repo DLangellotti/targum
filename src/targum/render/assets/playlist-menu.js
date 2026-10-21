@@ -205,6 +205,12 @@
       name.className = "pm-label";
       name.textContent = one.name;
       what.appendChild(name);
+      // Heard, not seen: the name and the count were one run to a screen reader
+      // (targum-internal#474, polish 5).
+      var apart = document.createElement("span");
+      apart.className = "unseen";
+      apart.textContent = " · ";
+      what.appendChild(apart);
       var count = document.createElement("span");
       count.className = "pm-count";
       var facts = [sayCount(one.count)];

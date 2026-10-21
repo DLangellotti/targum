@@ -160,6 +160,9 @@
     var name = isolated(one.name);
     name.className = "name";
     press.appendChild(name);
+    // Heard, not seen: without it a screen reader ran "Kitchen4 texts" together
+    // (targum-internal#474, polish 5).
+    press.appendChild(element("span", "unseen", " · "));
     press.appendChild(element("span", "count", textCount(one.count)));
     return press;
   }
@@ -584,6 +587,16 @@
       holder.appendChild(card(one, answer.current));
     });
     holder.appendChild(newCard());
+    // Arrived from a playlist's Delete: say so once, then drop it from the address so a
+    // reload does not say it again.
+    var gone = query.get("deleted");
+    if (gone !== null) {
+      // The name in isolates, so a Hebrew name keeps the full stop where it belongs.
+      say("lists-said", t("playlists.deleted", "Deleted {name}.", { name: "\u2068" + gone + "\u2069" }));
+      query.delete("deleted");
+      var rest = query.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+    }
   }
 
   /* --- one playlist ---------------------------------------------------------------- */
@@ -798,7 +811,8 @@
       if (away.getAttribute("data-asking") === "1") {
         ask("/playlists/" + one.id, { do: "gone" }).then(function (answer) {
           if (answer.error) return say("one-said", plainly(answer), true);
-          location.href = keyed("/playlists");
+          // The tab says what went (targum-internal#474, polish 4), not just an absence.
+          location.href = keyed("/playlists?deleted=" + encodeURIComponent(one.name || ""));
         });
         return;
       }
@@ -1021,7 +1035,37 @@
     }
   }
 
+  /* Offline, the band at the top already says so, so a second fault under it is one too
+     many (targum-internal#474, polish 8): one quiet line says where the saved playlists
+     are, and the page asks again when the connection is back. */
+  function away() {
+    var holder = at("fault");
+    holder.textContent = "";
+    holder.hidden = false;
+    var line = element("p", "note pl-away");
+    var said = t("playlists.offline-saved", "Playlists you saved are under {saved}.");
+    var cut = said.indexOf("{saved}");
+    var link = element("a", "", t("playlists.saved-link", "Saved on this device"));
+    link.href = keyed("/you/saved");
+    if (cut < 0) {
+      line.textContent = said + " ";
+      line.appendChild(link);
+    } else {
+      line.appendChild(document.createTextNode(said.slice(0, cut)));
+      line.appendChild(link);
+      line.appendChild(document.createTextNode(said.slice(cut + 7)));
+    }
+    holder.appendChild(line);
+  }
+  window.addEventListener("online", function () {
+    if (at("fault").querySelector(".pl-away")) load();
+  });
+
   function arrived(answer, where) {
+    if (answer.status === 0 && navigator.onLine === false) {
+      away();
+      return false;
+    }
     if (answer.status === 0) {
       // Nothing answered: not the same as not being signed in. The panel's own press says
       // Try again, so the sentence does not (ling-en's rule).
