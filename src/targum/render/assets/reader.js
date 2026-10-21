@@ -4632,6 +4632,11 @@ var targumReader = function () {
         return kept ? role + " · " + kept : role;
       }
       var person = personWord(line);
+      // A Hebrew third person is its meaning again (הוא, "he": he), and DICTA files a
+      // demonstrative there too, so a bare "they" under "these" read as a mistranslation
+      // (targum-internal#489). The first and second keep theirs: "you (m, pl)" says what
+      // "you" cannot.
+      if (!inCase && language === "he" && feat(line, "Person") === "3") return "";
       if (!inCase) return person;
       return (person || gt("reader.grammar.pronoun", "pronoun")) + " · " + inCase;
     }
@@ -6434,7 +6439,10 @@ var targumReader = function () {
       // keeps in front of a verb's parsing, the lying plural after a noun's gender.
       var cite = citations[index] || "";
       var lying = plurals[index] || "";
-      if (cite) usage = usage ? cite + " · " + usage : cite;
+      // The citation leads a parse and is never the whole line: alone, "Here: לקחת" names
+      // the infinitive as if it were the word in front of you, and on an infinitive it
+      // only says the word again (targum-internal#489).
+      if (cite && usage && bareOf(cite) !== bareOf(word.textContent)) usage = cite + " · " + usage;
       var rule = endingLine(grammarHere, endings[index]);
       if (rule) usage = usage ? usage + " · " + rule : rule;
       if (lying) {
@@ -7079,7 +7087,13 @@ var targumReader = function () {
   function watchGrowth(element) {
     if (element._watched || typeof ResizeObserver !== "function") return;
     element._watched = true;
-    new ResizeObserver(function () {
+    var asked = false;
+    // Placed again in the next frame, not inside the observer: placing caps a card that
+    // has run past its room, and a card that shrinks inside the callback that watched it
+    // grow is what the browser reports as "ResizeObserver loop completed with
+    // undelivered notifications" (beta triage, 2026-10-21).
+    function again() {
+      asked = false;
       var near = element._near;
       if (!near || element.hidden || !roomy.matches) return;
       // Only growth that came after the placing; the cap placing sets is not news.
@@ -7092,6 +7106,11 @@ var targumReader = function () {
         width: near.width,
         height: near.height,
       });
+    }
+    new ResizeObserver(function () {
+      if (asked) return;
+      asked = true;
+      window.requestAnimationFrame(again);
     }).observe(element);
   }
 
