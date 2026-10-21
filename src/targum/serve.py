@@ -1703,6 +1703,10 @@ class Deck:
 
 #: How long an Anki deck waits to be fetched before it is thrown away, in milliseconds.
 ANKI_KEPT_MS = 60 * 60 * 1000
+#: How long a deck may be "making" before it is taken for stuck and thrown away, so a
+#: thread that died never holds the person's one deck for good (qa on #854). 5,000 clips
+#: made one after another take well under this.
+ANKI_STUCK_MS = 6 * 60 * 60 * 1000
 #: One deck at a time a person: the check and the start are one step under this lock.
 ANKI_LOCK = threading.Lock()
 
@@ -9662,13 +9666,18 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"id": deck.id, **self._deck_said(deck)})
 
     def _decks_expire(self) -> None:
-        """Throw away decks nobody fetched within `ANKI_KEPT_MS`, file and all."""
-        cutoff = now() - ANKI_KEPT_MS
-        for deck in list(self.library.decks.values()):
-            if deck.state != "making" and deck.made_at < cutoff:
-                if deck.path is not None:
-                    deck.path.unlink(missing_ok=True)
-                self.library.decks.pop(deck.id, None)
+        """Throw away decks nobody fetched within `ANKI_KEPT_MS`, file and all, and any
+        still "making" past `ANKI_STUCK_MS`. Under `ANKI_LOCK`, so the walk never meets a
+        deck being added (qa on #854)."""
+        moment = now()
+        with ANKI_LOCK:
+            for deck in list(self.library.decks.values()):
+                stale = deck.state != "making" and deck.made_at < moment - ANKI_KEPT_MS
+                stuck = deck.state == "making" and deck.made_at < moment - ANKI_STUCK_MS
+                if stale or stuck:
+                    if deck.path is not None:
+                        deck.path.unlink(missing_ok=True)
+                    self.library.decks.pop(deck.id, None)
 
     def _anki_made(self, owner: int) -> int:
         """New sounds this person's Anki exports have had made this month: off the job
@@ -9832,6 +9841,7 @@ class Handler(BaseHTTPRequestHandler):
             "silent": deck.silent,
             "refused": deck.note == "refused",
             "capped": deck.note == "cap",
+            "stopped": deck.note == "claim",
         }
 
     def _deck_owned(self, query: dict[str, list[str]]) -> Deck | None:

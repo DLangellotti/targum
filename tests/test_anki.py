@@ -238,6 +238,7 @@ def test_making_stops_at_the_claim(
     done = wait(port, token, cookie, started["id"])
     # Claimed 6 s; the second clip brings the made seconds to 10, so the third is not made.
     assert len(said) == 2 and done["silent"] == 1, (said, done)
+    assert done["stopped"] is True and done["capped"] is False, "the page is told why"
 
 
 def test_the_deck_is_the_words_on_screen(
@@ -272,3 +273,43 @@ def test_a_capped_deck_says_so(
         port, "POST", f"/account/anki?k={token}", {"language": "he"}, cookie=cookie
     )
     assert wait(port, token, cookie, started["id"])["capped"] is True
+
+
+def test_four_words_are_said_and_five_are_not(
+    served: tuple[int, str, Path], postbox: Postbox, voice: list[str]
+) -> None:
+    """`/say-word`'s own guard: one word, or the few a fixed expression is, at most four."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    four, five = "בית ספר של העיר", "בית ספר של העיר הגדולה"
+    keep(port, token, cookie, ("ארבע", four, 2), ("חמש", five, 2))
+    _, started, _ = call(
+        port, "POST", f"/account/anki?k={token}", {"language": "he"}, cookie=cookie
+    )
+    done = wait(port, token, cookie, started["id"])
+    assert voice == [four] and done["silent"] == 1, (voice, done)
+
+
+def test_a_deck_stuck_making_is_thrown_away(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa on #854: a thread that died leaves its deck "making", which held the person's
+    one deck for good. Past `ANKI_STUCK_MS` it goes; a deck still young stays."""
+    from types import SimpleNamespace
+
+    from targum import serve
+
+    clock = [10 * serve.ANKI_STUCK_MS]
+    monkeypatch.setattr(serve, "now", lambda: clock[0])
+    old = serve.Deck(id="old", owner=1, total=1, made_at=clock[0] - serve.ANKI_STUCK_MS - 1)
+    young = serve.Deck(id="young", owner=2, total=1, made_at=clock[0] - 1000)
+    done = tmp_path / "done.apkg"
+    done.write_bytes(b"x")
+    fetched = serve.Deck(
+        id="done", owner=3, total=1, state="ready", path=done,
+        made_at=clock[0] - serve.ANKI_KEPT_MS - 1,
+    )  # fmt: skip
+    host = SimpleNamespace(library=SimpleNamespace(decks={d.id: d for d in (old, young, fetched)}))
+    serve.Handler._decks_expire(host)  # type: ignore[arg-type]
+    assert sorted(host.library.decks) == ["young"]
+    assert not done.exists(), "a ready deck nobody fetched goes with its file"

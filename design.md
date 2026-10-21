@@ -417,9 +417,10 @@ A beta reader, 2026-10-21: "I love the export to anki … but it doesn't export 
 (targum-internal#496). David chose the same day:
 
 - **The deck is an `.apkg` the server builds**, in place of the text file the browser
-  wrote. A text import cannot bring media into Anki. The words are the account's own, at
-  the stages the page shows, never a list the page sends, so nothing but a saved word is
-  ever said; the page hands only each card's back as it draws it, which is escaped. The
+  wrote. A text import cannot bring media into Anki. The words are the account's own:
+  the page sends the stages and the words on screen (search and filters and all) and
+  the back of each card as it draws it, and the server keeps only the words the account
+  saves, so nothing but a saved word is ever said; the back is escaped. The
   note is the same as before: the word, its meaning, the level as a tag. A note keeps its
   id across exports, so importing again updates it.
 - **Every word gets its sound, made where it has none**, the way a Hear press makes one
@@ -430,7 +431,9 @@ A beta reader, 2026-10-21: "I love the export to anki … but it doesn't export 
   it; a clip already made costs nothing. A word past the cap, or one the voice cannot say,
   goes in the deck silent.
 - **The reader is told plainly while it is made**: "Making the sounds: 120 of 400 words.
-  Keep this page open." and then "Your deck is ready" with how many have no sound.
+  Keep this page open." and then "Your deck is ready" with how many have no sound, and
+  why: the month's sounds are used, the voice refused, or the deck reached the sounds
+  set aside for it.
   Where the server cannot make it, the text file comes as before, and the line says it
   has no sound. Exports are only offered signed in, so there is always a server to ask.
 - The reader's own Anki button, inside a text, is unchanged: it is a file the reader

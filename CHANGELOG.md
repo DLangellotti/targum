@@ -92,6 +92,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Russian system: «Берейшит», «Шмуэль I», «Млахим I», «Диврей а-Ямим», «Теилим»
   (David, 2026-10-21), and the first portion is «Берейшит» like its book. The 24 missing `.other` plural forms are filled for fractional
   counts.
+- The Anki deck's follow-ups from qa on #854 (targum-internal#496): a deck that stops at
+  the sounds set aside for it says so ("We stopped at the sounds we'd set aside for this
+  deck"), the cap line says "used", a deck stuck "making" for six hours is thrown away so
+  it never holds the reader's one deck, and the decks are walked under their lock.
+
+### Fixed
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
   rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
