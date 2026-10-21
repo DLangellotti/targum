@@ -278,6 +278,15 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "card",
             (_DICTA, "iahltknesset", "governed_precision"),
             lens=True,
+            # Read off the stored syntax, which Biblical text barely has (targum-internal
+            # #454): the reader's lens and the practice keep to modern text.
+            declared_out=(
+                (
+                    "biblical",
+                    "Biblical text carries almost no syntax: 199 of Genesis's 20,753 tokens "
+                    "have a parse, and the floor is IAHLT's modern treebank",
+                ),
+            ),
         ),
         HardSpot(
             "gender and number agreement",

@@ -358,6 +358,17 @@ def test_the_vav_consecutive_is_covered_for_biblical_text_and_declared_out_of_mo
     assert not [b for b in held if b.floor.corpus == "oshb-wlc"], held
 
 
+def test_governed_prepositions_are_covered_for_modern_text_and_declared_out_of_biblical() -> None:
+    """targum-internal#454: the spot is read off the stored syntax, and Biblical text
+    carries almost none. Claimed in modern text, declared out of Biblical with the reason,
+    and still covered by its IAHLT floor."""
+    (spot,) = [s for s in stages.HARD_SPOTS["he"] if s.name == "governed prepositions and et"]
+    assert spot.registers == ("modern",)
+    ((register, why),) = spot.declared_out
+    assert register == "biblical" and "almost no syntax" in why
+    assert stages.facts("he").covered["governed prepositions and et"]
+
+
 def test_a_declaration_without_a_reason_or_out_of_every_register_is_not_covered() -> None:
     from dataclasses import replace
 
