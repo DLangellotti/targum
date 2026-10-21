@@ -234,6 +234,10 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   gap: 0.5rem;
   box-sizing: border-box;
   inline-size: calc(var(--weeks, 12) * (100% - 11 * 0.6rem) / 12 + (var(--weeks, 12) - 1) * 0.6rem);
+  /* One or two weeks are narrower than their dates: "15 окт." ran past the card at 390
+     (qa-claude on #870). Never narrower than the dates, and it grows towards the start. */
+  min-inline-size: max-content;
+  max-inline-size: 100%;
   margin-block-start: 0.35rem;
   margin-inline-start: auto;
   font-size: 0.6875rem;

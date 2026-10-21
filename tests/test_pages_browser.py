@@ -890,12 +890,14 @@ def _progress_with(
     reading: dict | None = None,
     width: int = 390,
     story: dict | None = None,
+    language: str = "en",
+    vocab: dict | None = None,
 ):
     from datetime import date, timedelta
 
     from targum.render.builder import progress_page
 
-    html = progress_page(TOKEN)
+    html = progress_page(TOKEN, language)
     today = date.today()
 
     def row(day: date, language: str, medium: str, **amounts: int) -> dict[str, object]:
@@ -922,14 +924,50 @@ def _progress_with(
 
     context = browser.new_context(viewport={"width": width, "height": 844})
     page = context.new_page()
+    words = vocab or {"a": {"surface": "a", "status": 9, "band": "easy", "at": 1}}
     page.add_init_script(
-        "localStorage.setItem('targum:vocab:he', JSON.stringify({a: {surface: 'a', status: 9,"
-        " band: 'easy', at: 1}})); localStorage.setItem('targum:language', 'he')"
+        f"localStorage.setItem('targum:vocab:he', {json.dumps(json.dumps(words))});"
+        " localStorage.setItem('targum:language', 'he')"
     )
     page.route("http://progress.test/**", answer)
     page.goto(f"http://progress.test/progress?k={TOKEN}")
     page.wait_for_timeout(600)
     return context, page
+
+
+@pytest.mark.parametrize("weeks", [1, 2])
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_progress_week_dates_stay_inside_the_card(browser, language: str, weeks: int) -> None:
+    """qa-claude on #870: with one or two weeks the dates' box was the weeks' width, and at
+    390 in Russian "15 окт." ran past the card's edge. Measured in a browser, because the
+    CSS-string tests could not see it."""
+    from datetime import date, datetime, time, timedelta
+
+    words = {}
+    for back in range(weeks):
+        day = date.today() - timedelta(days=7 * back)
+        at = int(datetime.combine(day, time(12, 0)).timestamp() * 1000)
+        for i in range(3):
+            words[f"w{back}-{i}"] = {"status": 9, "surface": f"w{back}-{i}", "at": at + i}
+    context, page = _progress_with(browser, {}, width=390, language=language, vocab=words)
+    page.wait_for_selector(".progress .weeks-dates span")
+    got = page.evaluate(
+        """() => {
+          const dates = document.querySelector('.progress .weeks-dates');
+          const column = dates.parentElement.getBoundingClientRect();
+          const spans = [...dates.querySelectorAll('span')].map((s) => s.getBoundingClientRect());
+          return {said: dates.textContent, start: Math.min(...spans.map((s) => s.left)),
+                  end: Math.max(...spans.map((s) => s.right)),
+                  left: column.left, right: column.right,
+                  apart: spans.length < 2 || spans[0].right <= spans[1].left,
+                  sideways: document.documentElement.scrollWidth > window.innerWidth};
+        }"""
+    )
+    context.close()
+    assert len(got["said"]) > 0, got
+    assert got["end"] <= got["right"] + 0.5 and got["start"] >= got["left"] - 0.5, got
+    assert got["apart"], got
+    assert not got["sideways"], got
 
 
 SPENT = """() => ({

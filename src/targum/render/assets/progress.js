@@ -622,7 +622,8 @@
     }
     item.appendChild(holder);
     if (end) item.appendChild(el("span", "next-end" + (endLeaf ? " leaf" : ""), end));
-    host.appendChild(item);  return item;
+    host.appendChild(item);
+    return item;
   }
 
   function drawNext(code) {

@@ -17,7 +17,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Fixed
 - Your Progress takes the rest of design's finish-bar polish (targum-internal#471). The
   words-by-week chart keeps this week at the end edge and names its first and last week
-  under the columns. The period chips are tinted pills at the control size. A story's step
+  under the columns, never in a box narrower than the dates, so one or two weeks' dates
+  stay inside the card on a phone in Russian. The period chips are tinted pills at the control size. A story's step
   is §13's label. The Upload row stacks its aside under the term on a phone. A reading
   point focuses with a round ring, and a chart's tip goes under its point where there is
   no room above it.
