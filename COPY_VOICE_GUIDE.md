@@ -68,6 +68,8 @@ code that makes it true. The audit found these five failures most often:
 - A wait is a time, in minutes: "about 4 minutes".
 - Chatting is **included**. Don't put a per-message cost on it.
 - Don't use "free", "price", "quote" or "sale" inside the product. Say "The library still opens" or "uses no credits". Public pages may sell; see §6.
+  The plan name **Free** is the one exception inside the product (§12, "Free and Plan,
+  behind a switch", 2026-10-09).
 - Chatting is "included". The approval page names no allowance (§12, 2026-09-24). Only the /connect FAQ says what it is included in: "your monthly credits". Don't write "uses no credits" for chat: a chat turn is metered.
 
 ## Terminology
@@ -75,26 +77,28 @@ code that makes it true. The audit found these five failures most often:
 | Thing | Say | Don't say (to readers) |
 |---|---|---|
 | The product | targum (lowercase) | Targum, the app |
-| The account page | **Your profile** | You, the profile page (except in the legal text) |
+| The account page | **Your account** | Your profile, You, the profile page (except in the legal text) |
 | Keeping a chat as a text | **Save as a text** | Save as targum |
 | Leaving a mailing | **Unsubscribe** | Stop these emails |
 | A text with its translation held line by line, in the reader's collection | a targum; the collection is **Your targums** | your shelf, your build |
 | Everyone's catalogue | **the library** in a sentence, **Library** as the nav label and page name | the catalogue, the shelf |
 | One item in the library or a playlist | a text | a doc, a book (unless it is one) |
 | Making a text ready | get it ready, make it | build, built, quote |
-| Talking with targum, in the app or in Claude/ChatGPT | **chat**, chatting; the list is **Chats** | conversation (except where it means a dialogue in a scene), check, turn |
+| Talking with targum, in the app or in Claude/ChatGPT | **chat**, chatting; the list is **Chats**; the button and drawer are **Talk to targum** | talk as a noun ("Talk needs the connection"), conversation (except where it means a dialogue in a scene), check, turn |
 | Setting a word's level | mark (just met · getting there · nearly there · known) | rate, score |
 | The `m` toggle that tints unlearned words | highlight | mark |
-| Words the reader has put on their list | **saved** words | kept (still used in the reader's phrase tools — see the audit) |
+| Words the reader has put on their list | **saved** words, save | kept, keep the words (David, 2026-10-18; still in `reader.page.what-you-have-kept-from-this-text` and `print.week.kept`) |
 | The allowance | credits | hours, minutes (as a pool), balance points |
 | Confirming a build or a set that Claude or ChatGPT set up | confirm it on targum | press Start, open it |
 | The weekly publication | the Weekly News Digest; one issue | newsletter |
 | Linking targum to Claude or ChatGPT | connect; the feature is **targum in Claude and ChatGPT** | targum Connect, the MCP, the connector (except in the host's own menus and the public foot's "Install MCP") |
 | A unit of a text you read | section | chunk. (Add and the build card still say “part” for what a build makes first.) |
-| A followed series | follow; the list is **Following** | subscription (kept for billing) |
+| A series, news topic, channel or podcast whose new items come to the reader | **subscribe**, Subscribed, Unsubscribe; the list is **Subscriptions** (in the nav, **Your subscriptions**) | follow, Following (still in `library.see.follow-topic` and `connect.page.subscriptions-says`) |
+| The marks the Masorah wrote for singing the reading | **cantillation marks** | chanting marks (David, 2026-09-30: an in-house coinage; still in 11 `reader.*`, `parasha.*` and `landing.*` keys) |
+| Something the reader brought: pasted, uploaded or linked | **Uploaded**, Uploaded by you; the tab is **Uploads**, the nav button **Upload** | Added, Add (David, 2026-10-21) |
 
 Capitalise named pages as they appear in the nav: Your targums, Your Progress, Library,
-Add. Otherwise use sentence case.
+Upload, Your account. Otherwise use sentence case.
 
 ## Explaining terms
 
@@ -115,6 +119,8 @@ to do the same for binyan and niqqud (`chat/prompts.py`).
   together.
 - Changing English makes the Russian stale, and `test_strings.py` says so. Re-read the
   Russian, fix it if the meaning changed, then stamp it (`scripts/stamp_strings.py`).
+- Russian speaks to the reader as **вы**, lowercase, throughout. «ты» appears only as a
+  grammar label or inside a quotation.
 - Email English is also edited through `scripts/mail_notes.py`. After changing a `mail.*`
   key, `push --force` the notes so they don't carry the old words.
 - `tests/test_brand.py` enforces the lowercase name, no exclamation marks and no emoji. The
