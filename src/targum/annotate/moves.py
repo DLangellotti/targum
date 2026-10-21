@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +91,29 @@ def _named(tables: dict[str, Any]) -> dict[str, Any]:
         sort_keys=True,
     )
     return {"id": hashlib.sha256(body.encode()).hexdigest()[:12], **tables}
+
+
+def gathered(folders: Iterable[Path]) -> dict[str, Any] | None:
+    """What the words of several texts used to be called, as one table, for a reader cut
+    from them: a weekly portion or a day of a cycle is cut from library books and rendered
+    without a re-annotation of its own, so it carries its books' moves or none at all.
+
+    Without this a mark made on a /parasha page after a rename was carried across only if
+    the reader opened a library text with the same move (qa on #836; David, 2026-10-21:
+    the grammar/7 re-read loses no marks). Taken in order, so where two books disagree
+    the first book's move stands, as the cut takes the first book's annotation. None
+    where none of them moved anything."""
+    lemmas: dict[str, str] = {}
+    surfaces: dict[str, str] = {}
+    for folder in folders:
+        held = carried(folder)
+        for was, to in (held.get("lemmas") or {}).items():
+            lemmas.setdefault(was, to)
+        for was, to in (held.get("surfaces") or {}).items():
+            surfaces.setdefault(was, to)
+    if not lemmas and not surfaces:
+        return None
+    return _named({"lemmas": lemmas, "surfaces": surfaces})
 
 
 def keep(folder: Path, now: dict[str, Any]) -> dict[str, Any]:

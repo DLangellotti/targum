@@ -24,7 +24,8 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..parasha.cut import MissingBook
+from ..annotate.moves import gathered
+from ..parasha.cut import MissingBook, library_root
 from ..paths import write_atomic
 from ..render.builder import render
 from .calendar import Day, today, window
@@ -114,6 +115,9 @@ def build(
             # them. A chapter with no recording is silent, as it is in the book.
             recordings_beside=one.cycle in RECITED,
             commentary_words=portion.commentary_words,
+            # And what the books' words used to be called, so marks follow a rename here
+            # as they do in the books themselves (`annotate.moves.gathered`).
+            moves=gathered((library or library_root()) / name for name in portion.books),
         )
         built.setdefault(one.cycle, {})[one.day.isoformat()] = {
             "title": one.title,
