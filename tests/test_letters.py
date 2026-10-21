@@ -182,7 +182,11 @@ def test_the_digest_is_named_and_says_what_this_week_is() -> None:
     assert "lang" not in russian.headers["List-Unsubscribe"], "the one-click POST reads no lang"
 
     quiet = letters.weekly_issue(issue(blurb=""), SITE, "tok")
-    assert quiet.text.startswith("Monday, September 28, 2026"), "no blurb, nothing in its place"
+    # Named in the reader's language over the masthead, which carries the date: the date
+    # was the label too, said twice (targum-internal#470).
+    assert quiet.text.startswith("Weekly News Digest"), "no blurb, nothing in its place"
+    assert "(if you know 1,000 words)" in english.text, "lower case mid-line in the text"
+    assert "If you know 1,000 words" in english.html, "a line of its own in the drawing"
 
 
 def test_the_digest_s_masthead_is_its_hebrew_name_and_the_week() -> None:
@@ -220,6 +224,7 @@ def test_a_ready_mail_is_a_tile_the_title_and_open() -> None:
         parts=4,
         seconds=24 * 60,
     )
+    # Open, as design.md §12 has it (David, 2026-10-21: the button stays Open).
     assert ">Open<" in film.html and ">Watch<" not in film.html
     assert "Ready to watch" in film.html
     assert 'dir="rtl" lang="he"' in film.html, "the title in its own direction"
@@ -247,7 +252,8 @@ def test_the_account_deleted_mail_says_when_what_and_when_the_backups_forget() -
     )
     assert mail.subject == "Your targum account is deleted"
     assert "on October 8, 2026" in mail.text and "on October 15, 2026" in mail.text
-    assert "gone by October 29, 2026" in mail.text and "every 14 days" in mail.text
+    assert "gone by October 29, 2026" in mail.text and "keep 14 days" in mail.text
+    assert "at the end of the 7 days" in mail.text, "the grace period, not a written seven"
     assert "can't restore it" in mail.text and "last email" in mail.text
     assert not mail.headers, "transactional: no list headers"
     russian = letters.account_deleted(
@@ -434,3 +440,22 @@ def test_a_hosted_server_purges_nightly() -> None:
 
     assert "keep_purging_nightly=hosted" in inspect.getsource(cli.serve)
     assert inspect.signature(start).parameters["keep_purging_nightly"].default is False
+
+
+def test_a_saved_link_got_ready_on_targum_says_why_it_came() -> None:
+    """A stranger's saved link, built when they were let in: they never started it, so the
+    foot says where it came from rather than "your text took more than a few minutes"
+    (ling-en, targum-internal#470)."""
+    from targum.letters import build_ready
+
+    gift = build_ready("Ruth", f"{SITE}/reader/r", SITE, "en", asked=False, listen=False, gift=True)
+    assert "saved this link on targum's front page" in gift.text
+    assert "more than a few minutes" not in gift.text
+
+
+def test_the_invitation_carries_its_connect_link_as_a_link() -> None:
+    from targum.letters import invitation
+
+    mail = invitation(SITE, connector=True)
+    assert f'href="{SITE}/connect"' in mail.html, "a link, not escaped text in a paragraph"
+    assert "Connect targum to Claude or ChatGPT" in mail.text

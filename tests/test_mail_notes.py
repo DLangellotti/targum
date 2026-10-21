@@ -63,12 +63,14 @@ def test_a_note_that_drops_a_link_is_refused_and_nothing_is_written(
 ) -> None:
     folder = tmp_path / "vault"
     notes.push(folder)
-    path = folder / "Invitation.md"
+    # The deleted-account mail's day count, since the invitation's link became a block of
+    # its own (targum-internal#470).
+    path = folder / "Deleted.md"
     before = (notes.STRINGS / "en.json").read_text(encoding="utf-8")
     path.write_text(
-        path.read_text(encoding="utf-8").replace("connect it: {link}", "connect it."),
+        path.read_text(encoding="utf-8").replace("the {grace} days", "the seven days"),
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match=r"\{link\}"):
+    with pytest.raises(ValueError, match=r"\{grace\}"):
         notes.pull(folder)
     assert (notes.STRINGS / "en.json").read_text(encoding="utf-8") == before

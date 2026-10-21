@@ -126,7 +126,10 @@ def test_a_reader_hears_once_that_something_waits(tmp_path: Path) -> None:
         store, box, SITE, now_ms=NOW, month_from=NOW - 1000, back=lambda ui: "1 ноября", pause=0
     )
     (mail,) = box.sent
-    assert "Ждёт до 1 ноября" in mail["text"] and f"/subscriptions/{kan}#sub-cap" in mail["text"]
+    assert (
+        "мы подготовим это 1 ноября" in mail["text"]
+        and f"/subscriptions/{kan}#sub-cap" in mail["text"]
+    )
     assert mail["subject"] == "Kan: ⁨первое⁩", "one thing, named"
     store.add_sub_items(kan, [{"key": "v2", "title": "второе", "link": "https://youtu.be/v2"}])
     store.set_sub_item(kan, "v2", state="waiting", why="cap")
