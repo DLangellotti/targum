@@ -3983,6 +3983,51 @@ What it does not overturn: the strip is still the transport, with every control 
 the keyboard's letters are unchanged; §8's 44px reach holds for every new press, and
 `test_brand.py` lists them.
 
+### Olim have a door of their own, and the front door is what it was — 2026-09-29
+
+The ICP set on 2026-09-29 names the first reader: an educated oleh, English- or
+Russian-speaking, whose ulpan ended and whose Hebrew stopped where it did
+(targum-internal#384). The front door speaks to every learner at once, modern and
+biblical, at any level, and an oleh reading it has to work out whether it is for them.
+"I think we should not change the landing page," David wrote, "but we can have a new
+landing page just for olim."
+
+So `/aliyah` stands beside the front door, and the front door does not change and does
+not point at it. It is the address a post in an olim group carries.
+
+- **It is drawn from the front door's parts**: the bar, the waitlist's form, the foot and
+  `landing.css`, which gains three small rules for it and no new value. The bar's places
+  are the front door's own, so they lead there.
+- **The headline is what they would pay for**, their own Hebrew: "Learn Hebrew from your
+  own life in Israel." It takes the landing display step, as the one headline of a public
+  landing page (2026-08-31, below).
+- **It answers the four moments that send an oleh looking**: ulpan ended, the letter that
+  cannot be read, living beside the language, and apps made for children. One tile each.
+- **The Hebrew it shows is four lines an oleh is sent**, from the bank, the school, the
+  building and the clinic, pointed, with the page's language under each.
+- **It leaves the Torah to the front door.** No section on it and no "one list, from
+  Genesis to the news": the GTM note had already said that line reads as a bible tool to
+  an oleh.
+- **It carries no script.** Nothing on it moves, so it is the one public page that is
+  only a page.
+- **English and Russian**, addressed as every public page is. One sentence is adapted and
+  not translated: the English reader gets by in English and the Russian reader in
+  Russian.
+- **It is there while the front door is** and 404 while it is not, because its one ask is
+  the waitlist. Somebody with an account is not asked to join (§6).
+
+Every claim on it is one the product keeps today: a photo of a page and a screenshot of a
+chat both become a text.
+
+**Redrawn on the rebuilt front door, 2026-10-02.** The new front door (#555) took out
+most of the parts this page was drawn from, and David chose to redraw it on the new ones
+rather than keep the old sheet: the hero with the waitlist where the front door has its
+box, and the four lines beside it where the word card stands; "After ulpan" as the How
+cards, two by two; the band of tiles on ink; the questions; and the front door's ending.
+The band and the ending are partials both pages include. The ulpan ladder's part went,
+as it did on the front door. It still carries no script, so the band's waveforms are
+written into the markup rather than drawn by one.
+
 ### The focus ring on the public pages is teal — 2026-10-02
 
 A design review measured the gold ring at 2.31:1 on the desk's ground and 2.80:1 on its

@@ -1,0 +1,147 @@
+{#- The olim's own door, at `/aliyah` (targum-internal#385, 2026-09-29).
+
+    The front door speaks to every learner at once, and David kept it that way. This is
+    the page for one of them: somebody living in Israel, or on the way, whose ulpan ended
+    and whose Hebrew stopped where it did. It says so in its first line, and it is the
+    address a post in an olim group carries.
+
+    Drawn from the front door's own parts and its one stylesheet, and held to the same
+    rules: everything is baked in, nothing is fetched (§11), and the waitlist's form is a
+    plain post that works with JavaScript off. It carries no script at all: nothing on it
+    moves. Since 2026-10-02 it is drawn from the rebuilt front door (#555): the hero with
+    a card beside it, the cards of "How you learn", the band of tiles on ink, and the
+    waitlist as the ending, so the two pages read as one site.
+
+    What it leaves out is on purpose. No Torah, no "one list, from Genesis to the news":
+    the GTM note had already said that line reads as "bible tool" to an oleh.
+
+    Every claim is one the product keeps today: a photo of a page and a screenshot of a
+    chat both become a text (`ingest/pages.py`). -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('landing.css') }}</style>
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="landing">
+{#- The bar's places are the front door's, so `home` is its address: this page has no
+    parts by those names, and the front door is where they are. -#}
+{% with bar_class = 'bar', home = '/', here = '/aliyah' %}{% include '_front_bar.html.j2' %}{% endwith %}
+
+<main id="top">
+  {#- The hero as the front door draws it, with its one call to action, the waitlist,
+      where the front door has its box; beside it, where the front door's word card
+      stands, four lines an oleh is sent. -#}
+  <div class="col top olim">
+    <div class="hero">
+      <div class="headline">
+        <h1>{{ t("aliyah.page.learn-hebrew-from-your-own-life-in-israel", "Learn Hebrew from your own life in Israel.") }}</h1>
+        <p class="lede">{{ t("aliyah.page.bring-a-video-a-voice-note-or-a", "Bring a video, a voice note or a photo of a letter. Every line arrives with vowels and English.") }}</p>
+        {%- if not signed_in|default(false) %}
+        {% include '_join_form.html.j2' %}
+        {%- endif %}
+      </div>
+      <ul class="facts">
+        <li>{{ t("aliyah.page.for-after-ulpan", "For after ulpan") }}</li>
+        <li>{{ t("landing.page.upload-any-text-or-media", "Upload any text or media") }}</li>
+        <li>{{ t("landing.page.hundreds-of-free-texts-and-videos", "Hundreds of free texts and videos") }}</li>
+        <li>{{ t("landing.page.no-credit-card-required", "No credit card required") }}</li>
+      </ul>
+    </div>
+    {#- Four lines of the Hebrew an oleh is sent, one from each part of the week: money,
+        school, home and health. The Hebrew is the page's own and stands here pointed;
+        what is under each line goes through the catalogue. -#}
+    <figure class="letters" aria-label="{{ t("aliyah.page.examples-hebrew-from-everyday-life", "Examples: Hebrew from everyday life") }}">
+      <div class="letter">
+        <span class="label">{{ t("aliyah.page.from-the-bank", "From the bank") }}</span>
+        <p class="he">כַּרְטִיס חָדָשׁ נִשְׁלַח אֵלֶיךָ בַּדֹּאַר.</p>
+        <p class="letter-en">{{ t("aliyah.page.a-new-card-was-sent-to-you-by", "A new card was sent to you by post.") }}</p>
+      </div>
+      <div class="letter">
+        <span class="label">{{ t("aliyah.page.from-the-school", "From the school") }}</span>
+        <p class="he">מָחָר אֵין לִמּוּדִים.</p>
+        <p class="letter-en">{{ t("aliyah.page.there-is-no-school-tomorrow", "There is no school tomorrow.") }}</p>
+      </div>
+      <div class="letter">
+        <span class="label">{{ t("aliyah.page.from-the-building", "From the building") }}</span>
+        <p class="he">הַמַּעֲלִית לֹא תַּעֲבֹד מָחָר בַּבֹּקֶר.</p>
+        <p class="letter-en">{{ t("aliyah.page.the-lift-will-not-work-tomorrow-morning", "The lift will not work tomorrow morning.") }}</p>
+      </div>
+      <div class="letter">
+        <span class="label">{{ t("aliyah.page.from-the-clinic", "From the clinic") }}</span>
+        <p class="he">הַתּוֹר שֶׁלְּךָ בְּיוֹם שְׁלִישִׁי בְּשָׁעָה עֶשֶׂר.</p>
+        <p class="letter-en">{{ t("aliyah.page.your-appointment-is-on-tuesday-at-ten", "Your appointment is on Tuesday at ten.") }}</p>
+      </div>
+    </figure>
+  </div>
+
+  <section class="part" id="after-ulpan">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("aliyah.page.after-ulpan", "After ulpan") }}</p>
+        <h2>{{ t("aliyah.page.ulpan-ended-your-hebrew-can-keep-going", "Ulpan ended. Your Hebrew can keep going.") }}</h2>
+        <p>{{ t("aliyah.page.you-get-by-in-english-and-the-hebrew", "You get by in English, and the Hebrew around you stays just out of reach. targum starts from that Hebrew, and from the words you already know.") }}</p>
+      </div>
+      {#- The four moments that send an oleh looking, as the front door's "How you learn"
+          cards, two by two. -#}
+      <ul class="how four">
+        <li class="how-card">
+          <h3>{{ t("aliyah.page.start-where-ulpan-stopped", "Start where ulpan stopped") }}</h3>
+          <p>{{ t("aliyah.page.tell-us-how-much-hebrew-you-know-and", "Tell us how much Hebrew you know, and tick off the words you have. Everything is sorted from there, so you never begin at aleph again.") }}</p>
+        </li>
+        <li class="how-card">
+          <h3>{{ t("aliyah.page.read-what-arrives", "Read what arrives") }}</h3>
+          <p>{{ t("aliyah.page.a-letter-from-the-bank-a-message-from", "A letter from the bank, a message from the school, a notice in the stairwell. Take a photo or a screenshot, and read it line by line.") }}</p>
+        </li>
+        <li class="how-card">
+          <h3>{{ t("aliyah.page.follow-what-everyone-is-talking-about", "Follow what everyone is talking about") }}</h3>
+          <p>{{ t("aliyah.page.this-week-s-news-in-easy-hebrew-and", "This week’s news in easy Hebrew, and any video or podcast you paste a link to, with every word one tap away.") }}</p>
+        </li>
+        <li class="how-card">
+          <h3>{{ t("aliyah.page.made-for-adults", "Made for adults") }}</h3>
+          <p>{{ t("aliyah.page.no-points-and-no-drills-you-read-real", "No points and no drills. You read real Hebrew, and we keep count of every word you learn.") }}</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="part" id="your-own">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.your-own-hebrew", "Your own Hebrew") }}</p>
+        <h2>{{ t("aliyah.page.if-it-arrived-in-hebrew-you-can-read", "If it arrived in Hebrew, you can read it here.") }}</h2>
+        <p>{{ t("landing.page.paste-a-link-or-drop-a-file-whatever", "Paste a link or drop a file. Recordings are written out word by word and timed to the voice, so each word lights up as it’s said.") }}</p>
+      </div>
+      {% include '_bring_band.html.j2' %}
+    </div>
+  </section>
+
+  <section class="part" id="questions">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.questions", "Questions") }}</p>
+        <h2>{{ t("landing.page.before-you-join", "Before you join.") }}</h2>
+      </div>
+      <div class="faq">
+        <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("aliyah.page.if-you-live-in-israel-or-are-on", "If you live in Israel, or are on your way, and know the alphabet, yes. It’s made for the point where ulpan or an app stops: you know the letters and some words, and the Hebrew around you is still too hard.") }}</p></details>
+        <details><summary>{{ t("aliyah.page.can-i-bring-a-letter-or-a-message", "Can I bring a letter or a message?") }}</summary><p>{{ t("aliyah.page.yes-take-a-photo-of-the-letter-or", "Yes. Take a photo of the letter or a screenshot of the chat, and add it. We write out the Hebrew with its vowels and put English under every line.") }}</p></details>
+        <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring is yours, and we never train a model on it.") }}</p></details>
+        <details><summary>{{ t("aliyah.page.does-it-replace-ulpan", "Does it replace ulpan?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "It’s the other half of one. A course teaches you the rules; targum gives you real Hebrew to practise them on, every day, and keeps count of every word you learn.") }}</p></details>
+        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.") }}</p></details>
+        <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
+      </div>
+    </div>
+  </section>
+
+  {#- The front door's ending. Not to somebody who has already chosen targum (§6; copy
+      audit, 2026-09-28). -#}
+  {%- if not signed_in|default(false) %}
+  {% include '_join_end.html.j2' %}
+  {%- endif %}
+</main>
+
+{% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
+</body>
+</html>

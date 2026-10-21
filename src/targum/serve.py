@@ -74,6 +74,7 @@ from .render.builder import (
     LINK_PREVIEW,
     LINK_PREVIEW_ROUTE,
     about_page,
+    aliyah_page,
     approve_page,
     asset_files,
     asset_set,
@@ -651,6 +652,9 @@ OPEN_TO_STRANGERS = frozenset(
         "/waitlist",
         "/waitlist/confirm",
         "/waitlist/stop",
+        # The olim's own door (targum-internal#385): a page in front of the door, read
+        # by somebody who has no account yet, like the front door it stands beside.
+        "/aliyah",
         # The front page's box (targum-internal#399): a stranger pastes a link and is
         # told what it is. Describes and builds nothing.
         "/try",
@@ -7233,6 +7237,8 @@ class Handler(BaseHTTPRequestHandler):
         # `/connect` is here because it is a page a stranger searches for by name —
         # "targum ChatGPT" is how somebody finds out this exists at all (#80).
         paths = ["/", "/about", "/how", "/library"]
+        if front_door_is_open():
+            paths.append("/aliyah")
         if connector_is_open():
             paths.append("/connect")
         if legal_is_public():
@@ -7297,7 +7303,7 @@ class Handler(BaseHTTPRequestHandler):
         # do have one. The portions and today's page of each cycle since their names and
         # headings were said in Russian too (#188).
         bilingual = (
-            {"/", "/library", "/connect", "/how"}
+            {"/", "/aliyah", "/library", "/connect", "/how"}
             | {path for path in paths if path.startswith(("/library/", "/parasha/"))}
             | {f"/{cycle.slug}" for cycle in daily_cycles()}
             | set(weekly_paths)
@@ -8220,6 +8226,19 @@ class Handler(BaseHTTPRequestHandler):
                 signed_in=self._person() is not None,
                 asked=self._asked(),
                 token=self._key_if_given(),
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+        # The olim's own door (targum-internal#385). There while the front door is, and
+        # 404 while it is not: its one ask is the waitlist, and a page asking for an
+        # address the waitlist will not take is a page that should not answer.
+        if route == "/aliyah":
+            if not front_door_is_open():
+                return self._send(404, b"not found", "text/plain")
+            page = aliyah_page(
+                language=self._public_language(),
+                address=self.address,
+                asked=self._asked(),
+                signed_in=self._person() is not None,
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:

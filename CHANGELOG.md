@@ -72,6 +72,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (it was cut at 16: "something…" is now "something waited for").
 
 ### Added
+- `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front
+  door, which does not change: "Learn Hebrew from your own life in Israel", the four
+  moments that send an oleh looking, four lines of everyday Hebrew from the bank, the
+  school, the building and the clinic, the places targum reads, six questions and the
+  waitlist, drawn on the rebuilt front door's parts.
+  No Torah section. English and Russian, in the sitemap, and there only while the front
+  door is open. It is drawn from the front door's parts and carries no script. design.md
+  §12, "Olim have a door of their own".
+
 - Next Shabbat's portion at the end of the last aliyah (targum-internal#416): "Next
   Shabbat · נֹחַ · Noach", linking that portion's reader, and under it "You already know
   109 of its words", counted against the reader's own word list (`targum:vocab:he`) by
