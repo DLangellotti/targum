@@ -1529,12 +1529,112 @@ def test_a_present_verb_is_filed_under_its_past() -> None:
     assert _lemma("יושב", "יושבת", "יושבת", "VERB", present=True) == "ישב"
     # The same letters as a pu'al or hif'il past, which DICTA does not call a participle.
     assert _lemma("דובר", "דובר", "דובר", "VERB") == "דובר"
-    assert _lemma("הודה", "הודה", "הודה", "VERB", present=True) == "הודה"
+    assert _lemma("הודה", "מודה", "מודה", "VERB", present=True) == "הודה"
     assert verb_shape("לקח") == ("פעל", "לקח")
     # A doubled root's C + ו + C + C is a past, and an מ first is a hof'al as often.
     assert _lemma("סובב", "מסובב", "מסובב", "VERB", present=True) == "סובב"
     assert _lemma("מוכר", "מוכרים", "מוכרים", "VERB", present=True) == "מוכר"
     assert _lemma("שומר", "שומר", "שומר", "NOUN") == "שומר", "only a verb"
+
+
+@pytest.mark.parametrize(
+    ("lemma", "base", "said"),
+    [
+        # A ה first or a doubled root, where the word opens on the lemma's own first
+        # letter, is a qal present (ling-he on #836): 2,097 tokens stayed participles.
+        ("הולך", "הולכים", "הלך"),
+        ("הולך", "הולך", "הלך"),
+        ("הופך", "הופכת", "הפך"),
+        ("חוגג", "חוגגים", "חגג"),
+        ("חושש", "חוששת", "חשש"),
+        ("כולל", "כוללים", "כלל"),
+        # With an מ in front it is the po'el's, hif'il's or hof'al's, and already a past.
+        ("שוטט", "משוטט", "שוטט"),
+        ("הודה", "מודה", "הודה"),
+        ("סובב", "מסובב", "סובב"),
+        # A yod-first root's nif'al past, not a participle.
+        ("נושע", "נושעים", "נושע"),
+        ("נוקש", "נוקש", "נוקש"),
+        ("נוחל", "נוחלים", "נוחל"),
+    ],
+)
+def test_a_present_of_a_he_first_or_doubled_root_is_filed_under_its_past(
+    lemma: str, base: str, said: str
+) -> None:
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma(lemma, base, base, "VERB", present=True) == said
+
+
+@pytest.mark.parametrize(
+    ("lemma", "base", "said"),
+    [
+        # A nif'al future whose prefix is the root's own first letter keeps its nif'al
+        # (qa and ling-he on #836): read as opening on the root it lost it.
+        ("נתפס", "תתפס", "נתפס"),
+        ("נתפס", "תיתפס", "נתפס"),
+        ("נתקל", "תתקל", "נתקל"),
+        ("נתקל", "תיתקל", "נתקל"),
+        ("נתבע", "תתבע", "נתבע"),
+        ("נתמך", "תתמך", "נתמך"),
+        ("נאסף", "אאסף", "נאסף"),
+        ("נאלץ", "אאלץ", "נאלץ"),
+        ("נאבק", "אאבק", "נאבק"),
+        # The qal of the same roots is still taken off: its past, its infinitive, and a
+        # future spelled with the holam-vav.
+        ("נתפס", "תפסו", "תפס"),
+        ("נתפס", "לתפוס", "תפס"),
+        ("נתפס", "תתפוס", "תפס"),
+        ("נאסף", "אאסוף", "אסף"),
+        ("נאמר", "אמרו", "אמר"),
+    ],
+)
+def test_a_nifal_future_of_an_alef_or_tav_first_root_keeps_its_nifal(
+    lemma: str, base: str, said: str
+) -> None:
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma(lemma, base, base, "VERB") == said
+
+
+@pytest.mark.parametrize(
+    ("lemma", "pointed", "said"),
+    [
+        # A hif'il future (patah under the prefix, hiriq-yod) and a pi'el's (shva) are not
+        # a qal: left as DICTA had them, never "gathered" (ling-he on #836).
+        ("נכנס", "יַכְנִיס", "נכנס"),
+        ("נכנס", "תַּכְנִיס", "נכנס"),
+        ("נדבר", "יְדַבֵּר", "נדבר"),
+        ("נאמן", "יַאֲמִין", "נאמן"),
+        # The qal's own hiriq, and segol under א, still mend.
+        ("נכנס", "יִכְנֹס", "כנס"),
+        ("נשמע", "יִשְׁמַע", "שמע"),
+        ("נכנס", "אֶכְנֹס", "כנס"),
+        # A pointed qal present filed under its participle, where the holam says qal.
+        ("מוצא", "מוֹצֵא", "מצא"),
+        ("מוכר", "מוֹכְרִים", "מכר"),
+        ("מוצג", "מוּצָג", "מוצג"),
+        ("מוכר", "מוכרים", "מוכר"),
+    ],
+)
+def test_only_a_qal_future_or_present_is_mended_by_its_marks(
+    lemma: str, pointed: str, said: str
+) -> None:
+    from targum.annotate.dicta import mend_pointed
+
+    assert mend_pointed(lemma, "VERB", pointed) == (said, "VERB")
+
+
+def test_the_seller_mend_reaches_a_verb_again() -> None:
+    """A regression the review found: the future's mend returned before the seller check,
+    so a pointed מוֹכֵר tagged VERB stayed הוכר, "was recognized" (qa and ling-he on
+    #836). The selling is מכר's, like every present; the seller as a noun keeps מוכר."""
+    from targum.annotate.dicta import mend_pointed
+
+    assert mend_pointed("הוכר", "VERB", "מוֹכְרִים") == ("מכר", "VERB")
+    assert mend_pointed("הוכר", "VERB", "מוֹכֵר") == ("מכר", "VERB")
+    assert mend_pointed("הוכר", "ADJ", "הַמּוֹכֵר") == ("מוכר", "NOUN")
+    assert mend_pointed("הוכר", "VERB", "מוּכָּר") == ("הוכר", "VERB")
 
 
 def test_the_card_line_is_built_from_dictas_own_segmentation() -> None:
@@ -2391,7 +2491,26 @@ def test_a_pointed_seller_is_a_seller_and_not_familiar() -> None:
     )
     assert (gym[-1].surface, gym[-1].lemma, gym[-1].pos) == ("מוֹכֵר", "מוכר", "NOUN")
     assert (line[-1].lemma, line[-1].pos) == ("מוכר", "NOUN")
-    assert (shop[2].lemma, shop[2].pos) == ("מוכר", "VERB")
+    # The selling, as a verb, is filed under its past since targum-internal#490, with
+    # the binyan and root its new lemma spells.
+    assert (shop[2].lemma, shop[2].pos) == ("מכר", "VERB")
+    assert (shop[2].binyan, shop[2].root) == ("פעל", "מכר")
+
+
+def test_a_pointed_future_is_mended_through_the_whole_annotator() -> None:
+    """qa on #836: the rules had unit tests, and nothing drove `Annotator` over a pointed
+    future to pin what `annotate/__init__.py` writes back. וַיֹּאמֶר filed under נאמר comes
+    out אמר, a qal with the root אמר; יִכָּנֵס keeps its nif'al; a hif'il future keeps
+    DICTA's lemma rather than becoming "gathered"."""
+    said, nifal, brought = _read(
+        ["וַיֹּאמֶר מֹשֶׁה", "הוּא יִכָּנֵס", "הוּא יַכְנִיס"],
+        (("ויאמר", "נאמר", "VERB"), ("משה", "משה", "PROPN")),
+        (("הוא", "הוא", "PRON"), ("יכנס", "נכנס", "VERB")),
+        (("הוא", "הוא", "PRON"), ("יכניס", "נכנס", "VERB")),
+    )
+    assert (said[0].lemma, said[0].binyan, said[0].root) == ("אמר", "פעל", "אמר")
+    assert nifal[1].lemma == "נכנס"
+    assert brought[1].lemma == "נכנס", "a hif'il future is not a qal"
 
 
 def test_familiar_stays_familiar() -> None:
