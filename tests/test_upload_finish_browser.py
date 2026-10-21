@@ -350,7 +350,7 @@ def test_with_no_connection_upload_is_greyed_and_says_why(browser) -> None:
     page.evaluate("() => window.dispatchEvent(new Event('offline'))")
     page.wait_for_selector("#go.offline-off")
     assert page.get_attribute("#go", "aria-disabled") == "true"
-    assert page.inner_text("#understood") == "Uploading needs the connection."
+    assert page.inner_text("#understood") == "Uploading needs a connection."
     context.set_offline(False)
     page.evaluate("() => window.dispatchEvent(new Event('online'))")
     page.wait_for_function("() => document.getElementById('understood').innerText === ''")

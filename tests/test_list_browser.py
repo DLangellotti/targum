@@ -901,3 +901,35 @@ def test_in_a_short_window_the_playlist_row_stays_clear_of_the_rail(browser, tmp
         assert seen["title"], "a desk's Next says where"
     finally:
         context.close()
+
+
+#: Records, the moment the playlist's foot is drawn, whether the reader had set the page's
+#: strings yet; and holds the store's database shut so the reader waits out its patience.
+SLOW_STORE = """
+(() => {
+  const open = indexedDB.open.bind(indexedDB);
+  indexedDB.open = () => ({});
+  window.__footSaid = null;
+  new MutationObserver(() => {
+    if (window.__footSaid === null && document.getElementById('list-nav')) {
+      window.__footSaid = !!window.TargumStrings;
+    }
+  }).observe(document, { childList: true, subtree: true });
+})();
+"""
+
+
+def test_the_foot_is_drawn_once_the_reader_has_its_words(browser, tmp_path) -> None:  # noqa: F811
+    """targum-internal#474, B4: the list answered before the store opened (the worker's
+    cached copy, offline) and the foot was drawn before `reader.js` had set the page's
+    strings, so a Russian reader's foot said "Play on" and "1 of 3". It is drawn after."""
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    context.add_init_script(SLOW_STORE)
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav", state="attached", timeout=5000)
+        assert page.evaluate("() => window.__footSaid") is True
+    finally:
+        context.close()

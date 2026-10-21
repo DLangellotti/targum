@@ -1407,12 +1407,25 @@
     true
   );
 
+  /* Asked at once, drawn once the reader is: `reader.js` sets the page's strings inside
+     `targumReader`, which waits on the store, and an answer that beat it (the worker's
+     cached copy, offline) drew the foot in English on a Russian reader
+     (targum-internal#474, B4). The store runs what waits on it in order, so this runs
+     after the reader. */
+  function whenReady(run) {
+    if (window.TargumStore && window.TargumStore.ready) window.TargumStore.ready(run);
+    else run();
+  }
   fetch(keyed("/playlists/" + list + ".json"), { credentials: "same-origin" })
     .then(function (answer) {
       return answer.ok ? answer.json() : null;
     })
     .then(function (set) {
-      if (set) draw(set);
+      if (set) {
+        whenReady(function () {
+          draw(set);
+        });
+      }
     })
     .catch(function () {});
 })();

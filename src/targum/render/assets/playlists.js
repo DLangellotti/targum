@@ -59,17 +59,27 @@
         ? { "Content-Type": "application/json", "X-Targum-Key": key }
         : { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
-    }).then(function (response) {
-      return response.json().then(function (answer) {
-        answer = answer || {};
-        answer.status = response.status;
-        return answer;
-      });
-    }).catch(function () {
-      // No server behind the page, or none reachable: said as an error the page shows,
-      // never thrown, so nothing below this stops running.
-      return { error: UNREACHED, status: 0 };
-    });
+    }).then(
+      function (response) {
+        return response.json().then(
+          function (answer) {
+            answer = answer || {};
+            answer.status = response.status;
+            return answer;
+          },
+          function () {
+            // A server that answered with something that is not JSON (a 502 from the
+            // proxy) answered: a fault, not "can't reach" (targum-internal#474, B2).
+            return { error: FAILED, status: response.status || 500 };
+          }
+        );
+      },
+      function () {
+        // No server behind the page, or none reachable: said as an error the page shows,
+        // never thrown, so nothing below this stops running. Only here is it status 0.
+        return { error: UNREACHED, status: 0 };
+      }
+    );
   }
 
   function at(id) {
@@ -176,7 +186,7 @@
      made it). targum's own chat and targum's sets are targum; an assistant reached
      through the connector is "an assistant", without saying which one. */
   function byline(madeBy) {
-    if (madeBy === "connector") return t("playlists.by-assistant", "From an assistant");
+    if (madeBy === "connector") return t("playlists.by-assistant", "From your AI");
     if (madeBy === "targum" || madeBy === "chat") return t("playlists.by-targum", "From targum");
     return t("playlists.by-you", "By you");
   }
@@ -263,7 +273,7 @@
   /* The cover: the first four texts' own pictures in a square (#429, design.md §12,
      "Every text has a picture"). A text still being made has no folder to draw from and
      rests on its letter, on the colour of its kind; fewer than four share the square. */
-  function mosaic(cover, className) {
+  function mosaic(cover, className, language) {
     var some = (cover || []).slice(0, 4);
     var box = element(
       "span",
@@ -273,7 +283,9 @@
     some.forEach(function (one) {
       var tile = covers
         ? covers.picture(
-            { entry: one.name, title: one.title, language: one.language, kind: one.kind },
+            // A text still being made says no language of its own; the playlist keeps
+            // to one, so its letter is in that (targum-internal#474, B8).
+            { entry: one.name, title: one.title, language: one.language || language, kind: one.kind },
             { keyed: keyed, className: "thumb pl-cell" }
           )
         : element("span", "thumb pl-cell is-letter");
@@ -299,10 +311,37 @@
 
   /* The sheet stands on the dim (board PlaylistMake): shown with it, put away with it by
      its ×, a press on the dim or Escape, none of which adds anything. */
+  /* Focus stays in the sheet while it is open, and goes back to the press that opened it
+     when it is put away (targum-internal#474, B6): `aria-modal` says so to a screen
+     reader, and this makes it so for Tab. */
+  var opener = null;
   function showSheet(on) {
+    var was = !at("adding").hidden;
+    if (on && !was) opener = document.activeElement;
     at("adding").hidden = !on;
     at("adding-scrim").hidden = !on;
+    if (!on && was && opener && opener.focus && document.contains(opener)) opener.focus();
+    if (!on) opener = null;
   }
+  at("adding").addEventListener("keydown", function (event) {
+    if (event.key !== "Tab") return;
+    var presses = Array.prototype.filter.call(
+      at("adding").querySelectorAll("button, input, a[href], [tabindex]:not([tabindex='-1'])"),
+      function (one) {
+        return !one.disabled && one.offsetParent !== null;
+      }
+    );
+    if (!presses.length) return;
+    var first = presses[0];
+    var last = presses[presses.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
   function putAway() {
     showSheet(false);
     say("adding-said", "");
@@ -415,7 +454,9 @@
       item.appendChild(mosaic(one.covers, "is-small"));
       var what = element("span", "pl-targum-what");
       var name = element("span", "pl-targum-name");
-      name.appendChild(isolated(one.name));
+      var called = isolated(one.name);
+      if (one.nameLanguage) called.setAttribute("lang", one.nameLanguage);
+      name.appendChild(called);
       what.appendChild(name);
       var facts = [];
       if (one.english && one.english !== one.name) facts.push(one.english);
@@ -456,7 +497,7 @@
       return element(
         "span",
         "pl-foot pl-getting-ready",
-        t("playlists.ready-of", "Getting ready · {ready} of {count} ready", {
+        t("playlists.ready-of", "Getting ready · {ready} of {count} done", {
           ready: one.ready || 0,
           count: one.count || 0,
         })
@@ -481,7 +522,7 @@
     var here = current && String(current.id) === String(one.id);
     if (here) box.classList.add("is-current");
     var picture = element("span", "pl-card-cover");
-    picture.appendChild(mosaic(one.covers));
+    picture.appendChild(mosaic(one.covers, "", one.language));
     if (here) {
       var chip = element("span", "pl-here");
       chip.appendChild(drawing(PLAYING));
@@ -648,7 +689,8 @@
             {
               entry: (facts && (facts.entry || facts.name)) || item.reader || "",
               title: item.title,
-              language: facts && facts.language,
+              // A row getting ready or failed has no facts: the playlist's language (B8).
+              language: (facts && facts.language) || one.language,
             },
             { keyed: keyed, className: "thumb pl-thumb" }
           )
@@ -664,7 +706,10 @@
       name = element("span", "item-title");
     }
     var title = isolated(item.title);
-    if (facts && facts.language) title.setAttribute("lang", facts.language);
+    // A text getting ready or failed has no facts yet: the playlist's language, which it
+    // keeps to (2026-10-12), says what the title is in (targum-internal#474, B8).
+    var tongue = (facts && facts.language) || one.language || "";
+    if (tongue) title.setAttribute("lang", tongue);
     name.appendChild(title);
     what.appendChild(name);
     var under = element("span", "item-kind");
@@ -673,7 +718,7 @@
       under.textContent = hereLine(item);
     } else if (!item.open) {
       under.textContent = item.failed
-        ? t("playlists.could-not", "We couldn't get this text ready.")
+        ? t("playlists.could-not", "We couldn't get this text ready. Remove it, then add it again.")
         : t("playlists.getting-ready", "Getting ready");
       under.classList.add("item-state");
     } else {
@@ -758,10 +803,10 @@
         return;
       }
       away.setAttribute("data-asking", "1");
-      away.textContent = t("playlists.delete-confirm", "Confirm delete");
+      away.textContent = t("playlists.delete-confirm", "Yes, delete");
       away.setAttribute(
         "aria-label",
-        t("playlists.delete-confirm-named", "Confirm delete {name}", { name: one.name })
+        t("playlists.delete-confirm-named", "Yes, delete {name}", { name: one.name })
       );
       clearTimeout(away.settle);
       away.settle = setTimeout(calmDown, 5000);
@@ -848,7 +893,7 @@
     var current = typeof one.at === "number" && one.at < one.items.length ? one.at : -1;
 
     var head = element("header", "pl-head playlist-head");
-    head.appendChild(mosaic(one.covers, "is-large"));
+    head.appendChild(mosaic(one.covers, "is-large", one.language));
     var said = element("div", "pl-head-what");
     said.appendChild(element("p", "pl-byline", byline(one.made_by)));
     // The page's own title: the playlist's name stands where "Your targums" stood.
@@ -902,6 +947,11 @@
 
     // The table (board PlaylistDetail): its column heads, then the texts in order. The
     // heads are for the eye; each row's cells say what they are to a screen reader.
+    // What the grip does, on the page where a mouse is: its title is never shown to a
+    // keyboard (targum-internal#474, B5). Only where there is more than one to move.
+    if (one.items.length > 1) {
+      body.appendChild(element("p", "pl-reorder-note", t("playlists.reorder-note", "Drag to reorder, or Alt+↑/↓.")));
+    }
     var table = element("div", "card pl-table");
     if (one.items.length) {
       var heads = element("div", "pl-cols");
@@ -958,13 +1008,35 @@
   // does on every other desk page; without this it said "Sign in" to a signed-in reader.
   var synced = false;
 
+  /* A fault that came back is the shared panel with Try again (targum-internal#474, B2):
+     nothing answered says so, and a server that failed says that, which is not the same. */
+  function fault(sentence) {
+    var holder = at("fault");
+    holder.textContent = "";
+    holder.hidden = false;
+    if (window.TargumFault && window.TargumFault.panel) {
+      holder.appendChild(window.TargumFault.panel(sentence, { onAct: load }));
+    } else {
+      holder.appendChild(element("p", "said bad", sentence));
+    }
+  }
+
   function arrived(answer, where) {
     if (answer.status === 0) {
-      // Nothing answered: not the same as not being signed in.
-      at(where === "one" ? "one" : "lists").hidden = false;
-      say(where === "one" ? "one-said" : "lists-said", UNREACHED, true);
+      // Nothing answered: not the same as not being signed in. The panel's own press says
+      // Try again, so the sentence does not (ling-en's rule).
+      fault(t("playlists.unreachable", "We can't reach targum."));
       return false;
     }
+    if (answer.status >= 500) {
+      fault(
+        where === "one"
+          ? t("playlists.load-failed-one", "We couldn't load this playlist.")
+          : t("playlists.load-failed", "We couldn't load your playlists.")
+      );
+      return false;
+    }
+    at("fault").hidden = true;
     if (answer.status === 401) {
       at("stranger").hidden = false;
       return false;
@@ -984,21 +1056,53 @@
     at("back").insertBefore(drawing(BACK), at("back").firstChild);
   }
 
+  /* While it is asked for (targum-internal#474, B1): a quiet line at once, and past three
+     seconds a second that says so, with Try again. Only the last ask draws, so a press of
+     Try again and a slow first answer never both land. */
+  var SLOW_MS = 3000;
+  var asking = 0;
+  var slowTimer = 0;
+  if (opened) at("wait").textContent = t("playlists.loading-one", "We're getting this playlist.");
+  at("slow-again").addEventListener("click", function () {
+    load();
+  });
+
+  function waiting(on) {
+    clearTimeout(slowTimer);
+    at("wait").hidden = !on;
+    at("slow").hidden = true;
+    if (on) {
+      slowTimer = setTimeout(function () {
+        at("slow").hidden = false;
+      }, SLOW_MS);
+    }
+  }
+
   function load() {
+    var mine = ++asking;
+    // Only the first time, or after a fault: a reload after a change keeps what is drawn.
+    if (at("lists").hidden && at("one").hidden) waiting(true);
+    var answered = function (draw) {
+      return function (answer) {
+        if (mine !== asking) return;
+        waiting(false);
+        draw(answer);
+      };
+    };
     if (opened) {
-      return ask("/playlists/" + opened + ".json").then(function (answer) {
+      return ask("/playlists/" + opened + ".json").then(answered(function (answer) {
         if (!arrived(answer, "one")) return;
         if (answer.error || !answer.items) {
           at("one").hidden = false;
           return say("one-said", plainly(answer) || GONE, true);
         }
         drawOne(answer);
-      });
+      }));
     }
-    return ask("/playlists.json").then(function (answer) {
+    return ask("/playlists.json").then(answered(function (answer) {
       if (!arrived(answer, "tab")) return;
       drawTab(answer);
-    });
+    }));
   }
 
   load();

@@ -30,6 +30,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   language, not in a title alone.
 
 ### Fixed
+- Listening's finish (targum-internal#474), design's nine blockers and ling-en's lines.
+  Your playlists and a playlist's page say they are loading, and past three seconds that
+  it is taking longer, with Try again; a fault is the shared panel with Try again, and a
+  server that failed is no longer told as one that cannot be reached. A failed text says
+  "Remove it, then add it again." A Russian reader's playlist foot is in Russian however
+  fast the list answers. What the grip and Play in order do is said on the page, not in a
+  title alone. The add sheet holds the focus and gives it back. A playlist row's title,
+  the way back, Add from…, the sheet's × and the Listening view's position answer a thumb
+  over 44px. A title still getting ready says its language. The lines either side of the
+  one being said in the Listening view are drawn in soft ink, not at 38% opacity.
+
+### Fixed
 - The press that makes a playlist says "Create", not "Confirm", in the New playlist form
   and the Add-to-playlist menu (David, 2026-10-21; targum-internal#474).
 - A library row filed without a picture is caught, and every picture in `thumbs/` says

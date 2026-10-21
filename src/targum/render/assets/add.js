@@ -493,7 +493,7 @@
 
   // What targum thinks it was given, in a sentence.
   function understanding() {
-    if (away()) return t("offline.upload-needs", "Uploading needs the connection.");
+    if (away()) return t("offline.upload-needs", "Uploading needs a connection.");
     if (SHUT) {
       // The notice above the box already says that nothing new can be made; said here
       // too, the page told it twice (QA 2026-10-20). The line keeps what still works.

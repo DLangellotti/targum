@@ -537,6 +537,13 @@ THUMBED = (
     ".next-more",
     ".next-link",
     ".fault-act",
+    # Listening's finish (targum-internal#474, B7): a playlist row's title, the way back,
+    # Add from…, the sheet's × and the Listening view's position.
+    "a.item-title",
+    ".pl-back",
+    ".pl-add-link",
+    ".pl-sheet-shut",
+    ".lv-track",
 )
 
 
@@ -1405,3 +1412,21 @@ def test_a_page_in_russian_carries_the_cyrillic_face_and_one_in_english_does_not
         wanted = [*range(0x0410, 0x0450), 0x0401, 0x0451, 0x2116, 0x2011]
         assert all(code in cmap for code in wanted), name
         assert not any(0x41 <= code <= 0x7A for code in cmap), f"{name} carries no Latin"
+
+
+def test_the_listening_view_draws_its_far_lines_in_soft_ink_and_says_what_play_in_order_does() -> (
+    None
+):
+    """targum-internal#474: the lines either side of the one being said stood back by
+    opacity, ink at 0.38, about 2.3:1 on paper (B9); and Play in order said what it does
+    only in a title (B5)."""
+    root = Path(__file__).parents[1] / "src" / "targum" / "render"
+    css = (root / "assets" / "reader.css").read_text(encoding="utf-8")
+    far = re.search(r"\n\.lv-far \{(.*?)\}", css, re.S)
+    assert far is not None
+    assert "opacity" not in far.group(1) and "color: var(--ink-soft)" in far.group(1)
+    page = (root / "templates" / "reader.html.j2").read_text(encoding="utf-8")
+    assert 'aria-describedby="lv-order-says"' in page
+    assert re.search(
+        r'<p class="lv-order-says" id="lv-order-says">\{\{ t\("reader.list.play-on-title"', page
+    )

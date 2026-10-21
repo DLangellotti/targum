@@ -10863,10 +10863,15 @@ class Handler(BaseHTTPRequestHandler):
                     for n, (entry, folder) in enumerate(built)
                 ]
                 shown = self._playlist_facts(person, {"items": members}, vocabulary)
+                code = language.split("-")[0].lower()
                 targum.append(
                     {
                         "id": collection.id,
                         "name": collection.name_in(language),
+                        # What the name is in: the page's language where the collection
+                        # has a name in it, and its English where it falls back
+                        # (targum-internal#474, B8).
+                        "nameLanguage": code if collection.named.get(code) else "en",
                         "english": collection.english,
                         "count": len(built),
                         **{key: value for key, value in shown.items() if key != "items"},
@@ -10885,7 +10890,14 @@ class Handler(BaseHTTPRequestHandler):
         found = self.store.playlist(person.id, int(which)) if which.isdigit() else None
         if found is None:
             return self._json({"error": "not found"}, 404)
-        return self._json(self._playlist_facts(person, found, vocabulary))
+        # The language it keeps to (2026-10-12), so a title still getting ready, or one that
+        # failed, says what it is written in (targum-internal#474, B8).
+        return self._json(
+            {
+                **self._playlist_facts(person, found, vocabulary),
+                "language": self.library.playlist_language(self._home(), found),
+            }
+        )
 
     def _playlist_facts(
         self,
