@@ -776,6 +776,16 @@ body.marking .w[data-status="3"] {
 body.marking .w.not-vocab,
 body.marking .byline .w { background: none; box-shadow: none; }
 
+/* The word a "Met in" link on Your Words opened the page at (targum-internal#497): the
+   practice card's mark, a teal wash inside a teal ring, over whatever stage it is on, so
+   the word the reader came for is found in its line at a glance. A ring as well as a
+   wash, so it never rests on colour alone. */
+.w.met-here,
+body.marking .w.met-here {
+  background: var(--teal-wash);
+  box-shadow: inset 0 0 0 1.5px var(--teal);
+}
+
 /* Nothing marks a split word in the running text. Most Hebrew words carry a prefix,
    so marking them all decorated the page without telling a reader anything they could
    act on. The card says it when you tap the word, which is when it matters. */

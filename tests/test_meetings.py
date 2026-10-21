@@ -260,3 +260,61 @@ def test_home_says_nothing_is_due_while_there_is_nothing_to_practise(
     call(port, "POST", f"/sync?k={token}", {"sections": sections}, cookie=cookie)
     _, said, _ = call(port, "GET", f"/account/due?language=he&k={token}", cookie=cookie)
     assert said["due"] == 2, "once one is on the card, the count is every word still learned"
+
+
+# -- the "Met in" list (targum-internal#497) ----------------------------------------------
+
+
+def test_the_met_in_list_is_a_line_a_text_latest_finish_first(tmp_path: Path) -> None:
+    old = text(tmp_path / "old", {1: [("ספר ישן", [w("ספר", "ספר")])]}, content_hash="old")
+    new = text(
+        tmp_path / "new",
+        {
+            1: [("בית גדול", [w("בית", "בית")])],
+            2: [("ספר חדש", [w("ספר", "ספר")]), ("ספר שני", [w("ספר", "ספר")])],
+        },
+        content_hash="new",
+    )
+    unread = text(tmp_path / "unread", {1: [("ספר", [w("ספר", "ספר")])]}, content_hash="unread")
+    folders = {"old": (old, "he"), "new": (new, "he"), "unread": (unread, "he")}
+    finished = [("old", "1", ms(2026, 8)), ("new", "2", ms(2026, 9))]
+    lines, more = meetings.texts_lines("ספר", finished, folders.get, "he")
+    assert [(line.document, line.section, line.segment) for line in lines] == [
+        ("new", 2, "s2-0"),
+        ("old", 1, "s1-0"),
+    ], "one line a text, its first in a finished section, the latest finish first"
+    assert more == 0
+
+    lines, more = meetings.texts_lines("ספר", finished, folders.get, "he", most=1)
+    assert [line.document for line in lines] == ["new"] and more == 1
+
+
+def test_met_in_opens_each_text_at_the_word(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, token, out = served
+    status, said, _ = call(port, "GET", f"/account/met?language=he&lemma=x&k={token}")
+    assert status == 401 and said == {"signedIn": False}
+
+    text(
+        out / "shared" / "one",
+        {1: [("בית", [w("בית", "בית")])], 2: [("ספר וים", [w("ספר", "ספר"), w("ים", "ים")])]},
+        content_hash="one",
+    )
+    cookie = sign_in(port, postbox)
+    sections = [{"hash": "one", "section": "2", "at": ms(2026, 9), "seen": ms(2026, 9)}]
+    call(port, "POST", f"/sync?k={token}", {"sections": sections}, cookie=cookie)
+
+    status, said, _ = call(
+        port, "GET", f"/account/met?language=he&lemma=%D7%99%D7%9D&k={token}", cookie=cookie
+    )
+    assert status == 200, said
+    assert said["more"] == 0
+    (one,) = said["texts"]
+    assert one["title"] == "A Book" and one["chapter"] == 2
+    assert one["href"] == "/reader/one/reader/sec-0002.html?met=%D7%99%D7%9D#s2-0"
+
+    _, said, _ = call(port, "GET", f"/account/met?language=he&lemma=x&k={token}", cookie=cookie)
+    assert said == {"signedIn": True, "texts": [], "more": 0}, "a word met nowhere lists nothing"
+    status, _, _ = call(port, "GET", f"/account/met?language=he&k={token}", cookie=cookie)
+    assert status == 400
