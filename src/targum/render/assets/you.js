@@ -732,7 +732,7 @@
       if (typeof fetch !== "function" || typeof Blob !== "function") return;
       event.preventDefault();
       var failed = function () {
-        say("you-ending-said", t("you.export.failed", "We couldn't make the file. Try again."), true, function () {
+        say("you-ending-said", t("you.export.failed", "We couldn't make the file."), true, function () {
           say("you-ending-said", "");
           link.click();
         });
@@ -808,7 +808,7 @@
           // B5). It was one line for a second and a half, then the front door.
           only("you-closed");
           at("you-closed-said").textContent =
-            answer.message || t("you.closing", "We'll delete your account in seven days. We've signed you out.");
+            answer.message || t("you.closing", "We've signed you out.");
           at("you-closed").focus();
           // The words were left in this browser and the page went on showing the profile
           // (2026-09-14). Signed out here too, the way Sign out empties the browser.

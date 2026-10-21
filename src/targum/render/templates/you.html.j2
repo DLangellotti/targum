@@ -40,7 +40,7 @@
   </section>
   <section class="card" id="you-offline" role="status" hidden>
     <p class="note">{{ t("you.page.offline", "You're offline. Your account needs a connection. Texts saved on this device still open.") }}</p>
-    <p class="ending-row"><a class="btn tonal" href="/you/saved">{{ t("you.page.open", "Open") }}</a></p>
+    <p class="ending-row"><a class="btn tonal" href="/you/saved">{{ t("you.page.open-saved", "Open saved texts") }}</a></p>
   </section>
 
   {#- After Delete (targum-internal#469, B5): one card that says what happened, heard by a
@@ -48,7 +48,7 @@
   <section class="card" id="you-closed" role="status" tabindex="-1" hidden>
     <h2 class="section-title">{{ t("you.page.closing-title", "Your account is closing") }}</h2>
     <p class="note" id="you-closed-said"></p>
-    <p class="note">{{ t("you.page.we-wait-seven-days-before-deleting", "Your connections, playlists, subscriptions and prompts go at once, and so does the Weekly News Digest. We delete the rest after seven days and email you when it's done. To change your mind before then, email hello@targum.page.") }}</p>
+    <p class="note">{{ t("you.page.closed-says", "Your connections, playlists, subscriptions and prompts have gone, and so has the Weekly News Digest. We'll delete the rest in {grace} days and email you when it's done. To change your mind before then, email hello@targum.page.", grace=grace) }}</p>
     <p class="ending-row"><a class="btn tonal" href="/">{{ t("you.page.go-to-targum", "Go to targum") }}</a></p>
   </section>
 

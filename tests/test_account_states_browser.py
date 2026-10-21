@@ -67,7 +67,7 @@ def opened(
                 body=json.dumps(forget or {"signedIn": False}),
             )
         if "/account/sign-in" in url:
-            body = {"error": "This account is being closed. To keep it, email hello@targum.page."}
+            body = {"error": "We're closing this account. To keep it, email hello@targum.page."}
             return route.fulfill(status=403, content_type="application/json", body=json.dumps(body))
         route.fulfill(
             status=200, content_type="application/json", body=json.dumps({"signedIn": False})
@@ -128,7 +128,7 @@ def test_signed_out_is_the_one_answer_that_asks_to_sign_in(browser) -> None:
 @pytest.mark.parametrize(
     ("used", "said"),
     [
-        (7.9, "6 credits left. They come back on 1 November."),
+        (7.9, "6 credits left. The library and word cards use none."),
         (8.0, "You've used this month's credits. They come back on 1 November."),
     ],
 )
@@ -166,7 +166,7 @@ def test_delete_ends_on_a_card_that_says_what_happened(browser) -> None:
         and got["role"] == "status"
         and got["focused"] == "you-closed"
     )
-    assert "seven days" in got["said"] and "hello@targum.page" in got["said"]
+    assert "7 days" in got["said"] and "hello@targum.page" in got["said"]
     assert stayed.startswith("http://acct.test/you"), "no redirect on a timer"
 
 

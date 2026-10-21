@@ -11957,7 +11957,7 @@ class Handler(BaseHTTPRequestHandler):
         it cannot sign in, and the one way to keep it."""
         return self._say(
             "serve.account-closing",
-            "This account is being closed. To keep it, email hello@targum.page.",
+            "We're closing this account. To keep it, email hello@targum.page.",
         )
 
     def _keeps_why(self, why: str) -> bool:

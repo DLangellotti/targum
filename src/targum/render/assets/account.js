@@ -213,15 +213,14 @@
       var nearly = has && month > 0 && !out && spare / month < 0.1;
       low.textContent = out
         ? got.ends
-          ? t("account.credits.out", "You've used this month's credits. They come back on {date}.", { date: got.ends })
-          : t("account.credits.out-plain", "You've used this month's credits.")
+          ? t("account.credits.out", "You've used this month's credits. They come back on {date}. The library and word cards still work.", { date: got.ends })
+          : t("account.credits.out-plain", "You've used this month's credits. The library and word cards still work.")
         : nearly
           ? tn(
               "account.credits.low",
               credits(spare),
-              "{n} credit left. They come back on {date}. Reading, the library and word cards use none.",
-              "{n} credits left. They come back on {date}. Reading, the library and word cards use none.",
-              { date: got.ends || "" }
+              "{n} credit left. The library and word cards use none.",
+              "{n} credits left. The library and word cards use none."
             )
           : "";
       low.hidden = !out && !nearly;
