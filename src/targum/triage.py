@@ -65,7 +65,11 @@ def report(store: Path, *, days: int = WEEK_DAYS, now_ms: int | None = None) -> 
             db,
             "SELECT message, page, COUNT(*) AS count, COUNT(DISTINCT person) AS people,"
             " MAX(at) AS last, MAX(place) AS place, MAX(build) AS build"
-            " FROM fault WHERE at >= ? GROUP BY message, page ORDER BY count DESC, last DESC",
+            " FROM fault WHERE at >= ?"
+            # Only what came after a fix: one marked fixed in the back office is settled.
+            " AND at > COALESCE("
+            "(SELECT x.at FROM fault_fixed x WHERE x.message = fault.message), 0)"
+            " GROUP BY message, page ORDER BY count DESC, last DESC",
             (since,),
         )
     finally:
