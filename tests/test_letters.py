@@ -283,10 +283,64 @@ def test_the_harness_draws_every_mail_and_sends_nothing(tmp_path: Path) -> None:
 
 def test_the_daily_mail_draws_each_thing_as_a_tile_and_keeps_its_ways_out() -> None:
     mail = every("en")["daily"]
-    assert ">ה</td>" in mail.html or "ה</td>" in mail.html, "the first letter on its tile"
+    assert '<span lang="he">ה</span></td>' in mail.html, "the first letter on its tile, in Hebrew"
     assert "Unsubscribe from all of these" in mail.html and "Your subscriptions" in mail.html
     assert mail.headers["List-Unsubscribe"] == f"<{SITE}/subscriptions/stop?t=stop2&t=stop3>"
     assert mail.headers["List-Id"].startswith("subscriptions <")
+
+
+def test_every_hebrew_run_in_every_mail_says_its_language_and_direction() -> None:
+    """targum-internal#470, B1: a Hebrew subscription name was an uppercase, tracked
+    English label, and a row tile's letter took the page's language. Every element whose
+    text is Hebrew carries `lang`, and every one above a word carries `dir` too."""
+    for language in LANGUAGES:
+        for name, mail in every(language).items():
+            for tag, inner in re.findall(
+                r"<(p|span|a|td|h1|bdi)\b([^>]*)>[^<]*[\u0590-\u05ff]", mail.html
+            ):
+                assert "lang=" in inner, (language, name, tag, inner[:80])
+
+
+def test_a_hebrew_subscription_name_is_drawn_in_hebrew() -> None:
+    mail = letters.subscriptions_daily(
+        [{"name": "כאן ארכיון", "stop": "s", "rows": [("פלאפל", "he", "Ready", "/r/1")]},
+         {"name": "Sport", "stop": "t", "rows": [("כתבה", "he", "A link", "/r/2")]}],
+        SITE,
+        "t=s&t=t",
+        "en",
+    )  # fmt: skip
+    label = re.search(r'<p lang="he" dir="rtl"[^>]*>כאן ארכיון</p>', mail.html)
+    assert label is not None and "uppercase" not in label.group(0)
+    assert re.search(r"text-transform:uppercase;[^>]*>Sport</p>", mail.html), (
+        "a Latin name stays a label"
+    )
+    # The whole row is the link (polish 1), and the subject isolates the name (polish 4).
+    assert f'<a href="{SITE}/r/1" style="display:block;' in mail.html
+    one = letters.subscriptions_daily(
+        [{"name": "כאן ארכיון", "stop": "s", "rows": [("פלאפל", "he", "Ready", "/r/1")]}],
+        SITE,
+        "t=s",
+        "en",
+    )
+    assert one.subject.startswith("\u2068כאן ארכיון\u2069")
+
+
+def test_a_busy_day_draws_thirty_rows_and_says_how_many_more() -> None:
+    """Polish 5: past about ninety rows Gmail clips the mail and the unsubscribe foot."""
+    rows = [(f"Title {n}", "en", "Ready", f"/r/{n}") for n in range(40)]
+    mail = letters.subscriptions_daily(
+        [{"name": "Feed", "stop": "s", "rows": rows}], SITE, "t=s", "en"
+    )
+    assert "Title 29" in mail.html and "Title 30" not in mail.html
+    assert "And 10 more in" in mail.html and "Unsubscribe from all of these" in mail.html
+
+
+def test_a_long_recording_says_hours() -> None:
+    """Polish 3: three hours is "3 hr 0 min", not "180 min"."""
+    mail = letters.build_ready(
+        "Long", f"{SITE}/reader/x", SITE, "en", asked=False, listen=True, seconds=3 * 3600 + 300
+    )
+    assert "3 hr 5 min" in mail.html and "185 min" not in mail.html
 
 
 def test_a_daily_cycle_is_in_the_one_mail_a_day(tmp_path: Any) -> None:

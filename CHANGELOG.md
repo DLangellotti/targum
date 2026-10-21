@@ -34,6 +34,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   card that says so, with Upload and what works for it, not a search over nothing. The
   word card says what ignore is for ("Ignore is for names and numbers."), in every
   language, not in a title alone.
+- The daily mail, from design's pass (targum-internal#470). A subscription named in Hebrew
+  is drawn in Hebrew, right to left, in the Hebrew face, not as a capitalised English
+  label, and a row's tile letter says its language. The whole row is the link, not only
+  its title. The unsubscribe links have room round them on a phone, and the foot's links
+  stand on their own line there. A one-item subject isolates the name as well as the
+  title. A busy day draws thirty rows and says how many more are in Your subscriptions,
+  so Gmail never clips the foot. The ready mail says hours past an hour ("3 hr 5 min"),
+  and the card keeps its 14px corner on a phone.
 
 ### Fixed
 - Listening's finish (targum-internal#474), design's nine blockers and ling-en's lines.
