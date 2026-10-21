@@ -533,6 +533,10 @@ THUMBED = (
     "#you-address > button",
     ".acct-link",
     ".acct-inline",
+    # Your Progress's What next (targum-internal#471, B4), and the fault panel's Tell us.
+    ".next-more",
+    ".next-link",
+    ".fault-act",
 )
 
 

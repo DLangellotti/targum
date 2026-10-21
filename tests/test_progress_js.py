@@ -46,6 +46,8 @@ def draw(
     reading: dict[str, Any] | None = None,
     story: dict[str, Any] | None = None,
     totals: list[dict[str, Any]] | None = None,
+    story_fails: bool = False,
+    story_held: bool = False,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -58,6 +60,8 @@ def draw(
                     "strings": strings,
                     "reading": reading,
                     "story": story,
+                    "storyFails": story_fails,
+                    "storyHeld": story_held,
                     "totals": totals,
                 }
             ),
@@ -89,7 +93,7 @@ def test_the_ledger_counts_what_the_reader_actually_did() -> None:
     )
 
     assert drawn["counts"]["words known"] == 12
-    assert drawn["counts"]["words on your list"] == 17, "known and still learning together"
+    assert drawn["counts"]["saved words"] == 17, "known and still learning together"
     assert "texts opened" not in drawn["counts"], "a fact about browsing"
     # Days do not follow the language switcher, because a day is not in a language and
     # you can read both in one.
@@ -175,7 +179,7 @@ def test_a_name_marked_known_is_not_a_word_marked_known() -> None:
     drawn = page(words)
     plain = page(marked(known=4, learning=2))
     assert tile(drawn, "words known") == 4
-    assert tile(drawn, "words on your list") == 6
+    assert tile(drawn, "saved words") == 6
     assert tile(drawn, "learned on targum") == 0
     assert drawn["weeks"] == plain["weeks"], "nor among the words taken up"
 
@@ -228,7 +232,7 @@ def test_every_figure_is_said_once_on_the_page() -> None:
     labels = [box["label"] for box in drawn["tiles"]]
     assert len(labels) == len(set(labels)), f"a figure is said twice: {labels}"
     assert labels == [
-        "words on your list",
+        "saved words",
         "words known",
         "learned on targum",
         "phrases saved",
@@ -509,7 +513,7 @@ def test_where_you_are_names_the_hardest_kind_you_would_follow() -> None:
     ]
     # The share is on the rung you are on and the next one, and nowhere else.
     assert [rung["text"] for rung in drawn["rungs"]] == [
-        "Dialogue",
+        "A dialogue",
         "A video",
         "A news article93%",
         "A short story86%",
@@ -518,6 +522,17 @@ def test_where_you_are_names_the_hardest_kind_you_would_follow() -> None:
     ]
     assert [rung["ticked"] for rung in drawn["rungs"]] == [True, True, False, False, False, False]
     assert drawn["rungs"][2]["current"] == "step"
+
+
+def test_every_rung_says_its_share_and_where_it_goes_to_a_screen_reader() -> None:
+    """targum-internal#471 polish 1, pinned on qa's ask (#858): the share of a passed or
+    ahead rung is drawn nowhere, so it is said in the link's name, not in a title alone,
+    which a phone and a keyboard never show (design.md §14)."""
+    labels = [rung["label"] for rung in story()["where"]["rungs"]]
+    assert labels[0] == "A dialogue: you know 99% of its words. Open this shelf in the Library."
+    assert labels[4] == "A novel: you know 70% of its words. Open this shelf in the Library."
+    # A rung with no share still says where it goes.
+    assert labels[5] == "Open this shelf in the Library"
 
 
 def test_every_touchstone_opens_its_shelf_in_the_library() -> None:
@@ -569,7 +584,7 @@ def test_aramaic_shows_known_words_and_no_ladder() -> None:
     )
     assert drawn["where"]["head"] == "You know 12 words so far"
     assert not drawn["where"]["shown"]
-    assert "no ladder of texts for Aramaic" in drawn["where"]["note"]
+    assert "We can't place Aramaic texts by difficulty" in drawn["where"]["note"]
     assert drawn["how"] == "Reading"
     assert drawn["next"]["wordsTitle"].startswith("Words you keep meeting, from your Aramaic list")
 
@@ -592,7 +607,7 @@ def test_yiddish_has_no_library_so_what_next_is_what_you_bring() -> None:
     assert "library has nothing in this language" in drawn["where"]["note"]
     assert drawn["how"] == "Reading and watching", "nobody's voice in Yiddish"
     nxt = drawn["next"]
-    assert nxt["textsTitle"].startswith("The library has nothing in this language yet")
+    assert nxt["textsTitle"] == "Upload something of your own."
     assert nxt["level"][0]["href"] == "/add?k=k"
     assert nxt["level"][1]["text"] == "אויפֿן פּריפּעטשיקUploaded by you | 84% known"
     assert nxt["more"] == "All your uploads →"
@@ -616,6 +631,8 @@ def test_what_next_names_the_words_with_their_own_meanings_and_the_texts() -> No
         story=LADDER,
     )["next"]
     assert drawn["met"][0]["text"].startswith("מושלים")
+    # With its meaning, in the language meanings are read in (targum-internal#471, B3).
+    assert "rulers" in drawn["met"][0]["text"]
     assert drawn["met"][0]["text"].endswith("met in 4 texts")
     # A word the server met that this browser has not seen yet is still named.
     assert drawn["met"][1]["text"] == "elsewhere | met in 2 texts"
@@ -647,7 +664,7 @@ def test_the_words_taken_up_are_a_column_a_week_shaded_by_height() -> None:
     words |= _on(today - timedelta(days=200), 40, "long-ago")
     drawn = draw({"targum:vocab:he": words})["weeks"]
     assert drawn["columns"] == 2, "from the first week with a word in it"
-    assert drawn["label"] == "5 words taken up in the last twelve weeks"
+    assert drawn["label"].startswith("5 words saved in the last twelve weeks. Week of ")
     assert drawn["shades"] == ["var(--step-2)", "var(--step-4)"]
     assert drawn["titles"][-1].endswith(": 3 words")
     assert not drawn["legend"]
@@ -656,7 +673,7 @@ def test_the_words_taken_up_are_a_column_a_week_shaded_by_height() -> None:
 def test_no_words_lately_is_said_rather_than_drawn_flat() -> None:
     words = _on(date.today() - timedelta(days=300), 4, "old")
     assert draw({"targum:vocab:he": words})["weeks"]["said"] == (
-        "No words taken up in the last twelve weeks."
+        "No words saved in the last twelve weeks."
     )
 
 
@@ -676,3 +693,23 @@ def test_words_read_joins_the_totals_where_the_account_keeps_a_record() -> None:
     drawn = draw({"targum:vocab:he": vocab(known=3)}, totals=totals)
     assert drawn["counts"]["words read"] == 1200
     assert "words read" not in draw({"targum:vocab:he": vocab(known=3)})["counts"]
+
+
+def test_while_the_story_is_asked_nothing_false_is_said() -> None:
+    """targum-internal#471, B2: before the account answers, one quiet line, and What next
+    does not say "None yet" to a reader who may have a record."""
+    drawn = draw({"targum:vocab:he": vocab(known=3, learning=2)}, story_held=True)
+    assert drawn["next"]["waiting"]
+    assert drawn["next"]["metEmpty"] == "We're finding the words and texts for you."
+    assert drawn["next"]["levelEmpty"] == ""
+
+
+def test_a_story_that_cannot_be_reached_says_so_with_try_again() -> None:
+    drawn = draw({"targum:vocab:he": vocab(known=3, learning=2)}, story_fails=True)
+    assert drawn["next"]["failed"] and not drawn["next"]["waiting"]
+    assert drawn["next"]["metEmpty"] == ""
+
+
+def test_nothing_to_practise_offers_no_practise_press() -> None:
+    drawn = story(words=[], texts=[])["next"]
+    assert not drawn["practise"]

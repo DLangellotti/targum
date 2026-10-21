@@ -12,6 +12,8 @@ Skips itself without Playwright and its Chromium, as the other browser tests do.
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -469,3 +471,61 @@ def test_a_press_that_could_not_start_says_why_beside_it_and_says_try_again(brow
 
     assert not thrown, thrown
     assert drawn == {"before": ["Try again", 1, "We couldn't start that."], "after": 0}
+
+
+#: How far a control answers a tap along the row and the column through its middle,
+#: measured by what the browser hits rather than by the size of the drawing.
+REACH = """
+(sel) => {
+  const el = document.querySelector(sel);
+  const r = el.getBoundingClientRect();
+  const x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const hits = (px, py) => el.contains(document.elementFromPoint(px, py));
+  const run = (dx, dy) => {
+    let n = 0;
+    while (n < 60 && hits(x + dx * (n + 1), y + dy * (n + 1))) n++;
+    return n;
+  };
+  return {middle: hits(x, y), across: run(1, 0) + run(-1, 0) + 1, up: run(0, 1) + run(0, -1) + 1};
+}
+"""
+
+
+def test_tell_us_in_a_panel_row_answers_a_thumb(browser) -> None:
+    """targum-internal#471, B4, measured on qa's ask (#858): what a thumb lands on, at
+    390 under touch, not what the stylesheet promises. The coarse block's 44px is what
+    holds it in this row today (24px tall without it); the `::after` reach is for a row
+    whose line box would clip the button, and this test does not claim to pin it."""
+    from targum.render.builder import progress_page
+
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = context.new_page()
+
+    assets = Path(__file__).resolve().parents[1] / "src" / "targum" / "render" / "assets"
+
+    def route(route, request):
+        address = request.url.split("?")[0]
+        sheet = re.search(r"/assets/([\w-]+)\.[0-9a-f]+\.css$", address)
+        if address.endswith("/progress"):
+            route.fulfill(status=200, content_type="text/html", body=progress_page(TOKEN))
+        elif sheet and (assets / f"{sheet.group(1)}.css").is_file():
+            body = (assets / f"{sheet.group(1)}.css").read_text(encoding="utf-8")
+            route.fulfill(status=200, content_type="text/css", body=body)
+        else:
+            route.fulfill(status=404, body="")
+
+    page.route("http://fault.test/**", route)
+    try:
+        page.goto("http://fault.test/progress", wait_until="load")
+        assert page.evaluate("matchMedia('(hover: none) and (pointer: coarse)').matches")
+        page.evaluate(
+            "() => { document.getElementById('progress-fault').hidden = false;"
+            " document.getElementById('progress-fault').scrollIntoView({block: 'center'}); }"
+        )
+        reach = page.evaluate(REACH, "#progress-fault-tell")
+        assert reach["middle"], reach
+        assert reach["across"] >= 44 and reach["up"] >= 44, reach
+    finally:
+        context.close()

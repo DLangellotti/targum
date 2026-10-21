@@ -86,6 +86,8 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .spent-amount { font-family: var(--reading); font-size: 1.9375rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .spent-label { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
 .spent .note { margin-block-start: 1rem; }
+/* Under the totals, in the paper: the ledger alone inverts (§9). */
+.progress .ledger-note { margin: 0.5rem 0 0; }
 /* The period as three tinted pills, the chosen one filled teal (the board's, over §4's
    quiet ink for a chosen filter, on this page). */
 .progress .spent .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-end: 1rem; }
@@ -279,5 +281,25 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   /* The phone board's three: on your list, known, finished; the rest are the desk's. */
   .progress .ledger .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .progress .ledger .counts > :not(.count-saved, .count-known, .count-finished) { display: none; }
+  /* "Learned on targum" is one of the desk's, so its line goes with it (qa on #858). */
+  .progress .ledger-note { display: none; }
   .progress .spent-amount, .progress .ledger .counts b { font-size: 1.5rem; }
 }
+
+/* What next's presses under a thumb (targum-internal#471, B4): "Practise these words",
+   "More in the Library" and "All your uploads" were 22px tall, and a row's link 30px
+   inside its 44px row. */
+@media (hover: none) and (pointer: coarse) {
+  .next-more { display: inline-flex; align-items: center; min-block-size: 44px; }
+  .next-link { flex: 1; align-self: stretch; min-block-size: 2.75rem; }
+}
+.next-more[hidden] { display: none; }
+.story-wait[hidden],
+.story-failed[hidden] { display: none; }
+/* Polish 6: a time figure on one line at 390. */
+.spent-amount { white-space: nowrap; }
+
+/* First visit (polish 8, targum-internal#471): the line and the one filled press, in a
+   card on the desk rather than text on the desk ground. */
+section.panel.nothing { max-inline-size: 40rem; margin: 3rem auto; padding: 1.5rem 1.75rem; text-align: start; }
+section.panel.nothing p { margin: 0 0 0.75rem; color: var(--ink); }

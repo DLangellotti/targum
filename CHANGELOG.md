@@ -58,6 +58,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   three seconds it says "Still making your PDF…", and offline it says the PDF is made on
   targum and needs a connection rather than "try again in a minute". On the reader's ⋯
   and on the series page, in English and Russian.
+- Your Progress, design's four blockers (targum-internal#471). The month line's and the
+  time figures' notes are quiet lines under them, not titles a phone never shows, and
+  "learned on targum" has no tooltip. Until the account answers, part 1 says "We're working
+  out where you are." and What next says nothing false; a story that cannot be reached says
+  so with Try again. What next draws each word's meaning in the reader's meaning language.
+  Its presses, and the fault panel's Tell us, reach 44px under a thumb. And from the
+  polish list: no Practise press with nothing to practise, numbers grouped as the page's
+  language groups them (11 385 in Russian), and a time figure kept on one line.
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
   rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
