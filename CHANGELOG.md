@@ -100,6 +100,31 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   hif'il no longer draws בָּא, "came"), and where the letters find only another binyan the
   root's verb in the right one is used (עלה in hif'il is הֶעֱלָה, לחם in nif'al נִלְחַם). A
   verb the source holds twice is one candidate, so קיבל draws its table. Render-time only.
+- `grammar/7`, an annotator rename and so a scheduled re-read (targum-internal#491, #494,
+  #490). A lemma that shares none of its word's strong letters is refused, so לטחון is
+  no longer "slipped" and לעבוד no longer "enslaved"; the word stands in, as where DICTA
+  declines. An active verb is no longer filed under its nif'al: ויאמר, אמרו and לעשות are
+  אמר's and עשה's, while a nif'al that spells itself (נכנסתי, להיכנס, and the future of an
+  א- or ת-first root, תתפס, אאסף) keeps it. A pointed future is read by its marks, and only
+  a qal is mended: a hif'il or pi'el future keeps DICTA's lemma rather than becoming
+  "gathered". A present is filed under its past (לוקחים is לקח's, הולכים הלך's, חוגגים
+  חגג's), and a pointed מוֹצֵא or מוֹכֵר is מצא's or מכר's where מוּצָג stays a hof'al. The
+  seller mend reaches a verb again. A nif'al spelled before its root gets its binyan, so
+  965 bare נאמר tokens draw a table. Marks follow the moves through the #141 lemma
+  migration when a text is opened, and since this change a weekly portion and a day of a
+  cycle carry their books' moves too (`moves.gathered`), so a mark made on a /parasha page
+  is not stranded by the re-read.
+- `oshb/7`, in the same re-read (targum-internal#454): a Biblical noun or adjective in the
+  construct state says so from Open Scriptures' state letter, so the card's construct line
+  reaches the Tanakh (בִּימֵי, בִּשְׂדֵי); not a suffixed noun (בָנָיו), a proper noun or the
+  Aramaic emphatic. Scored by `scripts/eval_construct_state.py` with a floor, and the
+  construct spot claims both registers.
+- `phonikud/3`, in the same re-read (targum-internal#454): a pointed modern segolate is
+  stressed on its first syllable where no accent places the stress, from ling-he's rule
+  (`annotate/segolate.py`): כֶּסֶף is kˈesef, בַּיִת bˈajit, רַכֶּבֶת ʁakˈevet, where phonikud
+  said every one on the last. Scored on the Tanakh against the accents
+  (`scripts/eval_segolate.py`, `stress-rule/2`); the card still says "inferred" on these
+  until the modern hand-read floor is in.
 - `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front
   door, which does not change: "Learn Hebrew from your own life in Israel", the four
   moments that send an oleh looking, four lines of everyday Hebrew from the bank, the

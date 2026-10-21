@@ -862,5 +862,21 @@
     "system": "suffix-rule/1",
     "at_least": 0.99,
     "why": "0.9945 on 2026-10-21, first scored: the same reading, the same held-out words (targum-internal#450)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-wlc",
+    "metric": "construct_precision",
+    "system": "oshb-state/1",
+    "at_least": 0.99,
+    "why": "1.0000 on 2026-10-21, first scored: Biblical construct state from Open Scriptures' state letter on the build's token, against the pieces' own state and suffix codes, outside the Torah; construct state's Biblical register (targum-internal#454, oshb/7)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-wlc",
+    "metric": "construct_recall",
+    "system": "oshb-state/1",
+    "at_least": 0.99,
+    "why": "1.0000 on 2026-10-21, first scored: Biblical construct state from Open Scriptures' state letter on the build's token, against the pieces' own state and suffix codes, outside the Torah; construct state's Biblical register (targum-internal#454, oshb/7)"
   }
 ]
