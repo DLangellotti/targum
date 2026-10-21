@@ -195,6 +195,7 @@ setTimeout(() => {
           words: at("plan-words").textContent,
           wordsHidden: at("plan-words-row").hidden,
           wordsMore: at("plan-words-more").hidden,
+          see: at("plan-see").hidden,
           paidSays: at("plan-paid-says").textContent,
           back: at("plan-back").textContent,
           topUps: at("plan-top-ups").children.map((one) => one.textContent),

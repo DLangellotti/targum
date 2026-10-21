@@ -537,6 +537,7 @@ def test_on_free_says_what_it_holds_and_what_a_plan_gives() -> None:
     assert "A plan gives you 480 credits a month, which is 8 hours" in drawn["offer"]
     assert drawn["words"].startswith("120 of 300 saved words") and drawn["wordsHidden"] is False
     assert drawn["wordsMore"] is True, "far from the cap, no See plans in the row"
+    assert drawn["see"] is False, "the head's See plans instead"
 
 
 @pytest.mark.parametrize(
@@ -553,6 +554,8 @@ def test_near_the_free_word_cap_says_how_many_are_left(listed: int, said: str) -
     page = run(who={**SIGNED_IN, "plan": {**plan, "listed": listed, "topUps": []}})
     assert page["plan"]["words"].startswith(said)
     assert page["plan"]["wordsMore"] is False, "See plans shown"
+    # Once (qa-claude on #871): the row's link says why, so the head's goes.
+    assert page["plan"]["see"] is True, "See plans twice"
 
 
 def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
@@ -565,3 +568,4 @@ def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
     assert drawn["paidSays"] == "480 credits a month, which is 8 hours of audio or video"
     assert drawn["back"] == "Your credits reset on November 1"
     assert drawn["topUps"] == ["60 credits", "180 credits", "300 credits"]
+    assert drawn["see"] is False, "on the plan, the head's See plans"

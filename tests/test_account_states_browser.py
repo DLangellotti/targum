@@ -257,6 +257,32 @@ def test_a_long_prompt_is_held_to_two_lines_on_a_phone(browser) -> None:
         context.close()
 
 
+def test_a_long_prompt_opens_on_a_press_and_closes_on_another(browser) -> None:
+    """qa-claude on #871: clamped to two lines, a long prompt had nowhere to show the rest.
+    The text opens on a press or a key and closes again; a short one is plain text."""
+    short = {"id": 2, "name": "short", "says": "Drill my verbs."}
+    me = {**POLISHED, "prompts": [*POLISHED["prompts"], short]}
+    context, page, _ = opened(browser, me=me, width=390)
+    try:
+        page.wait_for_selector("#prompt-rows .row")
+        says = page.locator("#prompt-rows .acct-says")
+        lines = """(el) => el.getBoundingClientRect().height
+          / parseFloat(getComputedStyle(el).lineHeight)"""
+        first = says.nth(0)
+        assert first.get_attribute("role") == "button"
+        assert first.get_attribute("aria-expanded") == "false"
+        assert says.nth(1).get_attribute("role") is None, "a short prompt has nothing to open"
+        first.click()
+        assert first.get_attribute("aria-expanded") == "true"
+        assert first.evaluate(lines) > 3, "the whole prompt shows"
+        first.focus()
+        page.keyboard.press("Enter")
+        assert first.get_attribute("aria-expanded") == "false"
+        assert first.evaluate(lines) <= 2.05
+    finally:
+        context.close()
+
+
 def test_every_rung_fits_the_your_hebrew_select_in_russian_on_a_phone(browser) -> None:
     """Polish 7: a native select can't wrap, and «Могу поддержать простой разгово…» was
     cut at 390. Every rung's label fits the select's own width in Russian."""

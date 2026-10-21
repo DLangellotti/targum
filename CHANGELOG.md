@@ -12,8 +12,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   one, and joined by a no-break space so it never splits at the end of a line (the day
   the credits come back too). The page's quiet lines are one note at §13's meta size in
   ink-soft. Prompts and Telegram chats are rows like the languages, a long prompt held to
-  two lines. With plans on, a Free word list past nine in ten of its cap says how many
-  more fit, with See plans beside it.
+  two lines, which opens on a press and closes on another. With plans on, a Free word
+  list past nine in ten of its cap says how many more fit, with See plans beside it and
+  not in the card's head as well.
 - CI cancels a branch's or a PR's run when a newer push to the same ref arrives, so a
   round of fixes queues one run. Master's runs are never cancelled, because a deploy
   may skip the suite only for a commit CI passed there (`TARGUM_CHECKED`).

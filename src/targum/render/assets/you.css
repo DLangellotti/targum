@@ -27,6 +27,10 @@ body.you .page-head { max-width: calc(55rem + 2.5rem); }
 b.acct-name { font-weight: 600; }
 .acct-says { color: var(--ink-soft); font-size: 0.875rem; line-height: 1.5; }
 .acct-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+/* A clamped prompt that runs past two lines opens on a press and closes on another
+   (qa-claude on #871): otherwise nothing on the page showed the rest of it. */
+.acct-clamp[role="button"] { cursor: pointer; }
+.acct-clamp.acct-open { display: block; -webkit-line-clamp: none; line-clamp: none; overflow: visible; }
 .acct-end { flex: none; display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
 .acct-rows > .row.acct-wrap { flex-wrap: wrap; }
 .acct-rows > .row.acct-wrap > .row-main { flex: 1 1 18rem; }
@@ -123,7 +127,7 @@ b.acct-name { font-weight: 600; }
 .conn-scopes svg { flex: none; inline-size: 1rem; block-size: 1rem; margin-block-start: 0.2rem; fill: none; stroke: var(--teal); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Your prompts and Telegram are `.row`s as Your languages draws them (polish 6). */
-#plan-words-more[hidden] { display: none; }
+#plan-words-more[hidden], #plan-see[hidden] { display: none; }
 #prompts .field { margin-block-start: 1rem; }
 .ending-row { margin-block-start: 1rem; }
 

@@ -629,7 +629,28 @@
               tell(t("you.prompts.could-not-remove", "We couldn't remove that. Try again."));
             });
         };
-        rows.appendChild(acctRow(one.name, one.says, press, true));
+        var row = acctRow(one.name, one.says, press, true);
+        rows.appendChild(row);
+        openable(row.querySelector && row.querySelector(".acct-clamp"));
+      });
+    }
+
+    /* Clamped to two lines, a long prompt had nowhere to show the rest (qa-claude on
+       #871): where it runs over, the text itself opens and closes on a press. */
+    function openable(text) {
+      if (!text || !(text.scrollHeight > text.clientHeight + 1)) return;
+      text.tabIndex = 0;
+      text.setAttribute("role", "button");
+      text.setAttribute("aria-expanded", "false");
+      function flip() {
+        var open = text.classList.toggle("acct-open");
+        text.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      text.addEventListener("click", flip);
+      text.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        flip();
       });
     }
 
@@ -933,6 +954,8 @@
     var free = plan.plan !== "plan";
     var back = (who.hours && who.hours.ends) || "";
     var hours = Math.round((plan.planCredits || 0) / 60);
+    var seeAll = document.getElementById("plan-see");
+    if (seeAll) seeAll.hidden = false;
     document.getElementById("plan-free").hidden = !free;
     document.getElementById("plan-paid").hidden = free;
     if (free) {
@@ -970,6 +993,9 @@
               );
         var more = document.getElementById("plan-words-more");
         if (more) more.hidden = !near;
+        // "See plans" once: near the cap the row's link says why, so the head's goes
+        // (qa-claude on #871).
+        if (seeAll) seeAll.hidden = near;
         document.getElementById("plan-words-row").hidden = false;
       }
     } else {
