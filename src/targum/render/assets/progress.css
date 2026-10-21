@@ -294,3 +294,9 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .story-failed[hidden] { display: none; }
 /* Polish 6: a time figure on one line at 390. */
 .spent-amount { white-space: nowrap; }
+
+/* First visit (polish 8, targum-internal#471): the line and the one filled press, in a
+   card on the desk rather than text on the desk ground. */
+section.panel.nothing { max-inline-size: 40rem; margin: 3rem auto; padding: 1.5rem 1.75rem; text-align: start; }
+section.panel.nothing p { margin: 0 0 0.75rem; color: var(--ink); }
+section.panel.nothing a.btn { color: var(--paper); }

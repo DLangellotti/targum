@@ -47,7 +47,7 @@
      slot would be wrong in two of the three. */
   var RUNGS = {
     dialogue: {
-      chip: t("progress.touch.dialogue", "Dialogue"),
+      chip: t("progress.touch.dialogue", "A dialogue"),
       follow: t("progress.where.follow.dialogue", "You'd follow a dialogue"),
       nearly: t("progress.where.nearly.dialogue", "You'd follow nearly all of a dialogue"),
       most: t("progress.where.most.dialogue", "You'd follow most of a dialogue"),
@@ -212,7 +212,7 @@
       host.appendChild(box);
     }
 
-    count(sums.saved, tn("progress.count.saved", sums.saved, "word on your list", "words on your list"), null, null, "saved");
+    count(sums.saved, tn("progress.count.saved", sums.saved, "saved word", "saved words"), null, null, "saved");
     // The board's labels (§12, "The mockups win on Your Progress", 2026-10-09).
     count(sums.known, tn("progress.count.known", sums.known, "word known", "words known"), "leaf", null, "known");
     // What targum carried up to known, rather than what a reader arrived already having.
@@ -276,10 +276,10 @@
         code === "arc"
           ? t(
               "progress.where.no-ladder-arc",
-              "There's no ladder of texts for Aramaic: we have no list of how common its words are, so its texts can't be measured."
+              "We can't place Aramaic texts by difficulty, because we have no list of how common its words are."
             )
           : !said.library
-            ? t("progress.where.no-library", "The library has nothing in this language yet, so there's no ladder of texts to place you on.")
+            ? t("progress.where.no-library", "The library has nothing in this language yet, so we can't show which texts you'd follow.")
             : t("progress.where.unmeasured", "We'll show which kinds of text you'd follow once we've measured the library's texts.");
       note.hidden = false;
       return;
@@ -308,11 +308,14 @@
       if (rung.state === "here") link.setAttribute("aria-current", "step");
       link.title =
         typeof rung.share === "number"
-          ? t("progress.touch.title", "{kind}: you know {n}% of the words. Open this shelf in the Library", {
+          ? t("progress.touch.title", "{kind}: you know {n}% of its words. Open this shelf in the Library.", {
               kind: named_,
               n: rung.share,
             })
           : t("progress.touch.open", "Open this shelf in the Library");
+      // The share and where it goes, said to a screen reader too, not in the title alone
+      // (polish 1, targum-internal#471; design.md §14, nothing is hover-only).
+      link.setAttribute("aria-label", link.title);
       item.appendChild(link);
       list.appendChild(item);
     });
@@ -525,10 +528,11 @@
       return Math.max(top, column.all);
     }, 0);
     if (!most) {
-      host.appendChild(el("p", "empty", t("progress.weeks.none", "No words taken up in the last twelve weeks.")));
+      host.appendChild(el("p", "empty", t("progress.weeks.none", "No words saved in the last twelve weeks.")));
       return;
     }
     var bars = el("ol", "weeks");
+    var weekLabels = [];
     var total = 0;
     var first = 0;
     while (first < columns.length && !columns[first].all) first += 1;
@@ -541,7 +545,7 @@
         date: from.toLocaleDateString(words.language || "en", { day: "numeric", month: "short" }),
       });
       bar.title = label;
-      bar.setAttribute("aria-label", label);
+      weekLabels.push(label);
       var share = column.all / most;
       // A week with nothing in it keeps its place and draws nothing.
       if (!column.all) {
@@ -555,9 +559,13 @@
       bars.appendChild(bar);
     });
     bars.setAttribute("role", "img");
+    // Each week's count in the chart's own label, which a screen reader says: a title on
+    // a bar inside an image was reached by nothing (polish 2; §14, nothing is hover-only).
     bars.setAttribute(
       "aria-label",
-      tn("progress.weeks.label", total, "{n} word taken up in the last twelve weeks", "{n} words taken up in the last twelve weeks")
+      [tn("progress.weeks.label", total, "{n} word saved in the last twelve weeks", "{n} words saved in the last twelve weeks")]
+        .concat(weekLabels)
+        .join(". ")
     );
     host.appendChild(bars);
   }
@@ -622,12 +630,17 @@
     wordsTitle.textContent =
       code === "arc"
         ? t("progress.next.words-arc", "Words you keep meeting, from your Aramaic list (kept apart from your Hebrew one)")
-        : t("progress.next.words", "Words you keep meeting and haven't learned");
+        : t("progress.next.words", "Words you keep meeting and don't know yet");
 
     // Nothing is said about what is missing until the account has answered: "None yet"
     // to a reader with six such words was false (targum-internal#471, B2).
     var answered = signedIn === false || !!said;
     var found = (said && said.words) || [];
+    var nextWait = t("progress.next.loading", "We're finding the words and texts for you.");
+    if (!answered && !storyFailed[code]) {
+      metEmpty.textContent = nextWait;
+      metEmpty.hidden = false;
+    }
     found.forEach(function (one) {
       var word = meaningOf(code, one.lemma);
       row(
@@ -655,7 +668,7 @@
     var library = !said || said.library !== false;
     textsTitle.textContent = library
       ? t("progress.next.texts", "Texts at your level now")
-      : t("progress.next.texts-yours", "The library has nothing in this language yet, so what comes next is what you bring");
+      : t("progress.next.texts-yours", "Upload something of your own.");
     more.textContent = library
       ? t("progress.next.library", "More in the Library") + " →"
       : t("progress.next.uploads", "All your uploads") + " →";
@@ -677,6 +690,18 @@
       return;
     }
 
+    // Aramaic texts are never placed by difficulty, so this half says that, once, and
+    // offers the Library (polish 10).
+    if (code === "arc") {
+      if (answered) {
+        levelEmpty.textContent = t(
+          "progress.next.texts-arc",
+          "We don't place Aramaic texts by difficulty, so none are listed here."
+        );
+        levelEmpty.hidden = false;
+      }
+      return;
+    }
     var texts = (said && said.texts) || [];
     // The title alone and how much of it is known, as the board has it.
     texts.forEach(function (one) {
@@ -694,7 +719,7 @@
       levelEmpty.textContent =
         signedIn === false
           ? t("progress.next.texts-signed-out", "Sign in and we'll find the texts at your level.")
-          : t("progress.next.texts-none", "Nothing is quite at your level yet. The Library's Hard for now shelf has the nearest.");
+          : t("progress.next.texts-none", "Nothing is quite at your level yet. The Library's “Hard for now” shelf has the closest.");
       levelEmpty.hidden = false;
     }
   }
