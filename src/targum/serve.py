@@ -4765,6 +4765,7 @@ class Library:
         before its book, and if the book's own cover fails there is nothing to match.
         """
         from . import covers as covers_module
+        from . import thumbs as thumbs_module
 
         illustrator = covers_module.build()
         usable, detail = illustrator.available()
@@ -4823,6 +4824,12 @@ class Library:
                 if name == entry_id:
                     original = drawing
                 (where / f"{name}.webp").write_bytes(covers_module.shrink(drawing))
+                # Where it came from, beside every other picture's (targum-internal#429).
+                thumbs_module.record(
+                    where,
+                    name,
+                    thumbs_module.drawn_entry(illustrator.name, date.today().isoformat()),
+                )
                 drawn += 1
                 job.done = drawn
                 self.remember(job)

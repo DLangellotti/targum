@@ -2728,6 +2728,18 @@ def test_a_chapter_is_drawn_in_the_style_of_its_book(tmp_path: Path, monkeypatch
     assert kept.is_file()
     assert kept.stat().st_size < len(picture(1)) / 10, "and what is kept is a tile"
     assert job.spent == pytest.approx(3 * 0.04), "what was drawn, not what was reserved"
+    # And each says where it came from, beside the library's own (targum-internal#429).
+    from datetime import date
+
+    from targum import thumbs
+
+    said = thumbs.read_sources(out / "thumbs")
+    assert len(said) == 3
+    assert said["judenstaat"] == {
+        "from": "drawn",
+        "model": "fake/1",
+        "date": date.today().isoformat(),
+    }
 
 
 def test_nothing_is_drawn_without_a_key(served: tuple[int, str, Path]) -> None:

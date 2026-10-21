@@ -189,16 +189,46 @@ scp -q deploy/targum-backup.service deploy/targum-backup.timer \
 # <home>-<name>.webp, and this machine has none of those. Dotfiles and partial writes stay
 # behind (a cover is written as .<name>.part and renamed). macOS rsync is 2.6.9 and has
 # no --chown, so the files arrive as root and are handed to the service after.
+#
+# sources.json says where each picture came from, and both machines write it: this one
+# for the library, the box for every upload cover it draws. So it is merged rather than
+# copied — this machine's lines win, the box keeps the ones only it has.
+#
+# Before anything goes, the count of library rows with no picture at all, only the letter
+# tile (targum-internal#429): a row filed after the last drawing shows up here rather than
+# on the shelf. Read by this tree's own catalogue, which is the one being shipped.
 COMMON_GIT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$ROOT/.git")"
 MAIN_CHECKOUT="$(dirname "$COMMON_GIT")"
 THUMBS="${TARGUM_THUMBS:-$MAIN_CHECKOUT/targum-out/thumbs}"
 REMOTE_THUMBS="${TARGUM_REMOTE_THUMBS:-/var/lib/targum/targums/thumbs}"
+THUMBS_CLI="${TARGUM_THUMBS_CLI:-uv run targum thumbs}"
+MERGE_SOURCES='import json, os, sys
+path = sys.argv[1]
+mine = json.load(sys.stdin)
+try:
+    with open(path, encoding="utf-8") as held:
+        kept = json.load(held)
+except (OSError, ValueError):
+    kept = {}
+kept.update(mine)
+with open(path + ".part", "w", encoding="utf-8") as out:
+    out.write(json.dumps(kept, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+os.replace(path + ".part", path)'
 if [ -d "$THUMBS" ]; then
+  # shellcheck disable=SC2086 # the command is separate words on purpose
+  BARE="$($THUMBS_CLI --dry-run --no-fetch --out "$(dirname "$THUMBS")" 2>/dev/null \
+    | grep -E '^[0-9]+ rows without a picture$' || true)"
+  echo "   ${BARE:-the rows without a picture could not be counted}"
   ssh "${SSH_OPTS[@]}" "$HOST" "mkdir -p '$REMOTE_THUMBS'"
   # rsync's own ssh, kept talking like every other one here.
   RSYNC_RSH="$(printf '%q ' ssh "${SSH_OPTS[@]}")" rsync -a -q --delay-updates \
     --exclude='.*' --exclude='*.part' --exclude='*.tmp' --exclude='*~' \
+    --exclude='/sources.json' \
     "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
+  if [ -f "$THUMBS/sources.json" ]; then
+    ssh "${SSH_OPTS[@]}" "$HOST" "python3 -c '$MERGE_SOURCES' '$REMOTE_THUMBS/sources.json'" \
+      < "$THUMBS/sources.json"
+  fi
   ssh "${SSH_OPTS[@]}" "$HOST" "chown -R targum:targum '$REMOTE_THUMBS'"
   echo "   $(find "$THUMBS" -type f -name '*.webp' | wc -l | tr -d ' ') covers"
 fi

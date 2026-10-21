@@ -8,6 +8,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Fixed
 - The press that makes a playlist says "Create", not "Confirm", in the New playlist form
   and the Add-to-playlist menu (David, 2026-10-21; targum-internal#474).
+- A library row filed without a picture is caught, and every picture in `thumbs/` says
+  where it came from (targum-internal#429, slices 2 and 3). `targum thumbs --dry-run`
+  names the rows left with only the letter tile and ends on "N rows without a picture",
+  after the counts by origin (own, drawn, tile, overall and by language); `deploy.sh`
+  prints that count before the covers go. All 152 tile-only rows of 2026-10-21 were
+  filed after the October drawing, which is what this stops recurring. A drawn cover now
+  writes its line in `thumbs/sources.json` (`from: drawn`, the model, the day) when it
+  is drawn, under a lock, and `targum thumbs` writes one for any picture still without,
+  dated by its file and marked `backfilled`. The laptop's 993 drawn pictures (927
+  library covers, 66 chapter and upload covers) were written in this way, with no
+  drawing and no spend: 379 own, 927 drawn, 0 tile. `deploy.sh` now merges
+  `sources.json` into the box's rather than copying over it, so the lines the box writes
+  for its own upload covers stay, under the lock the box's own writers take. A picture
+  that belongs to no library row (a laptop upload's cover, a retired row's) no longer
+  goes to the box, file or line: the box has its own uploads, and a laptop one with the
+  same name would replace it.
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
   rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,

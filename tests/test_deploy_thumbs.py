@@ -33,6 +33,12 @@ case "$*" in
 esac
 """
 
+FAKE_THUMBS = """#!/usr/bin/env bash
+echo "thumbs $*" >> "$CALLS"
+echo "2 own · 1 drawn · 3 tile"
+echo "3 rows without a picture"
+"""
+
 FAKE_RSYNC = """#!/usr/bin/env bash
 echo "rsync $*" >> "$CALLS"
 echo "rsh $RSYNC_RSH" >> "$CALLS"
@@ -60,7 +66,7 @@ def step() -> str:
 def run(tmp_path: Path, thumbs: Path, box: Path) -> tuple[str, list[str]]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
-    for name, body in (("ssh", FAKE_SSH), ("rsync", FAKE_RSYNC)):
+    for name, body in (("ssh", FAKE_SSH), ("rsync", FAKE_RSYNC), ("thumbs", FAKE_THUMBS)):
         (bin_dir / name).write_text(body, encoding="utf-8")
         (bin_dir / name).chmod(0o755)
     calls = tmp_path / "calls"
@@ -73,6 +79,7 @@ def run(tmp_path: Path, thumbs: Path, box: Path) -> tuple[str, list[str]]:
         "REAL_RSYNC": str(shutil.which("rsync")),
         "TARGUM_THUMBS": str(thumbs),
         "TARGUM_REMOTE_THUMBS": str(box),
+        "TARGUM_THUMBS_CLI": str(bin_dir / "thumbs"),
     }
     done = subprocess.run(
         ["bash", "-c", prelude + step()],
@@ -124,3 +131,46 @@ def test_covers_arrive_box_only_covers_stay_and_partials_stay_behind(tmp_path: P
     assert any(call.startswith("rsync ") for call in calls[:-1])
     assert "rsh ssh -o ServerAliveInterval=60 " in calls
     assert "2 covers" in said
+
+
+@pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync is what deploy.sh copies with")
+def test_the_rows_without_a_picture_are_counted_before_anything_goes(tmp_path: Path) -> None:
+    thumbs = tmp_path / "thumbs"
+    thumbs.mkdir()
+    (thumbs / "genesis.webp").write_bytes(b"drawn")
+    box = tmp_path / "box"
+    box.mkdir()
+
+    said, calls = run(tmp_path, thumbs, box)
+
+    assert "   3 rows without a picture" in said.splitlines()
+    assert calls[0] == f"thumbs --dry-run --no-fetch --out {tmp_path}", (
+        "counted first, spending nothing"
+    )
+
+
+@pytest.mark.skipif(shutil.which("rsync") is None, reason="rsync is what deploy.sh copies with")
+def test_sources_are_merged_so_the_boxs_own_lines_stay(tmp_path: Path) -> None:
+    import json
+
+    thumbs = tmp_path / "thumbs"
+    thumbs.mkdir()
+    (thumbs / "genesis.webp").write_bytes(b"drawn")
+    laptop = {
+        "genesis": {"from": "drawn", "model": "openai/gpt-image-2", "date": "2026-10-08"},
+        "ka-x": {"from": "video poster", "licence": "CC BY 4.0"},
+    }
+    (thumbs / "sources.json").write_text(json.dumps(laptop), encoding="utf-8")
+    box = tmp_path / "box"
+    box.mkdir()
+    upload = {"from": "drawn", "model": "openai/gpt-image-2", "date": "2026-10-20"}
+    (box / "sources.json").write_text(
+        json.dumps({"home1-notes": upload, "ka-x": {"from": "stale"}}), encoding="utf-8"
+    )
+
+    run(tmp_path, thumbs, box)
+
+    merged = json.loads((box / "sources.json").read_text(encoding="utf-8"))
+    assert merged == {**laptop, "home1-notes": upload}, (
+        "this machine's lines win; the box keeps its own"
+    )

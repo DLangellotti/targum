@@ -199,3 +199,106 @@ def test_an_uploads_reader_carries_its_own_picture_as_its_cover(tmp_path: Path) 
     assert own_cover_uri(tmp_path) == "" and own_cover_uri(None) == ""
     assert thumbs.keep(png(), tmp_path / thumbs.THUMB)
     assert own_cover_uri(tmp_path).startswith("data:image/webp;base64,")
+
+
+# -- slices 2 and 3: a row with no picture is named, and every picture says where from ----
+
+
+def shelf(*ids: str) -> list[Any]:
+    return [
+        SimpleNamespace(id=name, source=f"test:{name}", licence="CC BY 4.0", language="he")
+        for name in ids
+    ]
+
+
+def run_thumbs(out: Path, *more: str) -> str:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    result = CliRunner().invoke(
+        app, ["thumbs", "--no-fetch", "--out", str(out), *more], env={"COLUMNS": "400"}
+    )
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+def test_a_row_filed_without_a_picture_is_named(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum import catalogue
+
+    where = tmp_path / "thumbs"
+    where.mkdir()
+    (where / "drawn-one.webp").write_bytes(b"drawn")
+    (where / "own-one.webp").write_bytes(b"poster")
+    held = {"own-one": {"from": "video poster", "licence": "CC BY 4.0"}}
+    (where / thumbs.SOURCES).write_text(json.dumps(held), encoding="utf-8")
+    monkeypatch.setattr(
+        catalogue, "CATALOGUE", shelf("drawn-one", "own-one", "scene-ru-filed-later")
+    )
+
+    said = run_thumbs(tmp_path, "--dry-run")
+
+    lines = said.splitlines()
+    assert "1 rows without a picture" == lines[-1]
+    assert "1 own · 1 drawn · 1 tile" == lines[-2]
+    assert any(line.strip() == "scene-ru-filed-later" for line in lines)
+    assert not any(line.strip() in ("drawn-one", "own-one") for line in lines)
+    assert "1 drawn covers would be written into sources.json." in said
+    assert json.loads((where / thumbs.SOURCES).read_text("utf-8")) == held, (
+        "a dry run writes nothing"
+    )
+
+
+def test_every_picture_says_where_it_came_from(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import os
+    from datetime import date, datetime
+
+    from targum import catalogue
+
+    where = tmp_path / "thumbs"
+    (where / "small").mkdir(parents=True)
+    for name in ("genesis", "genesis-c002", "home1-notes", "own-one"):
+        (where / f"{name}.webp").write_bytes(b"picture")
+    (where / ".exodus.webp.part").write_bytes(b"half")
+    (where / "small" / "genesis.webp").write_bytes(b"small")
+    drawn_on = datetime(2026, 10, 8, 12).timestamp()
+    os.utime(where / "genesis.webp", (drawn_on, drawn_on))
+    poster = {"from": "video poster", "url": "https://i.ytimg.com/x", "licence": "CC BY 4.0"}
+    (where / thumbs.SOURCES).write_text(json.dumps({"own-one": poster}), encoding="utf-8")
+    monkeypatch.setattr(catalogue, "CATALOGUE", shelf("genesis", "own-one"))
+
+    said = run_thumbs(tmp_path)
+
+    sources = thumbs.read_sources(where)
+    assert set(sources) == {"genesis", "genesis-c002", "home1-notes", "own-one"}
+    assert sources["own-one"] == poster, "a picture's own line is kept as it was"
+    assert sources["genesis"] == {
+        "from": "drawn",
+        "model": "openai/gpt-image-2",
+        "date": "2026-10-08",
+        "backfilled": date.today().isoformat(),
+    }
+    assert thumbs.unrecorded(where, sources) == []
+    assert "3 drawn covers were written into sources.json." in said
+    assert said.splitlines()[-2:] == ["1 own · 1 drawn · 0 tile", "0 rows without a picture"]
+
+    # Run again, and nothing is left to write.
+    before = (where / thumbs.SOURCES).read_bytes()
+    assert "written into sources.json" not in run_thumbs(tmp_path)
+    assert (where / thumbs.SOURCES).read_bytes() == before
+
+
+def test_a_drawn_cover_adds_its_own_line(tmp_path: Path) -> None:
+    thumbs.record(tmp_path, "a", thumbs.drawn_entry("openai/gpt-image-2", "2026-10-21"))
+    thumbs.record(tmp_path, "b", thumbs.drawn_entry("openai/gpt-image-2", "2026-10-21"))
+
+    said = thumbs.read_sources(tmp_path)
+    assert said["a"] == {"from": "drawn", "model": "openai/gpt-image-2", "date": "2026-10-21"}
+    assert set(said) == {"a", "b"}
+    assert thumbs.origin(said["a"]) == thumbs.DRAWN
+    assert thumbs.origin({"from": "book cover"}) == thumbs.OWN
+    assert thumbs.origin(None) == thumbs.DRAWN
