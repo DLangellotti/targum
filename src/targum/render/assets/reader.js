@@ -4630,9 +4630,12 @@ var targumReader = function () {
         return kept ? role + " · " + kept : role;
       }
       var person = personWord(line);
-      // Without a case or a role a pronoun's person is its meaning again, and a bare
-      // "they" under "these" reads as a mistranslation (targum-internal#489).
-      if (!inCase) return "";
+      // A Hebrew third person is its meaning again (הוא, "he": he), and DICTA files a
+      // demonstrative there too, so a bare "they" under "these" read as a mistranslation
+      // (targum-internal#489). The first and second keep theirs: "you (m, pl)" says what
+      // "you" cannot.
+      if (!inCase && language === "he" && feat(line, "Person") === "3") return "";
+      if (!inCase) return person;
       return (person || gt("reader.grammar.pronoun", "pronoun")) + " · " + inCase;
     }
     var headword = (lemma || "").toLowerCase().replace("\u2019", "'");
