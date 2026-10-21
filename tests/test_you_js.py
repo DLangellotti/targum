@@ -146,7 +146,7 @@ def test_the_language_read_into_is_one_choice() -> None:
 def test_deleting_an_account_asks_twice() -> None:
     once = run(do=[{"type": "press", "id": "you-forget"}])
     assert once["posted"] == [], "the first press asks; it does not delete"
-    assert once["forget"]["label"] == "Delete my account and words"
+    assert once["forget"]["label"] == "Yes, delete my account"
     assert once["forget"]["disabled"] is False
 
     twice = run(
@@ -155,7 +155,8 @@ def test_deleting_an_account_asks_twice() -> None:
     )
     assert [post["path"] for post in twice["posted"]] == ["/account/forget"]
     assert twice["forget"]["disabled"] is True, "and cannot be pressed a third time"
-    assert twice["ending"]["text"] == "Your account is closing."
+    # Said on the closing card, not a line under the press (targum-internal#469, B5).
+    assert twice["closed"] == {"text": "Your account is closing.", "hidden": False}
 
 
 def test_signing_out_goes_through_sync_rather_than_the_endpoint() -> None:
@@ -259,7 +260,7 @@ def test_one_app_connected_twice_is_one_row_with_both_dates() -> None:
     )
     assert len(page["connections"]) == 1
     when = page["connections"][0]["when"]
-    assert when.startswith("Connected ") and ", again " in when and ", last used " in when
+    assert when.startswith("Connected ") and ", reconnected " in when and ", last used " in when
     assert "2025" in when
 
 
@@ -291,7 +292,7 @@ def test_disconnecting_takes_every_grant_the_app_holds_and_redraws() -> None:
     assert posted == [{"client": "c-1"}, {"client": "c-2"}]
     assert [one["name"] for one in page["connections"]] == ["ChatGPT"], "redrawn from the answer"
     assert page["connectionsSaid"] == {
-        "text": "Disconnected. Claude can't reach your targum any more.",
+        "text": "Disconnected. Claude can't reach your account any more.",
         "hidden": False,
     }
 
@@ -490,7 +491,7 @@ def test_on_free_says_what_it_holds_and_what_a_plan_gives() -> None:
         "The library, word cards and your text uploads, with 60 credits a month"
     )
     assert "A plan gives you 480 credits a month, which is 8 hours" in drawn["offer"]
-    assert drawn["words"].startswith("120 of 300 words") and drawn["wordsHidden"] is False
+    assert drawn["words"].startswith("120 of 300 saved words") and drawn["wordsHidden"] is False
 
 
 def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
