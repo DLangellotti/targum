@@ -115,6 +115,9 @@ MAX_UPLOAD = 32 * 1024 * 1024
 #: The longest thing a word's card may ask to hear, pointing included: a word, or the few
 #: a fixed expression is, and never a sentence.
 WORD_SAID_CHARS = 60
+#: Ends a word can be cut with that are not the word, as the card's Hear trims them:
+#: spaces, maqaf, paseq, sof pasuq, punctuation.
+EDGES_SAID = " \t\n\u05be\u05c0\u05c3.,;:!?\"'()[]\u2013\u2014"
 
 #: The chunked door, for recordings. An audiobook is a gigabyte and the JSON door reads
 #: its whole body into memory as base64; chunks arrive raw, 8 MiB at a time — under
@@ -1660,6 +1663,41 @@ class Jobs(dict[str, Job]):
 BUILD_KINDS = ("build", "subscription")
 
 
+def said_clip(text: str, language: str) -> tuple[Path, Path | None]:
+    """Where the voice's clip of one word is kept, and the clip if it has been made: by
+    what was said and in which language, never by who asked, so a word anybody has heard
+    is free for everyone after (design.md §12, "A word said from its card is on targum")."""
+    from . import speech
+    from .ids import content_hash
+    from .paths import cache_dir
+
+    key = content_hash(speech.NAME, speech.VOICE, speech.ask(language), language, text)
+    into = cache_dir() / "said" / key[:2] / key
+    kept = next((p for p in into.parent.glob(f"{key}.*") if p.is_file()), None)
+    return into, kept
+
+
+#: How many words one Anki export gives a sound to (David, 2026-10-21): a clip is about a
+#: second, so this is about an hour and a half of speech, a few dollars, at most.
+ANKI_MOST = 5000
+
+
+@dataclass
+class Deck:
+    """One Anki export being made: how far it has got, and the file when it is done."""
+
+    id: str
+    owner: int
+    total: int
+    making: int = 0
+    made: int = 0
+    silent: int = 0
+    state: str = "making"
+    name: str = ""
+    path: Path | None = None
+    note: str = ""
+
+
 class Library:
     """Everything built so far, and the jobs building more."""
 
@@ -1740,6 +1778,8 @@ class Library:
         # What stopped a set's press, held for the page it redirects back to (#365). A
         # form post answered by a redirect has nowhere else to put a sentence.
         self.set_refusals: dict[int, str] = {}
+        # The Anki decks being made, by id (targum-internal#496); one at a time a person.
+        self.decks: dict[str, Deck] = {}
         # The quota's view of each home, cached a minute: a gigabyte arrives in a
         # hundred chunks and the disk should not be walked for every one of them.
         self._used: dict[Path, tuple[int, int]] = {}
@@ -8688,6 +8728,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._story(parse_qs(urlparse(self.path).query))
         if route == "/account/words":
             return self._words_page(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki":
+            return self._deck_state(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki/deck":
+            return self._deck_file(parse_qs(urlparse(self.path).query))
         if route == "/account/met":
             return self._met_texts(parse_qs(urlparse(self.path).query))
         if route == "/account/practice":
@@ -8921,6 +8965,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._voice(payload)
         if route == "/say-word":
             return self._hear_word(payload)
+        if route == "/account/anki":
+            return self._deck_start(payload)
         if route == "/chat/save":
             return self._chat_save(payload)
         if route == "/weekly/follow":
@@ -9412,8 +9458,6 @@ class Handler(BaseHTTPRequestHandler):
         import unicodedata
 
         from . import speech
-        from .ids import content_hash
-        from .paths import cache_dir
 
         text = unicodedata.normalize("NFC", str(payload.get("text") or "")).strip()
         language = str(payload.get("language") or "he").split("-")[0].lower()
@@ -9430,9 +9474,7 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 402,
             )
-        key = content_hash(speech.NAME, speech.VOICE, speech.ask(language), language, text)
-        into = cache_dir() / "said" / key[:2] / key
-        kept = next((p for p in into.parent.glob(f"{key}.*") if p.is_file()), None)
+        into, kept = said_clip(text, language)
         if kept is None:
             usable, why = speech.available()
             if not usable:
@@ -9458,7 +9500,7 @@ class Handler(BaseHTTPRequestHandler):
             seconds = 2.0
             job = Job(
                 ui=self._page_language(),
-                id=f"say-{key[:12]}-{secrets.token_hex(3)}",
+                id=f"say-{into.name[:12]}-{secrets.token_hex(3)}",
                 source=f"word:{language}",
                 estimate=seconds / 60 * speech.PRICES[speech.NAME],
                 seconds=seconds,
@@ -9509,6 +9551,230 @@ class Handler(BaseHTTPRequestHandler):
         kind = "audio/mpeg" if kept.suffix == ".mp3" else "audio/wav"
         encoded = base64.b64encode(kept.read_bytes()).decode("ascii")
         return self._json({"audio": f"data:{kind};base64,{encoded}"})
+
+    def _deck_start(self, payload: dict[str, Any]) -> None:
+        """Start making an Anki deck of the words on Your Words, with each word's sound
+        (targum-internal#496; David, 2026-10-21; design.md §12, "The Anki deck carries each
+        word's sound").
+
+        The page hands in the rows it shows, as the text export did. A word whose clip
+        the voice already made is free; for the rest, up to `ANKI_MOST`, the clip is made
+        the way a Hear press makes one: a `gift` job through `Library.claim_turn`, held to
+        the box ceiling, settled to the seconds made, and kept by what was said. A word
+        with no sound, or past the cap, still goes in the deck, silent. Made in the
+        background; the page asks `/account/anki?id=` how far it has got and fetches the
+        file from `/account/anki/deck?id=`. One deck at a time a person.
+        """
+        import unicodedata
+
+        from . import speech
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str(payload.get("language") or "").split("-")[0].lower()
+        rows = payload.get("words")
+        if not language or not isinstance(rows, list) or not rows:
+            return self._json({"error": "bad request"}, 400)
+        for deck in self.library.decks.values():
+            if deck.owner == person.id and deck.state == "making":
+                return self._json({"id": deck.id, **self._deck_said(deck)})
+        name = str(payload.get("deck") or f"targum {language}")[:120]
+        words: list[dict[str, str]] = []
+        for row in rows[: 4 * ANKI_MOST]:
+            if not isinstance(row, dict):
+                continue
+            term = unicodedata.normalize("NFC", str(row.get("term") or "")).strip()
+            if not term:
+                continue
+            words.append(
+                {
+                    "term": term,
+                    "lemma": str(row.get("lemma") or term),
+                    "back": str(row.get("back") or "")[:2000],
+                    "tags": str(row.get("tags") or "")[:400],
+                }
+            )
+        if not words:
+            return self._json({"error": "bad request"}, 400)
+        deck = Deck(id=secrets.token_hex(8), owner=person.id, total=len(words), name=name)
+        self.library.decks[deck.id] = deck
+        voiced = speech.speaks(language) and speech.available()[0]
+        admin = self.store.is_admin(person.email)
+        home = self._home()
+        ui = self._page_language()
+        threading.Thread(
+            target=self._deck_make,
+            args=(deck, words, language, voiced, person.id, admin, home, ui),
+            daemon=True,
+        ).start()
+        self._json({"id": deck.id, **self._deck_said(deck)})
+
+    def _deck_make(
+        self,
+        deck: Deck,
+        words: list[dict[str, str]],
+        language: str,
+        voiced: bool,
+        owner: int,
+        admin: bool,
+        home: Path,
+        ui: str,
+    ) -> None:
+        """The work behind `_deck_start`, off the request's thread."""
+        from . import anki
+        from .paths import cache_dir
+
+        try:
+            found: list[tuple[dict[str, str], Path, Path | None]] = []
+            for word in words:
+                said = word["term"].strip(EDGES_SAID)
+                into, kept = said_clip(said, language) if said else (Path(), None)
+                found.append((word, into, kept))
+            wanted = [
+                at
+                for at, (word, _into, kept) in enumerate(found)
+                if kept is None and word["term"].strip(EDGES_SAID)
+            ][:ANKI_MOST]
+            deck.making = len(wanted) if voiced else 0
+            if voiced and wanted:
+                found = self._deck_voice(deck, found, wanted, language, owner, admin, home, ui)
+            notes = [
+                anki.Note(
+                    word=word["term"],
+                    meaning=word["back"],
+                    tags=tuple(word["tags"].split()),
+                    key=f"{language}:{word['lemma']}",
+                    sound=kept,
+                )
+                for word, _into, kept in found
+            ]
+            deck.silent = sum(1 for note in notes if note.sound is None)
+            folder = cache_dir() / "anki"
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"{deck.id}.apkg"
+            part = path.with_suffix(".part")
+            part.write_bytes(anki.build(deck.name, notes))
+            part.replace(path)
+            deck.path = path
+            deck.state = "ready"
+        except Exception as error:  # noqa: BLE001 - said on the page, logged here
+            traceback.print_exc()
+            incidents_module.record(self.library.incidents, "anki", error, job=deck.id)
+            deck.state = "failed"
+
+    def _deck_voice(
+        self,
+        deck: Deck,
+        found: list[tuple[dict[str, str], Path, Path | None]],
+        wanted: list[int],
+        language: str,
+        owner: int,
+        admin: bool,
+        home: Path,
+        ui: str,
+    ) -> list[tuple[dict[str, str], Path, Path | None]]:
+        """The clips the deck still needs, made under one gift claim for all of them."""
+        from . import speech
+
+        seconds = 2.0 * len(wanted)
+        job = Job(
+            ui=ui,
+            id=f"anki-{deck.id}",
+            source=f"anki:{language}",
+            estimate=seconds / 60 * speech.PRICES[speech.NAME],
+            seconds=seconds,
+            stage="working",
+            owner=owner,
+            home=home,
+            admin=admin,
+            kind="chat",
+            gift=True,
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        refused = self.library.claim_turn(job)
+        if refused:
+            job.stage = "blocked"
+            job.blocked = refused
+            self.library.remember(job)
+            deck.making = 0
+            deck.note = "refused"
+            return found
+        made = 0.0
+        out = list(found)
+        for at in wanted:
+            word, into, _kept = out[at]
+            try:
+                clip = speech.render(word["term"].strip(EDGES_SAID), into, language=language)
+            except Exception as error:  # noqa: BLE001 - one word without a sound is a silent card
+                if isinstance(error, speech.Interrupted):
+                    made += error.seconds
+                deck.made += 1
+                continue
+            made += clip.seconds
+            out[at] = (word, into, clip.path)
+            deck.made += 1
+        spent = Usage()
+        spent.add_seconds(speech.NAME, made)
+        job.seconds = made
+        job.spent = spent.cost()
+        job.stage = "done"
+        if made > 0:
+            self.library.settle(job)
+        else:
+            self.library.release(job)
+        self.library.remember(job)
+        return out
+
+    def _deck_said(self, deck: Deck) -> dict[str, Any]:
+        return {
+            "state": deck.state,
+            "total": deck.total,
+            "making": deck.making,
+            "made": deck.made,
+            "silent": deck.silent,
+            "refused": deck.note == "refused",
+        }
+
+    def _deck_owned(self, query: dict[str, list[str]]) -> Deck | None:
+        person = self._person()
+        deck = self.library.decks.get(str((query.get("id") or [""])[0]))
+        if person is None or deck is None or deck.owner != person.id:
+            return None
+        return deck
+
+    def _deck_state(self, query: dict[str, list[str]]) -> None:
+        """How far an Anki deck has got."""
+        deck = self._deck_owned(query)
+        if deck is None:
+            return self._json({"error": "not found"}, 404)
+        self._json({"id": deck.id, **self._deck_said(deck)})
+
+    def _deck_file(self, query: dict[str, list[str]]) -> None:
+        """The finished `.apkg`, once, as an attachment."""
+        deck = self._deck_owned(query)
+        if deck is None or deck.state != "ready" or deck.path is None or not deck.path.is_file():
+            return self._send(404, b"not found", "text/plain")
+        body = deck.path.read_bytes()
+        name = re.sub(r"[^\w .-]", "", deck.name, flags=re.UNICODE).strip() or "targum"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header(
+            "Content-Disposition",
+            f"attachment; filename=\"targum.apkg\"; filename*=UTF-8''{quote(name + '.apkg')}",
+        )
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        # Fetched once; the clips stay in the cache, the deck does not.
+        deck.path.unlink(missing_ok=True)
+        self.library.decks.pop(deck.id, None)
 
     def _chat_hear(self, query: dict[str, list[str]]) -> None:
         """A line spoken into the microphone, written down and asked. Push-to-talk in.

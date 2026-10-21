@@ -1320,7 +1320,7 @@
   }
 
   function saveFile(name, text, mime) {
-    var blob = new Blob([text], { type: mime });
+    var blob = text instanceof Blob ? text : new Blob([text], { type: mime });
     var url = URL.createObjectURL(blob);
     var link = el("a");
     link.href = url;
@@ -1381,7 +1381,119 @@
     return text.charAt(0) === '"' ? '"' + text.replace(/"/g, '""') + '"' : text;
   }
 
+  /* The deck with each word's sound (targum-internal#496; design.md §12, "The Anki deck
+     carries each word's sound", 2026-10-21): an `.apkg` the server builds, since a text
+     file cannot carry media into Anki. The rows on screen go up as they would have gone
+     into the text file; the server makes a sound for each word that has none yet, up to
+     five thousand, and the page says how far it has got until the file comes back. Where
+     the server cannot, the deck comes as the text file it always was, without sound. */
+  var making = null;
+
+  function ankiRows() {
+    return visibleWords().map(function (word) {
+      var back = [word.meaning, word.note, word.lemma !== word.term ? word.lemma : ""]
+        .filter(function (part) {
+          return !!part;
+        })
+        .join(" \u00b7 ");
+      return {
+        term: word.term,
+        lemma: word.lemma,
+        back: back,
+        tags: ["targum", "targum::" + code, "targum::level-" + word.status].join(" "),
+      };
+    });
+  }
+
+  function ankiSaid(text) {
+    var line = at("export-said");
+    if (!line) return;
+    line.hidden = !text;
+    line.textContent = text || "";
+  }
+
   function exportAnki() {
+    if (making) return;
+    var key = window.TARGUM_KEY || "";
+    var head = { "Content-Type": "application/json" };
+    if (key) head["X-Targum-Key"] = key;
+    if (typeof fetch !== "function") return exportAnkiText();
+    var deck = "targum " + named(languages, code);
+    var button = at("export-anki");
+    if (button) button.disabled = true;
+    making = { deck: deck };
+    ankiSaid(t("lists.anki.starting", "We're making your deck."));
+    function done(text) {
+      making = null;
+      if (button) button.disabled = false;
+      ankiSaid(text);
+    }
+    function failed() {
+      // The deck still comes, as the text file it always was.
+      exportAnkiText();
+      done(t("lists.anki.without-sound", "We couldn't add the sounds just now, so the deck has none."));
+    }
+    function fetchDeck(id, said) {
+      fetch(keyed("/account/anki/deck?id=" + encodeURIComponent(id)), { headers: head })
+        .then(function (response) {
+          if (!response.ok) throw new Error("no deck");
+          return response.blob();
+        })
+        .then(function (blob) {
+          saveFile(deck + " words.apkg", blob, "application/octet-stream");
+          done(
+            said.silent
+              ? tn(
+                  "lists.anki.ready-some-silent",
+                  said.silent,
+                  "Your deck is ready. {n} word has no sound.",
+                  "Your deck is ready. {n} words have no sound."
+                )
+              : t("lists.anki.ready", "Your deck is ready, with a sound for every word.")
+          );
+        })
+        .catch(failed);
+    }
+    function ask(id) {
+      fetch(keyed("/account/anki?id=" + encodeURIComponent(id)), { headers: head })
+        .then(function (response) {
+          if (!response.ok) throw new Error("gone");
+          return response.json();
+        })
+        .then(function (said) {
+          if (said.state === "ready") return fetchDeck(id, said);
+          if (said.state !== "making") return failed();
+          if (said.making) {
+            ankiSaid(
+              t("lists.anki.making", "Making the sounds: {made} of {total} words. Keep this page open.", {
+                made: said.made,
+                total: said.making,
+              })
+            );
+          }
+          setTimeout(function () {
+            ask(id);
+          }, 2000);
+        })
+        .catch(failed);
+    }
+    fetch(keyed("/account/anki"), {
+      method: "POST",
+      headers: head,
+      body: JSON.stringify({ language: code, deck: deck, words: ankiRows() }),
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("refused");
+        return response.json();
+      })
+      .then(function (said) {
+        if (!said || !said.id) throw new Error("no id");
+        ask(said.id);
+      })
+      .catch(failed);
+  }
+
+  function exportAnkiText() {
     var deck = "targum " + named(languages, code);
     /* Three fields, and the third declared as tags so Anki's own Basic notetype takes
        the file without the reader configuring anything. `html:false` because every one

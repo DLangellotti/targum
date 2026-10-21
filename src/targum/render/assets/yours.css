@@ -433,3 +433,8 @@ body.yours table.words-table[hidden] { display: none; }
   .stage-tabs .tab { min-inline-size: 44px; justify-content: center; }
   .held-undo { min-inline-size: 44px; }
 }
+
+/* What the Anki export is doing, beside its button (targum-internal#496): the sounds
+   being made, then the deck ready, in the quiet line's ink. */
+.export-said { display: block; margin-block-start: 0.25rem; color: var(--ink-soft); font-size: 0.8125rem; }
+.export-said[hidden] { display: none; }

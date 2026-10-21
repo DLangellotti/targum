@@ -74,6 +74,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (it was cut at 16: "something…" is now "something waited for").
 
 ### Added
+- Your Words' Anki export carries each word's sound (targum-internal#496, a beta reader's
+  ask). The deck is an `.apkg` built on the server (`targum.anki`, Anki's schema 11),
+  replacing the browser's text file, which could not carry media. A word with no clip yet
+  gets one the way a Hear press makes it, a targum gift under one claim per export, kept
+  by the word, at most 5,000 words; a word without a sound still imports. The page says
+  how far the sounds have got, and falls back to the text file, without sound, if the
+  server cannot.
 - Your Words plays a word's sound from the list (targum-internal#498, a beta reader: "And
   be able to play the sounds here too"). Each row, and the word's card on the page, carries
   the reader card's Hear: the voice's clip from `/say-word`, which targum pays for and

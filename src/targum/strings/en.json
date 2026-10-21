@@ -3907,5 +3907,11 @@
   "fault.tell-us.empty": "Write something first.",
   "fault.tell-us.failed": "We couldn't send that. Try again in a minute.",
   "serve.tell-us.empty": "Write something first.",
-  "serve.tell-us.too-often": "That's a lot for one hour. Write to hello@targum.page and we'll read it there."
+  "serve.tell-us.too-often": "That's a lot for one hour. Write to hello@targum.page and we'll read it there.",
+  "lists.anki.starting": "We're making your deck.",
+  "lists.anki.making": "Making the sounds: {made} of {total} words. Keep this page open.",
+  "lists.anki.ready": "Your deck is ready, with a sound for every word.",
+  "lists.anki.ready-some-silent.one": "Your deck is ready. {n} word has no sound.",
+  "lists.anki.ready-some-silent.other": "Your deck is ready. {n} words have no sound.",
+  "lists.anki.without-sound": "We couldn't add the sounds just now, so the deck has none."
 }
