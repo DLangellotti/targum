@@ -321,7 +321,11 @@ class Rows:
     rows: Sequence[tuple[str, str, str]]
 
     def as_text(self) -> str:
-        return "\n".join(f"  {name} ({note}): {href}" for name, note, href in self.rows)
+        # Inside brackets mid-line the note starts lower case: "Easy (if you know 1,000
+        # words)", where the HTML sets it as a line of its own (qa on #856).
+        return "\n".join(
+            f"  {name} ({note[:1].lower()}{note[1:]}): {href}" for name, note, href in self.rows
+        )
 
     def as_html(self) -> str:
         cells = "".join(

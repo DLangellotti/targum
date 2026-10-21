@@ -185,7 +185,8 @@ def test_the_digest_is_named_and_says_what_this_week_is() -> None:
     # Named in the reader's language over the masthead, which carries the date: the date
     # was the label too, said twice (targum-internal#470).
     assert quiet.text.startswith("Weekly News Digest"), "no blurb, nothing in its place"
-    assert "If you know 1,000 words" in english.text
+    assert "(if you know 1,000 words)" in english.text, "lower case mid-line in the text"
+    assert "If you know 1,000 words" in english.html, "a line of its own in the drawing"
 
 
 def test_the_digest_s_masthead_is_its_hebrew_name_and_the_week() -> None:
