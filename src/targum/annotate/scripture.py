@@ -213,13 +213,19 @@ def root_of(headword: str) -> str | None:
     return "".join(letters[:-1]) + letters[-1].translate(ENDINGS)
 
 
-def features(code: str) -> str | None:
+def features(code: str, suffixed: bool = False) -> str | None:
     """The morphology a code carries, in the shape the card reads.
 
     Person, gender and number, and for a verb its tense and form as well: the reader has
     a line that says "past · he" and it had nothing to say it with on the biblical half.
-    Still partial — state and the rest stay in the morphology — but no longer partial in
-    a way that leaves a whole register blank.
+
+    And a noun's or adjective's construct state, from the state letter at index 4 (`c`),
+    as `Definite=Cons`, the shape the card's construct line already reads in modern text
+    (targum-internal#454, `oshb/7`). Not where a pronoun is suffixed to the word
+    (`suffixed`): Open Scriptures tags every suffixed noun construct, and "construct" on
+    בָנָיו, "his sons", sends a learner looking for a following noun that is not there;
+    the pronoun-suffix line says that word. Never the Aramaic `d`, the emphatic state,
+    which is nearer an article than a construct. The rest stays in the morphology.
     """
     if not code:
         return None
@@ -248,7 +254,19 @@ def features(code: str) -> str | None:
         # has the same mark from the build, read off the pointing (`builder._vav_line`).
         if code[2] == "w":
             kept.append("Vav=Cons")
+    if code[0] in "NA" and len(code) > 4 and code[4] == "c" and not suffixed:
+        kept.append("Definite=Cons")
     return "|".join(part for part in kept if part) or None
+
+
+def word_features(word: oshb.Word) -> str | None:
+    """`features` for a tagged word: its content piece's code, and whether a pronoun is
+    suffixed after that piece. What a stored token's feats are, and what
+    `scripts/eval_construct_state.py` scores."""
+    return features(
+        word.code,
+        suffixed=any(piece.startswith("S") for piece in word.morph[word.content + 1 :]),
+    )
 
 
 def _trim(found: re.Match[str], text: str) -> tuple[int, int, str] | None:
@@ -351,6 +369,11 @@ class ScriptureLemmatizer:
         `oshb/2` (2026-09-03): a token carries its pointed headword where the spelling is
         shared, so a meaning is filed under the word and not the spelling.
 
+        `oshb/7` (2026-10-21, targum-internal#454): a noun or adjective in the construct
+        state says so, `Definite=Cons`, from the code's state letter (`features`), so the
+        card's construct line reaches Biblical text. Rides the grammar/7 re-read, which
+        re-reads every Biblical text anyway.
+
         `oshb/6` (2026-10-12, known issues 1.4): a preposition with a pronoun on the end
         is filed under the preposition — `בּוֹ` under ב, not ו "and" — and a pointed
         headword the lexicon gives more than one word carries its Strong's number, so
@@ -371,7 +394,7 @@ class ScriptureLemmatizer:
         in Daniel and Ezra (targum-internal#64). Hebrew is untouched: the code keyed on
         never trails a Hebrew word.
         """
-        return f"oshb/6+{self.fallback.name}"
+        return f"oshb/7+{self.fallback.name}"
 
     def reads(self, segment: Segment) -> bool:
         """Whether this block can be looked up here rather than guessed at.
@@ -474,7 +497,7 @@ class ScriptureLemmatizer:
                     lexeme=word.lexeme or None,
                     binyan=binyan_of(code) if verb else None,
                     root=root_of(dictionary) if verb else None,
-                    feats=features(code),
+                    feats=word_features(word),
                     built=built_from(word),
                     # The points, kept only where they are the difference between two
                     # words. אֵלֶּה and אָלָה are both filed under אלה, and the lemma has

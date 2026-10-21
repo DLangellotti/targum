@@ -299,6 +299,12 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "feature:Definite",
             "card",
             (_DICTA, "iahltknesset", "construct_precision"),
+            # Biblical text says it from Open Scriptures' state letter since oshb/7
+            # (targum-internal#454): a floor for each register, as pronoun suffixes have.
+            floors=(
+                ("modern", (_DICTA, "iahltknesset", "construct_precision")),
+                ("biblical", ("oshb-state/1", "oshb-wlc", "construct_precision")),
+            ),
         ),
         HardSpot(
             "stress and pronunciation",
