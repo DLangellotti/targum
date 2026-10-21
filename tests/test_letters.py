@@ -77,9 +77,16 @@ def every(language: str) -> dict[str, Letter]:
                     "stop": "stop3",
                     "rows": [("כתבה", "he", "A link", "/add?source=https%3A%2F%2Fx%2Fa")],
                 },
+                # A subscription named in Hebrew, so its label and its own way out are
+                # Hebrew runs the every-run test reads (qa on #866).
+                {
+                    "name": "כאן ארכיון",
+                    "stop": "stop4",
+                    "rows": [("פלאפל", "he", "Ready", "/r/4")],
+                },
             ],
             SITE,
-            "t=stop2&t=stop3",
+            "t=stop2&t=stop3&t=stop4",
             language,
         ),
         "ready": letters.build_ready(
@@ -285,7 +292,11 @@ def test_the_daily_mail_draws_each_thing_as_a_tile_and_keeps_its_ways_out() -> N
     mail = every("en")["daily"]
     assert '<span lang="he">ה</span></td>' in mail.html, "the first letter on its tile, in Hebrew"
     assert "Unsubscribe from all of these" in mail.html and "Your subscriptions" in mail.html
-    assert mail.headers["List-Unsubscribe"] == f"<{SITE}/subscriptions/stop?t=stop2&t=stop3>"
+    assert mail.headers["List-Unsubscribe"] == (
+        f"<{SITE}/subscriptions/stop?t=stop2&t=stop3&t=stop4>"
+    )
+    # The Hebrew name in its own way out is isolated, in Hebrew (qa on #866).
+    assert 'Unsubscribe from <bdi lang="he" dir="rtl">כאן ארכיון</bdi>' in mail.html
     assert mail.headers["List-Id"].startswith("subscriptions <")
 
 
@@ -333,6 +344,11 @@ def test_a_busy_day_draws_thirty_rows_and_says_how_many_more() -> None:
     )
     assert "Title 29" in mail.html and "Title 30" not in mail.html
     assert "And 10 more in" in mail.html and "Unsubscribe from all of these" in mail.html
+    assert "Your subscriptions</a>.</p>" in mail.html, "the sentence ends"
+    russian = letters.subscriptions_daily(
+        [{"name": "Feed", "stop": "s", "rows": rows}], SITE, "t=s", "ru"
+    )
+    assert "«Ваши подписки».:" in russian.text or "«Ваши подписки»." in russian.text
 
 
 def test_a_long_recording_says_hours() -> None:
@@ -341,6 +357,11 @@ def test_a_long_recording_says_hours() -> None:
         "Long", f"{SITE}/reader/x", SITE, "en", asked=False, listen=True, seconds=3 * 3600 + 300
     )
     assert "3 hr 5 min" in mail.html and "185 min" not in mail.html
+    hour = letters.build_ready(
+        "Long", f"{SITE}/reader/x", SITE, "en", asked=False, listen=True, seconds=2 * 3600
+    )
+    assert "2 hr<" in hour.html or "2 hr " in hour.html or "2 hr" in hour.text
+    assert "0 min" not in hour.html, "on the hour, no minutes"
 
 
 def test_a_daily_cycle_is_in_the_one_mail_a_day(tmp_path: Any) -> None:

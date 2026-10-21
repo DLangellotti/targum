@@ -38,6 +38,7 @@
   "mail.ready.parts.other": "{n} части",
   "mail.ready.minutes": "{n} мин",
   "mail.ready.hours": "{h} ч {m} мин",
+  "mail.ready.hours-only": "{h} ч",
   "add.page.change": "Изменить",
   "add.page.choices": "Варианты",
   "add.page.choose-file": "Выбрать файл",

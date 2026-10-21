@@ -422,9 +422,27 @@ class Small:
     words: str
     link: str
     href: str
+    #: A name inside the link's words, isolated, and said in its language where that is
+    #: right to left: "Unsubscribe from כאן ארכיון" (qa on #866).
+    name: str = ""
+    name_language: str = ""
+    #: What follows the link: the full stop that ends a sentence (qa on #866).
+    after: str = ""
+    #: The link's words in the text half, where they differ: quoted in Russian («…»).
+    text_link: str = ""
 
     def as_text(self) -> str:
-        return f"{self.words} {self.link}: {self.href}".strip()
+        return f"{self.words} {self.text_link or self.link}{self.after}: {self.href}".strip()
+
+    def _link_html(self) -> str:
+        said = _e(self.link)
+        if not self.name or _e(self.name) not in said:
+            return said
+        if self.name_language in RIGHT_TO_LEFT:
+            run = f'<bdi lang="{_e(self.name_language)}" dir="rtl">{_e(self.name)}</bdi>'
+        else:
+            run = f'<bdi dir="auto">{_e(self.name)}</bdi>'
+        return said.replace(_e(self.name), run, 1)
 
     def as_html(self) -> str:
         return (
@@ -433,7 +451,7 @@ class Small:
             f'<p style="margin:0 0 8px 0;font-size:13px;line-height:20px;color:{MUTED};">'
             f'{_e(self.words)} <a href="{_e(self.href)}" style="display:inline-block;'
             f"padding:12px 0;color:{MUTED};"
-            f'text-decoration:underline;">{_e(self.link)}</a></p>'
+            f'text-decoration:underline;">{self._link_html()}</a>{_e(self.after)}</p>'
         )
 
 
@@ -862,6 +880,8 @@ def subscriptions_daily(
                 "",
                 text("mail.daily.stop-one", code, name=group["name"]),
                 f"{base}/series/stop?t={group['stop']}",
+                name=str(group["name"]),
+                name_language=named_in,
             )
         )
     if count > DAILY_ROWS:
@@ -870,6 +890,9 @@ def subscriptions_daily(
                 text("mail.daily.more", code, n=str(count - DAILY_ROWS)),
                 text("mail.daily.yours", code),
                 f"{base}/?show=subscriptions",
+                after=".",
+                # A page's name is quoted in Russian prose; the drawing has it as a link.
+                text_link=f"«{text('mail.daily.yours', code)}»" if code == "ru" else "",
             )
         )
     stop = f"{base}/subscriptions/stop?{stop_all}"
@@ -928,7 +951,11 @@ def build_ready(
     if seconds >= 3600:
         # Past an hour, hours and minutes, not "180 min" (polish 3).
         whole = round(seconds / 60)
-        facts.append(text("mail.ready.hours", code, h=str(whole // 60), m=str(whole % 60)))
+        if whole % 60:
+            facts.append(text("mail.ready.hours", code, h=str(whole // 60), m=str(whole % 60)))
+        else:
+            # On the hour, "3 hr", not "3 hr 0 min" (qa on #866).
+            facts.append(text("mail.ready.hours-only", code, h=str(whole // 60)))
     elif seconds >= 60:
         facts.append(text("mail.ready.minutes", code, n=str(round(seconds / 60))))
     return compose(

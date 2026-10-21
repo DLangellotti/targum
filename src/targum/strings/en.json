@@ -36,6 +36,7 @@
   "mail.ready.parts.other": "{n} parts",
   "mail.ready.minutes": "{n} min",
   "mail.ready.hours": "{h} hr {m} min",
+  "mail.ready.hours-only": "{h} hr",
   "add.page.change": "Change",
   "add.page.choices": "Choices",
   "add.page.choose-file": "Choose file",
