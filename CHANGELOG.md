@@ -617,7 +617,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `/connect` says the same. "Cantillation marks" replaces the in-house "chanting marks"
   on this page, the Aramaic chapters keep "a word list of their own", the phone's link
   says "Save as a text" as the chat's button does, and four answers lose their colon
-  lists and passives. The expired sign-in link's heading is "That link no longer
+  lists and passives. The cost answer names no price and promises no early word of one;
+  the tap card still says each vowel we add is marked (design.md, 2026-10-02). The expired sign-in link's heading is "That link no longer
   works", since it may have been used rather than timed out. The link preview's alt is
   a string key (`public.head.preview-alt`), so the Russian page can carry its own.
   The Russian twins are stale until ling-ru re-reads them, so `test_strings` names them
