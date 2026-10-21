@@ -209,3 +209,66 @@ def test_without_the_voice_the_deck_still_comes_silent(
     )
     done = wait(port, token, cookie, started["id"])
     assert done["state"] == "ready" and done["silent"] == 1 and done["making"] == 0
+
+
+def test_making_stops_at_the_claim(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """qa on #854: the claim is two seconds a word; a voice that runs long stops there."""
+    from targum import speech
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    said: list[str] = []
+
+    def long_render(text: str, into: Path, voice: str = speech.VOICE, language: str = "he") -> Any:
+        said.append(text)
+        into.parent.mkdir(parents=True, exist_ok=True)
+        target = into.with_suffix(".wav")
+        target.write_bytes(speech.wav(b"\x00" * speech.BYTES_PER_SECOND))
+        return speech.Clip(target, "audio/wav", 5.0)  # far past two seconds
+
+    monkeypatch.setattr(speech, "render", long_render)
+    monkeypatch.setenv(speech.KEY, "k")
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    keep(port, token, cookie, ("ספר", "ספר", 2), ("דרך", "דרך", 2), ("עיר", "עיר", 2))
+    _, started, _ = call(
+        port, "POST", f"/account/anki?k={token}", {"language": "he"}, cookie=cookie
+    )
+    done = wait(port, token, cookie, started["id"])
+    # Claimed 6 s; the second clip brings the made seconds to 10, so the third is not made.
+    assert len(said) == 2 and done["silent"] == 1, (said, done)
+
+
+def test_the_deck_is_the_words_on_screen(
+    served: tuple[int, str, Path], postbox: Postbox, voice: list[str]
+) -> None:
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    keep(port, token, cookie, ("ספר", "ספר", 2), ("דרך", "דרך", 2))
+    payload = {"language": "he", "lemmas": ["ספר", "not-saved"]}
+    _, started, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
+    done = wait(port, token, cookie, started["id"])
+    assert done["total"] == 1 and voice == ["ספר"], "what the page shows, and only if saved"
+    status, said, _ = call(
+        port, "POST", f"/account/anki?k={token}", {"language": "he", "lemmas": []}, cookie=cookie
+    )
+    assert status == 400 and said["error"] == "There are no saved words here to put in a deck."
+
+
+def test_a_capped_deck_says_so(
+    served: tuple[int, str, Path],
+    postbox: Postbox,
+    voice: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from targum import serve
+
+    monkeypatch.setattr(serve, "ANKI_MOST", 1)
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    keep(port, token, cookie, ("ספר", "ספר", 2), ("דרך", "דרך", 2))
+    _, started, _ = call(
+        port, "POST", f"/account/anki?k={token}", {"language": "he"}, cookie=cookie
+    )
+    assert wait(port, token, cookie, started["id"])["capped"] is True

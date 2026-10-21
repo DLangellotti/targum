@@ -1696,6 +1696,15 @@ class Deck:
     name: str = ""
     path: Path | None = None
     note: str = ""
+    #: When it was asked for, in `now()`'s milliseconds: a deck nobody fetches is thrown
+    #: away an hour on (`Handler._decks_expire`).
+    made_at: int = field(default_factory=now)
+
+
+#: How long an Anki deck waits to be fetched before it is thrown away, in milliseconds.
+ANKI_KEPT_MS = 60 * 60 * 1000
+#: One deck at a time a person: the check and the start are one step under this lock.
+ANKI_LOCK = threading.Lock()
 
 
 class Library:
@@ -9583,10 +9592,12 @@ class Handler(BaseHTTPRequestHandler):
         language = str(payload.get("language") or "").split("-")[0].lower()
         if not language:
             return self._json({"error": "bad request"}, 400)
-        for deck in self.library.decks.values():
-            if deck.owner == person.id and deck.state == "making":
-                return self._json({"id": deck.id, **self._deck_said(deck)})
+        self._decks_expire()
         statuses = payload.get("statuses")
+        # The words the page shows, by lemma: the deck is what the reader sees, kept to
+        # the words the account saves (qa on #854). Absent, every saved word at the stages.
+        shown = payload.get("lemmas")
+        shown_set = {str(x) for x in shown} if isinstance(shown, list) else None
         wanted_stages = (
             {int(n) for n in statuses if isinstance(n, int | float)}
             if isinstance(statuses, list)
@@ -9598,6 +9609,8 @@ class Handler(BaseHTTPRequestHandler):
             if wanted_stages is not None and row["status"] not in wanted_stages:
                 continue
             lemma = str(row["lemma"])
+            if shown_set is not None and lemma not in shown_set:
+                continue
             term = unicodedata.normalize("NFC", str(row["surface"] or lemma)).strip()
             given = backs.get(lemma) if isinstance(backs, dict) else None
             back = str(given)[:2000] if isinstance(given, str) else ""
@@ -9612,10 +9625,22 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
         if not words:
-            return self._json({"error": "nothing to export"}, 400)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.anki-nothing",
+                        "There are no saved words here to put in a deck.",
+                    )
+                },
+                400,
+            )
         name = str(payload.get("deck") or f"targum {language}")[:120]
-        deck = Deck(id=secrets.token_hex(8), owner=person.id, total=len(words), name=name)
-        self.library.decks[deck.id] = deck
+        with ANKI_LOCK:
+            for deck in self.library.decks.values():
+                if deck.owner == person.id and deck.state == "making":
+                    return self._json({"id": deck.id, **self._deck_said(deck)})
+            deck = Deck(id=secrets.token_hex(8), owner=person.id, total=len(words), name=name)
+            self.library.decks[deck.id] = deck
         voiced = speech.speaks(language) and speech.available()[0]
         room = max(0, ANKI_MOST - self._anki_made(person.id))
         admin = self.store.is_admin(person.email)
@@ -9627,6 +9652,15 @@ class Handler(BaseHTTPRequestHandler):
             daemon=True,
         ).start()
         self._json({"id": deck.id, **self._deck_said(deck)})
+
+    def _decks_expire(self) -> None:
+        """Throw away decks nobody fetched within `ANKI_KEPT_MS`, file and all."""
+        cutoff = now() - ANKI_KEPT_MS
+        for deck in list(self.library.decks.values()):
+            if deck.state != "making" and deck.made_at < cutoff:
+                if deck.path is not None:
+                    deck.path.unlink(missing_ok=True)
+                self.library.decks.pop(deck.id, None)
 
     def _anki_made(self, owner: int) -> int:
         """New sounds this person's Anki exports have had made this month: off the job
@@ -9668,11 +9702,14 @@ class Handler(BaseHTTPRequestHandler):
                 said = word["term"].strip(EDGES_SAID)
                 into, kept = said_clip(said, language) if self._sayable(said) else (Path(), None)
                 found.append((word, into, kept))
-            wanted = [
+            needed = [
                 at
                 for at, (word, _into, kept) in enumerate(found)
                 if kept is None and self._sayable(word["term"].strip(EDGES_SAID))
-            ][:room]
+            ]
+            wanted = needed[:room]
+            if voiced and len(needed) > room:
+                deck.note = "cap"
             deck.making = len(wanted) if voiced else 0
             if voiced and wanted:
                 found = self._deck_voice(deck, found, wanted, language, owner, admin, home, ui)
@@ -9743,31 +9780,39 @@ class Handler(BaseHTTPRequestHandler):
             return found
         made = 0.0
         out = list(found)
-        for at in wanted:
-            if made >= seconds:
-                break
-            word, into, _kept = out[at]
-            try:
-                clip = speech.render(word["term"].strip(EDGES_SAID), into, language=language)
-            except Exception as error:  # noqa: BLE001 - one word without a sound is a silent card
-                if isinstance(error, speech.Interrupted):
-                    made += error.seconds
+        # Whatever happens, the claim is settled to what was made, or given back, and the
+        # count the monthly cap reads is saved (qa on #854).
+        try:
+            for at in wanted:
+                if made >= seconds:
+                    # Never past the claim: what is left goes in silent.
+                    deck.note = deck.note or "claim"
+                    break
+                word, into, _kept = out[at]
+                try:
+                    clip = speech.render(word["term"].strip(EDGES_SAID), into, language=language)
+                except Exception as error:  # noqa: BLE001 - one word without a sound is a silent card
+                    if isinstance(error, speech.Interrupted):
+                        # Paid for, so it counts toward the cap too.
+                        made += error.seconds
+                        job.done += 1
+                    deck.made += 1
+                    continue
+                made += clip.seconds
+                out[at] = (word, into, clip.path)
                 deck.made += 1
-                continue
-            made += clip.seconds
-            out[at] = (word, into, clip.path)
-            deck.made += 1
-            job.done += 1
-        spent = Usage()
-        spent.add_seconds(speech.NAME, made)
-        job.seconds = made
-        job.spent = spent.cost()
-        job.stage = "done"
-        if made > 0:
-            self.library.settle(job)
-        else:
-            self.library.release(job)
-        self.library.remember(job)
+                job.done += 1
+        finally:
+            spent = Usage()
+            spent.add_seconds(speech.NAME, made)
+            job.seconds = made
+            job.spent = spent.cost()
+            job.stage = "done"
+            if made > 0:
+                self.library.settle(job)
+            else:
+                self.library.release(job)
+            self.library.remember(job)
         return out
 
     def _deck_said(self, deck: Deck) -> dict[str, Any]:
@@ -9778,6 +9823,7 @@ class Handler(BaseHTTPRequestHandler):
             "made": deck.made,
             "silent": deck.silent,
             "refused": deck.note == "refused",
+            "capped": deck.note == "cap",
         }
 
     def _deck_owned(self, query: dict[str, list[str]]) -> Deck | None:

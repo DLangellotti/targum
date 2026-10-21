@@ -1406,6 +1406,9 @@
       language: code,
       deck: deck,
       statuses: Object.keys(stages).map(Number),
+      // The words on screen, search and filters and all: the deck is what the reader
+      // sees, kept by the server to the words the account saves (qa on #854).
+      lemmas: Object.keys(backs),
       backs: backs,
     };
   }
@@ -1446,15 +1449,21 @@
         })
         .then(function (blob) {
           saveFile(deck + " words.apkg", blob, "application/octet-stream");
+          // Why words came out silent, said plainly where the server says (qa on #854).
+          var why = said.capped
+            ? " " + t("lists.anki.capped", "You've had this month's sounds for decks, so the rest have none.")
+            : said.refused
+              ? " " + t("lists.anki.refused", "We couldn't make new sounds just now, so those words have none.")
+              : "";
           done(
-            said.silent
+            (said.silent
               ? tn(
                   "lists.anki.ready-some-silent",
                   said.silent,
                   "Your deck is ready. {n} word has no sound.",
                   "Your deck is ready. {n} words have no sound."
                 )
-              : t("lists.anki.ready", "Your deck is ready, with a sound for every word.")
+              : t("lists.anki.ready", "Your deck is ready, with a sound for every word.")) + (said.silent ? why : "")
           );
         })
         .catch(failed);
@@ -1488,10 +1497,21 @@
       body: JSON.stringify(ankiAsk(deck)),
     })
       .then(function (response) {
+        // A refusal with a sentence (nothing saved here to put in a deck) is said as it
+        // is, not as "We couldn't add the sounds".
+        if (response.status === 400) {
+          return response.json().then(function (said) {
+            making = null;
+            if (button) button.disabled = false;
+            ankiSaid((said && said.error) || "");
+            return null;
+          });
+        }
         if (!response.ok) throw new Error("refused");
         return response.json();
       })
       .then(function (said) {
+        if (said === null) return;
         if (!said || !said.id) throw new Error("no id");
         ask(said.id);
       })
