@@ -6,6 +6,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A page printed in Russian carries the chrome's Cyrillic cut, as a desk page does, so its
+  own words are set in one face (qa on targum-internal#476). The fonts README cuts the
+  subset in a scratch folder, not the checkout.
+
+### Fixed
 - Russian's surfaces, design's four blockers (targum-internal#476). A page in Russian
   carries Source Sans 3's Cyrillic subset beside its Latin one, so a line is set in one
   face (design.md §13, "Russian is carried too"); a page in English pays nothing, and a

@@ -6619,3 +6619,17 @@ def test_what_a_pronoun_stands_for_ships_only_once_it_is_measured(
     monkeypatch.setattr(model_lemma, "ANTECEDENT_PRECISION", 0.93)
     data = _french_page(tmp_path / "b", name)
     assert data["stands"] == {paragraph(1).id: [[0, paragraph(0).id, 7, 15]]}
+
+
+def test_a_reader_in_russian_carries_one_cyrillic_face_and_one_in_english_none(
+    tmp_path: Path,
+) -> None:
+    """qa on #867: a reader whose interface is Russian carries the chrome's Cyrillic cut,
+    the upright alone as it carries the Latin (design.md §13, "Russian is carried too")."""
+    russian = _genesis(
+        tmp_path / "ru",
+        [_rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})],
+    )
+    assert russian.count("unicode-range:U+0400-04FF,U+2011,U+2116") == 1
+    english = _genesis(tmp_path / "en", [_english()])
+    assert "unicode-range" not in english
