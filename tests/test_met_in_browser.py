@@ -152,10 +152,24 @@ def test_met_in_lists_the_texts_and_each_opens_at_the_word(browser, width: int) 
     page.locator("#word-rows .met-open:visible").click()
     page.wait_for_timeout(100)
     folded = page.locator(".met-row").count()
+    # Open again, then away to another language and back (qa on #843): Hebrew and Aramaic
+    # share spellings, so the list is not carried across and is asked for afresh.
+    page.locator("#word-rows .met-open:visible").click()
+    page.wait_for_selector(".met-texts a")
+    page.evaluate(
+        "(facts) => { const lists = window.TargumLists;"
+        " lists.draw('arc', { words: [], phrases: [] });"
+        " lists.draw('he', window.TargumCharts.collect('')['he']);"
+        " lists.facts('he', facts); }",
+        facts,
+    )
+    carried = page.locator(".met-row").count()
+    page.locator("#word-rows .met-open:visible").click()
+    page.wait_for_selector(".met-texts a")
     context.close()
 
     assert label == ("met in 2 texts" if width <= 640 else "2 texts")
-    assert len(asked) == 1 and "lemma=%D7%A2%D7%99%D7%A8" in asked[0]
+    assert "lemma=%D7%A2%D7%99%D7%A8" in asked[0]
     assert got["links"] == [
         [
             "רות · chapter 2",
@@ -168,3 +182,5 @@ def test_met_in_lists_the_texts_and_each_opens_at_the_word(browser, width: int) 
     assert not got["card"], "the press is the list's, not the row's card"
     assert not got["sideways"]
     assert folded == 0
+    assert carried == 0, "another language's draw closes the list"
+    assert len(asked) == 2, "kept while the language stays, asked afresh after it changes"

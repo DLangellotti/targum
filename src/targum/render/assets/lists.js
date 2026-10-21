@@ -998,7 +998,10 @@
     var key = window.TARGUM_KEY || "";
     var head = {};
     if (key) head["X-Targum-Key"] = key;
+    var asked = code;
     var done = function (said) {
+      // An answer that comes back after the language changed is the other list's.
+      if (code !== asked) return;
       metSaid[lemma] = said;
       if (metOpen === lemma) renderWords();
     };
@@ -1671,6 +1674,9 @@
     if (code !== was) {
       facts = { loaded: false, met: {}, often: 2, practise: [], notes: {} };
       practising = { at: 0, shown: false };
+      // Hebrew and Aramaic share spellings: one language's texts are not another's.
+      metOpen = "";
+      metSaid = {};
       letGo();
       // A card is about a word in one language; another language's lists close it.
       closeCard();
