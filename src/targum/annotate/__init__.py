@@ -39,6 +39,7 @@ from .moves import letters as _letters
 from .moves import shared as _shared
 from .pronounce import PhonikudPronouncer, as_prefixed
 from .pronounce import supports as pronounceable
+from .suffix_stress import GATE, gate
 
 __all__ = [
     "BAND_COUNT",
@@ -447,6 +448,9 @@ class Annotator:
                 # לְ in לְהוֹסִיף is said, and the reading has to be told it is a prefix.
                 if token.syntax is not None and token.syntax.lead == 1:
                     word = as_prefixed(word)
+                # Asked per form and class, not per form: בָּנוּ "in us" and בָּנוּ "they
+                # built" are pointed the same and stressed apart (targum-internal#500).
+                word = f"{word}{GATE}{gate(token.pos, token.feats)}"
                 found.append(word)
                 distinct.add(word)
             surfaces[segment_id] = found

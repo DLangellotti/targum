@@ -123,8 +123,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   stressed on its first syllable where no accent places the stress, from ling-he's rule
   (`annotate/segolate.py`): כֶּסֶף is kˈesef, בַּיִת bˈajit, רַכֶּבֶת ʁakˈevet, where phonikud
   said every one on the last. Scored on the Tanakh against the accents
-  (`scripts/eval_segolate.py`, `stress-rule/2`); the card still says "inferred" on these
-  until the modern hand-read floor is in.
+  (`scripts/eval_segolate.py`, `stress-rule/2`). And a suffix that holds the stress back,
+  from the pointing and the word's class (targum-internal#500, `annotate/suffix_stress.py`):
+  אָמַרְתִּי is ʔamˈaʁti, שֶׁלָּנוּ ʃelˈanu, אֵלֶיךָ ʔelˈexa. The annotator now asks a reading
+  per form and class, since בָּנוּ "in us" and בָּנוּ "they built" are pointed the same, and
+  neither rule runs on a word that carries accents, so no Biblical text's stress changes.
+  Scored on the Tanakh as `stress-rule/3`. The card still says "inferred" on these until
+  ling-he's modern hand-read floor is in. The shelf survey (`versions.current_name`) now
+  carries the pronouncer's version, so a phonikud bump shows as behind; `rebuild --words`
+  already compared whole names and re-reads the pronunciations either way.
 - `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front
   door, which does not change: "Learn Hebrew from your own life in Israel", the four
   moments that send an oleh looking, four lines of everyday Hebrew from the bank, the

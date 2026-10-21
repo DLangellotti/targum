@@ -878,5 +878,37 @@
     "system": "oshb-state/1",
     "at_least": 0.99,
     "why": "1.0000 on 2026-10-21, first scored: Biblical construct state from Open Scriptures' state letter on the build's token, against the pieces' own state and suffix codes, outside the Torah; construct state's Biblical register (targum-internal#454, oshb/7)"
+  },
+  {
+    "stage": "stress",
+    "corpus": "tanakh-taamim-v2",
+    "metric": "segolate_precision",
+    "system": "stress-rule/2",
+    "at_least": 0.99,
+    "why": "0.9975 on 2026-10-21, first scored: the segolate rule from the pointing (annotate/segolate.py) where it fires, against the Masoretic accents over every OSHB word with one placed accent, the accents taken off (targum-internal#454)"
+  },
+  {
+    "stage": "stress",
+    "corpus": "tanakh-taamim-v2",
+    "metric": "segolate_recall",
+    "system": "stress-rule/2",
+    "at_least": 0.85,
+    "why": "0.8817 on 2026-10-21, first scored: the nouns and adjectives the accents stress on the penult that the rule reaches; the misses are mostly -yahu names, לַיְלָה and pausal forms (targum-internal#454)"
+  },
+  {
+    "stage": "stress",
+    "corpus": "tanakh-taamim-v2",
+    "metric": "suffix_precision",
+    "system": "stress-rule/3",
+    "at_least": 0.98,
+    "why": "0.9895 on 2026-10-21, first scored: the suffix rule (annotate/suffix_stress.py) where it fires, its class off Open Scriptures' tagging, sequential perfects left out; the wrong ones are vav + perfects the tagging codes plain (targum-internal#500)"
+  },
+  {
+    "stage": "stress",
+    "corpus": "tanakh-taamim-v2",
+    "metric": "suffix_recall",
+    "system": "stress-rule/3",
+    "at_least": 0.98,
+    "why": "0.9849 on 2026-10-21, first scored: the past's first and second person, -nu, -cha and -ájich the accents stress on the penult that the rule reaches (targum-internal#500)"
   }
 ]

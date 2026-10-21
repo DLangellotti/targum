@@ -297,7 +297,9 @@ def test_meteg_is_not_a_vowel() -> None:
     import phonikud
 
     assert phonikud.phonemize("בָּאָֽרֶץ").strip() == "baʔaeʁˈets"
-    assert PhonikudPronouncer().say(["בָּאָֽרֶץ"])["בָּאָֽרֶץ"] == "baʔaʁˈets"
+    # And since the segolate rule (targum-internal#454) the stress is on אָ, as the
+    # accents put it: the word carries no accent, only the meteg, so the pointing says it.
+    assert PhonikudPronouncer().say(["בָּאָֽרֶץ"])["בָּאָֽרֶץ"] == "baʔˈaʁets"
 
 
 def test_kol_is_said_with_its_qamats_qatan() -> None:
@@ -306,3 +308,19 @@ def test_kol_is_said_with_its_qamats_qatan() -> None:
     assert said["כָּל"] == "kˈol"
     assert said["וְכָל"] == "veχˈol"
     assert said["בָּצָל"] == "batsˈal"
+
+
+def test_a_phonikud_bump_alone_is_seen_by_the_survey() -> None:
+    """targum-internal#500: `versions.compare` looks only at pieces both names carry, and
+    the name the survey works out had no phonikud piece, so a pronouncer bump alone left
+    every text reported current. `current_name` carries it now."""
+    from targum.annotate import versions
+    from targum.annotate.pronounce import PhonikudPronouncer
+
+    name = versions.current_name("upload")
+    assert name is None or name.endswith("+" + PhonikudPronouncer.name)
+    if name is not None:
+        stale = name.replace(PhonikudPronouncer.name, "phonikud/2")
+        assert ("phonikud", "2", PhonikudPronouncer.name.split("/")[1]) in versions.compare(
+            stale, name
+        )

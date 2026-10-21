@@ -34,14 +34,21 @@ def current_name(source: str) -> str | None:
     differently from one with it, by design, and saying so is better than guessing.
     """
     from . import Annotator, biblical, lemma
+    from .pronounce import PhonikudPronouncer
 
     try:
-        return Annotator(
+        name = Annotator(
             lemmatizer=lemma.for_source(source, auto_download=False),
             bands=biblical.for_source(source),
         ).name
     except Exception:  # noqa: BLE001 - an unbuildable lemmatizer is an unknown, not a failure
         return None
+    # And the pronouncer's version (targum-internal#500): `compare` only looks at a piece
+    # both names carry, so a text read without phonikud is never called behind on it,
+    # and one read with an older phonikud is. Without this a phonikud bump alone was
+    # invisible to the survey, though `rebuild --words` compares whole names and redoes
+    # the readings either way.
+    return f"{name}+{PhonikudPronouncer.name}"
 
 
 def versions(name: str) -> dict[str, str]:
