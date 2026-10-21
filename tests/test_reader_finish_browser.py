@@ -267,3 +267,24 @@ def test_a_part_that_was_not_there_says_so_on_the_first(browser, built: Path) ->
         "undo": True,
         "search": "?k=test",
     }
+
+
+def test_a_player_that_lands_after_the_reader_starts_itself(browser, tmp_path, monkeypatch) -> None:
+    """targum-internal#409, pinned on qa's ask (#861): `player.js` comes after `reader.js`.
+    On a phone the store opens long before `reader.js` has landed, so the reader runs at
+    once, finds no player yet and leaves word; the foot of `player.js` starts it. Here the
+    store is taken away, so the reader runs the moment it is parsed, and the player must
+    still be there, once."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    heard = dialogue(tmp_path / "dialogues", tmp_path / "reader")
+    context = opened(browser)
+    context.add_init_script(
+        "Object.defineProperty(window, 'TargumStore', {get() { return undefined; }, set() {}});"
+    )
+    page = context.new_page()
+    try:
+        page.goto(address(heard))
+        page.wait_for_function("() => !!window.TargumPlayer", timeout=5000)
+        assert page.evaluate("() => window.targumPlayerWanted") is False, "started, once"
+    finally:
+        context.close()

@@ -5607,8 +5607,9 @@ def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: P
 
 #: What a portion page may carry, gzipped, before `reader.js` (targum-internal#409): its
 #: stylesheet, the small scripts a tap needs, and this two-verse page's markup and data,
-#: 55.7 kB at 2026-10-21, with a margin. A face (about 30 kB each) or the
-#: commentaries back in front of `reader.js` breaks it.
+#: 55.7 kB at 2026-10-21, with a margin. A face (about 30 kB each) back in front of
+#: `reader.js` breaks it; this page's Rashi is too small to, so the order test above is
+#: what guards the commentaries, and the player's has its own.
 BEFORE_READER_GZ = 60_000
 
 
