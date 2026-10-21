@@ -85,7 +85,10 @@ REVISION = "3c3c27067bb73a45e99c36bd90b3b3dbc10fda12"
 # "grammar/7" (targum-internal#491, 2026-10-20): a lemma that does not share the word's
 # letters is refused (`unrelated`), so לטחון is no longer "slipped" and לעבוד no longer
 # "enslaved". The same rename re-reads every word's pronunciation, which is what carries
-# the first-letter shva of targum-internal#492 to texts already on the shelf.
+# the first-letter shva of targum-internal#492 to texts already on the shelf. In the same
+# rename (2026-10-21): an active verb is no longer filed under its nif'al (`active`,
+# `_future`; ויאמר is not "was said", targum-internal#494), and a present is filed under
+# its past rather than its participle (`_participle`; לוקחים is לקח's, #490).
 FEATURES = "roots+everyword+entities+syntax+grammar/7"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
@@ -588,7 +591,8 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
         # The word under whatever prefixes it carries: ועשרים is keyed as עשרים, and a
         # name is never corrected, because בני is a lemma to mend and Benny is a person.
         lex = word.get("lex") or ""
-        lemma = _lemma(lex, surface, seg[-1] if seg else surface, pos)
+        present = "Tense=Pres" in (feats or "")
+        lemma = _lemma(lex, surface, seg[-1] if seg else surface, pos, present)
         offsets = word.get("offsets") or {}
         carried = _carried(seg, pos)
         if carried is not None:
@@ -651,6 +655,8 @@ def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | 
     """The lemma and pos of a Hebrew word, mended where its own pointing settles what the
     unpointed reading could not; else as given. `pointed` is the word as it stands in
     the text, prefixes and marks and all."""
+    if pos == "VERB":
+        return _future(lemma, pointed), pos
     if lemma != MISREAD_SELLER or not HOLAM_AFTER_MEM.search(pointed):
         return lemma, pos
     bare, _ = strip_nikkud(pointed)
@@ -661,8 +667,45 @@ def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | 
     return lemma, pos
 
 
-def _lemma(lex: str, surface: str, base: str, pos: str | None = None) -> str:
-    """The dictionary form, corrected where DICTA is reliably wrong or silent."""
+# A future's prefix letter, and what may stand in front of it: וַיֹּאמֶר, שֶׁיֹּאמַר.
+FUTURE_PREFIXES = frozenset("איתנ")
+FUTURE_LEADS = frozenset("ושכלה")
+GUTTURALS = frozenset("אהחער")
+DAGESH = "\u05bc"
+TSERE = "\u05b5"
+
+
+def _future(lemma: str, pointed: str) -> str:
+    """A nif'al lemma on a future, settled by the marks (targum-internal#494).
+
+    The nif'al future doubles the root's first letter, so it carries a dagesh — יִכָּנֵס,
+    יִמָּצֵא — or, where that letter is a guttural and cannot double, the prefix takes a
+    tsere instead: יֵאָמֵר, יֵעָשֶׂה. A qal future has neither: וַיֹּאמֶר, יַעֲשֶׂה, אֶמְצָא.
+    A word with no marks on its prefix says nothing either way, and keeps DICTA's."""
+    letters = lemma.translate(FINALS)
+    if len(letters) != 4 or letters[0] != "נ" or letters[1] in NIFAL_KEPT:
+        return lemma
+    split: list[tuple[str, str]] = []
+    for char in pointed:
+        if "\u0591" <= char <= "\u05c7" and split:
+            split[-1] = (split[-1][0], split[-1][1] + char)
+        elif "א" <= char <= "ת":
+            split.append((char, ""))
+    for at in range(1, min(len(split), 4)):
+        prefix, first = split[at - 1], split[at]
+        leads = [letter for letter, _ in split[: at - 1]]
+        if prefix[0] not in FUTURE_PREFIXES or first[0] != letters[1]:
+            continue
+        if not set(leads) <= FUTURE_LEADS or not prefix[1].strip(DAGESH):
+            continue
+        doubled = DAGESH in first[1] if first[0] not in GUTTURALS else TSERE in prefix[1]
+        return lemma if doubled else lemma[1:]
+    return lemma
+
+
+def _lemma(lex: str, surface: str, base: str, pos: str | None = None, present: bool = False) -> str:
+    """The dictionary form, corrected where DICTA is reliably wrong or silent. `present`
+    is DICTA's own Tense=Pres on the word."""
     lemma = (lex or "").strip()
     if pos == "NUM" and base in TWOS:
         # Before the decline: DICTA declines שתי as often as it misreads it.
@@ -682,6 +725,8 @@ def _lemma(lex: str, surface: str, base: str, pos: str | None = None) -> str:
     if pos in GUARDED and unrelated(lemma, base):
         # A gap on the card rather than the wrong word's meaning, said with confidence.
         return surface.lower()
+    if pos == "VERB":
+        lemma = active(lemma, base, present)
     if pos == "NOUN":
         lemma = _man_or_woman(lemma, base)
     return OVERRIDES.get(lemma, lemma).lower()
@@ -741,6 +786,68 @@ def _in_order(letters: str, word: str) -> bool:
         if not at:
             return False
     return True
+
+
+# DICTA files active forms under their nif'al: ויאמר, אמרו and תאמר under נאמר "was
+# said", לעשות and עשו under נעשה, מצאתי under נמצא (targum-internal#494, counted over the
+# laptop's Hebrew on 2026-10-20). The card then says "was said" for "he said", and
+# `unrelated` lets it by, since a nun may always have assimilated. A nif'al spells
+# itself before the root: נ in the past and the participle, ה in the infinitive and the
+# imperative, a prefix letter in the future. So where the word opens on the root's first
+# letter, or on ל and then that letter, it is not a nif'al, and the lemma is the root's
+# own. Not where that letter is weak, which comes and goes, nor ה, where לֵהָנוֹת
+# unpointed is להנות. The future, יאמר or יכנס, cannot be told apart unpointed; the
+# marks settle it where a text carries them (`mend_pointed`).
+NIFAL_KEPT = frozenset("הוינ")
+
+
+def active(lemma: str, base: str, present: bool = False) -> str:
+    """A verb's lemma with a nif'al taken off where the word itself shows none, and a
+    participle's holam where DICTA filed a present under it."""
+    letters = lemma.translate(FINALS)
+    if present and _participle(letters):
+        return lemma[0] + lemma[2:]
+    if len(letters) != 4 or letters[0] != "נ" or letters[1] in NIFAL_KEPT:
+        return lemma
+    word = base.translate(FINALS)
+    if word.startswith("לה"):
+        # The nif'al's own infinitive, להילחם written להלחם: with a ל first in the root,
+        # the ל in front would otherwise pass for it.
+        return lemma
+    if word.startswith(letters[1]) or word.startswith("ל" + letters[1]):
+        return lemma[1:]
+    return lemma
+
+
+NIFAL_PE_YOD = frozenset(
+    {"נולד", "נוסד", "נותר", "נודע", "נוצר", "נוכח", "נועד", "נוסף", "נואש", "נוכל", "נועצ"}
+)
+
+
+def _participle(letters: str) -> bool:
+    """Whether a verb lemma is a qal present, C + ו + C + C: לוקח, עושה, יושב.
+
+    DICTA files present-tense verbs under the participle, so לוקחים was לוקח where every
+    dictionary, Pealim and the card's own All forms of have לקח (targum-internal#490).
+    Asked only of a word DICTA itself calls a present (Tense=Pres), because the same four letters
+    are a pu'al past (דובר, בוצע) and IAHLT's binyan score fell six points without it.
+    Not a doubled root, where C + ו + C + C is a past of its own (סובב, שוטט); nor a ה
+    first, a hif'il or hof'al past (הודה, הוצג); nor an מ first, where it is a hof'al
+    present as often (מוצג) as a qal one (מוכר); nor the nif'al pasts of a yod-first
+    root, which spell נ + ו + C + C (נולד, נוסף)."""
+    return (
+        letters not in NIFAL_PE_YOD
+        and len(letters) == 4
+        and letters[1] == "ו"
+        and letters[0] not in "ומה"
+        and letters[2] != letters[3]
+    )
+
+
+def verb_shape(lemma: str) -> tuple[str | None, str | None]:
+    """The binyan and root a mended verb lemma spells, as `_tokens` derives them."""
+    binyan = _binyan_of(lemma)
+    return binyan, root_of(lemma, binyan)
 
 
 def _man_or_woman(lemma: str, base: str) -> str:

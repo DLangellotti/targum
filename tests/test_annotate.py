@@ -420,11 +420,10 @@ def test_a_modern_verb_behind_a_clitic_is_not_a_rare_biblical_word(
     "to swarm": hard, rooted שר״ץ, and "from the Tanakh, rare today".
 
     The clitic is why this test exists and DICTA splits it, which is what #110 asked of
-    the swap. The lemma it lands on is the present participle רוצה rather than Stanza's
-    רצה — a real difference, recorded here rather than asserted away: DICTA answers with
-    the participle for a family of common verbs, so those words card under it. What the
-    test still pins is the failure that mattered, which is a modern verb read as a rare
-    biblical one.
+    the swap. DICTA lands on the present participle רוצה, and since targum-internal#490
+    the participle is taken back to the past, רצה, as Stanza had it and every dictionary
+    lists it. What the test pins first is still the failure that mattered, which is a
+    modern verb read as a rare biblical one.
     """
     from targum.annotate.lemma import for_source
 
@@ -432,7 +431,7 @@ def test_a_modern_verb_behind_a_clitic_is_not_a_rare_biblical_word(
     segmented = document(["קוראים לזה איך שרוצים."])
     annotation = Annotator(lemmatizer=lemmatizer).annotate(segmented)
     tokens = {token.surface: token for token in next(iter(annotation.tokens.values()))}
-    assert tokens["שרוצים"].lemma == "רוצה"
+    assert tokens["שרוצים"].lemma == "רצה"
     assert tokens["שרוצים"].lemma != "שרץ", "the whole point: not read as one word"
     assert tokens["שרוצים"].split
     assert tokens["שרוצים"].built == "ש that + רוצים"
@@ -1430,13 +1429,75 @@ def test_a_lemma_that_shares_nothing_with_its_word_is_refused() -> None:
         ("אחד", "אחת", "ADJ"),
         ("מתעורר", "התעורר", "VERB"),  # a participle's מ: the right meaning
         ("ביקש", "מבקש", "VERB"),
-        ("לוקח", "לוקחים", "VERB"),
     ],
 )
 def test_a_lemma_whose_letters_come_and_go_by_rule_is_kept(lemma: str, base: str, pos: str) -> None:
     from targum.annotate.dicta import _lemma
 
     assert _lemma(lemma, base, base, pos) == lemma
+
+
+def test_an_active_verb_is_not_filed_under_its_nifal() -> None:
+    """ויאמר was "was said", לעשות "was done" and מצאתי "was found": DICTA files active
+    forms under the nif'al (targum-internal#494). A word that opens on the root's first
+    letter, or on ל and then it, is not a nif'al."""
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma("נאמר", "אמרו", "אמרו", "VERB") == "אמר"
+    assert _lemma("נעשה", "לעשות", "לעשות", "VERB") == "עשה"
+    assert _lemma("נמצא", "מצאתי", "מצאתי", "VERB") == "מצא"
+    assert _lemma("נעשה", "עשתה", "עשתה", "VERB") == "עשה"
+    # A nif'al that spells itself keeps its lemma.
+    assert _lemma("נמצא", "נמצאים", "נמצאים", "VERB") == "נמצא"
+    assert _lemma("נכנס", "להיכנס", "להיכנס", "VERB") == "נכנס"
+    assert _lemma("נכנס", "נכנסתי", "נכנסתי", "VERB") == "נכנס"
+    # A future cannot be told unpointed, and a weak or ה first letter is left alone.
+    assert _lemma("נאמר", "יאמר", "יאמר", "VERB") == "נאמר"
+    assert _lemma("נכנס", "יכנס", "יכנס", "VERB") == "נכנס"
+    assert _lemma("נהנה", "להנות", "להנות", "VERB") == "נהנה"
+    assert _lemma("נולד", "ולדה", "ולדה", "VERB") == "נולד"
+    assert _lemma("נלחם", "להלחם", "להלחם", "VERB") == "נלחם", "the nif'al's infinitive"
+    assert _lemma("נאמר", "אמרו", "אמרו", "NOUN") == "נאמר", "only a verb"
+
+
+@pytest.mark.parametrize(
+    ("pointed", "lemma", "said"),
+    [
+        ("וַיֹּאמֶר", "נאמר", "אמר"),
+        ("וַתֹּאמֶר", "נאמר", "אמר"),
+        ("יַעֲשֶׂה", "נעשה", "עשה"),
+        ("אֶמְצָא", "נמצא", "מצא"),
+        ("יֵאָמֵר", "נאמר", "נאמר"),  # a guttural: the prefix's tsere
+        ("יֵעָשֶׂה", "נעשה", "נעשה"),
+        ("יִכָּנֵס", "נכנס", "נכנס"),  # the dagesh
+        ("יִמָּצֵא", "נמצא", "נמצא"),
+        ("יאמר", "נאמר", "נאמר"),  # no marks, no say
+    ],
+)
+def test_a_future_is_told_from_its_nifal_by_the_marks(pointed: str, lemma: str, said: str) -> None:
+    """The nif'al future doubles the root's first letter, or lengthens the prefix's vowel
+    where a guttural cannot double; the qal does neither (targum-internal#494)."""
+    from targum.annotate.dicta import mend_pointed
+
+    assert mend_pointed(lemma, "VERB", pointed) == (said, "VERB")
+
+
+def test_a_present_verb_is_filed_under_its_past() -> None:
+    """לוקחים was filed under לוקח, the participle; dictionaries and Pealim have לקח
+    (targum-internal#490)."""
+    from targum.annotate.dicta import _lemma, verb_shape
+
+    assert _lemma("לוקח", "לוקחים", "לוקחים", "VERB", present=True) == "לקח"
+    assert _lemma("עושה", "עושים", "עושים", "VERB", present=True) == "עשה"
+    assert _lemma("יושב", "יושבת", "יושבת", "VERB", present=True) == "ישב"
+    # The same letters as a pu'al or hif'il past, which DICTA does not call a participle.
+    assert _lemma("דובר", "דובר", "דובר", "VERB") == "דובר"
+    assert _lemma("הודה", "הודה", "הודה", "VERB", present=True) == "הודה"
+    assert verb_shape("לקח") == ("פעל", "לקח")
+    # A doubled root's C + ו + C + C is a past, and an מ first is a hof'al as often.
+    assert _lemma("סובב", "מסובב", "מסובב", "VERB", present=True) == "סובב"
+    assert _lemma("מוכר", "מוכרים", "מוכרים", "VERB", present=True) == "מוכר"
+    assert _lemma("שומר", "שומר", "שומר", "NOUN") == "שומר", "only a verb"
 
 
 def test_the_card_line_is_built_from_dictas_own_segmentation() -> None:
