@@ -450,6 +450,8 @@
             URL.revokeObjectURL(file);
           }, 60000);
           done();
+          // The file is here: "Still making your PDF…" goes with the wait (qa on #857).
+          tell("");
         });
       })
       .catch(function (why) {

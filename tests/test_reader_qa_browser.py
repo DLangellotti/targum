@@ -454,6 +454,22 @@ def test_the_reader_s_sheet_press_says_when_it_is_slow_and_when_offline(
     assert offline == "You're offline. The PDF is made on targum, so it needs a connection."
 
 
+def test_the_slow_line_goes_when_the_sheet_arrives(browser, served: str) -> None:
+    """qa on #857: a PDF that arrived after the slow line left the line on screen."""
+    context, page = opened(browser, served, DESK)
+    held: list = []
+    page.route("**/*.pdf*", lambda route: held.append(route))
+    page.click("#print-open")
+    page.locator(SHEET).first.click()
+    page.wait_for_timeout(3300)
+    assert page.locator("#sheet-said").inner_text() == "Still making your PDF…"
+    held[0].fulfill(status=200, body=b"%PDF-1.4\n", headers={"Content-Type": "application/pdf"})
+    page.wait_for_timeout(300)
+    gone = page.locator("#sheet-said").is_hidden()
+    context.close()
+    assert gone, "the slow line went with the wait"
+
+
 # -- S1 and S3: the bar on a phone ---------------------------------------------------------
 
 TOOLS = """
