@@ -142,7 +142,10 @@
         var own = tip.getBoundingClientRect();
         var left = Math.max(0, Math.min(box.width - own.width, x - own.width / 2));
         tip.style.left = left + "px";
-        tip.style.top = Math.max(0, y - own.height - 10) + "px";
+        // Above the point, or under it where there is no room above: clamped to the top,
+        // the tip sat on the point it was about (targum-internal#471, polish 11).
+        var top = y - own.height - 10;
+        tip.style.top = (top < 0 ? y + 14 : top) + "px";
       },
       hide: function () {
         tip.hidden = true;

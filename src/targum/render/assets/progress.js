@@ -533,6 +533,7 @@
     }
     var bars = el("ol", "weeks");
     var weekLabels = [];
+    var weekDates = [];
     var total = 0;
     var first = 0;
     while (first < columns.length && !columns[first].all) first += 1;
@@ -541,8 +542,10 @@
       if (index < first) return;
       var bar = el("li", "week");
       var from = new Date(start + index * 7 * DAY);
+      var dated = from.toLocaleDateString(words.language || "en", { day: "numeric", month: "short" });
+      weekDates.push(dated);
       var label = tn("progress.weeks.week", column.all, "Week of {date}: {n} word", "Week of {date}: {n} words", {
-        date: from.toLocaleDateString(words.language || "en", { day: "numeric", month: "short" }),
+        date: dated,
       });
       bar.title = label;
       weekLabels.push(label);
@@ -567,7 +570,18 @@
         .concat(weekLabels)
         .join(". ")
     );
+    // This week at the end edge whatever came before it, so the newest column is always
+    // in the same place (polish 2, targum-internal#471).
     host.appendChild(bars);
+    // The first and the last week's dates under the chart, as the month line names its
+    // months: the bars had no dates at all (polish 2). The label above already says each
+    // week, so these are for the eye only.
+    var dates = el("p", "weeks-dates");
+    dates.setAttribute("aria-hidden", "true");
+    dates.style.setProperty("--weeks", String(weekDates.length));
+    dates.appendChild(el("span", "", weekDates[0]));
+    if (weekDates.length > 1) dates.appendChild(el("span", "", weekDates[weekDates.length - 1]));
+    host.appendChild(dates);
   }
 
   //: The step of the ramp a column of this share of the tallest is drawn in.
@@ -608,7 +622,7 @@
     }
     item.appendChild(holder);
     if (end) item.appendChild(el("span", "next-end" + (endLeaf ? " leaf" : ""), end));
-    host.appendChild(item);
+    host.appendChild(item);  return item;
   }
 
   function drawNext(code) {
@@ -675,7 +689,9 @@
     more.href = keyed(library ? "/library" : "/?show=uploads");
 
     if (!library) {
-      row(level, "+ " + t("progress.next.upload", "Upload something new"), "", t("progress.next.upload-how", "A link, a file, or a photo of a page"), "", keyed("/add"));
+      var upload = row(level, "+ " + t("progress.next.upload", "Upload something new"), "", t("progress.next.upload-how", "A link, a file, or a photo of a page"), "", keyed("/add"));
+      // On a phone its aside goes under the term rather than being cut short (polish 9).
+      upload.className += " next-stack";
       ((said && said.uploads) || []).forEach(function (one) {
         row(
           level,

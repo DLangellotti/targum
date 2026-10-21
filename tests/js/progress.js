@@ -173,7 +173,13 @@ setImmediate(() => setImmediate(() => process.stdout.write(
         said: "",
         shades: bars.children.map((bar) => (bar.children[0] ? bar.children[0].style.background : "")),
         titles: bars.children.map((bar) => bar.title),
-        legend: at("weeks").children.length > 1,
+        dates: at("weeks")
+          .children.filter((node) => String(node.className) === "weeks-dates")
+          .map((node) => node.children.map((span) => span.textContent))[0] || [],
+        datesSpan: at("weeks")
+          .children.filter((node) => String(node.className) === "weeks-dates")
+          .map((node) => node.style.getPropertyValue ? node.style.getPropertyValue("--weeks") : node.style["--weeks"])[0] || "",
+        legend: at("weeks").children.filter((node) => String(node.className) !== "weeks-dates").length > 1,
       };
     })(),
     next: {
@@ -185,6 +191,7 @@ setImmediate(() => setImmediate(() => process.stdout.write(
       practise: at("practise").hidden === false,
       textsTitle: at("next-texts-title").textContent,
       level: rows("level-rows"),
+      levelClasses: at("level-rows").children.map((item) => String(item.className)),
       levelEmpty: at("level-empty").hidden === false ? at("level-empty").textContent : "",
       more: at("more-texts").textContent,
       moreHref: at("more-texts").href,

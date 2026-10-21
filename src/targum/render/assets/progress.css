@@ -91,16 +91,24 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 /* The period as three tinted pills, the chosen one filled teal (the board's, over §4's
    quiet ink for a chosen filter, on this page). */
 .progress .spent .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-end: 1rem; }
+/* Tinted on the wash with no border, as every desk row of tabs is (§12, "The boards are
+   the desk"), at §13's control size: they were outlined paper pills at 0.8125rem and 33px
+   (polish 4, targum-internal#471). */
 .progress .spent .chip {
-  padding: 0.35rem 0.75rem;
-  border: 1px solid var(--rule);
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-block-size: 2.5rem;
+  padding: 0 1rem;
+  border: 0;
   border-radius: 999px;
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 0.8125rem;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
-.progress .spent .chip:hover { border-color: var(--well); }
-.progress .spent .chip[aria-pressed="true"] { background: var(--teal); border-color: var(--teal); color: var(--page-max); }
+.progress .spent .chip:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.progress .spent .chip[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
 .progress .spent .chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (hover: none) and (pointer: coarse) {
   .progress .spent .chip { min-block-size: 44px; }
@@ -120,16 +128,21 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .reading .reading-base { stroke: var(--rule); stroke-width: 1; }
 .reading .reading-month { font-family: var(--chrome); font-size: 0.6875rem; fill: var(--ink-soft); }
 .reading .reading-point { cursor: default; }
+/* A round ring on the dot itself: the outline drew a square box round an 8px dot
+   (polish 11, targum-internal#471). */
+.reading .reading-point:focus { outline: none; }
+.reading .reading-point:focus-visible { outline: none; stroke: var(--focus); stroke-width: 2.5; }
 .reading-words p { margin: 0.5rem 0 0; max-inline-size: 40rem; font-size: 0.875rem; color: var(--ink-soft); }
 
 
 /* --- the story (design.md §12, 2026-10-09) -------------------------------------------
    Three panels in order, each a step name in small capitals over a serif headline, the
    board's way of telling a story rather than laying out a dashboard. */
+/* §13's label: 0.6875rem uppercase at 0.08em (polish 5, targum-internal#471). */
 .progress .story-step {
   margin: 0;
-  font-size: 0.8125rem;
-  letter-spacing: 0.04em;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
@@ -197,6 +210,8 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   margin: 0.5rem 0 0;
   padding: 0;
   display: flex;
+  /* This week at the end edge, so the newest column is always last (polish 2). */
+  justify-content: flex-end;
   align-items: flex-end;
   gap: 0.6rem;
   block-size: 5.25rem;
@@ -210,6 +225,21 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   block-size: 100%;
   display: flex;
   align-items: flex-end;
+}
+/* The first and last week's dates, under the columns they name: as wide as the drawn
+   weeks and set against the end edge with them. */
+.progress .weeks-dates {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  inline-size: calc(var(--weeks, 12) * (100% - 11 * 0.6rem) / 12 + (var(--weeks, 12) - 1) * 0.6rem);
+  margin-block-start: 0.35rem;
+  margin-inline-start: auto;
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .progress .week-bar {
   display: block;
@@ -284,6 +314,9 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   /* "Learned on targum" is one of the desk's, so its line goes with it (qa on #858). */
   .progress .ledger-note { display: none; }
   .progress .spent-amount, .progress .ledger .counts b { font-size: 1.5rem; }
+  /* The Upload row's aside under its term, not cut to "A link, a file, or a …" (polish 9). */
+  .progress .next-stack .next-link { flex-direction: column; align-items: flex-start; gap: 0.1rem; padding-block: 0.25rem; }
+  .progress .next-stack .next-aside { white-space: normal; overflow: visible; }
 }
 
 /* What next's presses under a thumb (targum-internal#471, B4): "Practise these words",
