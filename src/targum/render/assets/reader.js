@@ -2962,6 +2962,8 @@ var targumReader = function () {
       if (feat(governedLine, "Order") === "VS") classes.push("late-subject");
       // And a vav-consecutive on a Biblical page, for the vav lens (targum-internal#449).
       if (feat(governedLine, "Vav") === "Cons") classes.push("vav-cons");
+      // And a pronoun on the end, for the suffix lens (targum-internal#450).
+      if (feat(governedLine, "Pron")) classes.push("pron-end");
       var status = statusOf(lemma);
       layers.push({
         start: at(token[0]),
@@ -5320,6 +5322,7 @@ var targumReader = function () {
       showGoverned(false, true);
       showOrder(false, true);
       showVav(false, true);
+      showSuffix(false, true);
     } else body.removeAttribute("data-case");
     if (caseLens) caseLens.value = chosen;
     say(
@@ -5379,6 +5382,7 @@ var targumReader = function () {
     if (governedLens) governedLens.setAttribute("aria-pressed", name === "governed" ? "true" : "false");
     if (orderLens) orderLens.setAttribute("aria-pressed", name === "order" ? "true" : "false");
     if (vavLens) vavLens.setAttribute("aria-pressed", name === "vav" ? "true" : "false");
+    if (suffixLens) suffixLens.setAttribute("aria-pressed", name === "suffix" ? "true" : "false");
   }
 
   function showGoverned(on, quietly) {
@@ -5477,6 +5481,46 @@ var targumReader = function () {
   function toggleVav() {
     if (!vavLens || vavLens.hidden) return false;
     return showVav(body.getAttribute("data-lens") !== "vav");
+  }
+
+  /* The suffix lens: every word with a pronoun on the end, lit (targum-internal#450,
+   * 2026-10-21). שלו, אותך, לפניהם: the pronoun is fused onto the word, so a reader who
+   * looks the word up finds the preposition or the noun and loses whose it is. */
+  var suffixLens = document.querySelector("[data-suffix-lens]");
+  function suffixCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Pron")) count++;
+      });
+    });
+    return count;
+  }
+
+  function showSuffix(on, quietly) {
+    if (!suffixLens) return false;
+    if (on) lensOn("suffix");
+    else if (body.getAttribute("data-lens") === "suffix") lensOn("");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce("suffix", t("reader.lens.suffix-cue", "Each word lit has a pronoun on the end.")) ||
+            t("reader.lens.suffix-said", "Pronoun endings, {n} here.", { n: suffixCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (suffixLens) {
+    suffixLens.addEventListener("click", function () {
+      showSuffix(body.getAttribute("data-lens") !== "suffix");
+    });
+  }
+
+  // `e` turns the suffix lens on and off, where the page has it and it is offered.
+  function toggleSuffix() {
+    if (!suffixLens || suffixLens.hidden) return false;
+    return showSuffix(body.getAttribute("data-lens") !== "suffix");
   }
 
   if (openedBefore || finishedAt()) offerLenses();
@@ -6335,6 +6379,16 @@ var targumReader = function () {
       vav.className = "card-vav";
       vav.textContent = t("reader.card.vav-turns", "the vav turns the future form into narrative past");
       facts.add(t("reader.card.vav-past", "Past"), vav);
+    }
+    // The pronoun on the end, named: "his", "to you (m.)", "before them". Hebrew's ninth
+    // hard spot (targum-internal#450, 2026-10-21), in both registers, as the builder
+    // reads it off the pieces line.
+    var pronoun = feat(takesLine, "Pron");
+    if (pronoun) {
+      var whose = document.createElement("span");
+      whose.className = "card-suffix";
+      whose.textContent = pronoun;
+      facts.add(t("reader.card.suffix", "Pronoun"), whose);
     }
     facts.place(card);
 
@@ -11003,6 +11057,9 @@ var targumReader = function () {
         break;
       case "y":
         if (!toggleVav()) return;
+        break;
+      case "e":
+        if (!toggleSuffix()) return;
         break;
       case "c":
         if (!nextCase()) return;

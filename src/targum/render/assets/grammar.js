@@ -30,6 +30,7 @@
     construct: ["practice.spot.construct", "The construct state"],
     stress: ["practice.spot.stress", "Stress"],
     vav: ["practice.spot.vav", "The vav-consecutive"],
+    suffix: ["practice.spot.suffix", "Pronoun suffixes"],
   };
 
   function at(id) {

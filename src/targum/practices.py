@@ -45,8 +45,9 @@ from .paths import write_atomic
 CACHE = "practice.json"
 
 #: The file's shape. Bumped when the encoding changes; an older file is rebuilt for free.
-#: 2 (2026-10-21) adds the vav-consecutive's candidates (targum-internal#449).
-VERSION = 2
+#: 2 (2026-10-21) adds the vav-consecutive's candidates (targum-internal#449), and 3 the
+#: pronoun suffixes' (targum-internal#450).
+VERSION = 3
 
 #: When a spot is offered: met in this many lines, across this many texts (the research's
 #: "about six attended encounters across at least two texts").
@@ -102,6 +103,9 @@ REGISTERED: dict[str, dict[str, Practice]] = {
         # Past or future, for a vav and a future form in a Biblical line: the narrative
         # vav against the plain "and" (targum-internal#449, 2026-10-21).
         "the vav-consecutive": Practice("the vav-consecutive", "choice", "practice.ask.vav"),
+        # Whose, or to whom, for a word with a pronoun on the end, in both registers: the
+        # suffix the line has against the one it is taken for (targum-internal#450).
+        "pronoun suffixes": Practice("pronoun suffixes", "choice", "practice.ask.suffix"),
     },
 }
 
@@ -115,6 +119,7 @@ KEYS: dict[str, str] = {
     "construct state and definiteness": "construct",
     "stress and pronunciation": "stress",
     "the vav-consecutive": "vav",
+    "pronoun suffixes": "suffix",
 }
 SPOTS: dict[str, str] = {key: name for name, key in KEYS.items()}
 
@@ -257,6 +262,36 @@ def vav_candidates(token: Mapping[str, Any], pointed: str, segment: str) -> Iter
         yield Candidate("vav", segment, start, end, "Fut", "Past", True)
 
 
+def suffix_candidates(token: Mapping[str, Any], pointed: str, segment: str) -> Iterator[Candidate]:
+    """Whose, or to whom, for a word with a pronoun on the end (targum-internal#450).
+    `pointed` is the word as the line writes it, whose points say ־ךָ from ־ךְ.
+
+    The answer is the card's own words, so the practice says it as the card does, with its
+    code before a colon for the rule: "3mp:before them". Two contrasts each, from
+    `suffixes.CONFUSED`: the look-alike (ו against י, ם against ן) is the hard kind, and a
+    different person the easy one."""
+    from .annotate.suffixes import CONFUSED, reading
+    from .annotate.suffixes import said as named
+
+    pos = str(token.get("pos") or "") or None
+    lemma = str(token.get("lemma") or "")
+    built = str(token.get("built") or "") or None
+    code = reading(
+        surface=str(token.get("surface") or ""), built=built, pos=pos, lemma=lemma, pointed=pointed
+    )
+    if code not in CONFUSED:
+        return
+    lexeme = str(token.get("lexeme") or "") or None
+
+    def words(one: str) -> str:
+        return f"{one}:{named(one, pos=pos, lemma=lemma, built=built, lexeme=lexeme)}"
+
+    start, end = int(token.get("start") or 0), int(token.get("end") or 0)
+    hard, easy = CONFUSED[code]
+    yield Candidate("suffix", segment, start, end, words(code), words(hard), True)
+    yield Candidate("suffix", segment, start, end, words(code), words(easy), False)
+
+
 def _biblical(folder: Path) -> bool:
     """Whether a built text is scripture, off its own document.json."""
     from .models import is_biblical
@@ -352,9 +387,13 @@ def count_text(folder: Path) -> TextPractice | None:
         by_section.setdefault(section, []).extend(_governed(stored, segment.id))
         for token in stored:
             by_section.setdefault(section, []).extend(candidates(token, segment.id))
+            word = segment.text[int(token.get("start") or 0) : int(token.get("end") or 0)]
             if scripture:
-                word = segment.text[int(token.get("start") or 0) : int(token.get("end") or 0)]
                 by_section[section].extend(vav_candidates(token, word, segment.id))
+            # The pronoun on the end, in both registers, Hebrew alone: a Biblical page can
+            # switch into Aramaic, which writes its suffixes otherwise.
+            if segment.language_in(segmented.language).split("-")[0] == "he":
+                by_section[section].extend(suffix_candidates(token, word, segment.id))
             pos = str(token.get("pos") or "")
             lemma = str(token.get("lemma") or "")
             surface = str(token.get("surface") or "")
@@ -616,6 +655,9 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
         return t("practice.construct.bound" if code == "Cons" else "practice.construct.free")
     if spot == "vav":
         return t("reader.grammar.past" if code == "Past" else "reader.grammar.future")
+    if spot == "suffix":
+        # The card's words, after the code (`suffix_candidates`).
+        return code.partition(":")[2] or code
     feats = _feats(code)
     if spot == "agreement":
         gender = t(
@@ -641,6 +683,23 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
     return f"{t(tense)} · {who}"
 
 
+#: The rule for each suffix, by its code: the third person by gender and number, the first
+#: and second by number.
+_SUFFIX_RULES = {
+    "3ms": "practice.rule.suffix-3ms",
+    "3fs": "practice.rule.suffix-3fs",
+    "3mp": "practice.rule.suffix-3mp",
+    "3fp": "practice.rule.suffix-3fp",
+    "1cs": "practice.rule.suffix-1s",
+    "1cp": "practice.rule.suffix-1p",
+    "2ms": "practice.rule.suffix-2s",
+    "2fs": "practice.rule.suffix-2s",
+    "2cs": "practice.rule.suffix-2s",
+    "2mp": "practice.rule.suffix-2p",
+    "2fp": "practice.rule.suffix-2p",
+}
+
+
 def rule(spot: str, code: str, ui: str) -> str:
     """The clause that decided the answer, one line, never a paragraph."""
     from . import strings
@@ -653,6 +712,7 @@ def rule(spot: str, code: str, ui: str) -> str:
         "construct": "practice.rule.bound" if code == "Cons" else "practice.rule.free",
         "stress": "practice.rule.stress",
         "vav": "practice.rule.vav-past" if code == "Past" else "practice.rule.vav-future",
+        "suffix": _SUFFIX_RULES.get(code.partition(":")[0], "practice.rule.suffix-3ms"),
     }
     return strings.text(keys[spot], ui)
 
