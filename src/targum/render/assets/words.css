@@ -108,7 +108,7 @@ main {
   text-align: center;
 }
 .nothing[hidden] { display: none; }
-.nothing a { color: var(--ink); }
+.nothing a:not(.btn) { color: var(--ink); }
 
 /* --- the numbers ---------------------------------------------------------- */
 
