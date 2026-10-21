@@ -4822,6 +4822,7 @@ var targumReader = function () {
   // punctuation.
   var EDGES = /^[\s־׀׃.,;:!?"'()\[\]–—]+|[\s־׀׃.,;:!?"'()\[\]–—]+$/g;
   var saidClips = {};
+  var saidVoice = null;
 
   function sayButton(word) {
     if (!canAsk() || typeof fetch !== "function" || typeof Audio !== "function") return null;
@@ -4837,7 +4838,16 @@ var targumReader = function () {
     button.innerHTML = HEAR_GLYPH;
     var key = tongue + ":" + text;
     function play(clip) {
-      var played = new Audio(clip).play();
+      // The page's one voice for a word (`TargumVocab.sayClip`): a second Hear stops the
+      // first rather than saying both at once (qa on #844).
+      if (window.TargumVocab && window.TargumVocab.sayClip) return window.TargumVocab.sayClip(clip);
+      if (saidVoice) {
+        try {
+          saidVoice.pause();
+        } catch (e) {}
+      }
+      saidVoice = new Audio(clip);
+      var played = saidVoice.play();
       if (played && played.catch) played.catch(function () {});
     }
     function failed(why, lost) {

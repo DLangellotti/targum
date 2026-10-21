@@ -72,6 +72,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (it was cut at 16: "something…" is now "something waited for").
 
 ### Added
+- Your Words plays a word's sound from the list (targum-internal#498, a beta reader: "And
+  be able to play the sounds here too"). Each row, and the word's card on the page, carries
+  the reader card's Hear: the voice's clip from `/say-word`, which targum pays for and
+  keeps by the word, so a word anybody has heard is free after. Only in the languages the
+  voice reads (Hebrew, French, Russian, Italian) and only on a served page.
+  `TargumVocab.hearButton` is the shared control.
 - Your Words' "Met in" opens the text at the word (targum-internal#497, a beta reader:
   "link the full text here … context is king"). "2 texts" is a press that lists the texts
   under the row, finished latest first, eight at most and "And 3 more texts."; each opens

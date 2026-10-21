@@ -379,6 +379,23 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Your Words says each word, as its card does — 2026-10-21
+
+A beta reader, 2026-10-21, on Your Words' word column: "And be able to play the sounds
+here too." (targum-internal#498)
+
+- **Every row carries Hear**, the reader card's triangle, after the copy in the word's own
+  cell, and so does the word's card on the page. A press says the word: the same
+  `/say-word` clip as the reader's card where no recording covers the word, on the rails
+  of "A word said from its card is on targum" (2026-10-07). targum pays, and the clip is
+  kept by the word, so it is made once.
+- **This page still buys nothing for a line.** "Your Words is one table and a practice
+  card" left the practice card without a ▶ because a line is a voice bought per line. A
+  word is not a line, and its sound was already the card's gift. Phrases and corrected
+  lines are not said here.
+- **Only where the voice reads the language** (Hebrew, French, Russian, Italian) and a
+  server is behind the page. Anywhere else the row has no button.
+
 ### "Met in" opens the text at the word — 2026-10-21
 
 A beta reader, 2026-10-21, on Your Words' "Met in" column: "link the full text here so

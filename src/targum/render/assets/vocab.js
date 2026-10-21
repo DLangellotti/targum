@@ -540,6 +540,102 @@
     return button;
   }
 
+  /* --- hearing a word ------------------------------------------------------------ */
+
+  /* The word said by the voice, from a list (targum-internal#498, a beta reader on Your
+   * Words: "And be able to play the sounds here too"). The same press the reader's card
+   * makes where no recording covers the word (`reader.js` `sayButton`; design.md §12, "A
+   * word said from its card is on targum", 2026-10-07): `POST /say-word`, a clip targum
+   * pays for and keeps by what was said, so a word anybody has heard is free after. Only
+   * in the languages the voice reads, and only on a page a server is behind — a list
+   * offers what the page can do, and a page opened from disk gets no button.
+   */
+  var VOICED = { he: true, fr: true, ru: true, it: true };
+  // Ends a word can be cut with that are not the word: spaces, maqaf, sof pasuq,
+  // punctuation.
+  var EDGES = /^[\s\u05be\u05c0\u05c3.,;:!?"'()\[\]\u2013\u2014]+|[\s\u05be\u05c0\u05c3.,;:!?"'()\[\]\u2013\u2014]+$/g;
+  var HEAR_ICON =
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M5 3.5 12.5 8 5 12.5Z"></path></svg>';
+  var heard = {};
+  // One voice for every Hear on the page: a second press stops the first word rather
+  // than saying two at once (qa on #844).
+  var voice = null;
+
+  function sayClip(clip) {
+    if (voice) {
+      try {
+        voice.pause();
+      } catch (e) {}
+    }
+    voice = new Audio(clip);
+    var played = voice.play();
+    if (played && played.catch) played.catch(function () {});
+    return voice;
+  }
+
+  function canHear(language) {
+    return (
+      !!VOICED[String(language || "").split("-")[0]] &&
+      typeof fetch === "function" &&
+      typeof Audio === "function" &&
+      typeof location !== "undefined" &&
+      /^https?:$/.test(location.protocol)
+    );
+  }
+
+  function hearButton(text, language, options) {
+    options = options || {};
+    var tongue = String(language || "").split("-")[0];
+    var word = String(text || "").replace(EDGES, "");
+    if (!word || !canHear(tongue)) return null;
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "hear";
+    button.title = t("vocab.hear", "Hear");
+    button.setAttribute("aria-label", t("vocab.hear-text", "Hear {text}", { text: word }));
+    button.innerHTML = HEAR_ICON;
+    var clip = tongue + ":" + word;
+    function play(clip) {
+      sayClip(clip);
+    }
+    function failed(why) {
+      button.removeAttribute("aria-busy");
+      (options.say || announce)(why || t("vocab.could-not-say", "We couldn't say this word. Try again."));
+    }
+    button.addEventListener("click", function (event) {
+      // A row or a card under the press opens or closes on a click; this one is the word's.
+      event.stopPropagation();
+      if (heard[clip]) return play(heard[clip]);
+      if (button.getAttribute("aria-busy") === "true") return;
+      button.setAttribute("aria-busy", "true");
+      var key = window.TARGUM_KEY || "";
+      var head = { "Content-Type": "application/json" };
+      if (key) head["X-Targum-Key"] = key;
+      fetch("/say-word" + (key ? "?k=" + encodeURIComponent(key) : ""), {
+        method: "POST",
+        headers: head,
+        body: JSON.stringify({ text: word, language: tongue }),
+      })
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (answer) {
+          if (!answer || !answer.audio) return failed(answer && answer.error);
+          button.removeAttribute("aria-busy");
+          heard[clip] = answer.audio;
+          play(answer.audio);
+        })
+        .catch(function () {
+          failed("");
+        });
+    });
+    button.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+    });
+    return button;
+  }
+
   /* --- a word that is now called something else ------------------------------ */
 
   /* The annotator changed, and some lemmas changed with it (targum-internal#141).
@@ -656,6 +752,8 @@
     editor: editor,
     copy: copy,
     copyButton: copyButton,
+    hearButton: hearButton,
+    sayClip: sayClip,
     COPIED_FOR: COPIED_FOR,
     // Read when asked, in the words of whatever page is asking.
     get STEPS() {
