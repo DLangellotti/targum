@@ -61,17 +61,21 @@ def test_a_biblical_text_offers_no_governed_preposition(tmp_path: Path) -> None:
     modern text does."""
     import json
 
+    # The same three words as the lens test above, band and all: `text` places each by
+    # its surface, and `_governed` validates them as tokens.
     words = [
-        {"surface": "דיבר", "lemma": "דיבר", "pos": "VERB",
+        {"surface": "דיבר", "lemma": "דיבר", "band": 0, "pos": "VERB",
          "syntax": {"head": -1, "relation": "root", "prefixes": [], "lead": 0}},
-        {"surface": "עם", "lemma": "עם", "pos": "ADP",
+        {"surface": "עם", "lemma": "עם", "band": 0, "pos": "ADP",
          "syntax": {"head": 2, "relation": "case", "prefixes": [], "lead": 0}},
-        {"surface": "המנהל", "lemma": "מנהל", "pos": "NOUN",
+        {"surface": "המנהל", "lemma": "מנהל", "band": 0, "pos": "NOUN",
          "syntax": {"head": 0, "relation": "obl", "prefixes": ["DET"], "lead": 1}},
     ]  # fmt: skip
     folder = text(tmp_path / "t", {1: [("דיבר עם המנהל", words)]})
     modern = practices.count_text(folder)
-    assert modern is not None and [c for c in modern.by_section[1] if c.spot == "governed"]
+    assert modern is not None
+    offered = [c for c in modern.by_section[1] if c.spot == "governed"]
+    assert [(c.start, c.end, c.answer) for c in offered] == [(0, 4, "עם")], modern
     said = json.loads((folder / "document.json").read_text(encoding="utf-8"))
     said["source"] = "sefaria:Genesis 1"
     (folder / "document.json").write_text(json.dumps(said), encoding="utf-8")
