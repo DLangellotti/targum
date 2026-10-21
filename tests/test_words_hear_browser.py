@@ -28,7 +28,7 @@ def browser(chromium):
     return chromium.browser()
 
 
-def words_page(browser, width: int, language: str, said: list[dict]):
+def words_page(browser, width: int, language: str, said: list[dict], two: bool = False):
     html = list_page(TOKEN, "words")
 
     def answer(route, request):
@@ -52,9 +52,21 @@ def words_page(browser, width: int, language: str, said: list[dict]):
         "he": "'עיר': {surface: 'עִיר', status: 1, at: 3}",
         "arc": "'מלכא': {surface: 'מלכא', status: 1, at: 3}",
     }
+    if two:
+        words["he"] += ", 'ספר': {surface: 'סֵפֶר', status: 1, at: 4}"
     page.add_init_script(
         f"localStorage.setItem('targum:vocab:{language}', JSON.stringify({{{words[language]}}}));"
         f"localStorage.setItem('targum:language', '{language}')"
+    )
+    # Every voice the page makes, and whether it was stopped, so a test can tell two
+    # Hear presses apart from two words said at once.
+    page.add_init_script(
+        "window.__voices = []; const Real = window.Audio;"
+        "window.Audio = function (src) { const a = new Real(src);"
+        " const one = { src: src, paused: false };"
+        " window.__voices.push(one);"
+        " const pause = a.pause.bind(a); a.pause = () => { one.paused = true; pause(); };"
+        " return a; };"
     )
     page.route("http://words.test/**", answer)
     page.goto(f"http://words.test/words?k={TOKEN}")
@@ -75,11 +87,19 @@ def test_every_row_plays_its_word_as_the_card_does(browser, width: int) -> None:
     # Pressed again, the clip is the one already made: nothing asked twice.
     hear.click()
     page.wait_for_timeout(100)
-    # Reachable from the keyboard: a Tab stop of its own, and Enter plays it.
+    # Reachable from the keyboard: a Tab stop of its own, and Enter plays it, without
+    # opening the row's card.
     focusable = page.evaluate(
         "(() => { const b = document.querySelector('#word-rows .hear');"
         " b.focus(); return document.activeElement === b; })()"
     )
+    before = page.evaluate("window.__voices.length")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(100)
+    entered = page.evaluate("window.__voices.length") - before
+    card_after_enter = page.locator('[role="dialog"]:not([hidden])').count()
+    # One voice at a time: every voice but the last was stopped by the press after it.
+    voices = page.evaluate("window.__voices")
     sideways = page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
     context.close()
 
@@ -87,6 +107,8 @@ def test_every_row_plays_its_word_as_the_card_does(browser, width: int) -> None:
     assert said == [{"body": {"text": "עִיר", "language": "he"}, "key": TOKEN}]
     assert card == 0, "the press is the word's sound, not the row's card"
     assert focusable
+    assert entered == 1 and card_after_enter == 0, "Enter says the word, and opens nothing"
+    assert len(voices) == 3 and all(one["paused"] for one in voices[:-1]), voices
     assert box and box["width"] > 0
     assert not sideways
 
@@ -111,3 +133,18 @@ def test_a_language_the_voice_does_not_read_has_no_button(browser) -> None:
     )
     context.close()
     assert got == [False, False, True]
+
+
+def test_a_second_word_stops_the_first(browser) -> None:
+    """Two Hear presses on two rows never say two words at once (qa on #844)."""
+    said: list[dict] = []
+    context, page = words_page(browser, 1280, "he", said, two=True)
+    presses = page.locator("#word-rows tr .word-cell .hear")
+    presses.nth(0).click()
+    page.wait_for_timeout(150)
+    presses.nth(1).click()
+    page.wait_for_timeout(150)
+    voices = page.evaluate("window.__voices")
+    context.close()
+    assert len(said) == 2
+    assert len(voices) == 2 and voices[0]["paused"] and not voices[1]["paused"], voices

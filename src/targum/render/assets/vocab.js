@@ -558,6 +558,21 @@
     '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
     '<path d="M5 3.5 12.5 8 5 12.5Z"></path></svg>';
   var heard = {};
+  // One voice for every Hear on the page: a second press stops the first word rather
+  // than saying two at once (qa on #844).
+  var voice = null;
+
+  function sayClip(clip) {
+    if (voice) {
+      try {
+        voice.pause();
+      } catch (e) {}
+    }
+    voice = new Audio(clip);
+    var played = voice.play();
+    if (played && played.catch) played.catch(function () {});
+    return voice;
+  }
 
   function canHear(language) {
     return (
@@ -580,10 +595,9 @@
     button.title = t("vocab.hear", "Hear");
     button.setAttribute("aria-label", t("vocab.hear-text", "Hear {text}", { text: word }));
     button.innerHTML = HEAR_ICON;
-    var key = tongue + ":" + word;
+    var clip = tongue + ":" + word;
     function play(clip) {
-      var played = new Audio(clip).play();
-      if (played && played.catch) played.catch(function () {});
+      sayClip(clip);
     }
     function failed(why) {
       button.removeAttribute("aria-busy");
@@ -592,13 +606,13 @@
     button.addEventListener("click", function (event) {
       // A row or a card under the press opens or closes on a click; this one is the word's.
       event.stopPropagation();
-      if (heard[key]) return play(heard[key]);
+      if (heard[clip]) return play(heard[clip]);
       if (button.getAttribute("aria-busy") === "true") return;
       button.setAttribute("aria-busy", "true");
-      var pass = window.TARGUM_KEY || "";
+      var key = window.TARGUM_KEY || "";
       var head = { "Content-Type": "application/json" };
-      if (pass) head["X-Targum-Key"] = pass;
-      fetch("/say-word" + (pass ? "?k=" + encodeURIComponent(pass) : ""), {
+      if (key) head["X-Targum-Key"] = key;
+      fetch("/say-word" + (key ? "?k=" + encodeURIComponent(key) : ""), {
         method: "POST",
         headers: head,
         body: JSON.stringify({ text: word, language: tongue }),
@@ -609,7 +623,7 @@
         .then(function (answer) {
           if (!answer || !answer.audio) return failed(answer && answer.error);
           button.removeAttribute("aria-busy");
-          heard[key] = answer.audio;
+          heard[clip] = answer.audio;
           play(answer.audio);
         })
         .catch(function () {
@@ -739,6 +753,7 @@
     copy: copy,
     copyButton: copyButton,
     hearButton: hearButton,
+    sayClip: sayClip,
     COPIED_FOR: COPIED_FOR,
     // Read when asked, in the words of whatever page is asking.
     get STEPS() {

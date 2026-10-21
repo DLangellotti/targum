@@ -395,6 +395,7 @@ here too." (targum-internal#498)
   lines are not said here.
 - **Only where the voice reads the language** (Hebrew, French, Russian, Italian) and a
   server is behind the page. Anywhere else the row has no button.
+
 ### "Met in" opens the text at the word — 2026-10-21
 
 A beta reader, 2026-10-21, on Your Words' "Met in" column: "link the full text here so
