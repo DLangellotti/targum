@@ -1958,3 +1958,12 @@ def test_an_advanced_reader_is_asked_about_every_word_too() -> None:
         assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"], declared
         assert done["counted"]["bar"].startswith("0 of 4 known"), done["counted"]
         assert done["foot"]["mark"] == "Done, and mark 4 words known"
+
+
+def test_a_hebrew_third_person_pronoun_says_nothing_bare() -> None:
+    """הוא is "he" already, and DICTA files האלה under the third person too, so a bare
+    "they" read as the meaning of "these" (targum-internal#489). Only Hebrew's, and only
+    where no case comes with it."""
+    assert grammar("UPOS=PRON|Number=Plur|Person=3") == [""]
+    assert grammar("UPOS=PRON|Gender=Masc|Number=Sing|Person=3") == [""]
+    assert grammar("UPOS=PRON|Person=1|Number=Plur") == ["we"]

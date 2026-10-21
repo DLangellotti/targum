@@ -7275,6 +7275,86 @@ def test_a_name_is_one_chip_that_says_what_it_is_and_means_nothing(browser, tmp_
     context.close()
 
 
+def test_here_says_what_this_occurrence_is_and_nothing_else(browser, tmp_path: Path) -> None:
+    """targum-internal#489, found on the gyoza short. "Here" leads with the citation only
+    in front of a parse: never the infinitive alone, never the word again, and never a bare
+    English pronoun under a pronoun's meaning."""
+    text = "לוקחים להוסיף האלה ומערבבים"
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    tokens = [
+        Token(
+            start=0, end=6, surface="לוקחים", lemma="לקח", band=2, pos="VERB",
+            feats="UPOS=VERB",
+        ),
+        Token(
+            start=7, end=13, surface="להוסיף", lemma="הוסיף", band=2, pos="VERB",
+            feats="UPOS=VERB|VerbForm=Inf",
+        ),
+        Token(
+            start=14, end=18, surface="האלה", lemma="אלה", band=1, pos="PRON",
+            feats="UPOS=PRON|Number=Plur|Person=3",
+        ),
+        Token(
+            start=19, end=27, surface="ומערבבים", lemma="ערבב", band=2, pos="VERB",
+            feats="UPOS=VERB|Gender=Masc|Number=Plur|Person=3|VerbForm=Part",
+        ),
+    ]  # fmt: skip
+    pages = render(
+        Document(
+            source="memory",
+            title="Gyoza",
+            language="he",
+            blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
+            content_hash="h",
+        ),
+        SegmentedDocument(document_hash="h", language="he", segmenter="t", segments=[segment]),
+        [
+            Translation(
+                name="English",
+                document_hash="h",
+                source_language="he",
+                target_language="en",
+                provider="null",
+                segments={segment.id: "We take, add these and mix."},
+            )
+        ],
+        tmp_path / "gyoza",
+        annotation=Annotation(
+            document_hash="h",
+            language="he",
+            annotator="t",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: tokens},
+        ),
+        glossaries={
+            "en": Glossary(
+                source_language="he",
+                target_language="en",
+                provider="p",
+                entries={
+                    "לקח (verb)": "to take",
+                    "הוסיף (verb)": "to add",
+                    "אלה": "these",
+                    "ערבב (verb)": "to mix",
+                },
+                citations={"לקח (verb)": "לקחת", "הוסיף (verb)": "להוסיף", "ערבב (verb)": "לערבב"},
+            )
+        },
+    )
+    context, page = open_reader(browser, pages[0])
+    page.evaluate(TAP_AGAIN, "לוקחים")
+    assert page.evaluate(SAYS)["use"] == "", "the infinitive alone is not this word"
+    page.evaluate(TAP_AGAIN, "להוסיף")
+    assert page.evaluate(SAYS)["use"] == "infinitive", "the citation is the word itself"
+    page.evaluate(TAP_AGAIN, "האלה")
+    card = page.evaluate(SAYS)
+    assert card["meaning"] == "these" and card["use"] == "", card
+    page.evaluate(TAP_AGAIN, "ומערבבים")
+    assert page.evaluate(SAYS)["use"] == "לערבב · present · they"
+    context.close()
+
+
 # -- "inferred" ---------------------------------------------------------------------
 #
 # design.md §12, "What we inferred says so" (2026-09-27): after a reading we
