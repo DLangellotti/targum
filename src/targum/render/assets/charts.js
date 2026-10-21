@@ -74,9 +74,9 @@
   var EARLIEST = Date.UTC(2024, 0, 1);
 
   var STATUS = {
-    1: { name: t("charts.status.1", "just met"), slot: "--step-1" },
-    2: { name: t("charts.status.2", "getting there"), slot: "--step-2" },
-    3: { name: t("charts.status.3", "nearly there"), slot: "--step-3" },
+    1: { name: t("charts.status.1", "new to you"), slot: "--step-1" },
+    2: { name: t("charts.status.2", "still learning"), slot: "--step-2" },
+    3: { name: t("charts.status.3", "almost known"), slot: "--step-3" },
     9: { name: t("charts.status.9", "known"), slot: "--step-4" },
   };
 

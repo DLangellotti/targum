@@ -2972,14 +2972,14 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     assert got["back"].startswith("/progress")
     assert got["summary"] == "3 on your list · 1 known"
     assert got["tabs"] == ["Words 3", "Phrases 0", "Grammar"] and got["current"].startswith("Words")
-    assert got["chips"][0] == "To work on" and "Getting there" in got["chips"]
-    five = ["1", "2", "3", "known", "ignore"]
+    assert got["chips"][0] == "To work on" and "Still learning" in got["chips"]
+    five = ["New", "Learning", "Almost", "Known", "ignore"]
     assert got["steps"] and all(steps == five for steps in got["steps"])
     assert not got["sideways"], got
     assert stored == 3
     # Most met first, with how often on the row, and the card a line the reader read: the
     # meaning on show beside the table, asked for first on a phone, where the card leads.
-    assert got["met"][0].startswith("Just met")
+    assert got["met"][0].startswith("New to you")
     assert got["practise"]["word"] == "הָעִיר" and got["practise"]["at"] == "1 of 1"
     assert got["practise"]["meaningShown"] == (width > 640)
     assert got["practise"]["first"] == (width <= 640)
@@ -3106,7 +3106,7 @@ def test_an_ignored_word_can_be_undone_in_its_row(browser, width: int) -> None:
     assert got["note"] == "דרך is in Ignored" and got["focused"] and got["clear"], got
     assert "Ignored" in got["tabs"]
     assert ignored == 0 and stage == 2
-    assert ["דרך", "Getting there"] in back
+    assert ["דרך", "Still learning"] in back
 
 
 def test_an_ignored_word_is_found_under_ignored_and_put_back_by_a_stage(browser) -> None:

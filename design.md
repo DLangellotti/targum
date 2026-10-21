@@ -379,6 +379,27 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The scale reads by name and colour — 2026-10-21
+
+A beta reader, 2026-10-21, on the word card's 1 · 2 · 3 · known: "for rating how you know
+the word do it by colour. It was a bit confusing for me." The numbers read as a score, and
+the stage's name sat small under the control, where "Just met" was read as "just me"
+(targum-internal#499). David approved this on the same day; ling-en wrote the names.
+
+- **Each segment says its stage by name, on its own step of the ramp.** New, Learning,
+  Almost, Known, in place of 1, 2, 3, known, at every width: measured, the four short
+  names fit the card's row on a phone and at a desk, where today's full names did not.
+  Every segment wears its step at rest as a wash (`--step-1` … `--step-3`, and leaf for
+  Known), so the colours are learnt from the names.
+- **The one a word is on is filled with its step and ringed in ink**, so which one is
+  pressed never rests on colour alone (§4).
+- **The full forms are where there is a line to spare**: New to you, Still learning,
+  Almost known, Known — the legend under the control, the Your Words tabs and Status
+  column, Your Progress, the command palette, the keys help and the spoken line. The
+  segment's title and label for a screen reader are the full form. With no stage yet the
+  legend asks "How well do you know it?".
+- The keys stay 1, 2, 3, 4 and k. "To work on" stays the name for steps 1 to 3 together.
+
 ### Your Words says each word, as its card does — 2026-10-21
 
 A beta reader, 2026-10-21, on Your Words' word column: "And be able to play the sounds
@@ -2734,7 +2755,8 @@ drawn as five loose buttons with the pressed one in the accent, the name under t
 on asked "I know this" or "Still learning" instead.
 
 - **One segmented control on the knowledge ramp**, wherever a stage is asked: four
-  segments joined — 1, 2, 3, known — the current one filled with its step of the ramp
+  segments joined — 1, 2, 3, known *(named New, Learning, Almost, Known on their own
+  steps of the ramp since 2026-10-21: "The scale reads by name and colour")* — the current one filled with its step of the ramp
   (§12, "The knowledge ramp climbs to leaf"), known in leaf with paper text, the rest
   outlined; ignore after a gap as a quiet word. On a phone each segment is a thumb tall.
   This retires the accent fill for a pressed level (2026-08-28): the ramp says which step

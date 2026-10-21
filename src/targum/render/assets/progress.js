@@ -35,9 +35,9 @@
 
   var KNOWN = 9;
   var STEPS = [
-    { status: 1, name: t("progress.status.1", "just met"), slot: "--step-1" },
-    { status: 2, name: t("progress.status.2", "getting there"), slot: "--step-2" },
-    { status: 3, name: t("progress.status.3", "nearly there"), slot: "--step-3" },
+    { status: 1, name: t("progress.status.1", "new to you"), slot: "--step-1" },
+    { status: 2, name: t("progress.status.2", "still learning"), slot: "--step-2" },
+    { status: 3, name: t("progress.status.3", "almost known"), slot: "--step-3" },
     { status: KNOWN, name: t("progress.status.9", "known"), slot: "--step-4" },
   ];
 

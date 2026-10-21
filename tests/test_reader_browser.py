@@ -1046,7 +1046,7 @@ CARD_BOX = """
 """
 
 
-@pytest.mark.parametrize("step", ["1", "2", "3", "known", "ignore"])
+@pytest.mark.parametrize("step", ["New", "Learning", "Almost", "Known", "ignore"])
 def test_a_level_pressed_on_the_card_leaves_it_where_it_was(page, step: str) -> None:
     """A level pressed on the card rebuilds it, so every step agrees which one is set,
     and then lets it fade where it stands. The rebuild seated it against the span the

@@ -336,7 +336,7 @@ def test_taking_back_a_level_restores_the_one_it_replaced() -> None:
     assert [item["lemma"] for item in said[0]["queue"]] == ["one"]
     # Back in the queue at a level, rather than out of the vocabulary altogether.
     assert [item["lemma"] for item in said[1]["queue"]] == ["one", "two"]
-    assert said[1]["spoken"] == "two, getting there. 2 left."
+    assert said[1]["spoken"] == "two, still learning. 2 left."
 
 
 def test_undo_goes_back_as_many_words_as_you_answered() -> None:
@@ -366,7 +366,7 @@ def test_a_level_says_what_it_did_and_how_much_is_left() -> None:
         levels=[{"word": "one", "status": KNOWN}, {"word": "two", "status": 1}],
     )["said"]
     assert said[0]["spoken"] == "one, known. 2 left."
-    assert said[1]["spoken"] == "two, just met. 2 left."
+    assert said[1]["spoken"] == "two, new to you. 2 left."
 
 
 def test_saying_a_level_a_word_already_has_changes_nothing() -> None:

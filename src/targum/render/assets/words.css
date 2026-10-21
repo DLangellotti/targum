@@ -10,7 +10,7 @@ body {
 }
 
 :root {
-  /* An ordered ramp, faint → full, for a scale that runs from "just met" to "known".
+  /* An ordered ramp, faint → full, for a scale that runs from "new to you" to "known".
      One hue, monotone, four steps, the end nearest the surface clear of it — all as
      before. The hue is what changed: gold on warm paper made every chart on the page
      read brown, and §4 gives "known" to leaf by name, so leaf is what the scale climbs

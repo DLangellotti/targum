@@ -95,6 +95,7 @@ code that makes it true. The audit found these five failures most often:
 | A unit of a text you read | section | chunk. (Add and the build card still say “part” for what a build makes first.) |
 | A series, news topic, channel or podcast whose new items come to the reader | **subscribe**, Subscribed, Unsubscribe; the list is **Subscriptions** (in the nav, **Your subscriptions**) | follow, Following (still in `library.see.follow-topic` and `connect.page.subscriptions-says`) |
 | The marks the Masorah wrote for singing the reading | **cantillation marks** | chanting marks (David, 2026-09-30: an in-house coinage; still in 11 `reader.*`, `parasha.*` and `landing.*` keys) |
+| How well a reader knows a word: the four steps and the mark | **New · Learning · Almost · Known** in the control; **new to you · still learning · almost known · known** in a sentence or a legend; marking a word is to **mark** it | 1 · 2 · 3, just met, getting there, nearly there (David, 2026-10-21) |
 | Something the reader brought: pasted, uploaded or linked | **Uploaded**, Uploaded by you; the tab is **Uploads**, the nav button **Upload** | Added, Add (David, 2026-10-21) |
 
 Capitalise named pages as they appear in the nav: Your targums, Your Progress, Library,
