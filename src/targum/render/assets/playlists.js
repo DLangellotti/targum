@@ -689,7 +689,8 @@
             {
               entry: (facts && (facts.entry || facts.name)) || item.reader || "",
               title: item.title,
-              language: facts && facts.language,
+              // A row getting ready or failed has no facts: the playlist's language (B8).
+              language: (facts && facts.language) || one.language,
             },
             { keyed: keyed, className: "thumb pl-thumb" }
           )
@@ -1022,8 +1023,9 @@
 
   function arrived(answer, where) {
     if (answer.status === 0) {
-      // Nothing answered: not the same as not being signed in.
-      fault(UNREACHED);
+      // Nothing answered: not the same as not being signed in. The panel's own press says
+      // Try again, so the sentence does not (ling-en's rule).
+      fault(t("playlists.unreachable", "We can't reach targum."));
       return false;
     }
     if (answer.status >= 500) {

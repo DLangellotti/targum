@@ -1996,6 +1996,7 @@
   "reader.page.preparing-pdf": "Preparing PDF…",
   "reader.page.pdf-not-now": "We can't make the PDF right now. Try again in a minute.",
   "playlists.unreached": "We can't reach targum. Try again in a moment.",
+  "playlists.unreachable": "We can't reach targum.",
   "serve.playlists-kept": "You already have {most} playlists. Delete one first.",
   "playlists.page.from-targum": "From targum",
   "playlists.page.from-targum-note": "Short videos and texts. Opening them uses no credits.",

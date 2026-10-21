@@ -2129,6 +2129,7 @@
   "reader.page.preparing-pdf": "Готовим PDF…",
   "reader.page.pdf-not-now": "Сейчас мы не можем сделать PDF. Попробуйте через минуту.",
   "playlists.unreached": "Не удаётся связаться с targum. Попробуйте ещё раз чуть позже.",
+  "playlists.unreachable": "Не удаётся связаться с targum.",
   "serve.playlists-kept": "У вас уже {most} плейлистов. Сначала удалите один.",
   "playlists.page.from-targum": "От targum",
   "playlists.page.from-targum-note": "Короткие видео и тексты. Открытие не расходует кредиты.",

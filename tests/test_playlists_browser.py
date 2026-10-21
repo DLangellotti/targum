@@ -524,7 +524,8 @@ def test_no_connection_is_not_a_sign_in(browser, tmp_path: Path) -> None:
     stranger = page.locator("#stranger").is_hidden()
     context.close()
     assert not thrown, thrown
-    assert said == "We can't reach targum. Try again in a moment."
+    # The press says Try again, so the sentence does not (ling-en's rule).
+    assert said == "We can't reach targum."
     assert again == "Try again", "a fault offers something to press (targum-internal#474, B2)"
     assert stranger, "a network that failed is not a reader who is signed out"
 
@@ -570,7 +571,8 @@ def test_a_slow_answer_says_so_and_offers_try_again(browser, tmp_path: Path) -> 
         window.fetch = (url, opts) => {
           if (String(url).includes('/playlists.json') && !sessionStorage.getItem('held')) {
             sessionStorage.setItem('held', '1');
-            return new Promise(() => {});
+            // Answered late, and badly, once Try again has drawn the page.
+            return new Promise((done) => { window.answerLate = done; });
           }
           return before(url, opts);
         };
@@ -586,12 +588,20 @@ def test_a_slow_answer_says_so_and_offers_try_again(browser, tmp_path: Path) -> 
     after = page.evaluate(
         "() => [document.getElementById('wait').hidden, document.getElementById('slow').hidden]"
     )
+    # The first ask answering now, with a server fault, draws nothing: only the last does.
+    page.evaluate("() => window.answerLate(new Response('<html>502</html>', {status: 502}))")
+    page.wait_for_timeout(200)
+    late = page.evaluate(
+        "() => [document.getElementById('fault').hidden,"
+        " document.querySelectorAll('#playlists .pl-card').length > 0]"
+    )
     context.close()
     assert not thrown, thrown
     assert first == "We're getting your playlists."
     assert early, "not before three seconds"
     assert slow == "This is taking longer than usual."
     assert after == [True, True]
+    assert late == [True, True], "a late first answer does not undo the drawn page"
 
 
 def test_the_sheet_holds_the_focus_and_gives_it_back(browser, tmp_path: Path) -> None:
@@ -637,13 +647,15 @@ def test_a_title_getting_ready_says_its_language(browser, tmp_path: Path) -> Non
     got = page.evaluate(
         """() => {
           const bdi = document.querySelector('.item.failed .item-title bdi');
-          return [bdi.getAttribute('lang'), bdi.getAttribute('dir')];
+          const letter = document.querySelector('.item.failed .pl-thumb [lang]');
+          return [bdi.getAttribute('lang'), bdi.getAttribute('dir'),
+                  letter && letter.getAttribute('lang')];
         }"""
     )
     note = page.locator(".pl-reorder-note").text_content()
     context.close()
     assert not thrown, thrown
-    assert got == ["he", "auto"]
+    assert got == ["he", "auto", "he"], "the title and its thumbnail's letter"
     assert note == "Drag to reorder, or Alt+↑/↓.", "B5: what the grip does, on the page"
 
 
