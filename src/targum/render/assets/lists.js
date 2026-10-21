@@ -1389,20 +1389,25 @@
      the server cannot, the deck comes as the text file it always was, without sound. */
   var making = null;
 
-  function ankiRows() {
-    return visibleWords().map(function (word) {
-      var back = [word.meaning, word.note, word.lemma !== word.term ? word.lemma : ""]
+  /* What the export asks for. The words are the account's own (qa on #854): the page says
+     only which stages it shows, and the back of each card as it draws it, by lemma. */
+  function ankiAsk(deck) {
+    var stages = {};
+    var backs = {};
+    visibleWords().forEach(function (word) {
+      stages[word.status] = true;
+      backs[word.lemma] = [word.meaning, word.note, word.lemma !== word.term ? word.lemma : ""]
         .filter(function (part) {
           return !!part;
         })
         .join(" \u00b7 ");
-      return {
-        term: word.term,
-        lemma: word.lemma,
-        back: back,
-        tags: ["targum", "targum::" + code, "targum::level-" + word.status].join(" "),
-      };
     });
+    return {
+      language: code,
+      deck: deck,
+      statuses: Object.keys(stages).map(Number),
+      backs: backs,
+    };
   }
 
   function ankiSaid(text) {
@@ -1480,7 +1485,7 @@
     fetch(keyed("/account/anki"), {
       method: "POST",
       headers: head,
-      body: JSON.stringify({ language: code, deck: deck, words: ankiRows() }),
+      body: JSON.stringify(ankiAsk(deck)),
     })
       .then(function (response) {
         if (!response.ok) throw new Error("refused");

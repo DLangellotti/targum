@@ -406,15 +406,18 @@ A beta reader, 2026-10-21: "I love the export to anki … but it doesn't export 
 (targum-internal#496). David chose the same day:
 
 - **The deck is an `.apkg` the server builds**, in place of the text file the browser
-  wrote. A text import cannot bring media into Anki. The rows on screen go up as they went
-  into the text file, and the note is the same: the word, its meaning (the reader's note
-  and the dictionary form beside it), the level as a tag. A note keeps its id across
-  exports, so importing again updates it.
+  wrote. A text import cannot bring media into Anki. The words are the account's own, at
+  the stages the page shows, never a list the page sends, so nothing but a saved word is
+  ever said; the page hands only each card's back as it draws it, which is escaped. The
+  note is the same as before: the word, its meaning, the level as a tag. A note keeps its
+  id across exports, so importing again updates it.
 - **Every word gets its sound, made where it has none**, the way a Hear press makes one
   ("A word said from its card is on targum"): one `gift` job through `Library.claim_turn`
   for the export, held to the box ceiling, settled to the seconds made, each clip kept by
-  what was said. **At most 5,000 words an export.** A word past the cap, or one the voice
-  cannot say, goes in the deck silent.
+  what was said, under `/say-word`'s own guard and never past the claim. **At most 5,000
+  new sounds a reader a month, across exports**, so exporting again spends nothing past
+  it; a clip already made costs nothing. A word past the cap, or one the voice cannot say,
+  goes in the deck silent.
 - **The reader is told plainly while it is made**: "Making the sounds: 120 of 400 words.
   Keep this page open." and then "Your deck is ready" with how many have no sound.
   Where the server cannot make it, the text file comes as before, and the line says it

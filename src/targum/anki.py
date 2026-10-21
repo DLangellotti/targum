@@ -19,6 +19,7 @@ importing over an earlier deck updates its notes rather than duplicating them.
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import sqlite3
 import tempfile
@@ -204,7 +205,9 @@ def build(deck_name: str, notes: Iterable[Note]) -> bytes:
                         media[number] = name
                         files.append((number, note.sound))
                     sound = f"[sound:{name}]"
-                fields = "\x1f".join((note.word, note.meaning, sound))
+                # Anki draws fields as HTML: the reader's own words are escaped, so a
+                # meaning with a < in it reads as < (qa on #854).
+                fields = "\x1f".join((html.escape(note.word), html.escape(note.meaning), sound))
                 note_id = _id("note", note.key)
                 connection.execute(
                     "INSERT OR REPLACE INTO notes VALUES (?, ?, ?, ?, -1, ?, ?, ?, ?, 0, '')",

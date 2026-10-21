@@ -88,14 +88,21 @@ def wait(port: int, token: str, cookie: str, deck: str) -> dict[str, Any]:
     raise AssertionError("the deck never finished")
 
 
-def test_the_export_makes_the_sounds_a_deck_still_needs_on_targum(
-    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    import urllib.request
+def keep(port: int, token: str, cookie: str, *words: tuple[str, str, int]) -> None:
+    """Words on the account, as a reader's page syncs them: (lemma, surface, status)."""
+    rows = [
+        {"language": "he", "lemma": lemma, "surface": surface, "status": status, "at": n + 1,
+         "seen": n + 1}
+        for n, (lemma, surface, status) in enumerate(words)
+    ]  # fmt: skip
+    status, said, _ = call(port, "POST", f"/sync?k={token}", {"words": rows}, cookie=cookie)
+    assert status == 200, said
 
+
+@pytest.fixture
+def voice(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
     from targum import speech
 
-    port, token, _ = served
     monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
     said: list[str] = []
 
@@ -108,20 +115,26 @@ def test_the_export_makes_the_sounds_a_deck_still_needs_on_targum(
 
     monkeypatch.setattr(speech, "render", render)
     monkeypatch.setenv(speech.KEY, "k")
+    return said
+
+
+def test_the_export_makes_the_sounds_a_deck_still_needs_on_targum(
+    served: tuple[int, str, Path], postbox: Postbox, voice: list[str]
+) -> None:
+    import urllib.request
+
+    port, token, _ = served
     status, refused, _ = call(port, "POST", f"/account/anki?k={token}", {"language": "he"})
     assert status == 401, refused
 
     cookie = sign_in(port, postbox)
-    words = [
-        {"term": "ספר", "lemma": "ספר", "back": "book", "tags": "targum targum::he"},
-        {"term": "דרך,", "lemma": "דרך", "back": "road", "tags": "targum"},
-    ]
-    payload = {"language": "he", "deck": "targum Hebrew", "words": words}
+    keep(port, token, cookie, ("ספר", "ספר", 2), ("דרך", "דרך,", 1), ("שם", "שם", 0))
+    payload = {"language": "he", "deck": "targum Hebrew", "backs": {"ספר": "book <b>"}}
     status, started, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
     assert status == 200 and started["id"], started
     done = wait(port, token, cookie, started["id"])
-    assert done["state"] == "ready" and done["silent"] == 0, done
-    assert sorted(said) == ["דרך", "ספר"], "each word said once, its comma trimmed"
+    assert done["state"] == "ready" and done["silent"] == 0 and done["total"] == 2, done
+    assert sorted(voice) == ["דרך", "ספר"], "each saved word once, comma trimmed, ignored left out"
 
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/account/anki/deck?id={started['id']}&k={token}",
@@ -132,16 +145,52 @@ def test_the_export_makes_the_sounds_a_deck_still_needs_on_targum(
         assert "attachment" in response.headers["Content-Disposition"]
     media, notes, _ = opened(package)
     assert len(media) == 2 and len(notes) == 2
+    assert any("book &lt;b&gt;" in fields for fields, _tags in notes), "the back is escaped"
 
     # The clips are kept by the word: a second export says nothing again and claims nothing.
     status, again, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
     assert wait(port, token, cookie, again["id"])["state"] == "ready"
-    assert len(said) == 2
-    # And the file is fetched once, by its owner.
+    assert len(voice) == 2
     gone, _, _ = call(
         port, "GET", f"/account/anki/deck?id={started['id']}&k={token}", cookie=cookie
     )
-    assert gone == 404
+    assert gone == 404, "fetched once, then gone"
+
+
+def test_a_request_cannot_have_the_voice_say_what_the_account_does_not_keep(
+    served: tuple[int, str, Path], postbox: Postbox, voice: list[str]
+) -> None:
+    """qa on #854: the words come from the account, and the guard /say-word keeps holds."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    long = "א" * 70
+    keep(port, token, cookie, ("ספר", "ספר", 2), ("ארוך", long, 2))
+    payload = {"language": "he", "words": [{"term": "anything at all", "lemma": "x"}]}
+    _, started, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
+    done = wait(port, token, cookie, started["id"])
+    assert voice == ["ספר"], "only a saved word, and never one past the guard"
+    assert done["silent"] == 1
+
+
+def test_the_month_s_cap_holds_across_exports(
+    served: tuple[int, str, Path],
+    postbox: Postbox,
+    voice: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from targum import serve
+
+    monkeypatch.setattr(serve, "ANKI_MOST", 1)
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    keep(port, token, cookie, ("ספר", "ספר", 2), ("דרך", "דרך", 2))
+    payload = {"language": "he"}
+    _, first, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
+    got = wait(port, token, cookie, first["id"])
+    assert got["silent"] == 1, got
+    _, second, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
+    assert wait(port, token, cookie, second["id"])["silent"] == 1
+    assert len(voice) == 1, "the month's one new sound was made once, not once an export"
 
 
 def test_without_the_voice_the_deck_still_comes_silent(
@@ -154,7 +203,9 @@ def test_without_the_voice_the_deck_still_comes_silent(
     monkeypatch.delenv(speech.KEY, raising=False)
     monkeypatch.delenv(speech.VERTEX_KEY, raising=False)
     cookie = sign_in(port, postbox)
-    payload = {"language": "he", "words": [{"term": "ספר", "lemma": "ספר", "back": "book"}]}
-    _, started, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
+    keep(port, token, cookie, ("ספר", "ספר", 2))
+    _, started, _ = call(
+        port, "POST", f"/account/anki?k={token}", {"language": "he"}, cookie=cookie
+    )
     done = wait(port, token, cookie, started["id"])
     assert done["state"] == "ready" and done["silent"] == 1 and done["making"] == 0

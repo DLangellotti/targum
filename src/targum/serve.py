@@ -9553,17 +9553,25 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"audio": f"data:{kind};base64,{encoded}"})
 
     def _deck_start(self, payload: dict[str, Any]) -> None:
-        """Start making an Anki deck of the words on Your Words, with each word's sound
+        """Start making an Anki deck of a reader's words, with each word's sound
         (targum-internal#496; David, 2026-10-21; design.md §12, "The Anki deck carries each
         word's sound").
 
-        The page hands in the rows it shows, as the text export did. A word whose clip
-        the voice already made is free; for the rest, up to `ANKI_MOST`, the clip is made
-        the way a Hear press makes one: a `gift` job through `Library.claim_turn`, held to
-        the box ceiling, settled to the seconds made, and kept by what was said. A word
-        with no sound, or past the cap, still goes in the deck, silent. Made in the
-        background; the page asks `/account/anki?id=` how far it has got and fetches the
-        file from `/account/anki/deck?id=`. One deck at a time a person.
+        **The words are the account's, not the page's** (qa on #854): the deck is every
+        word this person keeps in the language, not ignored, read from the store, so a
+        request cannot have the voice say anything else. The page may narrow it to the
+        stages it shows (`statuses`) and hand the back of each card it shows (`backs`, the
+        meaning and the reader's note, by lemma), which is only text on the card and is
+        escaped there; a word the account does not keep is ignored.
+
+        A word whose clip the voice already made is free. For the rest, a clip is made the
+        way a Hear press makes one, under the same guard (one word or a few, at most
+        `WORD_SAID_CHARS`), as one `gift` job through `Library.claim_turn` held to the box
+        ceiling and settled to the seconds made, stopping at what was claimed. **At most
+        `ANKI_MOST` new sounds a reader a month, across exports**, counted off their own
+        export jobs (`Store.anki_clips_since`), so exporting again spends nothing more
+        past it. A word with no sound still goes in the deck, silent. Made in the
+        background; one deck at a time a person.
         """
         import unicodedata
 
@@ -9573,42 +9581,70 @@ class Handler(BaseHTTPRequestHandler):
         if person is None:
             return self._json({"signedIn": False}, 401)
         language = str(payload.get("language") or "").split("-")[0].lower()
-        rows = payload.get("words")
-        if not language or not isinstance(rows, list) or not rows:
+        if not language:
             return self._json({"error": "bad request"}, 400)
         for deck in self.library.decks.values():
             if deck.owner == person.id and deck.state == "making":
                 return self._json({"id": deck.id, **self._deck_said(deck)})
-        name = str(payload.get("deck") or f"targum {language}")[:120]
+        statuses = payload.get("statuses")
+        wanted_stages = (
+            {int(n) for n in statuses if isinstance(n, int | float)}
+            if isinstance(statuses, list)
+            else None
+        )
+        backs = payload.get("backs") if isinstance(payload.get("backs"), dict) else {}
         words: list[dict[str, str]] = []
-        for row in rows[: 4 * ANKI_MOST]:
-            if not isinstance(row, dict):
+        for row in self.store.saved_words(person, language):
+            if wanted_stages is not None and row["status"] not in wanted_stages:
                 continue
-            term = unicodedata.normalize("NFC", str(row.get("term") or "")).strip()
-            if not term:
-                continue
+            lemma = str(row["lemma"])
+            term = unicodedata.normalize("NFC", str(row["surface"] or lemma)).strip()
+            given = backs.get(lemma) if isinstance(backs, dict) else None
+            back = str(given)[:2000] if isinstance(given, str) else ""
+            if not back:
+                back = " · ".join(part for part in (row["meaning"], row["note"]) if part)
             words.append(
                 {
                     "term": term,
-                    "lemma": str(row.get("lemma") or term),
-                    "back": str(row.get("back") or "")[:2000],
-                    "tags": str(row.get("tags") or "")[:400],
+                    "lemma": lemma,
+                    "back": back,
+                    "tags": f"targum targum::{language} targum::level-{row['status']}",
                 }
             )
         if not words:
-            return self._json({"error": "bad request"}, 400)
+            return self._json({"error": "nothing to export"}, 400)
+        name = str(payload.get("deck") or f"targum {language}")[:120]
         deck = Deck(id=secrets.token_hex(8), owner=person.id, total=len(words), name=name)
         self.library.decks[deck.id] = deck
         voiced = speech.speaks(language) and speech.available()[0]
+        room = max(0, ANKI_MOST - self._anki_made(person.id))
         admin = self.store.is_admin(person.email)
         home = self._home()
         ui = self._page_language()
         threading.Thread(
             target=self._deck_make,
-            args=(deck, words, language, voiced, person.id, admin, home, ui),
+            args=(deck, words, language, voiced, room, person.id, admin, home, ui),
             daemon=True,
         ).start()
         self._json({"id": deck.id, **self._deck_said(deck)})
+
+    def _anki_made(self, owner: int) -> int:
+        """New sounds this person's Anki exports have had made this month: off the job
+        rows where the library keeps them (`Store.anki_clips_since`), and off the jobs this
+        process holds where it keeps none."""
+        since = Library._month_from()
+        if self.library.store is not None:
+            return self.library.store.anki_clips_since(owner, since)
+        return sum(
+            job.done
+            for job in list(self.library.jobs.values())
+            if job.owner == owner and job.source.startswith("anki:") and job.made >= since
+        )
+
+    @staticmethod
+    def _sayable(text: str) -> bool:
+        """What `/say-word` itself would say: one word, or the few a fixed expression is."""
+        return bool(text) and len(text) <= WORD_SAID_CHARS and len(text.split()) <= 4
 
     def _deck_make(
         self,
@@ -9616,6 +9652,7 @@ class Handler(BaseHTTPRequestHandler):
         words: list[dict[str, str]],
         language: str,
         voiced: bool,
+        room: int,
         owner: int,
         admin: bool,
         home: Path,
@@ -9629,13 +9666,13 @@ class Handler(BaseHTTPRequestHandler):
             found: list[tuple[dict[str, str], Path, Path | None]] = []
             for word in words:
                 said = word["term"].strip(EDGES_SAID)
-                into, kept = said_clip(said, language) if said else (Path(), None)
+                into, kept = said_clip(said, language) if self._sayable(said) else (Path(), None)
                 found.append((word, into, kept))
             wanted = [
                 at
                 for at, (word, _into, kept) in enumerate(found)
-                if kept is None and word["term"].strip(EDGES_SAID)
-            ][:ANKI_MOST]
+                if kept is None and self._sayable(word["term"].strip(EDGES_SAID))
+            ][:room]
             deck.making = len(wanted) if voiced else 0
             if voiced and wanted:
                 found = self._deck_voice(deck, found, wanted, language, owner, admin, home, ui)
@@ -9674,7 +9711,9 @@ class Handler(BaseHTTPRequestHandler):
         home: Path,
         ui: str,
     ) -> list[tuple[dict[str, str], Path, Path | None]]:
-        """The clips the deck still needs, made under one gift claim for all of them."""
+        """The clips the deck still needs, made under one gift claim for all of them, and
+        never past it: the claim is two seconds a word, and making stops once the seconds
+        made reach it (qa on #854)."""
         from . import speech
 
         seconds = 2.0 * len(wanted)
@@ -9690,6 +9729,7 @@ class Handler(BaseHTTPRequestHandler):
             admin=admin,
             kind="chat",
             gift=True,
+            total=len(wanted),
         )
         self.library.jobs[job.id] = job
         self.library.remember(job)
@@ -9704,6 +9744,8 @@ class Handler(BaseHTTPRequestHandler):
         made = 0.0
         out = list(found)
         for at in wanted:
+            if made >= seconds:
+                break
             word, into, _kept = out[at]
             try:
                 clip = speech.render(word["term"].strip(EDGES_SAID), into, language=language)
@@ -9715,6 +9757,7 @@ class Handler(BaseHTTPRequestHandler):
             made += clip.seconds
             out[at] = (word, into, clip.path)
             deck.made += 1
+            job.done += 1
         spent = Usage()
         spent.add_seconds(speech.NAME, made)
         job.seconds = made
