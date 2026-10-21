@@ -74,6 +74,47 @@
     }
   }
 
+  /* A day as the page's language writes it, in the one form the page uses (targum-
+     internal#469, polish 3 and 4): the day and the month in full, as credits and the plan
+     say "November 1", with the year only when it isn't this one, and never broken from
+     its month at the end of a line. Connections and Telegram said "Oct 12, 2026". */
+  function day(stamp) {
+    var root = document.documentElement;
+    try {
+      var when = new Date(stamp);
+      var form = { day: "numeric", month: "long" };
+      if (when.getFullYear() !== new Date().getFullYear()) form.year = "numeric";
+      return when.toLocaleDateString((root && root.lang) || "en", form).replace(/ /g, "\u00a0");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  /* A row as Your languages draws one (targum-internal#469, polish 6): its name over a
+     quiet line at the start, which `clamp` holds to two lines, and the press at the end.
+     Prompts and Telegram were bare items, the name in plain body and the text a size up
+     in ink, which turned the hierarchy over. */
+  function acctRow(name, says, press, clamp) {
+    var row = document.createElement("li");
+    row.className = "row";
+    var main = document.createElement("span");
+    main.className = "row-main";
+    var called = document.createElement("span");
+    called.className = "acct-name";
+    called.textContent = name;
+    var what = document.createElement("span");
+    what.className = clamp ? "acct-says acct-clamp" : "acct-says";
+    what.textContent = says;
+    main.appendChild(called);
+    main.appendChild(what);
+    var end = document.createElement("span");
+    end.className = "acct-end";
+    end.appendChild(press);
+    row.appendChild(main);
+    row.appendChild(end);
+    return row;
+  }
+
   function grouped(count) {
     return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   }
@@ -348,19 +389,6 @@
       said.hidden = !text;
     }
 
-    /* A day as the page's language writes it. */
-    function day(stamp) {
-      var root = document.documentElement;
-      try {
-        return new Date(stamp).toLocaleDateString((root && root.lang) || "en", {
-          day: "numeric",
-          month: "short",
-          year: "numeric"
-        });
-      } catch (e) {
-        return "";
-      }
-    }
 
     /* One row an app, as board ConnYou draws it. Claude registers itself afresh each
        time it is reconnected, and removing it in Claude does not tell us, so two grants
@@ -427,12 +455,22 @@
       return svg;
     }
 
-    function paint(connections, keep) {
+    function paint(connections) {
       rows.textContent = "";
       var apps = grouped(connections);
-      /* Kept open by a press on it, so the last Disconnect still shows that it worked;
-         the next visit, with nothing connected, draws no panel. */
-      panel.hidden = !apps.length && !keep;
+      /* Drawn with nothing connected too (targum-internal#469, polish 1): one quiet line
+         and "Connect an app", so the account says apps can be connected at all. */
+      panel.hidden = false;
+      var none = at("connections-none");
+      var says = at("connections-says");
+      var more = at("connect-link");
+      if (none) none.hidden = !!apps.length;
+      if (says) says.hidden = !apps.length;
+      if (more) {
+        more.textContent = apps.length
+          ? t("you.page.connect-another", "Connect another app")
+          : t("you.page.connect-an-app", "Connect an app");
+      }
       apps.forEach(function (app) {
         var row = document.createElement("li");
         row.className = "conn-row";
@@ -496,7 +534,7 @@
               });
             }, Promise.resolve())
             .then(function () {
-              paint(last && last.connections, true);
+              paint(last && last.connections);
               tell(t("you.connections.disconnected-app", "Disconnected. {app} can't reach your account any more.", { app: name }));
             })
             .catch(function () {
@@ -575,13 +613,6 @@
       rows.textContent = "";
       panel.hidden = !connected;
       (prompts || []).forEach(function (one) {
-        var row = document.createElement("li");
-        var called = document.createElement("span");
-        called.className = "acct-name";
-        called.textContent = one.name;
-        var what = document.createElement("span");
-        what.className = "note";
-        what.textContent = one.says;
         var press = document.createElement("button");
         press.type = "button";
         press.className = "btn ghost outline";
@@ -598,10 +629,7 @@
               tell(t("you.prompts.could-not-remove", "We couldn't remove that. Try again."));
             });
         };
-        row.appendChild(called);
-        row.appendChild(what);
-        row.appendChild(press);
-        rows.appendChild(row);
+        rows.appendChild(acctRow(one.name, one.says, press, true));
       });
     }
 
@@ -846,29 +874,10 @@
       said.hidden = !text;
     }
 
-    function day(stamp) {
-      var root = document.documentElement;
-      try {
-        return new Date(stamp).toLocaleDateString((root && root.lang) || "en", {
-          day: "numeric",
-          month: "short",
-          year: "numeric"
-        });
-      } catch (e) {
-        return "";
-      }
-    }
 
     function paint(chats) {
       rows.textContent = "";
       (chats || []).forEach(function (one) {
-        var row = document.createElement("li");
-        var name = document.createElement("span");
-        name.className = "acct-name";
-        name.textContent = t("you.telegram.chat", "A Telegram chat");
-        var when = document.createElement("span");
-        when.className = "note when";
-        when.textContent = t("you.telegram.linked-on", "Linked {made}", { made: day(one.linked) });
         var press = document.createElement("button");
         press.type = "button";
         press.className = "btn ghost outline";
@@ -885,10 +894,14 @@
               tell(t("you.telegram.could-not", "We couldn't do that. Try again."));
             });
         };
-        row.appendChild(name);
-        row.appendChild(press);
-        row.appendChild(when);
-        rows.appendChild(row);
+        rows.appendChild(
+          acctRow(
+            t("you.telegram.chat", "A Telegram chat"),
+            t("you.telegram.linked-on", "Linked {made}", { made: day(one.linked) }),
+            press,
+            false
+          )
+        );
       });
     }
 
@@ -934,11 +947,29 @@
         { n: plan.planCredits, hours: hours }
       );
       if (plan.words) {
-        document.getElementById("plan-words").textContent = t(
-          "you.plan.words",
-          "{n} of {cap} saved words. Known words don't count.",
-          { n: plan.listed || 0, cap: plan.words }
-        );
+        /* Past nine in ten of the cap, the line says how many more fit and points to the
+           plans (targum-internal#469, polish 10): 287 of 300 read the same as 12 of 300. */
+        var listed = plan.listed || 0;
+        var left = Math.max(0, plan.words - listed);
+        var near = listed >= plan.words * 0.9;
+        document.getElementById("plan-words").textContent = !near
+          ? t("you.plan.words", "{n} of {cap} saved words. Known words don't count.", {
+              n: listed,
+              cap: plan.words,
+            })
+          : left
+            ? t(
+                "you.plan.words-near",
+                "{n} of {cap} saved words. You can save {left} more on Free, and known words don't count.",
+                { n: listed, cap: plan.words, left: left }
+              )
+            : t(
+                "you.plan.words-full",
+                "{n} of {cap} saved words, which is as many as Free keeps. Marking words known makes room.",
+                { n: listed, cap: plan.words }
+              );
+        var more = document.getElementById("plan-words-more");
+        if (more) more.hidden = !near;
         document.getElementById("plan-words-row").hidden = false;
       }
     } else {

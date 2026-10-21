@@ -687,5 +687,15 @@ def test_a_refusal_is_said_in_the_language_of_whoever_asked(
     assert library.why_blocked(1.0).startswith("That's too long")
     assert library.claim(Job(id="j", source="s", estimate=1.0, ui="ru")) == "Слишком длинно."
     refusal = library._out_of("hours", "ru")
-    assert refusal.startswith("Кредиты закончились, вернутся 1 ")
+    assert refusal.startswith("Кредиты закончились, вернутся 1\u00a0")
     assert library._out_of("hours").startswith("You've used this month's credits")
+
+
+def test_the_day_the_credits_come_back_never_breaks_from_its_month() -> None:
+    """targum-internal#469, polish 4: "resets / on 1 November" and «обновится 1 / ноября»
+    at 390. The day and its month are joined by a no-break space."""
+    from targum.serve import Library
+
+    for ui in ("en", "ru"):
+        said = Library._month_ends(ui)
+        assert " " in said and " " not in said, said

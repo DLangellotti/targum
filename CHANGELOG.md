@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- Your account's finish polish (targum-internal#469, design's polish 1, 3–7 and 10):
+  What's connected is drawn with nothing connected, with one quiet line and Connect an
+  app. Every date is the day and the month in full, the year only when it isn't this
+  one, and joined by a no-break space so it never splits at the end of a line (the day
+  the credits come back too). The page's quiet lines are one note at §13's meta size in
+  ink-soft. Prompts and Telegram chats are rows like the languages, a long prompt held to
+  two lines. With plans on, a Free word list past nine in ten of its cap says how many
+  more fit, with See plans beside it.
 - CI cancels a branch's or a PR's run when a newer push to the same ref arrives, so a
   round of fixes queues one run. Master's runs are never cancelled, because a deploy
   may skip the suite only for a commit CI passed there (`TARGUM_CHECKED`).
