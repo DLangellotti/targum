@@ -182,7 +182,7 @@ def test_a_playlist_lists_its_texts_in_order_with_its_keys(browser, tmp_path: Pa
         "titles": ["Cheese swirls", "Raiba"],
         "upFirst": True,
         "downLast": True,
-        "failed": "We couldn't get this text ready.",
+        "failed": "We couldn't get this text ready. Remove it, then add it again.",
         "byline": "By you",
     }
     assert sent == [["/playlists/1", {"do": "move", "position": 0, "to": 1}]]
@@ -276,7 +276,7 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
         {
             "cells": 2,
             "here": None,
-            "facts": "From an assistant · 3 texts · 10 min",
+            "facts": "From your AI · 3 texts · 10 min",
             "known": "88% known",
             "foot": "Not confirmed yetUses 12 credits · Confirm",
             "open": "/playlists/3?k=test-key",
@@ -489,7 +489,7 @@ def test_delete_asks_before_it_takes_a_whole_playlist(browser, tmp_path: Path) -
     context.close()
     assert not thrown, thrown
     assert first == [], "one press takes nothing away"
-    assert label == "Confirm delete"
+    assert label == "Yes, delete"
     assert second == [["/playlists/1", {"do": "gone"}]]
 
 
@@ -517,14 +517,134 @@ def test_no_connection_is_not_a_sign_in(browser, tmp_path: Path) -> None:
         browser,
         tmp_path,
         "window.fetch = () => Promise.reject(new TypeError('offline'));",
-        wait="#lists-said:not([hidden])",
+        wait="#fault:not([hidden])",
     )
-    said = page.locator("#lists-said").text_content()
+    said = page.locator("#fault .fault-panel-said").text_content()
+    again = page.locator("#fault .fault-go").text_content()
     stranger = page.locator("#stranger").is_hidden()
     context.close()
     assert not thrown, thrown
     assert said == "We can't reach targum. Try again in a moment."
+    assert again == "Try again", "a fault offers something to press (targum-internal#474, B2)"
     assert stranger, "a network that failed is not a reader who is signed out"
+
+
+def test_a_server_that_fails_is_not_one_that_cannot_be_reached(browser, tmp_path: Path) -> None:
+    """targum-internal#474, B2: a 502 with no JSON said "We can't reach targum", which is
+    another fault, and offered nothing to press. It says the playlists did not load, and
+    Try again asks again."""
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        """
+        const before = window.fetch;
+        window.fetch = (url, opts) => {
+          if (String(url).includes('/playlists.json') && !sessionStorage.getItem('failed')) {
+            sessionStorage.setItem('failed', '1');
+            return Promise.resolve(new Response('<html>Bad gateway</html>', {status: 502}));
+          }
+          return before(url, opts);
+        };
+        """,
+        wait="#fault:not([hidden])",
+    )
+    said = page.locator("#fault .fault-panel-said").text_content()
+    page.locator("#fault .fault-go").click()
+    page.wait_for_selector("#playlists .pl-card")
+    gone = page.locator("#fault").is_hidden()
+    context.close()
+    assert not thrown, thrown
+    assert said == "We couldn't load your playlists."
+    assert gone
+
+
+def test_a_slow_answer_says_so_and_offers_try_again(browser, tmp_path: Path) -> None:
+    """targum-internal#474, B1: until the server answered, the page was the tabs and
+    nothing else. It says it is getting them at once, and past three seconds that it is
+    taking longer, with Try again."""
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        """
+        const before = window.fetch;
+        window.fetch = (url, opts) => {
+          if (String(url).includes('/playlists.json') && !sessionStorage.getItem('held')) {
+            sessionStorage.setItem('held', '1');
+            return new Promise(() => {});
+          }
+          return before(url, opts);
+        };
+        """,
+        wait="#wait:not([hidden])",
+    )
+    first = page.locator("#wait").text_content()
+    early = page.locator("#slow").is_hidden()
+    page.wait_for_selector("#slow:not([hidden])", timeout=5000)
+    slow = page.locator("#slow span").text_content()
+    page.locator("#slow-again").click()
+    page.wait_for_selector("#playlists .pl-card")
+    after = page.evaluate(
+        "() => [document.getElementById('wait').hidden, document.getElementById('slow').hidden]"
+    )
+    context.close()
+    assert not thrown, thrown
+    assert first == "We're getting your playlists."
+    assert early, "not before three seconds"
+    assert slow == "This is taking longer than usual."
+    assert after == [True, True]
+
+
+def test_the_sheet_holds_the_focus_and_gives_it_back(browser, tmp_path: Path) -> None:
+    """targum-internal#474, B6: the sheet is a modal dialog, so Tab stays in it, and
+    Escape puts it away and gives the focus back to New playlist (the strip's press, at a
+    desk; a phone has the last card instead)."""
+    context, page, thrown = opened(browser, tmp_path, width=1280)
+    page.locator("#new-press").focus()
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#adding:not([hidden])")
+    inside = []
+    for _ in range(8):
+        page.keyboard.press("Tab")
+        inside.append(page.evaluate("() => !!document.activeElement.closest('#adding')"))
+    page.keyboard.press("Shift+Tab")
+    inside.append(page.evaluate("() => !!document.activeElement.closest('#adding')"))
+    page.keyboard.press("Escape")
+    back = page.evaluate("() => document.activeElement.id")
+    context.close()
+    assert not thrown, thrown
+    assert all(inside), inside
+    assert back == "new-press"
+
+
+def test_a_title_getting_ready_says_its_language(browser, tmp_path: Path) -> None:
+    """targum-internal#474, B8: a text that failed or is still getting ready has no facts,
+    so its title took the page's language. The playlist keeps to one, and says which."""
+    hebrew = {
+        **KITCHEN,
+        "language": "he",
+        "items": [
+            KITCHEN["items"][0],
+            {**KITCHEN["items"][1], "title": "רייבה"},
+        ],
+    }
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        f"Object.assign(KITCHEN, {json.dumps(hebrew)});",
+        wait="#one .item",
+        query="?playlist=1",
+    )
+    got = page.evaluate(
+        """() => {
+          const bdi = document.querySelector('.item.failed .item-title bdi');
+          return [bdi.getAttribute('lang'), bdi.getAttribute('dir')];
+        }"""
+    )
+    note = page.locator(".pl-reorder-note").text_content()
+    context.close()
+    assert not thrown, thrown
+    assert got == ["he", "auto"]
+    assert note == "Drag to reorder, or Alt+↑/↓.", "B5: what the grip does, on the page"
 
 
 def test_the_protocols_words_never_reach_the_reader(browser, tmp_path: Path) -> None:

@@ -6061,16 +6061,20 @@ body.listening .bar:has(.bar-more.open) { z-index: 33; }
 .lv-lines { padding: 1rem 1.5rem 0; }
 .lv-lines[hidden] { display: none; }
 .lv-lines p { margin: 0; }
+/* The lines either side of the one being said stand back by colour, not opacity: ink at
+   0.38 read about 2.3:1 on paper (targum-internal#474, B9); --ink-soft is 5.5:1, and the
+   line being said is still ink and a size up. */
 .lv-far {
   font-size: 1.0625rem;
   line-height: 1.6;
-  opacity: 0.38;
+  color: var(--ink-soft);
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 .lv-after { margin-block-start: 0.75rem; }
+.lv-order-says { margin: 0.25rem 0 0.75rem; color: var(--ink-soft); font-size: 0.8125rem; }
 .lv-now { margin-block: 0.625rem 0.25rem; }
 .lv-now .film-pair { display: block; margin: 0; padding: 0; background: none; box-shadow: none; }
 .lv-now .film-pair .src {
@@ -6143,6 +6147,10 @@ body.marking .lv-now .w.looked-up {
   block-size: 1.25rem;
   cursor: pointer;
   touch-action: none;
+}
+/* A 44px band to press the position on, round a track drawn 20px tall (B7). */
+@media (hover: none) and (pointer: coarse) {
+  .lv-track { block-size: 44px; }
 }
 .lv-track::before,
 .lv-fill {

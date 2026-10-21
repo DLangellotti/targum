@@ -537,6 +537,13 @@ THUMBED = (
     ".next-more",
     ".next-link",
     ".fault-act",
+    # Listening's finish (targum-internal#474, B7): a playlist row's title, the way back,
+    # Add from…, the sheet's × and the Listening view's position.
+    "a.item-title",
+    ".pl-back",
+    ".pl-add-link",
+    ".pl-sheet-shut",
+    ".lv-track",
 )
 
 

@@ -983,9 +983,12 @@
       <button type="button" class="lv-qdone">{{ t("reader.listen.done", "Done") }}</button>
     </header>
     <div class="lv-qbody">
-      <button type="button" class="lv-order" role="switch" aria-checked="false" title="{{ t("reader.list.play-on-title", "When a recording ends, the next one starts") }}">
+      <button type="button" class="lv-order" role="switch" aria-checked="false" aria-describedby="lv-order-says" title="{{ t("reader.list.play-on-title", "When a recording ends, the next one starts") }}">
         <span>{{ t("reader.listen.play-in-order", "Play in order") }}</span><span class="lv-sw" aria-hidden="true"></span>
       </button>
+      {#- What it does, on the page and not in a title alone (targum-internal#474, B5;
+          design.md §14, nothing is hover-only). -#}
+      <p class="lv-order-says" id="lv-order-says">{{ t("reader.list.play-on-title", "When a recording ends, the next one starts") }}</p>
       <p class="lv-grp">{{ t("reader.listen.now-playing", "Now playing") }}</p>
       <div class="lv-qrow is-now">
         <span class="lv-qcover" aria-hidden="true"><span class="lv-letter" lang="{{ source_language }}">{{ (title or "·")[:1] }}</span></span>

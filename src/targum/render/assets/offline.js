@@ -1314,7 +1314,7 @@
       // The pill, the conversation's Send, and Ask on a word's card, which asks it.
       find: "#talk-open, .talk-cta, .chat-send, .gloss-card .ask-go",
       why: function () {
-        return t("offline.talk-needs", "Talk needs the connection.");
+        return t("offline.talk-needs", "Chat needs a connection.");
       },
     },
     {
@@ -1322,7 +1322,7 @@
       // card's Confirm stood ready while only the place in the bar was greyed (QA 2026-10-20).
       find: 'a[href="/add"], a[href^="/add?"], .site-nav a[href*="/add"], body.add #go, body.add #post-go, body.add #status .confirm',
       why: function () {
-        return t("offline.upload-needs", "Uploading needs the connection.");
+        return t("offline.upload-needs", "Uploading needs a connection.");
       },
     },
   ];
@@ -1458,7 +1458,7 @@
     ungreyNeeds();
     say(null, "");
     var band = back();
-    band.textContent = t("offline.back", "We're back. Sending what you did offline.");
+    band.textContent = t("offline.back", "You're back online. We're sending what you did offline.");
     band.hidden = false;
     var sync = window.TargumSync;
     var sent = sync && typeof sync.flush === "function" ? sync.flush() : Promise.resolve(true);

@@ -692,7 +692,7 @@ def test_the_saved_page_lists_both_groups_and_moves_one_with_keep(
         mine = page.locator("#saved-mine .saved-row").inner_text()
         assert "A Book" in mine and "By you" in mine and "MB" in mine
         page.wait_for_selector("#saved-room:not([hidden])")
-        assert " used of about " in page.locator("#saved-used").inner_text()
+        assert " of about " in page.locator("#saved-used").inner_text()
         assert page.evaluate("() => window.PERSIST_ASKED") == 0, "asked only from its button"
         page.click("#saved-ask")
         page.wait_for_function("() => window.PERSIST_ASKED === 1")
@@ -887,9 +887,9 @@ def test_with_no_connection_the_band_says_what_still_works(browser, words_served
         assert "On this device" in page.locator('#shelf li[data-offline="here"]').inner_text()
         talk = page.locator("#talk-open")
         assert talk.get_attribute("aria-disabled") == "true"
-        assert talk.get_attribute("data-why") == "Talk needs the connection."
+        assert talk.get_attribute("data-why") == "Chat needs a connection."
         upload = page.locator('.site-nav a[href*="/add"]').first
-        assert upload.get_attribute("data-why") == "Uploading needs the connection."
+        assert upload.get_attribute("data-why") == "Uploading needs a connection."
 
         # A press on the text that is not here says why, and goes nowhere.
         away.locator("a").click(force=True)
@@ -907,7 +907,7 @@ def test_with_no_connection_the_band_says_what_still_works(browser, words_served
         context.set_offline(False)
         page.wait_for_selector("#offline-back:not([hidden])")
         assert page.locator("#offline-back").inner_text() == (
-            "We're back. Sending what you did offline."
+            "You're back online. We're sending what you did offline."
         )
         page.wait_for_selector("#fault-banner", state="hidden")
         assert page.locator("[data-offline]").count() == 0

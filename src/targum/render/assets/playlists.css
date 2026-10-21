@@ -668,6 +668,26 @@ a.item-title:hover { text-decoration: underline; }
   .pl-confirm { min-block-size: 44px; }
   .pl-confirm { display: inline-flex; align-items: center; }
   .playlists .item-keys .ghost { min-inline-size: 44px; }
+  /* The sheet's ×, and three links that drew 23–27px tall (targum-internal#474, B7): each
+     link is given a 44px reach round it, centred, crossing no other press; the title's
+     stays inside its own row. */
+  .pl-sheet-shut { inline-size: 44px; block-size: 44px; }
+  a.item-title,
+  .pl-back,
+  .pl-add-link { position: relative; }
+  a.item-title::after,
+  .pl-back::after,
+  .pl-add-link::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: 50% auto;
+    block-size: 44px;
+    min-inline-size: 44px;
+    transform: translateY(-50%);
+  }
+  /* The press that tries a slow page again (B1). */
+  .pl-slow .fault-act { min-block-size: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -771,4 +791,18 @@ body.pl-one-open .page-title { display: none; }
     padding-block-end: calc(1rem + env(safe-area-inset-bottom, 0px));
   }
   .pl-sheet .new-list .btn { align-self: stretch; }
+}
+
+/* While the page is asked for (targum-internal#474, B1): a quiet line, and past three
+   seconds a second one with Try again. */
+.pl-wait { margin: 1.5rem 0; color: var(--ink-soft); }
+.pl-wait[hidden],
+.pl-slow[hidden],
+.pl-fault[hidden] { display: none; }
+.pl-slow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 1.5rem; color: var(--ink-soft); }
+.pl-fault { margin: 1.5rem 0; }
+/* What the grip does, said where a mouse is (B5). A thumb drags it without being told. */
+.pl-reorder-note { margin: 0.25rem 0 0.75rem; color: var(--ink-soft); font-size: 0.875rem; }
+@media (hover: none) and (pointer: coarse) {
+  .pl-reorder-note { display: none; }
 }
