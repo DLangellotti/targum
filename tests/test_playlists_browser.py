@@ -268,7 +268,7 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
             # As many cells as texts, filling the square (P2): no empty quarter.
             "cells": 2,
             "here": "You're in it · 2 of 2",
-            "facts": "By you · 2 texts · 10 min",
+            "facts": "By you · 2 texts · 10\u00a0min",
             "known": "88% known",
             "foot": None,
             "open": "/playlists/1?k=test-key",
@@ -276,7 +276,7 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
         {
             "cells": 2,
             "here": None,
-            "facts": "From your AI · 3 texts · 10 min",
+            "facts": "From your AI · 3 texts · 10\u00a0min",
             "known": "88% known",
             "foot": "Not confirmed yetUses 12 credits · Confirm",
             "open": "/playlists/3?k=test-key",
@@ -738,7 +738,8 @@ def test_the_russian_tabs_fit_a_phone(browser, tmp_path: Path) -> None:
 
 def test_a_deleted_playlist_is_said_on_the_tab(browser, tmp_path: Path) -> None:
     """Polish 4: after the second press the page went to the tab and the playlist was just
-    gone. Delete carries the name, and the tab says what went, once."""
+    gone. Delete leaves a note in this tab and carries the id, and the tab says what went,
+    once."""
     context, page, thrown = opened(browser, tmp_path, "?playlist=1")
     went: list[str] = []
     page.on("request", lambda request: went.append(request.url))
@@ -749,18 +750,67 @@ def test_a_deleted_playlist_is_said_on_the_tab(browser, tmp_path: Path) -> None:
     page.wait_for_timeout(500)
     context.close()
     assert not thrown, thrown
-    assert any("/playlists?deleted=Kitchen" in url for url in went), went
+    assert any("/playlists?deleted=1" in url for url in went), went
+    assert not any("deleted=Kitchen" in url for url in went), "the name stays out of the link"
 
-    context, page, thrown = opened(browser, tmp_path, "?deleted=Kitchen")
-    page.wait_for_selector("#lists-said:not([hidden])")
-    said = page.locator("#lists-said").text_content()
-    role = page.locator("#lists-said").get_attribute("role")
-    left = page.evaluate("() => location.search")
-    context.close()
-    assert not thrown, thrown
+    said, role, left = deleted_tab(browser, tmp_path, {"id": "1", "name": "Kitchen"}, "1")
     assert said == "Deleted \u2068Kitchen\u2069."
     assert role == "status"
     assert "deleted" not in left, "a reload does not say it again"
+
+
+def deleted_tab(browser, tmp_path: Path, note: dict | None, deleted: str) -> tuple:
+    """The tab opened at `?deleted=`, with this tab's note (or none) left by a Delete."""
+    context, page, thrown = opened(browser, tmp_path)
+    page.evaluate(
+        "(note) => note ? sessionStorage.setItem('targum.playlist-deleted', JSON.stringify(note))"
+        " : sessionStorage.removeItem('targum.playlist-deleted')",
+        note,
+    )
+    page.goto(page.url.split("?")[0] + "?deleted=" + deleted)
+    page.wait_for_selector("#playlists .pl-card")
+    page.wait_for_timeout(200)
+    said = page.locator("#lists-said").text_content()
+    role = page.locator("#lists-said").get_attribute("role")
+    left = page.evaluate("() => location.search")
+    kept = page.evaluate("() => sessionStorage.getItem('targum.playlist-deleted')")
+    marked = page.locator("#lists-said *").count()
+    context.close()
+    assert not thrown, thrown
+    assert kept is None, "the note is read once"
+    assert marked == 0, "text only, never markup"
+    return said, role, left
+
+
+@pytest.mark.parametrize(
+    ("note", "deleted"),
+    [
+        # A crafted link and no note: nothing to say.
+        (None, "Your account is closed. Call us"),
+        (None, "1"),
+        # A note for another playlist does not lend its name to this id.
+        ({"id": "2", "name": "Kitchen"}, "1"),
+        # The link's text is never the line, even with a note in the tab.
+        ({"id": "1", "name": "Kitchen"}, "<b>Pay here</b>"),
+    ],
+)
+def test_a_crafted_deleted_link_says_nothing(
+    browser, tmp_path: Path, note: dict | None, deleted: str
+) -> None:
+    """qa-claude on #872: `?deleted=` echoed any text into "Deleted {name}.", so a link
+    could make the page say anything. Only this tab's own Delete is said."""
+    said, _, left = deleted_tab(browser, tmp_path, note, deleted)
+    assert said == ""
+    assert "deleted" not in left
+
+
+def test_a_length_keeps_its_number_with_its_unit(browser, tmp_path: Path) -> None:
+    """qa-claude on #872: "25" and "min" broke across two lines on a card at 1440."""
+    context, page, thrown = opened(browser, tmp_path, width=1440)
+    facts = page.locator(".pl-facts").first.text_content()
+    context.close()
+    assert not thrown, thrown
+    assert "10\u00a0min" in facts and "10 min" not in facts, facts
 
 
 def test_the_sheet_s_choice_says_its_name_and_count_apart(browser, tmp_path: Path) -> None:
@@ -801,7 +851,8 @@ def test_from_targum_s_share_stays_on_one_line_at_a_desk(browser, tmp_path: Path
         const SETS = {json.dumps(sets)};
         const before = window.fetch;
         window.fetch = (url, opts) => {{
-          if (String(url).split('?')[0].endsWith('/playlists.json') && !(opts && opts.method === 'POST')) {{
+          const listed = String(url).split('?')[0].endsWith('/playlists.json');
+          if (listed && !(opts && opts.method === 'POST')) {{
             return Promise.resolve(new Response(JSON.stringify(
               {{playlists: [CARD], current: null, targum: SETS}})));
           }}
@@ -842,6 +893,10 @@ def test_offline_the_tab_says_where_saved_playlists_are_once(browser, tmp_path: 
     panels = page.locator("#fault .fault-panel").count()
     said = page.locator("#fault .pl-away").text_content()
     href = page.locator("#fault .pl-away a").get_attribute("href")
+    # Underlined at rest like a text link, not only on hover (qa-claude on #872).
+    lined = page.evaluate(
+        "() => getComputedStyle(document.querySelector('#fault .pl-away a')).textDecorationLine"
+    )
     page.evaluate("() => { window.ONLINE = true; window.dispatchEvent(new Event('online')); }")
     page.wait_for_selector("#playlists .pl-card")
     gone = page.locator("#fault").is_hidden()
@@ -850,4 +905,5 @@ def test_offline_the_tab_says_where_saved_playlists_are_once(browser, tmp_path: 
     assert panels == 0, "no second fault under the band"
     assert said == "Playlists you saved for offline are under Saved on this device."
     assert href.startswith("/you/saved")
+    assert lined == "underline", lined
     assert gone
