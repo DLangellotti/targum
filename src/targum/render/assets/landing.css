@@ -815,3 +815,21 @@ html { overflow-x: clip; }
   .top > #card { margin-block: 0 var(--space-7); }
 }
 
+/* /aliyah, the olim's own door (design.md §12; rebuilt on this page's parts 2026-10-02):
+   its hero has the waitlist where the front door has its box, and beside it, where the
+   word card stands, four lines an oleh is sent. "After ulpan" takes the How cards, two
+   by two. */
+.top.olim { grid-template-columns: minmax(0, 1fr) 22rem; grid-template-areas: "hero card"; }
+.top.olim > .hero { align-content: start; align-self: center; }
+.top.olim > .letters { grid-area: card; align-self: start; margin-block-start: var(--space-8); }
+.hero .join-form { max-inline-size: 34rem; }
+.hero .join-form .field { background: var(--card); box-shadow: var(--shadow-rest); }
+.letters { margin: 0; background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow-raised); padding: var(--space-5); display: grid; }
+.letter { display: grid; gap: var(--space-1); }
+.letter + .letter { border-block-start: 1px solid var(--hairline); margin-block-start: var(--space-3); padding-block-start: var(--space-3); }
+.letter .he { font-size: 1.25rem; line-height: 1.8; text-align: start; }
+.letter-en { font: 400 0.9375rem/1.45 var(--reading); color: var(--muted); }
+.how.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.how.four > :last-child { grid-column: auto; }
+@media (max-width: 56rem) { .top.olim { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "card"; } .top.olim > .hero { align-self: start; } .top.olim > .letters { margin-block-end: var(--space-7); } }
+@media (max-width: 40rem) { .how.four { grid-template-columns: minmax(0, 1fr); } }
