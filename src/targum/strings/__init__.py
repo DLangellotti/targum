@@ -235,7 +235,7 @@ def said_reference(reference: str, language: str = SOURCE) -> str:
 
 
 def said_portion(slug: str, name: str, language: str = SOURCE) -> str:
-    """A Torah portion's name as `language` writes it: «Берешит» for Bereshit (QA,
+    """A Torah portion's name as `language` writes it: «Берейшит» for Bereshit (QA,
     2026-10-05).
 
     Keyed by the portion's slug, `portion.name.<slug>`, because the name is the calendar's

@@ -81,15 +81,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - Russian interface strings from the ling-ru audit (targum-internal#476), drafted for
   David's read. The case lens says «падеж», not «регистр» (letter case). Two hints said
   «нажмите Continue» over a button that reads «Продолжить». `add.spoken.ours` no longer
-  promises a spend the English does not. A word's levels have one set of names everywhere
-  («едва знакомо / осваивается / почти знакомо / знакомо»). The foot buttons are Russian
+  promises a spend the English does not. A word's levels have one set of names on the card, the lists,
+  the keys help and Your Words («едва знакомо / осваивается / почти знакомо / знакомо»);
+  the landing demo's two buttons speak in the reader's voice («Знаю», «Осваиваю»). The foot buttons are Russian
   («Готово и отметить…»). Counts that came out as «342 слов», «в 21 строках» or «из 21
   глав» are said with a colon instead, and a one-form that also counts 21 carries its
   number («Прочитать {n} страницу»). `serve.give-a-link` has its Russian.
   `progress.reading.note` says words known *as of* that day. A phrase is «фраза»
   everywhere (David, 2026-10-21), and the books of the Bible are named in the Jewish
   Russian system: «Берейшит», «Шмуэль I», «Млахим I», «Диврей а-Ямим», «Теилим»
-  (David, 2026-10-21). The 24 missing `.other` plural forms are filled for fractional
+  (David, 2026-10-21), and the first portion is «Берейшит» like its book. The 24 missing `.other` plural forms are filled for fractional
   counts.
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
