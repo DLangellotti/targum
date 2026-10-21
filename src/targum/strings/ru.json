@@ -4225,7 +4225,7 @@
   "fault.tell-us.failed": "Не получилось отправить. Попробуйте через минуту.",
   "serve.tell-us.empty": "Сначала напишите что-нибудь.",
   "serve.tell-us.too-often": "Это много для одного часа. Напишите на hello@targum.page, и мы прочитаем там.",
-  "public.head.preview-alt": "targum. Учите иврит по чему угодно."
+  "public.head.preview-alt": "targum. Учите иврит по чему угодно.",
   "lists.anki.starting": "Готовим вашу колоду.",
   "lists.anki.making": "Записываем звук: {made} из {total} слов. Не закрывайте эту страницу.",
   "lists.anki.ready": "Колода готова, у каждого слова есть звук.",
