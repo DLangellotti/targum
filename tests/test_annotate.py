@@ -1614,6 +1614,10 @@ def test_a_nifal_future_of_an_alef_or_tav_first_root_keeps_its_nifal(
         ("מוצא", "מוֹצֵא", "מצא"),
         ("מוכר", "מוֹכְרִים", "מכר"),
         ("מוצג", "מוּצָג", "מוצג"),
+        # A hif'il present of a yod-first root, or a noun, spelled the same way.
+        ("מורה", "מוֹרֶה", "מורה"),
+        ("מודה", "מוֹדֶה", "מודה"),
+        ("מועד", "מוֹעֵד", "מועד"),
         ("מוכר", "מוכרים", "מוכר"),
     ],
 )

@@ -659,6 +659,10 @@ MISREAD_SELLER = "הוכר"
 HOLAM_AFTER_MEM = re.compile("מ[\u0591-\u05c7]*ו[\u05b9\u05ba]")
 # The letters a seller can carry in front: וְהַמּוֹכֵר, לַמּוֹכְרִים, שֶׁמּוֹכֶרֶת.
 SELLER_PREFIXES = frozenset("ובהכלמש")
+# Spelled מוֹ like a qal present of an מ-first root and are not one: the hif'il presents
+# of a yod-first root, whose מ is the prefix (מוֹרֶה is ירה's, מוֹדֶה ידה's), and nouns of
+# the same shape (מוֹעֵד). ling-he on #836; the pointing cannot tell them from מוֹנֶה.
+HOLAM_NOT_QAL = frozenset({"מורה", "מודה", "מועד", "מוסף", "מוקד", "מושב", "מולד"})
 
 
 def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | None]:
@@ -672,6 +676,7 @@ def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | 
             len(letters) == 4
             and letters[:2] == "מו"
             and letters[2] != letters[3]
+            and letters not in HOLAM_NOT_QAL
             and HOLAM_AFTER_MEM.search(pointed)
         ):
             # A qal present filed under its participle, where the marks say qal: מוֹצֵא
