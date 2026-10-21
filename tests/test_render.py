@@ -5359,7 +5359,13 @@ def _rendering(
 
 
 def _payload(html: str) -> dict:
-    return json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    """The page's data as `reader.js` ends up holding it: the commentaries that ride in
+    the block after `reader.js` (targum-internal#409) taken back into `translations`."""
+    found = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    late = re.search(r'id="targum-data-late"[^>]*>(.*?)</script>', html, re.S)
+    if late:
+        found["translations"].update(json.loads(late.group(1))["translations"])
+    return found
 
 
 def _markup(html: str) -> str:
@@ -5579,6 +5585,29 @@ def test_rashi_sits_beside_the_verse_named_for_rashi_and_every_companion_starts_
     hidden = re.findall(r'<p class="cmp[^"]*"[^>]*data-companion="([\w-]+)"[^>]*hidden', html)
     assert hidden == ["rashi-en", "rashi-en"]
     assert len(re.findall(r'<p class="cmp commented empty" data-t="t2"', html)) == 1
+
+
+def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: Path) -> None:
+    """targum-internal#409: a portion page made a word wait for every byte before
+    `reader.js`. Rashi's text and word tables and the two faces now come after it, so
+    what the page must take before a tap is the verse, its drawn rendering and Onkelos
+    (which the verse walk asks for as the page opens). The budget is the bytes before
+    `reader.js` on this small page; a slip back puts Rashi or a face in front of it."""
+    html = _genesis(tmp_path, [_english(), _onkelos(), _rashi_beside("he", "פירוש")])
+    script_at = html.index("function takeTables(")
+    early = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+    late = re.search(r'id="targum-data-late"[^>]*>(.*?)</script>', html, re.S)
+    assert early is not None and late is not None
+    assert early.start() < script_at < late.start(), "Rashi's data rides after reader.js"
+    held = json.loads(early.group(1))["translations"]
+    assert [v.get("companion", "") for v in held.values()] == ["", "targum"]
+    assert [v["companion"] for v in json.loads(late.group(1))["translations"].values()] == ["rashi"]
+    assert html.index("@font-face") > script_at, "the faces come after reader.js"
+
+
+def test_a_text_without_a_commentary_has_no_late_block(tmp_path: Path) -> None:
+    html = _genesis(tmp_path, [_english(), _onkelos()])
+    assert 'id="targum-data-late"' not in html
 
 
 def test_rashi_in_hebrew_is_kept_for_a_reader_who_reads_english_or_russian(

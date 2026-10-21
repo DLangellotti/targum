@@ -461,6 +461,25 @@ Gives me context and context is king." (targum-internal#497)
   same meetings the column counts, off builds already on the machine, and is asked on the
   first press for a word, never with the page.
 
+### The reading face may arrive just after the first paint — 2026-10-21
+
+David, 2026-10-21, on the portion's first tap (targum-internal#409): a portion page on a
+phone made a word wait for everything before `reader.js`, and on Ki Tavo that was two
+seconds.
+
+- **The two faces come after `reader.js`.** The Hebrew face and the chrome's face are
+  about sixty kilobytes the page took before a word could answer. On a long page the
+  first frame may set its letters in the platform's face for a moment; `reader.js` lays
+  the page out again, in place, when they load, so nothing the reader is looking at
+  moves under a tap. Readers still fetch nothing: the faces are in the page, later.
+- **The commentaries beside the verse come after it too.** Rashi and Rashi in English
+  ride in a second data block after `reader.js`, and their lines and words join the page
+  when it has arrived. The rendering drawn in the column and Onkelos, which the verse
+  walk and practice ask for as the page opens, stay in the first.
+- **Measured, not guessed.** `scripts/measure_tap.py` times the first working tap on
+  slow 4G with a 4x slower CPU: Bereshit's first aliyah 2.16 s → 1.30 s, its third 1.87 s
+  → 1.29 s, Ki Tavo's sixth, the longest, 2.08 s → 1.63 s.
+
 ### A reader carries only what its text uses, and a missing part opens the first — 2026-10-20
 
 David, 2026-10-20, on the reader's finish (targum-internal#464): readers still fetch

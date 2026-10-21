@@ -5004,6 +5004,13 @@ def english_title(document: Document, language: str = "en") -> str:
     return entry.english
 
 
+def _rides_late(entry: dict[str, Any], key: str, drawn_at: int) -> bool:
+    """Whether a rendering's data waits for the block after `reader.js`: a commentary
+    beside the verse (Rashi), which is not the rendering drawn in the column. Onkelos
+    stays, because the verse walk asks for it as the page opens."""
+    return bool(entry.get("companion")) and bool(entry.get("commented")) and key != f"t{drawn_at}"
+
+
 def render(
     document: Document,
     segmented: SegmentedDocument,
@@ -6086,10 +6093,28 @@ def render(
                 and index in covering
                 and index != drawn_at
             ],
+            # Rashi and the other commentaries beside the verse ride after `reader.js`
+            # (targum-internal#409): a word in the verse answers a tap before their text
+            # and word tables are parsed. The rendering drawn in the column never waits.
+            data_late=embed_json(
+                {
+                    "translations": {
+                        key: entry
+                        for key, entry in payload.items()
+                        if _rides_late(entry, key, drawn_at)
+                    }
+                }
+            )
+            if any(_rides_late(entry, key, drawn_at) for key, entry in payload.items())
+            else "",
             data=embed_json(
                 {
                     "schemaVersion": PAYLOAD_VERSION,
-                    "translations": payload,
+                    "translations": {
+                        key: entry
+                        for key, entry in payload.items()
+                        if not _rides_late(entry, key, drawn_at)
+                    },
                     "words": words,
                     "lemmas": lemmas,
                     **({"heads": heads} if any(heads) else {}),

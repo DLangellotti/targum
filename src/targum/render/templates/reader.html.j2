@@ -13,13 +13,7 @@
 {%- if preread %}
 {{ styles('preread.css') }}
 {% endif %}
-{#- The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
-    script has no Hebrew to draw with it (2026-09-13). Every Hebrew-script text carries
-    it, Yiddish and Aramaic included. -#}
-{% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
-{#- The chrome's face, upright only, for the reader's own menus (design.md §12,
-    2026-10-09, "The reader's menus are the board's"). -#}
-{{ chrome_face(false) }}
+{#- The faces ride after reader.js: see there (targum-internal#409). -#}
 {{ script('durable.js') }}
 {{ script('keep.js') }}
 </head>
@@ -1428,6 +1422,23 @@
     or opened off a disk; a reader with neither never needed it. -#}
 {% if spoken_audio %}{{ script('player.js') }}{% endif %}
 {{ script('reader.js') }}
+{%- if data_late %}
+{#- After reader.js, so a word answers a tap before the commentaries' data is parsed
+    (targum-internal#409). `adoptLate` takes it in. -#}
+<script type="application/json" id="targum-data-late">{{ data_late }}</script>
+{%- endif %}
+{#- The faces, after reader.js (design.md §12, "The reading face may arrive just after
+    the first paint", 2026-10-21; targum-internal#409): sixty kilobytes the page had to
+    take before a word could answer a tap. The first frame may set its letters in the
+    platform's face for a moment; `reader.js` lays the page out again, in place, when
+    they load.
+    The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
+    script has no Hebrew to draw with it (2026-09-13). Every Hebrew-script text carries
+    it, Yiddish and Aramaic included. -#}
+{% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
+{#- The chrome's face, upright only, for the reader's own menus (design.md §12,
+    2026-10-09, "The reader's menus are the board's"). -#}
+{{ chrome_face(false) }}
 {#- After `reader.js`, since 2026-10-20 (reader QA): a word answers a tap once `reader.js` has
     run, and the page reads its scripts in order as they arrive, so what a first tap does not
     need comes after it. Saving for offline and the worker that answers it (design.md §12,

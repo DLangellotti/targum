@@ -24,6 +24,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   that belongs to no library row (a laptop upload's cover, a retired row's) no longer
   goes to the box, file or line: the box has its own uploads, and a laptop one with the
   same name would replace it.
+- A word on a portion page answers sooner on a phone (targum-internal#409). The two faces
+  and Rashi's data now come after `reader.js`, and Rashi's lines join the page when they
+  arrive. The first tap on slow 4G with a 4x slower CPU: Bereshit's first aliyah 2.16 s
+  to 1.30 s, Ki Tavo's sixth 2.08 s to 1.63 s. `scripts/measure_tap.py` takes the figure.
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
   rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
