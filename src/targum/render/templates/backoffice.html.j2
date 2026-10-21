@@ -545,27 +545,51 @@
 
   {#- What broke in readers' browsers (targum-internal#457, clause 3.14), counted by
       message and page over thirty days: how often, for how many accounts, and where in
-      the script. A message reported five times in an hour has mailed the operator. -#}
+      the script. A message reported five times in an hour has mailed the operator. Fixed
+      marks a message settled on every page and folds it away; a report after the fix
+      brings it back. -#}
   <h2 id="faults">Broken in browsers</h2>
-  {% if not faults %}
-  <p class="nothing">No page has broken in a browser lately.</p>
-  {% else %}
+  {%- set broken = faults|rejectattr('since', 'equalto', 0)|list %}
+  {%- set mended = faults|selectattr('since', 'equalto', 0)|list %}
+  {%- macro fault_rows(rows) %}
   <table>
-    <thead><tr><th>Last</th><th>Page</th><th>What</th><th class="n">Times</th><th class="n">Accounts</th></tr></thead>
+    <thead><tr><th>Last</th><th>Page</th><th>What</th><th class="n">Times</th><th class="n">Accounts</th><th></th></tr></thead>
     <tbody>
-      {% for one in faults %}
+      {% for one in rows %}
       <tr>
         <td class="quiet">{{ one.when }}</td>
         <td>{{ one.page or 'not said' }}</td>
         <td>{{ one.message }}
+          {%- if one.fixed_on and one.since %}<p class="quiet">Back after the fix on {{ one.fixed_on }}: {{ one.since }} since.</p>{% endif %}
           {%- if one.place or one.build %}<details class="trace"><summary class="quiet">Where</summary><pre>{{ one.place or 'not said' }}{% if one.build %} &middot; {{ one.build }}{% endif %}</pre></details>{% endif %}</td>
         <td class="n">{{ one.count }}</td>
         <td class="n">{{ one.people }}</td>
+        <td>
+          {%- if one.since %}
+          <form method="post" action="/back-office/fault" class="decide">
+            <input type="hidden" name="message" value="{{ one.message }}">
+            <button type="submit" aria-label="Mark {{ one.message|truncate(60) }} fixed on every page">Fixed</button>
+          </form>
+          {%- else %}<span class="quiet">Fixed {{ one.fixed_on }}</span>{% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  {% endif %}
+  {%- endmacro %}
+  {%- if broken %}
+  {{ fault_rows(broken) }}
+  {%- elif mended %}
+  <p class="nothing">Nothing has broken since the last fix.</p>
+  {%- else %}
+  <p class="nothing">No page has broken in a browser lately.</p>
+  {%- endif %}
+  {%- if mended %}
+  <details class="let-in">
+    <summary>Fixed ({{ mended|length }})</summary>
+    {{ fault_rows(mended) }}
+  </details>
+  {%- endif %}
 
   <h2>Incidents</h2>
   {#- What went wrong, other than in the journal (targum-internal#24): a request that

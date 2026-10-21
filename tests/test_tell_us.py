@@ -266,6 +266,46 @@ def test_only_an_admin_changes_a_messages_state(
     assert status == 400
 
 
+def test_only_an_admin_marks_a_fault_fixed(
+    served: tuple[int, str, Path], postbox: Postbox, tmp_path: Path
+) -> None:
+    port, _, _ = served
+    store = store_of(tmp_path)
+    store.fault(None, "TypeError: boom", "", "/texts")
+    reader = sign_in(port, postbox, "reader@example.com")
+    status, _, _ = form(port, "/back-office/fault", {"message": "TypeError: boom"}, reader)
+    assert status == 404
+    assert store.faults()[0]["fixed"] == 0
+
+    store.make_admin("ops@example.com")
+    admin = sign_in(port, postbox, "ops@example.com")
+    status, _, where = form(port, "/back-office/fault", {"message": "TypeError: boom"}, admin)
+    assert status in (302, 303) and where.endswith("#operations")
+    assert store.faults()[0]["fixed"] > 0
+    status, _, _ = form(port, "/back-office/fault", {"message": "never reported"}, admin)
+    assert status == 400
+
+
+def test_a_fault_fixed_is_settled_on_every_page_until_it_comes_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = store_of(tmp_path)
+    store.fault(None, "ResizeObserver loop", "", "/reader/a")
+    store.fault(None, "ResizeObserver loop", "", "/reader/b")
+    store.fault(None, "TypeError: other", "", "/texts")
+    assert store.fix_fault("ResizeObserver loop")
+    assert not store.fix_fault("never reported")
+    by_page = {row["page"]: row for row in store.faults()}
+    assert by_page["/reader/a"]["since"] == by_page["/reader/b"]["since"] == 0
+    assert by_page["/texts"]["since"] == 1 and by_page["/texts"]["fixed"] == 0
+
+    fixed_at = by_page["/reader/a"]["fixed"]
+    monkeypatch.setattr(accounts, "now", lambda: fixed_at + 1000)
+    store.fault(None, "ResizeObserver loop", "", "/reader/a")
+    by_page = {row["page"]: row for row in store.faults()}
+    assert by_page["/reader/a"]["since"] == 1 and by_page["/reader/b"]["since"] == 0
+
+
 def test_only_an_admin_settles_a_message_in_the_source() -> None:
     """The form's door is the page's door, as `_balance`'s is."""
     text = Path(serve.__file__).read_text(encoding="utf-8")
@@ -333,6 +373,13 @@ def test_the_back_office_lists_messages_and_counts_faults(tmp_path: Path) -> Non
     operations = page[page.index('id="tab-operations"') :]
     assert "Broken in browsers" in operations
     assert "TypeError: boom" in operations and '<td class="n">3</td>' in operations
+    assert 'action="/back-office/fault"' in operations and "Fixed (" not in operations
+
+    store.fix_fault("TypeError: boom")
+    page = back_office_page(Survey(), 30, told=store.told(), faults=store.faults())
+    operations = page[page.index('id="tab-operations"') :]
+    assert "Fixed (1)" in operations and "Nothing has broken since the last fix." in operations
+    assert 'action="/back-office/fault"' not in operations
     assert "save the\n    messages readers write to us through Tell us" in page
 
 

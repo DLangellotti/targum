@@ -1480,6 +1480,14 @@ CREATE TABLE IF NOT EXISTS fault (
   build   TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS fault_message ON fault (message, at);
+
+-- When a fault's message was marked fixed in the back office, on every page it was
+-- reported from. A report after this puts it back in front of the operator: the fix did
+-- not hold, or a reader is still on a page built before it. Swept with the reports.
+CREATE TABLE IF NOT EXISTS fault_fixed (
+  message TEXT    PRIMARY KEY,
+  at      INTEGER NOT NULL
+);
 """
 
 
@@ -5991,22 +5999,42 @@ class Store:
             return int(row["n"])
 
     def faults(self, days: int = FAULT_KEEP_DAYS, limit: int = 50) -> list[dict[str, Any]]:
-        """The reports counted by message and page, the most often first."""
+        """The reports counted by message and page, the most often first. `fixed` is
+        when the message was marked fixed, or 0, and `since` how many of the reports
+        came after that: a fixed fault with none since is settled."""
         since = now() - days * 24 * 60 * 60 * 1000
         rows = self.db.execute(
-            "SELECT message, page, COUNT(*) AS count, COUNT(DISTINCT person) AS people,"
-            " MIN(at) AS first, MAX(at) AS last, MAX(place) AS place, MAX(build) AS build"
-            " FROM fault WHERE at >= ? GROUP BY message, page"
+            "SELECT f.message, f.page, COUNT(*) AS count, COUNT(DISTINCT f.person) AS people,"
+            " MIN(f.at) AS first, MAX(f.at) AS last, MAX(f.place) AS place,"
+            " MAX(f.build) AS build, COALESCE(x.at, 0) AS fixed,"
+            " SUM(f.at > COALESCE(x.at, 0)) AS since"
+            " FROM fault f LEFT JOIN fault_fixed x ON x.message = f.message"
+            " WHERE f.at >= ? GROUP BY f.message, f.page"
             " ORDER BY count DESC, last DESC LIMIT ?",
             (since, limit),
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def fix_fault(self, message: str) -> bool:
+        """Mark a fault's message fixed as of now, on every page. False where nothing
+        was ever reported under that message."""
+        with self.write() as db:
+            if db.execute("SELECT 1 FROM fault WHERE message = ?", (message,)).fetchone() is None:
+                return False
+            db.execute(
+                "INSERT INTO fault_fixed (message, at) VALUES (?, ?)"
+                " ON CONFLICT (message) DO UPDATE SET at = excluded.at",
+                (message, now()),
+            )
+            return True
+
     def sweep_faults(self, days: int = FAULT_KEEP_DAYS) -> int:
-        """Delete the reports older than `days`."""
+        """Delete the reports older than `days`, and the fixes that covered only them."""
         cutoff = now() - days * 24 * 60 * 60 * 1000
         with self.write() as db:
-            return int(db.execute("DELETE FROM fault WHERE at < ?", (cutoff,)).rowcount)
+            gone = int(db.execute("DELETE FROM fault WHERE at < ?", (cutoff,)).rowcount)
+            db.execute("DELETE FROM fault_fixed WHERE at < ?", (cutoff,))
+            return gone
 
     # -- what the services have left ---------------------------------------------
 

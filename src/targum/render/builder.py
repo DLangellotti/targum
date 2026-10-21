@@ -2664,7 +2664,15 @@ def back_office_page(
             told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],
             told_open=sum(1 for row in told or [] if row.get("state") in ("open", "asked")),
             told_states=TOLD_STATES,
-            faults=[dict(row, when=_as_of(int(row["last"]))) for row in faults or []],
+            # A fault marked fixed folds away until a report comes after the fix.
+            faults=[
+                dict(
+                    row,
+                    when=_as_of(int(row["last"])),
+                    fixed_on=_as_of(int(row["fixed"])) if row.get("fixed") else "",
+                )
+                for row in faults or []
+            ],
         )
     )
 

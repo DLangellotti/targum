@@ -8094,6 +8094,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, b"bad request", "text/plain")
         self._go(f"{BACK_OFFICE_ROUTE}#people")
 
+    def _fix_fault(self, form: dict[str, str]) -> None:
+        """Mark what broke in browsers fixed, from its row in the back office: by its
+        message, so every page that reported it is settled at once. The same door as
+        `_settle_told`: an admin session, and 404 for anyone else."""
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        if not self.store.fix_fault(form.get("message", "")):
+            return self._send(400, b"bad request", "text/plain")
+        self._go(f"{BACK_OFFICE_ROUTE}#operations")
+
     def do_GET(self) -> None:  # noqa: N802
         self._answer(self._get)
 
@@ -8785,6 +8796,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._balance(self._form())
         if route == BACK_OFFICE_ROUTE + "/told":
             return self._settle_told(self._form())
+        if route == BACK_OFFICE_ROUTE + "/fault":
+            return self._fix_fault(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by
         # necessity: somebody who reads an issue signed out has no account and is not
         # going to open one to be told when the next is out. Plain forms, before the

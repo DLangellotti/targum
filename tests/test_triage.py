@@ -70,6 +70,15 @@ def test_faults_are_counted_in_the_window_most_often_first(store: Path) -> None:
     assert "Old news" in report(store, now_ms=NOW, days=31)
 
 
+def test_a_fault_marked_fixed_is_left_out_until_it_comes_back(store: Path) -> None:
+    db = sqlite3.connect(store)
+    db.execute("INSERT INTO fault_fixed (message, at) VALUES ('TypeError: boom', ?)", (NOW - 1500,))
+    db.commit()
+    db.close()
+    page = report(store, now_ms=NOW)
+    assert "On / at yours.js:12, build abc123. 2 reports from 1 reader(s)" in page
+
+
 def test_an_empty_week_says_so(tmp_path: Path) -> None:
     path = tmp_path / "targum.db"
     Store(path).close()
