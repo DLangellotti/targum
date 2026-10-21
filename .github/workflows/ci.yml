@@ -3,6 +3,14 @@ on:
   push:
   pull_request:
 
+# A new push to a branch or a PR cancels that ref's run still going, so a round of fixes
+# queues one run, not one per superseded commit (CI stood 35 runs deep on 2026-10-21).
+# Never on master: a deploy may skip the suite only for a commit CI passed there
+# (`TARGUM_CHECKED` in deploy/deploy.sh), so every master run finishes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
 jobs:
   checks:
     runs-on: ubuntu-latest

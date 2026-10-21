@@ -5,6 +5,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Changed
+- CI cancels a branch's or a PR's run when a newer push to the same ref arrives, so a
+  round of fixes queues one run. Master's runs are never cancelled, because a deploy
+  may skip the suite only for a commit CI passed there (`TARGUM_CHECKED`).
+
 ### Fixed
 - Russian's surfaces, design's four blockers (targum-internal#476). A page in Russian
   carries Source Sans 3's Cyrillic subset beside its Latin one, so a line is set in one
