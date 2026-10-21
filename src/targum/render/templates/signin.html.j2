@@ -102,7 +102,7 @@
       new link. Send a link stays ink, as the door's call to action (§9). The board's
       line icon over it, an envelope. -#}
   <svg class="fault-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 3.75h12.5v8.5H1.75zM1.75 4.25 8 9l6.25-4.75"/></svg>
-  <h1>{{ t("signin.page.that-link-has-been-used", "This link has expired") }}</h1>
+  <h1>{{ t("signin.page.that-link-has-been-used", "That link no longer works") }}</h1>
   <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Enter your email and we'll send a new one.") }}</p>
   <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}{% if back %} data-next="{{ back }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>

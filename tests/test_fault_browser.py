@@ -228,7 +228,7 @@ def test_the_sign_in_doors_are_whole_pages_and_a_refused_address_is_under_its_fi
     assert 'class="fault-go" href="mailto:hello@targum.page"' in closing
     assert 'id="ask"' not in closing, "nothing to sign in with: the mail is the way on"
     expired = signin_page(expired=True)
-    assert "This link has expired" in expired and 'id="ask"' in expired
+    assert "That link no longer works" in expired and 'id="ask"' in expired
 
 
 def test_a_sign_in_that_took_too_long_is_a_panel_with_sign_in_again() -> None:
