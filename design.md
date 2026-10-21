@@ -7473,7 +7473,8 @@ so a teal thing is always a control and a green thing is always progress. The wa
 teal at 9%.
 
 **Type.** The chrome speaks in Source Sans 3, self-hosted under its licence (OFL), Latin
-subset, on chrome pages only; the fallback is `"Segoe UI", system-ui, sans-serif`.
+subset, on chrome pages only *(and its Cyrillic subset beside it on a page in Russian since 2026-10-21 —
+"Russian is carried too", below)*; the fallback is `"Segoe UI", system-ui, sans-serif`.
 Section titles 1.25rem/700 *(superseded 2026-10-09: a page's title is the serif at 34px/500 on
 the desk under the bar, and a section's the serif at 24px/500 — §12, "The boards are the desk", 2026-10-09)*, card and panel titles 1.0625rem/600, body and controls
 0.9375rem, meta 0.875rem, labels 0.6875rem uppercase at 0.08em. The reading serif appears
@@ -7541,6 +7542,30 @@ nothing — the drawer in a served reader (2026-09-11) has no address until it i
 phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
 page's lines keep §8 as written.
 
+**Russian is carried too — 2026-10-21** (targum-internal#469). The chrome's face was
+carried as a Latin subset, 231 glyphs and none in Cyrillic, so a Russian page set its
+letters in the platform's sans — SF on a Mac, Segoe UI on Windows, Roboto on Android — and
+its digits, punctuation and Latin names in Source Sans 3: two faces in one line, their
+x-heights apart at 0.8125rem, and a different pair on every platform. That fails "one
+look" (§14.7) on every desk page in Russian. So Source Sans 3's Cyrillic subset is carried
+too, under the same licence as the Latin one (SIL Open Font License 1.1, Adobe's, Reserved
+Font Name "Source", `LICENSE.sourcesans3` already in the repository), **only on pages
+rendered in Russian**, as a second `@font-face` of the same family whose `unicode-range`
+is the Cyrillic block, so the Latin glyphs still come from the Latin file and a page in
+English pays nothing. What it costs, measured on the 3.052 release the Latin cut comes
+from, subset to U+0400–04FF with № (U+2116) and the non-breaking hyphen (U+2011), the
+layout features the Latin cut keeps, inlined as base64: the upright, variable 200–900,
+**29.2 kB** (21.9 kB as a file); the italic, at 400 as the carried italic is, **15.1 kB**
+(11.3 kB). A desk page in Russian carries both, **+44 kB**, beside the 59 kB of Latin face
+it carries today; a reader whose interface is Russian carries the upright alone, as it
+does the Latin (2026-10-09), **+29 kB** beside 38 kB. Stopping at U+045F, the letters
+Russian and its neighbours use, would save 6 kB upright and 3 kB italic; the block is
+carried whole so a Ukrainian or Kazakh name in the chrome is not the one word in another
+face. The other way out, dropping Source Sans 3 from `--chrome` under `:lang(ru)`, made a line one
+face but a different face on every platform, and was not taken. The serif needs nothing:
+Iowan carries Cyrillic on a Mac, and Palatino Linotype and Georgia elsewhere. A reader
+still fetches nothing.
+
 
 ## 14 · Finished — what done means for a surface
 
@@ -7560,6 +7585,13 @@ card: screenshots for 1, 2 and 7, test names for 8. Added 2026-10-18 (targum-int
 3. **Keyboard and screen reader.** Every control is reached by Tab, has a name a screen
    reader says, and shows the one focus ring (§4). A Hebrew, Aramaic or Yiddish run
    carries its `lang` and its `dir`.
+
+   **Nothing is hover-only — 2026-10-21** (targum-internal#471). A tooltip is never the
+   only place an explanation lives: a `title` is never shown to a phone or a keyboard, and
+   most screen readers skip it. A note that matters is a visible quiet line under what it
+   explains, or behind a press that says so ("How we count"). Where a mockup or a board
+   has no line for it, the line wins over the board. A `title` may repeat what is already
+   visible; it may never be the only place a thing is said.
 4. **Copy.** Active and plain, we to you (§6), no word from the data layer, every string
    keyed in the catalogue, and Russian present for each of them.
 5. **Speed.** On a phone profile the surface is useful in under 1.5 s, and nothing on it
