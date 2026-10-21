@@ -48,7 +48,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum.annotate.paradigms import (  # noqa: E402
     Table,
-    bare,
     pointed_form,
     table,
     written_form,
@@ -142,7 +141,7 @@ def bucket(
 ) -> str:
     """Which bucket one verb token falls in. The same questions `Table.of` asks, kept
     apart here so the answer says *why* rather than only yes or no."""
-    candidates = verbs.by_form.get(bare(lemma)) or ()
+    candidates = verbs.candidates(lemma)
     written = tuple(written)
     if not candidates:
         return "no candidate"

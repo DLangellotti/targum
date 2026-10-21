@@ -75,6 +75,18 @@ def test_a_verb_is_found_though_the_two_sources_call_it_different_things(
         assert bare(found.lemma) == bare(wikidata)
 
 
+def test_a_piel_written_plene_is_found_under_its_defective_spelling(shipped: Table) -> None:
+    """DICTA writes דיבר, ביקש, סיפר with a yod for the hiriq; the source has only the
+    pointed דִּבֵּר, whose letters are דבר, so the commonest pi'els had no table at all
+    (targum-internal#307, 2026-10-21). Only the pi'el: דבר is also דֻּבַּר."""
+    for plene, piel in (("דיבר", "דִּבֵּר"), ("ביקש", "בִּקֵּשׁ"), ("סיפר", "סִפֵּר"), ("לימד", "לִמֵּד")):
+        found = shipped.of(plene)
+        assert found is not None, f"{plene} should reach {piel}"
+        assert found.lemma == piel
+    assert shipped.candidates("דבר") != shipped.candidates("דיבר"), "the defective is two verbs"
+    assert shipped.of("שירר") is None, "no pi'el under the defective spelling, no table"
+
+
 def test_the_points_settle_a_verb_two_binyanim_share(shipped: Table) -> None:
     """Unpointed `הלך` is both `הָלַךְ` (went) and `הִלֵּךְ` (walked about)."""
     assert shipped.of("הלך") is None, "unpointed, it is genuinely two verbs"

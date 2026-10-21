@@ -710,7 +710,7 @@ class Table:
         conjugation table is worse than no table, and the way out to Pealim is still on
         the card.
         """
-        found = self.by_form.get(bare(word)) or ()
+        found = self.candidates(word)
         if not found:
             return None
         if len(found) == 1:
@@ -751,6 +751,24 @@ class Table:
         if self._read_otherwise(found, chosen, written) or self.dotted_otherwise(chosen, seen):
             return None
         return self.verbs.get(chosen)
+
+    def candidates(self, word: str) -> tuple[str, ...]:
+        """The verbs a lemma or form could be, by its letters.
+
+        And a pi'el lemma written plene, where the table has it only defective
+        (targum-internal#307, 2026-10-21). DICTA writes the modern spelling, דיבר, קיבל,
+        ביקש, with a yod for the hiriq; the source stores the pointed דִּבֵּר, whose letters
+        are דבר. So the commonest pi'els in the language had no table at all: דיבר alone
+        was 1,851 verb tokens on the laptop's shelf in "no candidate". Only where the
+        spelling as written finds nothing, and only the pi'el among what the defective
+        spelling finds, since דבר is also דֻּבַּר and קרב also קָרַב.
+        """
+        letters = bare(word)
+        found = self.by_form.get(letters) or ()
+        if found or len(letters) != 4 or letters[1] != "י" or letters[0] == "י":
+            return found
+        defective = self.by_form.get(letters[0] + letters[2:]) or ()
+        return tuple(lid for lid in defective if self.binyan_of(lid) == "פיעל")
 
     def dotted_otherwise(self, lid: str, seen: str) -> bool:
         """Whether the word was pointed with a שׂ where the verb's lemma has a שׁ, or the
