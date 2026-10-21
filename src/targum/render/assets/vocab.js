@@ -352,6 +352,17 @@
           : pressed.title
         : t("vocab.legend", "How well do you know it?");
       box.appendChild(legend);
+      // What ignore is for, on the card and not in its title alone (targum-internal#476,
+      // B4; design.md §14, nothing is hover-only): a phone and a keyboard never see a
+      // title. Not under a word already ignored, whose legend says it.
+      // Inside the legend's own line, so the card grows no taller.
+      if (options.levels !== false && !(pressed && pressed.value === IGNORED)) {
+        var says = document.createElement("span");
+        says.className = "level-ignore-says";
+        says.textContent = t("vocab.legend.ignore-says", "Ignore is for names and numbers.");
+        legend.appendChild(document.createTextNode(" "));
+        legend.appendChild(says);
+      }
     }
 
     if (options.onNote) {

@@ -106,7 +106,15 @@
 
   {#- Somebody who has just failed to find what they wanted is exactly who needs the
       add page. A link, not a form: this page's job is browsing. -#}
-  <p class="elsewhere">{{ t("library.page.not-here", "Not here?") }} <a href="/add">{{ t("library.page.upload-your-own", "Upload your own") }}</a>.</p>
+  {#- A language with no shelf at all (targum-internal#476, B3): one card that says so
+      and offers Upload, in place of a search over nothing, an empty list's card and a
+      "Not here?" answering a search nobody made. `library.js` shows it. -#}
+  <section class="card no-shelf" id="no-shelf" hidden>
+    <p class="no-shelf-said" id="no-shelf-said"></p>
+    <a class="btn filled no-shelf-go" href="/add">{{ t("library.no-shelf.upload", "Upload a text") }}</a>
+    <p class="note no-shelf-works">{{ t("library.no-shelf.works", "Anything you upload in it is read, translated and given word cards.") }}</p>
+  </section>
+  <p class="elsewhere" id="elsewhere">{{ t("library.page.not-here", "Not here?") }} <a href="/add">{{ t("library.page.upload-your-own", "Upload your own") }}</a>.</p>
 </main>
 {% include '_foot.html.j2' %}
 

@@ -1362,3 +1362,25 @@ def test_every_hebrew_run_says_its_direction() -> None:
             if not re.search(r'\bdir="', tag):
                 loose.append(f"{page.name}: {tag[:80]}")
     assert not loose, "§14: Hebrew runs with no direction:\n" + "\n".join(loose)
+
+
+def test_a_page_in_russian_carries_the_cyrillic_face_and_one_in_english_does_not() -> None:
+    """design.md §13, "Russian is carried too" (2026-10-21; targum-internal#476, B1): the
+    chrome's Cyrillic subset is a second face of the same family whose range is the
+    Cyrillic block, carried only on a page rendered in Russian. A reader whose interface is
+    Russian carries the upright alone, as it does the Latin."""
+    ttlib = pytest.importorskip("fontTools.ttLib", reason="fontTools reads the faces")
+
+    from targum.render.builder import CHROME_CYRILLIC, _chrome_face, carried, progress_page
+
+    russian = carried(progress_page("k", "ru"))
+    english = carried(progress_page("k", "en"))
+    assert russian.count("unicode-range:U+0400-04FF,U+2011,U+2116") == 2
+    assert "unicode-range" not in english
+    assert str(_chrome_face(italic=False, cyrillic=True)).count("unicode-range") == 1
+    fonts = Path(__file__).parents[1] / "src" / "targum" / "render" / "assets"
+    for name in CHROME_CYRILLIC:
+        cmap = ttlib.TTFont(fonts / name).getBestCmap()
+        wanted = [*range(0x0410, 0x0450), 0x0401, 0x0451, 0x2116, 0x2011]
+        assert all(code in cmap for code in wanted), name
+        assert not any(0x41 <= code <= 0x7A for code in cmap), f"{name} carries no Latin"

@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Russian's surfaces, design's four blockers (targum-internal#476). A page in Russian
+  carries Source Sans 3's Cyrillic subset beside its Latin one, so a line is set in one
+  face (design.md §13, "Russian is carried too"); a page in English pays nothing, and a
+  reader carries the upright alone. The arrival no longer offers Torah and Judaism to a
+  reader learning Russian, Italian or French. A language with no shelf (Yiddish) is one
+  card that says so, with Upload and what works for it, not a search over nothing. The
+  word card says what ignore is for ("Ignore is for names and numbers."), in every
+  language, not in a title alone.
+
+### Fixed
 - The press that makes a playlist says "Create", not "Confirm", in the New playlist form
   and the Add-to-playlist menu (David, 2026-10-21; targum-internal#474).
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own

@@ -172,6 +172,17 @@ def test_the_second_question_is_a_few_subjects_and_none_is_an_answer() -> None:
     assert page["done"] is True and page["backShown"]
 
 
+@pytest.mark.parametrize("language", ["Russian", "Italian", "French"])
+def test_torah_and_judaism_is_asked_only_of_a_hebrew_script_shelf(language: str) -> None:
+    """targum-internal#476, B2: nothing on the Russian, Italian or French shelf answers
+    Torah and Judaism, so a reader learning one is not offered it (design.md §13: what
+    only Hebrew has hides under another language)."""
+    page = draw([], shared=seeded(), do=[{"learn": language}, {"press": "arrival-done"}])
+    assert page["subjectsUp"]
+    assert "Torah and Judaism" not in page["arrival"]
+    assert "News" in page["arrival"] and len(page["arrival"]) == 7
+
+
 def test_the_third_question_is_plain_words_with_no_letter() -> None:
     """No rung letters, no codes (the review's "level codes leak", 2026-10-09): what a
     person reads, in four sentences, and Continue waits for one."""

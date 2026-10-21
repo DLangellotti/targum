@@ -1885,3 +1885,9 @@ body.is-seeing .page-head { display: none; }
   .see-rows .sub-subscribe { min-block-size: 44px; }
   .elsewhere a { display: inline-block; padding-block: 0.7rem; }
 }
+
+/* A language with no shelf (targum-internal#476, B3): the line, Upload, and what works. */
+.no-shelf { display: flex; flex-direction: column; align-items: flex-start; gap: 0.75rem; padding: 1.5rem; margin-block: 1rem; }
+.no-shelf[hidden], .lib-find[hidden], .elsewhere[hidden] { display: none; }
+.no-shelf-said { margin: 0; font-size: 1.0625rem; }
+.no-shelf-works { margin: 0; }
