@@ -372,7 +372,7 @@ def test_the_menu_makes_a_new_playlist_with_the_text_in_it(browser, tmp_path: Pa
     page.wait_for_selector(".playlist-menu .pm-status:not([hidden])")
     sent = posted(page)
     context.close()
-    assert confirm == "Confirm"
+    assert confirm == "Create", "the press makes a playlist, so it says so (David, 2026-10-21)"
     assert sent == [["/playlists", {"name": "Morning", "reader": "jonah", "title": "יונה"}]]
     assert not thrown
 

@@ -6,6 +6,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The press that makes a playlist says "Create", not "Confirm", in the New playlist form
+  and the Add-to-playlist menu (David, 2026-10-21; targum-internal#474).
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
   rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
