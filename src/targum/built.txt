@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-20
+The Library measures each language by your known words in it, so Russian texts no longer go by your Hebrew.
+Upload takes a link pasted without https, and follows its build on the card it was priced on.
+Home, the Library, Your Words and Progress say when they cannot load, with Try again beside it.
+
 2026-10-19
 A film keeps playing past its first lines, and a recording that will not start says why.
 The Library opens in about half a second after Home, and a first visit loads sooner.

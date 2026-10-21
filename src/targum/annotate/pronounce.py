@@ -51,6 +51,52 @@ HATAMA = "֫"
 # words take the default like every unaccented one.
 METEG = "ֽ"
 
+# And the same mark is how phonikud is told a shva is said: fed לְֽהוֹסִיף it answers
+# `lehosˈif`, and fed לְהוֹסִיף `lhosˈif`, which no Hebrew speaker says
+# (targum-internal#492). phonikud carries the Academy's rule for a shva on a word's first
+# letter (`mark_vocal_shva`), but its phonemizer throws the rule's answer away, so every
+# לְדַבֵּר came out `ldabˈeʁ`. The rule is applied here instead, on the way in, after the
+# vocalizer's own meteg has come off. A shva past the first letter is left alone, as
+# phonikud leaves it: the rules mid-word are not reliable enough to state.
+SHVA = "ְ"
+# The first letter's shva is said where the letter is one of these…
+SAID_ON = "למנרי"
+# …where the next letter is one of these…
+SAID_BEFORE = "אהע"
+# …or where the letter is a prefix, which only the analysis knows: ב in בְּצֵל is "in",
+# and in בְּרָכָה it is the root. The token says so with `PREFIX_MARK` after the letter.
+SAID_AS_PREFIX = "בוכל"
+
+
+def vocal_shva(word: str, prefixed: bool = False) -> str:
+    """The word with its first letter's shva marked as said, where the Academy says it is.
+
+    https://hebrew-academy.org.il/2020/08/11/איך-הוגים-את-השווא-הנע — a shva on the first
+    letter is said on ל מ נ ר י, before א ה ע, and on a prefix; otherwise it is silent,
+    as in כְּבָר and שְׁמוֹנֶה.
+    """
+    letters = [at for at, char in enumerate(word) if ord(char) in LETTERS]
+    if not letters:
+        return word
+    first = letters[0]
+    end = letters[1] if len(letters) > 1 else len(word)
+    if SHVA not in word[first:end]:
+        return word
+    char = word[first]
+    following = word[letters[1]] if len(letters) > 1 else ""
+    if char in SAID_ON or following in SAID_BEFORE or (prefixed and char in SAID_AS_PREFIX):
+        return word[:end] + METEG + word[end:]
+    return word
+
+
+def as_prefixed(word: str) -> str:
+    """The word with `PREFIX_MARK` after its first letter and that letter's marks."""
+    letters = [at for at, char in enumerate(word) if ord(char) in LETTERS]
+    if len(letters) < 2:
+        return word
+    return word[: letters[1]] + PREFIX_MARK + word[letters[1] :]
+
+
 # A Masoretic accent sits on the stressed syllable — that is what it is for, before it is
 # a tune — so a pointed Tanakh has already answered the question phonikud has to guess at.
 # These are the accents that sit somewhere else: prepositive ones on the first letter of
@@ -314,6 +360,7 @@ class PhonikudPronouncer:
         out: dict[str, str] = {}
         failed = 0
         for surface in surfaces:
+            prefixed = PREFIX_MARK in surface
             word = surface.replace(PREFIX_MARK, "")
             if not sayable(word):
                 continue
@@ -323,7 +370,7 @@ class PhonikudPronouncer:
             # removing them a translation rather than a loss.
             if has_taamim(word):
                 word = stressed(word) or strip_taamim(word)
-            word = word.replace(METEG, "")
+            word = vocal_shva(word.replace(METEG, ""), prefixed)
             try:
                 said = phonikud.phonemize(word)
             except Exception as error:  # noqa: BLE001 - a third-party rule table

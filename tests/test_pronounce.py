@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from targum.annotate import Annotator, PhonikudPronouncer, pronounceable
-from targum.annotate.pronounce import PREFIX_MARK, sayable
+from targum.annotate.pronounce import PREFIX_MARK, as_prefixed, sayable, vocal_shva
 from targum.models import Annotation, Segment, SegmentedDocument, Token, Vocalization
 from targum.vocalize.base import TAAMIM, strip_taamim
 
@@ -151,7 +151,42 @@ def test_the_prefix_mark_never_reaches_the_phonemizer() -> None:
     what makes adopting that diacritizer later a decision rather than an incident.
     """
     said = PhonikudPronouncer().say([f"בְּ{PREFIX_MARK}צֵל"])
-    assert said[f"בְּ{PREFIX_MARK}צֵל"] == "btsˈel"
+    # The pipe is read as what it means, a prefix, so its shva is said (#492).
+    assert said[f"בְּ{PREFIX_MARK}צֵל"] == "betsˈel"
+
+
+@pytest.mark.parametrize(
+    ("word", "reading"),
+    [
+        # On ל מ נ ר י, and before א ה ע: said (targum-internal#492).
+        ("לְהוֹסִיף", "lehosˈif"),
+        ("לְהַגִּיד", "lehaɡˈid"),
+        ("בְּהֶחְלֵט", "beheχlˈet"),
+        ("לְדַבֵּר", "ledabˈeʁ"),
+        ("מְדַבֵּר", "medabˈeʁ"),
+        ("יְלָדִים", "jeladˈim"),
+        ("בְּאֵר", "beʔˈeʁ"),
+        # Anywhere else on the first letter: silent, as Israelis say these.
+        ("כְּבָר", "kvˈaʁ"),
+        ("שְׁמוֹנֶה", "ʃmonˈe"),
+        ("סְפָרִים", "sfaʁˈim"),
+    ],
+)
+def test_a_first_shva_is_said_where_the_academy_says_it_is(word: str, reading: str) -> None:
+    """phonikud states the rule and its phonemizer drops its answer, so it is applied here."""
+    assert PhonikudPronouncer().say([word])[word] == reading
+
+
+def test_a_prefix_the_analysis_found_says_its_shva() -> None:
+    """ב in בְּצֵל "in the shade" is a prefix and is said; the letters alone cannot tell."""
+    said = PhonikudPronouncer().say([as_prefixed("בְּצֵל"), "בְּצֵל"])
+    assert said[as_prefixed("בְּצֵל")] == "betsˈel"
+    assert said["בְּצֵל"] == "btsˈel"
+
+
+def test_a_shva_past_the_first_letter_is_left_alone() -> None:
+    assert vocal_shva("אָכַלְתִּי") == "אָכַלְתִּי"
+    assert vocal_shva("hello") == "hello"
 
 
 def test_a_reading_is_the_same_word_by_word_as_in_its_sentence() -> None:
