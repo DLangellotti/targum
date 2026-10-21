@@ -2149,7 +2149,7 @@
   "playlists.delete-confirm": "Yes, delete",
   "playlists.delete-confirm-named": "Yes, delete {name}",
   "playlists.deleted": "Deleted {name}.",
-  "playlists.offline-saved": "Playlists you saved are under {saved}.",
+  "playlists.offline-saved": "Playlists you saved for offline are under {saved}.",
   "playlists.saved-link": "Saved on this device",
   "playlist-menu.load-failed": "We couldn't load your playlists. Try again.",
   "reader.list.end-of": "That's the end of {name}.",

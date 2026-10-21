@@ -848,6 +848,6 @@ def test_offline_the_tab_says_where_saved_playlists_are_once(browser, tmp_path: 
     context.close()
     assert not thrown, thrown
     assert panels == 0, "no second fault under the band"
-    assert said == "Playlists you saved are under Saved on this device."
+    assert said == "Playlists you saved for offline are under Saved on this device."
     assert href.startswith("/you/saved")
     assert gone

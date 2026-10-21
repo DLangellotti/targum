@@ -2292,7 +2292,7 @@
   "playlists.delete-confirm": "Да, удалить",
   "playlists.delete-confirm-named": "Да, удалить «{name}»",
   "playlists.deleted": "Плейлист «{name}» удалён.",
-  "playlists.offline-saved": "Сохранённые плейлисты — в разделе «{saved}».",
+  "playlists.offline-saved": "Плейлисты, сохранённые офлайн, — в разделе «{saved}».",
   "playlists.saved-link": "Сохранено на этом устройстве",
   "playlist-menu.load-failed": "Не удалось загрузить плейлисты. Попробуйте ещё раз.",
   "reader.list.end-of": "Плейлист «{name}» закончился.",

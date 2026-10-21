@@ -1043,7 +1043,7 @@
     holder.textContent = "";
     holder.hidden = false;
     var line = element("p", "note pl-away");
-    var said = t("playlists.offline-saved", "Playlists you saved are under {saved}.");
+    var said = t("playlists.offline-saved", "Playlists you saved for offline are under {saved}.");
     var cut = said.indexOf("{saved}");
     var link = element("a", "", t("playlists.saved-link", "Saved on this device"));
     link.href = keyed("/you/saved");
