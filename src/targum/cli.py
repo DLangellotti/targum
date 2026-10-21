@@ -2255,6 +2255,15 @@ def thumbs(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Count what would happen; write nothing.")
     ] = False,
+    box: Annotated[
+        Path | None,
+        typer.Option(
+            "--for-box",
+            help="Write what a deploy carries into this folder (sources.json, exclude); "
+            "nothing else.",
+            hidden=True,
+        ),
+    ] = None,
 ) -> None:
     """Give every library text its picture: its own where its licence allows, drawn if not.
 
@@ -2264,20 +2273,42 @@ def thumbs(
     derivative and has no NonCommercial term. Everything else is drawn: its first letter
     on its kind's colour, made when it is asked for, so nothing is written for it.
 
+    Every picture in `thumbs/` gets a line in `thumbs/sources.json` saying where it came
+    from; a drawn cover with none is written down as drawn, dated by its file. The rows
+    left with only the letter tile are named, and counted by origin: own, drawn, tile.
+
     Spends no model money. Writes `thumbs/<entry id>.webp` and `thumbs/sources.json`.
     """
     from collections import Counter
+    from datetime import date
 
     from . import catalogue as catalogue_module
+    from . import covers as covers_module
     from . import thumbs as thumbs_module
     from .audio.manifest import POSTER
     from .ingest import url as url_module
 
     root = out or Path.cwd() / "targum-out"
     where = root / "thumbs"
-    if not thumbs_module.can_keep():
+    if not dry_run and box is None and not thumbs_module.can_keep():
         fail(TargumError("Nothing here can shrink a picture.", "uv sync --extra covers"))
     sources = thumbs_module.read_sources(where)
+    written = dict(sources)
+
+    # The drawn covers with no line yet, before anything below adds a picture of its own.
+    unrecorded = thumbs_module.backfill(
+        where, sources, covers_module.build().name, date.today().isoformat()
+    )
+
+    if box is not None:
+        # deploy.sh's: the library's lines, and the pictures that are not the library's.
+        ids = {entry.id for entry in catalogue_module.CATALOGUE}
+        lines, behind = thumbs_module.for_box(where, sources, ids)
+        thumbs_module.write_sources(box, lines)
+        write_atomic(
+            box / "exclude", "".join(thumbs_module.rsync_pattern(n) + "\n" for n in behind)
+        )
+        return
 
     # A video's frame, from any copy of it built on this disk.
     frames: dict[str, Path] = {}
@@ -2297,11 +2328,13 @@ def thumbs(
             console.print(f"[yellow]The image bank's licences did not load:[/yellow] {error}")
 
     counts: Counter[str] = Counter()
+    origins: Counter[str] = Counter()
     by_language: Counter[tuple[str, str]] = Counter()
+    bare: list[str] = []
     for entry in catalogue_module.CATALOGUE:
-        got = "drawn"
+        got = thumbs_module.TILE
         if thumbs_module.has_picture(where, entry.id):
-            got = sources.get(entry.id, {}).get("from") or "drawn cover"
+            got = sources.get(entry.id, {}).get("from") or thumbs_module.DRAWN
         elif entry.source in frames:
             target = where / f"{entry.id}.webp"
             if dry_run or thumbs_module.keep(frames[entry.source].read_bytes(), target):
@@ -2318,26 +2351,40 @@ def thumbs(
                         sources[entry.id] = {"from": what, "url": address, "licence": licence}
             except (TargumError, ValueError) as error:
                 console.print(f"[dim]{entry.id}: {error}[/dim]")
-        counts[got] += 1
-        by_language[(entry.language, "drawn" if got == "drawn" else "own")] += 1
-
-    if not dry_run and sources:
-        write_atomic(
-            where / thumbs_module.SOURCES,
-            json.dumps(sources, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+        kind = (
+            thumbs_module.TILE
+            if got == thumbs_module.TILE
+            else thumbs_module.origin(sources.get(entry.id))
         )
+        if kind == thumbs_module.TILE:
+            bare.append(entry.id)
+        counts[got] += 1
+        origins[kind] += 1
+        by_language[(entry.language, kind)] += 1
+
+    if not dry_run and sources != written:
+        thumbs_module.write_sources(where, sources)
     table = Table("picture", "rows")
     for what, number in counts.most_common():
         table.add_row(what, str(number))
     console.print(table)
+    kinds = (thumbs_module.OWN, thumbs_module.DRAWN, thumbs_module.TILE)
     console.print(
         "[dim]"
         + " · ".join(
-            f"{code} {by_language[(code, 'own')]} pictured, {by_language[(code, 'drawn')]} drawn"
+            f"{code} " + ", ".join(f"{by_language[(code, kind)]} {kind}" for kind in kinds)
             for code in sorted({language for language, _ in by_language})
         )
         + "[/dim]"
     )
+    if unrecorded:
+        verb = "would be" if dry_run else "were"
+        console.print(f"{unrecorded} drawn covers {verb} written into sources.json.")
+    for name in bare:
+        console.print(f"[dim]  {name}[/dim]", soft_wrap=True)
+    # Plain lines, not Rich's: deploy.sh reads the last one.
+    typer.echo(" · ".join(f"{origins[kind]} {kind}" for kind in kinds))
+    typer.echo(f"{len(bare)} {'row' if len(bare) == 1 else 'rows'} without a picture")
 
 
 @app.command()

@@ -410,3 +410,115 @@ def read_sources(where: Path) -> dict[str, dict[str, str]]:
 
 def has_picture(where: Path, name: str) -> bool:
     return any((where / f"{name}{suffix}").is_file() for suffix in (".webp", ".png", ".jpg"))
+
+
+# -- where each library picture came from ------------------------------------------------
+
+#: A picture on the shelf is one of three things, and the batch counts them so: the row's
+#: own (a video's poster or frame, a book's cover, each with its licence), one drawn for
+#: it by the image model, or none, which leaves it the letter tile (targum-internal#429).
+OWN, DRAWN, TILE = "own", "drawn", "tile"
+
+#: What a picture file in `thumbs/` can be called. A dotfile is a partial write.
+_PICTURES = (".webp", ".png", ".jpg")
+
+
+def origin(entry: dict[str, str] | None) -> str:
+    """Own or drawn, from a `sources.json` entry. A file with no entry is a drawn cover:
+    the batch writes an entry for every picture it fetches in the same run, and before
+    2026-10-21 the drawing never wrote one."""
+    if not entry or entry.get("from", DRAWN) == DRAWN:
+        return DRAWN
+    return OWN
+
+
+def drawn_entry(model: str, day: str, backfilled: str = "") -> dict[str, str]:
+    """A drawn cover's line in `sources.json`: which model drew it, and on what day.
+    `backfilled` is the day the line was written, for one written after the drawing, whose
+    day is then the file's own."""
+    entry = {"from": DRAWN, "model": model, "date": day}
+    if backfilled:
+        entry["backfilled"] = backfilled
+    return entry
+
+
+def pictures(where: Path) -> list[Path]:
+    """Every picture file in `thumbs/` itself: not a dotfile, and not in a subdirectory."""
+    if not where.is_dir():
+        return []
+    return sorted(
+        found
+        for found in where.iterdir()
+        if found.is_file() and found.suffix in _PICTURES and not found.name.startswith(".")
+    )
+
+
+def unrecorded(where: Path, sources: dict[str, dict[str, str]]) -> list[Path]:
+    """The picture files `sources.json` says nothing about."""
+    return [found for found in pictures(where) if found.stem not in sources]
+
+
+def backfill(where: Path, sources: dict[str, dict[str, str]], model: str, today: str) -> int:
+    """Write a drawn line for every picture with none, dated by its file, and say how many.
+
+    Only the image model's covers ever went without a line (see `origin`), and it has
+    been the one model since the first was drawn, so `model` is the illustrator's own."""
+    from datetime import date
+
+    missing = unrecorded(where, sources)
+    for found in missing:
+        day = date.fromtimestamp(found.stat().st_mtime).isoformat()
+        sources[found.stem] = drawn_entry(model, day, backfilled=today)
+    return len(missing)
+
+
+def write_sources(where: Path, sources: dict[str, dict[str, str]]) -> None:
+    from .paths import write_atomic
+
+    where.mkdir(parents=True, exist_ok=True)
+    write_atomic(
+        where / SOURCES, json.dumps(sources, ensure_ascii=False, indent=1, sort_keys=True) + "\n"
+    )
+
+
+def record(where: Path, name: str, entry: dict[str, str]) -> None:
+    """Add one picture's line to `sources.json`, under a lock: covers are drawn by jobs
+    that can run side by side, and each rewrites the whole file."""
+    import fcntl
+
+    where.mkdir(parents=True, exist_ok=True)
+    with (where / f".{SOURCES}.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            sources = read_sources(where)
+            sources[name] = entry
+            write_sources(where, sources)
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+_CHAPTER = re.compile(r"^(?P<book>.+)-c\d{3}$")
+
+
+def is_library(name: str, ids: set[str]) -> bool:
+    """Whether a picture's name is a library row's, or one of its chapters'. Anything else
+    in `thumbs/` is an upload's cover (`<home>-<name>`) or a row since retired."""
+    chapter = _CHAPTER.match(name)
+    return name in ids or (chapter is not None and chapter.group("book") in ids)
+
+
+def for_box(
+    where: Path, sources: dict[str, dict[str, str]], ids: set[str]
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """What a deploy carries to the box: the library's lines of `sources.json`, and the
+    names of the picture files it leaves behind. The box draws its own upload covers; one
+    drawn on this machine under the same `<home>-<name>` would replace it, file and line."""
+    lines = {name: entry for name, entry in sources.items() if is_library(name, ids)}
+    behind = [found.name for found in pictures(where) if not is_library(found.stem, ids)]
+    return lines, behind
+
+
+def rsync_pattern(name: str) -> str:
+    """A file name as an rsync exclude anchored at the top: its wildcards escaped, since
+    an upload's name can hold brackets (`p3-[115]-…`)."""
+    return "/" + re.sub(r"([\[\]*?\\])", r"\\\1", name)

@@ -186,21 +186,69 @@ scp -q deploy/targum-backup.service deploy/targum-backup.timer \
 # by hand on 2026-10-08. Read from the main checkout's targum-out by default, so a deploy
 # from a worktree, which has no targum-out of its own, still carries them; skipped when
 # there are none. Never --delete: the box draws a cover for every upload, named
-# <home>-<name>.webp, and this machine has none of those. Dotfiles and partial writes stay
-# behind (a cover is written as .<name>.part and renamed). macOS rsync is 2.6.9 and has
+# <home>-<name>.webp. So does this machine, for its own uploads, and those stay behind:
+# only the library's pictures (a row's, or a chapter's) go, because a laptop upload under
+# the same <home>-<name> would replace the box's, picture and line. `targum thumbs
+# --for-box` names what stays. Dotfiles and partial writes stay behind too (a cover is
+# written as .<name>.part and renamed). macOS rsync is 2.6.9 and has
 # no --chown, so the files arrive as root and are handed to the service after.
+#
+# sources.json says where each picture came from, and both machines write it: this one
+# for the library, the box for every upload cover it draws. So it is merged rather than
+# copied: this machine's library lines win, and the box keeps every line only it has. The
+# merge takes the lock the box's own writers take (thumbs.record), so a cover drawn there
+# during a deploy keeps its line.
+#
+# Before anything goes, the count of library rows with no picture at all, only the letter
+# tile (targum-internal#429): a row filed after the last drawing shows up here rather than
+# on the shelf. Read by this tree's own catalogue, which is the one being shipped.
 COMMON_GIT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$ROOT/.git")"
 MAIN_CHECKOUT="$(dirname "$COMMON_GIT")"
 THUMBS="${TARGUM_THUMBS:-$MAIN_CHECKOUT/targum-out/thumbs}"
 REMOTE_THUMBS="${TARGUM_REMOTE_THUMBS:-/var/lib/targum/targums/thumbs}"
+THUMBS_CLI="${TARGUM_THUMBS_CLI:-uv run targum thumbs}"
+MERGE_SOURCES='import fcntl, json, os, sys
+path = sys.argv[1]
+mine = json.load(sys.stdin)
+with open(os.path.join(os.path.dirname(path), ".sources.json.lock"), "a") as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        with open(path, encoding="utf-8") as held:
+            kept = json.load(held)
+    except (OSError, ValueError):
+        kept = {}
+    kept.update(mine)
+    with open(path + ".part", "w", encoding="utf-8") as out:
+        out.write(json.dumps(kept, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+    os.replace(path + ".part", path)'
 if [ -d "$THUMBS" ]; then
-  ssh "${SSH_OPTS[@]}" "$HOST" "mkdir -p '$REMOTE_THUMBS'"
-  # rsync's own ssh, kept talking like every other one here.
-  RSYNC_RSH="$(printf '%q ' ssh "${SSH_OPTS[@]}")" rsync -a -q --delay-updates \
-    --exclude='.*' --exclude='*.part' --exclude='*.tmp' --exclude='*~' \
-    "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
-  ssh "${SSH_OPTS[@]}" "$HOST" "chown -R targum:targum '$REMOTE_THUMBS'"
-  echo "   $(find "$THUMBS" -type f -name '*.webp' | wc -l | tr -d ' ') covers"
+  # shellcheck disable=SC2086 # the command is separate words on purpose
+  BARE="$($THUMBS_CLI --dry-run --no-fetch --out "$(dirname "$THUMBS")" 2>/dev/null \
+    | grep -E '^[0-9]+ rows? without a picture$' || true)"
+  echo "   ${BARE:-the rows without a picture could not be counted}"
+  CARRIED="$(mktemp -d)"
+  # shellcheck disable=SC2086
+  if ! $THUMBS_CLI --for-box "$CARRIED" --out "$(dirname "$THUMBS")" >/dev/null 2>&1; then
+    # Nothing to say which pictures are the library's: carry none of them rather than
+    # risk a laptop upload over a box one.
+    echo "   the library's pictures could not be told apart; covers not carried" >&2
+    rm -rf "$CARRIED"
+    CARRIED=""
+  fi
+  if [ -n "$CARRIED" ]; then
+    ssh "${SSH_OPTS[@]}" "$HOST" "mkdir -p '$REMOTE_THUMBS'"
+    # rsync's own ssh, kept talking like every other one here.
+    RSYNC_RSH="$(printf '%q ' ssh "${SSH_OPTS[@]}")" rsync -a -q --delay-updates \
+      --exclude='.*' --exclude='*.part' --exclude='*.tmp' --exclude='*~' \
+      --exclude='/sources.json' --exclude-from="$CARRIED/exclude" \
+      "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
+    ssh "${SSH_OPTS[@]}" "$HOST" "python3 -c '$MERGE_SOURCES' '$REMOTE_THUMBS/sources.json'" \
+      < "$CARRIED/sources.json"
+    SHIPPED=$(( $(find "$THUMBS" -type f -name '*.webp' | wc -l) - $(wc -l < "$CARRIED/exclude") ))
+    rm -rf "$CARRIED"
+    ssh "${SSH_OPTS[@]}" "$HOST" "chown -R targum:targum '$REMOTE_THUMBS'"
+    echo "   $SHIPPED covers"
+  fi
 fi
 
 # The keys, over the connection's own stdin rather than scp: nothing holding them is
