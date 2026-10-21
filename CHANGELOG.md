@@ -622,6 +622,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   a string key (`public.head.preview-alt`), so the Russian page can carry its own.
   The Russian twins are stale until ling-ru re-reads them, so `test_strings` names them
   until then.
+- The front door's lede is two plain sentences and an offer: "Everything here arrives
+  ready to read. Every word has its vowels (nikkud) and every line has its English
+  beside it. Tap any word and we'll explain it." It opened on an aphorism and carried a
+  colon list. The headline and the four points under the box are unchanged, as design.md
+  holds them (2026-10-02, amended here).
 - A video text has a viewer of its own (targum-internal#422, David's A + B + C from the
   mockups). **Beside**: the picture at the left with one thin row under it — play and
   pause, the time, a hairline of where the voice is (the line being said a faint band on
