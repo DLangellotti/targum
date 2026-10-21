@@ -627,8 +627,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the tap card still says each vowel we add is marked (design.md, 2026-10-02). The expired sign-in link's heading is "That link no longer
   works", since it may have been used rather than timed out. The link preview's alt is
   a string key (`public.head.preview-alt`), so the Russian page can carry its own.
-  The Russian twins are stale until ling-ru re-reads them, so `test_strings` names them
-  until then.
+  The Russian lines were redrafted and re-stamped with it.
 - The front door's lede is two plain sentences and an offer: "Everything here arrives
   ready to read. Every word has its vowels (nikkud) and every line has its English
   beside it. Tap any word and we'll explain it." It opened on an aphorism and carried a
