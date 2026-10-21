@@ -388,6 +388,7 @@
     return english;
   };
   var NOT_NOW = t("reader.page.pdf-not-now", "We can't make the PDF right now. Try again in a minute.");
+  var OFFLINE = t("reader.page.pdf-offline", "You're offline. The PDF is made on targum, so it needs a connection.");
 
   function tell(text) {
     if (said) {
@@ -409,10 +410,22 @@
     link.setAttribute("aria-busy", "true");
     if (name) name.textContent = t("reader.page.preparing-pdf", "Preparing PDF…");
     tell("");
+    // Past three seconds the press says it is still at it (§14.1; targum-internal#409):
+    // the sheet takes five or six on the box, and a press quiet for that long is pressed
+    // again.
+    var slow = setTimeout(function () {
+      tell(t("reader.page.pdf-still", "Still making your PDF…"));
+    }, 3000);
     function done() {
+      clearTimeout(slow);
       link.classList.remove("making");
       link.removeAttribute("aria-busy");
       if (name) name.textContent = was;
+    }
+    // Offline, the sheet cannot be made, and saying "try again in a minute" was wrong.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      done();
+      return tell(OFFLINE);
     }
     fetch(link.href, { credentials: "same-origin" })
       .then(function (response) {
@@ -441,7 +454,8 @@
       })
       .catch(function (why) {
         done();
-        tell(why && why.said ? why.said : NOT_NOW);
+        var away = typeof navigator !== "undefined" && navigator.onLine === false;
+        tell(why && why.said ? why.said : away ? OFFLINE : NOT_NOW);
       });
   }
 

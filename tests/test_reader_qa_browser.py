@@ -430,6 +430,30 @@ def test_the_sheet_from_a_later_page_keeps_the_vowels_and_the_teamim(browser, se
     context.close()
 
 
+def test_the_reader_s_sheet_press_says_when_it_is_slow_and_when_offline(
+    browser, served: str
+) -> None:
+    """targum-internal#409, slice 2: past three seconds, "Still making your PDF…"; offline,
+    that the PDF needs a connection."""
+    context, page = opened(browser, served, DESK)
+    page.route("**/*.pdf*", lambda route: None)  # held: never answered
+    page.click("#print-open")
+    page.locator(SHEET).first.click()
+    page.wait_for_timeout(3300)
+    slow = page.locator("#sheet-said").inner_text()
+    context.close()
+    assert slow == "Still making your PDF…", slow
+
+    context, page = opened(browser, served, DESK)
+    context.set_offline(True)
+    page.click("#print-open")
+    page.locator(SHEET).first.click()
+    page.wait_for_timeout(200)
+    offline = page.locator("#sheet-said").inner_text()
+    context.close()
+    assert offline == "You're offline. The PDF is made on targum, so it needs a connection."
+
+
 # -- S1 and S3: the bar on a phone ---------------------------------------------------------
 
 TOOLS = """

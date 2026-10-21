@@ -3920,5 +3920,9 @@
   "lists.anki.without-sound": "We couldn't add the sounds just now, so the deck has none.",
   "lists.anki.capped": "You've had this month's sounds for decks, so the rest have none.",
   "lists.anki.refused": "We couldn't make new sounds just now, so those words have none.",
-  "serve.anki-nothing": "There are no saved words here to put in a deck."
+  "serve.anki-nothing": "There are no saved words here to put in a deck.",
+  "reader.page.pdf-still": "Still making your PDF…",
+  "reader.page.pdf-offline": "You're offline. The PDF is made on targum, so it needs a connection.",
+  "parasha.sheet.still": "Still making your PDF…",
+  "parasha.sheet.offline": "You're offline. The PDF is made on targum, so it needs a connection."
 }
