@@ -2761,7 +2761,7 @@ on asked "I know this" or "Still learning" instead.
   outlined; ignore after a gap as a quiet word. On a phone each segment is a thumb tall.
   This retires the accent fill for a pressed level (2026-08-28): the ramp says which step
   a word is on, and the accent said only that something was pressed.
-- **On cards the stage's own name is written under it**: "Getting there", "Known",
+- **On cards the stage's own name is written under it**: "Getting there", "Known" *(Still learning, Known since 2026-10-21)*,
   "Ignored: a name or a number" — every card, the reader's phrase cards included. Dense
   rows (the list beside the text, the Words table) carry the control without the name.
   *(The Words table names it in a column of its own since the same day: "Your Words is
@@ -2788,7 +2788,7 @@ Your Progress's "Practise these words", one language at a time, the one the menu
   they are the Phrases tab. The way back to Your targums at the foot goes: the nav
   already has it.
 - **The stage is chips, not a select**: To work on (steps 1 to 3, where it opens), Just
-  met, Getting there, Nearly there, Known, All — the step names the control itself uses
+  met, Getting there, Nearly there, Known, All *(New to you, Still learning, Almost known since 2026-10-21)* — the step names the control itself uses
   (`vocab.js` `steps()`), and the choice remembered in this browser. *(Ignored follows
   All since 2026-10-11: "An ignored word can be taken back, and found under Ignored".)*
 - **Every row carries the five stages**: the same control the card has, pressed in the
@@ -2811,8 +2811,8 @@ The page drew the words still being learned twice — What to work on over the t
 beside a word. Now:
 
 - **One card holds the list**: Words and Phrases as tabs with the find field in its
-  head, the stages as tabs (To work on · Just met · Getting there · Nearly there · Known
-  · All, and Ignored since 2026-10-11), then **Met often**, pressed on and off apart
+  head, the stages as tabs (To work on · New to you · Still learning · Almost known · Known
+  · All, named so since 2026-10-21, and Ignored since 2026-10-11), then **Met often**, pressed on and off apart
   from them, and one table — the word, its meaning, **Met in** (how many texts), its
   stage by name on the ramp's
   colour, and the five stages — with "Most met first" and Show more at its foot. On a

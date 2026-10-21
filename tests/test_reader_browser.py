@@ -1104,16 +1104,16 @@ def test_the_stage_a_word_has_pressed_again_stays(page) -> None:
     assert page.evaluate(TAP_ABOVE), "no word in the top half of the window to tap"
     page.evaluate(COUNT_SENT)
 
-    page.locator("#gloss-card .level", has_text="3").first.click()
+    page.locator("#gloss-card .level-3").first.click()
     assert list(page.evaluate(STAGES).values()) == [3]
-    page.locator("#gloss-card .level", has_text="3").first.click()
+    page.locator("#gloss-card .level-3").first.click()
 
     assert list(page.evaluate(STAGES).values()) == [3], "the second press took the mark off"
     assert page.evaluate("() => window.__sent") == 1, "the second press sent a change"
     pressed = page.evaluate(
         "() => document.querySelector('#gloss-card .level[aria-pressed=\"true\"]')?.textContent"
     )
-    assert pressed == "3", f"the card shows {pressed!r} pressed after a second press of 3"
+    assert pressed == "Almost", f"the card shows {pressed!r} pressed after a second press of 3"
 
 
 #: A word looked up: what the card says it means, and whether it is still offering to

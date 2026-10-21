@@ -3056,7 +3056,7 @@ def test_a_word_claimed_from_the_list_shows_its_meaning(browser, width: int) -> 
             "() => !!JSON.parse(localStorage.getItem('targum:meanings:he:en') || '{}')['עם']",
             timeout=5000,
         )
-        known = page.locator("#stage-chips [data-stage]", has_text="Known")
+        known = page.locator("#stage-chips [data-stage]").filter(has_text=re.compile(r"^\s*Known\b"))
         if known.count():
             known.first.click()
         page.wait_for_selector("#word-rows tr[data-word='עם']")

@@ -85,7 +85,6 @@ code that makes it true. The audit found these five failures most often:
 | One item in the library or a playlist | a text | a doc, a book (unless it is one) |
 | Making a text ready | get it ready, make it | build, built, quote |
 | Talking with targum, in the app or in Claude/ChatGPT | **chat**, chatting; the list is **Chats**; the button and drawer are **Talk to targum** | talk as a noun ("Talk needs the connection"), conversation (except where it means a dialogue in a scene), check, turn |
-| Setting a word's level | mark (just met · getting there · nearly there · known) | rate, score |
 | The `m` toggle that tints unlearned words | highlight | mark |
 | Words the reader has put on their list | **saved** words, save | kept, keep the words (David, 2026-10-18; still in `reader.page.what-you-have-kept-from-this-text` and `print.week.kept`) |
 | The allowance | credits | hours, minutes (as a pool), balance points |
