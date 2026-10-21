@@ -2960,6 +2960,8 @@ var targumReader = function () {
       // And a Russian subject standing after its verb, for the word-order lens
       // (`annotate/word_order.py`).
       if (feat(governedLine, "Order") === "VS") classes.push("late-subject");
+      // And a vav-consecutive on a Biblical page, for the vav lens (targum-internal#449).
+      if (feat(governedLine, "Vav") === "Cons") classes.push("vav-cons");
       var status = statusOf(lemma);
       layers.push({
         start: at(token[0]),
@@ -5312,6 +5314,7 @@ var targumReader = function () {
       body.setAttribute("data-case", chosen);
       showGoverned(false, true);
       showOrder(false, true);
+      showVav(false, true);
     } else body.removeAttribute("data-case");
     if (caseLens) caseLens.value = chosen;
     say(
@@ -5370,6 +5373,7 @@ var targumReader = function () {
     } else body.removeAttribute("data-lens");
     if (governedLens) governedLens.setAttribute("aria-pressed", name === "governed" ? "true" : "false");
     if (orderLens) orderLens.setAttribute("aria-pressed", name === "order" ? "true" : "false");
+    if (vavLens) vavLens.setAttribute("aria-pressed", name === "vav" ? "true" : "false");
   }
 
   function showGoverned(on, quietly) {
@@ -5427,6 +5431,47 @@ var targumReader = function () {
   function toggleOrder() {
     if (!orderLens || orderLens.hidden) return false;
     return showOrder(body.getAttribute("data-lens") !== "order");
+  }
+
+  /* The vav lens: every vav-consecutive on a Biblical page, lit (targum-internal#449,
+   * 2026-10-21). ויאמר is spelled as the future, "he will say", and read as the past, "he
+   * said"; the narrative runs on it, and a reader who takes the spelling at its word reads
+   * the whole story as yet to happen. */
+  var vavLens = document.querySelector("[data-vav-lens]");
+  function vavCount() {
+    var count = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (token.length > 8 && feat(grammarTable[token[8]] || "", "Vav") === "Cons") count++;
+      });
+    });
+    return count;
+  }
+
+  function showVav(on, quietly) {
+    if (!vavLens) return false;
+    if (on) lensOn("vav");
+    else if (body.getAttribute("data-lens") === "vav") lensOn("");
+    if (quietly) return true;
+    say(
+      on
+        ? cueOnce("vav", t("reader.lens.vav-cue", "Each word lit is a future form the vav turns into the past.")) ||
+            t("reader.lens.vav-said", "The narrative past, {n} here.", { n: vavCount() })
+        : t("reader.lens.none", "No lens shown.")
+    );
+    return true;
+  }
+
+  if (vavLens) {
+    vavLens.addEventListener("click", function () {
+      showVav(body.getAttribute("data-lens") !== "vav");
+    });
+  }
+
+  // `y` turns the vav lens on and off, where the page has it and it is offered.
+  function toggleVav() {
+    if (!vavLens || vavLens.hidden) return false;
+    return showVav(body.getAttribute("data-lens") !== "vav");
   }
 
   if (openedBefore || finishedAt()) offerLenses();
@@ -6276,6 +6321,15 @@ var targumReader = function () {
       goes.setAttribute("lang", wordLanguage(index));
       goes.textContent = wordOf(governor) + " " + prepositionShown(by);
       facts.add(t("reader.card.goes-with", "Goes with"), goes);
+    }
+    // A vav-consecutive says why it is past, though it is spelled as the future: Hebrew's
+    // eighth hard spot (targum-internal#449, 2026-10-21). Biblical text only, as the
+    // builder marks it.
+    if (feat(takesLine, "Vav") === "Cons") {
+      var vav = document.createElement("span");
+      vav.className = "card-vav";
+      vav.textContent = t("reader.card.vav-turns", "the vav turns the future form into narrative past");
+      facts.add(t("reader.card.vav-past", "Past"), vav);
     }
     facts.place(card);
 
@@ -10927,6 +10981,9 @@ var targumReader = function () {
         break;
       case "w":
         if (!toggleOrder()) return;
+        break;
+      case "y":
+        if (!toggleVav()) return;
         break;
       case "c":
         if (!nextCase()) return;

@@ -29,6 +29,7 @@
     agreement: ["practice.spot.agreement", "Gender and number"],
     construct: ["practice.spot.construct", "The construct state"],
     stress: ["practice.spot.stress", "Stress"],
+    vav: ["practice.spot.vav", "The vav-consecutive"],
   };
 
   function at(id) {

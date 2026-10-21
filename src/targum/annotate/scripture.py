@@ -242,6 +242,12 @@ def features(code: str) -> str | None:
             kept.append(f"Tense={tense}")
         if form:
             kept.append(f"VerbForm={form}")
+        # And the vav-consecutive says it is one, beside the past it means: Hebrew's
+        # eighth hard spot (targum-internal#449, 2026-10-21). Its own key, not `Aspect`,
+        # which the card reads as a Russian verb's aspect. A text annotated before this
+        # has the same mark from the build, read off the pointing (`builder._vav_line`).
+        if code[2] == "w":
+            kept.append("Vav=Cons")
     return "|".join(part for part in kept if part) or None
 
 

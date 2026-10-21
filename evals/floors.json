@@ -753,6 +753,22 @@
   },
   {
     "stage": "lemma",
+    "corpus": "oshb-wlc",
+    "metric": "vav_precision",
+    "system": "vav-rule/1",
+    "at_least": 0.99,
+    "why": "0.9946 on 2026-10-21, first scored: the vav-consecutive read off the pointing against Open Scriptures' `w`, outside the Torah; the rule is what the build reads for every Biblical text, and Hebrew's eighth hard spot (targum-internal#449)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "oshb-wlc",
+    "metric": "vav_recall",
+    "system": "vav-rule/1",
+    "at_least": 0.99,
+    "why": "0.9989 on 2026-10-21, first scored: the same rule, the same held-out words (targum-internal#449)"
+  },
+  {
+    "stage": "lemma",
     "corpus": "iahltknesset",
     "metric": "gender_accuracy",
     "system": "dicta/dicta-il/dictabert-joint",

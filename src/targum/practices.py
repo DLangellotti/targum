@@ -45,7 +45,8 @@ from .paths import write_atomic
 CACHE = "practice.json"
 
 #: The file's shape. Bumped when the encoding changes; an older file is rebuilt for free.
-VERSION = 1
+#: 2 (2026-10-21) adds the vav-consecutive's candidates (targum-internal#449).
+VERSION = 2
 
 #: When a spot is offered: met in this many lines, across this many texts (the research's
 #: "about six attended encounters across at least two texts").
@@ -98,6 +99,9 @@ REGISTERED: dict[str, dict[str, Practice]] = {
         # A lens, not a question: the research found this spot immune to feedback
         # (design.md §12, "Lenses wait for a second read", 2026-10-13).
         "governed prepositions and et": Practice("governed prepositions and et", "lens", ""),
+        # Past or future, for a vav and a future form in a Biblical line: the narrative
+        # vav against the plain "and" (targum-internal#449, 2026-10-21).
+        "the vav-consecutive": Practice("the vav-consecutive", "choice", "practice.ask.vav"),
     },
 }
 
@@ -110,6 +114,7 @@ KEYS: dict[str, str] = {
     "gender and number agreement": "agreement",
     "construct state and definiteness": "construct",
     "stress and pronunciation": "stress",
+    "the vav-consecutive": "vav",
 }
 SPOTS: dict[str, str] = {key: name for name, key in KEYS.items()}
 
@@ -225,6 +230,44 @@ def candidates(token: Mapping[str, Any], segment: str) -> Iterator[Candidate]:
                 yield made("stress", ipa, moved, True)
 
 
+def vav_candidates(token: Mapping[str, Any], pointed: str, segment: str) -> Iterator[Candidate]:
+    """Past or future for a verb in a Biblical line that opens with a vav (targum-internal
+    #449). `pointed` is the word as the line writes it, with its points: the stored surface
+    of a verse is bare, and the points are the whole difference.
+
+    The narrative vav (וַיֹּאמֶר, `annotate.vav_consecutive`) is past, though the form is
+    the future's; that item is the easy kind. A plain vav, with a shva or a shureq, on a
+    verb tagged future (וְיֹאמַר, Open Scriptures' `Vqi`) stays future, and is the hard
+    kind: it is the one a reader who has learned "the vav makes it past" gets wrong. Each
+    is the other's contrast line."""
+    from .annotate.vav_consecutive import DAGESH, SHVA, VAV, consecutive, pointed_letters
+
+    if str(token.get("pos") or "") != "VERB":
+        return
+    start, end = int(token.get("start") or 0), int(token.get("end") or 0)
+    if consecutive(pointed):
+        yield Candidate("vav", segment, start, end, "Past", "Fut", False)
+        return
+    letters = pointed_letters(pointed)
+    if len(letters) < 3 or letters[0][0] != VAV or _feats(token.get("feats")).get("Tense") != "Fut":
+        return
+    marks = letters[0][1]
+    # A shureq is the vav's own dagesh with no vowel beside it: וּתְדַבֵּר.
+    if SHVA in marks or marks == frozenset({DAGESH}):
+        yield Candidate("vav", segment, start, end, "Fut", "Past", True)
+
+
+def _biblical(folder: Path) -> bool:
+    """Whether a built text is scripture, off its own document.json."""
+    from .models import is_biblical
+
+    try:
+        said = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(said, dict) and is_biblical(said.get("source"))
+
+
 def _moved_stress(ipa: str) -> str:
     """The same reading with its stress on the next syllable over: the penult where it was
     final, the final where it was anywhere else."""
@@ -298,6 +341,8 @@ def count_text(folder: Path) -> TextPractice | None:
         return None
     tokens = loaded.get("tokens") or {}
     section_of = _sections(folder, segmented)
+    # The vav-consecutive is asked in Biblical text alone, where the spot is claimed.
+    scripture = _biblical(folder)
     by_section: dict[int, list[Candidate]] = {}
     spellings: dict[str, dict[str, str]] = {}
     pointed: list[tuple[int, str, int, int, str, str]] = []
@@ -307,6 +352,9 @@ def count_text(folder: Path) -> TextPractice | None:
         by_section.setdefault(section, []).extend(_governed(stored, segment.id))
         for token in stored:
             by_section.setdefault(section, []).extend(candidates(token, segment.id))
+            if scripture:
+                word = segment.text[int(token.get("start") or 0) : int(token.get("end") or 0)]
+                by_section[section].extend(vav_candidates(token, word, segment.id))
             pos = str(token.get("pos") or "")
             lemma = str(token.get("lemma") or "")
             surface = str(token.get("surface") or "")
@@ -566,6 +614,8 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
         return plainly(code, ui)
     if spot == "construct":
         return t("practice.construct.bound" if code == "Cons" else "practice.construct.free")
+    if spot == "vav":
+        return t("reader.grammar.past" if code == "Past" else "reader.grammar.future")
     feats = _feats(code)
     if spot == "agreement":
         gender = t(
@@ -602,6 +652,7 @@ def rule(spot: str, code: str, ui: str) -> str:
         "agreement": "practice.rule.agreement",
         "construct": "practice.rule.bound" if code == "Cons" else "practice.rule.free",
         "stress": "practice.rule.stress",
+        "vav": "practice.rule.vav-past" if code == "Past" else "practice.rule.vav-future",
     }
     return strings.text(keys[spot], ui)
 

@@ -121,7 +121,8 @@ class HardSpot:
     #: "dicta:binyan" (derived by the Hebrew annotator), "syntax:governed" (read off the
     #: stored syntax, `annotate.governed`), "lookup:openrussian:partners", "lookup:motion"
     #: (`annotate.motion`), "grammar:word_order" (read off the stored grammar,
-    #: `annotate.word_order`), or "none".
+    #: `annotate.word_order`), "pointing:vav_consecutive" (read off the pointed text,
+    #: `annotate.vav_consecutive`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -129,6 +130,11 @@ class HardSpot:
     #: Where the research (targum-internal, research/hard-spots-2026-10-11) says a lens
     #: rather than a card is the right surface, because feedback does not fix it.
     lens: bool = False
+    #: The registers the spot is declared out of, each with the reason written beside it
+    #: (design.md §12, "Past Beta, the badge drops", 2026-10-14): ("modern", "…") for a
+    #: spot that is Biblical only. Claimed in every other register in `REGISTERS`. A
+    #: declaration with no reason, or one out of every register, is not covered.
+    declared_out: tuple[tuple[str, str], ...] = ()
 
     @property
     def computed_at_all(self) -> bool:
@@ -137,6 +143,28 @@ class HardSpot:
     @property
     def shown_at_all(self) -> bool:
         return self.shown != "none"
+
+    @property
+    def registers(self) -> tuple[str, ...]:
+        """The registers the spot is claimed in."""
+        out = {register for register, _ in self.declared_out}
+        return tuple(register for register in REGISTERS if register not in out)
+
+    @property
+    def declared_honestly(self) -> bool:
+        """Every register it is declared out of is one targum reads, with a reason, and at
+        least one register is left to claim."""
+        return bool(self.registers) and all(
+            register in REGISTERS and why.strip() for register, why in self.declared_out
+        )
+
+
+#: The registers a spot is covered in, past Beta (design.md §12, 2026-10-14). Rabbinic
+#: Hebrew and liturgy are not required. A text is Biblical when `models.is_biblical` says
+#: so, and modern otherwise. Hebrew's alone: no other language targum reads has a second
+#: register on the shelf, so `targum stages` says no register for theirs.
+REGISTERS: tuple[str, ...] = ("modern", "biblical")
+REGISTERED_LANGUAGES: frozenset[str] = frozenset({"he"})
 
 
 @dataclass(frozen=True)
@@ -215,7 +243,9 @@ _DICTA = "dicta/dicta-il/dictabert-joint"
 _MENAKED = "dicta-il/dictabert-large-char-menaked"
 
 #: Each language's hard spots, ranked by how much they block a reader, from the research
-#: of 2026-10-11 (targum-internal, research/hard-spots-2026-10-11). Five to seven each.
+#: of 2026-10-11 (targum-internal, research/hard-spots-2026-10-11). Five to seven each,
+#: and up to eleven where design.md §12 lengthens the list past Beta ("Past Beta, the
+#: badge drops", 2026-10-14: Hebrew's seven become eleven, the cheapest first).
 #: The floors named here must exist in `evals/floors.json` for the spot to count as
 #: covered; `tests/test_stages.py` checks that.
 HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
@@ -259,6 +289,24 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "stage:stress",
             "marks",
             ("stress-rule/1", "tanakh-taamim-v2", "rule_accuracy"),
+        ),
+        # The first of the four design.md §12 adds past Beta (targum-internal#449,
+        # 2026-10-21). ויאמר is past: read off the pointing on every Biblical text
+        # (`annotate.vav_consecutive`), said on the card and lit by a lens, and scored
+        # against Open Scriptures' own tag, recall beside precision in floors.json.
+        HardSpot(
+            "the vav-consecutive",
+            "pointing:vav_consecutive",
+            "card",
+            ("vav-rule/1", "oshb-wlc", "vav_precision"),
+            lens=True,
+            declared_out=(
+                (
+                    "modern",
+                    "modern Hebrew does not use the form, and ויאמר in a modern text is a verse "
+                    "quoted",
+                ),
+            ),
         ),
     ),
     # Measured on `ru-local` (`annotate/russian.py`), the reader production has run since
@@ -441,6 +489,8 @@ def _lemmatiser_holds(language: str, floors: list[Any], rows: list[Any]) -> bool
 
 def _covered(spot: HardSpot, floors: Iterable[Any]) -> bool:
     if spot.floor is None or not spot.computed_at_all or not spot.shown_at_all:
+        return False
+    if not spot.declared_honestly:
         return False
     system, corpus, metric = spot.floor
     # A floor names a system by prefix, as `evals.breaches` matches it.
@@ -649,8 +699,24 @@ def label_key(stage: Stage) -> str:
     return f"lang.status.{stage.value}"
 
 
+#: A register as `targum stages` writes it.
+_REGISTER_SAID = {"modern": "modern", "biblical": "Biblical"}
+
+
+def registers_said(spot: HardSpot) -> str:
+    """Where a spot is claimed, in words: "modern and Biblical", or "Biblical only, not
+    modern: <the reason>" for a spot declared out of one (design.md §12, 2026-10-14)."""
+    claimed = " and ".join(_REGISTER_SAID.get(one, one) for one in spot.registers)
+    if not spot.declared_out:
+        return claimed
+    out = "; ".join(f"not {_REGISTER_SAID.get(one, one)}: {why}" for one, why in spot.declared_out)
+    return f"{claimed} only, {out}"
+
+
 def report(language: str, **over: Any) -> dict[str, Any]:
-    """One language's row for `targum stages`: declared, kept, earned, shortfall."""
+    """One language's row for `targum stages`: declared, kept, earned, shortfall, and each
+    hard spot with whether it is covered, whether it has a practice and where it is
+    claimed."""
     known = facts(language, **over)
     worn = wears(language)
     held = kept(language)
@@ -662,4 +728,15 @@ def report(language: str, **over: Any) -> dict[str, Any]:
         "review": held.review.isoformat() if held else "",
         "earned": got.value if got else "",
         "shortfall": shortfall(known, worn) if worn else [],
+        "spots": [
+            {
+                "name": spot.name,
+                "covered": bool(known.covered.get(spot.name)),
+                "practice": bool(known.practices.get(spot.name)),
+                "registers": list(spot.registers),
+                "declared_out": [list(pair) for pair in spot.declared_out],
+                "said": registers_said(spot) if known.language in REGISTERED_LANGUAGES else "",
+            }
+            for spot in HARD_SPOTS.get(known.language, ())
+        ],
     }

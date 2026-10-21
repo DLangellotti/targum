@@ -127,6 +127,60 @@ def test_answers_are_said_in_words() -> None:
     assert practices.said("homograph", "ספר", "en", {"ספר": "סֵפֶר"}) == "סֵפֶר"
 
 
+def vav(pointed: str, feats: str) -> list[Candidate]:
+    token = {"start": 0, "end": len(pointed), "pos": "VERB", "feats": feats}
+    return list(practices.vav_candidates(token, pointed, "s"))
+
+
+def test_the_vav_consecutive_is_asked_past_or_future_against_the_plain_vav() -> None:
+    """targum-internal#449. ויאמר in a finished Biblical line is past, the easy kind; a
+    plain vav on a future form (Open Scriptures' `Vqi`) stays future, the hard kind, and
+    each is the other's contrast."""
+    said = "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin|Vav=Cons"
+    ((one,),) = [vav("וַיֹּ֥אמֶר", said)]
+    assert (one.spot, one.answer, one.contrast, one.hard) == ("vav", "Past", "Fut", False)
+    # The first person, whose א cannot double: the vav takes a qamats.
+    assert [c.answer for c in vav("וָאֹמַר", "UPOS=VERB|Tense=Past")] == ["Past"]
+    plain = "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Fut|VerbForm=Fin"
+    ((two,),) = [vav("וְיֹאמַ֣ר", plain)]
+    assert (two.answer, two.contrast, two.hard) == ("Fut", "Past", True)
+    # A shureq is a plain vav too.
+    assert [c.answer for c in vav("וּתְדַבֵּר", plain)] == ["Fut"]
+    # A plain vav on a past form is not this spot, nor is a word with no vav, nor a noun.
+    assert vav("וְאָמַרְתָּ", "UPOS=VERB|Tense=Past") == []
+    assert vav("יֹאמַר", plain) == []
+    noun = {"start": 0, "end": 5, "pos": "NOUN", "feats": ""}
+    assert list(practices.vav_candidates(noun, "וָאָרֶץ", "s")) == []
+    assert practices.said("vav", "Past", "en") == "past"
+    assert practices.said("vav", "Fut", "en") == "future"
+    assert "doubled letter" in practices.rule("vav", "Past", "en")
+    assert "plain" in practices.rule("vav", "Fut", "en")
+    assert practices.REGISTERED["he"]["the vav-consecutive"].kind == "choice"
+    assert practices.KEYS["the vav-consecutive"] == "vav"
+
+
+def test_the_vav_consecutive_is_read_off_the_pointed_line_in_scripture_alone(
+    tmp_path: Path,
+) -> None:
+    """The stored surface of a verse is bare, so the line's own points decide; and a text
+    that is not scripture asks nothing, because the spot is declared Biblical only."""
+    import json
+
+    line = "וַיֹּ֥אמֶר אֱלֹהִ֖ים"
+    token = {"surface": "וַיֹּ֥אמֶר", "lemma": "אמר", "pos": "VERB", "feats": "Tense=Past"}
+    folder = text(tmp_path / "gen", {1: [(line, [token])]})
+    modern = practices.count_text(folder)
+    assert modern is not None
+    assert not [c for c in modern.by_section[1] if c.spot == "vav"]
+    said = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    said["source"] = "sefaria:Genesis 1"
+    (folder / "document.json").write_text(json.dumps(said), encoding="utf-8")
+    found = practices.count_text(folder)
+    assert found is not None
+    ((one,),) = [[c for c in found.by_section[1] if c.spot == "vav"]]
+    assert (one.answer, one.start, one.end) == ("Past", 0, len("וַיֹּ֥אמֶר"))
+
+
 def test_the_ledger_counts_a_line_once_and_needs_two_texts() -> None:
     def met(document: str, segment: str) -> practices.Met:
         return practices.Met(

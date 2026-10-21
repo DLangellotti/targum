@@ -698,7 +698,7 @@ def eval_command(
     A dispatch over the harnesses in `scripts/`, so running any stage is one command
     rather than a path to remember (targum-internal#351). Everything after the name goes
     to the script as it was given, and its exit code comes back. `targum eval lemma`
-    lists the two ways lemmas are measured. The scripts are not in the wheel, so this
+    lists the ways lemmas are measured. The scripts are not in the wheel, so this
     runs from a checkout.
 
     A chat eval spends: load the keys first with `op run --env-file op.env --`.
@@ -5259,8 +5259,8 @@ def stages(
     table.add_column("Wears")
     table.add_column("Earned")
     table.add_column("Short of what it wears")
-    for code in standard.DECLARED:
-        row = standard.report(code)
+    rows = {code: standard.report(code) for code in standard.DECLARED}
+    for code, row in rows.items():
         worn = row["declared"].capitalize() + (
             f", kept until {row['review']}" if row["kept"] else ""
         )
@@ -5268,6 +5268,30 @@ def stages(
         short = "\n".join(row["shortfall"]) if row["shortfall"] else "nothing"
         table.add_row(code, worn, earned, short)
     console.print(table)
+
+    # Each language's hard spots, and the register each is claimed in: a spot may be
+    # declared out of one with the reason beside it (design.md §12, "Past Beta, the badge
+    # drops", 2026-10-14; targum-internal#449).
+    for code, row in rows.items():
+        spots = row["spots"]
+        if not spots:
+            continue
+        # Registers are Hebrew's: no other language has a second one on the shelf.
+        registered = any(spot["said"] for spot in spots)
+        listed = Table(title=f"{code}: hard spots", title_justify="left")
+        listed.add_column("Spot")
+        listed.add_column("Covered")
+        listed.add_column("Practice")
+        if registered:
+            listed.add_column("Claimed in")
+        for spot in spots:
+            cells = [
+                spot["name"],
+                "yes" if spot["covered"] else "no",
+                "yes" if spot["practice"] else "no",
+            ]
+            listed.add_row(*cells, *([spot["said"]] if registered else []))
+        console.print(listed)
 
 
 # Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and

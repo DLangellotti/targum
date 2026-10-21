@@ -83,6 +83,8 @@ SCRIPTS = {
     "stress/tanakh-taamim": "eval_hebrew_stress.py",
     # The same gold, the stress rule fed by a local tagger instead of OSHB (#325).
     "stress/tanakh-taamim-tagger": "eval_stress_tagger.py",
+    # The vav-consecutive read off the pointing, against OSHB's own tag (#449).
+    "lemma/oshb": "eval_vav_consecutive.py",
     "align": "eval_align.py",
     "grading": "eval_grading.py",
     "recast": "eval_recast.py",
@@ -101,7 +103,7 @@ def script_for(name: str) -> str:
         return SCRIPTS[name]
     within = sorted(known for known in SCRIPTS if known.startswith(f"{name}/"))
     if within:
-        raise ValueError(f"{name} is measured two ways; one of {', '.join(within)}")
+        raise ValueError(f"{name} is measured more than one way; one of {', '.join(within)}")
     raise ValueError(f"no eval called {name!r}; one of {', '.join(SCRIPTS)}")
 
 
