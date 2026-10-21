@@ -45,13 +45,19 @@ def test_declared_is_earned_for_every_language_not_kept() -> None:
 
 
 def test_the_kept_exception_is_named_dated_and_its_shortfall_is_read() -> None:
-    """Hebrew kept its Beta by decision from 2026-10-12 and earned it on 2026-10-14, so
-    nothing is kept now. An entry has a date, a review date not yet passed, and a reason,
+    """Hebrew kept its Beta by decision from 2026-10-12 and earned it on 2026-10-14;
+    Russian is kept at Alpha from 2026-10-21 while its read-through is done. An entry
+    has a date, a review date not yet passed, and a reason,
     and this prints what the kept word still owes so it is seen on every run. Past the
     review date the entry fails until renewed with a new date and a design.md line, or
     removed."""
-    assert not set(KEPT), "a kept language needs a design.md entry first"
+    design = (Path(__file__).parents[1] / "design.md").read_text(encoding="utf-8")
     for code, held in KEPT.items():
+        # A kept language needs a design.md entry first, named in its reason.
+        named = re.search(r'"([^"]+)"', held.why)
+        assert named and f"### {named.group(1)}" in design, (
+            f"{code}: a kept badge names the design.md §12 entry that keeps it"
+        )
         assert held.stage == DECLARED[code]
         assert held.since <= dt.date.today(), code
         assert held.why.strip(), code

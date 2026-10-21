@@ -9,6 +9,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - CI cancels a branch's or a PR's run when a newer push to the same ref arrives, so a
   round of fixes queues one run. Master's runs are never cancelled, because a deploy
   may skip the suite only for a commit CI passed there (`TARGUM_CHECKED`).
+- Russian's badge says Alpha, to match its card (David, 2026-10-21). It is kept there by
+  decision (`stages.KEPT`, reviewed by 2026-11-30): Russian is short only of the
+  read-through of ten texts on record, and the stages test prints that on every run.
+  design.md §12, "Russian wears Alpha while its read-through is done".
 
 ### Fixed
 - Russian's surfaces, design's four blockers (targum-internal#476). A page in Russian
