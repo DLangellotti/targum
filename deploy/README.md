@@ -38,6 +38,11 @@ damaged. Something wrong on the site, whatever the cause,
 is [`INCIDENT.md`](INCIDENT.md): who is told, where to look, and how to tell the box from
 a model provider from the network in the first ten minutes.
 
+The step that runs right after the next approved deploy (targum-internal#507) is
+[`REINGEST-TANAKH.md`](REINGEST-TANAKH.md): find every Tanakh copy on the box without
+verse refs, give it its refs, and re-annotate it so OSHB reads it, with readers' marks
+carried across. On 2026-10-22 the box had none and the laptop had thirteen.
+
 Every time after that, from here:
 
 ```
