@@ -6,6 +6,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
+  targum-internal#482): both say when they were first run; `rollback.sh` is the first way
+  back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
+  and INCIDENT.md says what a `warn yt-dlp` in preflight means, where the nightly
+  upgrade's log is, and how to give root-owned files back to `targum` and rerun it.
 - The chat pill's finish (targum-internal#472): design's eleven blockers, five of its six
   polish items and ling-en's fourteen lines. A door to a text reads on its fill (it was the
   accent's brown on teal, about 1:1) and says "Open {title}" in the title's own language,
