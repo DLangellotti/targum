@@ -44,6 +44,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   after it, and the places were asked twice, by home and by the shelf. They go out with the
   shelf now, once each, and the tab's list is not asked again by the page's own redraws.
   Phone profile, median of 3: Your targums 1.69 s → 1.57 s, Subscriptions 1.61 s → 1.44 s.
+- /parasha paints at once (targum-internal#484). The scroll's photograph rode in the page
+  as a `data:` URI inside a `<style>`, 151 kB gzipped of a 305 kB page, and a stylesheet
+  holds the first paint until all of it has arrived. A series page's picture (the scroll,
+  each cycle's manuscript) is now a file of ours, `/assets/<name>.<hash>.jpg`, kept a
+  year; nothing is fetched from anybody else's origin and a reader still fetches nothing
+  (design.md §12, 2026-10-22). Phone profile, median of 3: first paint 1.40 s → 0.74 s,
+  Read 1.66 s → 0.96 s.
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
   fails before the page's last script has run (targum-internal#504). `grammar.js` handed
   `yours.js` a promise nobody had caught yet; served by address, the browser runs other

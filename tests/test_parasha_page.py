@@ -526,12 +526,29 @@ def test_both_portions_are_named_only_where_the_schedules_really_differ() -> Non
     assert "reading different portions" not in together
 
 
-def test_the_series_tile_is_the_scroll_carried_in_the_page(serving: int) -> None:
-    """The photograph stays as the series' tile, carried in the page once, never
-    fetched, and never under type (§12, 2026-09-01 and 2026-10-09)."""
+def test_the_series_tile_is_the_scroll_named_once_from_our_origin(serving: int) -> None:
+    """The photograph stays as the series' tile, named once for every tile and never
+    under type (§12, 2026-09-01 and 2026-10-09). Since 2026-10-22 it is a file of ours
+    rather than a `data:` URI in the page's `<style>`, which held the first paint until
+    151 kB had arrived (§12, "A series page's picture is a file of ours", #484)."""
+    import re
+
     body = get(serving, "/parasha")[1]
-    assert body.count("data:image/jpeg;base64,") == 1, "inlined once, for every tile"
+    styles = "".join(re.findall(r"<style>(.*?)</style>", body, re.S))
+    # The icons' few-hundred-byte SVG masks stay; no photograph rides in a stylesheet.
+    assert not re.search(r"data:image/(jpeg|png|webp)", styles), "no picture in the styles"
+    from targum.render.builder import picture_address
+
+    address = picture_address("scroll/columns.jpg")
+    assert body.count(f"url({address})") == 1, "named once, for every tile"
     assert 'class="series-tile has-pic is-large" aria-hidden="true"></span>' in body
+    conn = HTTPConnection("127.0.0.1", serving)
+    conn.request("GET", address, headers={"Host": f"127.0.0.1:{serving}"})
+    answer = conn.getresponse()
+    picture = answer.read()
+    assert answer.status == 200 and answer.getheader("Content-Type") == "image/jpeg"
+    assert "immutable" in (answer.getheader("Cache-Control") or "")
+    assert picture.startswith(b"\xff\xd8"), "the JPEG itself"
 
 
 def test_a_stranger_is_asked_to_sign_in_not_to_join(serving: int) -> None:

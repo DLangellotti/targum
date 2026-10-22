@@ -379,6 +379,23 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A series page's picture is a file of ours — 2026-10-22
+
+Page speed (targum-internal#484, qa-claude's audit of 2026-10-22): /parasha was the one
+page whose first paint came late, 1.40 s on the phone profile, because the scroll's
+photograph rode in the page as a `data:` URI inside a `<style>`, 151 kB of a 305 kB page,
+and a stylesheet holds the first paint until all of it has arrived.
+
+- **The picture a series page wears is served from this origin** as
+  `/assets/<name>.<hash>.jpg` (`picture_address`, `render/builder.py`), kept for a year
+  like the desk's files and named by its bytes. That is the scroll on /parasha and each
+  cycle's manuscript on the daily pages. The page still names it once, in one rule, for
+  every tile that wears it.
+- **What it does not overturn:** a reader still fetches nothing, and nothing on any page
+  is fetched from anybody else's origin. The series pages keep their stylesheets, scripts
+  and faces inline as "A desk page loads its files once and keeps them" says; only the
+  photograph moved. `img-src` already allowed `'self'`.
+
 ### Russian wears Alpha while its read-through is done — 2026-10-21
 
 David, 2026-10-21: Russian's badge in the language menu says Alpha, to match what its card
