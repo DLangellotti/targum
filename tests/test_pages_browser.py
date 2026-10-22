@@ -35,6 +35,7 @@ from targum.render.builder import (
     LISTS,
     about_page,
     add_page,
+    asset_files,
     carried,
     chat_page,
     holding_page,
@@ -118,6 +119,62 @@ def test_a_page_runs_its_scripts_without_throwing(browser, tmp_path: Path, name:
     context.close()
 
     assert not thrown, f"{name} threw: {thrown}"
+
+
+def test_the_grammar_page_catches_a_first_ask_that_fails_before_its_last_script(
+    browser,
+) -> None:
+    """The flake in the test above, made to happen every time (targum-internal#504).
+
+    `grammar.js` asks for the practice as it runs, and `yours.js`, the page's last script,
+    is what catches a refusal. Read off the disk as one document the two run back to back,
+    and only a parser that yielded between them let the failed fetch land first: about one
+    CI run in three, "Failed to fetch". Served as a desk page is, by address, the browser
+    runs other tasks between one file and the next, so a reader offline met it too. Here
+    `yours.js` is held until the ask has failed, which is the gap made wide.
+    """
+    files = asset_files()
+    last = next(path for path in files if re.fullmatch(r"/assets/yours\.[0-9a-f]+\.js", path))
+    html = list_page(TOKEN, "grammar")
+    assert last in html, "the grammar page no longer ends on yours.js"
+    # Named somewhere else for this test: every route here answers the desk's own files
+    # before the test's handler sees them (`conftest.desk_files_in_routed_browsers`).
+    html = html.replace(f'src="{last}"', 'src="/held/yours.js"')
+    held: list = []
+    failed: list[str] = []
+
+    def answer(route, request):
+        path = urlparse(request.url).path
+        if path == "/grammar":
+            route.fulfill(status=200, content_type="text/html", body=html)
+        elif path == "/held/yours.js":
+            held.append(route)
+        else:
+            if path == "/account/practice":
+                failed.append(path)
+            route.abort()
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    thrown: list[str] = []
+    open_page.on("pageerror", lambda error: thrown.append(str(error)))
+    open_page.route("http://grammar.test/**", answer)
+    open_page.goto("http://grammar.test/grammar", wait_until="commit")
+    for _ in range(50):
+        if failed and held:
+            break
+        open_page.wait_for_timeout(50)
+    # Long enough for an uncaught rejection to be reported, then the last script.
+    open_page.wait_for_timeout(300)
+    assert failed and held, "the practice was never asked for, or yours.js never fetched"
+    body, kind, _ = files[last]
+    held[0].fulfill(status=200, content_type=kind, body=body)
+    open_page.wait_for_timeout(300)
+    said = open_page.evaluate("() => document.getElementById('nothing').hidden")
+    context.close()
+
+    assert not thrown, f"the grammar page threw: {thrown}"
+    assert said is False, "the refusal was not drawn once yours.js ran"
 
 
 def test_the_add_page_wires_its_button(browser, tmp_path: Path) -> None:

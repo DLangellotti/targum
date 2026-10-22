@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
+  fails before the page's last script has run (targum-internal#504). `grammar.js` handed
+  `yours.js` a promise nobody had caught yet; served by address, the browser runs other
+  tasks between the two files, so a reader offline met it as a browser fault, and the
+  page-scripts browser test met it about one CI run in three. The promise is caught where
+  it is made, and `yours.js` still draws the refusal from it.
 - Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
   order were one setting under two names and two drawings: both say "Play in order" and
   are the same switch. An empty Saved page heads its line "Saved by you", not "Saved
