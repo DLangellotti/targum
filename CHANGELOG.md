@@ -34,6 +34,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   themselves, three to six times on a cold load, some waiting on each other. `keep.js` now
   sends it once and hands each a copy; a change of languages still asks again. Phone
   profile, median of 3: your account 1.17 s → 1.01 s, Progress 2.69 s → 2.36 s.
+- Progress on a new device draws what the account brings in place (targum-internal#484).
+  With nothing in the browser it waited for the account and then reloaded itself whenever
+  the answer brought anything, so a reader signing in on a new phone loaded it twice. It is
+  drawn where it stands now, as Your Words is. Phone profile, median of 3: 2.69 s → 1.35 s.
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
   fails before the page's last script has run (targum-internal#504). `grammar.js` handed
   `yours.js` a promise nobody had caught yet; served by address, the browser runs other
