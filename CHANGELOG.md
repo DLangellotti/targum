@@ -40,6 +40,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are rows with a hairline between, not cards, since the tab's card holds them.
 
 ### Added
+- `deploy/REINGEST-TANAKH.md`, the step that runs after the next approved deploy
+  (targum-internal#507 part 2): a read-only query for every Tanakh copy on the box whose
+  verses carry no refs, then `targum refs`, a marked annotator name and `rebuild --words`,
+  so OSHB reads it and readers' marks move with the lemmas. It says why deleting
+  `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
+  how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
+  0 on the box, 13 on the laptop's `targum-out`.
 - Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
   build back with `rollback.sh` when the box kept its wheel, or by deploying its commit
   again from a worktree (the only way back until a second deploy with targum#876 has
