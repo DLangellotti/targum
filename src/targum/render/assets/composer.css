@@ -422,3 +422,24 @@
 .quote-go:hover { background: var(--teal); filter: brightness(1.08); }
 .chat-another, .chat-first-yes, .chat-first-no { border: 0; background: var(--teal-wash); color: var(--teal); padding: 0.4rem 0.9rem; }
 .chat-another:hover, .chat-first-yes:hover, .chat-first-no:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+
+/* §8: the card's two quiet links answer a thumb over 44px, with a centred reach drawn as
+   their `::after` over the space around them (#472 B9: they were 24px tall). */
+@media (hover: none) and (pointer: coarse) {
+  .quote-source,
+  .quote-more {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .quote-source::after,
+  .quote-more::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}

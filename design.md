@@ -7713,6 +7713,16 @@ face but a different face on every platform, and was not taken. The serif needs 
 Iowan carries Cyrillic on a Mac, and Palatino Linotype and Georgia elsewhere. A reader
 still fetches nothing.
 
+**The drawer opens the conversation you were in — 2026-10-22** (David, targum-internal#472,
+design's polish 4). Framed, the conversation page never opened the newest conversation by
+itself: that was right for Learn's frame, where the front page was a door and not a
+thread. Learn went on 2026-10-08, and the drawer is the only frame now, so a reader who
+closed it mid-conversation and pressed the pill again landed on the chips. **The drawer
+opens the newest conversation when it was seen or opened in the last hour; past that it
+shows the chips, as before.** The page itself (`/chat`, unframed) still opens the newest
+whenever it is asked. A line handed over from another page still starts a conversation of
+its own.
+
 
 ## 14 · Finished — what done means for a surface
 

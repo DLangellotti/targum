@@ -313,7 +313,7 @@ def test_a_text_being_built_is_the_first_row_of_your_targums() -> None:
 def test_a_build_waiting_its_turn_says_so_rather_than_looking_stuck() -> None:
     queued = building(stage="queued", behind=2, message="", total=0, done=0)
     (row,) = draw(which="texts", jobs=[queued])["shelf"]
-    assert row["facts"].startswith("Waiting behind 2 builds"), row["facts"]
+    assert row["facts"].startswith("Waiting behind 2 other texts"), row["facts"]
 
 
 def test_a_build_alone_is_a_shelf_and_not_an_empty_page() -> None:

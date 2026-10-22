@@ -5,6 +5,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Fixed
+- The chat pill's finish (targum-internal#472): design's eleven blockers, five of its six
+  polish items and ling-en's fourteen lines. A door to a text reads on its fill (it was the
+  accent's brown on teal, about 1:1) and says "Open {title}" in the title's own language,
+  from titles the server now sends beside each answer (`doors`), never the folder; with no
+  title it says "Open the text". Pressed open, the drawer is modal: `aria-modal`, and the
+  page behind the scrim is `inert`, so Tab stays inside. Signed out, the drawer says "Sign
+  in to talk to targum." with Sign in, where it was a blank sheet. With no connection the
+  band is one row at the top of the frame. A corrected recast has a visible "Why?" press.
+  A turn says "We're writing an answer…" from the moment it is sent. The box's placeholder
+  stays on one line. Hear and the quote card's two links reach 44px under a thumb.
+  Continue's title carries its language. Offline, the pill is greyed by its colours, so its
+  reason keeps full ink, and is said once. Try again stands on its sentence's line; a
+  conversation opens at its newest turn; the chips step aside while Chats is open; the
+  reset date never breaks. The drawer opens the conversation you were in when it was seen
+  in the last hour (David, 2026-10-22; design.md §13). Copy: Chats; errors say what to do
+  next; Select, and the list is under Words in Your targums; "You've reached today's chat
+  limit"; "audio and chat"; "of audio or video"; "Waiting behind {n} other texts".
+
 ### Added
 - Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
   build back with `rollback.sh` when the box kept its wheel, or by deploying its commit

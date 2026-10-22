@@ -582,6 +582,19 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
 }
 .talk-close:hover { color: var(--ink); background: var(--ground); }
 .talk-frame { display: block; inline-size: 100%; block-size: 100%; border: 0; background: var(--card); }
+.talk-frame[hidden] { display: none; }
+/* Signed out: one line and Sign in, in the frame's place (#472 B4). */
+.talk-out {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 1rem;
+  padding: 1.5rem 1.25rem;
+  font-family: var(--chrome);
+  color: var(--ink);
+}
+.talk-out p { margin: 0; font-size: 0.9375rem; }
+.talk-out[hidden] { display: none; }
 .talk-scrim { display: none; }
 .talk-scrim[hidden] { display: none; }
 @keyframes talk-in {

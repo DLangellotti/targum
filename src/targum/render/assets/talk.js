@@ -113,8 +113,29 @@
   });
   frame.addEventListener("load", tellLanguage);
 
+  /* Signed out — the session gone while the page stayed open — the frame would land on
+     sign-in, which refuses to be framed, and the drawer would be a blank sheet. Instead
+     it says so, with Sign in that comes back to this page (#472 B4). */
+  var out = document.getElementById("talk-out");
+  var outDoor = document.getElementById("talk-sign-in");
+  function signedOut(on) {
+    if (!out) return false;
+    out.hidden = !on;
+    frame.hidden = on;
+    if (on && outDoor) {
+      outDoor.href = "/account/signin?next=" + encodeURIComponent(window.location.pathname + window.location.search);
+    }
+    return on;
+  }
+  function knownSignedOut() {
+    var sync = window.TargumSync;
+    return !!(sync && sync.signedOut);
+  }
+
   function load() {
     if (loaded) return;
+    if (knownSignedOut() && signedOut(true)) return;
+    signedOut(false);
     loaded = true;
     var src = frame.getAttribute("data-src") || keyed("/chat?embed=1");
     var code = holding();
@@ -127,6 +148,10 @@
   var wantsFocus = false;
   var frameReady = false;
   function focusBox() {
+    if (out && !out.hidden && outDoor) {
+      outDoor.focus();
+      return;
+    }
     if (!frameReady) {
       wantsFocus = true;
       return;
@@ -139,11 +164,52 @@
   }
   frame.addEventListener("load", function () {
     if (!frame.getAttribute("src")) return;
+    // The conversation, or something that would not be framed (sign-in, an error page):
+    // a frame we cannot read, or one that is not the conversation, is a door back in.
+    var ours = false;
+    try {
+      ours = !!frame.contentDocument && /^\/chat\/?$/.test(frame.contentWindow.location.pathname);
+    } catch (e) {
+      ours = false;
+    }
+    if (!ours && out) {
+      loaded = false;
+      frameReady = false;
+      signedOut(true);
+      if (wantsFocus && !drawer.hidden && outDoor) outDoor.focus();
+      wantsFocus = false;
+      return;
+    }
     frameReady = true;
     if (!wantsFocus || drawer.hidden) return;
     wantsFocus = false;
     focusBox();
   });
+
+  /* Pressed open, the drawer is modal: the page behind the scrim is dimmed and cannot be
+     clicked, so it cannot be tabbed either (§14.3, targum-internal#472 B3). Everything
+     beside the drawer's own line of ancestors is made `inert` while it is open, and given
+     back as it closes. A drawer brought back undimmed stays non-modal. */
+  function holdFocus(on) {
+    if (on) drawer.setAttribute("aria-modal", "true");
+    else drawer.removeAttribute("aria-modal");
+    if (!on) {
+      Array.prototype.forEach.call(document.querySelectorAll("[data-talk-inert]"), function (node) {
+        node.removeAttribute("data-talk-inert");
+        node.inert = false;
+        node.removeAttribute("inert");
+      });
+      return;
+    }
+    for (var at = drawer; at && at.parentElement && at !== document.body; at = at.parentElement) {
+      Array.prototype.forEach.call(at.parentElement.children, function (node) {
+        if (node === at || node === scrim || node.tagName === "SCRIPT" || node.inert) return;
+        node.setAttribute("data-talk-inert", "1");
+        node.inert = true;
+        node.setAttribute("inert", "");
+      });
+    }
+  }
 
   var leaving = null;
   /* `restored` is the drawer brought back by a page because it was left open on the one
@@ -171,6 +237,7 @@
       }, 160);
     }
     if (scrim) scrim.hidden = !on || !!restored;
+    holdFocus(on && !restored);
     drawer.classList.toggle("talk-aside", on && !!restored);
     if (on && restored) {
       // Beside the page, under its bar, so the bar's own buttons stay pressable.

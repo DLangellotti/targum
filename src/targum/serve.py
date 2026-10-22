@@ -2334,7 +2334,7 @@ class Library:
                 said_in(
                     ui,
                     "job.out-of.talk-credits",
-                    "You've used this month's credits for audio and talk. Top up, or they "
+                    "You've used this month's credits for audio and chat. Top up, or they "
                     "reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
                     date=self._month_ends(ui),
@@ -2351,7 +2351,7 @@ class Library:
                 said_in(
                     ui,
                     "job.out-of.chat",
-                    "That's a lot of talking for one day. Try again in {hours} hours.",
+                    "You've reached today's chat limit. Try again in {hours} hours.",
                     hours=BUDGET_HOURS,
                 ),
                 said_in(ui, "job.out-of.library-opens", "The library still opens"),
@@ -3120,6 +3120,15 @@ class Library:
             folder, "document", [document], partial(self._document_facts, document)
         )
         return str(facts.get("title") or "")
+
+    def document_named(self, folder: Path) -> tuple[str, str]:
+        """A built text's title and language, as the shelf has them: what a door to it in
+        the chat is named by (targum-internal#472 B2), never its folder."""
+        document = folder / "document.json"
+        facts = self.remembered.get(
+            folder, "document", [document], partial(self._document_facts, document)
+        )
+        return str(facts.get("title") or ""), str(facts.get("language") or "")
 
     @staticmethod
     def _recording_seconds(folder: Path) -> int:
@@ -9159,6 +9168,7 @@ class Handler(BaseHTTPRequestHandler):
                 if state.get("done"):
                     # A page polling rather than streaming saw the answer too.
                     store.chat_opened(chat_id)
+                    state["doors"] = self._door_names(str(state.get("text") or ""))
                 return self._json(state)
             if pieces[0] == "audio":
                 return self._chat_audio(chat_id, n, person)
@@ -9205,6 +9215,8 @@ class Handler(BaseHTTPRequestHandler):
                     # read (`chat/record.py`); None where none were.
                     "words": turn.get("words"),
                 }
+                if turn["role"] == "assistant" and turn["said"]:
+                    entry["doors"] = self._door_names(str(turn["said"]))
                 if turn["role"] == "assistant" and turn["said"] and waiting:
                     entry["quotes"] = waiting
                     waiting = []
@@ -9359,6 +9371,41 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
+    #: A door in an answer, as `chat.js` reads one: `/reader/...` or `/library/...`.
+    DOOR_PATH = re.compile(r"(?:^|\s)(/(?:reader|library)/[^\s)]+)")
+
+    def _door_names(self, text: str) -> dict[str, dict[str, str]]:
+        """What each door in an answer opens, by its title and language, so the page says
+        "Open {title}" and never the folder the path names (targum-internal#472 B2). Only
+        texts this reader may open are named: their own, the shared ones and the weekly,
+        the roots `_serve_reader` allows, and the catalogue's by its id."""
+        from . import catalogue as catalogue_module
+
+        named: dict[str, dict[str, str]] = {}
+        for path in self.DOOR_PATH.findall(str(text or "")):
+            if path in named:
+                continue
+            wanted = unquote(path)
+            title, language = "", ""
+            if wanted.startswith("/reader/"):
+                name = wanted[len("/reader/") :].split("/")[0]
+                if not name or name.startswith("."):
+                    continue
+                for root in (self._home(), self.library.shared, self.library.weekly):
+                    folder = root / name
+                    if folder.parent.resolve() != root.resolve():
+                        continue
+                    if (folder / "reader" / "index.html").is_file():
+                        title, language = self.library.document_named(folder)
+                        break
+            else:
+                entry = catalogue_module.by_id(wanted[len("/library/") :].split("/")[0])
+                if entry is not None:
+                    title, language = entry.title, entry.language
+            if title:
+                named[path] = {"title": title, "language": language.split("-")[0]}
+        return named
+
     def _chat_seen(self, chat_id: str) -> None:
         """An answer was delivered to a page that was open on it."""
         store = getattr(self.chats, "store", None)
@@ -9366,6 +9413,15 @@ class Handler(BaseHTTPRequestHandler):
             store.chat_opened(chat_id)
 
     def _chat_event(self, index: int, kind: str, data: str) -> None:
+        if kind == "done":
+            # The doors in the answer, named by their texts' titles (#472 B2).
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                payload = None
+            if isinstance(payload, dict):
+                payload["doors"] = self._door_names(str(payload.get("text") or ""))
+                data = json.dumps(payload, ensure_ascii=False)
         lines = "".join(f"data: {line}\n" for line in data.split("\n"))
         self.wfile.write(f"id: {index}\nevent: {kind}\n{lines}\n".encode())
         self.wfile.flush()

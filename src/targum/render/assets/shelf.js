@@ -199,7 +199,7 @@
     var said = [];
     if (job.behind) {
       said.push(
-        tn("shelf.building.behind", job.behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+        tn("shelf.building.behind", job.behind, "Waiting behind {n} other text", "Waiting behind {n} other texts")
       );
     } else if (job.message) {
       said.push(plain(job.message));
