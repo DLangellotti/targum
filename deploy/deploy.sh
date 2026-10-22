@@ -29,7 +29,9 @@ cd "$ROOT"
 # account name, never anything read from the vault.
 SHA="$(git rev-parse HEAD)"
 KEEP_AS="${SHA:0:12}"
-if [ -n "$(git status --porcelain)" ]; then
+# Tracked changes only: an untracked file outside src/ never reaches the wheel, and the
+# main checkout always holds a few, which made every deploy from it read as -dirty.
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   SHA="$SHA-dirty"
   KEEP_AS="$KEEP_AS-dirty"
 fi
@@ -145,6 +147,17 @@ uv export --frozen --no-hashes --no-emit-project --no-header --no-annotate \
 echo "   $(wc -l < "$CONSTRAINTS" | tr -d ' ') versions pinned from uv.lock"
 
 echo "== ship =="
+# A deploy whose rebuild is still running on the box is refused here, before anything is
+# sent: the keys merge below rewrites the env file that unit's later steps read, the
+# covers land in the live thumbs directory, and the private catalogue would sit in /tmp.
+# The same check runs again at the top of the box-side block, for a deploy started in
+# between.
+if ssh "${SSH_OPTS[@]}" "$HOST" "systemctl is-active --quiet targum-deploy.service"; then
+  echo "   a deploy is already running on this box (targum-deploy.service); nothing was sent." >&2
+  echo "   Its rebuild may be hours. Wait for it, or stop it, then deploy again:" >&2
+  echo "     ssh $HOST journalctl -u targum-deploy -f" >&2
+  exit 1
+fi
 scp -q "$WHEEL" "$CONSTRAINTS" "$HOST:/tmp/"
 REMOTE_WHEEL="/tmp/$(basename "$WHEEL")"
 REMOTE_CONSTRAINTS="/tmp/$(basename "$CONSTRAINTS")"
@@ -282,8 +295,9 @@ unset SECRETS
 ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # Before the wheel goes in, not after: a deploy that cannot finish must not start.
   # This sat below the install until 2026-10-22, so a refused deploy had already
-  # replaced the tool under the running rebuild; it is first now, before the database
-  # copy too, so a refusal changes nothing at all.
+  # replaced the tool under the running rebuild. The laptop asks the same before it sends
+  # anything (== ship ==); this is the second look, for a deploy started in between, and
+  # it comes before the database copy and the install.
   if systemctl is-active --quiet targum-deploy.service; then
     echo "   a deploy is already running on this box (targum-deploy.service)." >&2
     echo "   Its rebuild may be hours. Wait for it, or stop it, then deploy again:" >&2
@@ -319,9 +333,12 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
       exit 1
     fi
     echo "   database copied and checked: \$BEFORE"
-    ls -1t /var/lib/targum/backups/ \
-      | grep -E '^targum\.db\.before-[0-9a-f]{12}(-dirty)?-[0-9]{8}T[0-9]{6}Z\$' \
-      | tail -n +11 | sed 's|^|/var/lib/targum/backups/|' | xargs -r rm -f --
+    # The prune as targum too: root removes nothing inside the service account's tree.
+    systemd-run --quiet --wait --pipe --collect --expand-environment=no --uid=targum --gid=targum \
+      /bin/bash -c \
+      "ls -1t /var/lib/targum/backups/ \
+        | grep -E '^targum\.db\.before-[0-9a-f]{12}(-dirty)?-[0-9]{8}T[0-9]{6}Z\\\$' \
+        | tail -n +11 | sed 's|^|/var/lib/targum/backups/|' | xargs -r rm -f --"
   else
     echo "   no database at /var/lib/targum/targum.db yet; nothing to copy"
   fi
@@ -364,24 +381,35 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
   # The wheel that just went in, kept with the constraints it went in with and the
   # extras, so deploy/rollback.sh can put it back without building anything on a laptop
-  # (targum-internal#482). Root's, so nothing the service runs can change what a
-  # rollback would install. Kept only once the
-  # install has succeeded, so every directory here is a wheel that installed. The last
-  # five are kept, by when each last went in; a rollback touches the one it uses, so it
-  # is not the next one pruned.
-  KEPT=/var/lib/targum/wheels/${KEEP_AS}
-  install -d -o root -g root -m 0755 /var/lib/targum/wheels "\$KEPT"
+  # (targum-internal#482). Under /var/lib/targum-deploy, root's all the way down, and
+  # never under /var/lib/targum: the service account owns that directory, so it could
+  # rename a root-owned child and put a symlink in its place, and root's prune, install
+  # and append would then follow it anywhere. Readable by everyone, so the service
+  # account can read a wheel for rollback.sh's install, and writable by root alone.
+  # Kept only once the install has succeeded, so every directory here is a wheel that
+  # installed. The last five are kept, by when each last went in; a rollback touches the
+  # one it uses, so it is not the next one pruned. The prune lists real directories
+  # only (find -type d never follows a link) and removes them by name.
+  DEPLOYS=/var/lib/targum-deploy
+  if [ -L "\$DEPLOYS" ] || [ -L "\$DEPLOYS/wheels" ]; then
+    echo "   \$DEPLOYS or its wheels is a symlink; refusing to write through it." >&2
+    exit 1
+  fi
+  install -d -o root -g root -m 0755 "\$DEPLOYS" "\$DEPLOYS/wheels"
+  KEPT=\$DEPLOYS/wheels/${KEEP_AS}
+  install -d -o root -g root -m 0755 "\$KEPT"
   rm -f "\$KEPT"/*.whl
   install -o root -g root -m 0644 "${REMOTE_WHEEL}" "${REMOTE_CONSTRAINTS}" "\$KEPT/"
   printf '%s\n' "${REMOTE_EXTRAS}" > "\$KEPT/extras"
   chmod 0644 "\$KEPT/extras"
   touch "\$KEPT"
-  ls -1dt /var/lib/targum/wheels/*/ | tail -n +6 | xargs -r rm -rf --
+  find "\$DEPLOYS/wheels" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+    | sort -rn | tail -n +6 | cut -d' ' -f2- | xargs -r rm -rf --
   rm -f "${REMOTE_WHEEL}" "${REMOTE_CONSTRAINTS}"
   # Who shipped what, when: one line per deploy, appended and never rewritten, so
   # "what was running at three" has an answer that is not a guess from timestamps.
-  # rollback.sh appends to the same file.
-  printf '%s %s %s\n' "${STAMP}" "${SHA}" "${WHO}" >> /var/lib/targum/deploys.log
+  # rollback.sh appends to the same file. Root's, beside the wheels, for the same reason.
+  printf '%s %s %s\n' "${STAMP}" "${SHA}" "${WHO}" >> "\$DEPLOYS/deploys.log"
   # The directory too: it was root-only, which systemd never minded — it reads the
   # secrets as root — and the service, which reads the catalogue as targum, could not
   # reach into it. The library was empty for the length of one deploy.
@@ -392,7 +420,8 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # new one differs, or a second deploy of the same catalogue would overwrite the copy
   # worth having with a copy of itself.
   if [ -f /etc/targum/catalogue.json ] && ! cmp -s /tmp/catalogue.json /etc/targum/catalogue.json; then
-    cp -p /etc/targum/catalogue.json /etc/targum/catalogue.json.prev
+    # Not cp -p: the copy's time is when it was replaced, which is what rollback.sh shows.
+    install -o root -g targum -m 0640 /etc/targum/catalogue.json /etc/targum/catalogue.json.prev
   fi
   install -o root -g targum -m 0640 /tmp/catalogue.json /etc/targum/catalogue.json
   rm -f /tmp/catalogue.json

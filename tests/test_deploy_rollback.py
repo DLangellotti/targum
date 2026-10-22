@@ -1,8 +1,8 @@
 """Stepping back without a laptop build: what deploy.sh leaves on the box, and rollback.sh.
 
 targum-internal#482. Every deploy now keeps its wheel, its constraints and its extras in
-/var/lib/targum/wheels/<sha12>/ (the last five), appends "<utc> <sha> <who>" to
-/var/lib/targum/deploys.log, copies the database as the service account and checks the
+/var/lib/targum-deploy/wheels/<sha12>/ (the last five), appends "<utc> <sha> <who>" to
+/var/lib/targum-deploy/deploys.log, copies the database as the service account and checks the
 copy before anything is installed (the last ten), and keeps the catalogue it replaces as
 catalogue.json.prev. rollback.sh puts a kept wheel back the way deploy.sh installed it.
 
@@ -96,13 +96,31 @@ def test_the_database_is_copied_as_targum_and_checked_before_the_install() -> No
     stop = block.index('[ "$CHECKED" != "ok" ]')
     assert block.index("exit 1", stop) < block.index("uv tool install")
     assert copy.start() < check < block.index("uv tool install")
+    # A copy that could not be made stops the deploy on its own, before the check.
+    failed = block[copy.end() : block.index("CHECKED=")]
+    assert "exit 1" in failed, "a failed .backup stops the deploy where it failed"
+
+
+def test_a_running_deploy_is_refused_before_anything_is_sent() -> None:
+    """The keys merge rewrites the env file a running rebuild's later steps read, and the
+    covers land in the live thumbs directory: both happen before the box-side block."""
+    script = text()
+    guard = re.search(
+        r'if ssh "\$\{SSH_OPTS\[@\]\}" "\$HOST" "systemctl is-active --quiet '
+        r'targum-deploy\.service"; then\n(?:[^\n]*\n){0,4}?\s*exit 1',
+        script,
+    )
+    assert guard, "the laptop asks before it sends"
+    for later in ("scp -q", "rsync -a", "$MERGE", "$MERGE_SOURCES"):
+        assert guard.start() < script.index(later), later
 
 
 def test_the_copies_before_deploys_keep_to_ten_and_leave_the_nightly_alone() -> None:
     block = box_block()
     prune = re.search(r"grep -E '([^']+)'\s+\| tail -n \+11 ", block)
     assert prune, "the copies before each deploy are pruned to the last ten"
-    ours = re.compile(prune.group(1))
+    # Through bash -c inside double quotes on the box, so its anchor arrives escaped.
+    ours = re.compile(prune.group(1).replace("\\$", "$"))
     name = "targum.db.before-0123456789ab-20261022T120000Z"
     assert ours.match(name) and ours.match(name.replace("ab-", "ab-dirty-"))
     # Hand-made copies from before this are not ours to prune, nor the nightly fourteen.
@@ -116,19 +134,65 @@ def test_the_copies_before_deploys_keep_to_ten_and_leave_the_nightly_alone() -> 
 
 def test_each_wheel_is_kept_with_its_constraints_after_it_installs() -> None:
     block = box_block()
-    assert "KEPT=/var/lib/targum/wheels/0123456789ab" in block
+    assert "DEPLOYS=/var/lib/targum-deploy\n" in block
+    assert "KEPT=$DEPLOYS/wheels/0123456789ab\n" in block
     keep = block.index('install -o root -g root -m 0644 "/tmp/targum-1.0-py3-none-any.whl"')
     assert "/tmp/box-constraints.txt" in block[keep : block.index("\n", keep)]
     assert block.index("uv tool install") < keep, "only a wheel that installed is kept"
     assert 'printf \'%s\\n\' "difficulty,covers" > "$KEPT/extras"' in block
-    assert re.search(r"ls -1dt /var/lib/targum/wheels/\*/ \| tail -n \+6 \| xargs -r rm -rf", block)
+    prune = block.index('find "$DEPLOYS/wheels" -mindepth 1 -maxdepth 1 -type d')
+    assert "| sort -rn | tail -n +6 | cut -d' ' -f2- | xargs -r rm -rf --" in block[prune:]
+    # The one just kept is the newest, so the prune comes after it is in place.
+    assert keep < prune and block.index('touch "$KEPT"') < prune
+
+
+def test_root_writes_nothing_inside_the_service_accounts_directory() -> None:
+    """/var/lib/targum is targum's: it can swap a root-owned child for a symlink, and a
+    root rm -rf, install -d or append would follow it. What root keeps lives in
+    /var/lib/targum-deploy; what goes in /var/lib/targum is written as targum."""
+    for block in (box_block(), text(ROLLBACK)):
+        assert not re.search(r"rm -rf[^\n]*/var/lib/targum/", block)
+        assert not re.search(r">>?\s*\"?/var/lib/targum/", block)
+        assert not re.search(r"install -d[^\n]*/var/lib/targum/", block)
+        assert "/var/lib/targum/wheels" not in block
+        assert "/var/lib/targum/deploys.log" not in block
+    assert '[ -L "$DEPLOYS" ]' in box_block(), "a symlinked directory is refused"
+
+
+PRUNE = re.compile(r'find "\$DEPLOYS/wheels" .*?xargs -r rm -rf --', re.S)
+
+
+def test_the_prune_keeps_five_and_never_follows_a_link(tmp_path: Path) -> None:
+    probe = subprocess.run(
+        ["find", str(tmp_path), "-maxdepth", "0", "-printf", "%p"], capture_output=True, text=True
+    )
+    if probe.returncode != 0:
+        pytest.skip("this find has no -printf; the box's GNU find does")
+    found = PRUNE.search(box_block())
+    assert found
+    wheels = tmp_path / "deploys" / "wheels"
+    wheels.mkdir(parents=True)
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    (victim / "keep").write_text("x")
+    for age, name in enumerate(["a", "b", "c", "d", "e", "f", "g"]):
+        (wheels / name).mkdir()
+        os.utime(wheels / name, (1000 + age, 1000 + age))
+    (wheels / "zzz").symlink_to(victim)
+    subprocess.run(
+        ["bash", "-c", found.group(0)],
+        env={"PATH": os.environ["PATH"], "DEPLOYS": str(tmp_path / "deploys")},
+        check=True,
+    )
+    assert sorted(p.name for p in wheels.iterdir()) == ["c", "d", "e", "f", "g", "zzz"]
+    assert (victim / "keep").exists()
 
 
 def test_every_deploy_says_who_shipped_what_and_when() -> None:
     block = box_block()
     line = (
         "printf '%s %s %s\\n' \"20261022T120000Z\" "
-        '"0123456789abcdef0123456789abcdef01234567" "david" >> /var/lib/targum/deploys.log'
+        '"0123456789abcdef0123456789abcdef01234567" "david" >> "$DEPLOYS/deploys.log"'
     )
     assert line in block
     script = text()
@@ -140,7 +204,13 @@ def test_every_deploy_says_who_shipped_what_and_when() -> None:
 
 def test_the_catalogue_it_replaces_is_kept_first() -> None:
     block = box_block()
-    prev = block.index("cp -p /etc/targum/catalogue.json /etc/targum/catalogue.json.prev")
+    keep = (
+        "install -o root -g targum -m 0640 "
+        "/etc/targum/catalogue.json /etc/targum/catalogue.json.prev"
+    )
+    prev = block.index(keep)
+    # Not cp -p: the copy's time says when it was replaced, which rollback.sh shows.
+    assert "cp -p /etc/targum/catalogue.json" not in block
     assert prev < block.index("/tmp/catalogue.json /etc/targum/catalogue.json\n")
     assert "! cmp -s /tmp/catalogue.json /etc/targum/catalogue.json" in block
 
@@ -156,7 +226,7 @@ if [ "$*" = "bash -euo pipefail -s" ]; then
 fi
 echo "$*" >> "$CALLS"
 case "$*" in
-  ls\\ -1t*) printf '%s' "$BOX_SAYS" ;;
+  find\\ *) printf '%s' "$BOX_SAYS" ;;
 esac
 """
 
@@ -230,7 +300,7 @@ def test_a_kept_wheel_goes_back_as_deploy_installed_it(tmp_path: Path) -> None:
     assert done.returncode == 0, done.stderr
     sent = (tmp_path / "sent").read_text()
     subprocess.run(["bash", "-n"], input=sent, text=True, check=True)
-    assert "KEPT=/var/lib/targum/wheels/0123456789ab\n" in sent
+    assert "KEPT=/var/lib/targum-deploy/wheels/0123456789ab\n" in sent
     install = re.search(r"sudo -u targum env HOME=/srv/targum[^\n]*", sent)
     assert install, "installed as the service account"
     assert "uv tool install --force" in install.group(0)
@@ -239,6 +309,11 @@ def test_a_kept_wheel_goes_back_as_deploy_installed_it(tmp_path: Path) -> None:
     guard = sent.index("systemctl is-active --quiet targum-deploy.service")
     assert guard < sent.index("uv tool install") < sent.index("systemctl restart targum")
     assert re.search(r"printf '%s %s %s rollback\\n' \"\d{8}T\d{6}Z\" \"0123456789ab\" ", sent)
+    # The wheel it put back is touched, or it stays the oldest by time and the next
+    # deploy prunes the one that is running.
+    touched = sent.index('touch "$KEPT"')
+    assert sent.index("uv tool install") < touched < sent.index("systemctl restart targum")
+    assert ">> /var/lib/targum-deploy/deploys.log" in sent
     assert "https://box.invalid/health" in (tmp_path / "curls").read_text()
     assert "uv build" not in text(ROLLBACK), "nothing is built on the laptop"
 
@@ -261,4 +336,4 @@ def test_the_catalogue_goes_back_only_when_asked(
     assert ('if [ "1" = 1 ]; then' in sent) is swapped
     assert "mv /etc/targum/catalogue.json.prev /etc/targum/catalogue.json" in sent
     if not swapped:
-        assert "--catalogue puts back the one replaced 2026-10-21T09:00Z" in done.stdout
+        assert "--catalogue puts back the one a deploy replaced on 2026-10-21T09:00Z" in done.stdout

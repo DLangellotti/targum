@@ -7,14 +7,14 @@
 #   TARGUM_HOST=root@targum.page ./deploy/rollback.sh <sha> --keep-catalogue # code only
 #
 # Nothing is built here, and nothing needs this checkout to be on any commit: deploy.sh
-# keeps each wheel it installed in /var/lib/targum/wheels/<sha12>/ on the box, with the
+# keeps each wheel it installed in /var/lib/targum-deploy/wheels/<sha12>/ on the box, with the
 # constraints and extras it went in with, and this installs one of those again the same
 # way, as the service account (targum-internal#482). The last five deploys are there; a
 # commit older than that is a deploy of that commit, from a worktree, as ROLLBACK.md says.
 #
 # What this does not do, on purpose:
-# - It does not touch the database. MIGRATIONS only ever add, so older code reads a newer
-#   database. Restoring the copy deploy.sh took before the install is a separate, rarer
+# - It does not touch the database. MIGRATIONS add columns and tables, plus a few
+#   idempotent UPDATEs, so older code reads a newer database. Restoring the copy deploy.sh took before the install is a separate, rarer
 #   step (ROLLBACK.md), because it loses everything readers did since.
 # - It does not rebuild reader pages. Pages the newer deploy rewrote keep the stylesheet
 #   and script they were written with until the next deploy's rebuild rewrites them.
@@ -25,7 +25,8 @@ set -euo pipefail
 HOST="${TARGUM_HOST:?set TARGUM_HOST=user@box}"
 DOMAIN="${DOMAIN:-targum.page}"
 SSH_OPTS=(-o ServerAliveInterval=60 -o ServerAliveCountMax=120)
-WHEELS=/var/lib/targum/wheels
+DEPLOYS=/var/lib/targum-deploy
+WHEELS=$DEPLOYS/wheels
 
 WANTED=""
 CATALOGUE=ask
@@ -41,9 +42,9 @@ for arg in "$@"; do
   esac
 done
 
-# One look at the box, read-only: the wheels it keeps, newest first, and whether there is
-# a catalogue from before the last deploy to offer back.
-LOOK="ls -1t $WHEELS 2>/dev/null | sed 's/^/wheel /' || true
+# One look at the box, read-only: the wheels it keeps, newest first (real directories
+# only), and whether there is a replaced catalogue to offer back.
+LOOK="find $WHEELS -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\\n' 2>/dev/null | sort -rn | cut -d' ' -f2- | sed 's/^/wheel /' || true
 if [ -f /etc/targum/catalogue.json.prev ]; then
   echo \"catalogue-prev \$(date -u -r /etc/targum/catalogue.json.prev +%Y-%m-%dT%H:%MZ)\"
 fi"
@@ -63,7 +64,7 @@ if [ -z "$WANTED" ]; then
   echo "   the box keeps these wheels, newest first:" >&2
   kept
   echo "   the last deploys (deploys.log):" >&2
-  ssh "${SSH_OPTS[@]}" "$HOST" "tail -n 8 /var/lib/targum/deploys.log 2>/dev/null || echo '     (no deploys.log yet)'" >&2
+  ssh "${SSH_OPTS[@]}" "$HOST" "tail -n 8 $DEPLOYS/deploys.log 2>/dev/null || echo '     (no deploys.log yet)'" >&2
   echo "   say which: rollback.sh <sha>" >&2
   exit 2
 fi
@@ -97,10 +98,10 @@ if [ -n "$PREV_AT" ]; then
     no) ;;
     ask)
       if [ -t 0 ]; then
-        read -r -p "   Put back the catalogue from before the last deploy too (replaced $PREV_AT)? [y/N] " answer
+        read -r -p "   Also put back the catalogue a deploy replaced on $PREV_AT? [y/N] " answer
         case "$answer" in y|Y|yes) PUT_BACK=1 ;; esac
       else
-        echo "   the catalogue stays as it is; --catalogue puts back the one replaced $PREV_AT"
+        echo "   the catalogue stays as it is; --catalogue puts back the one a deploy replaced on $PREV_AT"
       fi ;;
   esac
 elif [ "$CATALOGUE" = yes ]; then
@@ -122,7 +123,7 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
     exit 1
   fi
   KEPT=$WHEELS/$NAME
-  WHEEL="\$(ls -1 "\$KEPT"/*.whl 2>/dev/null | head -1)"
+  WHEEL="\$(ls -1 "\$KEPT"/*.whl 2>/dev/null | head -1 || true)"
   if [ -z "\$WHEEL" ] || [ ! -f "\$KEPT/box-constraints.txt" ] || [ ! -f "\$KEPT/extras" ]; then
     echo "   \$KEPT is missing its wheel, constraints or extras; nothing was changed." >&2
     exit 1
@@ -154,7 +155,7 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
     echo "   catalogue put back; the one it replaced is catalogue.json.prev"
   fi
 
-  printf '%s %s %s rollback\n' "$STAMP" "$NAME" "$WHO" >> /var/lib/targum/deploys.log
+  printf '%s %s %s rollback\n' "$STAMP" "$NAME" "$WHO" >> $DEPLOYS/deploys.log
 
   # Blocking: the stop drains, finishing running builds and chat turns for up to ten
   # minutes while the old process serves, and a health check that answered before the
