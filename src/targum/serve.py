@@ -10741,6 +10741,22 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 400,
             )
+        if action == "resume" and found["state"] == "off" and found["kind"] in SUB_BUILDS:
+            # A channel or a podcast that was unsubscribed spends again only from the
+            # confirm page, where the cap is chosen and said beside the press (design.md
+            # §12, "A monthly cap is the second press that lasts"). Never in one press here.
+            from . import subscriptions as subs
+
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.subscribe-again-confirm",
+                        "Choose the monthly cap again to subscribe.",
+                    ),
+                    "confirm": subs.again(found),
+                },
+                409,
+            )
         if (
             action == "resume"
             and found["kind"] in SUB_BUILDS

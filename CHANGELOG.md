@@ -103,6 +103,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (`paradigmsHere`). And no conjugation table prints a raw Wikidata item: the three forms
   the source never named (Q1305037, Q344 · Q500726, Q462367 on הלך and היה) are left out
   of their tables. Render-time only; no annotator rename.
+- Subscriptions, design's B8 and B1 (targum-internal#475). Subscribe again on a channel or
+  a podcast that was unsubscribed goes to the confirm page with its old cap chosen, so the
+  monthly cap is said beside the press again, and the door refuses a one-press resume of
+  one (409, with the confirm page's link). A series or a topic, which is free, keeps its
+  one press. An unsubscribed one draws no cap or mail card, and says "You unsubscribed on
+  {date}." in its head. A fault is no longer told as data: a 502 on the tab says "We
+  couldn't load your subscriptions." with Try again, not "You haven't subscribed to
+  anything yet."; signed out, it says to sign in, with Sign in; and on one subscription's
+  page only a 404 says we couldn't find it.
 - Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
   order were one setting under two names and two drawings: both say "Play in order" and
   are the same switch. An empty Saved page heads its line "Saved by you", not "Saved
