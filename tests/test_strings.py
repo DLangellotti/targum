@@ -783,3 +783,17 @@ def test_every_sentence_a_desk_script_asks_for_rides_with_the_page() -> None:
         if gone:
             unsaid[name] = gone
     assert not unsaid, f"said in English on a Russian page: {unsaid}"
+
+
+def test_the_connect_page_names_the_pages_and_verbs_the_app_uses() -> None:
+    """ling-en on targum-internal#473: /connect and the approval page call the account
+    page by its name, subscribe rather than follow, and say who gets a text ready."""
+    said = strings.catalogue("en")
+    account = said["you.page.title"]
+    assert account in said["connect.page.you-can-disconnect-it-later"]
+    assert account in said["connect.page.a-how-do-i-disconnect"]
+    assert "subscribe" in said["connect.page.subscriptions-says"]
+    assert "free" not in said["connect.page.subscriptions-says"]
+    assert not said["connect.scope.chat-also"].startswith("And ")
+    assert "Nothing is made" not in said["connect.page.a-can-it-spend-on-its-own"]
+    assert ":" not in said["connect.page.chatgpt-menus-move"]

@@ -572,9 +572,10 @@
             ". " +
             t(
               "connect.scope.chat-also",
-              "And add texts to your playlists, and offer texts, playlists and subscriptions, which you confirm here, on targum"
+              "It can also add texts to your playlists, and suggest texts, playlists and subscriptions for you to confirm on targum."
             ) +
-            ". " +
+            // A sentence of its own since ling-en's pass (targum-internal#473), full stop and all.
+            " " +
             t("you.connections.chat-included", "Chatting is included."),
         });
       }

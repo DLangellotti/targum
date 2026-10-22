@@ -229,7 +229,7 @@ def test_the_page_says_what_is_being_asked_for(connected: tuple[int, str, Path])
     assert "Claude" in page, "the client's claim about itself, shown as one"
     assert "Search the library" in page
     assert "Read your words" in page
-    assert "And add texts to your playlists" not in page, "not asked for, so not granted"
+    assert "It can also add texts to your playlists" not in page, "not asked for, so not granted"
 
 
 def test_the_spending_scope_says_chatting_is_included(connected: tuple[int, str, Path]) -> None:
@@ -246,10 +246,12 @@ def test_the_spending_scope_says_chatting_is_included(connected: tuple[int, str,
         session=session,
     )
     page = body.decode()
-    assert "And add texts to your playlists" in page
+    assert "It can also add texts to your playlists" in page
     assert "Chatting is included." in page
     said = page.split("<main", 1)[1]  # the page inlines `reader.css`, which says plenty
     assert "credits left this month, about" in said, "the balance, with its rate beside it"
+    # A credit is a minute of audio or video (ling-en, targum-internal#473).
+    assert "of audio or video." in said
     assert "hours" not in said and "chatting uses" not in said.lower()
     assert '<b class="host">claude.ai</b>' in page, "where Connect sends the reader, in bold"
 
