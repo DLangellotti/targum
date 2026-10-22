@@ -5620,15 +5620,20 @@ def render(
         stands: dict[str, list[list[object]]] = {}
         # Every form each verb is written in on this page, so the conjugation table a
         # word gets is one all of them agree on and not the first one's (#307).
-        verb_forms: dict[tuple[str, str], list[str]] = {}
+        verb_forms: dict[tuple[str, str, str], list[str]] = {}
         # And the grammar each of those forms was tagged with, which is what tells a
         # participle's verb from a verb spelled like it (#307).
-        verb_said: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
+        verb_said: dict[tuple[str, str, str], list[tuple[str, str, str]]] = {}
         # Where an occurrence's own pointing names another table than the word's, or
         # refuses it: per segment, rows of [the token's row, the table] (#307, decided
         # 2026-10-03). Only where it differs, so a page the vowels change nothing on
         # weighs what it did.
         paradigms_here: dict[str, list[list[int]]] = {}
+        # And an occurrence's own binyan where it is not the word's (targum-internal#508):
+        # the row above is the first occurrence's, so Gen 12:3 וְנִבְרְכוּ (nif'al) was
+        # shown as the page's first ברך, a pi'el. Per segment, [the token's row, binyan];
+        # only where it differs, like `paradigms_here`, and its table rides there.
+        binyanim_here: dict[str, list[list[object]]] = {}
         if annotation is not None:
             from ..annotate.paradigms import bare as unpointed
             from ..annotate.paradigms import pointed_form, written_form
@@ -5637,8 +5642,10 @@ def render(
                 for token in chips(annotation.tokens.get(sid) or ()):
                     if token.pos == "VERB":
                         form = written_form(token.surface, token.built)
-                        verb_forms.setdefault((token.lemma, token.head), []).append(form)
-                        verb_said.setdefault((token.lemma, token.head), []).append(
+                        # By binyan too: a nif'al's forms have no say in its pi'el's table.
+                        verb = (token.lemma, token.head, token.binyan or "")
+                        verb_forms.setdefault(verb, []).append(form)
+                        verb_said.setdefault(verb, []).append(
                             (form, token.feats or "", token.surface)
                         )
         if annotation is not None:
@@ -5676,6 +5683,7 @@ def render(
                 # A name of several words is one chip (targum-internal#149).
                 for token in on_row:
                     word = (token.lemma, token.head)
+                    verb = (token.lemma, token.head, token.binyan or "")
                     if word not in lemma_at:
                         lemma_at[word] = len(lemmas)
                         lemmas.append(token.lemma)
@@ -5694,8 +5702,8 @@ def render(
                                 tables,
                                 table_at,
                                 feature_at,
-                                tuple(verb_forms.get(word, ())),
-                                tuple(verb_said.get(word, ())),
+                                tuple(verb_forms.get(verb, ())),
+                                tuple(verb_said.get(verb, ())),
                             )
                         )
                     # Offsets arrive measured against the segment as ingested, which may
@@ -5759,15 +5767,23 @@ def render(
                         row.append(label)
                     rows.append(row)
                     seen = pointed_form(token.surface, token.built) if token.pos == "VERB" else ""
-                    if seen and seen != unpointed(seen):
+                    pointed_here = bool(seen) and seen != unpointed(seen)
+                    other_binyan = (
+                        token.pos == "VERB" and (token.binyan or "") != binyanim[lemma_at[word]]
+                    )
+                    if other_binyan:
+                        binyanim_here.setdefault(sid, []).append(
+                            [len(rows) - 1, token.binyan or ""]
+                        )
+                    if pointed_here or other_binyan:
                         here = _paradigm_at(
                             token,
                             tables,
                             table_at,
                             feature_at,
-                            tuple(verb_forms.get(word, ())),
-                            tuple(verb_said.get(word, ())),
-                            seen,
+                            tuple(verb_forms.get(verb, ())),
+                            tuple(verb_said.get(verb, ())),
+                            seen if pointed_here else "",
                         )
                         if here != paradigms[lemma_at[word]]:
                             paradigms_here.setdefault(sid, []).append([len(rows) - 1, here])
@@ -6204,6 +6220,7 @@ def render(
                     # An occurrence's own table where its pointing says another than the
                     # word's (targum-internal#307). Absent wherever it says nothing new.
                     **({"paradigmsHere": paradigms_here} if paradigms_here else {}),
+                    **({"binyanimHere": binyanim_here} if binyanim_here else {}),
                     # A verb's citation form and a noun's lying plural, parallel to the
                     # lemmas. Left out while nothing on the page has either — which is
                     # every text glossed before they existed.

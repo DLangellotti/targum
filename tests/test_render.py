@@ -6679,3 +6679,31 @@ def test_a_reader_in_russian_carries_one_cyrillic_face_and_one_in_english_none(
     assert russian.count("unicode-range:U+0400-04FF,U+2011,U+2116") == 1
     english = _genesis(tmp_path / "en", [_english()])
     assert "unicode-range" not in english
+
+
+def test_an_occurrence_in_another_binyan_says_its_own(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#508 (ling-he, Gen 12:3): the row for ברך is the page's first
+    occurrence's, pi'el, so וְנִבְרְכוּ (nif'al) was drawn with the pi'el's binyan and table.
+    The occurrence in another binyan carries its own, and its own table with it."""
+    from targum.annotate import paradigms
+
+    piel = paradigms.Paradigm(
+        lemma="בֵּרֵךְ", forms=(paradigms.Form(written="בֵּרַכְתִּי", features=("1st", "past")),)
+    )
+    nifal = paradigms.Paradigm(
+        lemma="נִבְרַךְ", forms=(paradigms.Form(written="נִבְרַכְתִּי", features=("1st", "past")),)
+    )
+    shelf = paradigms.Table(verbs={"p": piel, "n": nifal}, by_form={"ברך": ("p", "n")})
+    monkeypatch.setattr(paradigms, "table", lambda: shelf)
+
+    data = _pointed_page(tmp_path, "ברך", [("ואברכך", "פיעל"), ("ונברכו", "נפעל")])
+    extensions = data["extensions"]
+    assert extensions["binyanim"] == ["פיעל"], "one row for the word, the first one's"
+    ((sid, here),) = data["binyanimHere"].items()
+    assert here == [[1, "נפעל"]], "the second occurrence says its own"
+    ((_, tables),) = data["paradigmsHere"].items()
+    ((row, table),) = tables
+    assert row == 1 and table != extensions["paradigms"][0]
+    assert [form for form, _ in extensions["conjugations"][table]] == ["נִבְרַכְתִּי"]
