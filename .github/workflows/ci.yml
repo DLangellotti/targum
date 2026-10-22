@@ -33,7 +33,23 @@ jobs:
       # the audio and video tests fail rather than skipping. CI never had it, and nothing
       # needed it until the audio import landed with a hard check, so master went red on
       # the commit that added the tests rather than on anything about this file.
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      #
+      # A slow mirror held this step for 30-80 minutes four times on 2026-10-22. It was not
+      # stalled but crawling, a few KB/s, so a short cap only killed downloads in progress.
+      # So the download is smaller (ffmpeg's recommends were 227 MB of VA drivers, docs and
+      # speech models nothing here uses), and each attempt keeps what it fetched: apt
+      # resumes from /var/cache/apt/archives. Three attempts of five minutes, and the step
+      # gives up at eighteen.
+      - name: Install ffmpeg
+        timeout-minutes: 18
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 300 sh -c 'sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg'; then
+              exit 0
+            fi
+            echo "apt-get attempt $attempt failed or stalled"
+          done
+          exit 1
       # `phonetics` is here so the readings are exercised rather than skipped. It caps
       # Python below 3.13, so adding 3.13 to the matrix above means dropping this extra
       # from that leg — the failure is a resolution error, which is loud but obscure.

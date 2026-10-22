@@ -2,8 +2,11 @@
 
 For a deploy that went out and is worse than what it replaced. Written against
 `deploy.sh` and `rollback.sh` as of targum#876 (2026-10-22, targum-internal#482); every
-path and command below was checked against the code and, read-only, against the box. **Not yet run as a drill**: the
-date it first runs goes on #482 and here.
+path and command below was checked against the code and, read-only, against the box.
+**First run as a drill on 2026-10-22**, on the live box: a deploy of `c823783e`, then
+`rollback.sh` onto its kept wheel (18 seconds), step 4a's checks on the copy that deploy
+took, and [`INCIDENT.md`](INCIDENT.md)'s first ten minutes. The times and output are on
+targum-internal#482.
 
 Rolling back is a change to the box, so it happens on David's word, in the moment. The
 read-only checks in step 1 need nobody's word.
@@ -17,9 +20,11 @@ Three things can be put back, and they are separate:
 | **The database** | Restore the `targum.db.before-*` copy taken before the deploy (step 4) | Everything readers did since that copy: words saved, sign-ups, jobs, the spend ledger. |
 | **The reader pages** | A redeploy's rebuild rewrites them (3b); `rollback.sh` leaves them as the bad deploy wrote them | Hours of box time if a redeploy crosses an annotator rename (step 5). |
 
-**The first deploy with targum#876 has no earlier kept wheel.** Wheels are kept from
-that deploy on, so until a second deploy has gone out, `rollback.sh` has nothing older
-to put back and the way back is a redeploy of the previous SHA (step 3b).
+**`rollback.sh` is the first way back for any build the box kept; a redeploy (3b) is
+for anything older.** Wheels are kept from the first deploy with targum#876 on, which was
+`c823783e` on 2026-10-22. Until a second deploy has gone out the box keeps that one
+wheel alone, so `rollback.sh` has nothing older to put back and the way back past it is
+a redeploy of the previous SHA (step 3b).
 
 **Roll back the code first, and the database only if the data itself is damaged.** The
 schema changes in `accounts.py` are additive columns and tables (`CREATE TABLE IF NOT
@@ -193,6 +198,10 @@ Rolled back.
 replaced as `/etc/targum/catalogue.json.prev`. If one is there, `rollback.sh` asks
 `Also put back the catalogue a deploy replaced on <time>? [y/N]` at a terminal, and
 without one keeps the catalogue as it is and says `--catalogue` would put it back.
+With no terminal (a script, or an agent's shell over SSH) it cannot ask, so say which
+outright rather than leave it to that default: `--keep-catalogue` for the code alone,
+`--catalogue` for both. The 2026-10-22
+drill ran with `--keep-catalogue` for that reason.
 `--catalogue` swaps the two files, so the replaced one becomes `.prev` and a second run
 with `--catalogue` undoes the first. `.prev` is whatever the *last* differing deploy
 replaced, which is not necessarily the catalogue that went with `<sha>`: check its time
@@ -270,6 +279,10 @@ see, in order (the `database copied` line only from a commit with targum#876):
    (preflight's checks)
 Deployed.
 ```
+
+A `warn yt-dlp: YouTube imports are off without yt-dlp` among preflight's checks is not
+the deploy: the 2026-10-22 drill's deploy printed it because the nightly yt-dlp upgrade
+had failed that morning. [`INCIDENT.md`](INCIDENT.md) says how to tell and what fixes it.
 
 If it stops at `a deploy is already running on this box (targum-deploy.service)` anyway
 (a deploy started between your check and this one), what happened depends on the

@@ -2,8 +2,9 @@
 
 Something is wrong on targum.page: a mail from the health watch, a reader saying so, a
 deploy that ended badly. This is what to do before deciding anything. Written
-2026-10-22 (targum-internal#482) against the code and, read-only, the box. **Not yet run
-as a drill**; the date it first runs goes on #482 and here.
+2026-10-22 (targum-internal#482) against the code and, read-only, the box. **First run
+as a drill on 2026-10-22**: the commands below took three seconds, and the preflight with
+connections about two minutes. The output is on #482.
 
 Everything in "Where to look" is read-only and needs nobody's word. Everything that
 changes the box (a restart, a rollback, a restore, a key) waits for David's word, in the
@@ -134,6 +135,35 @@ ssh root@targum.page 'systemd-run --quiet --wait --pipe --collect --uid=targum -
 Healthy: every line `ok`, with the known warnings (the port answering, which is the
 running service; stale parasha and daily pages awaiting a laptop re-cut).
 
+**If it says `warn yt-dlp: YouTube imports are off without yt-dlp`**, YouTube, Instagram,
+TikTok and Facebook imports are all off for readers, and the cause is almost always the
+nightly upgrade, not a deploy. At 03:30 UTC `/etc/cron.d/targum-ytdlp` (root's, written
+by `provision.sh`) runs `uv tool install --upgrade yt-dlp` as `targum` through
+`systemd-run --unit=targum-ytdlp`. When it meets a file `targum` cannot remove it stops
+halfway, after it has deleted `bin/yt-dlp`. That happened on 2026-10-22 and imports were
+off for about 18 hours. Read-only:
+
+```sh
+ssh root@targum.page 'journalctl -u targum-ytdlp -n 5 --no-pager'
+ssh root@targum.page 'find /srv/targum/.local/share/uv/tools ! -user targum | head; find /srv/targum/.local/share/uv/tools ! -user targum | wc -l'
+```
+
+Healthy: no `error:` in the last run, and `0` files. On 2026-10-22 the journal said
+`failed to remove directory …/yt_dlp/utils/jslib/__pycache__: Permission denied` and 90
+files were root's, left by somebody running `yt-dlp` as root. The fix, on David's word:
+give those files back to `targum`, then run the cron's install again. It runs as
+`targum` through `systemd-run`, so copy the command from the cron file rather than
+typing it, because it pins the token minter's version:
+
+```sh
+ssh root@targum.page 'find /srv/targum/.local/share/uv/tools ! -user targum -exec chown -h targum:targum {} +'
+ssh root@targum.page 'cat /etc/cron.d/targum-ytdlp'
+ssh root@targum.page '<everything after "root" on the 30 3 line>'
+```
+
+Then the preflight with connections again: `yt-dlp` and the four platforms should say
+`ok`. Nothing else needs restarting, because the service looks for `yt-dlp` on each import.
+
 ## Minutes 8–10: decide
 
 **Roll back** ([`ROLLBACK.md`](ROLLBACK.md)) when all of these hold:
@@ -160,9 +190,10 @@ recommendation, in a few lines.
 
 ## Never
 
-- **Run `targum` as root on the box**, `--help` included. It leaves root-owned
-  `__pycache__` in `/srv/targum/.local/share/uv/tools/targum`, and the next deploy fails at
-  `Permission denied` halfway through replacing the tool. One-off commands go through
+- **Run `targum` or `yt-dlp` as root on the box**, `--help` included. It leaves root-owned
+  `__pycache__` in `/srv/targum/.local/share/uv/tools/targum` (or `…/tools/yt-dlp`), and
+  the next deploy (or the nightly yt-dlp upgrade) fails at `Permission denied` halfway
+  through replacing the tool. One-off commands go through
   `systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum
   --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum …`;
   `sqlite3` through `runuser -u targum --`. The env file is systemd's format and root's
