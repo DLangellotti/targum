@@ -81,3 +81,60 @@ def test_a_desk_page_asks_who_is_signed_in_once(chromium, name: str) -> None:
         context.close()
     assert len(asked) == 1, f"{name} asked /account/me {len(asked)} times"
     assert not thrown, thrown
+
+
+def open_account(chromium, answers: list[Any]):
+    """Your account, with `/account/me` answered from `answers` in turn (an int is a bare
+    status), the last one again once they run out. Returns what was asked."""
+    html = you_page("")
+    asked: list[str] = []
+
+    def answer(route: Any, request: Any) -> Any:
+        where = request.url[len(SITE) :].split("?")[0]
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        if where == "/account/me":
+            said = answers[min(len(asked), len(answers) - 1)]
+            asked.append(request.url)
+            if isinstance(said, int):
+                return route.fulfill(status=said, content_type="application/json", body="{}")
+            return route.fulfill(status=200, content_type="application/json", body=json.dumps(said))
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = chromium.browser().new_context(viewport={"width": 390, "height": 844})
+    context.add_init_script("localStorage.setItem('targum:welcomed', '1');")
+    page = context.new_page()
+    page.route(f"{SITE}/**", answer)
+    page.goto(SITE + "/you")
+    page.wait_for_load_state("networkidle")
+    page.wait_for_timeout(300)
+    return context, page, asked
+
+
+def test_a_refused_answer_is_not_kept_for_the_page(chromium) -> None:
+    """After a 502 every script on the page has the refusal, and the next to ask (the
+    connection coming back, `flush`) reaches the account rather than the kept 502."""
+    context, page, asked = open_account(chromium, [502, ME])
+    try:
+        assert len(asked) == 1, "the 502 was shared, not asked again by each script"
+        assert page.evaluate("window.TargumSync.who") is None
+        page.evaluate("window.TargumSync.flush()")
+        page.wait_for_function("() => window.TargumSync.who && window.TargumSync.who.signedIn")
+        assert len(asked) == 2
+    finally:
+        context.close()
+
+
+def test_a_fresh_start_asks_again_and_a_plain_one_does_not(chromium) -> None:
+    """A change of languages makes the shared answer stale: `start(true)` asks again."""
+    context, page, asked = open_account(chromium, [ME])
+    try:
+        assert len(asked) == 1
+        page.evaluate("window.TargumSync.start()")
+        page.wait_for_timeout(300)
+        assert len(asked) == 1, "a plain start reads the page's answer"
+        page.evaluate("window.TargumSync.start(true)")
+        page.wait_for_timeout(300)
+        assert len(asked) == 2, "a fresh start asks again"
+    finally:
+        context.close()
