@@ -37,6 +37,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and catalogue under that rebuild: the `targum-deploy` guard sat below the install
   despite its comment. The laptop now asks before it sends anything, and the box-side
   block asks again first, so a refused deploy changes nothing on the box.
+- At a desk, in Theatre, the playlist foot is no longer laid out under the picture
+  (targum-internal#505). It stands beside `main`, which Theatre hides, so it stayed under
+  the fixed picture, out of sight, and a press on its Play in order went to the video's tap
+  layer. Theatre now hides the foot too; the row under the picture carries the same switch
+  and Next, the transcript view still draws the foot under the picture, and the end card
+  still takes it in.
 - Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
   order were one setting under two names and two drawings: both say "Play in order" and
   are the same switch. An empty Saved page heads its line "Saved by you", not "Saved
