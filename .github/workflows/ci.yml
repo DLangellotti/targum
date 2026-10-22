@@ -39,12 +39,15 @@ jobs:
       # So the download is smaller (ffmpeg's recommends were 227 MB of VA drivers, docs and
       # speech models nothing here uses), and each attempt keeps what it fetched: apt
       # resumes from /var/cache/apt/archives. Three attempts of five minutes, and the step
-      # gives up at eighteen.
+      # gives up at eighteen. Inside an attempt apt drops a connection silent for thirty
+      # seconds and tries again itself, so a stalled index fetch costs seconds, not the
+      # whole five minutes (it did on 2026-10-22).
       - name: Install ffmpeg
         timeout-minutes: 18
         run: |
+          APT="-o Acquire::http::Timeout=30 -o Acquire::Retries=3"
           for attempt in 1 2 3; do
-            if timeout 300 sh -c 'sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg'; then
+            if timeout 300 sh -c "sudo apt-get $APT update && sudo apt-get $APT install -y --no-install-recommends ffmpeg"; then
               exit 0
             fi
             echo "apt-get attempt $attempt failed or stalled"
