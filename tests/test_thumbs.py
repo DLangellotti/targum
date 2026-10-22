@@ -332,3 +332,179 @@ def test_a_deploy_carries_only_the_librarys_pictures(
         "/p3-\\[115\\]-Yair-Lapid-he.webp",
     ]
     assert json.loads((where / thumbs.SOURCES).read_text("utf-8")) == held, "thumbs/ is only read"
+
+
+# -- slice 4: a podcast episode keeps its feed's artwork, for the reader who added it ----
+
+SHOW_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel><title>A show</title>
+    {channel}
+    <item>
+      <title>Episode ten</title>
+      <enclosure url="https://cdn.example/ep10.mp3" type="audio/mpeg" length="1"/>
+      {item}
+    </item>
+  </channel>
+</rss>"""
+
+
+def show(channel: str = "", item: str = "") -> bytes:
+    return SHOW_FEED.format(channel=channel, item=item).encode()
+
+
+def jpeg(width: int = 600, height: int = 600) -> bytes:
+    from PIL import Image
+
+    kept = io.BytesIO()
+    Image.new("RGB", (width, height), (31, 111, 107)).save(kept, format="JPEG")
+    return kept.getvalue()
+
+
+@pytest.fixture
+def answering(monkeypatch: pytest.MonkeyPatch) -> dict[str, tuple[str, bytes]]:
+    """The one outbound door answered from a table, so nothing here touches the network:
+    the feed and the artwork are both rows of it, and a row asked for that is not there
+    fails the test rather than reaching out."""
+    from targum.ingest import url as url_module
+
+    table: dict[str, tuple[str, bytes]] = {}
+
+    class Answer:
+        def __init__(self, url: str) -> None:
+            kind, body = table[url]
+            self.status_code = 200
+            self.headers = {"content-type": kind}
+            self.charset = "utf-8"
+            self.encoding = None
+            self._body = body
+
+        def iter_content(self, chunk_size: int | None = None) -> Any:
+            yield self._body
+
+        def close(self) -> None:
+            return None
+
+    class Client:
+        def get(self, url: str, **kwargs: object) -> Answer:
+            return Answer(str(url))
+
+    monkeypatch.setattr(url_module, "_reachable", lambda target: None)
+    monkeypatch.setattr(url_module, "_session", lambda proxy="": Client())
+    monkeypatch.setattr(url_module, "POLITE_S", 0.0)
+    url_module.PAGES.clear()
+    return table
+
+
+def test_a_feed_names_its_episodes_artwork_or_its_shows() -> None:
+    from targum.weekly import feeds
+
+    own = show(item='<itunes:image href="https://cdn.example/ep10.jpg"/>')
+    assert feeds.parse(own)[0].artwork == "https://cdn.example/ep10.jpg"
+    channel = show(
+        channel="<image><url>https://cdn.example/badge.png</url></image>"
+        '<itunes:image href="https://cdn.example/show.jpg"/>'
+    )
+    assert feeds.parse(channel)[0].artwork == ""
+    assert feeds.artwork(channel) == "https://cdn.example/show.jpg", "iTunes' square first"
+    rss_only = show(channel="<image><url>https://cdn.example/badge.png</url></image>")
+    assert feeds.artwork(rss_only) == "https://cdn.example/badge.png"
+    assert feeds.artwork(show()) == "" and feeds.artwork(b"not a feed") == ""
+
+
+def test_a_podcast_episode_built_keeps_its_feeds_artwork_beside_its_reader(
+    tmp_path: Path, answering: dict[str, tuple[str, bytes]], fake_segmenter: object
+) -> None:
+    """The fixture is an episode found from its feed, built: the artwork is fetched at
+    build time through the one door, and kept as the reader's own `thumb.webp`, which
+    `/thumb/` serves from the asker's own home only (test_serve)."""
+    from targum.audio.episode import find
+    from targum.pipeline import Build
+
+    answering["https://show.example/feed"] = (
+        "application/rss+xml",
+        show(channel='<itunes:image href="/art/show.jpg"/>'),
+    )
+    answering["https://show.example/art/show.jpg"] = ("image/jpeg", jpeg())
+    found = find("https://show.example/feed")
+    assert found is not None
+    assert found.artwork_url == "https://show.example/art/show.jpg"
+    assert found.feed_url == "https://show.example/feed"
+
+    # The words come from a file here rather than a transcription, which is a model's
+    # and not this test's; the picture is what is built from the episode.
+    words = tmp_path / "episode.md"
+    words.write_text("# פרק עשר\n\nבארץ־ישראל קם העם היהודי.\n", encoding="utf-8")
+    out = tmp_path / "out" / "local" / "episode-ten"
+    build = Build(
+        str(words),
+        provider_name="null",
+        out=out,
+        segmenter=fake_segmenter,  # type: ignore[arg-type]
+        target_language="en",
+    )
+    build._episode = found
+    build.run()
+
+    from PIL import Image
+
+    with Image.open(out / thumbs.THUMB) as kept:
+        assert kept.format == "WEBP" and kept.width == 320
+    said = json.loads((out / thumbs.THUMB_SOURCE).read_text(encoding="utf-8"))
+    assert said["from"] == "podcast artwork"
+    assert said["url"] == "https://show.example/art/show.jpg"
+    assert said["feed"] == "https://show.example/feed"
+    assert "reader who added it" in said["licence"]
+
+
+def test_a_feed_with_no_artwork_leaves_the_letter_tile(
+    tmp_path: Path, answering: dict[str, tuple[str, bytes]]
+) -> None:
+    from targum.audio.episode import find
+
+    answering["https://show.example/feed"] = ("application/rss+xml", show())
+    found = find("https://show.example/feed")
+    assert found is not None and found.artwork_url == "" and found.feed_url == ""
+    folder = tmp_path / "local" / "episode-ten"
+    # Nothing asked of the audio either: an mp3 is no page to read a picture off.
+    assert not thumbs.capture(found.audio_url, folder, artwork=found.artwork_url)
+    assert not (folder / thumbs.THUMB).exists()
+    assert not (folder / thumbs.THUMB_SOURCE).exists()
+
+
+@pytest.mark.parametrize(
+    ("kind", "body"),
+    [
+        (
+            "image/svg+xml",
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="9" height="9">'
+            b"<script>alert(1)</script></svg>",
+        ),
+        ("image/jpeg", b"<html>an error page called a picture</html>"),
+        ("image/gif", b"GIF89a\x01\x00\x01\x00\x00\x00\x00;"),
+        ("image/png", b"\x89PNG\r\n\x1a\n not really"),
+    ],
+)
+def test_artwork_that_is_not_a_picture_we_keep_is_refused(
+    tmp_path: Path, answering: dict[str, tuple[str, bytes]], kind: str, body: bytes
+) -> None:
+    answering["https://cdn.example/art"] = (kind, body)
+    folder = tmp_path / "local" / "episode-ten"
+    assert not thumbs.capture(
+        "https://cdn.example/ep10.mp3", folder, artwork="https://cdn.example/art"
+    )
+    assert not (folder / thumbs.THUMB).exists()
+    assert not (folder / thumbs.THUMB_SOURCE).exists()
+
+
+def test_artwork_over_the_cap_is_refused_unread(
+    tmp_path: Path, answering: dict[str, tuple[str, bytes]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    big = jpeg(1200, 1200)
+    monkeypatch.setattr(thumbs, "ARTWORK_MOST_BYTES", len(big) - 1)
+    answering["https://cdn.example/big.jpg"] = ("image/jpeg", big)
+    assert thumbs.fetch_artwork("https://cdn.example/big.jpg") is None
+    monkeypatch.setattr(thumbs, "ARTWORK_MOST_SIDE", 1000)
+    assert thumbs.artwork_picture(jpeg(1200, 10)) is None
+    assert thumbs.artwork_picture(jpeg(900, 900)) is not None
+    assert thumbs.fetch_artwork("file:///etc/passwd") is None

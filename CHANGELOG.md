@@ -226,6 +226,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "Uploaded by you" stays (David, 2026-10-21).
 
 ### Added
+- A podcast episode a reader adds keeps its feed's artwork as its picture
+  (targum-internal#429, slice 4). The item's `itunes:image`, else the show's (`itunes:image`,
+  RSS's `<image>`, Atom's `<logo>`), is fetched once on the box at build time through the one
+  outbound door and kept as the reader's own `thumb.webp`, served only to them like any
+  upload's cover. It is read no further than 5 MB, must decode as PNG, JPEG or WebP and be at
+  most 6000 pixels a side, so an SVG or an error page is refused. Where it came from is
+  written in `thumb-source.json` beside it. A feed with no artwork keeps the letter tile, and
+  an episode's audio is no longer fetched as a page to look for an `og:image`.
 - Your Words' Anki export carries each word's sound (targum-internal#496, a beta reader's
   ask). The deck is an `.apkg` built on the server (`targum.anki`, Anki's schema 11),
   replacing the browser's text file, which could not carry media. A word with no clip yet

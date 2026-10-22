@@ -43,6 +43,20 @@ THUMB = "thumb.webp"
 #: Where the batch writes down what each library picture is and where it came from.
 SOURCES = "sources.json"
 
+#: The same line for an upload's own picture fetched from somewhere other than the file
+#: the reader brought — a podcast episode's feed artwork — beside `THUMB` in the reader's
+#: home, so a picture a reader never handed us still says where it came from.
+THUMB_SOURCE = "thumb-source.json"
+
+#: A podcast's artwork, fetched by us at build time (targum-internal#429). Apple asks for
+#: a 3000-pixel square under 512 KB; a few megabytes and 6000 pixels a side leave room for
+#: a feed that ignores that, and nothing past them is read or decoded. Only the three
+#: raster formats a podcast app shows: an SVG is a document, not a picture, and is never
+#: let near a reader's page.
+ARTWORK_MOST_BYTES = 5 * 1024 * 1024
+ARTWORK_MOST_SIDE = 6000
+ARTWORK_FORMATS = ("PNG", "JPEG", "WEBP")
+
 #: The fallback tile's colours, by what a text is (David, 2026-10-08; the calm-surfaces
 #: board's tiles): teal news, iris sets, clay things said, muted books. Each is a working
 #: cut of design.md §4 with `ON_TONE` above it at AA.
@@ -284,14 +298,51 @@ def _from_link(source: str) -> bytes | None:
     return url_module.fetch(image).raw or None
 
 
+def artwork_picture(image: bytes) -> bytes | None:
+    """`image` where it is podcast artwork we will keep, or None.
+
+    Under `ARTWORK_MOST_BYTES`, PNG, JPEG or WEBP by what its bytes are rather than what
+    the feed or the host called it, and no wider or taller than `ARTWORK_MOST_SIDE`, which
+    is asked of the header before a pixel is decoded. Markup — an SVG, an error page — is
+    refused before Pillow sees it."""
+    if not image or len(image) > ARTWORK_MOST_BYTES or image.lstrip()[:1] == b"<":
+        return None
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(image), formats=list(ARTWORK_FORMATS)) as opened:
+            if opened.format not in ARTWORK_FORMATS or max(opened.size) > ARTWORK_MOST_SIDE:
+                return None
+            opened.verify()
+    except Exception:  # noqa: BLE001 - anything Pillow cannot read as one of the three
+        return None
+    return image
+
+
+def fetch_artwork(address: str) -> bytes | None:
+    """A podcast's artwork, through the one outbound door, read no further than the cap:
+    one byte past `ARTWORK_MOST_BYTES` says it is too big without the rest arriving."""
+    from .ingest import url as url_module
+
+    if urlparse(address).scheme not in ("http", "https"):
+        return None
+    got = url_module.opening(address, ARTWORK_MOST_BYTES + 1)
+    return artwork_picture(got.head)
+
+
 def own_picture(source: str, folder: Path) -> bytes | None:
     """The picture a text brought with it, or None."""
+    from .audio.episode import sounds_like_audio
     from .ingest import picture as picture_module
 
     from_post = _post_picture(folder)
     if from_post:
         return from_post
     if urlparse(source).scheme in ("http", "https"):
+        # An episode's audio is no page to read an `og:image` from, and asking would
+        # pull eight megabytes of it to find that out. Its picture is its feed's.
+        if sounds_like_audio(source):
+            return None
         return _from_link(source)
     path = Path(source)
     if not path.exists():
@@ -307,13 +358,18 @@ def own_picture(source: str, folder: Path) -> bytes | None:
     return None
 
 
-def capture(source: str, folder: Path) -> bool:
+def capture(source: str, folder: Path, *, artwork: str = "", feed: str = "") -> bool:
     """Keep an upload's own picture beside its reader, once, and say whether it has one.
 
     Best effort, like a video's poster: a page with no `og:image`, a host that refuses
     the picture, a file Pillow cannot read — each leaves the text to the drawn tile and
     never fails the build that asked. Never for a library text: those are the batch's,
     and their pictures are chosen by licence (`targum thumbs`).
+
+    `artwork` is a podcast episode's picture as its `feed` names it (targum-internal#429):
+    fetched here, at build time, checked by `artwork_picture`, and written down in
+    `THUMB_SOURCE` beside it. A feed that names none, or names something that is not a
+    picture we keep, leaves the episode to the letter tile.
     """
     from . import catalogue as catalogue_module
 
@@ -323,11 +379,37 @@ def capture(source: str, folder: Path) -> bool:
     if catalogue_module.matching(source) is not None or not can_keep():
         return False
     try:
+        if artwork:
+            image = fetch_artwork(artwork)
+            if image and keep(image, target):
+                _record_own(folder, artwork, feed)
+                return True
+            return False
         image = own_picture(source, folder)
     except Exception as error:  # noqa: BLE001 - a picture is never worth a failed build
         log.info("thumb: nothing kept for %s: %s", source, error)
         return False
     return bool(image) and keep(image or b"", target)
+
+
+def _record_own(folder: Path, artwork: str, feed: str) -> None:
+    """Where a podcast episode's picture came from, the way `sources.json` says it of a
+    library picture: what it is, the address it was fetched from, whose it is."""
+    from datetime import date
+
+    from .paths import write_atomic
+
+    entry = {
+        "from": "podcast artwork",
+        "url": artwork,
+        "feed": feed,
+        "licence": "the publisher's; kept only for the reader who added it",
+        "date": date.today().isoformat(),
+    }
+    write_atomic(
+        folder / THUMB_SOURCE,
+        json.dumps(entry, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+    )
 
 
 # -- the library's batch -----------------------------------------------------------------
