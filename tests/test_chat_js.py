@@ -234,7 +234,7 @@ def test_a_build_waiting_its_turn_says_how_many_are_ahead() -> None:
         {**QUOTE, "stage": "queued", "behind": 2, "done": 0, "total": 0}, poll=60_000
     )
     progress = page["cards"][0]["progress"]
-    assert progress["stage"] == "Waiting behind 2 builds"
+    assert progress["stage"] == "Waiting behind 2 other texts"
     assert progress["meter"]["done"] == "0.04", "a sliver, so the bar reads as begun"
 
 
@@ -721,7 +721,7 @@ def test_the_foot_counts_what_was_not_met_and_never_names_a_level() -> None:
     page = record_page()
     foot = page["foot"]
     assert foot is not None and foot["save"]
-    assert foot["counts"] == "4 min · 1 word you have not met · you know 50%", (
+    assert foot["counts"] == "4 min · 1 word you haven't met · you know 50%", (
         "four minutes off the clock; מצפה not met; two of four vocabulary words known"
     )
     assert "level" not in foot["counts"] and "%" in foot["counts"]
@@ -775,7 +775,7 @@ def test_a_conversation_come_back_to_is_drawn_with_its_words() -> None:
         ledger=LEDGER,
     )
     assert [w["state"] for w in page["pairs"][1]["words"]] == ["known", "learning", "new", ""]
-    assert page["foot"]["counts"].startswith("2 min · 1 word you have not met")
+    assert page["foot"]["counts"].startswith("2 min · 1 word you haven't met")
 
 
 BUILT = {

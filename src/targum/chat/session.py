@@ -1002,7 +1002,9 @@ class Chats:
         from ..serve import said_in
 
         traceback.print_exc()
-        said = said_in(asked.ui, "chat.could-not-carry-on", "We couldn't answer that.")
+        said = said_in(
+            asked.ui, "chat.could-not-carry-on", "We couldn't answer that. Try asking another way."
+        )
         try:
             if self.store is not None:
                 self.store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=said)
@@ -1277,7 +1279,7 @@ class Chats:
                 else said_in(
                     asked.ui,
                     "chat.could-not-carry-on",
-                    "We couldn't answer that.",
+                    "We couldn't answer that. Try asking another way.",
                 )
             )
             self.library.release(job)

@@ -20,6 +20,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   connection is back. A length keeps its number and unit on one line ("25 min").
 
 ### Changed
+- The chat pill's copy, ling-en's pass on targum-internal#472: the list is Chats; a failed
+  turn says what to do next; the word check says Select and sends the reader to Words in
+  Your targums, where the list is; the day's chat limit is said plainly; chat, not talk, in
+  the credits line; a credit is about a minute of audio or video; a waiting build waits
+  behind other texts, not builds. Russian twins drafted for ling-ru.
 - Your account's finish polish (targum-internal#469, design's polish 1, 3–7 and 10):
   What's connected is drawn with nothing connected, with one quiet line and Connect an
   app. Every date is the day and the month in full, the year only when it isn't this

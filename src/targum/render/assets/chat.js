@@ -17,7 +17,7 @@
   // The conversation is Hebrew whatever they are.
   var t = window.TargumStrings.t;
   var tn = window.TargumStrings.tn;
-  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer right now.");
+  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer right now. Try again in a minute.");
   // Beside it, in the panel (design.md §12, 2026-10-09).
   var STILL_OPEN = t("chat.cannot-answer.fact", "Your texts and the library still open");
 
@@ -123,7 +123,7 @@
   // targum out of reach is said once, by the connection's banner under the top of the
   // page (design.md §12, 2026-10-09); the answer still carries a sentence, for the places
   // that draw one where the thing did not come.
-  var UNREACHED = { error: t("chat.unreached", "We can't reach targum."), unreached: true };
+  var UNREACHED = { error: t("chat.unreached", "We can't reach targum. Check your connection and try again."), unreached: true };
   function unreached() {
     if (window.TargumFault) window.TargumFault.unreachable();
     return UNREACHED;
@@ -1148,7 +1148,7 @@
         tn("chat.foot.words", vocabulary, "{n} word", "{n} words") + " · " + t("chat.foot.none-marked", "none marked as known yet")
       );
     } else {
-      parts.push(tn("chat.foot.unmet", count, "{n} word you have not met", "{n} words you have not met"));
+      parts.push(tn("chat.foot.unmet", count, "{n} word you haven't met", "{n} words you haven't met"));
       if (vocabulary) {
         parts.push(t("chat.foot.known", "you know {share}%", { share: Math.round((known / vocabulary) * 100) }));
       }
@@ -1257,7 +1257,7 @@
     welcomed = true;
     var li = turn(
       "assistant",
-      t("chat.claim.ask", "First, which of these words do you already know? Check them and we'll write at your level."),
+      t("chat.claim.ask", "First, which of these words do you already know? Select them and we'll write at your level."),
       ""
     );
     var host = document.createElement("div");
@@ -1285,7 +1285,7 @@
         note.className = "chat-claim-done";
         note.textContent = t(
           "chat.claim.done",
-          "Thank you. You'll find the rest of the list under Your words and phrases, in your account."
+          "Thank you. You'll find the rest of the list under Words, in Your targums."
         );
         host.appendChild(note);
         if (chips) chips.show(true);
@@ -1550,7 +1550,7 @@
   // what we are doing, and after a long quiet that we are still at it.
   var GIVE_UP_MS = 270 * 1000;
   var QUIET_MS = 20 * 1000;
-  var TOO_LONG = t("chat.too-long", "We took too long to answer that.");
+  var TOO_LONG = t("chat.too-long", "We took too long to answer that. Try asking again.");
   var LIBRARY = t("chat.doing.library", "We're looking through the library…");
   var QUOTING = t("chat.doing.quote", "We're working out how long it'll take…");
   var DOING = {
@@ -1562,7 +1562,7 @@
     open_library_text: t("chat.doing.open", "We're opening the text…"),
     quote_build: QUOTING,
     quote_conversation: QUOTING,
-    quote_subscription: t("chat.doing.subscription", "We're looking at what it puts out…"),
+    quote_subscription: t("chat.doing.subscription", "We're checking how often it posts…"),
   };
   // A clock a test can stand in for; the browser's own everywhere else.
   var clock = window.TargumClock || {

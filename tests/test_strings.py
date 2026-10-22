@@ -783,3 +783,25 @@ def test_every_sentence_a_desk_script_asks_for_rides_with_the_page() -> None:
         if gone:
             unsaid[name] = gone
     assert not unsaid, f"said in English on a Russian page: {unsaid}"
+
+
+def test_the_chat_sends_the_reader_to_a_place_that_is_drawn() -> None:
+    """ling-en on targum-internal#472: the word check's thank-you sent the reader to "Your
+    words and phrases, in your account", which no page draws. The list is the Words tab
+    in Your targums, and the line names both as the pages name them, in each language."""
+    for language in ("en", "ru"):
+        said = strings.catalogue(language)
+        done = said["chat.claim.done"]
+        assert said["lists.work.words"] in done, (language, done)
+        assert said["yours.page.your-targums"] in done, (language, done)
+
+
+@pytest.mark.parametrize(
+    "key", ["chat.cannot-answer", "chat.unreached", "chat.too-long", "chat.could-not-carry-on"]
+)
+def test_a_chat_that_fails_says_what_to_do_next(key: str) -> None:
+    """An error says what to do next (ling-en, targum-internal#472): each failed turn is
+    a fact and then the way on, in English and in Russian."""
+    for language in ("en", "ru"):
+        line = strings.catalogue(language)[key]
+        assert len([part for part in line.split(". ") if part]) == 2, (language, line)

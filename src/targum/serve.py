@@ -2334,7 +2334,7 @@ class Library:
                 said_in(
                     ui,
                     "job.out-of.talk-credits",
-                    "You've used this month's credits for audio and talk. Top up, or they "
+                    "You've used this month's credits for audio and chat. Top up, or they "
                     "reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
                     date=self._month_ends(ui),
@@ -2351,7 +2351,7 @@ class Library:
                 said_in(
                     ui,
                     "job.out-of.chat",
-                    "That's a lot of talking for one day. Try again in {hours} hours.",
+                    "You've reached today's chat limit. Try again in {hours} hours.",
                     hours=BUDGET_HOURS,
                 ),
                 said_in(ui, "job.out-of.library-opens", "The library still opens"),

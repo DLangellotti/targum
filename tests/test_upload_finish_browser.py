@@ -120,7 +120,7 @@ def test_the_wait_keeps_the_title_says_the_queue_and_opens_the_reader(browser) -
     context, page, thrown = opened(browser, doors)
     page.evaluate("() => { window.TargumBring.POLL = 400; }")
     priced_and_confirmed(page)
-    page.wait_for_selector(".wait-stage:has-text('Waiting behind 2 builds')")
+    page.wait_for_selector(".wait-stage:has-text('Waiting behind 2 other texts')")
     card = page.inner_text("#status")
     assert QUOTE["title"] in card, "the title stays on the card while it is made"
     assert "behind 2 other texts" in card, "the server's own line is said"

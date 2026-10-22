@@ -711,7 +711,7 @@
           "{n} credits left this month."
         ) +
         " " +
-        t("building.credits.rate", "That's about {clock} of audio.", { clock: clockOf(spare) });
+        t("building.credits.rate", "That's about {clock} of audio or video.", { clock: clockOf(spare) });
       note("hours:" + (hours.ends || "now"), used + reset, {
         href: keyed("/progress"),
         label: t("building.hours.see", "See usage"),
