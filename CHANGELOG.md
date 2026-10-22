@@ -20,6 +20,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   connection is back. A length keeps its number and unit on one line ("25 min").
 
 ### Changed
+- Subscriptions and news topics' copy, ling-en's pass on targum-internal#475: a channel or
+  podcast needs a plan rather than coming with one; asked for in a chat; a series uses no
+  credits rather than being free; we'll email you once when one waits; a missing series or
+  topic is ours to own; balances carry their unit; the passives go; series show in Your
+  targums. Russian twins drafted for ling-ru.
 - Your account's finish polish (targum-internal#469, design's polish 1, 3–7 and 10):
   What's connected is drawn with nothing connected, with one quiet line and Connect an
   app. Every date is the day and the month in full, the year only when it isn't this

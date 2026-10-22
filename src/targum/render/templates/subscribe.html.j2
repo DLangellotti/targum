@@ -42,7 +42,7 @@
     {%- set name = offer.name if offer.kind != 'topic' else t("subs.topic." ~ offer.key, offer.key) %}
     {%- set language_name = languages.get(offer.language, offer.language) %}
     {%- if via in ('chat', 'connector') %}
-    <p class="sub-via"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>{{ t("subscribe.page.asked-in-a-conversation", "Asked for in a conversation") }}</p>
+    <p class="sub-via"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>{{ t("subscribe.page.asked-in-a-conversation", "Asked for in a chat") }}</p>
     {%- elif via == 'library' %}
     <p class="sub-via"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg>{{ t("subscribe.page.from-library", "From the Library") }}</p>
     {%- endif %}
@@ -67,9 +67,9 @@
         PlanUpgradeMoment, 1). The cap and the facts are the plan's to offer, so they wait
         for it; Subscribe stays, greyed. -#}
     {%- if offer.kind == 'channel' %}
-    {%- set upgrade_said = t("subscribe.page.plan-channel", "Subscribing to a YouTube channel comes with a plan. Each new video from {name} would get ready by itself, up to a cap you set of {cap} credits a month.", name=name, cap=chosen) %}
+    {%- set upgrade_said = t("subscribe.page.plan-channel", "Subscribing to a YouTube channel needs a plan. With one, each new video from {name} gets ready by itself, up to a cap of {cap} credits a month that you choose.", name=name, cap=chosen) %}
     {%- else %}
-    {%- set upgrade_said = t("subscribe.page.plan-podcast", "Subscribing to a podcast comes with a plan. Each new episode of {name} would get ready by itself, up to a cap you set of {cap} credits a month.", name=name, cap=chosen) %}
+    {%- set upgrade_said = t("subscribe.page.plan-podcast", "Subscribing to a podcast needs a plan. With one, each new episode of {name} gets ready by itself, up to a cap of {cap} credits a month that you choose.", name=name, cap=chosen) %}
     {%- endif %}
     {%- if credits.left is defined and credits.left is not none and credits.left > 0 %}
     {%- set upgrade_fact = tn("subscribe.page.plan-left", credits.left, "You can still open any of its videos one at a time, with the {n} credit you have left this month.", "You can still open any of its videos one at a time, with the {n} credits you have left this month.") %}
@@ -97,7 +97,7 @@
         <dd>
           {%- if offer.kind == 'channel' %}{{ t("subscribe.page.a-channel", "A YouTube channel in {language}.", language=language_name) }}
           {%- elif offer.kind == 'podcast' %}{{ t("subscribe.page.a-podcast", "A podcast in {language}.", language=language_name) }}
-          {%- elif offer.kind == 'topic' %}{{ tn("subscribe.page.a-topic", offer.outlets, "News on this, from {n} outlet in {language}.", "News on this, from {n} outlets in {language}.", language=language_name) }}
+          {%- elif offer.kind == 'topic' %}{{ tn("subscribe.page.a-topic", offer.outlets, "News on this topic from {n} outlet in {language}.", "News on this topic from {n} outlets in {language}.", language=language_name) }}
           {%- elif offer.kind == 'outlet' %}{{ t("subscribe.page.an-outlet", "News from one outlet, in {language}.", language=language_name) }}
           {%- else %}{{ offer.what }}{% endif %}
           {%- if offer.builds and per_week %} {{ tn("subscribe.page.per-week", per_week, "About {n} new one a week.", "About {n} new ones a week.") }}
@@ -108,8 +108,8 @@
         <dt>{{ t("subscribe.page.what-a-new-one-uses", "What a new one uses") }}</dt>
         <dd>
           {%- if offer.builds and offer.creditsEach %}{{ tn("subscribe.page.about-credits", offer.creditsEach, "About {n} credit. A credit is a minute of audio or video.", "About {n} credits. A credit is a minute of audio or video.") }}
-          {%- elif offer.builds %}{{ t("subscribe.page.credits-a-minute", "A credit for every minute. A credit is a minute of audio or video.") }}
-          {%- elif offer.kind == 'series' %}{{ t("subscribe.page.series-free", "Nothing. Series are free.") }}
+          {%- elif offer.builds %}{{ t("subscribe.page.credits-a-minute", "A credit for every minute of audio or video.") }}
+          {%- elif offer.kind == 'series' %}{{ t("subscribe.page.series-free", "Nothing. Series use no credits.") }}
           {%- else %}{{ t("subscribe.page.news-free", "Nothing. New articles come as links, and you choose which to read.") }}{% endif %}
         </dd>
         </div>
@@ -133,7 +133,7 @@
         </div>
         <div class="sub-fact">
         <dt>{{ t("subscribe.page.when-cap", "When the cap is reached") }}</dt>
-        <dd>{{ t("subscribe.page.when-cap-says", "The next one waits until the 1st of the month, or until you raise the cap. We tell you once when one is waiting.") }}</dd>
+        <dd>{{ t("subscribe.page.when-cap-says", "The next one waits until the 1st of the month, or until you raise the cap. We'll email you once when one is waiting.") }}</dd>
         </div>
         {%- endif %}
         <div class="sub-fact">

@@ -276,13 +276,13 @@ def test_the_confirm_page_draws_for_every_kind() -> None:
         "before": [],
     }
     page = subscribe_page(channel, credits=caps, via="connector")
-    assert "Asked for in a conversation" in page and "כאן ארכיון" in page
+    assert "Asked for in a chat" in page and "כאן ארכיון" in page
     assert 'value="60" checked' in page and "about 7 new ones" in page
     assert "About 8 credits." in page and "354 credits left in your plan" in page
     assert "About 2 new ones a week." in page
     assert 'name="source" value="https://www.youtube.com/channel/UCkan"' in page
     barred = subscribe_page(channel, credits=caps, allowed=False)
-    assert "comes with a plan" in barred and "disabled>" in barred
+    assert "needs a plan" in barred and "disabled>" in barred
     # The plan, in place (design.md §12, 2026-10-09): Start a plan greyed, See plans, and
     # the credits left for opening its videos one at a time.
     assert "Start a plan" in barred and 'href="/plans"' in barred
@@ -442,7 +442,7 @@ def test_with_plans_on_a_channel_needs_a_plan(
     monkeypatch.setenv("TARGUM_PLANS", "1")
     monkeypatch.setattr(subs, "describe", lambda kind, given, **_: dict(CHANNEL, key="UCother"))
     status, page, _ = send(port, "GET", "/subscribe?kind=channel&source=x", session=theirs)
-    assert "comes with a plan" in page and "disabled>" in page and "Start a plan" in page
+    assert "needs a plan" in page and "disabled>" in page and "Start a plan" in page
     status, page, _ = send(
         port,
         "POST",

@@ -783,3 +783,19 @@ def test_every_sentence_a_desk_script_asks_for_rides_with_the_page() -> None:
         if gone:
             unsaid[name] = gone
     assert not unsaid, f"said in English on a Russian page: {unsaid}"
+
+
+def test_the_subscription_lines_say_what_the_code_does_about_money() -> None:
+    """ling-en on targum-internal#475. A subscription spends by itself, so its page is
+    held to the plainest English: a plan is needed rather than "comes with" one, nothing
+    is "free" (Free is the plan's name, and a series uses no credits), a balance carries
+    its unit, and a missing series or topic is ours to own."""
+    said = strings.catalogue("en")
+    subs = {key: line for key, line in said.items() if key.startswith(("subs.", "subscribe."))}
+    assert not [key for key, line in subs.items() if "comes with a plan" in line]
+    assert not [key for key, line in subs.items() if re.search(r"\bfree\b", line)]
+    assert "credits left" in said["subs.credits.left.other"]
+    assert said["subscribe.no-series"].startswith("We couldn't")
+    assert said["subscribe.no-topic"].startswith("We couldn't")
+    for key in ("weekly-says", "portion-says", "cycle-says"):
+        assert "in Your targums" in said[f"subs.series.{key}"], key

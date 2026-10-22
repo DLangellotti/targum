@@ -139,7 +139,7 @@
   }
 
   function month(one) {
-    if (!one.builds) return t("subs.month.free", "No credits");
+    if (!one.builds) return t("subs.month.free", "Uses no credits");
     return t("subs.month.used", "{used} of {cap} credits", { used: one.used, cap: one.cap });
   }
 
@@ -453,7 +453,7 @@
         var known = every.length && answer.credits && answer.credits.left !== null && answer.credits.left !== undefined;
         if (builds.length || known) parts.push(tn("subs.credits.used", spent, "{n} credit on subscriptions this month", "{n} credits on subscriptions this month"));
         if (known) {
-          parts.push(tn("subs.credits.left", answer.credits.left, "{n} left in all, resets on {date}", "{n} left in all, resets on {date}", { date: back }));
+          parts.push(tn("subs.credits.left", answer.credits.left, "{n} credits left in all, resets on {date}", "{n} credits left in all, resets on {date}", { date: back }));
         }
         line.textContent = parts.join(" · ");
         line.hidden = !parts.length;
@@ -733,7 +733,7 @@
     body.appendChild(head);
 
     if (one.state === "paused") {
-      body.appendChild(el("p", "sub-paused-note", t("subs.paused.note", "Paused. Nothing gets ready and nothing is mailed. When you resume, what came out meanwhile is listed here for you to choose.")));
+      body.appendChild(el("p", "sub-paused-note", t("subs.paused.note", "Paused. Nothing gets ready and we send no mail about it. When you resume, you'll find what came out meanwhile here, to choose from.")));
     }
 
     var items = one.items || [];
@@ -759,13 +759,13 @@
           "p",
           "",
           waiting
-            ? t("subs.capped.says", "This month's {cap} credits for {name} are used. {title} gets ready by itself on {date}.", {
+            ? t("subs.capped.says", "You've used this month's {cap} credits for {name}. {title} gets ready by itself on {date}.", {
                 cap: one.cap,
                 name: nameOf(one),
                 title: waiting.title,
                 date: back,
               })
-            : t("subs.capped.says-none", "This month's {cap} credits for {name} are used. The next one gets ready by itself on {date}.", {
+            : t("subs.capped.says-none", "You've used this month's {cap} credits for {name}. The next one gets ready by itself on {date}.", {
                 cap: one.cap,
                 name: nameOf(one),
                 date: back,
@@ -792,9 +792,9 @@
       none.appendChild(el("p", "note sub-none", t("subs.items.none", "Nothing yet. New ones appear here as they come out.")));
       main.appendChild(none);
     }
-    var meanwhile = section(t("subs.paused.head", "Out while it was paused"), t("subs.not-by-itself", "Not got ready unless you choose"), paused, one, back);
+    var meanwhile = section(t("subs.paused.head", "Out while it was paused"), t("subs.not-by-itself", "Gets ready only when you choose"), paused, one, back);
     if (meanwhile) main.appendChild(meanwhile);
-    var earlier = section(t("subs.before.head", "Out before you subscribed"), t("subs.not-by-itself", "Not got ready unless you choose"), before, one, back);
+    var earlier = section(t("subs.before.head", "Out before you subscribed"), t("subs.not-by-itself", "Gets ready only when you choose"), before, one, back);
     if (earlier) main.appendChild(earlier);
 
     if (one.builds) side.appendChild(capSection(answer, body, saidLine, now));

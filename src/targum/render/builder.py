@@ -3901,7 +3901,7 @@ def weekly_page(
             "cadence": t("series.weekly.cadence", "Every Monday · three levels · free"),
             "says": t(
                 "subs.series.weekly-says",
-                "New issues show on Your targums and come by mail each Monday.",
+                "New issues show in Your targums and come by mail each Monday.",
             ),
         },
         now=now,
@@ -4102,7 +4102,7 @@ def daily_page(
             ),
             "says": t(
                 "subs.series.cycle-says",
-                "Each day's reading shows on Your targums and comes in your daily mail.",
+                "Each day's reading shows in Your targums and comes in your daily mail.",
             ),
         },
         head_tile={"src": "@pic", "letter": "", "tone": "book"},
@@ -4493,7 +4493,7 @@ def parasha_page(
             ),
             "says": t(
                 "subs.series.portion-says",
-                "Each week's portion shows on Your targums and comes in your daily mail.",
+                "Each week's portion shows in Your targums and comes in your daily mail.",
             ),
         },
         head_tile={"src": "@pic", "letter": "", "tone": "book"},
