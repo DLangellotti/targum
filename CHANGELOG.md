@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A failed nightly yt-dlp upgrade mails `TARGUM_ALERT_TO` (targum-internal#513). The
+  cron's `MAILTO=root` reached nobody, and on 2026-10-22 an upgrade that stopped halfway
+  left YouTube, Instagram, TikTok and Facebook imports off for about 18 hours. The line
+  in `/etc/cron.d/targum-ytdlp` now runs `targum ytdlp-stopped` when the install fails.
 - The chat pill's finish (targum-internal#472): design's eleven blockers, five of its six
   polish items and ling-en's fourteen lines. A door to a text reads on its fill (it was the
   accent's brown on teal, about 1:1) and says "Open {title}" in the title's own language,
