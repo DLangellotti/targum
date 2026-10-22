@@ -27,6 +27,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the nightly ones are untouched.
 
 ### Fixed
+- A desk page asks who is signed in once (targum-internal#484). The inbox, the language
+  keys, the account's corner and the page's own script each sent `/account/me` for
+  themselves, three to six times on a cold load, some waiting on each other. `keep.js` now
+  sends it once and hands each a copy; a change of languages still asks again. Phone
+  profile, median of 3: your account 1.17 s → 1.01 s, Progress 2.69 s → 2.36 s.
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
   fails before the page's last script has run (targum-internal#504). `grammar.js` handed
   `yours.js` a promise nobody had caught yet; served by address, the browser runs other

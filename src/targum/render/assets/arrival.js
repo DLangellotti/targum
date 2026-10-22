@@ -27,6 +27,11 @@
   var words = window.TargumStrings;
   var t = words.t;
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   var key = window.TARGUM_KEY;
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
@@ -52,7 +57,7 @@
   }
 
   function ask(path, body) {
-    return fetch(keyed(path), {
+    return (path === "/account/me" && !body ? meOnce : fetch)(keyed(path), {
       method: body ? "POST" : "GET",
       headers: keyHeaders({ "Content-Type": "application/json" }),
       body: body ? JSON.stringify(body) : undefined,

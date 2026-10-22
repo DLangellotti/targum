@@ -21,6 +21,11 @@
   var t = words.t;
   var tn = words.tn;
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   var key = window.TARGUM_KEY;
   function keyed(path) {
     if (!key) return path;
@@ -39,7 +44,7 @@
     return head;
   }
   function ask(path) {
-    return fetch(keyed(path), {
+    return (path === "/account/me" ? meOnce : fetch)(keyed(path), {
       credentials: "same-origin",
       headers: keyHeaders({ "Content-Type": "application/json" }),
     }).then(function (response) {

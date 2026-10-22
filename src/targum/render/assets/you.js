@@ -22,6 +22,11 @@
 
   var key = window.TARGUM_KEY;
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   function keyed(path) {
     if (!key) return path;
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
@@ -292,7 +297,7 @@
         say("you-languages-said", SAVED);
         // The pages that offer a language read the account's answer through sync, so
         // asking it to look again is what makes them agree.
-        if (window.TargumSync) window.TargumSync.start();
+        if (window.TargumSync) window.TargumSync.start(true);
         // The menus are in the language read into: a change there is a new page.
         // `strings.reading_language`: the one language read into other than English, or
         // English.
@@ -1036,7 +1041,7 @@
     }
   });
 
-  fetch(keyed("/account/me"), {
+  meOnce(keyed("/account/me"), {
     credentials: "same-origin",
     headers: key ? { "X-Targum-Key": key } : {},
   })
