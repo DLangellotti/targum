@@ -14,6 +14,7 @@ from __future__ import annotations
 import gzip
 import importlib.util
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -1163,3 +1164,26 @@ def test_a_hifil_with_a_consonant_vav_is_not_filed_under_a_yod_first_root(shippe
     found = shipped.of("ירד", binyan="הפעיל")
     assert found is not None and bare(found.lemma) == "הוריד"
     assert "ו" not in found.lemma.split("ְ")[0][-1:], found.lemma
+
+
+def test_no_table_prints_a_wikidata_item_for_a_feature() -> None:
+    """targum-internal#508 (ling-he): the הלך and היה tables printed "Q1305037", "Q344 ·
+    Q500726" and "Q462367", features the source never named, on 70 of 164 pages. A form
+    carrying one is left out, and every other form of the verb stays."""
+    from targum.annotate.paradigms import from_shipped, table
+
+    shipped = {
+        "features": ["Q1305037", "singular", "1st", "past", "Q344"],
+        "verbs": {"L1": ["הָלַךְ", [["הָלַכְתִּי", [2, 3, 1]], ["הלכתי", [0, 1]], ["אֵלְכָה", [2, 4, 1]]]]},
+        "by_form": {"הלך": ["L1"]},
+    }
+    forms = from_shipped(shipped).verbs["L1"].forms
+    assert [form.written for form in forms] == ["הָלַכְתִּי"]
+    unnamed = {
+        feature
+        for verb in table().verbs.values()
+        for form in verb.forms
+        for feature in form.features
+        if re.fullmatch(r"Q[0-9]+", feature)
+    }
+    assert not unnamed, unnamed

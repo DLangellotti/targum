@@ -43,6 +43,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   layer. Theatre now hides the foot too; the row under the picture carries the same switch
   and Next, the transcript view still draws the foot under the picture, and the end card
   still takes it in.
+- A Hebrew verb's card says the binyan of the word tapped, and draws that binyan's table
+  (targum-internal#508, ling-he's grammar/7 read). The word's row is its first occurrence's,
+  so Gen 12:3 וְנִבְרְכוּ (nif'al) showed the page's first ברך, a pi'el. An occurrence in
+  another binyan now carries its own (`binyanimHere`) and its own table
+  (`paradigmsHere`). And no conjugation table prints a raw Wikidata item: the three forms
+  the source never named (Q1305037, Q344 · Q500726, Q462367 on הלך and היה) are left out
+  of their tables. Render-time only; no annotator rename.
 - Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
   order were one setting under two names and two drawings: both say "Play in order" and
   are the same switch. An empty Saved page heads its line "Saved by you", not "Saved

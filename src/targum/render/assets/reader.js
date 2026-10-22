@@ -279,6 +279,9 @@ var targumReader = function () {
   // And an occurrence's own, where its pointing names another table than the word's or
   // refuses it (targum-internal#307): per segment, [row, table]. Absent on most pages.
   var paradigmsHere = data.paradigmsHere || {};
+  // And an occurrence's own binyan where it is not the word's (targum-internal#508): per
+  // segment, [row, binyan]. The word's row is its first occurrence's.
+  var binyanimHere = data.binyanimHere || {};
   var conjugationTables = extensions.conjugations || [];
   var conjugationFeatures = extensions.features || [];
   // The other verbs built on this one's root (targum-internal#301): an index per lemma
@@ -5692,18 +5695,30 @@ var targumReader = function () {
     return box;
   }
 
-  // The table this occurrence draws: its own where the page carries one, else the word's.
-  function paradigmOf(index, word, row) {
+  // What a per-segment table of [row, value] says for this occurrence, or undefined.
+  function ownHere(table, word, row) {
     var pair = word && word.closest ? word.closest(".pair, .film-pair") : null;
     if (pair && row && !besideCell(word)) {
       var id = pair.getAttribute("data-id");
       var at = (wordData[id] || []).indexOf(row);
-      var here = paradigmsHere[id] || [];
+      var here = table[id] || [];
       for (var i = 0; i < here.length; i++) {
         if (here[i][0] === at) return here[i][1];
       }
     }
-    return paradigmAt[index] || 0;
+    return undefined;
+  }
+
+  // The table this occurrence draws: its own where the page carries one, else the word's.
+  function paradigmOf(index, word, row) {
+    var own = ownHere(paradigmsHere, word, row);
+    return own !== undefined ? own : paradigmAt[index] || 0;
+  }
+
+  // And its binyan, the same way (targum-internal#508).
+  function binyanOf(index, word, row) {
+    var own = ownHere(binyanimHere, word, row);
+    return own !== undefined ? own : binyanim[index] || "";
   }
 
   function conjugations(index, surface, word, row) {
@@ -6447,7 +6462,7 @@ var targumReader = function () {
     // and the root follows from it. Where the root could not be had honestly the
     // binyan still shows on its own, and Pealim answers the rest.
     var root = roots[index];
-    var binyan = binyanim[index];
+    var binyan = binyanOf(index, word, row);
     var table = null;
     if (root || binyan) {
       if (root) {

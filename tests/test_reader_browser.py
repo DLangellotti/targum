@@ -8270,3 +8270,63 @@ def test_the_suffix_lens_lights_every_pronoun_ending_and_is_one_lens_at_a_time(
     said = page.evaluate("() => document.getElementById('spoken').textContent")
     assert said == "Pronoun endings, 5 here.", "the cue is said once"
     context.close()
+
+
+def test_the_card_says_the_binyan_its_own_occurrence_is_in(browser, tmp_path: Path) -> None:
+    """targum-internal#508, ling-he's read of Gen 12:3. וַאֲבָרֶכְךָ is pi'el and וְנִבְרְכוּ
+    nif'al, both ברך. The row for the word is the first occurrence's, so the card for the
+    second said פִּעֵל. Each card now says the binyan its own word was tagged with."""
+    text = "ואברכך ונברכו"
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0", block_index=0, index=0, text=text)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "and I will bless you, and they will be blessed"},
+    )
+    tokens = [
+        Token(start=0, end=6, surface="ואברכך", lemma="ברך", band=1, pos="VERB", binyan="פיעל"),
+        Token(start=7, end=13, surface="ונברכו", lemma="ברך", band=1, pos="VERB", binyan="נפעל"),
+    ]
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segment.id: tokens},
+    )
+    out = tmp_path / "blessed"
+    render(
+        document,
+        SegmentedDocument(document_hash="h", language="he", segmenter="f/1", segments=[segment]),
+        [translation],
+        out,
+        annotation=annotation,
+    )
+    context = opened(browser)
+    page = context.new_page()
+    try:
+        page.goto(address(out / "index.html"))
+        words = page.locator(".pair:not([hidden]) .src .w")
+        said = []
+        for n in (0, 1):
+            words.nth(n).click()
+            page.wait_for_selector("#gloss-card .card-facts")
+            said.append(
+                page.evaluate(
+                    """() => {
+                      const terms = [...document.querySelectorAll('#gloss-card .card-facts dt')];
+                      const binyan = terms.find((dt) => dt.textContent === 'Binyan');
+                      return binyan ? binyan.nextElementSibling.textContent : null;
+                    }"""
+                )
+            )
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(100)
+        assert said == ["פִּעֵל", "נִפְעַל"], said
+    finally:
+        context.close()

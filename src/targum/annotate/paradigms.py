@@ -1329,12 +1329,22 @@ def table(path: Path | None = None) -> Table:
     return from_shipped(loaded, readings())
 
 
+#: A Wikidata item's identifier, which is what a feature the source never named looks like.
+_WIKIDATA_ITEM = re.compile(r"Q[0-9]+")
+
+
 def from_shipped(
     loaded: dict[str, Any], read: dict[str, tuple[str, str]] | None = None, ruled: bool = True
 ) -> Table:
     """A table out of the shipped file's shape. `ruled=False` leaves out what `conjugate`
     filled in, which is the table that filling is worked out from."""
     names = [str(name) for name in loaded.get("features") or ()]
+    # A feature the source left as a bare Wikidata item (Q344, Q462367…) is one it never
+    # named, and the card printed it as it came (targum-internal#508): הלכתי beside
+    # "Q1305037", a cohortative אֵלְכָה, a jussive יְהִי. A form that carries one is
+    # left out of its table, because without its name it would sit in a cell it does
+    # not fill: יְהִי as the future, הלכתי twice. Its spelling still finds its verb.
+    unnamed = {at for at, name in enumerate(names) if _WIKIDATA_ITEM.fullmatch(name)}
 
     def forms_of(rows: list[Any], by_rule: bool = False) -> list[Form]:
         return [
@@ -1344,6 +1354,7 @@ def from_shipped(
                 ruled=by_rule,
             )
             for written, codes in rows
+            if unnamed.isdisjoint(codes)
         ]
 
     filled = loaded.get("filled") if ruled else None
