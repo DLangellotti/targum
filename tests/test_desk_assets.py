@@ -146,7 +146,8 @@ def test_the_files_are_named_by_their_bytes() -> None:
         stem, _, ext = name.rpartition("/")[2].rpartition(".")
         digest = hashlib.sha256(body).hexdigest()[:16]
         assert address == f"{ASSET_ROUTE}{stem}.{digest}.{ext}", "named by its own bytes"
-        assert re.fullmatch(r"/assets/[a-z0-9-]+\.[0-9a-f]{16}\.(js|css|jpg|json)", address), address
+        named = r"/assets/[a-z0-9-]+\.[0-9a-f]{16}\.(js|css|jpg|json)"
+        assert re.fullmatch(named, address), address
         assert kind.startswith(kinds[ext])
         assert body
     assert not any(name == "sw.js" for _, _, name in files.values()), "the worker is at the root"
