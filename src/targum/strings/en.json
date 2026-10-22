@@ -1965,7 +1965,7 @@
   "connect.scope.library": "Search the library and look up what is at a link",
   "connect.scope.record": "Read your words, your mistakes and your progress",
   "connect.scope.chat": "Send us what you write in a language you're learning, for us to correct",
-  "connect.scope.chat-also": "It can also add texts to your playlists, and suggest texts, playlists and subscriptions for you to confirm here.",
+  "connect.scope.chat-also": "It can also add texts to your playlists, and suggest texts, playlists and subscriptions for you to confirm on targum.",
   "serve.playlist-name-it": "Enter a name. You can have up to {most} playlists.",
   "serve.playlist-full": "A playlist holds up to {most} texts.",
   "serve.playlist-one-language": "{name} is in {language}. A playlist holds texts in one language.",

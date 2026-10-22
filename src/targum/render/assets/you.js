@@ -572,7 +572,7 @@
             ". " +
             t(
               "connect.scope.chat-also",
-              "It can also add texts to your playlists, and suggest texts, playlists and subscriptions for you to confirm here."
+              "It can also add texts to your playlists, and suggest texts, playlists and subscriptions for you to confirm on targum."
             ) +
             // A sentence of its own since ling-en's pass (targum-internal#473), full stop and all.
             " " +

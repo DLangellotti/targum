@@ -65,7 +65,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ### Changed
 - /connect and the approval page's copy, ling-en's pass on targum-internal#473 (the page
-  lines; the four connector prompts are #848): the chat scope's second line is a sentence;
+  lines; the four connector prompts are #848): the chat scope's second line is a sentence
+  that says you confirm on targum, since /connect and Your account share it with the
+  approval page;
   a credit is about a minute of audio or video; Your account by its name; subscribe, not
   follow, and news as links; we get a text ready, not "nothing is made". Russian twins
   drafted for ling-ru.
