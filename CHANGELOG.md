@@ -57,7 +57,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   every shelf needs and one per language, kept a year. `library.js` asks for the common
   one and the language it opens on beside `/readers`, and another language's only when
   the reader moves to it. Phone profile, median of 3: Library as a first page 2.74 s →
-  2.21 s, 549 kB → 402 kB (design.md §12, 2026-10-22).
+  2.21 s, 549 kB → 402 kB (design.md §12, 2026-10-22). A fresh browser asks for the
+  account's language first, which the page now names, rather than Hebrew's; and a move to
+  a language whose file does not arrive keeps the shelf and the language on the page and
+  says so in one quiet line, opening by itself when the connection is back.
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
   fails before the page's last script has run (targum-internal#504). `grammar.js` handed
   `yours.js` a promise nobody had caught yet; served by address, the browser runs other

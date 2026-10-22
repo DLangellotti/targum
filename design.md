@@ -413,16 +413,24 @@ page whole (2026-10-19), and whole it carried the shelf inside it: 303 kB gzippe
   files. The page names them in one line, `TARGUM_SHELF_FILES`, and never carries them,
   whole or not.
 - **`library.js` asks for the common file and the language it is likely to open on**
-  (the one the reader last chose, else Hebrew), beside `/readers`, `/jobs` and
-  `/portions`, so they cost no extra round trip. It asks for another language's file only
+  (the one the reader last chose, else the account's, else Hebrew), beside `/readers`,
+  `/jobs` and `/portions`, so they cost no extra round trip. The server names the
+  account's language and what it learns in the page for a signed-in reader
+  (`TARGUM_ACCOUNT`), so a browser that has never been told them does not pay for
+  Hebrew's file before an Italian or Russian reader's own. It asks for another language's file only
   when the reader moves to that language, and draws it once it has arrived. Measured
   moving the shelf alone, with no split, gave nothing: the first card still waited for all
   270 kB. Hebrew's half is what bought the time.
 - **A shelf that does not arrive is the Library's could-not-open card**, with Try again,
   as a lost shelf script already was. The 2026-10-19 entry chose a script to avoid this
   state; it is handled the way the other three answers are.
-- **Offline is unchanged.** The worker never kept the Library. Offline it says so and
-  points at Saved, before and after.
+- **A move to a language whose file does not arrive keeps the page as it is.** The shelf
+  on the page stays, and so does the language the reader is in, on the menu and in what
+  is kept, until the other language's rows are in. One quiet line says why: offline,
+  "Italian opens when you're back online.", and it opens by itself when the connection is
+  back; otherwise "We couldn't open Italian." with Try again.
+- **Offline is otherwise unchanged.** The worker never kept the Library. A Library opened
+  offline says so and points at Saved, before and after.
 
 ### Russian wears Alpha while its read-through is done — 2026-10-21
 

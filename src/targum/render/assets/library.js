@@ -2433,9 +2433,25 @@
     return !shelfFiles || !shelfFiles[base(code)] || !!shelfIn[base(code)];
   }
 
+  /* The account's language and what it learns, which the server names in the page for
+     a signed-in reader (`TARGUM_ACCOUNT`). A browser that has never been told them takes
+     them as `sync.js` would once the account answers, but now, before the shelf is asked
+     for: else a fresh browser asked for Hebrew's 126 kB for an Italian or Russian reader
+     and then for their own (qa-claude on #891, 2026-10-22). */
+  (function told(account) {
+    if (!account) return;
+    try {
+      if (account.learning && account.learning.length && !localStorage.getItem("targum:learning")) {
+        localStorage.setItem("targum:learning", JSON.stringify(account.learning));
+      }
+      if (account.language && !localStorage.getItem("targum:language")) lang.set(account.language);
+    } catch (e) {}
+  })(window.TARGUM_ACCOUNT);
+
   var shelfHere;
   if (shelfFiles && shelfFiles[""]) {
-    // The language it will most likely open on: the one the reader last chose, or Hebrew.
+    // The language it will most likely open on: the one the reader last chose, else the
+    // account's, else Hebrew.
     var likely = lang.current(
       Object.keys(shelfFiles)
         .filter(Boolean)
@@ -3098,27 +3114,86 @@
     view = viewFor(chosen);
     var betaNote = document.getElementById("beta-note");
 
-    //: A language asked for whose rows are still on their way.
+    //: A language asked for whose rows are still on their way, and whether a shelf is
+    //: on the page yet.
     var showing = null;
+    var drawn = false;
+    var heldLine = document.getElementById("lib-held");
 
-    function show(code) {
-      // A language whose rows have not arrived is asked for first, and drawn once they
-      // have, unless the reader has moved on meanwhile (#484).
-      if (!shelfReady(code)) {
-        showing = code;
-        shelfFor(code).then(
-          function () {
-            everything = rows(readers, shared);
-            measureKnown();
-            if (showing === code) show(code);
-          },
-          function () {
-            if (showing === code) couldNot("shelf");
-          }
-        );
+    /* The quiet line under the language when its rows could not be fetched and another
+       language's shelf is on the page: what is drawn stays, and so does the language the
+       reader is in (qa-claude on #891, 2026-10-22). Offline it opens by itself when the
+       connection is back; otherwise it is ours, with the press that asks again. */
+    function held(code, retry) {
+      if (!heldLine) return;
+      heldLine.textContent = "";
+      if (!code) {
+        heldLine.hidden = true;
         return;
       }
+      var named = names[code] || code.toUpperCase();
+      var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      if (offline) {
+        heldLine.textContent = t(
+          "library.held.offline",
+          "{language} opens when you're back online.",
+          { language: named }
+        );
+        window.addEventListener(
+          "online",
+          function () {
+            if (showing === code) retry();
+          },
+          { once: true }
+        );
+      } else {
+        heldLine.appendChild(
+          document.createTextNode(
+            t("library.held.failed", "We couldn't open {language}.", { language: named }) + " "
+          )
+        );
+        var again = document.createElement("button");
+        again.type = "button";
+        again.className = "lib-empty-go";
+        again.textContent = t("library.held.again", "Try again");
+        again.addEventListener("click", retry);
+        heldLine.appendChild(again);
+      }
+      heldLine.hidden = false;
+    }
+
+    /* A language whose rows have not arrived is asked for first, and `go` runs once they
+       have, unless the reader has moved on meanwhile (#484). */
+    function whenShelved(code, go) {
+      if (shelfReady(code)) return go();
+      showing = code;
+      shelfFor(code).then(
+        function () {
+          everything = rows(readers, shared);
+          measureKnown();
+          if (showing !== code) return;
+          held(null);
+          go();
+        },
+        function () {
+          if (showing !== code) return;
+          // Nothing on the page yet: the Library could not open at all.
+          if (!drawn) return couldNot("shelf");
+          held(code, function () {
+            whenShelved(code, go);
+          });
+        }
+      );
+    }
+
+    function show(code) {
+      if (!shelfReady(code)) {
+        return whenShelved(code, function () {
+          show(code);
+        });
+      }
       showing = null;
+      held(null);
       chosen = code;
       anyKnown = !!knownIn[base(code)];
       view = viewFor(code);
@@ -3158,12 +3233,15 @@
         view.kind = "";
       }
       lang.set(code);
-      lang.switcher(document.getElementById("langs"), codes, names, code, show);
+      lang.switcher(document.getElementById("langs"), codes, names, code, show, {
+        wait: whenShelved,
+      });
       if (betaNote) {
         betaNote.hidden = !lang.beta(code);
         if (lang.beta(code)) betaNote.textContent = lang.betaNote(code, names);
       }
       redraw();
+      drawn = true;
     }
 
     // A link followed, or the address edited, while the page is open.
@@ -3215,14 +3293,14 @@
         var before = codes.join();
         codes = lang.order(all, names);
         var switched = codes.join() !== before;
-        if (switched && codes.indexOf(chosen) < 0) chosen = lang.current(codes);
+        var next = switched && codes.indexOf(chosen) < 0 ? lang.current(codes) : chosen;
         if (changed) {
           var seen = stored("targum:opened");
           everything.forEach(function (row) {
             if (row.built) row.opened = seen[row.built.document] || 0;
           });
         }
-        if (switched) show(chosen);
+        if (switched) show(next);
         else if (changed) redraw();
       });
       window.TargumSync.start();

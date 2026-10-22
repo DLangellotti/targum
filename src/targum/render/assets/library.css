@@ -1873,6 +1873,14 @@ body.is-seeing .page-head { display: none; }
   font-size: 0.9375rem;
 }
 .lib-waiting[hidden], .lib-fault[hidden] { display: none; }
+/* A language whose shelf could not be fetched while another's is drawn (#484): the same
+   quiet ink, one line above the shelves that stay. */
+.lib-held {
+  margin: 1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.lib-held[hidden] { display: none; }
 /* The panel itself is `.fault-panel` (shared.css), as on home and Your Words. */
 .lib-fault { margin: 2rem 0; }
 .lib-empty-go { margin-inline-start: 0.35rem; color: var(--teal); font-weight: 600; }

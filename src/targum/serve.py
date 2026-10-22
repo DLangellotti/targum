@@ -31,7 +31,7 @@ import threading
 import time
 import traceback
 import webbrowser
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from functools import cache, lru_cache, partial
@@ -5280,6 +5280,27 @@ def kept_cookie(value: str, address: str) -> str:
     )
 
 
+#: Where the Library's page names the account's languages (`library.html.j2`), empty as
+#: rendered once at start-up and filled per request for a signed-in reader.
+ACCOUNT_SLOT = "window.TARGUM_ACCOUNT = {};"
+
+
+def with_account(page: str, language: str, learning: Iterable[str]) -> str:
+    """The Library's page naming the account's language and what it learns, so a browser
+    that has never been told them asks for that language's shelf first rather than
+    Hebrew's (targum-internal#484, qa-claude on #891). They are what `sync.js` writes
+    into the browser once the account answers, given before the shelf is asked for.
+    Language codes and nothing else: two or three letters, or left out. The page's inline
+    blocks are hashed per response (`_policy`), so the policy follows."""
+    code = re.compile(r"[a-z]{2,3}")
+    said: dict[str, Any] = {"learning": sorted(c for c in learning if code.fullmatch(c))}
+    if code.fullmatch(language or ""):
+        said["language"] = language
+    return page.replace(
+        ACCOUNT_SLOT, f"window.TARGUM_ACCOUNT = {json.dumps(said, sort_keys=True)};", 1
+    )
+
+
 #: The longest page a sign-in carries back to (QA 2026-10-11, decision D2). A reader's
 #: address with its query is a few hundred characters; anything longer is not one.
 NEXT_LONGEST = 1024
@@ -8631,11 +8652,13 @@ class Handler(BaseHTTPRequestHandler):
             page = self._desk(f"lists:{which}", self.lists[which])
             return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/library":
-            return self._send(
-                200,
-                self._desk("catalogue", self.catalogue).encode("utf-8"),
-                "text/html; charset=utf-8",
-            )
+            page = self._desk("catalogue", self.catalogue)
+            person = self._person()
+            if person is not None and self.store is not None:
+                page = with_account(
+                    page, self.store.language(person.id), self.store.learning(person.id)
+                )
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/you":
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"

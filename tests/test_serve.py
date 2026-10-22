@@ -636,6 +636,50 @@ def test_the_switcher_s_language_is_kept_on_the_account(
     assert asked["language"] == "yi", "the switcher's, not the page's"
 
 
+def test_the_library_names_the_account_s_language_for_its_shelf(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fresh browser asked for Hebrew's shelf whatever the account said (qa-claude on
+    #891): the page now names the account's language and what it learns, and the page's
+    policy still names every inline block."""
+    from targum.serve import ACCOUNT_SLOT, Handler
+
+    page = f"<html><script>{ACCOUNT_SLOT}</script></html>"
+    monkeypatch.setattr(Handler, "catalogue", page, raising=False)
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    call(
+        port,
+        "POST",
+        f"/account/languages?k={token}",
+        {"learning": ["he", "yi"], "reads": ["en"]},
+        cookie=cookie,
+    )
+    call(port, "POST", f"/account/language?k={token}", {"language": "yi"}, cookie=cookie)
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", "/library", headers={"Cookie": cookie})
+    answer = connection.getresponse()
+    body = answer.read()
+    said = b'window.TARGUM_ACCOUNT = {"language": "yi", "learning": ["he", "yi"]};'
+    assert said in body, body
+    import base64
+    import hashlib
+    import re
+
+    block = re.search(rb"<script>(.*?)</script>", body, re.S)
+    assert block
+    digest = base64.b64encode(hashlib.sha256(block.group(1)).digest()).decode()
+    assert f"'sha256-{digest}'" in (answer.getheader("Content-Security-Policy") or "")
+    connection.close()
+
+
+def test_a_page_names_no_account_language_that_is_not_a_code() -> None:
+    from targum.serve import ACCOUNT_SLOT, with_account
+
+    named = with_account(ACCOUNT_SLOT, '"</script>', ["he", "<b>"])
+    assert named == 'window.TARGUM_ACCOUNT = {"learning": ["he"]};'
+
+
 def test_ticking_a_language_again_writes_its_translations_back_into_the_readers(
     served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
 ) -> None:

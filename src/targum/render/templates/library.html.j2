@@ -66,6 +66,9 @@
       answered, said nothing at all when it never did, and drew the shelves as if the
       reader had marked no words when it was refused. `library.js` says which. -#}
   <p class="lib-waiting" id="lib-waiting" role="status">{{ t("library.waiting", "Opening the Library…") }}</p>
+  {#- A language whose shelf could not be fetched while another's is on the page: the page
+      stays as it is and says so in one quiet line (#484). `library.js` fills it. -#}
+  <p class="lib-held" id="lib-held" role="status" hidden></p>
   <section class="fault-panel page-fault lib-fault" id="lib-fault" role="alert" hidden>
     <p class="fault-panel-said" id="lib-fault-lede">{{ t("library.fault.lede", "We couldn't open the Library.") }}</p>
     <div class="fault-panel-row">
@@ -118,9 +121,13 @@
 </main>
 {% include '_foot.html.j2' %}
 
+{#- `TARGUM_ACCOUNT`: the account's language and what it learns, filled in per request by
+    `serve.with_account` for a signed-in reader, so a fresh browser asks for that
+    language's shelf first (#484). #}
 <script>
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_SHELF_FILES = {{ shelf|tojson }};
+window.TARGUM_ACCOUNT = {};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
