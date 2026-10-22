@@ -1388,6 +1388,7 @@
     }
     line.textContent = why || "";
     line.hidden = !why;
+    document.documentElement.classList.toggle("offline-said", !!why);
   }
 
   var watching = null;

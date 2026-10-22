@@ -1300,6 +1300,19 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
 .offline-tag.is-here { color: var(--leaf); }
 .offline-off,
 .offline-off:hover { opacity: 0.5; cursor: not-allowed; }
+/* The pill is greyed by its colours, never by opacity, so the reason over it keeps full
+   ink (§4; targum-internal#472 B11: at half opacity the reason read at about 3.4:1). */
+.talk-cta.offline-off,
+.talk-cta.offline-off:hover {
+  opacity: 1;
+  filter: none;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+/* Once the line under the band says why, the pill does not say it a second time
+   (#472 polish 5). */
+.offline-said .talk-cta.offline-off::before { content: none; }
 /* Talk's reason stands over its pill, the way the board draws it. */
 .talk-cta.offline-off::before {
   content: attr(data-why);

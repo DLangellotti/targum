@@ -207,6 +207,13 @@
     <button type="button" class="talk-close" id="talk-close" aria-label="{{ t("nav.close", "Close") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
   </div>
   <iframe class="talk-frame" id="talk-frame" title="{{ t("nav.talk-to-targum", "Talk to targum") }}" allow="microphone" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
+  {#- Signed out, or a frame that would not load: a door back in, never a blank sheet
+      (design.md §12, "A page asked for signed out is a door back to it";
+      targum-internal#472 B4). `talk.js` shows it in the frame's place. -#}
+  <div class="talk-out" id="talk-out" hidden>
+    <p>{{ t("nav.talk-sign-in", "Sign in to talk to targum.") }}</p>
+    <a class="btn filled" id="talk-sign-in" href="/account/signin" target="_top">{{ t("nav.sign-in", "Sign in") }}</a>
+  </div>
 </aside>
 {{ script('talk.js') }}
 {#- One search, everywhere (design.md §12, "One search, everywhere", 2026-10-09): the

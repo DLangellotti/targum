@@ -310,8 +310,12 @@
         "{n} credits left this month."
       ) +
       " " +
-      t("building.credits.rate", "That's about {clock} of audio.", { clock: said(spare) });
-    if (got.ends) line += " " + t("building.hours.reset", "They reset on {date}.", { date: got.ends });
+      t("building.credits.rate", "That's about {clock} of audio or video.", { clock: said(spare) });
+    // The date never breaks from its month at a line's end (#472 polish 6): the server
+    // sends it unbroken, and an answer that does not is kept whole here too.
+    if (got.ends) {
+      line += " " + t("building.hours.reset", "They reset on {date}.", { date: String(got.ends).replace(/ /g, "\u00a0") });
+    }
     return line;
   }
 
@@ -566,7 +570,7 @@
       var behind = Number(state.behind) || 0;
       stage.textContent =
         state.stage === "queued" && behind > 0
-          ? tn("shelf.building.behind", behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+          ? tn("shelf.building.behind", behind, "Waiting behind {n} other text", "Waiting behind {n} other texts")
           : plain(state.message);
       // A sliver while nothing is counted yet, as the shelf's building row draws it, so
       // the bar reads as begun rather than as empty.

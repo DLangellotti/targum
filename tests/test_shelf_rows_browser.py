@@ -434,7 +434,11 @@ def test_on_a_phone_the_pill_stands_in_the_band_at_the_foot(browser, which: str)
 
 def test_at_a_desk_the_bell_s_panel_opens_over_the_assistant_s_drawer(browser) -> None:
     """Signed-in walk 2026-10-12: with the AI Assistant's drawer open, the bell's panel
-    opened behind it. A sheet of the bar's stands over the drawer while it is open."""
+    opened behind it. A sheet of the bar's stands over the drawer while it is open.
+
+    The drawer here is the one a page brought back, beside the page and undimmed, where
+    the bar stays in reach: pressed open, the drawer is modal and the page behind its
+    scrim, the bar included, is inert (targum-internal#472 B3)."""
     from targum.render.builder import library_page
 
     html = library_page("test-key")
@@ -447,13 +451,15 @@ def test_at_a_desk_the_bell_s_panel_opens_over_the_assistant_s_drawer(browser) -
 
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     page = context.new_page()
-    page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
+    page.add_init_script(
+        "sessionStorage.setItem('targum:arrival-over', '1');"
+        "localStorage.setItem('targum:talk', 'open');"
+    )
     page.route("http://desk.test/**", answer)
     page.goto("http://desk.test/library?k=test-key")
     page.wait_for_timeout(300)
-    page.click("#talk-open")
     page.wait_for_selector("#talk-drawer:not([hidden])")
-    page.evaluate("() => document.getElementById('notices-open').click()")
+    page.click("#notices-open")
     page.wait_for_selector(".notices-panel:not([hidden])")
     on_top = page.evaluate(
         """() => {

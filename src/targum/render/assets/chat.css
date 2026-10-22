@@ -233,7 +233,7 @@ body.chat > .chat-main {
 }
 /* Hebrew inside a line keeps its own leading (§5: parity comes from leading). */
 .chat-turn .chat-line [lang|="he"] { line-height: 1.95; }
-.chat-turn .chat-line a { color: var(--accent); }
+.chat-turn .chat-line a:not(.chat-door) { color: var(--accent); }
 .chat-turn .note {
   margin: 0;
   font-size: 0.8125rem;
@@ -388,6 +388,23 @@ body.chat > .chat-main {
   border-inline-start: 2px solid var(--rule);
 }
 .chat-turn .chat-pair .chat-why[hidden] { display: none; }
+/* A failed turn's Try again stands on its sentence's line, on its baseline, rather than
+   a line below it (#472 polish 1). */
+.chat-turn .fault-line { flex-wrap: nowrap; align-items: baseline; }
+.chat-turn .fault-line .fault-said { flex: 1 1 auto; }
+.chat-turn .fault-line .fault-icon { flex: none; }
+/* "Why?" says the reason is there, beside the label it explains (#472 B6). */
+.chat-turn .chat-pair .chat-why-press {
+  justify-self: start;
+  min-block-size: 2rem;
+  padding: 0 0.5rem;
+  margin-inline-start: -0.5rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+}
+@media (hover: none) and (pointer: coarse) {
+  .chat-turn .chat-pair .chat-why-press { min-block-size: 44px; min-inline-size: 44px; }
+}
 /* --- what was sent --------------------------------------------------------- */
 
 /* The pictures a reader sent, in their own turn: small, side by side, a hairline
@@ -439,13 +456,21 @@ body.chat > .chat-main {
   .chat-look {
     min-height: 44px;
   }
+  /* Hear is a glyph and a short word: 44px across too, not only tall (#472 B9). */
+  .chat-play { min-inline-size: 44px; }
 }
 
 /* --- framed in the front page (design.md §13, 2026-09-11) ----------------------
    The same page inside Learn's conversation card: no bar and no foot, the card's own
    ground behind it, the thread on the card rather than raised on it, and the phone's
    layout at every width — a frame is never wider than the card it stands in. */
-body.embed { background: var(--card); grid-template-rows: minmax(0, 1fr); }
+body.embed { background: var(--card); grid-template-rows: auto auto minmax(0, 1fr); }
+/* With no connection the band is one row at the top of the frame, its own height, and
+   the line a refused press adds stands under it; the conversation keeps the rest. In the
+   one row there was, the band took two thirds of the drawer (#472 B5). */
+body.embed > .fault-banner { grid-row: 1; align-self: start; }
+body.embed > .offline-why { grid-row: 2; align-self: start; }
+body.embed > .chat-main { grid-row: 3; }
 body.embed > .chat-main {
   margin: 0;
   width: 100%;
@@ -463,6 +488,7 @@ body.embed > .chat-main {
 body.embed .chat-open-list { display: inline-block; }
 body.embed .chat-list { display: none; }
 body.embed .chat-list.open { display: block; }
+body.embed.chat-listing .chat-chips { display: none; }
 body.embed .chat-thread {
   border: 0;
   border-radius: 0;
@@ -631,6 +657,13 @@ body.embed > .chat-main > .composer {
 body.embed > .chat-main > .composer textarea {
   background: transparent;
   box-shadow: none;
+}
+/* The box's line is one line, cut with an ellipsis where it is longer than the field,
+   never a second line sliced by the field's edge (#472 B8). */
+.composer textarea::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 @media (hover: none) and (pointer: coarse) {
   .chat-door { min-block-size: 44px; }

@@ -39,6 +39,9 @@
         var title = document.createElement("span");
         title.className = "chip-title";
         title.setAttribute("dir", "auto");
+        // The title's own language, never the page's (#472 B10).
+        if (chip.language) title.setAttribute("lang", chip.language);
+        if (/^(he|yi|arc)$/.test(chip.language || "")) title.setAttribute("dir", "rtl");
         title.textContent = chip.title;
         button.appendChild(title);
       }
