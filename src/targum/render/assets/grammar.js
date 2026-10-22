@@ -353,5 +353,12 @@
     drawRound();
   }
 
-  window.TargumGrammar = { loaded: ask("").then(draw) };
+  /* `yours.js` draws a refusal from `loaded`, but it runs scripts later: on a desk page
+     the files load by address, and the browser runs other tasks between one and the next.
+     A first ask that failed in that gap was a rejection nobody had caught yet, reported as
+     an uncaught "Failed to fetch" (targum-internal#504). Caught here as well, so the
+     rejection is handled from the start; `yours.js` still sees it and says it. */
+  var loaded = ask("").then(draw);
+  loaded.catch(function () {});
+  window.TargumGrammar = { loaded: loaded };
 })();
