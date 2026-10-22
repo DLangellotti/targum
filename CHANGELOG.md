@@ -11,9 +11,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
   and INCIDENT.md says what a `warn yt-dlp` in preflight means, where the nightly
   upgrade's log is, and how to give root-owned files back to `targum` and rerun it.
-- CI's ffmpeg install fails fast on a stalled mirror. It hung for 30-80 minutes four times
-  on 2026-10-22; each apt-get attempt now has four minutes and one retry, and the step stops
-  at ten.
+- CI's ffmpeg install gives up on a slow mirror in eighteen minutes rather than eighty. It
+  held the job for 30-80 minutes four times on 2026-10-22. The mirror crawls rather than
+  stalls, so the first cut (four minutes, one retry) only killed downloads in progress:
+  the install now skips ffmpeg's recommends (227 MB nothing uses) and has three attempts
+  of five minutes, each resuming what the last one fetched.
 - The chat pill's finish (targum-internal#472): design's eleven blockers, five of its six
   polish items and ling-en's fourteen lines. A door to a text reads on its fill (it was the
   accent's brown on teal, about 1:1) and says "Open {title}" in the title's own language,
