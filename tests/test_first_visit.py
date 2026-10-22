@@ -190,41 +190,75 @@ def test_the_set_changes_when_any_file_does() -> None:
 # -- the shelf ------------------------------------------------------------------------
 
 
-def test_the_library_shelf_is_a_file_named_by_what_it_says(served: tuple[int, str, Path]) -> None:
+SHELF = re.compile(r"window\.TARGUM_SHELF_FILES = (\{[^\n]*\});")
+
+
+def shelf_files(html: str) -> dict[str, str]:
+    found = SHELF.search(html)
+    assert found is not None, "the page names the shelf's files"
+    return json.loads(found.group(1))
+
+
+def test_the_library_shelf_is_files_named_by_what_they_say(
+    served: tuple[int, str, Path],
+) -> None:
     html = library_page(TOKEN)
     assert "window.TARGUM_CATALOGUE" not in html, "the shelf is not written into the page"
-    found = re.search(r'<script src="(/assets/catalogue\.([0-9a-f]{16})\.js)"></script>', html)
-    assert found is not None
-    address, digest = found.groups()
-    status, headers, _, body = _get(served[0], address, gzip_ok=True)
-    assert status == 200
-    assert headers["cache-control"] == "public, max-age=31536000, immutable"
-    assert headers["content-type"] == "text/javascript; charset=utf-8"
-    assert headers.get("content-encoding") == "gzip"
-    assert hashlib.sha256(body.encode("utf-8")).hexdigest()[:16] == digest
-    for name in ("CATALOGUE", "COLLECTIONS", "SETS"):
-        assert f"window.TARGUM_{name} = " in body
-    # It runs before the page's own script, as when it was written inside.
-    assert html.index(address) < html.index(builder.asset_address("library.js"))
+    files = shelf_files(html)
+    assert "" in files and "he" in files, "the common file and Hebrew's"
+    for code, address in files.items():
+        stem = "catalogue" + (f"-{code}" if code else "")
+        found = re.fullmatch(rf"/assets/{stem}\.([0-9a-f]{{16}})\.json", address)
+        assert found is not None, address
+        status, headers, _, body = _get(served[0], address, gzip_ok=True)
+        assert status == 200
+        assert headers["cache-control"] == "public, max-age=31536000, immutable"
+        assert headers["content-type"] == "application/json; charset=utf-8"
+        assert hashlib.sha256(body.encode("utf-8")).hexdigest()[:16] == found.group(1)
+        said = json.loads(body)
+        assert set(said) == ({"ids", "collections", "sets"} if not code else {"catalogue"})
     # A wrong hash is not there.
-    assert _get(served[0], f"{ASSET_ROUTE}catalogue.0000000000000000.js")[0] == 404
+    assert _get(served[0], f"{ASSET_ROUTE}catalogue.0000000000000000.json")[0] == 404
 
 
-def test_the_shelf_says_what_it_said_inside_the_page() -> None:
-    """Moved, not changed: the same data, the same names, before `library.js`."""
-    html = builder.carried(library_page(TOKEN))
-    at = html.index("window.TARGUM_CATALOGUE = ")
-    catalogue, _ = json.JSONDecoder().raw_decode(html, at + len("window.TARGUM_CATALOGUE = "))
-    assert isinstance(catalogue, list) and catalogue, "the fixture catalogue is on the shelf"
-    assert at < html.index(str(builder._asset("library.js")))
+def test_a_first_visit_does_not_carry_the_shelf() -> None:
+    """targum-internal#484: a desk page sent whole carried the shelf inside it, 303 kB
+    gzipped of a 479 kB Library, every byte in front of the first card. It names the
+    files, which `library.js` asks for once the page is up, and carries none of them."""
+    whole = first_visit(library_page(TOKEN))
+    files = shelf_files(whole)
+    ids = json.loads(asset_files()[files[""]][0])["ids"]
+    assert ids, "the fixture catalogue is on the shelf"
+    for one in ids[:20]:
+        assert json.dumps(one) not in whole, f"{one} rides in the page"
+    assert "window.TARGUM_CATALOGUE = " not in whole
+
+
+def test_each_language_file_is_its_rows_in_the_catalogues_order() -> None:
+    """Hebrew's file is Hebrew's rows and the Aramaic door's, each with its place, so the
+    page asks for one language and still sorts as the whole catalogue did."""
+    files = shelf_files(library_page(TOKEN))
+    ids = json.loads(asset_files()[files[""]][0])["ids"]
+    merged: dict[str, dict] = {}
+    for code, address in files.items():
+        if not code:
+            continue
+        rows = json.loads(asset_files()[address][0])["catalogue"]
+        places = [row["place"] for row in rows]
+        assert places == sorted(places), code
+        for row in rows:
+            languages = {lang.split("-")[0] for lang in (row.get("languages") or [row["language"]])}
+            assert code in languages or (code == "he" and "arc" in languages), (code, row["id"])
+            assert ids[row["place"] - 1] == row["id"]
+            merged[row["id"]] = row
+    assert sorted(merged, key=lambda one: merged[one]["place"]) == ids, "every row, once"
 
 
 def test_a_different_shelf_is_a_different_file(monkeypatch: pytest.MonkeyPatch) -> None:
     from targum import catalogue as catalogue_module
 
-    first = re.search(r"/assets/catalogue\.[0-9a-f]{16}\.js", library_page(TOKEN))
+    first = shelf_files(library_page(TOKEN))[""]
     real = catalogue_module.everything
     monkeypatch.setattr(catalogue_module, "everything", lambda: list(real())[:1])
-    second = re.search(r"/assets/catalogue\.[0-9a-f]{16}\.js", library_page(TOKEN))
-    assert first is not None and second is not None
-    assert first.group(0) != second.group(0)
+    second = shelf_files(library_page(TOKEN))[""]
+    assert first != second

@@ -370,7 +370,8 @@ pages in `DESK_PAGES`, `render/builder.py`) names them instead, by address under
 `/assets/<name>.<hash>.<ext>`, and the browser keeps them. Templates say which files a
 page wants with `styles(...)` and `script(...)`, and the page decides how they ride, so
 a template never inlines a file by hand. A page's data that rides as a file, such as the
-Library's shelf, is `data_script(...)`. A browser that has not kept the files is sent
+Library's shelf, is JSON files the page asks for, `data_file(...)` (2026-10-22, §12
+"The Library asks for its shelf"). A browser that has not kept the files is sent
 the desk page whole (2026-10-19, §12 "A first visit gets the page whole").
 
 ## 12 · Where the code departs, and why
@@ -395,6 +396,33 @@ and a stylesheet holds the first paint until all of it has arrived.
   is fetched from anybody else's origin. The series pages keep their stylesheets, scripts
   and faces inline as "A desk page loads its files once and keeps them" says; only the
   photograph moved. `img-src` already allowed `'self'`.
+
+### The Library asks for its shelf — 2026-10-22
+
+Page speed (targum-internal#484, qa-claude's audit of 2026-10-22): the Library as a first
+page was 2.78 s on the phone profile against §14's 1.5 s. A first visit is sent the desk
+page whole (2026-10-19), and whole it carried the shelf inside it: 303 kB gzipped of a
+479 kB page, all of it in front of the first card.
+
+- **The shelf is JSON files, one per language** (`shelf_files` in `render/builder.py`):
+  `/assets/catalogue.<hash>.json` holds what every shelf needs (the collections, the
+  sets, and every row's id in the catalogue's order), and `/assets/catalogue-<code>.<hash>.json`
+  each language's rows, each carrying its `place` in that order. A row in two languages
+  is in both files. Hebrew's file carries the Aramaic door's rows too, because they stand
+  on the Hebrew shelf. Each file is named by what it says and kept a year like the desk's
+  files. The page names them in one line, `TARGUM_SHELF_FILES`, and never carries them,
+  whole or not.
+- **`library.js` asks for the common file and the language it is likely to open on**
+  (the one the reader last chose, else Hebrew), beside `/readers`, `/jobs` and
+  `/portions`, so they cost no extra round trip. It asks for another language's file only
+  when the reader moves to that language, and draws it once it has arrived. Measured
+  moving the shelf alone, with no split, gave nothing: the first card still waited for all
+  270 kB. Hebrew's half is what bought the time.
+- **A shelf that does not arrive is the Library's could-not-open card**, with Try again,
+  as a lost shelf script already was. The 2026-10-19 entry chose a script to avoid this
+  state; it is handled the way the other three answers are.
+- **Offline is unchanged.** The worker never kept the Library. Offline it says so and
+  points at Saved, before and after.
 
 ### Russian wears Alpha while its read-through is done — 2026-10-21
 
@@ -577,7 +605,8 @@ first (clause 3.13, dated 19 October 2026).
   classic script just before `library.js`, so the page has the shelf where it had it,
   with no new state to wait in or fail. It is a script rather than JSON for that reason:
   `library.js` reads it on its first lines, as it always did. On a whole page it is
-  inside the page again.
+  inside the page again. *Superseded 2026-10-22, see "The Library asks for its shelf":
+  on a whole page that was 303 kB in front of the first card.*
 
 Measured on the same phone profile through an HTTP/2 front, against #820:
 

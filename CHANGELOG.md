@@ -51,6 +51,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   year; nothing is fetched from anybody else's origin and a reader still fetches nothing
   (design.md §12, 2026-10-22). Phone profile, median of 3: first paint 1.40 s → 0.74 s,
   Read 1.66 s → 0.96 s.
+- The Library no longer carries its shelf (targum-internal#484). A first visit is sent the
+  page whole, and whole it carried the catalogue inside it: 303 kB gzipped of a 479 kB
+  page, all in front of the first card. The shelf is JSON files of ours now, one with what
+  every shelf needs and one per language, kept a year. `library.js` asks for the common
+  one and the language it opens on beside `/readers`, and another language's only when
+  the reader moves to it. Phone profile, median of 3: Library as a first page 2.74 s →
+  2.21 s, 549 kB → 402 kB (design.md §12, 2026-10-22).
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
   fails before the page's last script has run (targum-internal#504). `grammar.js` handed
   `yours.js` a promise nobody had caught yet; served by address, the browser runs other

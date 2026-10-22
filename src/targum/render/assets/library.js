@@ -42,8 +42,11 @@
   }
 
   var names = window.TARGUM_LANGUAGES || {};
-  var catalogue = window.TARGUM_CATALOGUE || [];
-  var collections = window.TARGUM_COLLECTIONS || [];
+  /* The shelf: the catalogue, its collections and targum's own playlists. A file of its
+     own the page asks for once it is up (`TARGUM_SHELF_FILE`, targum-internal#484), so
+     filled in by `shelved` below before anything is drawn from it. */
+  var catalogue = [];
+  var collections = [];
   var lang = window.TargumLang;
 
   /* What a text is, called what a reader would call it — which is not always what the
@@ -473,7 +476,7 @@
         entry: entry,
         // Where it sits in the catalogue file, which is the only evidence of arrival
         // order the nine hundred undated rows have. See `SORTS.added`.
-        place: place + 1,
+        place: entry.place || place + 1,
         title: entry.title,
         english: titleIn(entry),
         englishLang: namedIn(entry) ? uiLanguage : "en",
@@ -504,8 +507,10 @@
     // marked as theirs. The rest are kept only to be counted, for a language whose
     // catalogue is empty (see the empty line in `redraw`).
     var listed = {};
-    catalogue.forEach(function (entry) {
-      listed[entry.id] = true;
+    (listedIds || catalogue.map(function (entry) {
+      return entry.id;
+    })).forEach(function (id) {
+      listed[id] = true;
     });
     yoursAlone = readers.filter(function (reader) {
       return !(reader.entry && listed[reader.entry]);
@@ -528,19 +533,26 @@
 
   /* Which collection each text is in, by id. Built once. */
   var GROUP_OF = {};
-  collections.forEach(function (group) {
-    (group.members || []).forEach(function (id) {
-      GROUP_OF[id] = group;
-    });
-  });
-
   /* Where a text sits inside its own collection, so an ordered one keeps its order. */
   var PLACE_IN = {};
-  collections.forEach(function (group) {
-    (group.members || []).forEach(function (id, index) {
-      PLACE_IN[id] = index;
+
+  /* Every row's id in the catalogue's order, from the shelf's common file: what is in
+     the catalogue at all, whichever languages' rows have arrived. */
+  var listedIds = null;
+
+  /* The shelf's common file has arrived: collections and sets, and the ids. */
+  function shelved(shelf) {
+    if (shelf && shelf.catalogue) catalogue = shelf.catalogue;
+    listedIds = (shelf && shelf.ids) || null;
+    collections = (shelf && shelf.collections) || [];
+    sets = (shelf && shelf.sets) || [];
+    collections.forEach(function (group) {
+      (group.members || []).forEach(function (id, index) {
+        GROUP_OF[id] = group;
+        PLACE_IN[id] = index;
+      });
     });
-  });
+  }
 
   /* Which door of the Beit Midrash a text stands behind: its collection's, or its own
      where it is in none. "" for everything that is not in the tree. */
@@ -1295,7 +1307,7 @@
   var seeAll = false;
   //: targum's own playlists, as the catalogue file lists them; only the ones with
   //: something built on the shared shelf are offered (`Library.targum_sets`).
-  var sets = window.TARGUM_SETS || [];
+  var sets = [];
 
   //: The band a See all address names, "" for the whole list, null for any other hash.
   function seeAddressed() {
@@ -2369,17 +2381,86 @@
     if (doorsHost) doorsHost.hidden = true;
   }
 
-  // The shelf's file is a script of its own on a page whose files are kept (#823). When
-  // it did not arrive there is nothing true to draw.
-  if (!window.TARGUM_CATALOGUE) {
-    couldNot("shelf");
-    return;
+  /* The shelf's files, asked beside the account's answers rather than carried in the
+     page (targum-internal#484): carried, a first visit paid for 303 kB of it before the
+     page drew anything. Same origin, named by their bytes and kept a year. One file holds
+     what every shelf needs and one each language's rows (`shelf_files`); the page asks
+     for the language it is likely to open on, and another when the reader moves to it.
+     A page handed the shelf itself (`TARGUM_CATALOGUE`, the harness) reads it from there.
+     When the shelf does not arrive there is nothing true to draw. */
+  var shelfFiles = window.TARGUM_SHELF_FILES || null;
+  //: Each language's rows, asked once: a promise, and whether they are in.
+  var shelfAsked = {};
+  var shelfIn = {};
+
+  function askShelfFile(address) {
+    return fetch(address, { credentials: "same-origin" }).then(function (answer) {
+      if (!answer.ok) throw new Error(String(answer.status));
+      return answer.json();
+    });
+  }
+
+  /* One language's rows into the catalogue, in the catalogue's own order. */
+  function shelfFor(code) {
+    code = base(code);
+    if (!shelfFiles || !shelfFiles[code] || shelfIn[code]) return Promise.resolve();
+    if (!shelfAsked[code]) {
+      shelfAsked[code] = askShelfFile(shelfFiles[code]).then(
+        function (got) {
+          var have = {};
+          catalogue.forEach(function (entry) {
+            have[entry.id] = true;
+          });
+          ((got && got.catalogue) || []).forEach(function (entry) {
+            if (!have[entry.id]) catalogue.push(entry);
+            have[entry.id] = true;
+          });
+          catalogue.sort(function (a, b) {
+            return (a.place || 0) - (b.place || 0);
+          });
+          shelfIn[code] = true;
+        },
+        function (why) {
+          delete shelfAsked[code];
+          throw why;
+        }
+      );
+    }
+    return shelfAsked[code];
+  }
+
+  function shelfReady(code) {
+    return !shelfFiles || !shelfFiles[base(code)] || !!shelfIn[base(code)];
+  }
+
+  var shelfHere;
+  if (shelfFiles && shelfFiles[""]) {
+    // The language it will most likely open on: the one the reader last chose, or Hebrew.
+    var likely = lang.current(
+      Object.keys(shelfFiles)
+        .filter(Boolean)
+        .concat([lang.HOME])
+    );
+    shelfHere = Promise.all([askShelfFile(shelfFiles[""]), shelfFor(likely)]).then(function (both) {
+      shelved(both[0]);
+    });
+  } else if (window.TARGUM_CATALOGUE) {
+    shelved({
+      catalogue: window.TARGUM_CATALOGUE,
+      collections: window.TARGUM_COLLECTIONS || [],
+      sets: window.TARGUM_SETS || [],
+    });
+    shelfHere = Promise.resolve();
+  } else {
+    shelfHere = Promise.reject(new Error("no shelf"));
   }
 
   Promise.all([
     askShelf("/readers"),
     ask("/jobs").catch(function () { return {}; }),
     ask("/portions").catch(function () { return {}; }),
+    // Its failure is the chain's: the same card, with the press that asks again.
+    shelfHere,
   ]).then(function (both) {
     waited();
     var data = both[0] || {};
@@ -2403,21 +2484,25 @@
        the Russian shelf met every Russian text on A stretch, "You know 75–90% of their
        words", each one "Not measured yet". Words marked in one language say nothing
        about another, so each shelf asks its own; `show` picks the one on screen. */
-    var languageOf = {};
-    catalogue.forEach(function (entry) {
-      languageOf[entry.id] = base(entry.language);
-    });
-    Object.keys(catalogueKnown).forEach(function (id) {
-      var one = catalogueKnown[id];
-      if (one && typeof one.known === "number" && one.known > 0 && languageOf[id]) {
-        knownIn[languageOf[id]] = true;
-      }
-    });
-    (readers || []).concat(shared || []).forEach(function (reader) {
-      if (typeof reader.known === "number" && reader.known > 0) {
-        knownIn[base(reader.language || (reader.entry && languageOf[reader.entry]) || "")] = true;
-      }
-    });
+    // Again whenever another language's rows arrive (`shelfFor`).
+    function measureKnown() {
+      var languageOf = {};
+      catalogue.forEach(function (entry) {
+        languageOf[entry.id] = base(entry.language);
+      });
+      Object.keys(catalogueKnown).forEach(function (id) {
+        var one = catalogueKnown[id];
+        if (one && typeof one.known === "number" && one.known > 0 && languageOf[id]) {
+          knownIn[languageOf[id]] = true;
+        }
+      });
+      (readers || []).concat(shared || []).forEach(function (reader) {
+        if (typeof reader.known === "number" && reader.known > 0) {
+          knownIn[base(reader.language || (reader.entry && languageOf[reader.entry]) || "")] = true;
+        }
+      });
+    }
+    measureKnown();
     anyKnown = !!knownIn[lang.HOME];
     // The rung they named on arrival, while it is all the page has to go on. `charts.seed`
     // answers "" once their marked words reach a rung of their own.
@@ -2913,8 +2998,10 @@
           function (both) {
             buildingNow = (both[0] && both[0].jobs) || [];
             if (both[1] && both[1].readers) {
-              everything = rows(both[1].readers, both[1].shared || []);
-              sharedNow = both[1].shared || [];
+              readers = both[1].readers;
+              shared = both[1].shared || [];
+              everything = rows(readers, shared);
+              sharedNow = shared;
             }
             redraw();
             follow();
@@ -3011,7 +3098,27 @@
     view = viewFor(chosen);
     var betaNote = document.getElementById("beta-note");
 
+    //: A language asked for whose rows are still on their way.
+    var showing = null;
+
     function show(code) {
+      // A language whose rows have not arrived is asked for first, and drawn once they
+      // have, unless the reader has moved on meanwhile (#484).
+      if (!shelfReady(code)) {
+        showing = code;
+        shelfFor(code).then(
+          function () {
+            everything = rows(readers, shared);
+            measureKnown();
+            if (showing === code) show(code);
+          },
+          function () {
+            if (showing === code) couldNot("shelf");
+          }
+        );
+        return;
+      }
+      showing = null;
       chosen = code;
       anyKnown = !!knownIn[base(code)];
       view = viewFor(code);

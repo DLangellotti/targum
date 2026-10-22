@@ -120,10 +120,10 @@
 
 <script>
 window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_SHELF_FILES = {{ shelf|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-{{ data_script('catalogue.js', shelf) }}
 {{ script('strings.js') }}
 {{ script('charts.js') }}
 {{ script('scenes.js') }}

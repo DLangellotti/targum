@@ -520,7 +520,6 @@ def _environment() -> Environment:
     # A page's own files: by address on a desk page, inline everywhere else (`DESK_PAGES`).
     env.globals["script"] = _script
     env.globals["styles"] = _styles
-    env.globals["data_script"] = _data_script
     env.globals["data_uri"] = _data_uri
     # The faces likewise: a stylesheet by address on a desk page, a `<style>` elsewhere.
     env.globals["hebrew_face"] = _page_hebrew_face
@@ -922,7 +921,7 @@ def asset_address(name: str) -> str:
     return f"{ASSET_ROUTE}{stem}.{digest}.{kind}"
 
 
-#: Files made rather than read: the Library's shelf data (`_data_script`), by address.
+#: Files made rather than read: the Library's shelf data (`data_file`), by address.
 #: Filled as pages are rendered, which `targum serve` does at start-up.
 _GENERATED: dict[str, tuple[bytes, str, str]] = {}
 
@@ -1022,21 +1021,25 @@ def _script(context: Context, name: str, **attributes: Any) -> Markup:
     return Markup(f"<script{said}>") + _asset(name) + Markup("</script>")
 
 
-@pass_context
-def _data_script(context: Context, name: str, text: str) -> Markup:
-    """A script made from a page's data, such as the Library's shelf: by address on a
-    desk page, named by the hash of what it says, so it is kept until the data changes;
-    inline everywhere else. A classic script like the rest, so a page reads its data
-    where it stands, as it did when the data was written into it."""
-    if not context.get("linked_assets"):
-        return Markup("<script>") + Markup(text) + Markup("</script>")
+def data_file(name: str, value: Any) -> str:
+    """A page's data as a JSON file of its own, such as the Library's shelf: its address,
+    named by the hash of what it says, so a browser keeps it until the data changes.
+
+    It was a classic script the page ran where it stood until 2026-10-22, which a desk
+    page sent whole (a first visit) carried inside it: 303 kB gzipped of a 479 kB Library,
+    all of it in front of the first card (2.78 s on the phone profile, #484). The page
+    now asks for it once it is up, beside what it asks the account, and never carries it."""
     import hashlib
 
-    body = text.encode("utf-8")
+    body = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     stem, _, kind = name.rpartition(".")
     address = f"{ASSET_ROUTE}{stem}.{hashlib.sha256(body).hexdigest()[:16]}.{kind}"
-    _GENERATED[address] = (body, ASSET_KINDS[f".{kind}"], name)
-    return Markup(f'<script src="{_named(address)}"></script>')
+    _GENERATED[address] = (body, "application/json; charset=utf-8", name)
+    # Named like the desk's files, so a page sent whole fetches it with them once it is
+    # up, and the Library after it finds it kept.
+    return _named(address)
 
 
 @pass_context
@@ -4789,21 +4792,54 @@ def read_as_portions(entry: Any) -> bool:
     return bool(corpus.readable())
 
 
-def _shelf_script(**data: Any) -> str:
-    """`window.TARGUM_CATALOGUE = …;` and the rest, as `library.js` reads them."""
-    return "".join(
-        f"window.TARGUM_{name.upper()} = {htmlsafe_json_dumps(value, sort_keys=True)};\n"
-        for name, value in data.items()
-    )
+#: The language whose shelf also carries another's rows: the Aramaic door stands on the
+#: Hebrew shelf (`BESIDE_HEBREW` in `library.js`).
+SHELF_BESIDE = {"arc": "he"}
+
+
+def shelf_files(
+    entries: list[dict[str, Any]], groups: list[Any], sets: list[Any]
+) -> dict[str, str]:
+    """The Library's shelf as files, by language: what `TARGUM_SHELF_FILES` names.
+
+    `""` is what every shelf needs: the collections, the sets, and every row's id in the
+    catalogue's order (where a row sits is the only evidence of arrival most rows have).
+    Each language's file is its rows, each carrying that `place`, so a row in two
+    languages is in both files and the page merges them back into one order. The page
+    asks for the shelf it opens on and another only when the reader moves to it
+    (targum-internal#484): the whole shelf was 270 kB gzipped and the Hebrew is half.
+    """
+    by_language: dict[str, list[dict[str, Any]]] = {}
+    for place, entry in enumerate(entries, start=1):
+        codes = {
+            str(code).split("-")[0].lower()
+            for code in (entry.get("languages") or [entry.get("language", "")])
+            if code
+        }
+        codes |= {SHELF_BESIDE[code] for code in codes if code in SHELF_BESIDE}
+        for code in codes:
+            by_language.setdefault(code, []).append({**entry, "place": place})
+    files = {
+        "": data_file(
+            "catalogue.json",
+            {
+                "ids": [entry["id"] for entry in entries],
+                "collections": groups,
+                "sets": sets,
+            },
+        )
+    }
+    for code in sorted(by_language):
+        files[code] = data_file(f"catalogue-{code}.json", {"catalogue": by_language[code]})
+    return files
 
 
 def library_page(token: str, language: str = "en") -> str:
     """Texts worth reading, and the ones you have already built.
 
-    The catalogue ships with targum rather than being asked for: a page that has to ask
-    the server for it would be a page that can be empty. Since 2026-10-19 it is a script
-    of its own beside the page (`_data_script`), run where it stands like any other, so
-    the page has it before `library.js` starts, exactly as when it was written inside.
+    The catalogue ships with targum rather than being asked of a model or the network:
+    it is a file of this origin's, the same for everybody (`data_file`). Since 2026-10-22
+    `library.js` fetches it beside `/readers` instead of the page carrying it (#484).
     """
     from ..catalogue import collections, everything, swipe_sets
 
@@ -4814,19 +4850,18 @@ def library_page(token: str, language: str = "en") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             token=token,
-            # The shelf, as a script of its own: a file the desk keeps, named by what it
-            # says, so it is fetched again only when the catalogue changes (design.md
-            # §12, 2026-10-19). It is the same in every language.
-            shelf=_shelf_script(
-                catalogue=[entry.state() for entry in everything() if not read_as_portions(entry)],
-                # Which texts the page meets as one thing. Beside the catalogue and for
-                # the same reason, and only the members actually on the shelf, so a
-                # collection can never open onto a row that is not there.
-                collections=[group.state() for group in collections()],
+            # The shelf, as files of their own: the desk keeps them, named by what they
+            # say, so each is fetched again only when the catalogue changes (design.md
+            # §12, 2026-10-19 and 2026-10-22). The same in every page language.
+            shelf=shelf_files(
+                [entry.state() for entry in everything() if not read_as_portions(entry)],
+                # Which texts the page meets as one thing, and only the members actually
+                # on the shelf, so a collection can never open onto a row that is not there.
+                [group.state() for group in collections()],
                 # targum's own playlists, a shelf of their own (design.md §12,
                 # 2026-10-09). The page offers only the ones with members built on the
                 # shared shelf, as `Library.targum_sets` does, from what `/readers` says.
-                sets=[group.state() for group in swipe_sets()],
+                [group.state() for group in swipe_sets()],
             ),
             languages=_language_names(language),
             strings=script_strings(language, "library."),

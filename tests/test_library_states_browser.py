@@ -17,6 +17,7 @@ tests do.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 from typing import Any
@@ -71,8 +72,8 @@ def library(
     if lose_shelf:
         # An address the server never made, so the conftest's desk files do not answer it
         # and the route below refuses it: the shelf's file failing to arrive.
-        nowhere = "/assets/catalogue.0000000000000000.js"
-        html = re.sub(r"/assets/catalogue\.[0-9a-f]+\.js", nowhere, html)
+        nowhere = "/assets/catalogue.0000000000000000.json"
+        html = re.sub(r"/assets/catalogue\.[0-9a-f]+\.json", nowhere, html)
 
     def answer(route, request):
         path = request.url[len(SITE) :].split("?")[0].split("#")[0]
@@ -389,5 +390,58 @@ def test_a_language_with_no_shelf_is_one_card_with_upload(browser, page_html) ->
     page.goto(url)
     page.locator("#shelves .band-card").first.wait_for()
     assert page.locator("#no-shelf").is_hidden() and page.locator("#lib-find").is_visible()
+    assert not thrown
+    context.close()
+
+
+@pytest.fixture(scope="module")
+def two_shelves_html() -> str:
+    """The fixture shelf with one Russian row added, so there are two languages' files."""
+    from targum import catalogue as catalogue_module
+
+    real = catalogue_module.everything
+    hebrew = [entry for entry in real() if entry.language == "he"][0]
+    russian = dataclasses.replace(hebrew, id="ru-one", title="Один рассказ", language="ru")
+    rows = [*real(), russian]
+    catalogue_module.everything = lambda: rows  # type: ignore[assignment]
+    try:
+        return library_page("")
+    finally:
+        catalogue_module.everything = real  # type: ignore[assignment]
+
+
+def shelf_asked(page: Any) -> list[str]:
+    return [
+        re.sub(r"\.[0-9a-f]{16}\.json$", "", url.split("/assets/")[1])
+        for url in page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
+        if "/assets/catalogue" in url
+    ]
+
+
+@pytest.mark.parametrize("language", ["he", "ru"])
+def test_the_library_asks_for_its_own_languages_shelf_only(
+    browser, two_shelves_html, language
+) -> None:
+    """targum-internal#484: the whole shelf was 270 kB gzipped and Hebrew's half of it.
+    The page asks for what every shelf needs and the language it opens on, never the
+    others, and draws that language's rows from them."""
+    reader = {
+        "name": "mine-ru",
+        "document": "1" * 64,
+        "title": "Мой текст",
+        "language": "ru",
+        "sections": 1,
+        "chapters": [],
+    }
+    answers = {"/readers": {"readers": [reader], "shared": [], "signedIn": True}}
+    context, page, thrown, _, url = library(
+        browser, two_shelves_html, answers, hash="#see", language=language
+    )
+    page.goto(url)
+    page.locator("#catalogue > li").first.wait_for()
+    asked = shelf_asked(page)
+    assert sorted(asked) == sorted(["catalogue", f"catalogue-{language}"]), asked
+    drawn = page.locator("#catalogue").inner_text()
+    assert ("Один рассказ" in drawn) == (language == "ru")
     assert not thrown
     context.close()
