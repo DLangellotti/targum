@@ -13,6 +13,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   first ten minutes: who is told, the read-only checks in order, how to tell the box from
   a model provider from the network, when to roll back, and what never to do. Neither has
   run as a drill yet.
+- A step back without a laptop build (targum-internal#482). Every deploy keeps the wheel
+  it installed, with its constraints and extras, in `/var/lib/targum/wheels/<sha12>/` on
+  the box (the last five), and `deploy/rollback.sh <sha>` installs one of them again as
+  the service account, restarts and checks `/health`. It refuses a commit the box does not
+  keep, and says which ones it does; with no commit it lists them. Each deploy appends
+  `<utc> <sha> <who>` to `/var/lib/targum/deploys.log` (who is the laptop's account), and
+  a rollback appends its own line. The catalogue a deploy replaces is kept as
+  `/etc/targum/catalogue.json.prev`, and `rollback.sh` offers it back (`--catalogue`).
+- `deploy.sh` copies the database itself before installing anything: as `targum`, with
+  SQLite's `.backup`, into `/var/lib/targum/backups/targum.db.before-<sha12>-<utc>`, and
+  stops the deploy unless `integrity_check` says `ok`. The last ten such copies are kept;
+  the nightly ones are untouched.
 
 ### Fixed
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
@@ -21,6 +33,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   tasks between the two files, so a reader offline met it as a browser fault, and the
   page-scripts browser test met it about one CI run in three. The promise is caught where
   it is made, and `yours.js` still draws the refusal from it.
+- A deploy refused because a rebuild was still running had already installed its wheel
+  and catalogue under that rebuild: the `targum-deploy` guard sat below the install
+  despite its comment. It is the first thing the box-side block does now.
 - Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
   order were one setting under two names and two drawings: both say "Play in order" and
   are the same switch. An empty Saved page heads its line "Saved by you", not "Saved
