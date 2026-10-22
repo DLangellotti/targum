@@ -414,7 +414,12 @@
         if (sayLine) faultLine(sayLine, t("subs.page.sign-in", "Sign in to see your subscriptions."), signIn());
         return drawSignedOut(host, true);
       }
-      if (answer.status !== 200 || answer.signedIn !== true) {
+      if (answer.status === 200 && answer.signedIn !== true) {
+        // An answer that names nobody signed in — a machine somebody runs with no
+        // account on it: the browser's own series, as before.
+        return drawSignedOut(host);
+      }
+      if (answer.status !== 200) {
         // No connection, or a fault on our side (a 5xx, or an answer that isn't ours): say
         // which, with Try again. A fault is never told as an empty list (design.md §14.1).
         if (sayLine) {
