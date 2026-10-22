@@ -941,7 +941,7 @@ def asset_files() -> dict[str, tuple[bytes, str, str]]:
     asset they are. Read once, so `targum serve` answers from memory; an address that is
     not here is a 404. The worker is left out: it is served from the root, and only there
     (`worker_script`)."""
-    return {**_read_files(), **_GENERATED}
+    return {**_read_files(), **_pictures(), **_GENERATED}
 
 
 def asset_set() -> str:
@@ -951,6 +951,40 @@ def asset_set() -> str:
     import hashlib
 
     return hashlib.sha256("\n".join(sorted(asset_files())).encode("utf-8")).hexdigest()[:16]
+
+
+#: The pictures a page served by the server wears (targum-internal#484): a series' head
+#: photograph, the parasha's scroll and each cycle's manuscript. Folders under `assets/`.
+PICTURE_FOLDERS = ("manuscripts", "scroll")
+
+
+@cache
+def _pictures() -> dict[str, tuple[bytes, str, str]]:
+    """Every picture `picture_address` can name, by its address."""
+    found: dict[str, tuple[bytes, str, str]] = {}
+    for folder in PICTURE_FOLDERS:
+        for path in sorted((ASSETS / folder).glob("*.jpg")):
+            name = f"{folder}/{path.name}"
+            found[picture_address(name)] = (path.read_bytes(), "image/jpeg", name)
+    return found
+
+
+@cache
+def picture_address(name: str) -> str:
+    """Where one of the pictures is served, named by a hash of its bytes, so it is kept
+    for a year and a changed picture is a new address.
+
+    It rode inside the page as a `data:` URI until 2026-10-22, in a `<style>` that holds
+    the first paint until all of it has arrived: on /parasha 151 kB gzipped of a 305 kB
+    page, the only page whose first paint came late (1.40 s on the phone profile,
+    qa-claude's audit, #484). From our own origin it arrives after the page has drawn,
+    and the reader still fetches nothing from anybody else's."""
+    import hashlib
+
+    path = ASSETS / name
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    stem, _, kind = path.name.rpartition(".")
+    return f"{ASSET_ROUTE}{stem}.{digest}.{kind}"
 
 
 @cache
@@ -4106,7 +4140,7 @@ def daily_page(
             ),
         },
         head_tile={"src": "@pic", "letter": "", "tone": "book"},
-        picture_uri=_data_uri("manuscripts/" + cycle.picture),
+        picture_uri=picture_address("manuscripts/" + cycle.picture),
         now=now,
         cells=cells,
         month_title=month_title,
@@ -4497,7 +4531,7 @@ def parasha_page(
             ),
         },
         head_tile={"src": "@pic", "letter": "", "tone": "book"},
-        picture_uri=_data_uri("scroll/columns.jpg"),
+        picture_uri=picture_address("scroll/columns.jpg"),
         pdf_href=pdf_href,
         now=now,
         parts=parts,
