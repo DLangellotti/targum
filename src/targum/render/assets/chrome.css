@@ -1622,7 +1622,9 @@ body .site-footer { max-inline-size: var(--column); }
 .tab[aria-selected="true"],
 .tab[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); cursor: default; }
 .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.tab .tab-count { font-variant-numeric: tabular-nums; opacity: 0.8; font-weight: 400; }
+/* The count keeps the chip's own colour at full ink: at 0.8 it read at about 3:1 on the
+   tint (#475 B11). Its lighter weight is what sets it apart. */
+.tab .tab-count { font-variant-numeric: tabular-nums; font-weight: 400; }
 .tab .tab-count:empty { display: none; }
 /* On a phone a row of tabs is one line that scrolls sideways, as the boards' phones draw
    it: wrapped, Your targums' four took two lines and pushed the list a screen down. */

@@ -20,6 +20,11 @@
 {{ script('building.js') }}
 
 <main>
+  {#- Until the subscription answers: a line at first paint, and past 3 s that it is
+      slow, with Try again (#475 B2). `subs.js` takes it away. -#}
+  <section class="panel sub-loading" id="sub-loading">
+    <p class="note" id="sub-loading-said" role="status">{{ t("subs.loading-one", "We're getting this subscription.") }}</p>
+  </section>
   <section class="panel" id="stranger" hidden>
     <p class="note">{{ t("subs.page.sign-in", "Sign in to see your subscriptions.") }}</p>
   </section>

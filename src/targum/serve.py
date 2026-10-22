@@ -10784,12 +10784,15 @@ class Handler(BaseHTTPRequestHandler):
     #: `source` (an address) or `key` (a series, a topic, an outlet) — and where it was
     #: asked for, which the page says ("Asked for in a conversation").
     SUBSCRIBE_VIA = frozenset({"chat", "connector", "library", "series"})
+    #: Whether the last offer failed because its source didn't answer (#475 polish 5).
+    _source_unreached: bool = False
 
     def _subscribe_offer(self, asked: Mapping[str, str]) -> tuple[dict[str, Any] | None, str]:
         """What the confirm page offers, read afresh from the source, or the sentence that
         says why it cannot be offered."""
         from . import subscriptions as subs
 
+        self._source_unreached = False
         kind = str(asked.get("kind") or "")
         given = str(asked.get("source") or asked.get("key") or "")
         learning = str(asked.get("language") or "") or self._learning_language()
@@ -10799,6 +10802,8 @@ class Handler(BaseHTTPRequestHandler):
             return None, told(self._ui_language(), refusal, hosted=self.require_account)
         except Exception as error:  # noqa: BLE001 - a source that would not answer
             log.warning("subscribe: describing %s %s failed: %s", kind, given, error)
+            # Said with Try again on the page (#475 polish 5).
+            self._source_unreached = True
             return None, self._say(
                 "serve.subscribe-unreachable",
                 "We couldn't reach it just now. Try again in a moment.",
@@ -10838,6 +10843,15 @@ class Handler(BaseHTTPRequestHandler):
             via=via if via in self.SUBSCRIBE_VIA else "",
             cap=int(query.get("cap") or 0) if str(query.get("cap") or "").isdigit() else 0,
             token=self._key_if_given(),
+            unreachable=self._source_unreached,
+            again="/subscribe?"
+            + urlencode(
+                {
+                    key: str(value)
+                    for key, value in query.items()
+                    if key in ("kind", "source", "key", "language", "via", "cap")
+                }
+            ),
         )
         self._send(200, page.encode("utf-8"), HTML)
 

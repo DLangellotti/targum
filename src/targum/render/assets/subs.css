@@ -365,6 +365,10 @@ a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
 .cap-number { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
 .cap-choice.on .cap-number { color: var(--teal); }
 .cap-about { font-size: 0.6875rem; color: var(--ink-soft); }
+/* A cap below one new one says so in clay: nothing would get ready by itself (#475 B7). */
+.cap-about.is-short { color: var(--clay); }
+/* A refusal's ways on, as presses (#475 polish 5). */
+.sub-confirm-ways { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-block-start: 1rem; }
 .cap-left { margin: 0; font-size: 0.875rem; color: var(--ink-soft); }
 
 /* --- a phone: one column; the cap first, Pause and Unsubscribe at the foot -------------- */
@@ -438,9 +442,16 @@ body.press main.sub-gate {
   overflow: hidden;
 }
 .sub-confirm-tile .glyph { font-family: var(--reading-hebrew); font-size: 2.25rem; color: var(--card); }
+/* A letter that isn't Hebrew is set in the chrome's face (#475 B5). */
+.sub-confirm-tile .glyph:not([lang]) { font-family: var(--chrome); font-weight: 600; }
+/* The 2×2 fills the tile: its rows stretch rather than collapse to a glyph's height, as
+   the base tile's centring made them (#475 B10). */
 .sub-confirm-tile.is-mosaic {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  align-items: stretch;
+  justify-items: stretch;
   gap: 2px;
 }
 .sub-confirm-tile.is-mosaic > span {
@@ -551,4 +562,40 @@ body.press main.sub-gate { padding: 1.25rem 1rem 3rem; }
   .press-acts .btn.go { inline-size: 100%; }
   .set-row-label { flex-wrap: wrap; }
   .set-cost { flex-basis: 100%; padding-inline-start: calc(1.25rem + 3.5rem + 1.75rem); white-space: normal; }
+}
+
+/* --- finish (targum-internal#475) ---------------------------------------------------- */
+/* Until the list answers: rest-tier rows with no text, and a line (B2). */
+.sub-loading[hidden] { display: none; }
+.sub-loading .note { margin: 0 0 0.75rem; font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
+.sub-placeholders { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.sub-placeholders li {
+  block-size: 3.5rem;
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+/* News with no topic: one line and the way to the topics (B3). */
+.sub-empty-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding-block: 1rem;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+/* What a press did, under the head it was pressed in (polish 4). */
+.sub-head-said { margin: 0 0 1rem; font-family: var(--chrome); }
+/* An article with no picture takes no tile on a phone, and its press stands at the row's
+   end rather than centred under its title (polish 3). */
+@media (max-width: 40rem) {
+  .sub-item:has(.sub-item-pic.is-blank) { flex-wrap: nowrap; align-items: center; }
+  .sub-item-pic.is-blank { display: none; }
+  .sub-item:has(.sub-item-pic.is-blank) .sub-item-what { flex: 1 1 auto; min-inline-size: 0; }
+  .sub-item:has(.sub-item-pic.is-blank) .sub-act { margin-inline-start: auto; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .sub-follow-topic, .sub-again { min-block-size: 44px; }
 }

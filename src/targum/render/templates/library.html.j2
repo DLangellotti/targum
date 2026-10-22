@@ -31,10 +31,22 @@
       band it was opened from. The shell's "Library" stands down while it is up. -#}
   <p class="see-back" id="see-back" hidden><a href="/library" id="see-back-link"><span aria-hidden="true">←</span> {{ t("nav.library", "Library") }}</a></p>
   <h2 class="see-title" id="see-title" hidden></h2>
-  {#- News opened from its door: the topics a reader can follow live on Subscriptions,
-      so one line goes there (David, 2026-10-20, from the Library QA). Signed in only,
-      since following needs an account; `library.js` shows it. -#}
-  <p class="see-topics" id="see-topics" hidden><a href="/?show=subscriptions&amp;chip=news">{{ t("library.see.follow-topic", "Follow a topic") }}</a></p>
+  {#- News opened from its door: the eight topics a reader can follow, each a row with
+      Subscribe, which goes to the confirm page (David, 2026-10-22; targum-internal#475
+      B3: "Follow a topic" used to lead to a tab with nothing to follow). Signed in only,
+      since following needs an account; `library.js` shows it and puts the language
+      being browsed on each link. -#}
+  <section class="see-topics" id="see-topics" aria-labelledby="see-topics-head" hidden>
+    <h3 class="see-topics-head" id="see-topics-head">{{ t("library.see.follow-topic", "Follow a topic") }}</h3>
+    <ul class="see-topic-rows">
+    {%- for key, name in topics %}
+      <li class="see-topic-row">
+        <span class="see-topic-name">{{ name }}</span>
+        <a class="btn tonal small see-topic-go" data-topic="{{ key }}" href="/subscribe?kind=topic&amp;key={{ key }}&amp;via=library" aria-label="{{ t("library.see.subscribe-to", "Subscribe to {name}", name=name) }}">{{ t("library.see.subscribe", "Subscribe") }}</a>
+      </li>
+    {%- endfor %}
+    </ul>
+  </section>
 
   {#- The search on the ground, the field the board draws (Library, SeeAllDesk), and on
       See all the three menus beside it: kind, level, language. Nothing else to choose

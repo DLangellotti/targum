@@ -556,6 +556,10 @@ def _build() -> str:
     return build()
 
 
+#: A run written in Hebrew letters (Hebrew, Yiddish, Aramaic in square script).
+_HEBREW_LETTERS = re.compile(r"[\u0590-\u05ff\ufb1d-\ufb4f]")
+
+
 def _page_language(language: str) -> str:
     """What a desk page's `<html lang>` says: the language its words are in, where the
     catalogue has that language, and English where they fell back to it."""
@@ -3938,7 +3942,7 @@ def weekly_page(
             "cadence": t("series.weekly.cadence", "Every Monday · three levels · free"),
             "says": t(
                 "subs.series.weekly-says",
-                "New issues show on Your targums and come by mail each Monday.",
+                "New issues show in Your targums and come by mail each Monday.",
             ),
         },
         now=now,
@@ -4139,7 +4143,7 @@ def daily_page(
             ),
             "says": t(
                 "subs.series.cycle-says",
-                "Each day's reading shows on Your targums and comes in your daily mail.",
+                "Each day's reading shows in Your targums and comes in your daily mail.",
             ),
         },
         head_tile={"src": "@pic", "letter": "", "tone": "book"},
@@ -4530,7 +4534,7 @@ def parasha_page(
             ),
             "says": t(
                 "subs.series.portion-says",
-                "Each week's portion shows on Your targums and comes in your daily mail.",
+                "Each week's portion shows in Your targums and comes in your daily mail.",
             ),
         },
         head_tile={"src": "@pic", "letter": "", "tone": "book"},
@@ -4646,6 +4650,8 @@ def subscribe_page(
     via: str = "",
     cap: int = 0,
     token: str = "",
+    unreachable: bool = False,
+    again: str = "",
 ) -> str:
     """Where a subscription is confirmed (design.md §12, "A monthly cap is the second press
     that lasts", 2026-10-09; boards SubConfirm and ConnConfirm). What it is, what a new one
@@ -4653,10 +4659,27 @@ def subscribe_page(
     then one press. No script: the cap is a radio and the press a form post, so the page
     is the same with script off, as the set's is."""
     from ..accounts import CAPS, DEFAULT_CAP
+    from ..strings import text as said_text
 
     each = int((offer or {}).get("creditsEach") or 0)
     chosen = cap if cap in CAPS else DEFAULT_CAP
     weekly = float((offer or {}).get("perWeek") or 0)
+    # How the thing is named, and in what (targum-internal#475 B4, B5): a topic by the
+    # catalogue's name in the page's language, never its key; a channel's, a podcast's or
+    # an outlet's own name marked Hebrew only when it is written in Hebrew letters; a
+    # series by its name in the interface. The tile's letter follows the letter it draws.
+    code = _page_language(language)
+    name, name_lang = "", ""
+    if offer is not None:
+        if offer.get("kind") == "topic":
+            name = said_text(f"subs.topic.{offer.get('key')}", code)
+            name_lang = code
+        else:
+            name = str(offer.get("name") or "")
+            if offer.get("kind") != "series" and _HEBREW_LETTERS.search(name):
+                name_lang = str(offer.get("language") or "he")
+    letter = str((offer or {}).get("hebrew") or name)[:1]
+    letter_rtl = bool(_HEBREW_LETTERS.search(letter))
     return (
         _environment()
         .get_template("subscribe.html.j2")
@@ -4670,8 +4693,22 @@ def subscribe_page(
             already=already,
             allowed=allowed,
             via=via,
-            caps=[{"cap": one, "about": (one // each) if each else 0} for one in CAPS],
+            # A cap smaller than one new one says so, and never rounds up (#475 B7).
+            caps=[
+                {
+                    "cap": one,
+                    "about": (one // each) if each else 0,
+                    "short": bool(each) and one < each,
+                }
+                for one in CAPS
+            ],
             chosen=chosen,
+            name=name,
+            name_lang=name_lang,
+            unreachable=unreachable,
+            again=again,
+            letter=letter,
+            letter_lang="he" if letter_rtl else "",
             per_week=round(weekly) if weekly >= 1 else 0,
             per_month=max(1, round(weekly * 30 / 7)) if 0 < weekly < 1 else 0,
             languages=dict(_language_names(language)),
@@ -4842,6 +4879,8 @@ def library_page(token: str, language: str = "en") -> str:
     `library.js` fetches it beside `/readers` instead of the page carrying it (#484).
     """
     from ..catalogue import collections, everything, swipe_sets
+    from ..chat.sources import TOPICS as news_topics
+    from ..strings import text as said_text
 
     return (
         _environment()
@@ -4865,6 +4904,12 @@ def library_page(token: str, language: str = "en") -> str:
             ),
             languages=_language_names(language),
             strings=script_strings(language, "library."),
+            # The news topics a reader can follow, each a row in News with Subscribe going
+            # to the confirm page (David, 2026-10-22; targum-internal#475 B3).
+            topics=[
+                (key, said_text(f"subs.topic.{key}", _page_language(language)))
+                for key in news_topics
+            ],
         )
     )
 
