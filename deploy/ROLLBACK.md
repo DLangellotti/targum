@@ -16,14 +16,16 @@ Three things can be put back, and they are separate:
 | **The database** | Restore the `targum.db.before-*` copy taken before the deploy (step 4) | Everything readers did since that copy: words saved, sign-ups, jobs, the spend ledger. |
 | **The reader pages** | Come back with the code: the rollback's rebuild rewrites them | Hours of box time if an annotator name moves (step 5). |
 
-**Roll back the code first, and the database only if the data itself is damaged.** Every
-schema change in `accounts.py` is additive (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE …
-ADD COLUMN … DEFAULT`), so older code opens a newer database and runs: it leaves the new
-tables and columns alone and sets `user_version` back to its own number, and the next
-deploy forward migrates it up again. A bad deploy is almost always bad code over good
-data. Check this still holds before relying on it: `git diff <good>..<bad> --
-src/targum/accounts.py` should add `ALTER TABLE … ADD COLUMN` and `CREATE TABLE IF NOT
-EXISTS` lines and nothing else.
+**Roll back the code first, and the database only if the data itself is damaged.** The
+schema changes in `accounts.py` are additive columns and tables (`CREATE TABLE IF NOT
+EXISTS`, `ALTER TABLE … ADD COLUMN … DEFAULT`) plus a few idempotent `UPDATE`s that
+`_migrate` runs on every open (`UPDATE person SET interest = …`), so older code opens a
+newer database and runs: it leaves the new tables and columns alone and sets
+`user_version` back to its own number, and the next deploy forward migrates it up again.
+A bad deploy is almost always bad code over good data. Check this still holds before
+relying on it: `git diff <good>..<bad> -- src/targum/accounts.py` should add columns,
+tables and nothing that drops or renames one; read any new `UPDATE` in it, because the
+real risk is the newer code writing a value the older code does not expect.
 
 ## 1. Read-only checks first
 
@@ -119,6 +121,21 @@ annotator rename, and the rollback re-annotates: read step 5 before going on.
 Exactly the deploy that put it there the first time, from a detached worktree at that
 commit, never from the main checkout.
 
+**First, no deploy may be running on the box.** This is a precondition you check, not
+something `deploy.sh` will catch for you: until targum#876 is deployed, its
+`a deploy is already running` guard sits *after* the wheel and catalogue install, so a
+refused deploy has already put the old wheel under the running rebuild.
+
+```sh
+ssh root@targum.page 'systemctl is-active targum-deploy'      # inactive (or failed)
+```
+
+`active` means the bad deploy's rebuild is still going. Ask David whether to wait for it
+(`journalctl -u targum-deploy -f`) or stop it (`systemctl stop targum-deploy`), and
+check again before going on. Stopping it is safe for the data (`rebuild --words` is
+incremental and resumes rather than repeats), but it leaves pages half-rewritten until
+the rollback's own rebuild covers them.
+
 ```sh
 GOOD=<full sha>
 cd ~/Vaults/Projects/targum
@@ -173,11 +190,13 @@ see, in order:
 Deployed.
 ```
 
-If it stops at `a deploy is already running on this box (targum-deploy.service)`, the bad
-deploy's rebuild is still going. See "Never" below, and ask David whether to wait for it
-or stop it (`systemctl stop targum-deploy`) before deploying again. Stopping it is safe
-for the data — `rebuild --words` is incremental and resumes rather than repeats — but it
-leaves pages half-rewritten until the rollback's own rebuild covers them.
+If it stops at `a deploy is already running on this box (targum-deploy.service)` anyway
+(a deploy started between your check and this one), the refusal came after the install
+on today's `deploy.sh`: the good wheel and today's catalogue are already in, under the
+bad deploy's rebuild, whose remaining steps (`seed`, `catalogue-lemmas`, its final
+restart) then run the good code over pages the bad rebuild wrote. Step 1's
+`activity.json` check shows which build is installed. Go back to the precondition above,
+let that unit finish or stop it, and deploy again.
 
 The service restarts onto the old wheel within seconds of `== live now ==` (the restart
 is the first line inside the deploy unit; a busy box takes up to ten minutes to drain).
@@ -235,6 +254,17 @@ FROM=/var/lib/targum/targum.db.before-deploy-2026-10-21b      # the copy to rest
 read-only fails with `unable to open database file (14)`, which is not corruption, and
 opening it normally writes `-wal`/`-shm` beside it. So check a copy:
 
+First, the copy's own `-wal` must be empty or absent. Every `before-*` and nightly copy
+so far has a 0-byte one or none; a copy with a non-empty `-wal` carries pages that live
+only in that file, and copying the main file alone would check, and restore, without them.
+
+```sh
+ls -la "$FROM"-wal 2>/dev/null                                   # absent, or size 0
+```
+
+Anything bigger: copy the `-wal` beside the duplicate below (as `/tmp/restore-check.db-wal`),
+and to `restore-source.db-wal` in step c, or ask before going on.
+
 ```sh
 cp "$FROM" /tmp/restore-check.db
 sqlite3 /tmp/restore-check.db 'PRAGMA integrity_check; PRAGMA user_version; SELECT count(*) FROM person; SELECT count(*) FROM word;'
@@ -257,11 +287,22 @@ copy is the wrong file (an empty database once passed as a backup for weeks; see
 
 **b. Stop what writes to the database.**
 
+Four timers start something that writes to it: the subscriptions poll, the visit count,
+the nightly backup, and the 04:30 UTC subscriptions mail, which stamps each item it
+mails (`subscriptions.py`). Stopping a `.timer` leaves alone a `.service` it already
+started (the backup's may run for an hour), so stop both, and check no deploy is running:
+
 ```sh
-systemctl stop targum-subscriptions.timer targum-visits.timer targum-backup.timer
+systemctl is-active targum-deploy                               # inactive (or failed)
+systemctl stop targum-subscriptions.timer targum-visits.timer targum-backup.timer targum-subscriptions-mail.timer
+systemctl stop targum-subscriptions.service targum-visits.service targum-backup.service targum-subscriptions-mail.service
 systemctl stop targum
-systemctl is-active targum                                      # inactive
+systemctl is-active targum targum-subscriptions targum-visits targum-backup targum-subscriptions-mail   # all inactive
 ```
+
+A copy taken before 04:30 UTC on the day of the restore does not have that morning's
+"mailed" stamps, so the 04:30 mail goes out again to everyone it reached. Say so to David
+before restoring such a copy.
 
 The stop drains: it can take up to ten minutes while builds and chat turns finish
 (`TimeoutStopSec=660`). The health watch will mail `TARGUM_ALERT_TO` after ten minutes
@@ -292,7 +333,7 @@ owned `targum targum`. The `install` step is there because older `before-*` copi
 ```sh
 systemctl start targum
 systemctl is-active targum                                      # active
-systemctl start targum-subscriptions.timer targum-visits.timer targum-backup.timer
+systemctl start targum-subscriptions.timer targum-visits.timer targum-backup.timer targum-subscriptions-mail.timer
 journalctl -u targum -n 30 --no-pager
 curl -sS -m 10 https://targum.page/health
 ```

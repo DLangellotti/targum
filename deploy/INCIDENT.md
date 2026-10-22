@@ -115,7 +115,7 @@ When it started and whether it `Deactivated successfully` or `Failed`. A failed 
 | No answer from `curl` from here, but `ssh` works and `curl` on the box works (`ssh root@targum.page 'curl -sS -m 5 http://127.0.0.1:8420/health'`) | **The network between**: DNS, TLS, a path from this network. | `dig +short targum.page` should give the box's address; try from another network. A hotel network resets SSH and can do the same to HTTPS. Nothing on the box to change. |
 | `502` from Caddy; `systemctl is-active targum` says `failed` or `activating` | **The service is down** on a running box. | The journal (step 3) says why. After a deploy: [`ROLLBACK.md`](ROLLBACK.md). Not after a deploy: disk, memory, the env file. |
 | `/health` `"ok": true`, but builds or chat fail for readers | **A model provider**, almost always. | `journalctl -u targum --since "-30 min" \| grep -iE "credit\|quota\|billing\|overloaded\|529\|503\|rate.limit\|timed out"`, then the provider's status page (status.anthropic.com, status.openai.com, the Google Cloud status page for Gemini and Vertex). |
-| A mail "targum: <provider> is out of credit" | **Out of credit.** | Top up that provider's console (David's accounts). Nothing on the box needs changing; readers are already told it is on our side. `/var/lib/targum/credit-watch.json` holds when each was last mailed. |
+| A mail "targum: <provider> is out of credit" | **Out of credit.** | Top up that provider's console (David's accounts). Nothing on the box needs changing; readers are already told it is on our side. `/var/lib/targum/credit-watch.json` holds when each was last mailed; it appears only with the first credit mail, so a box without it is normal. |
 | `/health` `{"ok": false, "store": false}` (503) | **The database cannot be read.** | Disk full? Permissions (`ls -la /var/lib/targum/targum.db*`, all `targum targum`)? Then [`ROLLBACK.md`](ROLLBACK.md) step 4, on David's word. |
 | `/health` ok, pages slow, `queue` climbing | **Workers stuck or the box saturated.** | `targum-deploy` active (a rebuild eating the CPU)? Memory and swap (step 4)? `uptime`'s load against the box's 4 cores. |
 | Everything ok, one page broken | **A bug**, not an incident. | A `beta-found` card through triage, not this page. |
@@ -166,8 +166,10 @@ recommendation, in a few lines.
   `systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum
   --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum …`;
   `sqlite3` through `runuser -u targum --`. The env file is systemd's format and root's
-  alone: do not `source` it, and read one value with `grep ^NAME= /etc/targum/targum.env |
-  cut -d= -f2-` (never print a key's value anywhere).
+  alone: do not `source` it. To see that a key is set, count it, which prints `1` and never
+  the value: `grep -c '^NAME=.' /etc/targum/targum.env`. Read a value with `grep ^NAME=
+  /etc/targum/targum.env | cut -d= -f2-` only for a setting that is not a secret (an
+  address, a path, a switch); never print a key's value anywhere.
 - **Restart `targum`, or start a deploy, during a detached rebuild without knowing what it
   is doing.** `systemctl is-active targum-deploy` says whether one runs;
   `journalctl -u targum-deploy` says since when. The service already went live at the
