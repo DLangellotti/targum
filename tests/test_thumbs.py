@@ -361,26 +361,44 @@ def jpeg(width: int = 600, height: int = 600) -> bytes:
     return kept.getvalue()
 
 
+class Door(dict[str, tuple[str, bytes]]):
+    """The door's answers by address, with what was asked of it and how much it sent."""
+
+    #: Each answer goes out in chunks of this size, the way a host streams a body, so a
+    #: reader that stops early is seen stopping.
+    CHUNK = 64 * 1024
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.asked: list[str] = []
+        self.sent: dict[str, int] = {}
+
+
 @pytest.fixture
-def answering(monkeypatch: pytest.MonkeyPatch) -> dict[str, tuple[str, bytes]]:
+def answering(monkeypatch: pytest.MonkeyPatch) -> Door:
     """The one outbound door answered from a table, so nothing here touches the network:
     the feed and the artwork are both rows of it, and a row asked for that is not there
-    fails the test rather than reaching out."""
+    fails the fetch rather than reaching out."""
     from targum.ingest import url as url_module
 
-    table: dict[str, tuple[str, bytes]] = {}
+    table = Door()
 
     class Answer:
         def __init__(self, url: str) -> None:
+            table.asked.append(url)
             kind, body = table[url]
             self.status_code = 200
             self.headers = {"content-type": kind}
             self.charset = "utf-8"
             self.encoding = None
+            self._url = url
             self._body = body
 
         def iter_content(self, chunk_size: int | None = None) -> Any:
-            yield self._body
+            for start in range(0, len(self._body), Door.CHUNK):
+                chunk = self._body[start : start + Door.CHUNK]
+                table.sent[self._url] = table.sent.get(self._url, 0) + len(chunk)
+                yield chunk
 
         def close(self) -> None:
             return None
@@ -394,6 +412,14 @@ def answering(monkeypatch: pytest.MonkeyPatch) -> dict[str, tuple[str, bytes]]:
     monkeypatch.setattr(url_module, "POLITE_S", 0.0)
     url_module.PAGES.clear()
     return table
+
+
+def picture_as(format: str) -> bytes:
+    from PIL import Image
+
+    kept = io.BytesIO()
+    Image.new("RGB", (50, 50), (31, 111, 107)).save(kept, format=format)
+    return kept.getvalue()
 
 
 def test_a_feed_names_its_episodes_artwork_or_its_shows() -> None:
@@ -413,7 +439,7 @@ def test_a_feed_names_its_episodes_artwork_or_its_shows() -> None:
 
 
 def test_a_podcast_episode_built_keeps_its_feeds_artwork_beside_its_reader(
-    tmp_path: Path, answering: dict[str, tuple[str, bytes]], fake_segmenter: object
+    tmp_path: Path, answering: Door, fake_segmenter: object
 ) -> None:
     """The fixture is an episode found from its feed, built: the artwork is fetched at
     build time through the one door, and kept as the reader's own `thumb.webp`, which
@@ -457,9 +483,7 @@ def test_a_podcast_episode_built_keeps_its_feeds_artwork_beside_its_reader(
     assert "reader who added it" in said["licence"]
 
 
-def test_a_feed_with_no_artwork_leaves_the_letter_tile(
-    tmp_path: Path, answering: dict[str, tuple[str, bytes]]
-) -> None:
+def test_a_feed_with_no_artwork_leaves_the_letter_tile(tmp_path: Path, answering: Door) -> None:
     from targum.audio.episode import find
 
     answering["https://show.example/feed"] = ("application/rss+xml", show())
@@ -481,12 +505,16 @@ def test_a_feed_with_no_artwork_leaves_the_letter_tile(
             b"<script>alert(1)</script></svg>",
         ),
         ("image/jpeg", b"<html>an error page called a picture</html>"),
-        ("image/gif", b"GIF89a\x01\x00\x01\x00\x00\x00\x00;"),
+        # Real pictures Pillow reads, refused for what they are rather than for being
+        # broken: only PNG, JPEG and WebP are kept.
+        ("image/gif", picture_as("GIF")),
+        ("image/bmp", picture_as("BMP")),
+        ("image/tiff", picture_as("TIFF")),
         ("image/png", b"\x89PNG\r\n\x1a\n not really"),
     ],
 )
 def test_artwork_that_is_not_a_picture_we_keep_is_refused(
-    tmp_path: Path, answering: dict[str, tuple[str, bytes]], kind: str, body: bytes
+    tmp_path: Path, answering: Door, kind: str, body: bytes
 ) -> None:
     answering["https://cdn.example/art"] = (kind, body)
     folder = tmp_path / "local" / "episode-ten"
@@ -498,13 +526,43 @@ def test_artwork_that_is_not_a_picture_we_keep_is_refused(
 
 
 def test_artwork_over_the_cap_is_refused_unread(
-    tmp_path: Path, answering: dict[str, tuple[str, bytes]], monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, answering: Door, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    big = jpeg(1200, 1200)
-    monkeypatch.setattr(thumbs, "ARTWORK_MOST_BYTES", len(big) - 1)
+    """Streamed in chunks, it is cut a chunk past the cap: the rest never arrives."""
+    monkeypatch.setattr(thumbs, "ARTWORK_MOST_BYTES", 200_000)
+    big = jpeg(600, 600) + b"\0" * 2_000_000
     answering["https://cdn.example/big.jpg"] = ("image/jpeg", big)
     assert thumbs.fetch_artwork("https://cdn.example/big.jpg") is None
+    sent = answering.sent["https://cdn.example/big.jpg"]
+    assert sent <= thumbs.ARTWORK_MOST_BYTES + Door.CHUNK < len(big)
     monkeypatch.setattr(thumbs, "ARTWORK_MOST_SIDE", 1000)
     assert thumbs.artwork_picture(jpeg(1200, 10)) is None
     assert thumbs.artwork_picture(jpeg(900, 900)) is not None
     assert thumbs.fetch_artwork("file:///etc/passwd") is None
+
+
+@pytest.mark.parametrize(
+    "named", ["file:///etc/passwd", "data:image/png;base64,iVBORw0KGgo=", "javascript:alert(1)"]
+)
+def test_artwork_a_feed_names_outside_the_web_is_never_taken(
+    tmp_path: Path, answering: Door, named: str
+) -> None:
+    answering["https://show.example/feed"] = (
+        "application/rss+xml",
+        show(item=f'<itunes:image href="{named}"/>'),
+    )
+    from targum.audio.episode import find
+
+    found = find("https://show.example/feed")
+    assert found is not None and found.artwork_url == "" and found.feed_url == ""
+    folder = tmp_path / "local" / "episode-ten"
+    assert not thumbs.capture(found.audio_url, folder, artwork=found.artwork_url)
+    assert answering.asked == ["https://show.example/feed"]
+    assert not (folder / thumbs.THUMB).exists()
+
+
+def test_an_episodes_audio_is_never_fetched_for_a_picture(tmp_path: Path, answering: Door) -> None:
+    """Asking an mp3 for its `og:image` would pull eight megabytes of it on each build."""
+    answering["https://cdn.example/ep10.mp3"] = ("audio/mpeg", b"ID3" + b"\0" * 1000)
+    assert not thumbs.capture("https://cdn.example/ep10.mp3", tmp_path / "local" / "ep")
+    assert answering.asked == []
