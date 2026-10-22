@@ -42,6 +42,11 @@ class Episode(BaseModel):
     transcript_type: str = ""
     #: From the feed's own claim, for pricing before a byte of audio arrives.
     seconds: float = 0.0
+    #: The episode's picture as its feed names it (the item's `itunes:image`, else the
+    #: show's), and the feed that named it, for `thumbs.capture` to keep beside the
+    #: reader of whoever added it (targum-internal#429). "" where there is none.
+    artwork_url: str = ""
+    feed_url: str = ""
 
 
 def sounds_like_audio(url: str) -> bool:
@@ -198,7 +203,7 @@ def _bare(url: str) -> str:
     return f"{parsed.netloc}{parsed.path}".rstrip("/").lower()
 
 
-def _from_feed(xml: bytes, base: str, *, page: str = "") -> Episode | None:
+def _from_feed(xml: bytes, base: str, *, page: str = "", feed: str = "") -> Episode | None:
     """The feed's episode for `page` where the feed says which, else its newest.
 
     A player page often carries no audio of its own, only the feed it belongs to —
@@ -216,12 +221,18 @@ def _from_feed(xml: bytes, base: str, *, page: str = "") -> Episode | None:
         chosen = next(iter(items), None)
     if chosen is None:
         return None
+    named = chosen.artwork or feeds.artwork(xml)
+    artwork = urljoin(base, named) if named else ""
+    if urlparse(artwork).scheme not in ("http", "https"):
+        artwork = ""
     return Episode(
         audio_url=urljoin(base, chosen.enclosure),
         title=chosen.title,
         transcript_url=urljoin(base, chosen.transcript) if chosen.transcript else "",
         transcript_type=chosen.transcript_type,
         seconds=chosen.seconds,
+        artwork_url=artwork,
+        feed_url=(feed or base) if artwork else "",
     )
 
 
@@ -275,7 +286,9 @@ def _from_page(html: str, base: str) -> Episode | None:
             got = fetch(urljoin(base, address))
         except Exception:  # noqa: BLE001 - a dead feed link is not the page's fault
             continue
-        found = _from_feed(got.raw or got.text.encode("utf-8"), base, page=base)
+        found = _from_feed(
+            got.raw or got.text.encode("utf-8"), base, page=base, feed=urljoin(base, address)
+        )
         if found is not None:
             return found
     return None

@@ -2436,10 +2436,16 @@ class Build:
         # And the text's own picture, where it brought one: an article's lead image, a
         # book's cover, a PDF's first page (targum-internal#429). Here rather than at
         # ingest, which a quote runs too: a picture is fetched for a text being built,
-        # never for one only priced. Never a library text's — see `thumbs.capture`.
+        # never for one only priced. Never a library text's — see `thumbs.capture`. A
+        # podcast episode's is its feed's artwork, fetched here for the same reason.
         from . import thumbs
 
-        thumbs.capture(str(self.source), self.resolved_out)
+        thumbs.capture(
+            str(self.source),
+            self.resolved_out,
+            artwork=getattr(self._episode, "artwork_url", ""),
+            feed=getattr(self._episode, "feed_url", ""),
+        )
 
         result = Result(
             out_dir=self.resolved_out,
