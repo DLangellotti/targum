@@ -102,6 +102,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   account's language first, which the page now names, rather than Hebrew's; and a move to
   a language whose file does not arrive keeps the shelf and the language on the page and
   says so in one quiet line, opening by itself when the connection is back.
+- `deploy.sh` no longer writes as root inside the service's own folders
+  (targum-internal#512). The covers' `mkdir`, the receiving `rsync` (`--rsync-path`) and the
+  `sources.json` merge run as targum through `runuser`, and the root `chown -R` after them
+  is gone, since the files now arrive as targum's. The merge follows no symlink: a planted
+  `.part` is replaced rather than written through, and a symlinked `sources.json` or lock
+  stops the deploy before the wheel goes in. The catalogue lemma index is read as targum
+  and written by root through a `.part` in `/etc/targum`, so a symlink in
+  `/var/lib/targum` can no longer have root copy another file where the service can read
+  it. Pinned by `tests/test_deploy_thumbs.py` and `tests/test_deploy_lemmas.py`, which
+  fail on the old script.
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
   fails before the page's last script has run (targum-internal#504). `grammar.js` handed
   `yours.js` a promise nobody had caught yet; served by address, the browser runs other
