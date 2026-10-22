@@ -704,7 +704,10 @@
 
   /* --- talking to the account ----------------------------------------------- */
 
-  function ask(path, body, keep, refusals) {
+  /* `fresh`: `/account/me` is asked once for the whole page and shared with the other
+     scripts on it (`keep.js`, targum-internal#484); a start after the reader changed what
+     it says asks again. */
+  function ask(path, body, keep, refusals, fresh) {
     var options = {
       method: body ? "POST" : "GET",
       headers: { "Content-Type": "application/json" },
@@ -716,7 +719,12 @@
     if (body) options.body = JSON.stringify(body);
     // Outlives the page: a press that is followed by a change of page must still arrive.
     if (keep) options.keepalive = true;
-    return fetch(path + (key ? "?k=" + encodeURIComponent(key) : ""), options).then(function (
+    var address = path + (key ? "?k=" + encodeURIComponent(key) : "");
+    var sent =
+      path === "/account/me" && !body && window.targumMe
+        ? window.targumMe(address, options, fresh)
+        : fetch(address, options);
+    return sent.then(function (
       response
     ) {
       // `refusals`: a 4xx with a sentence in it is the answer, not a failure. Sign-in is
@@ -1045,9 +1053,11 @@
        sign-out, on purpose, so a local preference would be forgotten every time somebody
        signed out on their own machine. */
 
-    start: function () {
+    // `fresh`: the reader has just changed something the account's answer carries, so the
+    // page's shared answer is out of date and is asked again.
+    start: function (fresh) {
       var asked = local("targum:language");
-      var going = ask("/account/me")
+      var going = ask("/account/me", null, false, false, !!fresh)
         .then(function (me) {
           api.who = me && me.signedIn ? me : null;
           api.signedOut = !api.who && !!(me && me.signedOut);

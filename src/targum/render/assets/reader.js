@@ -161,6 +161,11 @@ var targumReader = function () {
     return served && !!(passKey || (window.TargumSync && window.TargumSync.who));
   }
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
      a Referer. Local it stays, because there it proves the page came from the terminal
@@ -5866,7 +5871,7 @@ var targumReader = function () {
   function askGranted(then) {
     if (granted !== null || askingGrant || !canAsk() || typeof fetch !== "function") return;
     askingGrant = true;
-    fetch(keyed("/account/me"), { headers: keyHeaders({}) })
+    meOnce(keyed("/account/me"), { headers: keyHeaders({}) })
       .then(function (response) {
         return response.json();
       })

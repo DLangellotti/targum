@@ -590,11 +590,16 @@
     return String(said).split("-")[0].toLowerCase() || "en";
   }
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   function askAccount(path, body) {
     var key = window.TARGUM_KEY || "";
     var headers = { "Content-Type": "application/json" };
     if (key) headers["X-Targum-Key"] = key;
-    return fetch(path + (key ? "?k=" + encodeURIComponent(key) : ""), {
+    return (path === "/account/me" && !body ? meOnce : fetch)(path + (key ? "?k=" + encodeURIComponent(key) : ""), {
       method: body ? "POST" : "GET",
       headers: headers,
       credentials: "same-origin",
