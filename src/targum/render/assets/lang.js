@@ -448,13 +448,25 @@
       panel.appendChild(head);
     }
 
+    /* A page that needs something before it can open a language (the Library, whose
+     * shelf for it may not have arrived, targum-internal#484) passes `wait`, which calls
+     * `go` once it has it. Nothing is remembered before then: a press that could not
+     * open its language leaves the choice where it was. */
+    var settings = options || {};
+    function when(code, go) {
+      if (typeof settings.wait === "function") settings.wait(code, go);
+      else go();
+    }
+
     heading(t("lang.menu.yours", "Your languages"));
     all.forEach(function (code) {
       var item = row(code, "menuitemradio");
       item.addEventListener("click", function () {
         close();
         if (code === chosen) return;
-        onPick(code, remember(code));
+        when(code, function () {
+          onPick(code, remember(code));
+        });
       });
       panel.appendChild(item);
     });
@@ -468,18 +480,20 @@
         // Turned on in this browser and on the account, then opened as any press is.
         item.addEventListener("click", function () {
           close();
-          var listed = learning();
-          if (listed.indexOf(code) < 0) {
-            try {
-              localStorage.setItem(LEARNING, JSON.stringify(listed.concat([code])));
-            } catch (e) {}
-          }
-          set(code);
-          var saved =
-            window.TargumSync && typeof window.TargumSync.language === "function"
-              ? window.TargumSync.language(code, true)
-              : null;
-          onPick(code, saved);
+          when(code, function () {
+            var listed = learning();
+            if (listed.indexOf(code) < 0) {
+              try {
+                localStorage.setItem(LEARNING, JSON.stringify(listed.concat([code])));
+              } catch (e) {}
+            }
+            set(code);
+            var saved =
+              window.TargumSync && typeof window.TargumSync.language === "function"
+                ? window.TargumSync.language(code, true)
+                : null;
+            onPick(code, saved);
+          });
         });
         panel.appendChild(item);
       });

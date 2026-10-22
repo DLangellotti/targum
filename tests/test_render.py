@@ -1972,7 +1972,7 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
     Words are checked because Wikisource is full of index pages that look like texts.
     """
     from targum.catalogue import CATALOGUE, by_id
-    from targum.render.builder import carried, library_page
+    from targum.render.builder import asset_files, library_page
 
     assert CATALOGUE, "an empty catalogue is a page with nothing on it"
     for entry in CATALOGUE:
@@ -1988,11 +1988,15 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
         assert entry.words > 100, entry.id  # an index page, not a text
 
     # The cards are drawn in the browser, from the payload, so that picking a language
-    # can filter them. What the page has to carry is the payload itself: since
-    # 2026-10-19 in a file of its own beside the page, so read with it put back inside.
-    html = carried(library_page("k"))
-    payload = html.split("window.TARGUM_CATALOGUE = ", 1)[1].split("\n", 1)[0].rstrip(";")
-    shipped = json.loads(payload)
+    # can filter them. What the page has to reach is the payload itself: since
+    # 2026-10-22 a JSON file of its own that `library.js` asks for (#484), read here.
+    html = library_page("k")
+    files = json.loads(html.split("window.TARGUM_SHELF_FILES = ", 1)[1].split(";\n", 1)[0])
+    rows: dict[str, Any] = {}
+    for code, address in files.items():
+        for row in json.loads(asset_files()[address][0]).get("catalogue", []) if code else []:
+            rows[row["id"]] = row
+    shipped = sorted(rows.values(), key=lambda row: row["place"])
     assert [entry["id"] for entry in shipped] == [entry.id for entry in CATALOGUE]
     for sent, entry in zip(shipped, CATALOGUE, strict=True):
         assert sent["title"] == entry.title

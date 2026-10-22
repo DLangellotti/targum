@@ -17,6 +17,7 @@ tests do.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 from typing import Any
@@ -64,6 +65,8 @@ def library(
     hash: str = "",
     lose_shelf: bool = False,
     language: str = "he",
+    stored: bool = True,
+    learns: tuple[str, ...] = (),
 ):
     """The Library, with `answers` by path: a dict is JSON, an int a bare status, "abort"
     a dropped connection and "hold" an answer that never comes."""
@@ -71,14 +74,14 @@ def library(
     if lose_shelf:
         # An address the server never made, so the conftest's desk files do not answer it
         # and the route below refuses it: the shelf's file failing to arrive.
-        nowhere = "/assets/catalogue.0000000000000000.js"
-        html = re.sub(r"/assets/catalogue\.[0-9a-f]+\.js", nowhere, html)
+        nowhere = "/assets/catalogue.0000000000000000.json"
+        html = re.sub(r"/assets/catalogue\.[0-9a-f]+\.json", nowhere, html)
 
     def answer(route, request):
         path = request.url[len(SITE) :].split("?")[0].split("#")[0]
         if request.resource_type == "document":
             return route.fulfill(status=200, content_type="text/html", body=html)
-        if path.startswith("/assets/"):
+        if path.startswith("/assets/") and path not in answers:
             # Every file the page names is answered by `conftest.py`; this is what is not.
             return route.abort("failed")
         said = answers.get(path, {})
@@ -95,11 +98,13 @@ def library(
     context = browser.new_context(viewport=size, reduced_motion="reduce", **extra)
     unplugged = "Object.defineProperty(Navigator.prototype, 'onLine', {get: () => false});"
     # The languages the account says are learned, as `sync.js` mirrors them.
-    learning = json.dumps(sorted({"he", language}))
-    context.add_init_script(
+    learning = json.dumps(sorted({"he", language, *learns}))
+    # `stored=False` is a browser that has never been told either.
+    kept = (
         f"localStorage.setItem('targum:language', '{language}');"
-        f"localStorage.setItem('targum:learning', '{learning}');" + (unplugged if offline else "")
+        f"localStorage.setItem('targum:learning', '{learning}');"
     )
+    context.add_init_script((kept if stored else "") + (unplugged if offline else ""))
     page = context.new_page()
     thrown: list[str] = []
     page.on("pageerror", lambda error: thrown.append(str(error)))
@@ -389,5 +394,135 @@ def test_a_language_with_no_shelf_is_one_card_with_upload(browser, page_html) ->
     page.goto(url)
     page.locator("#shelves .band-card").first.wait_for()
     assert page.locator("#no-shelf").is_hidden() and page.locator("#lib-find").is_visible()
+    assert not thrown
+    context.close()
+
+
+@pytest.fixture(scope="module")
+def two_shelves_html() -> str:
+    """The fixture shelf with one Russian row added, so there are two languages' files."""
+    from targum import catalogue as catalogue_module
+
+    real = catalogue_module.everything
+    hebrew = [entry for entry in real() if entry.language == "he"][0]
+    russian = dataclasses.replace(hebrew, id="ru-one", title="Один рассказ", language="ru")
+    rows = [*real(), russian]
+    catalogue_module.everything = lambda: rows  # type: ignore[assignment]
+    try:
+        return library_page("")
+    finally:
+        catalogue_module.everything = real  # type: ignore[assignment]
+
+
+def shelf_asked(page: Any) -> list[str]:
+    return [
+        re.sub(r"\.[0-9a-f]{16}\.json$", "", url.split("/assets/")[1])
+        for url in page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
+        if "/assets/catalogue" in url
+    ]
+
+
+@pytest.mark.parametrize("language", ["he", "ru"])
+def test_the_library_asks_for_its_own_languages_shelf_only(
+    browser, two_shelves_html, language
+) -> None:
+    """targum-internal#484: the whole shelf was 270 kB gzipped and Hebrew's half of it.
+    The page asks for what every shelf needs and the language it opens on, never the
+    others, and draws that language's rows from them."""
+    reader = {
+        "name": "mine-ru",
+        "document": "1" * 64,
+        "title": "Мой текст",
+        "language": "ru",
+        "sections": 1,
+        "chapters": [],
+    }
+    answers = {"/readers": {"readers": [reader], "shared": [], "signedIn": True}}
+    context, page, thrown, _, url = library(
+        browser, two_shelves_html, answers, hash="#see", language=language
+    )
+    page.goto(url)
+    page.locator("#catalogue > li").first.wait_for()
+    asked = shelf_asked(page)
+    assert sorted(asked) == sorted(["catalogue", f"catalogue-{language}"]), asked
+    drawn = page.locator("#catalogue").inner_text()
+    assert ("Один рассказ" in drawn) == (language == "ru")
+    assert not thrown
+    context.close()
+
+
+RUSSIAN_READER = {
+    "name": "mine-ru",
+    "document": "1" * 64,
+    "title": "Мой текст",
+    "language": "ru",
+    "sections": 1,
+    "chapters": [],
+}
+
+
+def test_a_fresh_browser_asks_for_the_account_s_language_first(browser, two_shelves_html) -> None:
+    """qa-claude on #891: a cold browser guessed Hebrew whatever the account said, so a
+    Russian or Italian reader paid for Hebrew's 126 kB, never shown, before their own.
+    The server names the account's language in the page; nothing else is asked for."""
+    from targum.serve import ACCOUNT_SLOT, with_account
+
+    assert ACCOUNT_SLOT in two_shelves_html
+    html = with_account(two_shelves_html, "ru", {"he", "ru"})
+    answers = {"/readers": {"readers": [RUSSIAN_READER], "shared": [], "signedIn": True}}
+    context, page, thrown, _, url = library(browser, html, answers, hash="#see", stored=False)
+    page.goto(url)
+    page.locator("#catalogue > li").first.wait_for()
+    assert sorted(shelf_asked(page)) == ["catalogue", "catalogue-ru"]
+    assert "Один рассказ" in page.locator("#catalogue").inner_text()
+    assert page.evaluate("localStorage.getItem('targum:language')") == "ru"
+    assert page.evaluate("localStorage.getItem('targum:learning')") == '["he","ru"]'
+    assert not thrown
+    context.close()
+
+
+def test_moving_offline_to_a_language_not_fetched_keeps_the_shelf_and_the_language(
+    browser, two_shelves_html
+) -> None:
+    """qa-claude on #891: offline, a move to a language whose shelf had not been fetched
+    put the could-not-open card over the last language's cards, and the saved language
+    had already moved. Now the shelf on the page stays, the language stays, and one quiet
+    line says the other opens when the connection is back, which it then does."""
+    from targum.render.builder import asset_files
+
+    # Russian's file at an address of the test's own, so it can be lost and then found:
+    # a routed answer arrives whatever the browser's connection says.
+    real = re.search(r"/assets/catalogue-ru\.[0-9a-f]{16}\.json", two_shelves_html)
+    assert real
+    elsewhere = "/assets/catalogue-ru.0000000000000000.json"
+    html = two_shelves_html.replace(real.group(0), elsewhere)
+    answers: dict[str, Any] = {
+        "/readers": {"readers": [RUSSIAN_READER], "shared": [], "signedIn": True},
+        elsewhere: "abort",
+    }
+    context, page, thrown, _, url = library(browser, html, answers, hash="#see", learns=("ru",))
+    page.goto(url)
+    page.locator("#catalogue > li").first.wait_for()
+    before = page.locator("#catalogue").inner_text()
+    assert sorted(shelf_asked(page)) == ["catalogue", "catalogue-he"]
+
+    context.set_offline(True)
+    page.locator("#langs .lang-open").click()
+    page.locator('#langs [role="menuitemradio"][data-code="ru"]').click()
+    held = page.locator("#lib-held")
+    held.wait_for(state="visible")
+    named = page.evaluate("window.TARGUM_LANGUAGES.ru")
+    assert held.inner_text() == f"{named} opens when you're back online."
+    assert page.locator("#lib-fault").is_hidden(), "not the could-not-open card"
+    assert page.locator("#catalogue").inner_text() == before, "what was drawn stays"
+    assert page.evaluate("localStorage.getItem('targum:language')") == "he"
+
+    answers[elsewhere] = json.loads(asset_files()[real.group(0)][0])
+    context.set_offline(False)
+    page.wait_for_function("localStorage.getItem('targum:language') === 'ru'")
+    page.wait_for_function(
+        "document.getElementById('catalogue').innerText.indexOf('Один рассказ') >= 0"
+    )
+    assert held.is_hidden()
     assert not thrown
     context.close()
