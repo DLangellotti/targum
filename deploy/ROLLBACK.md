@@ -1,8 +1,8 @@
 # Putting the previous build back
 
 For a deploy that went out and is worse than what it replaced. Written against
-`deploy.sh` as of 2026-10-22 (targum-internal#482); every path and command below was
-checked against the code and, read-only, against the box. **Not yet run as a drill**: the
+`deploy.sh` and `rollback.sh` as of targum#876 (2026-10-22, targum-internal#482); every
+path and command below was checked against the code and, read-only, against the box. **Not yet run as a drill**: the
 date it first runs goes on #482 and here.
 
 Rolling back is a change to the box, so it happens on David's word, in the moment. The
@@ -12,9 +12,14 @@ Three things can be put back, and they are separate:
 
 | What | How | Loses |
 |---|---|---|
-| **The code** (the wheel) | Deploy the previous commit again (step 3) | Nothing. The database is kept. |
+| **The code** (the wheel) | `deploy/rollback.sh <sha>` puts back a wheel the box kept (step 3a); otherwise deploy the previous commit again (step 3b) | Nothing. The database is kept. |
+| **The catalogue** | `rollback.sh <sha> --catalogue` swaps in `/etc/targum/catalogue.json.prev` (step 3a) | Rows the bad deploy added. |
 | **The database** | Restore the `targum.db.before-*` copy taken before the deploy (step 4) | Everything readers did since that copy: words saved, sign-ups, jobs, the spend ledger. |
-| **The reader pages** | Come back with the code: the rollback's rebuild rewrites them | Hours of box time if an annotator name moves (step 5). |
+| **The reader pages** | A redeploy's rebuild rewrites them (3b); `rollback.sh` leaves them as the bad deploy wrote them | Hours of box time if a redeploy crosses an annotator rename (step 5). |
+
+**The first deploy with targum#876 has no earlier kept wheel.** Wheels are kept from
+that deploy on, so until a second deploy has gone out, `rollback.sh` has nothing older
+to put back and the way back is a redeploy of the previous SHA (step 3b).
 
 **Roll back the code first, and the database only if the data itself is damaged.** The
 schema changes in `accounts.py` are additive columns and tables (`CREATE TABLE IF NOT
@@ -86,17 +91,31 @@ like a broken deploy from a reader's chair and is not one ([`INCIDENT.md`](INCID
 
 The one deployed before the bad one. In order of trust:
 
-1. The deploy note for the previous deploy (Claude's memory, `deploy-YYYY-MM-DD*.md`,
+1. `deploys.log` on the box, one line per deploy and rollback since targum#876
+   (`<utc> <sha> <who>`, with `rollback` on the end of a rollback's line). Read-only,
+   either of:
+
+   ```sh
+   ssh root@targum.page 'tail -n 8 /var/lib/targum-deploy/deploys.log'
+   TARGUM_HOST=root@targum.page ./deploy/rollback.sh     # no commit: lists, changes nothing
+   ```
+
+   With no commit, `rollback.sh` prints the wheels the box keeps, newest first, then
+   the last lines of `deploys.log`, then `say which: rollback.sh <sha>`, and exits 2.
+2. The deploy note for the previous deploy (Claude's memory, `deploy-YYYY-MM-DD*.md`,
    which records the SHA and the build stamp), or the #targum room.
-2. `journalctl -u targum-deploy --no-pager | grep Started` gives the time of each deploy;
+3. `journalctl -u targum-deploy --no-pager | grep Started` gives the time of each deploy;
    the previous one's commit is on master at or just before that time:
    `git log --first-parent --format='%h %cI %s' origin/master | head -20`.
 
-Take the **full** SHA (`git rev-parse <short>`): `TARGUM_CHECKED` is compared with
-`git rev-parse HEAD`, which is 40 characters.
+For a redeploy (3b), take the **full** SHA (`git rev-parse <short>`): `TARGUM_CHECKED`
+is compared with `git rev-parse HEAD`, which is 40 characters. `rollback.sh` takes 7 to
+40 characters and matches on the first 12.
 
-Roll back one deploy, not several. The `deploy.sh` that runs is the one at that commit,
-and an old enough one has bugs the current one fixed.
+Roll back one deploy, not several. In a redeploy the `deploy.sh` that runs is the one at
+that commit, and an old enough one has bugs the current one fixed: one from before
+targum#876 keeps no wheel, takes no database copy and checks for a running deploy only
+after it has installed (step 3b).
 
 Before going further, look at what the step back will cost:
 
@@ -114,17 +133,12 @@ nothing. The others that can move are `annotate/lemma.py` `FEATURES`, `register/
 `aramaic/N`, `tanakh/N`, `LANGUAGES = "languages/N"` in `annotate/base.py`, and the
 vocalizers' `nakdimon/N` and `dicta/menaked/N`. The second catches a Stanza version bump,
 whose version is part of the lemmatizer's name too. Any output from either means an
-annotator rename, and the rollback re-annotates: read step 5 before going on.
+annotator rename, and a redeploy (3b) re-annotates: read step 5 before going on.
+`rollback.sh` (3a) runs no rebuild, so it does not.
 
 ## 3. Put the previous code back
 
-Exactly the deploy that put it there the first time, from a detached worktree at that
-commit, never from the main checkout.
-
-**First, no deploy may be running on the box.** This is a precondition you check, not
-something `deploy.sh` will catch for you: until targum#876 is deployed, its
-`a deploy is already running` guard sits *after* the wheel and catalogue install, so a
-refused deploy has already put the old wheel under the running rebuild.
+**First, in either case, no deploy may be running on the box.**
 
 ```sh
 ssh root@targum.page 'systemctl is-active targum-deploy'      # inactive (or failed)
@@ -134,7 +148,69 @@ ssh root@targum.page 'systemctl is-active targum-deploy'      # inactive (or fai
 (`journalctl -u targum-deploy -f`) or stop it (`systemctl stop targum-deploy`), and
 check again before going on. Stopping it is safe for the data (`rebuild --words` is
 incremental and resumes rather than repeats), but it leaves pages half-rewritten until
-the rollback's own rebuild covers them.
+a rebuild covers them.
+
+Both scripts refuse a running deploy themselves too. `rollback.sh` asks before it
+changes anything, because that unit restarts the service when its rebuild ends and would
+put the newer code straight back. `deploy.sh` from targum#876 on asks twice, both before
+the install: from the laptop, before the first `scp` (`a deploy is already running on
+this box (targum-deploy.service); nothing was sent.`), and again on the box at the top of
+its install block, before the database copy. A `deploy.sh` from **before** #876 asks only
+after it has installed the wheel and catalogue, so for a redeploy of such a commit this
+check is the only one that comes in time.
+
+### 3a. Put back a wheel the box kept: `rollback.sh`
+
+Every deploy since targum#876 keeps the wheel it installed, with the constraints and
+extras it went in with, in `/var/lib/targum-deploy/wheels/<sha12>/` (`<sha12>-dirty`
+for a tree with uncommitted changes); the last five are kept. `rollback.sh` installs one
+of them again as the service account, exactly as `deploy.sh` does, restarts the service
+and checks `/health`. Nothing is built on the laptop, and the checkout it runs from can
+be on any commit. If the box keeps no wheel for the commit (the first deploy with #876,
+or a commit more than five deploys back), it says so, lists what it keeps, and changes
+nothing: go to 3b.
+
+```sh
+cd ~/Vaults/Projects/targum
+TARGUM_HOST=root@targum.page ./deploy/rollback.sh <sha>                    # asks about the catalogue
+TARGUM_HOST=root@targum.page ./deploy/rollback.sh <sha> --keep-catalogue   # code only
+TARGUM_HOST=root@targum.page ./deploy/rollback.sh <sha> --catalogue        # code and catalogue
+```
+
+What you should see:
+
+```
+== putting back <sha12> ==
+   installed targum-0.2.0.0-py3-none-any.whl
+   restarting (a busy box drains for up to ten minutes first)
+== verify ==
+   https://targum.page/health is ok, on <sha12>
+
+Rolled back.
+```
+
+**The catalogue.** A deploy whose catalogue differs from the box's keeps the one it
+replaced as `/etc/targum/catalogue.json.prev`. If one is there, `rollback.sh` asks
+`Also put back the catalogue a deploy replaced on <time>? [y/N]` at a terminal, and
+without one keeps the catalogue as it is and says `--catalogue` would put it back.
+`--catalogue` swaps the two files, so the replaced one becomes `.prev` and a second run
+with `--catalogue` undoes the first. `.prev` is whatever the *last* differing deploy
+replaced, which is not necessarily the catalogue that went with `<sha>`: check its time
+against `deploys.log`.
+
+It also appends `<utc> <sha12> <who> rollback` to `deploys.log`, and touches the kept
+wheel so it is not the next one pruned.
+
+**What `rollback.sh` does not do:** touch the database (step 4 is separate), or rebuild
+reader pages. Pages the bad deploy rewrote keep its stylesheet and script, and its
+annotator's words, until the next deploy's rebuild rewrites them. If the bad deploy's
+pages are what is broken, 3b is the way back.
+
+### 3b. Deploy the previous commit again
+
+Exactly the deploy that put it there the first time, from a detached worktree at that
+commit, never from the main checkout. This is the way back when the box keeps no wheel
+for the commit, and the one that rewrites the reader pages.
 
 ```sh
 GOOD=<full sha>
@@ -145,17 +221,21 @@ git rev-parse HEAD            # must print $GOOD
 ```
 
 Take the database copy now, before anything is installed, so the restore in step 4 has a
-starting point that is the state the rollback began from:
+starting point that is the state the rollback began from. A `deploy.sh` from targum#876
+on takes its own copy as well (below); one from before it takes none, so this one is
+not optional:
 
 ```sh
-COPY=/var/lib/targum/targum.db.before-rollback-$(date -u +%Y-%m-%d-%H%M)
+COPY=/var/lib/targum/backups/targum.db.before-rollback-$(date -u +%Y-%m-%d-%H%M)
 ssh root@targum.page "runuser -u targum -- sqlite3 /var/lib/targum/targum.db '.backup $COPY' && cp $COPY /tmp/rollback-check.db && sqlite3 /tmp/rollback-check.db 'PRAGMA integrity_check; PRAGMA user_version;'; rm -f /tmp/rollback-check.db*"
 ```
 
 You should see `ok` and the schema number (`47` on 2026-10-22). Taken as `targum`, so the
 copy is the service's and not root's; checked on a throwaway duplicate, so the copy
-itself is never opened and grows no `-wal`/`-shm` beside it. (The `before-deploy-*` copies so far were taken as root
-and some are `0600 root`; step 4 handles both.)
+itself is never opened and grows no `-wal`/`-shm` beside it. The name does not match
+the `before-<sha12>-<stamp>` pattern `deploy.sh` prunes to the last ten, so it stays
+until somebody removes it. (The `before-deploy-*` copies from before #876 were taken as
+root and some are `0600 root`; step 4 handles both.)
 
 Then, under the laptop's heavy lock, the deploy:
 
@@ -167,7 +247,7 @@ rmdir /tmp/targum-heavy.lock
 
 `TARGUM_CHECKED` stands the local suite down, because CI passed this commit on master
 when it was first deployed. The lint, format and type checks still run. What you should
-see, in order:
+see, in order (the `database copied` line only from a commit with targum#876):
 
 ```
 == checks, before anything leaves this machine ==
@@ -181,6 +261,7 @@ see, in order:
    N versions pinned from uv.lock
 == ship ==
    N covers
+   database copied and checked: /var/lib/targum/backups/targum.db.before-<sha12>-<stamp>
 == live now; rebuilding the shelf behind it ==
    ...
    done
@@ -191,12 +272,14 @@ Deployed.
 ```
 
 If it stops at `a deploy is already running on this box (targum-deploy.service)` anyway
-(a deploy started between your check and this one), the refusal came after the install
-on today's `deploy.sh`: the good wheel and today's catalogue are already in, under the
-bad deploy's rebuild, whose remaining steps (`seed`, `catalogue-lemmas`, its final
-restart) then run the good code over pages the bad rebuild wrote. Step 1's
-`activity.json` check shows which build is installed. Go back to the precondition above,
-let that unit finish or stop it, and deploy again.
+(a deploy started between your check and this one), what happened depends on the
+commit's `deploy.sh`. From targum#876 on, nothing was installed: the laptop's refusal
+says `nothing was sent`, and the box's comes before the database copy and the install.
+Before #876, the refusal came after the install: the good wheel and today's catalogue are
+already in, under the bad deploy's rebuild, whose remaining steps (`seed`,
+`catalogue-lemmas`, its final restart) then run the good code over pages the bad rebuild
+wrote; step 1's `activity.json` check shows which build is installed. Either way, go back
+to the check above, let that unit finish or stop it, and deploy again.
 
 The service restarts onto the old wheel within seconds of `== live now ==` (the restart
 is the first line inside the deploy unit; a busy box takes up to ten minutes to drain).
@@ -207,7 +290,9 @@ behind the running service.
 
 - **The catalogue, sources, sentence levels and binyans** ship from this laptop's
   `~/.targum/`, as they are today. If the bad change was there, put the old file back in
-  `~/.targum/` first. The box does not keep the previous copy.
+  `~/.targum/` first. Of these the box keeps only the catalogue's previous copy
+  (`/etc/targum/catalogue.json.prev`, step 3a), and a redeploy with a different catalogue
+  from a commit with #876 overwrites that copy with the one it replaces.
 - **Keys** come from today's vault through that commit's `box.env.op`; a line the bad
   deploy added stays in `/etc/targum/targum.env`, harmlessly.
 - **A timer the bad deploy added** stays installed and enabled, and runs a `targum`
@@ -224,20 +309,33 @@ ssh root@targum.page 'systemctl show targum -p ActiveEnterTimestamp'   # a minut
 ssh root@targum.page 'systemctl is-active targum-deploy'               # inactive once the rebuild is done
 ```
 
-Then open the page that was broken, in a visible browser tab. Afterwards:
+After `rollback.sh` the first two hold as soon as it says `Rolled back.`, and
+`targum-deploy` stays `inactive` because nothing started it. Then open the page that was
+broken, in a visible browser tab. After a redeploy:
 `git worktree remove ~/Vaults/Projects/targum-wt/rollback-${GOOD:0:8}`.
 
 ## 4. Restore the database, only if the data is damaged
 
-The copy taken before each deploy is `targum.db.before-<what>-<date>`, made with
-SQLite's `.backup` (a consistent snapshot through the backup API, never a plain `cp` of a
-live WAL database). Recent ones sit beside the database in `/var/lib/targum/`; older ones
-in `/var/lib/targum/backups/`, beside the nightly `targum-YYYYMMDD-HHMMSS.db` copies that
-`targum-backup.timer` takes at 04:00 UTC.
+Every copy is made with SQLite's `.backup` (a consistent snapshot through the backup
+API, never a plain `cp` of a live WAL database), and they all sit in
+`/var/lib/targum/backups/`:
+
+- `targum.db.before-<sha12>-<YYYYMMDDTHHMMSSZ>`: the copy `deploy.sh` takes itself, from
+  targum#876 on, as `targum` and checked with `integrity_check` before anything is
+  installed. `<sha12>` is the commit being deployed (the bad one, for the copy taken just
+  before it), with `-dirty` for a tree with uncommitted changes. The last ten are kept.
+- `targum.db.before-rollback-<date>`: the one step 3b takes by hand.
+- `targum-YYYYMMDD-HHMMSS.db`: the nightly copies `targum-backup.timer` takes at 04:00 UTC.
+
+Copies from before #876 (`targum.db.before-deploy-<date>`, taken by hand) may still sit
+beside the database in `/var/lib/targum/`, so look in both:
 
 ```sh
 ssh root@targum.page 'ls -la /var/lib/targum/targum.db* /var/lib/targum/backups/ | grep -E "before-|targum-[0-9]{8}"'
 ```
+
+The copy to restore after a bad deploy is the `before-<sha12>-*` whose `<sha12>` is the
+bad commit: it is the database as it was just before that deploy installed.
 
 **Restoring loses every write since the copy**: words kept, accounts made, sign-in links,
 jobs and what they spent. Say to David what will be lost (the copy's time against now)
@@ -247,7 +345,7 @@ From here on as root on the box, in one SSH session:
 
 ```sh
 ssh root@targum.page
-FROM=/var/lib/targum/targum.db.before-deploy-2026-10-21b      # the copy to restore
+FROM=/var/lib/targum/backups/targum.db.before-<sha12>-<stamp>   # the copy to restore
 ```
 
 **a. Check the copy, on a throwaway duplicate.** A snapshot is in WAL mode; opening it
@@ -255,7 +353,8 @@ read-only fails with `unable to open database file (14)`, which is not corruptio
 opening it normally writes `-wal`/`-shm` beside it. So check a copy:
 
 First, the copy's own `-wal` must be empty or absent. Every `before-*` and nightly copy
-so far has a 0-byte one or none; a copy with a non-empty `-wal` carries pages that live
+so far has a 0-byte one or none (`deploy.sh` checks its own with `immutable=1`, which
+writes none); a copy with a non-empty `-wal` carries pages that live
 only in that file, and copying the main file alone would check, and restore, without them.
 
 ```sh
@@ -324,7 +423,7 @@ ls -la /var/lib/targum/targum.db*
 ```
 
 You should see `ok`, the copy's schema number, and `targum.db`, `-shm` and `-wal` all
-owned `targum targum`. The `install` step is there because older `before-*` copies are
+owned `targum targum`. The `install` step is there because the `before-deploy-*` copies from before #876 are
 `0600 root` and the `targum` user cannot read them. Do not delete
 `targum.db.before-restore-*`: it is the way back from this step.
 
@@ -348,6 +447,11 @@ systemctl start targum`.
 
 ## 5. When the step back crosses an annotator rename
 
+This is about a redeploy (3b). `rollback.sh` (3a) runs no rebuild, so it re-annotates
+nothing: the pages keep the newer names' words, the older code serves them, and
+`targum preflight` (below) counts them as behind until a deploy rewrites them. A fix
+deployed forward at the newer names then has nothing to re-annotate.
+
 The annotator's name is the cache key for a text's words (repo `CLAUDE.md`). `rebuild
 --words` re-annotates every text whose recorded name differs from what the running code
 would call its annotator, with no cache in between: a rollback to an older name
@@ -363,8 +467,9 @@ were bought before and are in the cache) but it can buy some (`--gloss`).
 
 So, across a rename:
 
-- **Prefer fixing forward** unless the rename itself is what broke. A one-line fix
-  deployed on top costs minutes; a rollback and a re-deploy cost the shelf twice.
+- **Prefer `rollback.sh` or fixing forward** unless the rename itself is what broke. A
+  one-line fix deployed on top costs minutes; a redeploy back and a deploy forward cost
+  the shelf twice.
 - If rolling back anyway, say so to David with the hours, and plan the roll forward as an
   overnight operation, not the same evening.
 - The parasha corpus and the daily window keep no artifacts and are not touched by any
@@ -394,15 +499,16 @@ ssh root@targum.page 'systemd-run --quiet --wait --pipe --collect --uid=targum -
   --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env`, as
   above; `sqlite3` alone goes through `runuser -u targum --`. (`sudo -u targum` cannot read
   `/etc/targum/targum.env`, which is root's.)
-- **Restart `targum` or start a deploy while `targum-deploy` is active** without knowing
-  what it is doing. It may be hours into a rebuild. A second deploy is refused for that
-  reason; a hand restart is not. The restart itself does the rebuild no harm (the service
+- **Restart `targum`, start a deploy or run `rollback.sh` while `targum-deploy` is
+  active** without knowing what it is doing. It may be hours into a rebuild. A second
+  deploy and a `rollback.sh` are refused for that reason; a hand restart is not. The restart itself does the rebuild no harm (the service
   went live at the start of the unit already), but it loads the models again beside a
   rebuild holding its own, on a box that has been OOM-killed by exactly that kind of load,
   and it drains the readers' running builds for up to ten minutes. Know which wheel is
   installed (step 1) and why the restart is needed before doing it.
-- **Delete a `targum.db.before-*` copy, a nightly copy, or `targum.db.before-restore-*`**
-  during or after a rollback. They are the only way back from a restore. Pruning them is
-  a separate, unhurried decision.
+- **Delete a `targum.db.before-*` copy, a nightly copy, `targum.db.before-restore-*`,
+  a kept wheel or `deploys.log`** during or after a rollback. They are the only way back.
+  Pruning them is a separate, unhurried decision (`deploy.sh` already keeps the last ten
+  `before-<sha12>-*` copies and the last five wheels on its own).
 - **`cp` a backup over the live `targum.db`** with the old `-wal` beside it. Use `.restore`
   (step 4c).

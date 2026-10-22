@@ -7,7 +7,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ### Added
 - Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
-  build back by deploying its commit again from a worktree, restores the pre-deploy
+  build back with `rollback.sh` when the box kept its wheel, or by deploying its commit
+  again from a worktree (the only way back until a second deploy with targum#876 has
+  kept one), restores the pre-deploy
   database through SQLite's `.restore` only when the data is damaged, and says what a
   step back across an annotator rename costs in box hours. `deploy/INCIDENT.md` is the
   first ten minutes: who is told, the read-only checks in order, how to tell the box from
