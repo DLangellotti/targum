@@ -153,26 +153,31 @@
     fault.hidden = false;
   }
 
-  if (!codes.length) {
+  // Nothing in this browser yet: the page is drawn once the account has had its say.
+  var waiting = !codes.length;
+  if (waiting) {
     document.getElementById("library-link").href = keyed("/library");
     wireNav();
     // Signing in on a browser that has nothing is the whole point of signing in: this
     // is the new phone, and everything is about to arrive. So "nothing yet" waits for
     // the account's answer, and is said only if it brought nothing (2026-10-10): said
     // at once, it told somebody just signed in that their whole record was gone.
+    //
+    // What did arrive is drawn in place by the `onChange` below, which has run by the
+    // time this resolves. It reloaded the page until 2026-10-22, so a new phone loaded
+    // Progress twice: 2.67 s on the phone profile against §14's 1.5 s (#484).
     if (window.TargumSync && window.TargumSync.settled) {
       window.TargumSync.settled().then(function (changed) {
-        if (changed) location.reload();
-        else if (window.TargumSync.reached === false) couldNot();
+        if (changed && codes.length) return;
+        if (window.TargumSync.reached === false) couldNot();
         else document.getElementById("nothing").hidden = false;
       });
     } else {
       document.getElementById("nothing").hidden = false;
     }
-    return;
+  } else {
+    document.getElementById("page").hidden = false;
   }
-
-  document.getElementById("page").hidden = false;
 
   // Which language everything below is drawn for. The menu moves it.
   var currentCode = window.TargumLang.current(codes);
@@ -987,9 +992,19 @@
     });
   }
 
-  show(currentCode);
-  askSpent();
-  askReading();
+  // The account's own figures, asked once the page has a language to draw them in.
+  var askedAccount = false;
+  function askAccount() {
+    if (askedAccount) return;
+    askedAccount = true;
+    askSpent();
+    askReading();
+  }
+
+  if (!waiting) {
+    show(currentCode);
+    askAccount();
+  }
 
   // If the account turns out to hold words this browser had not seen — kept on a phone,
   // or kept here before signing in on another machine — everything is gathered again
@@ -1007,6 +1022,7 @@
       if (codes.indexOf(currentCode) < 0) currentCode = window.TargumLang.current(codes);
       storyAsked = {};
       show(currentCode);
+      askAccount();
     });
     if (window.TargumSync.settled) window.TargumSync.settled();
     else window.TargumSync.start();
