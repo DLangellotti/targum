@@ -408,15 +408,30 @@
       var none = host.querySelector("#subs-empty");
       var offered = host.querySelector("#subs-offer");
       var sayLine = host.querySelector("#subs-said");
-      if (answer.status !== 0 && answer.signedIn !== true) {
-        // Nobody signed in — or a page off the disk with no server behind it.
+      if (answer.status === 401) {
+        // Nobody signed in: say so with the way in, and the browser's own series under it
+        // (a machine somebody runs with nobody signed in). Never "nothing subscribed".
+        if (sayLine) faultLine(sayLine, t("subs.page.sign-in", "Sign in to see your subscriptions."), signIn());
+        return drawSignedOut(host, true);
+      }
+      if (answer.status === 200 && answer.signedIn !== true) {
+        // An answer that names nobody signed in — a machine somebody runs with no
+        // account on it: the browser's own series, as before.
         return drawSignedOut(host);
       }
       if (answer.status !== 200) {
+        // No connection, or a fault on our side (a 5xx, or an answer that isn't ours): say
+        // which, with Try again. A fault is never told as an empty list (design.md §14.1).
         if (sayLine) {
-          sayLine.textContent = answer.status === 0 ? UNREACHED : FAILED;
-          sayLine.hidden = false;
+          faultLine(
+            sayLine,
+            answer.status === 0 ? UNREACHED : t("subs.load-failed", "We couldn't load your subscriptions."),
+            answer.status === 0 ? null : tryAgain(function () {
+              drawTab(host);
+            })
+          );
         }
+        if (none) none.hidden = true;
         return false;
       }
       if (sayLine) sayLine.hidden = true;
@@ -494,10 +509,38 @@
     });
   }
 
-  function drawSignedOut(host) {
+  /* A line that says what went wrong, and the one press that goes on from it. */
+  function faultLine(line, text, press) {
+    line.textContent = "";
+    line.appendChild(document.createTextNode(text));
+    if (press) {
+      line.appendChild(document.createTextNode(" "));
+      line.appendChild(press);
+    }
+    line.hidden = false;
+  }
+
+  function tryAgain(again) {
+    var press = el("button", "btn tonal small sub-again", t("subs.try-again", "Try again"));
+    press.type = "button";
+    press.onclick = function () {
+      press.disabled = true;
+      again();
+    };
+    return press;
+  }
+
+  function signIn() {
+    var press = el("a", "btn tonal small sub-sign-in", t("subs.sign-in", "Sign in"));
+    press.href = "/account/signin?next=" + encodeURIComponent(window.location.pathname + window.location.search);
+    return press;
+  }
+
+  function drawSignedOut(host, told) {
     var follow = window.TargumFollow;
     var list = host.querySelector("#home-series");
     var none = host.querySelector("#subs-empty");
+    if (told && none) none.hidden = true;
     if (!follow || !list) return Promise.resolve(false);
     return follow.list().then(function (series) {
       var order = series.slice().sort(function (a, b) {
@@ -505,7 +548,7 @@
       });
       follow.draw(list, order);
       list.hidden = false;
-      if (none) none.hidden = series.length > 0;
+      if (none) none.hidden = told || series.length > 0;
       return true;
     });
   }
@@ -722,6 +765,13 @@
       } else if (one.state === "paused") {
         out.push(act(t("subs.resume", "Resume"), "resume", "btn ghost outline sub-resume", "play"));
         out.push(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "btn ghost outline danger sub-stop", "stop"));
+      } else if (one.again) {
+        // A channel or a podcast spends again only from the confirm page, where its cap
+        // is chosen and said beside the press (design.md §12, "A monthly cap is the second
+        // press that lasts"): Subscribe again goes there, never straight back on.
+        var again = el("a", "btn filled sub-resume", t("subs.subscribe-again", "Subscribe again"));
+        again.href = keyed(one.again);
+        out.push(again);
       } else {
         out.push(act(t("subs.subscribe-again", "Subscribe again"), "resume", "btn filled sub-resume"));
       }
@@ -745,7 +795,9 @@
     var facts = [];
     if (languageName(one.language)) facts.push(languageName(one.language));
     facts.push(every(one));
-    if (one.since) facts.push(t("subs.since", "subscribed since {date}", { date: whenSaid(one.since) }));
+    var off = one.state === "off";
+    if (off && one.ended) facts.push(t("subs.ended", "You unsubscribed on {date}.", { date: whenSaid(one.ended) }));
+    else if (!off && one.since) facts.push(t("subs.since", "subscribed since {date}", { date: whenSaid(one.since) }));
     meta.appendChild(document.createTextNode(" " + facts.join(" · ")));
     names.appendChild(meta);
     head.appendChild(names);
@@ -821,23 +873,27 @@
     var earlier = section(t("subs.before.head", "Out before you subscribed"), t("subs.not-by-itself", "Not got ready unless you choose"), before, one, back);
     if (earlier) main.appendChild(earlier);
 
-    if (one.builds) side.appendChild(capSection(answer, body, saidLine, now));
+    // Off, there is no cap and no mail to speak of: nothing comes until it is subscribed
+    // to again, and for a channel or a podcast the cap is chosen again then.
+    if (one.builds && !off) side.appendChild(capSection(answer, body, saidLine, now));
     // The mail (design.md §12, "Everything new comes in one mail a day"): one a day, with
     // everything new; the way out of it is the way out of the subscription.
-    var mail = el("section", "card sub-mail");
-    mail.appendChild(el("h2", "section-title", t("subs.mail.head", "Mail")));
-    var line = el("p", "sub-mail-line");
-    line.appendChild(glyph("mail"));
-    line.appendChild(
-      document.createTextNode(
-        one.key === "weekly" && one.kind === "series"
-          ? t("subs.mail.weekly", "The weekly comes by mail every Monday. To stop it, unsubscribe.")
-          : t("subs.mail.says", "What's new comes in one mail a day, with everything else new. To stop it, unsubscribe.")
-      )
-    );
-    mail.appendChild(line);
-    mail.appendChild(el("p", "note", t("subs.mail.continue", "It shows under Continue too.")));
-    side.appendChild(mail);
+    if (!off) {
+      var mail = el("section", "card sub-mail");
+      mail.appendChild(el("h2", "section-title", t("subs.mail.head", "Mail")));
+      var line = el("p", "sub-mail-line");
+      line.appendChild(glyph("mail"));
+      line.appendChild(
+        document.createTextNode(
+          one.key === "weekly" && one.kind === "series"
+            ? t("subs.mail.weekly", "The weekly comes by mail every Monday. To stop it, unsubscribe.")
+            : t("subs.mail.says", "What's new comes in one mail a day, with everything else new. To stop it, unsubscribe.")
+        )
+      );
+      mail.appendChild(line);
+      mail.appendChild(el("p", "note", t("subs.mail.continue", "It shows under Continue too.")));
+      side.appendChild(mail);
+    }
 
     // On a phone, Pause and Unsubscribe at the foot, each with what it does.
     var stop = el("section", "card sub-stop-card");
@@ -981,24 +1037,37 @@
       gone.hidden = false;
       return;
     }
-    ask("/subscriptions/" + found[1] + ".json").then(function (answer) {
-      if (answer.status === 401) {
-        stranger.hidden = false;
-        return;
-      }
-      if (answer.status !== 200 || !answer.subscription) {
-        if (answer.status === 0) {
-          saidLine.textContent = UNREACHED;
-          saidLine.hidden = false;
-          section.hidden = false;
+    function load() {
+      ask("/subscriptions/" + found[1] + ".json").then(function (answer) {
+        if (answer.status === 401) {
+          stranger.hidden = false;
+          var line = stranger.querySelector("p");
+          if (line && !stranger.querySelector(".sub-sign-in")) {
+            line.appendChild(document.createTextNode(" "));
+            line.appendChild(signIn());
+          }
           return;
         }
-        gone.hidden = false;
-        return;
-      }
-      section.hidden = false;
-      drawOne(answer, body, saidLine);
-    });
+        if (answer.status === 404) {
+          gone.hidden = false;
+          return;
+        }
+        if (answer.status !== 200 || !answer.subscription) {
+          // No connection, or a fault on our side: never told as "we couldn't find it".
+          section.hidden = false;
+          faultLine(
+            saidLine,
+            answer.status === 0 ? UNREACHED : t("subs.load-failed-one", "We couldn't load this subscription."),
+            answer.status === 0 ? null : tryAgain(load)
+          );
+          return;
+        }
+        saidLine.hidden = true;
+        section.hidden = false;
+        drawOne(answer, body, saidLine);
+      });
+    }
+    load();
   }
 
   window.TargumSubs = {

@@ -147,6 +147,10 @@ def serve(page, routes: dict[str, Any], posted: list[tuple[str, Any]]) -> None:
             return route.fulfill(
                 status=200, content_type="application/json", body=json.dumps(reply)
             )
+        if isinstance(routes.get(path), tuple):
+            # A fault: (status, body), the body an HTML page as a proxy in front sends.
+            status, body = routes[path]
+            return route.fulfill(status=status, content_type="text/html", body=body)
         if path in routes and isinstance(routes[path], str):
             return route.fulfill(status=200, content_type="text/html", body=routes[path])
         reply = routes.get(path, {})
@@ -419,6 +423,189 @@ def test_the_cap_is_changed_on_the_subscriptions_own_page(browser) -> None:
     assert ("/subscriptions/2", {"action": "cap", "cap": 120}) in posted
     assert said == "Saved. The cap is 120 credits a month." and now == "120"
     assert not thrown, thrown
+
+
+def test_an_unsubscribed_channel_starts_again_only_on_the_confirm_page(browser) -> None:
+    """targum-internal#475 B8: Subscribe again on a channel that was unsubscribed goes to
+    the confirm page with its old cap, never straight back on in one press (design.md
+    §12, "A monthly cap is the second press that lasts"). Off, the page draws no cap and
+    no mail, and says when it was unsubscribed."""
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    posted: list[tuple[str, Any]] = []
+    one = dict(
+        ROWS[1],
+        state="off",
+        ended=1_760_000_000_000,
+        again="/subscribe?kind=channel&source=https%3A%2F%2Fwww.youtube.com%2Fchannel%2FUC1&cap=60",
+        caps=[30, 60, 120, 240],
+        items=[],
+    )
+    answer = {"signedIn": True, "subscription": one, "credits": {"left": 354, "back": "November 1"}}
+    serve(
+        page,
+        {
+            "/subscriptions/2": subscription_page(""),
+            "/subscriptions/2.json": answer,
+            "/subscribe": "<!doctype html><title>confirm</title><p id=confirm>confirm</p>",
+        },
+        posted,
+    )
+    page.goto(f"{SITE}/subscriptions/2")
+    page.wait_for_selector("#sub-body .sub-head")
+    got = page.evaluate(
+        """() => ({
+          again: [...document.querySelectorAll('.sub-resume')]
+            .map((a) => [a.tagName, a.getAttribute('href')]),
+          cap: document.querySelectorAll('#sub-cap').length,
+          mail: document.querySelectorAll('.sub-mail').length,
+          meta: document.querySelector('.sub-meta').textContent,
+        })"""
+    )
+    page.click(".sub-head .sub-resume")
+    page.wait_for_selector("#confirm")
+    landed = page.url
+    context.close()
+    assert got["again"] and all(tag == "A" for tag, _ in got["again"]), got
+    assert all(href == one["again"] for _, href in got["again"]), got
+    assert got["cap"] == 0 and got["mail"] == 0, got
+    assert "You unsubscribed on" in got["meta"] and "subscribed since" not in got["meta"], got
+    assert landed.startswith(f"{SITE}/subscribe?kind=channel&") and "cap=60" in landed
+    assert not posted, "nothing was posted: the confirm page is the press"
+    assert not thrown, thrown
+
+
+def test_an_unsubscribed_series_comes_back_on_its_one_press(browser) -> None:
+    """A series is free, so Subscribe again keeps its one press (#475 B8)."""
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    posted: list[tuple[str, Any]] = []
+    one = dict(ROWS[0], state="off", ended=1_760_000_000_000, again="", items=[])
+    answer = {"signedIn": True, "subscription": one, "credits": {"left": 354, "back": "November 1"}}
+    serve(
+        page,
+        {
+            "/subscriptions/1": subscription_page(""),
+            "/subscriptions/1.json": answer,
+            ("POST", "/subscriptions/1"): {**answer, "subscription": dict(one, state="on")},
+        },
+        posted,
+    )
+    page.goto(f"{SITE}/subscriptions/1")
+    page.click(".sub-head .sub-resume")
+    page.wait_for_selector(".sub-pause")
+    context.close()
+    assert ("/subscriptions/1", {"action": "resume"}) in posted
+
+
+def _tab_routes(listed: Any) -> dict[str, Any]:
+    return {
+        "/": list_page("", "texts"),
+        "/readers": {
+            "readers": [
+                {
+                    "name": "own",
+                    "document": "own",
+                    "title": "כתבה",
+                    "language": "he",
+                    "entry": "",
+                    "built": 1,
+                    "minutes": 3,
+                    "seconds": 0,
+                    "sections": 1,
+                    "chapters": [],
+                }
+            ],
+            "shared": [],
+            "trash": [],
+        },
+        "/subscriptions.json": listed,
+    }
+
+
+def test_a_fault_on_the_tab_is_never_told_as_no_subscriptions(browser) -> None:
+    """#475 B1: a 502 with an HTML body says it couldn't load, with Try again that loads
+    again; it never says "You haven't subscribed to anything yet."; and a 401 says to
+    sign in, with Sign in."""
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    routes = _tab_routes((502, "<html><body>Bad gateway</body></html>"))
+    serve(page, routes, [])
+    page.goto(f"{SITE}/?show=subscriptions")
+    page.wait_for_selector("#subs-said:not([hidden])")
+    said = page.text_content("#subs-said")
+    empty_shown = page.eval_on_selector("#subs-empty", "p => !p.hidden")
+    routes["/subscriptions.json"] = {
+        "signedIn": True,
+        "subscriptions": ROWS,
+        "series": SERIES,
+        "credits": {"left": 354, "back": "November 1"},
+    }
+    page.click("#subs-said .sub-again")
+    page.wait_for_selector("#subs-rows .sub-row")
+    gone = page.eval_on_selector("#subs-said", "p => p.hidden")
+    context.close()
+    assert said and said.startswith("We couldn't load your subscriptions."), said
+    assert "Try again" in said and not empty_shown, (said, empty_shown)
+    assert gone, "the fault line goes once the list is drawn"
+    assert not thrown, thrown
+
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    serve(page, _tab_routes((401, '{"signedIn": false}')), [])
+    page.goto(f"{SITE}/?show=subscriptions")
+    page.wait_for_selector("#subs-said:not([hidden])")
+    said = page.text_content("#subs-said")
+    door = page.get_attribute("#subs-said .sub-sign-in", "href")
+    empty_shown = page.eval_on_selector("#subs-empty", "p => !p.hidden")
+    context.close()
+    assert said and said.startswith("Sign in to see your subscriptions."), said
+    assert door and door.startswith("/account/signin?next="), door
+    assert not empty_shown
+
+
+def test_a_fault_on_one_subscription_is_never_told_as_gone(browser) -> None:
+    """#475 B1: on one subscription's page a 502 says it couldn't load, with Try again;
+    only a 404 says we couldn't find it."""
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    routes: dict[str, Any] = {
+        "/subscriptions/2": subscription_page(""),
+        "/subscriptions/2.json": (502, "<html>Bad gateway</html>"),
+    }
+    serve(page, routes, [])
+    page.goto(f"{SITE}/subscriptions/2")
+    page.wait_for_selector("#sub-said:not([hidden])")
+    said = page.text_content("#sub-said")
+    gone = page.eval_on_selector("#gone", "s => !s.hidden")
+    routes["/subscriptions/2.json"] = {
+        "signedIn": True,
+        "subscription": dict(ROWS[1], caps=[30, 60, 120, 240], items=[]),
+        "credits": {"left": 354, "back": "November 1"},
+    }
+    page.click("#sub-said .sub-again")
+    page.wait_for_selector("#sub-body .sub-head")
+    context.close()
+    assert said and said.startswith("We couldn't load this subscription."), said
+    assert not gone
+
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    serve(
+        page,
+        {
+            "/subscriptions/2": subscription_page(""),
+            "/subscriptions/2.json": (404, '{"error": "not found"}'),
+        },
+        [],
+    )
+    page.goto(f"{SITE}/subscriptions/2")
+    page.wait_for_selector("#gone:not([hidden])")
+    context.close()
 
 
 def test_what_a_subscription_brought_leads_continue_marked_new(browser) -> None:

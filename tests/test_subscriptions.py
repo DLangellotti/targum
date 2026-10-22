@@ -343,3 +343,40 @@ def test_home_is_handed_what_is_new_with_where_it_opens(box: tuple[int, str, str
     assert item["kind"] == "topic" and item["topic"] == "culture"
     status, got = send(port, "GET", "/subscriptions/new.json", session=theirs)
     assert all(one["subscription"] != sub for one in got["items"])
+
+
+def test_an_unsubscribed_channel_is_not_resumed_in_one_press(
+    box: tuple[int, str, str, Path],
+) -> None:
+    """targum-internal#475 B8: a channel or a podcast that was unsubscribed spends again
+    only from the confirm page, where its cap is chosen (design.md §12, "A monthly cap is
+    the second press that lasts"). The door refuses a resume and hands back that page's
+    link, with the old cap; a free series still comes back on its one press."""
+    port, mine, theirs, store_path = box
+    store = Store(store_path)
+    me = store.person_by_email("one@example.com")
+    assert me is not None
+    sub = int(
+        store.add_subscription(
+            me.id,
+            "channel",
+            "UCoff",
+            name="Kan",
+            source="https://www.youtube.com/channel/UCoff",
+            cap=120,
+        )["id"]
+    )
+    status, got = send(port, "POST", f"/subscriptions/{sub}", {"action": "unsubscribe"}, mine)
+    assert got["subscription"]["state"] == "off" and got["subscription"]["ended"] > 0
+    assert got["subscription"]["again"] == (
+        "/subscribe?kind=channel&source=https%3A%2F%2Fwww.youtube.com%2Fchannel%2FUCoff&cap=120"
+    )
+    status, got = send(port, "POST", f"/subscriptions/{sub}", {"action": "resume"}, mine)
+    assert status == 409 and got["confirm"].startswith("/subscribe?kind=channel&"), got
+    assert store.subscription(me.id, sub)["state"] == "off", "still off: nothing spends"
+
+    series = int(store.add_subscription(me.id, "series", "daf-yomi")["id"])
+    send(port, "POST", f"/subscriptions/{series}", {"action": "unsubscribe"}, mine)
+    status, got = send(port, "POST", f"/subscriptions/{series}", {"action": "resume"}, mine)
+    assert status == 200 and got["subscription"]["state"] == "on"
+    assert got["subscription"]["again"] == ""
