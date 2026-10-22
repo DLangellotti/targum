@@ -267,7 +267,7 @@
       resume.onclick = function () {
         resume.disabled = true;
         ask("/subscriptions/" + one.id, { action: "resume" }).then(function () {
-          drawTab(lastHost);
+          drawTab(lastHost, true);
         });
       };
       right.appendChild(resume);
@@ -302,7 +302,7 @@
       pause.onclick = function () {
         pause.disabled = true;
         ask("/subscriptions/" + one.id, { action: "pause" }).then(function () {
-          drawTab(lastHost);
+          drawTab(lastHost, true);
         });
       };
       acts.appendChild(pause);
@@ -360,7 +360,7 @@
       press.onclick = function () {
         press.disabled = true;
         ask("/account/follows", { series: one.id, on: true }).then(function () {
-          drawTab(lastHost);
+          drawTab(lastHost, true);
         });
       };
       item.appendChild(press);
@@ -371,13 +371,37 @@
 
   var lastHost = null;
 
+  /* The tab's answer, asked as the page opens when the page opens on the tab
+     (targum-internal#484): it waited for the shelf before, a round trip after `/readers`.
+     Kept for the page's own redraws, which used to ask it again each time the account
+     answered; a press on the tab asks afresh (`drawTab(host, true)`). */
+  var answered = null;
+  try {
+    if (new URLSearchParams(location.search).get("show") === "subscriptions") {
+      answered = ask("/subscriptions.json");
+    }
+  } catch (e) {
+    answered = null;
+  }
+
   /* Home's Subscriptions tab, drawn into `host` (`#subs-panel`). Signed out — a machine
      somebody runs with nobody signed in — the browser's own list of series is all there
      is, and `follow.js` draws it as before. */
-  function drawTab(host) {
+  function drawTab(host, fresh) {
     if (!host) return Promise.resolve(false);
     lastHost = host;
-    return ask("/subscriptions.json").then(function (answer) {
+    if (fresh || !answered) answered = ask("/subscriptions.json");
+    var asked = answered;
+    // A refusal or a dropped connection is not kept: the next draw asks again.
+    asked.then(
+      function (answer) {
+        if (answer.status !== 200 && answered === asked) answered = null;
+      },
+      function () {
+        if (answered === asked) answered = null;
+      }
+    );
+    return asked.then(function (answer) {
       var table = host.querySelector("#subs-rows");
       var chipHost = host.querySelector("#subs-chips");
       var line = host.querySelector("#subs-credits");

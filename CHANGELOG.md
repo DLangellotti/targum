@@ -38,6 +38,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   With nothing in the browser it waited for the account and then reloaded itself whenever
   the answer brought anything, so a reader signing in on a new phone loaded it twice. It is
   drawn where it stands now, as Your Words is. Phone profile, median of 3: 2.69 s → 1.35 s.
+- Your targums asks what does not wait on the shelf as the page opens
+  (targum-internal#484). The account's places, the subscriptions' new items and the
+  Subscriptions tab's own list were asked once `/readers` had answered, a round trip each
+  after it, and the places were asked twice, by home and by the shelf. They go out with the
+  shelf now, once each, and the tab's list is not asked again by the page's own redraws.
+  Phone profile, median of 3: Your targums 1.69 s → 1.57 s, Subscriptions 1.61 s → 1.44 s.
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
   fails before the page's last script has run (targum-internal#504). `grammar.js` handed
   `yours.js` a promise nobody had caught yet; served by address, the browser runs other
