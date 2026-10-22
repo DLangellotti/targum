@@ -32,8 +32,9 @@ Coming back the other way — the box is gone and there is a backup — is
 imagination, and it says what came back.
 
 A deploy that went out and is worse than what it replaced is
-[`ROLLBACK.md`](ROLLBACK.md): the previous commit deployed again, and the database put
-back only if the data itself is damaged. Something wrong on the site, whatever the cause,
+[`ROLLBACK.md`](ROLLBACK.md): a wheel the box kept put back with `rollback.sh`, or the
+previous commit deployed again, and the database put back only if the data itself is
+damaged. Something wrong on the site, whatever the cause,
 is [`INCIDENT.md`](INCIDENT.md): who is told, where to look, and how to tell the box from
 a model provider from the network in the first ten minutes.
 
