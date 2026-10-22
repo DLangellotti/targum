@@ -112,6 +112,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `/var/lib/targum` can no longer have root copy another file where the service can read
   it. Pinned by `tests/test_deploy_thumbs.py` and `tests/test_deploy_lemmas.py`, which
   fail on the old script.
+- A Tanakh text with no verse refs is refused rather than read by the wrong engine
+  (targum-internal#507, part 1). The morphology (OSHB) is looked up by ref, so the shared
+  Ruth, ingested before refs, had every verse read by DICTA under an annotator name that
+  still said `oshb`. A build, a seed and a rebuild's re-annotation now refuse such a text
+  with "This Tanakh text has no verse refs, so the morphology cannot read it. Run targum
+  refs, then rebuild it."; seed and rebuild skip it and name it at the end, keeping the
+  copy on the shelf. A build whose Tanakh text the morphology read less than half of says
+  so by name. Re-ingesting and re-annotating the copies on the box is part 2, a deploy step.
 - The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
   fails before the page's last script has run (targum-internal#504). `grammar.js` handed
   `yours.js` a promise nobody had caught yet; served by address, the browser runs other

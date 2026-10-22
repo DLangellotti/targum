@@ -396,10 +396,15 @@ class Build:
         return fresh
 
     def segment(self, document: Document) -> SegmentedDocument:
+        from .refs import refuse_refless
+
         path = self.out_dir(document) / "segments.json"
         if not self.force:
             existing = read_artifact(SegmentedDocument, path)
             if existing is not None and existing.document_hash == document.content_hash:
+                # A Tanakh text kept from before refs is refused before it is read again
+                # (#507): everything a build does after this reads these segments.
+                refuse_refless(document, existing)
                 self.reused.append("segments")
                 return existing
         segmented = segment_document(document, self.segmenter)
@@ -408,6 +413,7 @@ class Build:
             # upload's path is the server's, and a reader was being shown it.
             named = Path(self.source).name if Path(self.source).exists() else self.source
             raise TargumError(f"We couldn't find any text to read in {named}.")
+        refuse_refless(document, segmented)
         segmented.write(path)
         return segmented
 
@@ -980,6 +986,7 @@ class Build:
             self.notify(f"{error.message} Building without it.")
             self.gloss = False
             return None
+        self._say_how_much_the_morphology_read(segmented)
         # What the words used to be called, worked out here because this is the one
         # moment both annotations exist: the reader's marks are filed by lemma, and a
         # lemma that moved takes a reader's word out of their list without saying so
@@ -1007,6 +1014,26 @@ class Build:
                 annotation.model_dump(mode="json"),
             )
         return annotation
+
+    #: Under this share of a Tanakh text read from the morphology, the build says so.
+    SCRIPTURE_SHARE_FLOOR = 0.5
+
+    def _say_how_much_the_morphology_read(self, segmented: SegmentedDocument) -> None:
+        """A Tanakh text the morphology mostly could not place, said by name (#507).
+
+        Refs are checked before the build reads anything (`refs.refuse_refless`); this is
+        the other way a verse misses, a different edition's numbering, which refs cannot
+        fix. A chapter heading never lines up, so a share a little under one is ordinary.
+        """
+        share = getattr(self._reading, "scripture_share", None)
+        if share is None or share >= self.SCRIPTURE_SHARE_FLOOR:
+            return
+        if not any(segment.kind is BlockKind.verse for segment in segmented.segments):
+            return
+        self.notify(
+            f"Only {share:.0%} of {self.source} was read from the morphology; "
+            "the rest was guessed by the model. Check its verse numbering."
+        )
 
     def annotate_commentaries(
         self, segmented: SegmentedDocument, translations: list[Translation]

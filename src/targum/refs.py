@@ -36,6 +36,27 @@ def wants_refs(document: Document, segmented: SegmentedDocument) -> bool:
     return bool(verses) and not any(segment.ref for segment in verses)
 
 
+#: What a build says when it meets a Tanakh text with no verse refs (targum-internal#507).
+NO_REFS = (
+    "This Tanakh text has no verse refs, so the morphology cannot read it. "
+    "Run targum refs, then rebuild it."
+)
+
+
+def refuse_refless(document: Document, segmented: SegmentedDocument) -> None:
+    """Stop a build or a re-annotation of a Tanakh text whose verses have no refs.
+
+    The morphology (OSHB) is looked up by ref, so a verse without one is handed to the
+    fallback, DICTA, verse by verse, while the annotator's name still says `oshb`: the
+    shared Ruth was read that way, a page claiming one reading and showing another
+    (#507). A refusal is honest where that is not, and `targum refs` is the free way out.
+    """
+    from .errors import TargumError
+
+    if wants_refs(document, segmented):
+        raise TargumError(NO_REFS)
+
+
 def refs_from(document: Document, segmented: SegmentedDocument) -> dict[str, str] | None:
     """Segment id to ref, or None where the two do not line up exactly.
 

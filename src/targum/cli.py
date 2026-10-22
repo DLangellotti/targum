@@ -1770,6 +1770,12 @@ def rebuild_one(
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
         if repointed or annotation.annotator != annotator.name:
+            # A Tanakh text with no verse refs is not read again (#507): the morphology
+            # would miss every verse and DICTA's reading would stand under OSHB's name.
+            # Refused here, the caller keeps the copy on the shelf and names it at the end.
+            from .refs import refuse_refless
+
+            refuse_refless(document, segmented)
             was = annotation
             annotation = annotator.annotate(segmented, vocalization)
             if was.document_hash == annotation.document_hash:
