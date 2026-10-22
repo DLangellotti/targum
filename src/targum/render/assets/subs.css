@@ -565,16 +565,17 @@ body.press main.sub-gate { padding: 1.25rem 1rem 3rem; }
 }
 
 /* --- finish (targum-internal#475) ---------------------------------------------------- */
-/* Until the list answers: rest-tier rows with no text, and a line (B2). */
+/* Until the list answers: rows with no text, and a line (B2). Rows as the table draws
+   them, a hairline between, not cards: the tab's card holds them, and a card is never in
+   a card (design.md §9). */
 .sub-loading[hidden] { display: none; }
 .sub-loading .note { margin: 0 0 0.75rem; font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
-.sub-placeholders { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.sub-placeholders { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .sub-placeholders li {
   block-size: 3.5rem;
-  border-radius: var(--radius-row);
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
+  border-block-end: 1px solid var(--rule);
 }
+.sub-placeholders li:last-child { border-block-end: 0; }
 /* News with no topic: one line and the way to the topics (B3). */
 .sub-empty-chip {
   display: flex;

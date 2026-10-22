@@ -36,7 +36,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   confirm page's mosaic fills its tile; the chips' counts are full ink. No connection is
   said once, by the band; a free reader meets "Payments open soon" and See plans with no
   greyed presses; an article with no picture takes no tile on a phone; what a press did
-  is said under the head; a source that didn't answer offers Try again.
+  is said under the head; a source that didn't answer offers Try again. The waiting rows
+  are rows with a hairline between, not cards, since the tab's card holds them.
 
 ### Added
 - Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
