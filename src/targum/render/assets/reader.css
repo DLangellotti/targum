@@ -3251,6 +3251,12 @@ body.film-panel .film-panel-head:not([hidden]) {
   }
   body.film-theatre:not(.film-panel) { overflow: hidden; }
   body.film-theatre:not(.film-panel) main { display: none; }
+  /* And nor is the foot under it (targum-internal#505): it stands beside `main`, not in it,
+     so it was still laid out under the fixed picture, out of sight and out of reach, its
+     Play in order taking presses that the picture's tap layer got instead. The row under
+     the picture carries the same switch and Next. Once the film ends the foot is moved
+     into the end card, out of the body, and is drawn there. */
+  body.film-theatre:not(.film-panel) > #foot { display: none; }
   body.film-panel .film-sub[data-long="0"] .film-pair .src { font-size: 1.75em; }
 }
 
