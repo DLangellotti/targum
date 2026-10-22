@@ -334,7 +334,7 @@ def describe(
             (one for one in series.current(public=True, language=ui) if one["id"] == given), None
         )
         if row is None:
-            raise TargumError("There's no such series.", key="subscribe.no-series")
+            raise TargumError("We couldn't find that series.", key="subscribe.no-series")
         out.update(
             name=str(row.get("name") or given),
             hebrew=str(row.get("hebrew") or ""),
@@ -348,7 +348,7 @@ def describe(
 
         if kind == "topic":
             if given not in sources.TOPICS:
-                raise TargumError("There's no such topic.", key="subscribe.no-topic")
+                raise TargumError("We couldn't find that topic.", key="subscribe.no-topic")
             code = (language or "he").split("-")[0].lower()
             out["outlets"] = sum(
                 1

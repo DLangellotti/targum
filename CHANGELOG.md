@@ -23,6 +23,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   in the last hour (David, 2026-10-22; design.md §13). Copy: Chats; errors say what to do
   next; Select, and the list is under Words in Your targums; "You've reached today's chat
   limit"; "audio and chat"; "of audio or video"; "Waiting behind {n} other texts".
+- Subscriptions and news topics at the finish bar (targum-internal#475): design's B2–B7,
+  B9–B11, polish 1–5 and ling-en's eighteen lines (B8 and B1 are targum#883). While the
+  list is on its way the tab and a subscription's page say so, and past 3 s that it is
+  slow, with Try again. The Library's News lists the eight topics as rows, each with
+  Subscribe going to the confirm page, and an empty News chip says "You don't follow a
+  news topic yet." with the way there (David, 2026-10-22). A topic is named by the
+  catalogue in the page's language ("Sport", not "sport"); a channel's or an outlet's name
+  is marked Hebrew only when it is written in Hebrew letters; a Hebrew name or title inside
+  a sentence is a run of its own. A cap smaller than one new one says "less than one new
+  one" in clay and never rounds up to one. The tab is a list, not a one-row table; the
+  confirm page's mosaic fills its tile; the chips' counts are full ink. No connection is
+  said once, by the band; a free reader meets "Payments open soon" and See plans with no
+  greyed presses; an article with no picture takes no tile on a phone; what a press did
+  is said under the head; a source that didn't answer offers Try again. The waiting rows
+  are rows with a hairline between, not cards, since the tab's card holds them.
 
 ### Added
 - Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous

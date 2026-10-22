@@ -206,16 +206,33 @@ def test_every_link_in_the_public_foot_reaches_44px(browser, monkeypatch) -> Non
     context.close()
 
 
-def test_news_says_follow_a_topic_and_reaches_44px(browser, library_html) -> None:
-    """The Library's News door opens News; its topics live on Subscriptions, so one line
-    goes there (2026-10-20). Signed in only, since following needs an account."""
+def test_news_lists_the_topics_to_follow_and_reaches_44px(browser, library_html) -> None:
+    """The Library's News door opens News, and its eight topics stand there as rows, each
+    with Subscribe going to the confirm page (David, 2026-10-22; targum-internal#475 B3:
+    "Follow a topic" used to lead to a tab with nothing to follow). Signed in only, since
+    following needs an account."""
     signed_in = {"/readers": {"readers": [], "shared": [], "signedIn": True}}
     context, page, thrown = phone(browser, library_html, signed_in)
     page.goto(f"{SITE}/library#see/kind/article")
-    line = page.locator("#see-topics a")
-    line.wait_for(state="visible")
-    assert line.inner_text() == "Follow a topic"
-    assert line.get_attribute("href") == "/?show=subscriptions&chip=news"
+    page.locator("#see-topics").wait_for(state="visible")
+    assert page.inner_text("#see-topics-head") == "Follow a topic"
+    names = page.eval_on_selector_all(".see-topic-name", "all => all.map((n) => n.textContent)")
+    assert names == [
+        "World",
+        "Politics",
+        "Economy",
+        "Culture",
+        "Science",
+        "Technology",
+        "Sport",
+        "Health",
+    ], names
+    first = page.locator("#see-topics a").first
+    assert first.get_attribute("href") == (
+        "/subscribe?kind=topic&key=world&via=library&language=he"
+    ), first.get_attribute("href")
+    assert first.inner_text() == "Subscribe"
+    assert first.get_attribute("aria-label") == "Subscribe to World"
     assert reaches_44(reach(page, "#see-topics a"))
     # Not on another kind's list, nor on the shelves.
     page.goto(f"{SITE}/library#see/kind/talk")

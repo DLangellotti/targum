@@ -112,15 +112,24 @@
         <select class="btn ghost outline small sub-languages" id="subs-languages" aria-label="{{ t("subs.languages.label", "Which language") }}" hidden></select>
       </div>
     </div>
-    <div class="sub-table" role="table" aria-label="{{ t("yours.tabs.subscriptions", "Subscriptions") }}">
-      <div class="sub-head-row" id="subs-head" role="row" hidden>
-        <span role="columnheader">{{ t("subs.col.name", "Subscribed to") }}</span>
-        <span role="columnheader">{{ t("subs.col.latest", "Latest") }}</span>
-        <span role="columnheader">{{ t("subs.col.every", "Comes out") }}</span>
-        <span role="columnheader">{{ t("subs.col.month", "This month") }}</span>
-        <span role="columnheader"></span>
+    {#- A list, not a table (#475 B9): the rows were `<li>`s under a header row of
+        `columnheader`s, and a screen reader heard a table of one row, then a list. The
+        column heads are for the eye; each row's link already names it. -#}
+    <div class="sub-table">
+      <div class="sub-head-row" id="subs-head" aria-hidden="true" hidden>
+        <span>{{ t("subs.col.name", "Subscribed to") }}</span>
+        <span>{{ t("subs.col.latest", "Latest") }}</span>
+        <span>{{ t("subs.col.every", "Comes out") }}</span>
+        <span>{{ t("subs.col.month", "This month") }}</span>
+        <span></span>
       </div>
-      <ul class="sub-rows" id="subs-rows"></ul>
+      <ul class="sub-rows" id="subs-rows" aria-label="{{ t("yours.tabs.subscriptions", "Subscriptions") }}"></ul>
+    </div>
+    {#- Until the list answers: rest-tier rows and a line, and past 3 s, that it is slow
+        with Try again (#475 B2). `subs.js` takes them away. -#}
+    <div class="sub-loading" id="subs-loading" hidden>
+      <p class="note" id="subs-loading-said" role="status">{{ t("subs.loading", "We're getting your subscriptions.") }}</p>
+      <ul class="sub-placeholders" aria-hidden="true"><li></li><li></li><li></li></ul>
     </div>
     <ul class="series" id="home-series" hidden></ul>
     <p class="empty" id="subs-empty" hidden>{{ t("subs.none", "You haven't subscribed to anything yet.") }}</p>

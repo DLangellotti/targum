@@ -2759,7 +2759,16 @@
       if (titleHost) titleHost.hidden = !seeing;
       // News, opened from its door: the way to the topics on Subscriptions.
       var topicsLine = document.getElementById("see-topics");
-      if (topicsLine) topicsLine.hidden = !(seeing && signedIn && view.kind === "article");
+      if (topicsLine) {
+        topicsLine.hidden = !(seeing && signedIn && view.kind === "article");
+        // Each topic's outlets are the ones in the language being browsed.
+        Array.prototype.forEach.call(topicsLine.querySelectorAll("a[data-topic]"), function (go) {
+          go.href = keyed(
+            "/subscribe?kind=topic&key=" + encodeURIComponent(go.getAttribute("data-topic")) +
+              "&via=library&language=" + encodeURIComponent(chosen)
+          );
+        });
+      }
       var menus = document.getElementById("see-menus");
       if (menus) {
         menus.hidden = !seeing;
