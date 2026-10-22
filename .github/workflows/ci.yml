@@ -33,7 +33,20 @@ jobs:
       # the audio and video tests fail rather than skipping. CI never had it, and nothing
       # needed it until the audio import landed with a hard check, so master went red on
       # the commit that added the tests rather than on anything about this file.
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      #
+      # A stalled mirror hung this step for 30-80 minutes four times on 2026-10-22, holding
+      # the job until GitHub's six-hour cap. Each attempt now gets four minutes and a second
+      # try, and the step gives up at ten, so a stall fails fast or passes on the retry.
+      - name: Install ffmpeg
+        timeout-minutes: 10
+        run: |
+          for attempt in 1 2; do
+            if timeout 240 sh -c 'sudo apt-get update && sudo apt-get install -y ffmpeg'; then
+              exit 0
+            fi
+            echo "apt-get attempt $attempt failed or stalled"
+          done
+          exit 1
       # `phonetics` is here so the readings are exercised rather than skipped. It caps
       # Python below 3.13, so adding 3.13 to the matrix above means dropping this extra
       # from that leg — the failure is a resolution error, which is loud but obscure.
