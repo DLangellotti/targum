@@ -6,6 +6,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
+  targum-internal#482): both say when they were first run; `rollback.sh` is the first way
+  back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
+  and INCIDENT.md says what a `warn yt-dlp` in preflight means, where the nightly
+  upgrade's log is, and how to give root-owned files back to `targum` and rerun it.
 - CI's ffmpeg install gives up on a slow mirror in eighteen minutes rather than eighty. It
   held the job for 30-80 minutes four times on 2026-10-22. The mirror crawls rather than
   stalls, so the first cut (four minutes, one retry) only killed downloads in progress:
