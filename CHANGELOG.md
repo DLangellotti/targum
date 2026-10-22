@@ -5,6 +5,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Added
+- Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
+  build back by deploying its commit again from a worktree, restores the pre-deploy
+  database through SQLite's `.restore` only when the data is damaged, and says what a
+  step back across an annotator rename costs in box hours. `deploy/INCIDENT.md` is the
+  first ten minutes: who is told, the read-only checks in order, how to tell the box from
+  a model provider from the network, when to roll back, and what never to do. Neither has
+  run as a drill yet.
+
 ### Fixed
 - Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
   order were one setting under two names and two drawings: both say "Play in order" and
