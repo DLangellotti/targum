@@ -218,8 +218,14 @@ scp -q deploy/targum-backup.service deploy/targum-backup.timer \
 # only the library's pictures (a row's, or a chapter's) go, because a laptop upload under
 # the same <home>-<name> would replace the box's, picture and line. `targum thumbs
 # --for-box` names what stays. Dotfiles and partial writes stay behind too (a cover is
-# written as .<name>.part and renamed). macOS rsync is 2.6.9 and has
-# no --chown, so the files arrive as root and are handed to the service after.
+# written as .<name>.part and renamed).
+#
+# Everything on the box side runs as the service account, never as root: the folder is
+# targum's, so anything in it, a symlink included, may have been put there by the
+# service, and root following one writes wherever it points (targum-internal#512). The
+# receiving rsync is started as targum (--rsync-path), so the files arrive as targum's and
+# no chown is needed after; macOS rsync has no --chown, and a root chown -R over a
+# folder the service writes was the same hole.
 #
 # sources.json says where each picture came from, and both machines write it: this one
 # for the library, the box for every upload cover it draws. So it is merged rather than
@@ -238,17 +244,29 @@ THUMBS_CLI="${TARGUM_THUMBS_CLI:-uv run targum thumbs}"
 MERGE_SOURCES='import fcntl, json, os, sys
 path = sys.argv[1]
 mine = json.load(sys.stdin)
-with open(os.path.join(os.path.dirname(path), ".sources.json.lock"), "a") as lock:
-    fcntl.flock(lock, fcntl.LOCK_EX)
-    try:
-        with open(path, encoding="utf-8") as held:
-            kept = json.load(held)
-    except (OSError, ValueError):
-        kept = {}
-    kept.update(mine)
-    with open(path + ".part", "w", encoding="utf-8") as out:
-        out.write(json.dumps(kept, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
-    os.replace(path + ".part", path)'
+# No name here is followed if it is a symlink (targum-internal#512): run as targum it
+# could only reach what targum can, and refused it cannot reach anything.
+NOFOLLOW = os.O_NOFOLLOW | os.O_CLOEXEC
+lock = os.open(os.path.join(os.path.dirname(path), ".sources.json.lock"),
+               os.O_WRONLY | os.O_CREAT | os.O_APPEND | NOFOLLOW, 0o644)
+fcntl.flock(lock, fcntl.LOCK_EX)
+try:
+    with os.fdopen(os.open(path, os.O_RDONLY | NOFOLLOW), encoding="utf-8") as held:
+        kept = json.load(held)
+except (FileNotFoundError, ValueError):
+    kept = {}
+kept.update(mine)
+part = path + ".part"
+try:
+    os.unlink(part)
+except FileNotFoundError:
+    pass
+with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW, 0o644),
+               "w", encoding="utf-8") as out:
+    out.write(json.dumps(kept, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+os.replace(part, path)'
+# The box side, as the service account. root on the far end hands the command to it.
+AS_TARGUM="runuser -u targum --"
 if [ -d "$THUMBS" ]; then
   # shellcheck disable=SC2086 # the command is separate words on purpose
   BARE="$($THUMBS_CLI --dry-run --no-fetch --out "$(dirname "$THUMBS")" 2>/dev/null \
@@ -264,17 +282,17 @@ if [ -d "$THUMBS" ]; then
     CARRIED=""
   fi
   if [ -n "$CARRIED" ]; then
-    ssh "${SSH_OPTS[@]}" "$HOST" "mkdir -p '$REMOTE_THUMBS'"
+    ssh "${SSH_OPTS[@]}" "$HOST" "$AS_TARGUM mkdir -p '$REMOTE_THUMBS'"
     # rsync's own ssh, kept talking like every other one here.
     RSYNC_RSH="$(printf '%q ' ssh "${SSH_OPTS[@]}")" rsync -a -q --delay-updates \
+      --rsync-path="$AS_TARGUM rsync" \
       --exclude='.*' --exclude='*.part' --exclude='*.tmp' --exclude='*~' \
       --exclude='/sources.json' --exclude-from="$CARRIED/exclude" \
       "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
-    ssh "${SSH_OPTS[@]}" "$HOST" "python3 -c '$MERGE_SOURCES' '$REMOTE_THUMBS/sources.json'" \
+    ssh "${SSH_OPTS[@]}" "$HOST" "$AS_TARGUM python3 -c '$MERGE_SOURCES' '$REMOTE_THUMBS/sources.json'" \
       < "$CARRIED/sources.json"
     SHIPPED=$(( $(find "$THUMBS" -type f -name '*.webp' | wc -l) - $(wc -l < "$CARRIED/exclude") ))
     rm -rf "$CARRIED"
-    ssh "${SSH_OPTS[@]}" "$HOST" "chown -R targum:targum '$REMOTE_THUMBS'"
     echo "   $SHIPPED covers"
   fi
 fi
@@ -605,15 +623,26 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
       # not built said nothing. Written after the rebuild and the seed, from the
       # annotations they leave on the shelf, so it is as wide as the box is. It annotates
       # nothing and buys nothing. The service account cannot write to /etc/targum, so it
-      # writes under /var/lib/targum and root puts it in place. Not fatal: an index that
-      # could not be written leaves the old one, or none, which is what the page drew
-      # before.
+      # writes under /var/lib/targum and root puts it in place: read as targum and
+      # written as root, because the file is targum'"'"'s in targum'"'"'s folder, and root
+      # opening it by name would follow a symlink planted there and copy whatever it
+      # points at into /etc/targum, readable by the service (targum-internal#512). Read
+      # as targum it carries only what targum could read already. The .part sits in
+      # /etc/targum, which only root writes, and is renamed into place. Not fatal: an
+      # index that could not be written leaves the old one, or none, which is what the
+      # page drew before.
       if systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
           --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
           /usr/local/bin/targum catalogue-lemmas --out /var/lib/targum/targums \
             --write /var/lib/targum/catalogue-lemmas.json; then
-        install -o root -g targum -m 0640 /var/lib/targum/catalogue-lemmas.json \
-          /etc/targum/lemmas.json
+        if ! { runuser -u targum -- cat /var/lib/targum/catalogue-lemmas.json \
+                 > /etc/targum/.lemmas.json.part \
+               && chown root:targum /etc/targum/.lemmas.json.part \
+               && chmod 0640 /etc/targum/.lemmas.json.part \
+               && mv -f /etc/targum/.lemmas.json.part /etc/targum/lemmas.json; }; then
+          rm -f /etc/targum/.lemmas.json.part
+          echo "   the catalogue lemma index could not be put in place; the library keeps the one it had" >&2
+        fi
       else
         echo "   the catalogue lemma index was not written; the library keeps the one it had" >&2
       fi
