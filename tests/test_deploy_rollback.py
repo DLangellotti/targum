@@ -301,7 +301,7 @@ def test_a_kept_wheel_goes_back_as_deploy_installed_it(tmp_path: Path) -> None:
     sent = (tmp_path / "sent").read_text()
     subprocess.run(["bash", "-n"], input=sent, text=True, check=True)
     assert "KEPT=/var/lib/targum-deploy/wheels/0123456789ab\n" in sent
-    install = re.search(r"sudo -u targum env HOME=/srv/targum[^\n]*", sent)
+    install = re.search(r"runuser -u targum -- env HOME=/srv/targum[^\n]*", sent)
     assert install, "installed as the service account"
     assert "uv tool install --force" in install.group(0)
     assert '--constraints "$KEPT/box-constraints.txt"' in install.group(0)

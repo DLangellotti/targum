@@ -61,6 +61,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `segments.json`, and the reader marks the word in the row that answers to `#12:5` as
   well as in the row named by its sentence. Without the portions built, the book opens as
   any text does.
+- Root no longer writes inside targum's uv tools (targum-internal#513). `deploy.sh` and
+  `rollback.sh` gave the targum tool back with a root `chown -R` before each install; it is
+  now a repair of only what is not targum's, by `find . ! -user targum -execdir chown -h`
+  from inside the tool, so it never follows a symlink the service could have put there.
+  The tool is entered with `cd -P` and its real path checked first, and the deploy or
+  rollback stops if a symlinked directory above it leads anywhere else; INCIDENT.md's hand
+  repair does the same. The install runs from `/` rather than root's closed home. The install itself, and
+  `provision.sh`'s yt-dlp install, run under `runuser -u targum --`, and provision's plugin
+  check runs the tool's python as targum, where it used to run it as root and leave a
+  root-owned `__pycache__` that stops the nightly upgrade, as it did for 18 hours on
+  2026-10-22. Pinned by `tests/test_deploy_backup.py`. Reaches the box with the next deploy
+  or rollback; provision.sh only on its next run.
 - `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
   targum-internal#482): both say when they were first run; `rollback.sh` is the first way
   back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
