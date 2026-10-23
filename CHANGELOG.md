@@ -6,6 +6,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- "Met in" from a Torah book opens the portion at the verse, with the word marked
+  (targum-internal#506). A Torah book is read as its portions, and its own page forwarded
+  by chapter alone, so the link landed on the chapter's first verse with nothing marked.
+  The link now names the verse (`/torah/Genesis.12.5?met=…`), read off the book's
+  `segments.json`, and the reader marks the word in the row that answers to `#12:5` as
+  well as in the row named by its sentence. Without the portions built, the book opens as
+  any text does.
 - `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
   targum-internal#482): both say when they were first run; `rollback.sh` is the first way
   back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
