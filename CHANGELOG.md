@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
+  door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
+  than a cap: a host sending a byte every half second held a 2-second read for fifty
+  seconds. Every fetch through `ingest.url` (pages, openings and downloads, direct or
+  through the proxy) now has a deadline from first knock to last byte, redirects
+  included: 90 seconds for a page or an opening, 30 minutes for a download. Past it the
+  door says it couldn't open the page, as it does for a timeout, and a half-written
+  download is removed.
 - "Met in" from a Torah book opens the portion at the verse, with the word marked
   (targum-internal#506). A Torah book is read as its portions, and its own page forwarded
   by chapter alone, so the link landed on the chapter's first verse with nothing marked.
