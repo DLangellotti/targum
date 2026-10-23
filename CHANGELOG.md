@@ -19,6 +19,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `language-adv.*` and `language-nom.*` hold the forms for the eleven languages targum
   names; a language with none is quoted as before. 37 Russian sentences changed, on the
   server, the templates and the scripts alike. English is unchanged.
+- A text page credits the translation it shows (targum-internal#521). In Russian it set
+  Russian lines beside the Hebrew and credited the English (Metsudah, "Official English")
+  under an English "Translation", and its JSON-LD said `inLanguage: en`. The credit and
+  the JSON-LD now follow the lines: a published rendering when the lines are copied from
+  one (a sample line's new `from` names it, with its licence linked), and otherwise the
+  English the lines were translated from, with «Эти строки мы перевели с английского.»
+  An English page credits only its English: Onkelos, Rashi and the Russian Torah are not
+  on it. A row with a bought translation and no rendering says "We translated this
+  text." A text in Russian shows its English opening on a Russian page, not a model's
+  Russian of its own English original. The heading is keyed («Перевод» / «Переводы»).
 - The Russian interface after ling-ru's read-through of the whole catalogue
   (targum-internal#476): 93 strings. A language name no longer sits capitalised
   mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
