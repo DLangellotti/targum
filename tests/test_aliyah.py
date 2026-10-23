@@ -153,7 +153,7 @@ def test_the_hebrew_it_shows_is_pointed() -> None:
     html = aliyah_page("en", ADDRESS)
     letters = html[html.index('<figure class="letters"') :]
     letters = letters[: letters.index("</figure>")]
-    lines = re.findall(r'<p class="he">(.*?)</p>', letters)
+    lines = re.findall(r'<p class="he"[^>]*>(.*?)</p>', letters)
     assert len(lines) == 4
     for line in lines:
         for word in line.rstrip(".").split():

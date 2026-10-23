@@ -1394,6 +1394,80 @@ def test_every_hebrew_run_says_its_direction() -> None:
     assert not loose, "§14: Hebrew runs with no direction:\n" + "\n".join(loose)
 
 
+#: A Hebrew letter, with its points and cantillation: the block and its presentation forms.
+HEBREW_LETTER = re.compile(r"[\u0590-\u05FF\uFB1D-\uFB4F]")
+RTL_LANGUAGES = {"he", "arc", "yi"}
+
+
+def hebrew_without_language(markup: str) -> list[str]:
+    """Every run of Hebrew in `markup` that no element around it declares, with its
+    direction. `lang` is inherited, so a run is told by the nearest element carrying one;
+    the page's own `<html lang="en">` is the case this exists to catch."""
+    from html.parser import HTMLParser
+
+    void = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "wbr"}
+
+    class Runs(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self.open: list[tuple[str, dict[str, str | None]]] = []
+            self.loose: list[str] = []
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            if tag not in void:
+                self.open.append((tag, dict(attrs)))
+
+        def handle_endtag(self, tag: str) -> None:
+            for depth in range(len(self.open) - 1, -1, -1):
+                if self.open[depth][0] == tag:
+                    del self.open[depth:]
+                    break
+
+        def handle_data(self, data: str) -> None:
+            if not HEBREW_LETTER.search(data):
+                return
+            if any(tag in {"script", "style", "title", "template"} for tag, _ in self.open):
+                return
+            said = [attrs for _, attrs in self.open if attrs.get("lang")]
+            nearest = said[-1] if said else {}
+            if nearest.get("lang") not in RTL_LANGUAGES or not nearest.get("dir"):
+                tag, attrs = self.open[-1] if self.open else ("", {})
+                self.loose.append(f"<{tag} class={attrs.get('class')!r}> {data.strip()[:30]}")
+
+    runs = Runs()
+    runs.feed(markup)
+    return runs.loose
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_every_hebrew_run_on_the_front_door_says_its_language(language: str) -> None:
+    """§14, line 3, for the runs that carry no `lang` at all (targum-internal#517). The
+    test above reads only tags that already say `lang`, so the 68 Hebrew runs on the front
+    door, marked `class="he"` and nothing else, were invisible to it, and a screen reader
+    read them in the page's English or Russian voice. Read off the rendered pages, since
+    the band and the letters are drawn from partials; `landing.js`'s own runs are held by
+    `test_landing_browser.py`."""
+    from targum.render.builder import aliyah_page, front_page
+
+    loose = []
+    for name, page in (
+        ("landing", front_page(language, "https://targum.page")),
+        ("aliyah", aliyah_page(language, "https://targum.page")),
+    ):
+        loose += [f"{name}: {run}" for run in hebrew_without_language(page)]
+    assert not loose, "§14: Hebrew with no lang or no dir:\n" + "\n".join(loose)
+
+
+def test_a_hebrew_run_with_no_language_is_seen() -> None:
+    """The check above, shown to catch what it is for, and to pass what is right."""
+    bare = '<html lang="en"><body><p class="he">שָׁלוֹם</p></body></html>'
+    told = '<html lang="en"><body><p lang="he" dir="rtl">שָׁלוֹם <b>וּ</b></p></body></html>'
+    undirected = '<html lang="en"><body><span lang="he">שָׁלוֹם</span></body></html>'
+    assert hebrew_without_language(bare)
+    assert not hebrew_without_language(told)
+    assert hebrew_without_language(undirected)
+
+
 def test_a_page_in_russian_carries_the_cyrillic_face_and_one_in_english_does_not() -> None:
     """design.md §13, "Russian is carried too" (2026-10-21; targum-internal#476, B1): the
     chrome's Cyrillic subset is a second face of the same family whose range is the
