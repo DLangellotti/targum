@@ -12,6 +12,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The other languages' polish left from #476 (targum-internal#523). A desk page's column
+  stays centred: the room kept for the AI Assistant's pill went on the end edge only, so
+  the column slid 25px off centre in English and 6px off the edge in Russian; now both
+  edges keep it once the window has room. The foot tells somebody learning Italian,
+  French, Russian, Yiddish or Aramaic "Learn languages from anything." instead of to
+  learn Hebrew; Hebrew keeps its own line. The arrival's level step says why Continue is
+  asleep ("Choose a level to continue."), tied to it with `aria-describedby`. On a phone
+  the Russian word card's «пропустить» keeps its whole word instead of running past the
+  sheet's edge. A text page says its place in the page's language («Писания · Рут»).
 - Russian names a language in its case mid-sentence (David, 2026-10-23;
   targum-internal#524): «На иврите пока ничего нет.», not «На языке «Иврит» пока ничего
   нет.». A translation asks for a form on the same blank, `{language:in}` («на иврите»),

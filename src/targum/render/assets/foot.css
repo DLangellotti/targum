@@ -43,6 +43,7 @@
 }
 .site-footer .sf-mark svg { inline-size: 1rem; block-size: auto; }
 .site-footer .sf-tag { max-inline-size: 22rem; color: var(--ink-soft, #6b645c); }
+.site-footer .sf-tag[hidden] { display: none; }
 /* The waitlist, where the page is public: the call to action's words in ink (§9), as
    a line rather than a second button under the page's own. */
 .site-footer .sf-join { color: var(--ink, #1c1a17); font-weight: 600; }

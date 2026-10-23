@@ -124,6 +124,25 @@ def test_an_english_shelf_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     assert not re.search("[А-Яа-я]", ruth)
 
 
+def test_a_text_page_says_its_place_in_the_page_language() -> None:
+    """The text page's own place line said "Ketuvim · Ruth" under a Russian chrome while
+    the shelf behind it said «Писания · Рут» (targum-internal#523, from #477)."""
+    from targum.catalogue import Entry
+
+    ruth = Entry(
+        id="ruth",
+        title="רות",
+        author="Ketuvim · Ruth",
+        language="he",
+        source="sefaria:he:Ruth",
+        blurb="Four chapters, the shortest way in.",
+        words=100,
+        english="Ruth",
+    )
+    assert '<p class="byline">Писания · Рут</p>' in text_page(ruth, ADDRESS, language="ru")
+    assert '<p class="byline">Ketuvim · Ruth</p>' in text_page(ruth, ADDRESS)
+
+
 # -- what a text is -----------------------------------------------------------
 
 

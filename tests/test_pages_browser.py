@@ -831,11 +831,25 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
             .map((r) => r.textContent),
           asked: document.getElementById('arrival-asks-level').getBoundingClientRect().top >= 0,
           asleep: document.getElementById('arrival-done').disabled,
+          why: (() => {
+            const why = document.getElementById('arrival-why');
+            const box = why.getBoundingClientRect();
+            const done = document.getElementById('arrival-done').getBoundingClientRect();
+            return {said: why.hidden ? '' : why.textContent, height: box.height,
+                    above: box.bottom <= done.top,
+                    inView: box.top >= 0 && box.bottom <= innerHeight,
+                    tied: document.getElementById('arrival-done').getAttribute('aria-describedby')};
+          })(),
         })"""
     )
     assert second["step"] == "3 of 3" and len(second["rungs"]) == 4, second
     assert second["asked"] and second["asleep"], second
+    # Why it is asleep, over the press on a phone and tied to it (targum-internal#523).
+    why = second["why"]
+    assert why["said"] == "Choose a level to continue." and why["height"] > 0, why
+    assert why["above"] and why["inView"] and why["tied"] == "arrival-why", why
     page.locator(".arrival-rung", has_text="I’m just starting").tap()
+    assert page.locator("#arrival-why").is_hidden(), "awake, it needs no reason"
     page.locator("#arrival-done").tap()
     page.wait_for_timeout(300)
     context.close()

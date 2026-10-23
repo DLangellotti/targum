@@ -526,3 +526,48 @@ def test_moving_offline_to_a_language_not_fetched_keeps_the_shelf_and_the_langua
     assert held.is_hidden()
     assert not thrown
     context.close()
+
+
+CENTRING = """() => {
+  const main = document.querySelector('main').getBoundingClientRect();
+  const pill = document.getElementById('talk-open').getBoundingClientRect();
+  return {start: main.left, end: innerWidth - main.right, width: main.width,
+          pill: pill.width ? innerWidth - pill.left : 0};
+}"""
+
+
+@pytest.mark.parametrize("ui", ["en", "ru"])
+def test_the_library_stands_in_the_middle_in_either_interface(browser, ui: str) -> None:
+    """targum-internal#523 (design's #476 polish 4): the room kept for the AI Assistant's
+    pill went on the end edge only, so the column slid towards the start by the pill's
+    width — 25px off the edge in English, 6px in Russian, whose pill says more. It stays
+    centred now, and still clear of the pill."""
+    context, page, thrown, _, url = library(browser, library_page("", ui), {}, language="ru")
+    page.goto(url)
+    page.wait_for_function("() => !document.getElementById('no-shelf').hidden")
+    got = page.evaluate(CENTRING)
+    context.close()
+    assert got["pill"], "the pill is drawn and measured"
+    assert abs(got["start"] - got["end"]) <= 1, f"centred: {got}"
+    assert got["end"] >= got["pill"] - 0.5 * 17 - 1, f"clear of the pill: {got}"
+    assert not thrown
+
+
+@pytest.mark.parametrize(
+    ("language", "said"),
+    [("he", "Learn modern and biblical Hebrew"), ("it", "Learn languages from anything.")],
+)
+def test_the_foot_says_what_targum_is_for_the_language_learned(
+    browser, language: str, said: str
+) -> None:
+    """targum-internal#523 (design's #476 polish 6): the foot told somebody learning
+    Italian, French or Russian to learn modern and biblical Hebrew. Hebrew keeps its own
+    line; any other language is given the motto (David, 2026-09-30)."""
+    context, page, thrown, _, url = library(browser, library_page(""), {}, language=language)
+    page.goto(url)
+    page.wait_for_selector("#lib-waiting", state="hidden")
+    shown = page.locator(".site-footer .sf-tag:visible")
+    assert shown.count() == 1
+    assert shown.inner_text().startswith(said)
+    context.close()
+    assert not thrown

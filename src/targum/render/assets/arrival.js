@@ -684,6 +684,7 @@
     var rungs = document.getElementById("arrival-levels");
     var unsure = document.getElementById("arrival-unsure");
     var done = document.getElementById("arrival-done");
+    var why = document.getElementById("arrival-why");
     var back = document.getElementById("arrival-back");
     var backMark = document.getElementById("arrival-back-mark");
     var where = document.getElementById("arrival-step");
@@ -742,7 +743,12 @@
       // The language question answers itself on a press, as it always did; the rest
       // wait for Continue, which wakes when there is an answer to take.
       done.hidden = now === "tongue";
-      done.disabled = now === "level" && !level;
+      var waiting = now === "level" && !level;
+      done.disabled = waiting;
+      // And why it is asleep, to the eye and to a screen reader (targum-internal#523).
+      if (why) why.hidden = !waiting;
+      if (why && waiting) done.setAttribute("aria-describedby", "arrival-why");
+      else done.removeAttribute("aria-describedby");
       if (back) back.hidden = step === 0;
       if (backMark) backMark.hidden = step === 0;
       if (note) {

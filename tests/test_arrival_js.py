@@ -197,10 +197,13 @@ def test_the_third_question_is_plain_words_with_no_letter() -> None:
     ]
     assert not any(any("\u05d0" <= c <= "\u05ea" for c in row) for row in page["levels"])
     assert page["done"] is False, "nothing said yet"
+    # And it says why, to the eye and to a screen reader (targum-internal#523).
+    assert page["why"] == "shown" and page["describedBy"] == "arrival-why"
     picked = draw(
         [], shared=seeded(), do=[*HEBREW, {"press": "arrival-done"}, {"rung": "I can read simple"}]
     )
     assert picked["done"] is True and picked["levelUp"], "a press marks it; Continue goes on"
+    assert picked["why"] == "" and picked["describedBy"] == "", "awake, it needs no reason"
 
 
 def test_the_level_is_the_same_four_in_every_language() -> None:
