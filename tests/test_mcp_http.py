@@ -17,6 +17,7 @@ import time
 from collections.abc import Callable
 from http.client import HTTPConnection
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
@@ -1038,6 +1039,108 @@ def test_read_with_me_reads_what_it_was_asked_to() -> None:
     assert 'Find "Ruth"' in text and "{text}" not in text
     unnamed = mcp_http._prompt("read-with-me")["messages"][0]["content"]["text"]
     assert "{text}" not in unnamed
+
+
+def test_read_with_me_reads_targum_s_text_and_not_memory() -> None:
+    """targum-internal#527: Claude read Genesis "from memory". The prompt sends the host to
+    open the text on targum and read from it, still naming no tool, and needs the tool
+    that hands the lines over."""
+    (one,) = [p for p in mcp_http.PROMPTS if p["name"] == "read-with-me"]
+    assert "open_library_text" in one["needs"]
+    text = mcp_http._prompt("read-with-me", arguments={"text": "Genesis"})["messages"][0]
+    said = text["content"]["text"]
+    assert "open it there" in said and "never from memory" in said
+    assert not any(tool.name in said for tool in tools_module.REGISTRY)
+
+
+# --- what a result ends with (targum-internal#527) ---------------------------------
+
+READER = f"{PUBLIC}/r/abcdefgh"
+BUILD = f"{PUBLIC}/build/0123456789abcdef"
+
+
+def test_every_result_says_the_name_in_lowercase() -> None:
+    """ChatGPT wrote "Targum" on 2026-10-23, though the instructions said lowercase."""
+    for text in ('{"words": 3}', '{"error": "No text in the library has that id."}', "plain"):
+        assert mcp_http.follow(text) == "Write targum in lowercase."
+
+
+def test_a_link_ends_the_result_on_a_line_of_its_own() -> None:
+    """Claude put links mid-sentence on 2026-10-23, and ChatGPT behind titles: the note
+    says where the link goes, and the link is the last line the model reads."""
+    said = mcp_http.follow(json.dumps({"title": "רות", "reader": READER}))
+    assert said == (
+        "Write targum in lowercase. Put this link on a line of its own, never inside a "
+        f"sentence, a list item or behind a title:\n{READER}"
+    )
+    assert said.splitlines()[-1] == READER
+
+
+def test_several_links_each_get_a_line() -> None:
+    rows = {
+        "texts": [
+            {"from": "mine", "reader": READER},
+            {"from": "library", "reader": f"{PUBLIC}/r/ijklmnop"},
+            {"from": "library", "reader": "", "on_shelf": False},
+            {"from": "library", "reader": READER},
+        ]
+    }
+    lines = mcp_http.follow(json.dumps(rows)).splitlines()
+    assert lines[0].startswith("Write targum in lowercase. Put each link on a line of its own")
+    assert lines[1:] == [READER, f"{PUBLIC}/r/ijklmnop"], "once each, empty ones left out"
+
+
+def test_a_library_link_in_how_to_open_is_a_link_too() -> None:
+    ctx: Any = SimpleNamespace(press_at=PUBLIC)
+    told = tools_module._not_ready_yet(ctx, "ruth")
+    said = mcp_http.follow(json.dumps({"reader": "", "how_to_open": told}))
+    assert said.splitlines()[-1] == f"{PUBLIC}/library/ruth"
+
+
+def test_a_build_link_goes_with_its_credits() -> None:
+    """ChatGPT gave a /build link with no cost on 2026-10-23. Every link the reader
+    confirms on carries its credits, 0 included."""
+    for credits, words in ((9, "9 credits"), (1, "1 credit"), (0, "0 credits")):
+        said = mcp_http.follow(json.dumps({"quote": {"credits": credits, "open": BUILD}}))
+        assert said == (
+            f"Write targum in lowercase. Say it uses {words}, and put this link on a line "
+            f"of its own, never inside a sentence, a list item or behind a title:\n{BUILD}"
+        )
+
+
+def test_a_set_says_its_total_and_a_subscription_its_rate() -> None:
+    opened = f"{PUBLIC}/set/4"
+    held = {
+        "set": {"items": [{"credits": 3}, {"credits": 4}], "credits": 7},
+        "open": opened,
+    }
+    assert "Say it uses 7 credits," in mcp_http.follow(json.dumps(held))
+    offer = {"subscription": {"credits_each": 12}, "open": f"{PUBLIC}/subscribe?kind=channel"}
+    assert "Say it uses about 12 credits each," in mcp_http.follow(json.dumps(offer))
+    heard = {"voice": {"credits": 2, "open": f"{READER}?hear=1"}}
+    assert "Say it uses 2 credits," in mcp_http.follow(json.dumps(heard))
+    looked = {"reader": READER, "credits": 5}
+    assert "credits" not in mcp_http.follow(json.dumps(looked)), "a reader link is no press"
+
+
+def test_the_note_is_a_block_after_the_tool_s_own_text(
+    box: tuple[int, str],
+) -> None:
+    """Through the box: the first block is still the tool's JSON, and the second is the
+    note, so a host that reads blocks in order reads the link last."""
+    port, _ = box
+    token = a_token(port, "library")
+    said = rpc(
+        port, token, "tools/call", {"name": "find_text", "arguments": {"register": "biblical"}}
+    )["result"]
+    first, note = said["content"]
+    json.loads(first["text"])
+    assert note == {"type": "text", "text": mcp_http.follow(first["text"])}
+    assert note["text"].startswith("Write targum in lowercase.")
+    refused = rpc(
+        port, token, "tools/call", {"name": "open_library_text", "arguments": {"id": "nope"}}
+    )["result"]
+    assert refused["isError"] and refused["content"][1]["text"] == "Write targum in lowercase."
 
 
 def test_our_prompts_are_said_in_the_reader_s_voice() -> None:

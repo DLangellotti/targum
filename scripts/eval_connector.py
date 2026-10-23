@@ -21,7 +21,9 @@ the first Hebrew letter of a reply, from the moment the reader's line was sent; 
 calls, by name, with each result's size in bytes and how long it took; tokens and
 dollars from the API's own `usage`; and the contract, checked by rule rather than by a
 judge (`check_*`): Hebrew present and pointed, links alone on their lines and short,
-no money and no "quote", `how_to_talk` before the first Hebrew line, length.
+no money and no "quote", `how_to_talk` before the first Hebrew line, length; and since
+targum-internal#527, targum in lowercase, credits beside every link the reader confirms
+on, and read-with-me reading targum's own lines rather than the host's memory.
 
 **What it costs.** About a dollar a run at Sonnet's prices, never more than
 `--max-dollars` (5 by default): before every call the worst case — everything sent at
@@ -232,6 +234,21 @@ def _built(home: Path, name: str, source: str, title: str, lemmas: list[str]) ->
     (folder / "annotation.json").write_text(
         json.dumps(
             {"tokens": {"0001.001-a": [{"lemma": lemma, "pos": "NOUN"} for lemma in lemmas]}},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    # Its sentences, six words each, so `open_library_text` has lines to hand the read
+    # scenario (targum-internal#527). The first keeps the annotation's id.
+    chunks = [lemmas[n : n + 6] for n in range(0, len(lemmas), 6)]
+    (folder / "segments.json").write_text(
+        json.dumps(
+            {
+                "segments": [
+                    {"id": f"0001.{n:03d}-a", "text": " ".join(chunk) + "."}
+                    for n, chunk in enumerate(chunks, start=1)
+                ]
+            },
             ensure_ascii=False,
         ),
         encoding="utf-8",
@@ -509,7 +526,15 @@ def call_tool(world: World, at: int, name: str, arguments: dict[str, Any]) -> tu
         return refused.message, True
     assert answered is not None
     result = answered["result"]
-    return str(result["content"][0]["text"]), bool(result["isError"])
+    # Every block, as a host hands them to its model: the tool's JSON, then the note it
+    # ends with (`mcp_http.follow`, targum-internal#527).
+    said = "\n".join(str(block["text"]) for block in result["content"])
+    return said, bool(result["isError"])
+
+
+def json_of(text: str) -> Any:
+    """The tool's own JSON at the start of a result, without the note after it."""
+    return json.JSONDecoder().raw_decode(text)[0]
 
 
 # --- money ------------------------------------------------------------------------
@@ -786,21 +811,51 @@ def nikkud_ratio(text: str) -> float | None:
 
 
 def links_alone(text: str) -> bool:
-    """Every link on a line of its own: the line is the link, or a list item or
-    markdown link that is nothing but the link."""
+    """Every link on a line of its own, as the bare address: never inside a sentence, a
+    list item or behind a title (targum-internal#527: ChatGPT wrote "[Esther](...)"
+    and list items where the instructions said a line of its own). Markdown that shows
+    the address itself, `[link](link)` or `<link>`, is still the address."""
     for line in text.splitlines():
-        found = urls(line)
+        # Once each: `[link](link)` names the one address twice.
+        found = list(dict.fromkeys(urls(line)))
         if not found:
             continue
         if len(found) > 1:
             return False
-        bare = line.strip().lstrip("-*•· ").strip().strip("*_")
+        bare = line.strip().strip("*_")
         link = found[0]
-        if bare in (link, f"<{link}>") or re.fullmatch(
-            r"\[[^\]]*\]\(" + re.escape(link) + r"\)", bare
-        ):
+        if bare in (link, f"<{link}>", f"[{link}]({link})"):
             continue
         return False
+    return True
+
+
+#: The name written as ChatGPT wrote it (targum-internal#527). Lowercase everywhere,
+#: even at the start of a sentence, design.md §6. Links are left out: a host never
+#: writes the domain any other way.
+CAPITALISED = re.compile(r"\bTARGUM\b|\bTargum\b")
+
+
+def lowercase_name(text: str) -> bool:
+    return not CAPITALISED.search(URL.sub(" ", text))
+
+
+#: A link to a page where the reader confirms something that spends: `mcp_http._PRESSES`.
+PRESS_LINK = re.compile(r"/(?:build/|set/|subscribe\?)|[?&]hear=1")
+COSTED = re.compile(r"\bcredits?\b|קרדיט", re.I)
+
+
+def press_links_costed(text: str) -> bool:
+    """Every press link with its credits on its own line or the line just before it
+    (targum-internal#527: ChatGPT's third what-next pick was a /build link with no
+    cost)."""
+    said = lines(text)
+    for n, line in enumerate(said):
+        if not any(PRESS_LINK.search(link) for link in urls(line)):
+            continue
+        near = " ".join(said[max(0, n - 1) : n + 1])
+        if not COSTED.search(URL.sub(" ", near)):
+            return False
     return True
 
 
@@ -848,7 +903,7 @@ def _results(turns: list[dict[str, Any]], name: str) -> list[dict[str, Any]]:
         for called, text in turn["_results"]:
             if called == name:
                 with contextlib.suppress(ValueError):
-                    out.append(json.loads(text))
+                    out.append(json_of(text))
     return out
 
 
@@ -894,6 +949,8 @@ def check_next(turns: list[dict[str, Any]]) -> dict[str, bool]:
         "gives_links": bool(found),
         "links_alone": links_alone(reply),
         "short_links": bool(found) and all("/reader/" not in link for link in found),
+        "press_links_costed": press_links_costed(reply),
+        "lowercase_name": lowercase_name(reply),
         "at_most_12_lines": len(lines(reply)) <= 12,
         "no_money": not money_words(reply),
     }
@@ -913,6 +970,7 @@ def check_done(turns: list[dict[str, Any]]) -> dict[str, bool]:
         "asked_at_most_twice": len(asked) <= 2,
         "says_said": bool(said) and " ".join(said.split()) in flat,
         "links_alone": links_alone(reply),
+        "lowercase_name": lowercase_name(reply),
         "no_money": not money_words(reply),
     }
     if answers and answers[-1].get("open"):
@@ -921,23 +979,23 @@ def check_done(turns: list[dict[str, Any]]) -> dict[str, bool]:
 
 
 def check_ready(turns: list[dict[str, Any]]) -> dict[str, bool]:
-    """Make it ready: priced through quote_build, its link alone on a line, never a
-    quote or a price, credits said when there are any, and nothing to press."""
+    """Make it ready: priced through quote_build, its link alone on a line with its
+    credits beside it, 0 included (targum-internal#527), never a quote or a price, and
+    nothing to press."""
     reply = turns[-1]["reply"]
     quoted = [one.get("quote") or {} for one in _results(turns, "quote_build")]
     link = str(quoted[-1].get("open") or "") if quoted else ""
-    credits = int(quoted[-1].get("credits") or 0) if quoted else 0
-    out = {
+    return {
         "quote_build_called": bool(quoted),
         "gives_the_link": bool(link) and link in urls(reply),
         "links_alone": links_alone(reply),
+        "says_credits": bool(COSTED.search(reply)),
+        "press_links_costed": press_links_costed(reply),
+        "lowercase_name": lowercase_name(reply),
         "no_money_or_quote": not money_words(reply),
         "nothing_to_press": not PRESS.search(reply),
         "at_most_6_lines": len(lines(reply)) <= 6,
     }
-    if credits:
-        out["says_credits"] = bool(re.search(r"credit|קרדיט", reply, re.I))
-    return out
 
 
 def check_news(turns: list[dict[str, Any]]) -> dict[str, bool]:
@@ -969,8 +1027,44 @@ def check_news(turns: list[dict[str, Any]]) -> dict[str, bool]:
         "offers_a_feed_article": any(link in links for link in urls(reply))
         or any(title in reply for title in titles),
         "links_alone": links_alone(reply),
+        "lowercase_name": lowercase_name(reply),
         "no_money": not money_words(reply),
     }
+
+
+def _bare(text: str) -> str:
+    """Hebrew without its vowels, and spaces made single, for comparing a line read out
+    with the line targum handed over."""
+    return " ".join(POINTS.sub("", text).split())
+
+
+def check_read(turns: list[dict[str, Any]]) -> dict[str, bool]:
+    """Read with me (targum-internal#527): the text opened through the connector before
+    the first line is read, and what is read is targum's lines rather than the host's
+    memory of the text. On 2026-10-23 Claude read Genesis "from memory"."""
+    first = turns[0]
+    reply = turns[-1]["reply"]
+    given = [
+        _bare(str(line.get("text") or ""))
+        for got in _results(turns, "open_library_text")
+        for line in got.get("lines") or []
+    ]
+    flat = _bare(reply)
+    return {
+        "opened_before_reading": said_before_hebrew(first, "open_library_text"),
+        "reads_targum_s_lines": any(line and line.rstrip(".") in flat for line in given),
+        "not_from_memory": "from memory" not in reply.lower(),
+        "links_alone": links_alone(reply),
+        "lowercase_name": lowercase_name(reply),
+        "no_money": not money_words(reply),
+    }
+
+
+#: What the reader says in the read scenario: the read-with-me prompt as a host drops it
+#: in, for the fixture's Esther.
+READ = mcp_http._prompt("read-with-me", arguments={"text": "אסתר"})["messages"][0]["content"][
+    "text"
+]
 
 
 #: What the reader says in the news scenario, as David said it to ChatGPT on 2026-10-07
@@ -989,6 +1083,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     ),
     Scenario("ready", (f"Make this text ready for me: {LINK}",), check_ready),
     Scenario("news", (NEWS,), check_news, around=followed),
+    Scenario("read", (READ,), check_read),
 )
 
 
@@ -1096,13 +1191,15 @@ class DryHost:
         }
         result = last[0]
         name = asked[result["tool_use_id"]].name
-        return [_text(self._reply(name, json.loads(result["content"])))]
+        return [_text(self._reply(name, json_of(result["content"])))]
 
     def _first(self, said: str, at: int) -> list[SimpleNamespace]:
         if said.startswith("Talk"):
             return [_tool("how_to_talk", {"language": "he"}, at)]
         if said == NEWS:
             return [_tool("search_sources", {"language": "ru", "topic": "culture"}, at)]
+        if said == READ:
+            return [_tool("open_library_text", {"id": "esther"}, at)]
         if HEBREW.search(said):
             return [_text("> אֶתְמוֹל הָלַכְתִּי לַשּׁוּק וְקָנִיתִי פֵּרוֹת.\nאֵילוּ פֵּרוֹת קָנִיתָ?")]
         if "next" in said:
@@ -1132,6 +1229,9 @@ class DryHost:
             return "\n".join(
                 filter(None, [str(first.get("title") or ""), str(first.get("link") or "")])
             )
+        if name == "open_library_text":
+            read = [str(line.get("text") or "") for line in (got.get("lines") or [])[:3]]
+            return "\n".join([*read, "Say when you want the next lines."])
         if name == "check_job":
             return "\n".join(filter(None, [str(got.get("said") or ""), str(got.get("open") or "")]))
         quoted = got.get("quote") or {}
