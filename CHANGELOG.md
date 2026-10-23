@@ -105,6 +105,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   its far end as anyone else. Writing `/etc/targum/targum.env`, the catalogue and the
   restart stay root. The output and the checks are unchanged. Pinned by
   `tests/test_ship_as_targum.py`.
+- A failed nightly yt-dlp upgrade mails `TARGUM_ALERT_TO` (targum-internal#513). The
+  cron's `MAILTO=root` reached nobody, and on 2026-10-22 an upgrade that stopped halfway
+  left YouTube, Instagram, TikTok and Facebook imports off for about 18 hours. The line
+  in `/etc/cron.d/targum-ytdlp` now runs `targum ytdlp-stopped` when the install fails.
 - `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
   targum-internal#482): both say when they were first run; `rollback.sh` is the first way
   back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
