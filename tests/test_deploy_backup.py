@@ -159,9 +159,48 @@ def test_the_deploy_takes_the_tool_back_before_it_replaces_it() -> None:
     `__pycache__` inside the tool's environment, and `uv tool install --force` runs as
     the service account, which cannot remove them. It stopped a deploy on 2026-09-29
     part-way through taking the old environment apart. So root hands the environment
-    back first, and only where there is one."""
-    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
-    owns = "chown -R targum:targum /srv/targum/.local/share/uv/tools/targum"
-    assert owns in script
-    assert script.index(owns) < script.index("uv tool install --force")
-    assert "if [ -d /srv/targum/.local/share/uv/tools/targum ]; then" in script
+    back first, and only where there is one.
+
+    Back as a repair, never a walk (targum-internal#513): only what is not targum's is
+    touched, find does not descend through a symlink and chown -h does not follow one,
+    because the tree is the service account's and a symlink in it may be the service's.
+    The install itself is the account's, so nothing in it is written as root."""
+    for name in ("deploy.sh", "rollback.sh"):
+        script = (DEPLOY / name).read_text(encoding="utf-8")
+        owns = (
+            "find /srv/targum/.local/share/uv/tools/targum ! -user targum \\\n"
+            "      -exec chown -h targum:targum {} +"
+        )
+        assert owns in script, name
+        assert script.index(owns) < script.index("uv tool install --force"), name
+        assert "if [ -d /srv/targum/.local/share/uv/tools/targum ]; then" in script, name
+        assert "runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=" in script, name
+
+
+TOOLS = "/srv/targum/.local/share/uv/tools"
+
+
+def test_root_writes_nothing_inside_the_uv_tools() -> None:
+    """The 2026-10-22 outage: root-owned `__pycache__` in the yt-dlp tool stopped the
+    nightly upgrade, which runs as targum, after uv had removed bin/yt-dlp. Root never
+    walks the tools with a following chown, never installs there, and never runs a
+    tool's python, which writes bytecode as whoever runs it (targum-internal#513)."""
+    for path in sorted(DEPLOY.iterdir()):
+        if path.suffix not in {".sh", ".service", ".timer"}:
+            continue
+        lines = [
+            line
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if not line.lstrip().startswith("#")
+        ]
+        for line in lines:
+            assert not ("chown -R" in line and "/srv/targum" in line), (path.name, line)
+            assert not ("sudo" in line and "uv tool install" in line), (path.name, line)
+    provision = (DEPLOY / "provision.sh").read_text(encoding="utf-8")
+    assert '"$YTDLP_PY" -c' in provision
+    assert 'runuser -u targum -- "$YTDLP_PY" -c' in provision, "the plugin check as targum"
+    assert (
+        "runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \\\n"
+        "    /usr/local/bin/uv tool install --quiet --force yt-dlp"
+    ) in provision, "the yt-dlp install as targum"
+    assert f"YTDLP_PY={TOOLS}/yt-dlp/bin/python" in provision

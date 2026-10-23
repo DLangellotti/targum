@@ -388,10 +388,18 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # the account then cannot remove: the install stops at "failed to remove directory
   # .../tools/targum/lib: Permission denied", after it has begun taking the old
   # environment apart (2026-09-29). Nothing on a fresh box, where there is no tool yet.
+  #
+  # A repair, not a hand-over: only what is not targum's already is touched, and each
+  # name is changed itself, never what it points at. The tree is the service account's,
+  # so a symlink in it may have been put there by the service, and root following one
+  # changes the owner of whatever it names, /etc/targum included; find does not descend
+  # through a symlink and chown -h does not follow one (targum-internal#513). Nothing
+  # here is written as root: the install below is the account's own.
   if [ -d /srv/targum/.local/share/uv/tools/targum ]; then
-    chown -R targum:targum /srv/targum/.local/share/uv/tools/targum
+    find /srv/targum/.local/share/uv/tools/targum ! -user targum \
+      -exec chown -h targum:targum {} +
   fi
-  sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
+  runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[${REMOTE_EXTRAS}]" \
       --constraints "${REMOTE_CONSTRAINTS}" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \

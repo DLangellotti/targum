@@ -131,11 +131,14 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   EXTRAS="\$(cat "\$KEPT/extras")"
 
   # Exactly as deploy.sh installs: the service account owns the tool, the constraints
-  # the wheel shipped with, torch from PyTorch's CPU index beside PyPI.
+  # the wheel shipped with, torch from PyTorch's CPU index beside PyPI. The repair before
+  # it as deploy.sh's too: only what is not targum's is touched, and never through a
+  # symlink, because the tree is the service account's (targum-internal#513).
   if [ -d /srv/targum/.local/share/uv/tools/targum ]; then
-    chown -R targum:targum /srv/targum/.local/share/uv/tools/targum
+    find /srv/targum/.local/share/uv/tools/targum ! -user targum \
+      -exec chown -h targum:targum {} +
   fi
-  sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
+  runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --force "\$WHEEL[\$EXTRAS]" \
       --constraints "\$KEPT/box-constraints.txt" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
