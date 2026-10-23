@@ -514,6 +514,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   before the instruction; and the deleted-account mail takes its days from the grace period
   and no longer says nothing remains before naming the backup that still holds it.
   "Uploaded by you" stays (David, 2026-10-21).
+- The connector's four prompts are said in the reader's own words (targum-internal#473,
+  ling-en's plain versions). A host puts each into the chat as the reader's message, so
+  "Call find_text, then find_text with where set to mine" came out of the reader's mouth.
+  The tools are still named where the model reads them: in each prompt's `needs`, in the
+  tool descriptions and in the server's instructions. Merged before the live check, on
+  David's word (2026-10-23): it follows the deploy, in Claude and ChatGPT, to show each
+  prompt still reaches its tools.
 
 ### Added
 - A podcast episode a reader adds keeps its feed's artwork as its picture

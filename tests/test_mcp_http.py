@@ -412,15 +412,21 @@ def test_a_prompt_comes_back_as_a_message(box: tuple[int, str]) -> None:
     token = a_token(port, "library record")
     said = rpc(port, token, "prompts/get", {"name": "drill"})["result"]
     text = said["messages"][0]["content"]["text"]
-    assert "my_vocabulary" in text
-    assert "never keep score" in text, "the page it came from promises as much"
+    assert "still learning" in text
+    assert "no score" in text, "the page it came from promises as much"
 
 
 def test_the_talk_prompt_sends_the_host_to_the_contract(box: tuple[int, str]) -> None:
     port, _ = box
     token = a_token(port, "library record")
     said = rpc(port, token, "prompts/get", {"name": "talk"})["result"]
-    assert "how_to_talk" in said["messages"][0]["content"]["text"]
+    assert said["messages"][0]["content"]["text"].startswith("Talk with me in Hebrew")
+    # The tool is named where the model reads it, not in the reader's own message
+    # (ling-en on targum-internal#473): the prompt needs it, and the instructions say
+    # to call it first.
+    (talk,) = [one for one in mcp_http.PROMPTS if one["name"] == "talk"]
+    assert "how_to_talk" in talk["needs"]
+    assert "how_to_talk" in mcp_http.INSTRUCTIONS
 
 
 def test_the_host_is_told_how_to_talk_at_initialize() -> None:
@@ -863,7 +869,7 @@ def test_a_reader_cannot_shadow_one_of_ours(box: tuple[int, str]) -> None:
     listed = rpc(port, token, "prompts/list")["result"]["prompts"]
     assert [one["name"] for one in listed].count("drill") == 1
     got = rpc(port, token, "prompts/get", {"name": "drill"})["result"]
-    assert "my_vocabulary" in got["messages"][0]["content"]["text"], "ours"
+    assert "still learning" in got["messages"][0]["content"]["text"], "ours"
 
 
 def test_a_prompt_is_gone_from_the_host_when_it_is_removed(box: tuple[int, str]) -> None:
@@ -1037,6 +1043,10 @@ def test_read_with_me_reads_what_it_was_asked_to() -> None:
 def test_our_prompts_are_said_in_the_reader_s_voice() -> None:
     for one in mcp_http.PROMPTS:
         assert "this reader" not in one["says"] and "the reader" not in one["says"], one["name"]
+        # A host puts `says` into the conversation as the reader's own message, so it
+        # names no tool (ling-en on targum-internal#473).
+        for tool in ("find_text", "how_to_talk", "my_vocabulary", "sentences_with"):
+            assert tool not in one["says"], (one["name"], tool)
 
 
 def test_the_contract_carries_no_history_a_host_would_repeat() -> None:
@@ -1365,12 +1375,15 @@ def test_without_the_record_find_text_will_not_open_the_shelf(box: tuple[int, st
 
 
 def test_the_prompts_send_a_host_to_find_text(box: tuple[int, str]) -> None:
+    """Through `needs`, which the host is given beside the prompt, rather than in the
+    reader's own words (ling-en on targum-internal#473)."""
     port, _ = box
     token = a_token(port, "library record")
     for name in ("what-next", "read-with-me"):
+        (one,) = [p for p in mcp_http.PROMPTS if p["name"] == name]
+        assert "find_text" in one["needs"], name
         got = rpc(port, token, "prompts/get", {"name": name})["result"]
         text = got["messages"][0]["content"]["text"]
-        assert "find_text" in text, name
         assert not any(old in text for old in ("search_library", "search_my_shelf", "suggest"))
 
 

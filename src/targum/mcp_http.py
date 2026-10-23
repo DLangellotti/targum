@@ -170,6 +170,11 @@ INSTRUCTIONS = (
 #: tool it does not have (`prompt_shapes`). A `scope` beside them is for a tool that
 #: answers anybody but answers this prompt only with the record: `find_text` without it
 #: cannot say what the reader is in the middle of (2026-10-06).
+#: Each `says` is put into the conversation as the reader's own message, so it is written
+#: in the reader's voice and names no tool (ling-en on targum-internal#473; David,
+#: 2026-10-21): the tools are named in `needs`, in their descriptions and in the server's
+#: instructions, which is where the model reads them. Merged only after a live check in
+#: Claude and ChatGPT that each prompt still reaches its tools.
 PROMPTS: tuple[dict[str, Any], ...] = (
     {
         "name": "what-next",
@@ -179,9 +184,9 @@ PROMPTS: tuple[dict[str, Any], ...] = (
         # find_text answers anybody, and "what I'm in the middle of" is the record's.
         "scope": "record",
         "says": (
-            "What should I read next on targum? Call find_text, then find_text with where "
-            "set to mine to see what I'm in the middle of, and offer me two or three with "
-            "a sentence each about why. Give me the links."
+            "What should I read next on targum? Look at what I'm in the middle of and what "
+            "the library has at my level, and offer me two or three, with a sentence each "
+            "about why. Give me the links."
         ),
     },
     {
@@ -191,10 +196,7 @@ PROMPTS: tuple[dict[str, Any], ...] = (
         ),
         "arguments": [],
         "needs": ("how_to_talk",),
-        "says": (
-            "Talk with me in Hebrew. Call how_to_talk first and hold to what it returns "
-            "for the whole conversation, then open with one short line."
-        ),
+        "says": ("Talk with me in Hebrew, the way targum does. Start with one short line."),
     },
     {
         "name": "drill",
@@ -202,9 +204,8 @@ PROMPTS: tuple[dict[str, Any], ...] = (
         "arguments": [],
         "needs": ("my_vocabulary", "sentences_with"),
         "says": (
-            "Call my_vocabulary and pick one or two of my words marked learning, then "
-            "sentences_with for them, and help me practise those words in the sentences "
-            "I actually met them in. Never set me a test, never keep score."
+            "Pick one or two of the words I'm still learning and help me practise them in "
+            "the sentences I actually met them in. No tests, and no score."
         ),
     },
     {
@@ -213,9 +214,9 @@ PROMPTS: tuple[dict[str, Any], ...] = (
         "arguments": [{"name": "text", "description": "What to read", "required": False}],
         "needs": ("find_text",),
         "says": (
-            "Find {text} with find_text and read it with me a "
-            "few lines at a time: the Hebrew, what it means, and what is worth noticing "
-            "in the grammar. Let me set the pace."
+            "Find {text} on targum and read it with me a few lines at a time. Give me the "
+            "Hebrew, what it means and anything worth noticing in the grammar. Let me set "
+            "the pace."
         ),
         "unnamed": "a text I'd like",
     },
