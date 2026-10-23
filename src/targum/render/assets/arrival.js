@@ -27,6 +27,11 @@
   var words = window.TargumStrings;
   var t = words.t;
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   var key = window.TARGUM_KEY;
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
@@ -52,7 +57,7 @@
   }
 
   function ask(path, body) {
-    return fetch(keyed(path), {
+    return (path === "/account/me" && !body ? meOnce : fetch)(keyed(path), {
       method: body ? "POST" : "GET",
       headers: keyHeaders({ "Content-Type": "application/json" }),
       body: body ? JSON.stringify(body) : undefined,
@@ -174,6 +179,16 @@
      country: "Life in Israel" is a Hebrew reader's subject and the question is asked of
      six languages now. Pressing none is an answer too: "nothing in particular". */
   var OFFERED = ["everyday", "news", "stories", "history", "judaism", "science", "travel", "food"];
+
+  /* What only a Hebrew-script shelf answers hides under another language (design.md §13,
+     Language; targum-internal#476, B2): nothing on the Russian, Italian or French shelf
+     answers Torah and Judaism, so a reader learning one is not asked about it. */
+  var HEBREW_ONLY = { judaism: ["he", "arc", "yi"] };
+  function offeredFor(code) {
+    return OFFERED.filter(function (id) {
+      return !HEBREW_ONLY[id] || HEBREW_ONLY[id].indexOf(code) >= 0;
+    });
+  }
 
   function interestLabels() {
     return {
@@ -814,6 +829,7 @@
         mark(langs, function (p) {
           return p.getAttribute("data-code") === learning;
         });
+        fitSubjects();
       });
       langs.appendChild(press);
     });
@@ -842,6 +858,21 @@
     mark(row, function (p) {
       return picked.indexOf(p.getAttribute("data-id")) >= 0;
     });
+    // Only the subjects this language's shelf can answer, and a pick it cannot answer is
+    // let go when the language changes (B2).
+    function fitSubjects() {
+      var fits = offeredFor(learning);
+      Array.prototype.forEach.call(row.querySelectorAll(".arrival-door"), function (press) {
+        press.hidden = fits.indexOf(press.getAttribute("data-id")) < 0;
+      });
+      picked = picked.filter(function (id) {
+        return fits.indexOf(id) >= 0;
+      });
+      mark(row, function (p) {
+        return picked.indexOf(p.getAttribute("data-id")) >= 0;
+      });
+    }
+    fitSubjects();
 
     // 3. Drawn for the language chosen, each time the screen comes up.
     function drawLevels() {
@@ -1197,6 +1228,7 @@
     firstElsewhere: firstElsewhere,
     levels: levelsOf,
     offered: OFFERED,
+    offeredFor: offeredFor,
     over: OVER,
   };
 })();

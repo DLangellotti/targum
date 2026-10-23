@@ -113,7 +113,7 @@
         return response.json();
       })
       .then(function () {
-        if (sync && sync.start) sync.start();
+        if (sync && sync.start) sync.start(true);
       })
       .catch(function () {
         /* the browser keeps the answer; the account hears it next time */

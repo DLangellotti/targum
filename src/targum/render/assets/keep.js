@@ -25,3 +25,40 @@ window.targumForget =
       localStorage.removeItem(name);
     } catch (error) {}
   };
+
+/* Who is signed in, asked once for the whole page (targum-internal#484).
+ *
+ * Every desk page has four or five scripts that want `/account/me` — the inbox, the
+ * language keys, the account's corner, the page's own script — and each asked for itself,
+ * so a cold load sent the same question three to five times, some of them waiting on each
+ * other, at 150 ms a round trip on a phone. Here, the first to ask sends it and the rest are
+ * handed a copy of the same answer. A copy because a response can be read only once.
+ *
+ * `fresh` asks again and keeps the new answer: what `sync.js` does after the reader has
+ * changed something the answer carries, their languages. A request that fails, or is
+ * answered with anything but a 2xx, is forgotten once its callers have it, so the next to
+ * ask tries again rather than inheriting the failure: after a 502, the connection coming
+ * back (`TargumSync.flush`) has to reach the account.
+ */
+window.targumMe =
+  window.targumMe ||
+  (function () {
+    var asked = null;
+    return function (address, options, fresh) {
+      if (!asked || fresh) {
+        var going = fetch(address, options);
+        asked = going;
+        going.then(
+          function (response) {
+            if (!response.ok && asked === going) asked = null;
+          },
+          function () {
+            if (asked === going) asked = null;
+          }
+        );
+      }
+      return asked.then(function (response) {
+        return response.clone();
+      });
+    };
+  })();

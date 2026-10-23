@@ -526,12 +526,29 @@ def test_both_portions_are_named_only_where_the_schedules_really_differ() -> Non
     assert "reading different portions" not in together
 
 
-def test_the_series_tile_is_the_scroll_carried_in_the_page(serving: int) -> None:
-    """The photograph stays as the series' tile, carried in the page once, never
-    fetched, and never under type (§12, 2026-09-01 and 2026-10-09)."""
+def test_the_series_tile_is_the_scroll_named_once_from_our_origin(serving: int) -> None:
+    """The photograph stays as the series' tile, named once for every tile and never
+    under type (§12, 2026-09-01 and 2026-10-09). Since 2026-10-22 it is a file of ours
+    rather than a `data:` URI in the page's `<style>`, which held the first paint until
+    151 kB had arrived (§12, "A series page's picture is a file of ours", #484)."""
+    import re
+
     body = get(serving, "/parasha")[1]
-    assert body.count("data:image/jpeg;base64,") == 1, "inlined once, for every tile"
+    styles = "".join(re.findall(r"<style>(.*?)</style>", body, re.S))
+    # The icons' few-hundred-byte SVG masks stay; no photograph rides in a stylesheet.
+    assert not re.search(r"data:image/(jpeg|png|webp)", styles), "no picture in the styles"
+    from targum.render.builder import picture_address
+
+    address = picture_address("scroll/columns.jpg")
+    assert body.count(f"url({address})") == 1, "named once, for every tile"
     assert 'class="series-tile has-pic is-large" aria-hidden="true"></span>' in body
+    conn = HTTPConnection("127.0.0.1", serving)
+    conn.request("GET", address, headers={"Host": f"127.0.0.1:{serving}"})
+    answer = conn.getresponse()
+    picture = answer.read()
+    assert answer.status == 200 and answer.getheader("Content-Type") == "image/jpeg"
+    assert "immutable" in (answer.getheader("Cache-Control") or "")
+    assert picture.startswith(b"\xff\xd8"), "the JPEG itself"
 
 
 def test_a_stranger_is_asked_to_sign_in_not_to_join(serving: int) -> None:
@@ -1036,3 +1053,52 @@ def test_the_credits_are_whole_sentences_with_their_links_inside_them() -> None:
         assert "&lt;a" not in html, "a link was escaped into the sentence"
         assert 'href="https://archive.org/details/PockettorahAudioFiles"' in credits
         assert "</a>, " in credits, "and the sentence closes onto them without a gap"
+
+
+def test_a_portion_carries_its_books_moves(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A portion is cut from library books and never re-annotated itself, so after a
+    rename it carries what its books' words used to be called, or a mark made on a
+    /parasha page is stranded (qa on #836; David, 2026-10-21)."""
+    import json
+
+    from targum.annotate.moves import FILE
+
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
+    a_wednesday = datetime(2026, 9, 2, 12, tzinfo=ZoneInfo(cal.FLIP_ZONE))
+    monkeypatch.setattr(cal, "now_in_flip_zone", lambda moment=None: a_wednesday)
+    (tmp_path / "parasha" / "calendar").mkdir(parents=True)
+    for one in FIXTURES.glob("*.json"):
+        shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
+    library = tmp_path / "library"
+    a_book(library / "דברים-he", "Deuteronomy", "דברים", {29: 29, 30: 20, 31: 30})
+    a_book(library / "ישעיהו-he", "Isaiah", "ישעיהו", {61: 11, 62: 12, 63: 19})
+    a_book(library / "חבקוק-he", "Habakkuk", "חבקוק", {3: 19})
+    (library / "דברים-he" / FILE).write_text(
+        json.dumps({"id": "x", "lemmas": {"נאמר": "אמר"}, "surfaces": {}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    corpus_build.build(
+        years=[2026], corpus_years=[2026], schedules=[cal.Schedule.diaspora], library=library
+    )
+    page = (
+        tmp_path / "parasha" / "read" / "nitzavim-vayeilech" / "reader" / "sec-0001.html"
+    ).read_text(encoding="utf-8")
+    assert '"moves"' in page and "נאמר" in page and "אמר" in page
+
+
+def test_the_moves_of_several_books_are_one_table(tmp_path: Path) -> None:
+    import json
+
+    from targum.annotate.moves import FILE, gathered
+
+    for name, lemmas in (("a", {"נאמר": "אמר", "נעשה": "עשה"}), ("b", {"נאמר": "x"})):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / FILE).write_text(
+            json.dumps({"lemmas": lemmas, "surfaces": {}}, ensure_ascii=False), encoding="utf-8"
+        )
+    (tmp_path / "none").mkdir()
+    said = gathered([tmp_path / "a", tmp_path / "b", tmp_path / "none"])
+    assert said is not None
+    assert said["lemmas"] == {"נאמר": "אמר", "נעשה": "עשה"}, "the first book's move stands"
+    assert said["id"]
+    assert gathered([tmp_path / "none"]) is None

@@ -77,8 +77,13 @@ fi
 install -d -o targum -g targum -m 0750 /var/lib/targum/cache/deno
 
 YTDLP_PY=/srv/targum/.local/share/uv/tools/yt-dlp/bin/python
+# Asked as targum, like everything else that runs inside the tool. The environment's
+# python run as root writes root-owned __pycache__ into it (its _virtualenv.pth imports a
+# module at every start), and the nightly upgrade, as targum, then cannot take the old
+# environment apart: it stopped on exactly that for 18 hours on 2026-10-22, with
+# bin/yt-dlp already gone (targum-internal#513).
 has_plugin() {
-  [ -x "$YTDLP_PY" ] && "$YTDLP_PY" -c \
+  [ -x "$YTDLP_PY" ] && runuser -u targum -- "$YTDLP_PY" -c \
     'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec("yt_dlp_plugins") else 1)' \
     2>/dev/null
 }
@@ -88,7 +93,7 @@ BGUTIL_VERSION="${BGUTIL_VERSION:-1.3.2}"
 if ! has_plugin; then
   # --force because the tool is usually already installed without the plugin, and `uv
   # tool install` is otherwise a no-op that would leave it that way.
-  sudo -u targum -H env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
+  runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --quiet --force yt-dlp \
     --with "bgutil-ytdlp-pot-provider==$BGUTIL_VERSION"
   ln -sfn /srv/targum/.local/bin/yt-dlp /usr/local/bin/yt-dlp
@@ -191,9 +196,12 @@ rm -f /etc/cron.d/targum-backup
 # and a day with no new release is a no-op. As targum, for the reason the install above
 # gives; through systemd-run for the backup's reason — `journalctl -u targum-ytdlp`.
 # Not inside targum.service, whose ProtectHome would refuse the write to /srv/targum.
+# A failed night mails TARGUM_ALERT_TO through `targum ytdlp-stopped`: MAILTO=root reaches
+# nobody on a box with no mail transfer agent, and an install that stops halfway has
+# already deleted bin/yt-dlp (2026-10-22, targum-internal#513).
 cat > /etc/cron.d/targum-ytdlp <<CRON
 MAILTO=root
-30 3 * * * root systemd-run --quiet --wait --collect --unit=targum-ytdlp --uid=targum --gid=targum --setenv=HOME=/srv/targum --setenv=UV_TOOL_BIN_DIR=/srv/targum/.local/bin /usr/local/bin/uv tool install --quiet --upgrade yt-dlp --with bgutil-ytdlp-pot-provider==$BGUTIL_VERSION
+30 3 * * * root systemd-run --quiet --wait --collect --unit=targum-ytdlp --uid=targum --gid=targum --setenv=HOME=/srv/targum --setenv=UV_TOOL_BIN_DIR=/srv/targum/.local/bin /usr/local/bin/uv tool install --quiet --upgrade yt-dlp --with bgutil-ytdlp-pot-provider==$BGUTIL_VERSION || systemd-run --quiet --wait --collect --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum ytdlp-stopped
 CRON
 chmod 0644 /etc/cron.d/targum-ytdlp
 

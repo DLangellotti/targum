@@ -74,9 +74,9 @@
   var EARLIEST = Date.UTC(2024, 0, 1);
 
   var STATUS = {
-    1: { name: t("charts.status.1", "just met"), slot: "--step-1" },
-    2: { name: t("charts.status.2", "getting there"), slot: "--step-2" },
-    3: { name: t("charts.status.3", "nearly there"), slot: "--step-3" },
+    1: { name: t("charts.status.1", "new to you"), slot: "--step-1" },
+    2: { name: t("charts.status.2", "still learning"), slot: "--step-2" },
+    3: { name: t("charts.status.3", "almost known"), slot: "--step-3" },
     9: { name: t("charts.status.9", "known"), slot: "--step-4" },
   };
 
@@ -142,7 +142,10 @@
         var own = tip.getBoundingClientRect();
         var left = Math.max(0, Math.min(box.width - own.width, x - own.width / 2));
         tip.style.left = left + "px";
-        tip.style.top = Math.max(0, y - own.height - 10) + "px";
+        // Above the point, or under it where there is no room above: clamped to the top,
+        // the tip sat on the point it was about (targum-internal#471, polish 11).
+        var top = y - own.height - 10;
+        tip.style.top = (top < 0 ? y + 14 : top) + "px";
       },
       hide: function () {
         tip.hidden = true;

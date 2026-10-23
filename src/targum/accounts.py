@@ -4164,6 +4164,29 @@ class Store:
         ).fetchone()
         return int(row["n"]) if row else 0
 
+    def saved_words(self, person: Person, language: str) -> list[dict[str, Any]]:
+        """Every word this person keeps in one language that is not ignored, oldest kept
+        first, with the surface it was met as, its stage, and what they wrote for it: what
+        an Anki export is made of (targum-internal#496), from the account rather than from
+        what a page sends."""
+        rows = self.db.execute(
+            "SELECT lemma, surface, status, meaning, note FROM word"
+            " WHERE person = ? AND language = ? AND gone = 0"
+            " AND status IS NOT NULL AND status != 0 ORDER BY at",
+            (person.id, language.split("-")[0].lower()),
+        )
+        return [dict(row) for row in rows]
+
+    def anki_clips_since(self, owner: int, since: int) -> int:
+        """How many sounds this person's Anki exports have had made since `since`: the
+        5,000-a-month cap is counted here, across exports (targum-internal#496)."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(done), 0) AS n FROM job"
+            " WHERE owner = ? AND source LIKE 'anki:%' AND made >= ?",
+            (owner, since),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
     def meanings(self, person: Person, language: str) -> list[tuple[str, str, int | None]]:
         """Every word this person keeps in one language, with the meaning they wrote for
         it and how well they know it: what search meets English against, since an

@@ -3251,6 +3251,12 @@ body.film-panel .film-panel-head:not([hidden]) {
   }
   body.film-theatre:not(.film-panel) { overflow: hidden; }
   body.film-theatre:not(.film-panel) main { display: none; }
+  /* And nor is the foot under it (targum-internal#505): it stands beside `main`, not in it,
+     so it was still laid out under the fixed picture, out of sight and out of reach, its
+     Play in order taking presses that the picture's tap layer got instead. The row under
+     the picture carries the same switch and Next. Once the film ends the foot is moved
+     into the end card, out of the body, and is drawn there. */
+  body.film-theatre:not(.film-panel) > #foot { display: none; }
   body.film-panel .film-sub[data-long="0"] .film-pair .src { font-size: 1.75em; }
 }
 
@@ -3836,19 +3842,43 @@ html:fullscreen { background: var(--paper); }
 .list-nav .list-back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .list-up-next,
 .list-waiting { margin: 0; }
-/* Play on (design.md §12, 2026-10-09): a switch on the playlist's own line, drawn as a
-   pill that fills in the primary's wash while it is on. */
+/* Play in order (design.md §12, 2026-10-09): a switch on the playlist's own line, drawn
+   as Up next draws it (`.lv-sw`), a track that fills in the primary while it is on —
+   one setting, one drawing (targum-internal#474, polish 2). */
+.list-play-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .list-nav .list-play-on {
   appearance: none;
-  padding: 0.1rem 0.65rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
+  padding: 0.1rem 0;
+  border: 0;
   background: none;
   font: inherit;
-  color: var(--ink-soft);
+  color: var(--ink);
   cursor: pointer;
 }
-.list-nav .list-play-on[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-wash); color: var(--teal); }
+.list-sw {
+  position: relative;
+  flex: none;
+  inline-size: 34px;
+  block-size: 20px;
+  border-radius: 999px;
+  background: var(--well);
+}
+.list-sw::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline-start: 3px;
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 50%;
+  background: var(--card);
+}
+.list-play-on[aria-checked="true"] .list-sw { background: var(--teal); }
+.list-play-on[aria-checked="true"] .list-sw::after { inset-inline-start: 17px; }
 .list-nav .list-play-on:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 @media (hover: none) and (pointer: coarse) {
   .list-nav .list-play-on { min-block-size: 44px; }
@@ -4015,7 +4045,21 @@ body.has-player.list-ended .list-end {
 body.film-theatre:not(.film-panel) .video-list-next,
 body.film-theatre:not(.film-panel) .video-list-back,
 body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
-.list-key.list-play-on[aria-pressed="true"] { background: var(--teal-wash); color: var(--teal); }
+/* Play in order is a word and its switch here too (polish 2), the switch at the row's
+   own small size so the longer name still leaves the row inside its measure; where the
+   row runs short the word is said and not drawn, as "Loop this line" gives way. */
+.film-ctl .list-play-on .list-sw { inline-size: 26px; block-size: 16px; }
+.film-ctl .list-play-on .list-sw::after { inline-size: 10px; block-size: 10px; }
+.film-ctl .list-play-on[aria-checked="true"] .list-sw::after { inset-inline-start: 13px; }
+@container (max-width: 680px) {
+  .film-ctl .list-play-on > span:first-child {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
 
 .list-end {
   max-width: calc(var(--measure) * 2 + var(--gap));
@@ -6061,16 +6105,20 @@ body.listening .bar:has(.bar-more.open) { z-index: 33; }
 .lv-lines { padding: 1rem 1.5rem 0; }
 .lv-lines[hidden] { display: none; }
 .lv-lines p { margin: 0; }
+/* The lines either side of the one being said stand back by colour, not opacity: ink at
+   0.38 read about 2.3:1 on paper (targum-internal#474, B9); --ink-soft is 5.5:1, and the
+   line being said is still ink and a size up. */
 .lv-far {
   font-size: 1.0625rem;
   line-height: 1.6;
-  opacity: 0.38;
+  color: var(--ink-soft);
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 .lv-after { margin-block-start: 0.75rem; }
+.lv-order-says { margin: 0.25rem 0 0.75rem; color: var(--ink-soft); font-size: 0.8125rem; }
 .lv-now { margin-block: 0.625rem 0.25rem; }
 .lv-now .film-pair { display: block; margin: 0; padding: 0; background: none; box-shadow: none; }
 .lv-now .film-pair .src {
@@ -6143,6 +6191,10 @@ body.marking .lv-now .w.looked-up {
   block-size: 1.25rem;
   cursor: pointer;
   touch-action: none;
+}
+/* A 44px band to press the position on, round a track drawn 20px tall (B7). */
+@media (hover: none) and (pointer: coarse) {
+  .lv-track { block-size: 44px; }
 }
 .lv-track::before,
 .lv-fill {

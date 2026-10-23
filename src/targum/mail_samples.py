@@ -99,7 +99,7 @@ def samples(language: str = "en") -> dict[str, Letter]:
                     ],
                 },
                 {
-                    "name": "Daily Tehillim" if language == "en" else "Псалмы на каждый день",
+                    "name": "Daily Tehillim" if language == "en" else "Ежедневные Теилим",
                     "stop": "stop-tehillim",
                     "rows": [
                         (

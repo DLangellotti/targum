@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import html
 import os
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -97,12 +98,23 @@ def isolate(value: str) -> str:
 
 @dataclass(frozen=True)
 class Label:
+    """A small heading over what follows. In a right-to-left language (a subscription
+    named in Hebrew) it is drawn in that language, right to left, in the Hebrew face, with
+    no capitals or tracking, which Hebrew has none of (targum-internal#470, B1)."""
+
     words: str
+    language: str = ""
 
     def as_text(self) -> str:
         return self.words
 
     def as_html(self) -> str:
+        if self.language in RIGHT_TO_LEFT:
+            return (
+                f'<p lang="{_e(self.language)}" dir="rtl" style="margin:0 0 6px 0;'
+                f"font-family:{HEBREW};font-size:13px;line-height:18px;font-weight:600;"
+                f'text-align:right;color:{MUTED};">{_e(self.words)}</p>'
+            )
         return (
             f'<p style="margin:0 0 6px 0;font-family:{SANS};font-size:12px;line-height:16px;'
             f"font-weight:600;letter-spacing:0.08em;text-transform:uppercase;"
@@ -321,7 +333,11 @@ class Rows:
     rows: Sequence[tuple[str, str, str]]
 
     def as_text(self) -> str:
-        return "\n".join(f"  {name} ({note}): {href}" for name, note, href in self.rows)
+        # Inside brackets mid-line the note starts lower case: "Easy (if you know 1,000
+        # words)", where the HTML sets it as a line of its own (qa on #856).
+        return "\n".join(
+            f"  {name} ({note[:1].lower()}{note[1:]}): {href}" for name, note, href in self.rows
+        )
 
     def as_html(self) -> str:
         cells = "".join(
@@ -368,8 +384,12 @@ class Listed:
         )
 
     def as_html(self) -> str:
+        # The whole row is the link, as the weekly's level rows are (targum-internal#470,
+        # polish 1): it is drawn as one raised press, and its title alone was 26px tall.
+        # The tile's letter says its language, as `Tile`'s does (B1).
         cells = "".join(
             '<tr><td style="padding:0 0 10px 0;">'
+            f'<a href="{_e(href)}" style="display:block;text-decoration:none;color:{INK};">'
             '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
             f'border="0" bgcolor="{RAISED}" style="background:{RAISED};border-radius:12px;">'
             '<tr><td width="56" valign="top" style="width:56px;padding:12px 0 12px 12px;">'
@@ -377,15 +397,16 @@ class Listed:
             f'<td width="56" height="56" align="center" valign="middle" bgcolor="{INK}" '
             f'style="width:56px;height:56px;background:{INK};border-radius:8px;'
             f"font-family:{HEBREW if language in RIGHT_TO_LEFT else SERIF};font-size:26px;"
-            f'line-height:26px;font-weight:500;color:{CARD};">{_e(initial(title))}</td>'
+            f'line-height:26px;font-weight:500;color:{CARD};">'
+            f'<span lang="{_e(language or "und")}">{_e(initial(title))}</span></td>'
             "</tr></table></td>"
             '<td valign="middle" style="padding:12px 16px 12px 14px;">'
-            f'<a href="{_e(href)}" dir="auto" lang="{_e(language)}" style="display:block;'
+            f'<span dir="auto" lang="{_e(language)}" style="display:block;'
             f"font-family:{HEBREW if language in RIGHT_TO_LEFT else SERIF};"
             f"font-size:19px;line-height:26px;font-weight:500;color:{INK};"
-            f'text-decoration:none;">{_e(title)}</a>'
+            f'">{_e(title)}</span>'
             f'<span style="display:block;font-family:{SANS};font-size:14px;line-height:20px;'
-            f'color:{TEAL};">{_e(note)}</span></td></tr></table></td></tr>'
+            f'color:{TEAL};">{_e(note)}</span></td></tr></table></a></td></tr>'
             for title, language, note, href in self.rows
         )
         return (
@@ -401,15 +422,38 @@ class Small:
     words: str
     link: str
     href: str
+    #: A name inside the link's words, isolated, and said in its language where that is
+    #: right to left: "Unsubscribe from כאן ארכיון" (qa on #866).
+    name: str = ""
+    name_language: str = ""
+    #: What follows the link: the full stop that ends a sentence (qa on #866).
+    after: str = ""
+    #: The link's words in the text half, where they differ: quoted in Russian («…»).
+    text_link: str = ""
 
     def as_text(self) -> str:
-        return f"{self.words} {self.link}: {self.href}".strip()
+        # The text half ends on its address, so a sentence's full stop is the drawing's
+        # alone: "…«Ваши подписки».: https://…" read as a typo (ling-ru on #866).
+        return f"{self.words} {self.text_link or self.link}: {self.href}".strip()
+
+    def _link_html(self) -> str:
+        said = _e(self.link)
+        if not self.name or _e(self.name) not in said:
+            return said
+        if self.name_language in RIGHT_TO_LEFT:
+            run = f'<bdi lang="{_e(self.name_language)}" dir="rtl">{_e(self.name)}</bdi>'
+        else:
+            run = f'<bdi dir="auto">{_e(self.name)}</bdi>'
+        return said.replace(_e(self.name), run, 1)
 
     def as_html(self) -> str:
         return (
-            f'<p style="margin:0 0 20px 0;font-size:13px;line-height:20px;color:{MUTED};">'
-            f'{_e(self.words)} <a href="{_e(self.href)}" style="color:{MUTED};'
-            f'text-decoration:underline;">{_e(self.link)}</a></p>'
+            # Room round the link, so a thumb on a phone has more than a 16px line to press
+            # (targum-internal#470, polish 2).
+            f'<p style="margin:0 0 8px 0;font-size:13px;line-height:20px;color:{MUTED};">'
+            f'{_e(self.words)} <a href="{_e(self.href)}" style="display:inline-block;'
+            f"padding:12px 0;color:{MUTED};"
+            f'text-decoration:underline;">{self._link_html()}</a>{_e(self.after)}</p>'
         )
 
 
@@ -455,6 +499,10 @@ class Foot:
             f'<a href="{_e(href)}" style="color:{MUTED};text-decoration:underline;">{_e(link)}</a>'
             for link, href in self._links()
         )
+        # The links on a line of their own on a phone (polish 2): side by side under the
+        # reason they were 16px lines with nothing between them.
+        if tail and self.words:
+            tail = f'<span class="foot-links">{tail}</span>'
         joined = " ".join(part for part in (_e(self.words), tail) if part)
         return f'<p style="margin:0 0 8px 0;">{joined}</p>'
 
@@ -515,7 +563,8 @@ body {{ margin:0; padding:0; background:{DESK}; }}
 a {{ color:{TEAL}; }}
 @media (max-width: 620px) {{
   .wrap {{ padding:16px 8px !important; }}
-  .card {{ padding:24px 20px !important; border-radius:12px !important; }}
+  .card {{ padding:24px 20px !important; }}
+  .foot-links {{ display:block !important; padding-top:8px; line-height:28px; }}
   .h1 {{ font-size:20px !important; line-height:26px !important; }}
 }}
 </style>
@@ -669,7 +718,10 @@ def invitation(address: str, language: str = "en", connector: bool | None = None
         Button(text("mail.invitation.button", code), link),
     ]
     if connector_is_open() if connector is None else connector:
-        said.append(Para(text("mail.invitation.connector", code, link=f"{base}/connect")))
+        # The link as a link of its own: inside a paragraph it was escaped text, which only a
+        # client that autolinks made pressable (ling-en, targum-internal#470).
+        said.append(Para(text("mail.invitation.connector", code)))
+        said.append(Small("", text("mail.invitation.connect-link", code), f"{base}/connect"))
     return compose(
         code,
         text("mail.invitation.subject", code),
@@ -729,7 +781,8 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
     levels = [
         (
             text(f"weekly.level.{level.value}", code),
-            text("weekly.page.figure-words", code, figure=LEVELS[level].figure_in(code)),
+            # "If you know 1,000 words": a figure alone read like a length (ling-en, #470).
+            text("mail.weekly.level-note", code, figure=LEVELS[level].figure_in(code)),
             f"{where}/{level.value}{asked}",
         )
         for level in Level
@@ -738,7 +791,12 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
     # The masthead is מבט השבוע and the week's date, in Hebrew, as the reader's own title
     # is (design.md §12, "Every mail is the board's", 2026-10-09). The subject keeps the
     # public name.
-    blocks: list[Block] = [Label(dated), Hebrew(dated_title(MASTHEAD, issue.dated))]
+    # What the mail is, in the reader's language, over the masthead, which carries the
+    # date: the English date as the label said it twice (ling-en, #470).
+    blocks: list[Block] = [
+        Label(text("mail.weekly.label", code)),
+        Hebrew(dated_title(MASTHEAD, issue.dated)),
+    ]
     if issue.blurb:
         blocks.append(HebrewLine(issue.blurb))
     blocks.append(Button(text("mail.weekly.button", code), where + asked))
@@ -760,6 +818,12 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
     )
 
 
+#: The most rows one daily mail draws (targum-internal#470, polish 5).
+DAILY_ROWS = 30
+#: A name written in the Hebrew block (Hebrew, Yiddish, Aramaic all are).
+HEBREW_LETTERS = re.compile("[\u0590-\u05ff]")
+
+
 def subscriptions_daily(
     groups: Sequence[Mapping[str, Any]], address: str, stop_all: str, language: str = "en"
 ) -> Letter:
@@ -776,7 +840,11 @@ def subscriptions_daily(
     first = groups[0]
     if count == 1:
         subject = text(
-            "mail.daily.subject-one", code, name=first["name"], title=isolate(first["rows"][0][0])
+            # Both isolated, so a Hebrew name does not turn the subject line round (polish 4).
+            "mail.daily.subject-one",
+            code,
+            name=isolate(first["name"]),
+            title=isolate(first["rows"][0][0]),
         )
     else:
         subject = counted(
@@ -786,13 +854,26 @@ def subscriptions_daily(
             {"one": "{n} new from your subscriptions", "other": "{n} new from your subscriptions"},
         ).format(n=count)
     blocks: list[Block] = [Heading(text("mail.daily.heading", code))]
+    # At most `DAILY_ROWS` rows: past about ninety, Gmail clips the mail and the clip takes
+    # the unsubscribe foot with it (polish 5). The rest are a line and a link.
+    room = DAILY_ROWS
     for group in groups:
-        blocks.append(Label(group["name"]))
+        if room <= 0:
+            break
+        rows = list(group["rows"])[:room]
+        room -= len(rows)
+        # The name in its own language where the subscription says one, or, where the name
+        # is written in Hebrew letters, its first row's (B1): a Hebrew name drawn as an
+        # English label lost its direction. "Sport" over Hebrew articles stays a label.
+        named_in = str(group.get("language") or "")
+        if not named_in and HEBREW_LETTERS.search(str(group["name"])):
+            named_in = (rows[0][1] if rows else "") or "he"
+        blocks.append(Label(group["name"], named_in))
         blocks.append(
             Listed(
                 [
                     (title, lang, note, href if href.startswith("http") else f"{base}{href}")
-                    for title, lang, note, href in group["rows"]
+                    for title, lang, note, href in rows
                 ]
             )
         )
@@ -801,6 +882,19 @@ def subscriptions_daily(
                 "",
                 text("mail.daily.stop-one", code, name=group["name"]),
                 f"{base}/series/stop?t={group['stop']}",
+                name=str(group["name"]),
+                name_language=named_in,
+            )
+        )
+    if count > DAILY_ROWS:
+        blocks.append(
+            Small(
+                text("mail.daily.more", code, n=str(count - DAILY_ROWS)),
+                text("mail.daily.yours", code),
+                f"{base}/?show=subscriptions",
+                after=".",
+                # A page's name is quoted in Russian prose; the drawing has it as a link.
+                text_link=f"«{text('mail.daily.yours', code)}»" if code == "ru" else "",
             )
         )
     stop = f"{base}/subscriptions/stop?{stop_all}"
@@ -837,6 +931,7 @@ def build_ready(
     title_language: str = "",
     parts: int = 0,
     seconds: float = 0.0,
+    gift: bool = False,
 ) -> Letter:
     """A build finished while its reader was away. `asked` is whether they put the strip
     away and were promised this; otherwise the build simply took long enough. A film is
@@ -855,7 +950,15 @@ def build_ready(
                 "mail.ready.parts", parts, code, {"one": "{n} part", "other": "{n} parts"}
             ).format(n=parts)
         )
-    if seconds >= 60:
+    if seconds >= 3600:
+        # Past an hour, hours and minutes, not "180 min" (polish 3).
+        whole = round(seconds / 60)
+        if whole % 60:
+            facts.append(text("mail.ready.hours", code, h=str(whole // 60), m=str(whole % 60)))
+        else:
+            # On the hour, "3 hr", not "3 hr 0 min" (qa on #866).
+            facts.append(text("mail.ready.hours-only", code, h=str(whole // 60)))
+    elif seconds >= 60:
         facts.append(text("mail.ready.minutes", code, n=str(round(seconds / 60))))
     return compose(
         code,
@@ -869,7 +972,21 @@ def build_ready(
             Para(text("mail.ready.lead", code)),
             Button(text("mail.ready.open", code), link),
         ],
-        [Foot(text("mail.ready.asked" if asked else "mail.ready.why", code))],
+        # A link a stranger saved on the front page and we got ready when they were let
+        # in: they never started it, and "your text took more than a few minutes" says
+        # otherwise (ling-en, targum-internal#470).
+        [
+            Foot(
+                text(
+                    "mail.ready.gift"
+                    if gift
+                    else "mail.ready.asked"
+                    if asked
+                    else "mail.ready.why",
+                    code,
+                )
+            )
+        ],
         address=address,
     )
 
@@ -911,7 +1028,15 @@ def account_deleted(
         text("mail.deleted.preheader", code, gone=said_gone),
         [
             Heading(text("mail.deleted.heading", code)),
-            Para(text("mail.deleted.when", code, asked=said_asked, gone=said_gone)),
+            Para(
+                text(
+                    "mail.deleted.when",
+                    code,
+                    asked=said_asked,
+                    gone=said_gone,
+                    grace=str(grace_days),
+                )
+            ),
             Para(text("mail.deleted.what", code)),
             Para(text("mail.deleted.nothing", code, days=str(backups_kept), rolled=said_rolled)),
             Para(text("mail.deleted.no-copy", code)),

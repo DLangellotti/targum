@@ -46,8 +46,9 @@ CACHE = "practice.json"
 
 #: The file's shape. Bumped when the encoding changes; an older file is rebuilt for free.
 #: 2 (2026-10-21) adds the vav-consecutive's candidates (targum-internal#449), and 3 the
-#: pronoun suffixes' (targum-internal#450).
-VERSION = 3
+#: pronoun suffixes' (targum-internal#450); 4 drops governed prepositions from Biblical
+#: texts, where the spot is declared out (targum-internal#454).
+VERSION = 4
 
 #: When a spot is offered: met in this many lines, across this many texts (the research's
 #: "about six attended encounters across at least two texts").
@@ -384,7 +385,11 @@ def count_text(folder: Path) -> TextPractice | None:
     for segment in segmented.segments:
         section = section_of.get(segment.id, 1)
         stored = tokens.get(segment.id) or ()
-        by_section.setdefault(section, []).extend(_governed(stored, segment.id))
+        by_section.setdefault(section, [])
+        # Governed prepositions are declared out of Biblical text (targum-internal#454),
+        # so a Biblical text offers none to practise.
+        if not scripture:
+            by_section[section].extend(_governed(stored, segment.id))
         for token in stored:
             by_section.setdefault(section, []).extend(candidates(token, segment.id))
             word = segment.text[int(token.get("start") or 0) : int(token.get("end") or 0)]

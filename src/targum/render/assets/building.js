@@ -50,6 +50,11 @@
   var clear = document.getElementById("notices-clear");
   if (!open || !panel || !count || !empty || !list || typeof fetch !== "function") return;
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
     if (!key) return path;
@@ -689,7 +694,8 @@
 
   // The month's credits, once they are nearly gone (2026-09-11): the same threshold the
   // box uses, three quarters, said in the inbox with the door to the count.
-  fetch(keyed("/account/me"), { credentials: "same-origin" })
+  // Asked once for the page, with the other scripts that want it (`keep.js`, #484).
+  meOnce(keyed("/account/me"), { credentials: "same-origin" })
     .then(function (r) {
       return r.ok ? r.json() : null;
     })
@@ -711,7 +717,7 @@
           "{n} credits left this month."
         ) +
         " " +
-        t("building.credits.rate", "That's about {clock} of audio.", { clock: clockOf(spare) });
+        t("building.credits.rate", "That's about {clock} of audio or video.", { clock: clockOf(spare) });
       note("hours:" + (hours.ends || "now"), used + reset, {
         href: keyed("/progress"),
         label: t("building.hours.see", "See usage"),

@@ -161,6 +161,11 @@ var targumReader = function () {
     return served && !!(passKey || (window.TargumSync && window.TargumSync.who));
   }
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
      a Referer. Local it stays, because there it proves the page came from the terminal
@@ -255,7 +260,7 @@ var targumReader = function () {
   }
 
   /* The word a "Met in" link on Your Words opened this page at (targum-internal#497):
-     `?met=<dictionary form>#<sentence>`. Its first time round in that sentence wears
+     `?met=<dictionary form>#<sentence>`, or `#c:v` for a verse. Its first time round in that sentence wears
      the practice card's mark, so the reader finds it in its line at a glance. Drawn with
      the word's other marks rather than after them, so a redraw keeps it. */
   var metWord = "";
@@ -279,6 +284,9 @@ var targumReader = function () {
   // And an occurrence's own, where its pointing names another table than the word's or
   // refuses it (targum-internal#307): per segment, [row, table]. Absent on most pages.
   var paradigmsHere = data.paradigmsHere || {};
+  // And an occurrence's own binyan where it is not the word's (targum-internal#508): per
+  // segment, [row, binyan]. The word's row is its first occurrence's.
+  var binyanimHere = data.binyanimHere || {};
   var conjugationTables = extensions.conjugations || [];
   var conjugationFeatures = extensions.features || [];
   // The other verbs built on this one's root (targum-internal#301): an index per lemma
@@ -380,9 +388,11 @@ var targumReader = function () {
   var lemmaTable = {};
   // The rendering whose words are Onkelos's, which the verse walk draws.
   var targumTable = "";
-  (function () {
-    var ids = Object.keys(translationData);
-    var pageAt = null;
+  // Read for whichever renderings are in hand: the page's own data now, and the
+  // commentaries beside the verse once their block after this script arrives
+  // (`adoptLate`, targum-internal#409).
+  var tableAt = null;
+  function takeTables(ids) {
     for (var r = 0; r < ids.length; r++) {
       var entry = translationData[ids[r]];
       var table = entry && entry.tokens;
@@ -392,9 +402,9 @@ var targumReader = function () {
         besideTongue = String(table.language || "arc");
         targumTable = ids[r];
       }
-      if (own && !pageAt) {
-        pageAt = {};
-        for (var p = 0; p < lemmas.length; p++) pageAt[lemmas[p] + "\u0001" + (heads[p] || "")] = p;
+      if (own && !tableAt) {
+        tableAt = {};
+        for (var p = 0; p < lemmas.length; p++) tableAt[lemmas[p] + "\u0001" + (heads[p] || "")] = p;
       }
       var meant = table.glosses || {};
       Object.keys(meant).forEach(function (code) {
@@ -403,8 +413,8 @@ var targumReader = function () {
       var at = [];
       (table.lemmas || []).forEach(function (lemma, i) {
         var head = (table.heads || [])[i] || "";
-        if (own && pageAt[lemma + "\u0001" + head] !== undefined) {
-          at[i] = pageAt[lemma + "\u0001" + head];
+        if (own && tableAt[lemma + "\u0001" + head] !== undefined) {
+          at[i] = tableAt[lemma + "\u0001" + head];
           return;
         }
         var index = lemmas.length;
@@ -412,7 +422,7 @@ var targumReader = function () {
         lemmas.push(own ? lemma : BESIDE_KEY + lemma);
         heads[index] = head || (own ? "" : lemma);
         lemmaTable[index] = ids[r];
-        if (own) pageAt[lemma + "\u0001" + head] = index;
+        if (own) tableAt[lemma + "\u0001" + head] = index;
         Object.keys(glossesBy).forEach(function (code) {
           glossesBy[code][index] = (meant[code] || [])[i] || "";
         });
@@ -437,7 +447,8 @@ var targumReader = function () {
       });
       besideTables[ids[r]] = held;
     }
-  })();
+  }
+  takeTables(Object.keys(translationData));
 
   // Which rendering's words a cell draws from, or "" for a cell of the text itself: the
   // column while it shows a rendering with words, the verse walk's Onkelos line, or a
@@ -804,7 +815,7 @@ var targumReader = function () {
   // `targum:looked:`, which is a store `vocab.js` retired and still sweeps on load.
   var LOOKED = "targum:cards:" + language;
 
-  // What you have decided about a word. Learning runs 1 to 3, from just met to nearly
+  // What you have decided about a word. Learning runs 1 to 3, from new to you to almost
   // there; known and ignored are ends rather than steps. A word you have never marked
   // is not in the store at all, which is what makes "new" cost nothing to represent.
   var LEARNING = [1, 2, 3];
@@ -2135,9 +2146,9 @@ var targumReader = function () {
   // word: the ignore button reads "a name or a number", and hearing that back as the
   // answer to a keystroke tells you nothing about what happened.
   var SAID = {};
-  SAID[1] = t("reader.level.1", "just met");
-  SAID[2] = t("reader.level.2", "getting there");
-  SAID[3] = t("reader.level.3", "nearly there");
+  SAID[1] = t("reader.level.1", "new to you");
+  SAID[2] = t("reader.level.2", "still learning");
+  SAID[3] = t("reader.level.3", "almost known");
   SAID[KNOWN] = t("reader.level.known", "known");
   SAID[IGNORED] = t("reader.level.ignored", "ignored");
 
@@ -2954,7 +2965,13 @@ var targumReader = function () {
     }
 
     var layers = [];
-    var metHere = !beside && !!metWord && segmentId === metAt;
+    // A Torah book's "Met in" opens its portion at the verse (targum-internal#506), and
+    // a verse's row answers to `#c:v` as well as to its sentence.
+    var metHere =
+      !beside &&
+      !!metWord &&
+      !!metAt &&
+      (segmentId === metAt || (!!holder && holder.id === metAt));
     (beside ? besideRows(table, segmentId) : wordData[segmentId] || []).forEach(function (token) {
       var lemma = lemmas[token[4]];
       var classes = ["w"];
@@ -5689,18 +5706,30 @@ var targumReader = function () {
     return box;
   }
 
-  // The table this occurrence draws: its own where the page carries one, else the word's.
-  function paradigmOf(index, word, row) {
+  // What a per-segment table of [row, value] says for this occurrence, or undefined.
+  function ownHere(table, word, row) {
     var pair = word && word.closest ? word.closest(".pair, .film-pair") : null;
     if (pair && row && !besideCell(word)) {
       var id = pair.getAttribute("data-id");
       var at = (wordData[id] || []).indexOf(row);
-      var here = paradigmsHere[id] || [];
+      var here = table[id] || [];
       for (var i = 0; i < here.length; i++) {
         if (here[i][0] === at) return here[i][1];
       }
     }
-    return paradigmAt[index] || 0;
+    return undefined;
+  }
+
+  // The table this occurrence draws: its own where the page carries one, else the word's.
+  function paradigmOf(index, word, row) {
+    var own = ownHere(paradigmsHere, word, row);
+    return own !== undefined ? own : paradigmAt[index] || 0;
+  }
+
+  // And its binyan, the same way (targum-internal#508).
+  function binyanOf(index, word, row) {
+    var own = ownHere(binyanimHere, word, row);
+    return own !== undefined ? own : binyanim[index] || "";
   }
 
   function conjugations(index, surface, word, row) {
@@ -5848,7 +5877,7 @@ var targumReader = function () {
   function askGranted(then) {
     if (granted !== null || askingGrant || !canAsk() || typeof fetch !== "function") return;
     askingGrant = true;
-    fetch(keyed("/account/me"), { headers: keyHeaders({}) })
+    meOnce(keyed("/account/me"), { headers: keyHeaders({}) })
       .then(function (response) {
         return response.json();
       })
@@ -6444,7 +6473,7 @@ var targumReader = function () {
     // and the root follows from it. Where the root could not be had honestly the
     // binyan still shows on its own, and Pealim answers the rest.
     var root = roots[index];
-    var binyan = binyanim[index];
+    var binyan = binyanOf(index, word, row);
     var table = null;
     if (root || binyan) {
       if (root) {
@@ -7678,9 +7707,9 @@ var targumReader = function () {
   }
 
   function statusName(status) {
-    if (status === 1) return gt("reader.grammar.status-1", "just met");
-    if (status === 2) return gt("reader.grammar.status-2", "getting there");
-    if (status === 3) return gt("reader.grammar.status-3", "nearly there");
+    if (status === 1) return gt("reader.grammar.status-1", "new to you");
+    if (status === 2) return gt("reader.grammar.status-2", "still learning");
+    if (status === 3) return gt("reader.grammar.status-3", "almost known");
     if (status === KNOWN) return gt("reader.grammar.status-known", "known");
     if (status === IGNORED) return gt("reader.grammar.status-ignored", "ignored");
     return "";
@@ -9589,15 +9618,54 @@ var targumReader = function () {
     body.classList.toggle("beside-on", any);
   }
 
-  Array.prototype.slice.call(document.querySelectorAll(".cmp")).forEach(function (cell) {
-    var entry = translationData[cell.getAttribute("data-t") || ""];
-    var pair = cell.closest ? cell.closest(".pair") : null;
-    var text = cell.querySelector(".cmp-text");
-    if (!entry || !entry.text || !pair || !text) return;
-    var line = entry.text[pair.getAttribute("data-id")] || "";
-    text.textContent = line === "\u2014" ? "" : line;
-  });
+  function fillCompanions() {
+    Array.prototype.slice.call(document.querySelectorAll(".cmp")).forEach(function (cell) {
+      var entry = translationData[cell.getAttribute("data-t") || ""];
+      var pair = cell.closest ? cell.closest(".pair") : null;
+      var text = cell.querySelector(".cmp-text");
+      if (!entry || !entry.text || !pair || !text) return;
+      var line = entry.text[pair.getAttribute("data-id")] || "";
+      text.textContent = line === "\u2014" ? "" : line;
+    });
+  }
+  fillCompanions();
   applyCompanions();
+
+  /* The commentaries beside the verse — Rashi, and Rashi in English — ride in a second
+     block after this script (targum-internal#409): parsing them and their word tables
+     before the page could answer a tap cost about half a second on a phone. Their lines
+     are in the markup from the first paint; when the block has arrived, their words
+     become tappable. A word in the verse answers before then. */
+  function adoptLate() {
+    var node = document.getElementById("targum-data-late");
+    if (!node || node.__targumAdopted) return;
+    node.__targumAdopted = true;
+    var late = {};
+    try {
+      late = JSON.parse(node.textContent || "{}");
+    } catch (e) {
+      return;
+    }
+    var fresh = Object.keys(late.translations || {}).filter(function (id) {
+      return !translationData[id];
+    });
+    if (!fresh.length) return;
+    fresh.forEach(function (id) {
+      translationData[id] = late.translations[id];
+    });
+    var from = lemmas.length;
+    takeTables(fresh);
+    // Their words' meanings into the working copy `glosses` was taken from, as it would
+    // have been had they come with the page.
+    var meant = glossesBy[targetLanguage] || [];
+    for (var g = from; g < lemmas.length; g++) if (!glosses[g]) glosses[g] = meant[g] || "";
+    fillCompanions();
+    applyCompanions();
+    // Their words drawn into the cells on screen, as a change of view draws them.
+    redraw();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", adoptLate);
+  else adoptLate();
 
   companionKeys.forEach(function (key) {
     key.addEventListener("click", function () {
@@ -11335,6 +11403,13 @@ var targumReader = function () {
     document.fonts.ready.then(function () {
       relayout();
     });
+    // The faces ride after this script (targum-internal#409), so they may load after
+    // `ready` has already said yes: each that loads lays the page out again, in place.
+    if (document.fonts.addEventListener) {
+      document.fonts.addEventListener("loadingdone", function () {
+        relayout();
+      });
+    }
   }
   // The page is laid out from here on, so from here on a change to it can be measured.
   living = true;
@@ -12126,8 +12201,11 @@ var targumReader = function () {
 })();
 
 /* The player, from `player.js`, where a reader whose text has a recording carries it.
-   Run here, where its closure stood, so nothing starts in another order. */
+   Run here, where its closure stood, so nothing starts in another order. `player.js`
+   comes after this script since 2026-10-21 (targum-internal#409), so where it has not
+   arrived yet it is asked to run itself when it does. */
 if (typeof targumPlayer === "function") targumPlayer();
+else window.targumPlayerWanted = true;
 
 };
 

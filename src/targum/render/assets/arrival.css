@@ -343,3 +343,4 @@ body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
   }
   .arrival-done { inline-size: 100%; padding: 12px 22px; font-size: 1em; }
 }
+.arrival-door[hidden] { display: none; }

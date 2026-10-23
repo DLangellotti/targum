@@ -1972,7 +1972,7 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
     Words are checked because Wikisource is full of index pages that look like texts.
     """
     from targum.catalogue import CATALOGUE, by_id
-    from targum.render.builder import carried, library_page
+    from targum.render.builder import asset_files, library_page
 
     assert CATALOGUE, "an empty catalogue is a page with nothing on it"
     for entry in CATALOGUE:
@@ -1988,11 +1988,15 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
         assert entry.words > 100, entry.id  # an index page, not a text
 
     # The cards are drawn in the browser, from the payload, so that picking a language
-    # can filter them. What the page has to carry is the payload itself: since
-    # 2026-10-19 in a file of its own beside the page, so read with it put back inside.
-    html = carried(library_page("k"))
-    payload = html.split("window.TARGUM_CATALOGUE = ", 1)[1].split("\n", 1)[0].rstrip(";")
-    shipped = json.loads(payload)
+    # can filter them. What the page has to reach is the payload itself: since
+    # 2026-10-22 a JSON file of its own that `library.js` asks for (#484), read here.
+    html = library_page("k")
+    files = json.loads(html.split("window.TARGUM_SHELF_FILES = ", 1)[1].split(";\n", 1)[0])
+    rows: dict[str, Any] = {}
+    for code, address in files.items():
+        for row in json.loads(asset_files()[address][0]).get("catalogue", []) if code else []:
+            rows[row["id"]] = row
+    shipped = sorted(rows.values(), key=lambda row: row["place"])
     assert [entry["id"] for entry in shipped] == [entry.id for entry in CATALOGUE]
     for sent, entry in zip(shipped, CATALOGUE, strict=True):
         assert sent["title"] == entry.title
@@ -5359,7 +5363,13 @@ def _rendering(
 
 
 def _payload(html: str) -> dict:
-    return json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    """The page's data as `reader.js` ends up holding it: the commentaries that ride in
+    the block after `reader.js` (targum-internal#409) taken back into `translations`."""
+    found = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    late = re.search(r'id="targum-data-late"[^>]*>(.*?)</script>', html, re.S)
+    if late:
+        found["translations"].update(json.loads(late.group(1))["translations"])
+    return found
 
 
 def _markup(html: str) -> str:
@@ -5579,6 +5589,46 @@ def test_rashi_sits_beside_the_verse_named_for_rashi_and_every_companion_starts_
     hidden = re.findall(r'<p class="cmp[^"]*"[^>]*data-companion="([\w-]+)"[^>]*hidden', html)
     assert hidden == ["rashi-en", "rashi-en"]
     assert len(re.findall(r'<p class="cmp commented empty" data-t="t2"', html)) == 1
+
+
+def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: Path) -> None:
+    """targum-internal#409: a portion page made a word wait for every byte before
+    `reader.js`. Rashi's text and word tables and the two faces now come after it, so
+    what the page must take before a tap is the verse, its drawn rendering and Onkelos
+    (which the verse walk asks for as the page opens). The budget is the bytes before
+    `reader.js` on this small page; a slip back puts Rashi or a face in front of it."""
+    html = _genesis(tmp_path, [_english(), _onkelos(), _rashi_beside("he", "פירוש")])
+    script_at = html.index("function takeTables(")
+    early = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+    late = re.search(r'id="targum-data-late"[^>]*>(.*?)</script>', html, re.S)
+    assert early is not None and late is not None
+    assert early.start() < script_at < late.start(), "Rashi's data rides after reader.js"
+    held = json.loads(early.group(1))["translations"]
+    assert [v.get("companion", "") for v in held.values()] == ["", "targum"]
+    assert [v["companion"] for v in json.loads(late.group(1))["translations"].values()] == ["rashi"]
+    assert html.index("@font-face") > script_at, "the faces come after reader.js"
+
+
+#: What a portion page may carry, gzipped, before `reader.js` (targum-internal#409): its
+#: stylesheet, the small scripts a tap needs, and this two-verse page's markup and data,
+#: 55.7 kB at 2026-10-21, with a margin. A face (about 30 kB each) back in front of
+#: `reader.js` breaks it; this page's Rashi is too small to, so the order test above is
+#: what guards the commentaries, and the player's has its own.
+BEFORE_READER_GZ = 60_000
+
+
+def test_a_word_waits_for_no_more_than_its_budget(tmp_path: Path) -> None:
+    import gzip
+
+    html = _genesis(tmp_path, [_english(), _onkelos(), _rashi_beside("he", "פירוש")])
+    start = html.index("<script>var targumReader = function")
+    before = len(gzip.compress(html[:start].encode("utf-8"), 6))
+    assert before <= BEFORE_READER_GZ, f"{before} bytes gzipped before reader.js"
+
+
+def test_a_text_without_a_commentary_has_no_late_block(tmp_path: Path) -> None:
+    html = _genesis(tmp_path, [_english(), _onkelos()])
+    assert 'id="targum-data-late"' not in html
 
 
 def test_rashi_in_hebrew_is_kept_for_a_reader_who_reads_english_or_russian(
@@ -6135,7 +6185,7 @@ def test_the_conversation_page_is_said_in_the_language_asked(
     from targum.render.builder import chat_page
 
     plain = chat_page("k")
-    assert 'placeholder="Write in Hebrew or English"' in plain
+    assert 'placeholder="Hebrew or English"' in plain
     real = strings.catalogue
     said = {
         "chat.page.write-in-hebrew-or-english": "Пишите на иврите или по-английски",
@@ -6619,3 +6669,45 @@ def test_what_a_pronoun_stands_for_ships_only_once_it_is_measured(
     monkeypatch.setattr(model_lemma, "ANTECEDENT_PRECISION", 0.93)
     data = _french_page(tmp_path / "b", name)
     assert data["stands"] == {paragraph(1).id: [[0, paragraph(0).id, 7, 15]]}
+
+
+def test_a_reader_in_russian_carries_one_cyrillic_face_and_one_in_english_none(
+    tmp_path: Path,
+) -> None:
+    """qa on #867: a reader whose interface is Russian carries the chrome's Cyrillic cut,
+    the upright alone as it carries the Latin (design.md §13, "Russian is carried too")."""
+    russian = _genesis(
+        tmp_path / "ru",
+        [_rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})],
+    )
+    assert russian.count("unicode-range:U+0400-04FF,U+2011,U+2116") == 1
+    english = _genesis(tmp_path / "en", [_english()])
+    assert "unicode-range" not in english
+
+
+def test_an_occurrence_in_another_binyan_says_its_own(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#508 (ling-he, Gen 12:3): the row for ברך is the page's first
+    occurrence's, pi'el, so וְנִבְרְכוּ (nif'al) was drawn with the pi'el's binyan and table.
+    The occurrence in another binyan carries its own, and its own table with it."""
+    from targum.annotate import paradigms
+
+    piel = paradigms.Paradigm(
+        lemma="בֵּרֵךְ", forms=(paradigms.Form(written="בֵּרַכְתִּי", features=("1st", "past")),)
+    )
+    nifal = paradigms.Paradigm(
+        lemma="נִבְרַךְ", forms=(paradigms.Form(written="נִבְרַכְתִּי", features=("1st", "past")),)
+    )
+    shelf = paradigms.Table(verbs={"p": piel, "n": nifal}, by_form={"ברך": ("p", "n")})
+    monkeypatch.setattr(paradigms, "table", lambda: shelf)
+
+    data = _pointed_page(tmp_path, "ברך", [("ואברכך", "פיעל"), ("ונברכו", "נפעל")])
+    extensions = data["extensions"]
+    assert extensions["binyanim"] == ["פיעל"], "one row for the word, the first one's"
+    ((sid, here),) = data["binyanimHere"].items()
+    assert here == [[1, "נפעל"]], "the second occurrence says its own"
+    ((_, tables),) = data["paradigmsHere"].items()
+    ((row, table),) = tables
+    assert row == 1 and table != extensions["paradigms"][0]
+    assert [form for form, _ in extensions["conjugations"][table]] == ["נִבְרַכְתִּי"]

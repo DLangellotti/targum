@@ -77,9 +77,16 @@ def every(language: str) -> dict[str, Letter]:
                     "stop": "stop3",
                     "rows": [("כתבה", "he", "A link", "/add?source=https%3A%2F%2Fx%2Fa")],
                 },
+                # A subscription named in Hebrew, so its label and its own way out are
+                # Hebrew runs the every-run test reads (qa on #866).
+                {
+                    "name": "כאן ארכיון",
+                    "stop": "stop4",
+                    "rows": [("פלאפל", "he", "Ready", "/r/4")],
+                },
             ],
             SITE,
-            "t=stop2&t=stop3",
+            "t=stop2&t=stop3&t=stop4",
             language,
         ),
         "ready": letters.build_ready(
@@ -182,7 +189,11 @@ def test_the_digest_is_named_and_says_what_this_week_is() -> None:
     assert "lang" not in russian.headers["List-Unsubscribe"], "the one-click POST reads no lang"
 
     quiet = letters.weekly_issue(issue(blurb=""), SITE, "tok")
-    assert quiet.text.startswith("Monday, September 28, 2026"), "no blurb, nothing in its place"
+    # Named in the reader's language over the masthead, which carries the date: the date
+    # was the label too, said twice (targum-internal#470).
+    assert quiet.text.startswith("Weekly News Digest"), "no blurb, nothing in its place"
+    assert "(if you know 1,000 words)" in english.text, "lower case mid-line in the text"
+    assert "If you know 1,000 words" in english.html, "a line of its own in the drawing"
 
 
 def test_the_digest_s_masthead_is_its_hebrew_name_and_the_week() -> None:
@@ -220,6 +231,7 @@ def test_a_ready_mail_is_a_tile_the_title_and_open() -> None:
         parts=4,
         seconds=24 * 60,
     )
+    # Open, as design.md §12 has it (David, 2026-10-21: the button stays Open).
     assert ">Open<" in film.html and ">Watch<" not in film.html
     assert "Ready to watch" in film.html
     assert 'dir="rtl" lang="he"' in film.html, "the title in its own direction"
@@ -247,7 +259,8 @@ def test_the_account_deleted_mail_says_when_what_and_when_the_backups_forget() -
     )
     assert mail.subject == "Your targum account is deleted"
     assert "on October 8, 2026" in mail.text and "on October 15, 2026" in mail.text
-    assert "gone by October 29, 2026" in mail.text and "every 14 days" in mail.text
+    assert "gone by October 29, 2026" in mail.text and "keep 14 days" in mail.text
+    assert "at the end of the 7 days" in mail.text, "the grace period, not a written seven"
     assert "can't restore it" in mail.text and "last email" in mail.text
     assert not mail.headers, "transactional: no list headers"
     russian = letters.account_deleted(
@@ -277,10 +290,79 @@ def test_the_harness_draws_every_mail_and_sends_nothing(tmp_path: Path) -> None:
 
 def test_the_daily_mail_draws_each_thing_as_a_tile_and_keeps_its_ways_out() -> None:
     mail = every("en")["daily"]
-    assert ">ה</td>" in mail.html or "ה</td>" in mail.html, "the first letter on its tile"
+    assert '<span lang="he">ה</span></td>' in mail.html, "the first letter on its tile, in Hebrew"
     assert "Unsubscribe from all of these" in mail.html and "Your subscriptions" in mail.html
-    assert mail.headers["List-Unsubscribe"] == f"<{SITE}/subscriptions/stop?t=stop2&t=stop3>"
+    assert mail.headers["List-Unsubscribe"] == (
+        f"<{SITE}/subscriptions/stop?t=stop2&t=stop3&t=stop4>"
+    )
+    # The Hebrew name in its own way out is isolated, in Hebrew (qa on #866).
+    assert 'Unsubscribe from <bdi lang="he" dir="rtl">כאן ארכיון</bdi>' in mail.html
     assert mail.headers["List-Id"].startswith("subscriptions <")
+
+
+def test_every_hebrew_run_in_every_mail_says_its_language_and_direction() -> None:
+    """targum-internal#470, B1: a Hebrew subscription name was an uppercase, tracked
+    English label, and a row tile's letter took the page's language. Every element whose
+    text is Hebrew carries `lang`, and every one above a word carries `dir` too."""
+    for language in LANGUAGES:
+        for name, mail in every(language).items():
+            for tag, inner in re.findall(
+                r"<(p|span|a|td|h1|bdi)\b([^>]*)>[^<]*[\u0590-\u05ff]", mail.html
+            ):
+                assert "lang=" in inner, (language, name, tag, inner[:80])
+
+
+def test_a_hebrew_subscription_name_is_drawn_in_hebrew() -> None:
+    mail = letters.subscriptions_daily(
+        [{"name": "כאן ארכיון", "stop": "s", "rows": [("פלאפל", "he", "Ready", "/r/1")]},
+         {"name": "Sport", "stop": "t", "rows": [("כתבה", "he", "A link", "/r/2")]}],
+        SITE,
+        "t=s&t=t",
+        "en",
+    )  # fmt: skip
+    label = re.search(r'<p lang="he" dir="rtl"[^>]*>כאן ארכיון</p>', mail.html)
+    assert label is not None and "uppercase" not in label.group(0)
+    assert re.search(r"text-transform:uppercase;[^>]*>Sport</p>", mail.html), (
+        "a Latin name stays a label"
+    )
+    # The whole row is the link (polish 1), and the subject isolates the name (polish 4).
+    assert f'<a href="{SITE}/r/1" style="display:block;' in mail.html
+    one = letters.subscriptions_daily(
+        [{"name": "כאן ארכיון", "stop": "s", "rows": [("פלאפל", "he", "Ready", "/r/1")]}],
+        SITE,
+        "t=s",
+        "en",
+    )
+    assert one.subject.startswith("\u2068כאן ארכיון\u2069")
+
+
+def test_a_busy_day_draws_thirty_rows_and_says_how_many_more() -> None:
+    """Polish 5: past about ninety rows Gmail clips the mail and the unsubscribe foot."""
+    rows = [(f"Title {n}", "en", "Ready", f"/r/{n}") for n in range(40)]
+    mail = letters.subscriptions_daily(
+        [{"name": "Feed", "stop": "s", "rows": rows}], SITE, "t=s", "en"
+    )
+    assert "Title 29" in mail.html and "Title 30" not in mail.html
+    assert "And 10 more in" in mail.html and "Unsubscribe from all of these" in mail.html
+    assert "Your subscriptions</a>.</p>" in mail.html, "the sentence ends"
+    russian = letters.subscriptions_daily(
+        [{"name": "Feed", "stop": "s", "rows": rows}], SITE, "t=s", "ru"
+    )
+    assert "в разделе «Ваши подписки»: https://" in russian.text, "quoted, no full stop"
+    assert ".:" not in russian.text and ".:" not in mail.text
+
+
+def test_a_long_recording_says_hours() -> None:
+    """Polish 3: three hours is "3 hr 0 min", not "180 min"."""
+    mail = letters.build_ready(
+        "Long", f"{SITE}/reader/x", SITE, "en", asked=False, listen=True, seconds=3 * 3600 + 300
+    )
+    assert "3 hr 5 min" in mail.html and "185 min" not in mail.html
+    hour = letters.build_ready(
+        "Long", f"{SITE}/reader/x", SITE, "en", asked=False, listen=True, seconds=2 * 3600
+    )
+    assert "2 hr<" in hour.html or "2 hr " in hour.html or "2 hr" in hour.text
+    assert "0 min" not in hour.html, "on the hour, no minutes"
 
 
 def test_a_daily_cycle_is_in_the_one_mail_a_day(tmp_path: Any) -> None:
@@ -434,3 +516,22 @@ def test_a_hosted_server_purges_nightly() -> None:
 
     assert "keep_purging_nightly=hosted" in inspect.getsource(cli.serve)
     assert inspect.signature(start).parameters["keep_purging_nightly"].default is False
+
+
+def test_a_saved_link_got_ready_on_targum_says_why_it_came() -> None:
+    """A stranger's saved link, built when they were let in: they never started it, so the
+    foot says where it came from rather than "your text took more than a few minutes"
+    (ling-en, targum-internal#470)."""
+    from targum.letters import build_ready
+
+    gift = build_ready("Ruth", f"{SITE}/reader/r", SITE, "en", asked=False, listen=False, gift=True)
+    assert "saved this link on targum's front page" in gift.text
+    assert "more than a few minutes" not in gift.text
+
+
+def test_the_invitation_carries_its_connect_link_as_a_link() -> None:
+    from targum.letters import invitation
+
+    mail = invitation(SITE, connector=True)
+    assert f'href="{SITE}/connect"' in mail.html, "a link, not escaped text in a paragraph"
+    assert "Connect targum to Claude or ChatGPT" in mail.text

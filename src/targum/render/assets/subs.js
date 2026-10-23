@@ -39,6 +39,17 @@
   var UNREACHED = t("subs.unreached", "We can't reach targum. Try again in a moment.");
   var FAILED = t("subs.failed", "We couldn't do that. Try again.");
 
+  /* A Resume the door refuses with 409 is a channel or a podcast that was unsubscribed
+     in the meantime (another tab, another device): it spends again only from the confirm
+     page, where its cap is chosen beside the press (design.md §12, "A monthly cap is the
+     second press that lasts"). The door says where that page is; the press goes there
+     rather than saying it failed (#475, qa-claude after #883). */
+  function toConfirm(got) {
+    if (!got || got.status !== 409 || typeof got.confirm !== "string" || got.confirm.charAt(0) !== "/") return false;
+    window.location.assign(keyed(got.confirm));
+    return true;
+  }
+
   function ask(path, body) {
     var head = { "Content-Type": "application/json" };
     if (key) head["X-Targum-Key"] = key;
@@ -126,6 +137,46 @@
     return one.kind === "topic" ? topicName(one.key) : one.name;
   }
 
+  /* The language a name is marked with (#475 B5): a topic's name and a series' are the
+     interface's words, so they take the page's; a channel's, a podcast's or an outlet's
+     own name is marked only when it is written in Hebrew letters ("Ivrit Club" and
+     "ynet" are not Hebrew). */
+  var HEBREW_LETTERS = /[\u0590-\u05ff\ufb1d-\ufb4f]/;
+  function nameLang(one) {
+    if (one.kind === "topic" || one.kind === "series") return "";
+    return HEBREW_LETTERS.test(nameOf(one) || "") ? one.language || "he" : "";
+  }
+  function named(one) {
+    var run = said(nameOf(one), nameLang(one));
+    if (nameLang(one) && /^(he|yi|arc)$/.test(nameLang(one))) run.setAttribute("dir", "rtl");
+    return run;
+  }
+
+  /* A sentence with runs of its own spliced in where its placeholders stand, so a Hebrew
+     title inside an English or Russian sentence keeps its own order and language
+     (#475 B6). `runs` maps a placeholder's name to the node that stands there. */
+  function spliced(key, english, fill, runs) {
+    var marks = {};
+    var given = {};
+    Object.keys(fill || {}).forEach(function (name) {
+      given[name] = fill[name];
+    });
+    Object.keys(runs).forEach(function (name, at) {
+      var mark = "\u0001" + at + "\u0001";
+      marks[mark] = runs[name];
+      given[name] = mark;
+    });
+    var out = document.createDocumentFragment();
+    String(t(key, english, given))
+      .split(/(\u0001\d+\u0001)/)
+      .forEach(function (piece) {
+        if (!piece) return;
+        if (marks[piece]) out.appendChild(marks[piece]);
+        else out.appendChild(document.createTextNode(piece));
+      });
+    return out;
+  }
+
   function every(one) {
     if (one.every === "day") return t("subs.every.day", "Every day");
     if (one.every === "week") return t("subs.every.week", "Every week");
@@ -139,7 +190,7 @@
   }
 
   function month(one) {
-    if (!one.builds) return t("subs.month.free", "No credits");
+    if (!one.builds) return t("subs.month.free", "Uses no credits");
     return t("subs.month.used", "{used} of {cap} credits", { used: one.used, cap: one.cap });
   }
 
@@ -221,7 +272,7 @@
     var names = el("div", "sub-names");
     var link = el("a", "sub-name");
     link.href = keyed(one.page);
-    link.appendChild(said(nameOf(one), one.kind === "series" ? "" : one.language));
+    link.appendChild(named(one));
     names.appendChild(link);
     if (one.hebrew) {
       var hebrew = said(one.hebrew, "he");
@@ -266,8 +317,9 @@
       resume.type = "button";
       resume.onclick = function () {
         resume.disabled = true;
-        ask("/subscriptions/" + one.id, { action: "resume" }).then(function () {
-          drawTab(lastHost);
+        ask("/subscriptions/" + one.id, { action: "resume" }).then(function (got) {
+          if (toConfirm(got)) return;
+          drawTab(lastHost, true);
         });
       };
       right.appendChild(resume);
@@ -302,7 +354,7 @@
       pause.onclick = function () {
         pause.disabled = true;
         ask("/subscriptions/" + one.id, { action: "pause" }).then(function () {
-          drawTab(lastHost);
+          drawTab(lastHost, true);
         });
       };
       acts.appendChild(pause);
@@ -360,7 +412,7 @@
       press.onclick = function () {
         press.disabled = true;
         ask("/account/follows", { series: one.id, on: true }).then(function () {
-          drawTab(lastHost);
+          drawTab(lastHost, true);
         });
       };
       item.appendChild(press);
@@ -371,28 +423,119 @@
 
   var lastHost = null;
 
+  /* The tab's answer, asked as the page opens when the page opens on the tab
+     (targum-internal#484): it waited for the shelf before, a round trip after `/readers`.
+     Kept for the page's own redraws, which used to ask it again each time the account
+     answered; a press on the tab asks afresh (`drawTab(host, true)`). */
+  var answered = null;
+  try {
+    if (new URLSearchParams(location.search).get("show") === "subscriptions") {
+      answered = ask("/subscriptions.json");
+    }
+  } catch (e) {
+    answered = null;
+  }
+
+  /* No connection is said once, by the connection's band (design.md §12, 2026-10-09),
+     never a second time by a line of the page's under it (#475 polish 1). Off the band's
+     page, the line says it. */
+  function unreachedSaid(line, retry) {
+    if (window.TargumFault && window.TargumFault.unreachable) {
+      window.TargumFault.unreachable(retry);
+      if (line) line.hidden = true;
+      return;
+    }
+    if (line) {
+      line.textContent = UNREACHED;
+      line.hidden = false;
+    }
+  }
+
+  /* While a list is on its way (#475 B2): a line at first paint, and past 3 s that it is
+     slow, with Try again. Returns what stops it. */
+  var SLOW_MS = 3000;
+  function waiting(box, line, again) {
+    if (!box) return function () {};
+    box.hidden = false;
+    var timer = setTimeout(function () {
+      if (!line) return;
+      line.textContent = t("subs.slow", "This is taking longer than usual.") + " ";
+      var press = el("button", "btn tonal small sub-again", t("subs.try-again", "Try again"));
+      press.type = "button";
+      press.onclick = function () {
+        press.disabled = true;
+        again();
+      };
+      line.appendChild(press);
+    }, SLOW_MS);
+    return function () {
+      clearTimeout(timer);
+      box.hidden = true;
+    };
+  }
+
   /* Home's Subscriptions tab, drawn into `host` (`#subs-panel`). Signed out — a machine
      somebody runs with nobody signed in — the browser's own list of series is all there
      is, and `follow.js` draws it as before. */
-  function drawTab(host) {
+  function drawTab(host, fresh) {
     if (!host) return Promise.resolve(false);
     lastHost = host;
-    return ask("/subscriptions.json").then(function (answer) {
+    var loading = host.querySelector("#subs-loading");
+    var settle = host.getAttribute("data-drawn")
+      ? function () {}
+      : waiting(loading, host.querySelector("#subs-loading-said"), function () {
+          drawTab(host, true);
+        });
+    if (fresh || !answered) answered = ask("/subscriptions.json");
+    var asked = answered;
+    // A refusal or a dropped connection is not kept: the next draw asks again.
+    asked.then(
+      function (answer) {
+        if (answer.status !== 200 && answered === asked) answered = null;
+      },
+      function () {
+        if (answered === asked) answered = null;
+      }
+    );
+    return asked.then(function (answer) {
+      settle();
+      if (loading) loading.hidden = true;
+      host.setAttribute("data-drawn", "1");
       var table = host.querySelector("#subs-rows");
       var chipHost = host.querySelector("#subs-chips");
       var line = host.querySelector("#subs-credits");
       var none = host.querySelector("#subs-empty");
       var offered = host.querySelector("#subs-offer");
       var sayLine = host.querySelector("#subs-said");
-      if (answer.status !== 0 && answer.signedIn !== true) {
-        // Nobody signed in — or a page off the disk with no server behind it.
+      if (answer.status === 401) {
+        // Nobody signed in: say so with the way in, and the browser's own series under it
+        // (a machine somebody runs with nobody signed in). Never "nothing subscribed".
+        if (sayLine) faultLine(sayLine, t("subs.page.sign-in", "Sign in to see your subscriptions."), signIn());
+        return drawSignedOut(host, true);
+      }
+      if (answer.status === 200 && answer.signedIn !== true) {
+        // An answer that names nobody signed in — a machine somebody runs with no
+        // account on it: the browser's own series, as before.
         return drawSignedOut(host);
       }
       if (answer.status !== 200) {
-        if (sayLine) {
-          sayLine.textContent = answer.status === 0 ? UNREACHED : FAILED;
-          sayLine.hidden = false;
+        // No connection is said by the band; a fault on our side (a 5xx, or an answer
+        // that isn't ours) with Try again. A fault is never told as an empty list
+        // (design.md §14.1).
+        if (answer.status === 0) {
+          unreachedSaid(sayLine, function () {
+            drawTab(host);
+          });
+        } else if (sayLine) {
+          faultLine(
+            sayLine,
+            t("subs.load-failed", "We couldn't load your subscriptions."),
+            tryAgain(function () {
+              drawTab(host);
+            })
+          );
         }
+        if (none) none.hidden = true;
         return false;
       }
       if (sayLine) sayLine.hidden = true;
@@ -429,13 +572,22 @@
         });
         chips(chipHost, rows, redraw);
         table.textContent = "";
-        rows
-          .filter(function (one) {
-            return tabView.chip === "all" || chipOf(one.kind) === tabView.chip;
-          })
-          .forEach(function (one) {
-            table.appendChild(row(one, back));
-          });
+        var shown = rows.filter(function (one) {
+          return tabView.chip === "all" || chipOf(one.kind) === tabView.chip;
+        });
+        shown.forEach(function (one) {
+          table.appendChild(row(one, back));
+        });
+        // News with no topic says so, with the way to the topics in the Library's News
+        // (#475 B3; David, 2026-10-22).
+        if (tabView.chip === "news" && !shown.length) {
+          var empty = el("li", "sub-empty-chip");
+          empty.appendChild(document.createTextNode(t("subs.news.none", "You don't follow a news topic yet.") + " "));
+          var go = el("a", "btn tonal small sub-follow-topic", t("subs.news.follow", "Follow a topic"));
+          go.href = keyed("/library#see/kind/article");
+          empty.appendChild(go);
+          table.appendChild(empty);
+        }
       }
       redraw();
       var head = host.querySelector("#subs-head");
@@ -453,7 +605,7 @@
         var known = every.length && answer.credits && answer.credits.left !== null && answer.credits.left !== undefined;
         if (builds.length || known) parts.push(tn("subs.credits.used", spent, "{n} credit on subscriptions this month", "{n} credits on subscriptions this month"));
         if (known) {
-          parts.push(tn("subs.credits.left", answer.credits.left, "{n} left in all, resets on {date}", "{n} left in all, resets on {date}", { date: back }));
+          parts.push(tn("subs.credits.left", answer.credits.left, "{n} credit left in all, resets on {date}", "{n} credits left in all, resets on {date}", { date: back }));
         }
         line.textContent = parts.join(" · ");
         line.hidden = !parts.length;
@@ -470,10 +622,38 @@
     });
   }
 
-  function drawSignedOut(host) {
+  /* A line that says what went wrong, and the one press that goes on from it. */
+  function faultLine(line, text, press) {
+    line.textContent = "";
+    line.appendChild(document.createTextNode(text));
+    if (press) {
+      line.appendChild(document.createTextNode(" "));
+      line.appendChild(press);
+    }
+    line.hidden = false;
+  }
+
+  function tryAgain(again) {
+    var press = el("button", "btn tonal small sub-again", t("subs.try-again", "Try again"));
+    press.type = "button";
+    press.onclick = function () {
+      press.disabled = true;
+      again();
+    };
+    return press;
+  }
+
+  function signIn() {
+    var press = el("a", "btn tonal small sub-sign-in", t("subs.sign-in", "Sign in"));
+    press.href = "/account/signin?next=" + encodeURIComponent(window.location.pathname + window.location.search);
+    return press;
+  }
+
+  function drawSignedOut(host, told) {
     var follow = window.TargumFollow;
     var list = host.querySelector("#home-series");
     var none = host.querySelector("#subs-empty");
+    if (told && none) none.hidden = true;
     if (!follow || !list) return Promise.resolve(false);
     return follow.list().then(function (series) {
       var order = series.slice().sort(function (a, b) {
@@ -481,7 +661,7 @@
       });
       follow.draw(list, order);
       list.hidden = false;
-      if (none) none.hidden = series.length > 0;
+      if (none) none.hidden = told || series.length > 0;
       return true;
     });
   }
@@ -545,8 +725,11 @@
   /* An item's picture: the frame its reader keeps once it is made, else a plain cell
      with the medium's glyph — never somebody else's server. */
   function itemPicture(one, item) {
-    var box = el("span", "sub-item-pic" + (one.kind === "channel" ? " is-wide" : ""));
     var found = /^\/reader\/([^/]+)\/reader\//.exec(item.reader || "");
+    // An article with no picture of its own has a blank tile, which a phone leaves out
+    // (#475 polish 3).
+    var blank = !found && (one.kind === "topic" || one.kind === "outlet");
+    var box = el("span", "sub-item-pic" + (one.kind === "channel" ? " is-wide" : "") + (blank ? " is-blank" : ""));
     if (found) {
       var img = el("img");
       img.alt = "";
@@ -667,6 +850,19 @@
     body.textContent = "";
     document.title = nameOf(one) + " — targum";
 
+    // What a press did is said under the head, where the press was (#475 polish 4).
+    function sayUnderHead(text) {
+      var head = body.querySelector(".sub-head");
+      if (!head) {
+        saidLine.textContent = text;
+        saidLine.hidden = false;
+        return;
+      }
+      var line = el("p", "said sub-head-said", text);
+      line.setAttribute("role", "status");
+      head.parentNode.insertBefore(line, head.nextSibling);
+      saidLine.hidden = true;
+    }
     function act(label, action, className, glyphName) {
       var press = el("button", className);
       press.type = "button";
@@ -676,16 +872,16 @@
         press.disabled = true;
         ask("/subscriptions/" + one.id, { action: action }).then(function (got) {
           if (got.status === 200 && got.subscription) {
-            drawOne(got, body, saidLine);
+            var said = drawOne(got, body, saidLine);
             if (action === "unsubscribe") {
-              saidLine.textContent = t("subs.unsubscribed", "You're unsubscribed. Nothing more comes from it.");
-              saidLine.hidden = false;
+              said(t("subs.unsubscribed", "You're unsubscribed. Nothing more comes from it."));
             }
             return;
           }
+          if (toConfirm(got)) return;
           press.disabled = false;
-          saidLine.textContent = got.status === 0 ? UNREACHED : FAILED;
-          saidLine.hidden = false;
+          if (got.status === 0) unreachedSaid(null);
+          else sayUnderHead(FAILED);
         });
       };
       return press;
@@ -698,6 +894,13 @@
       } else if (one.state === "paused") {
         out.push(act(t("subs.resume", "Resume"), "resume", "btn ghost outline sub-resume", "play"));
         out.push(act(t("subs.unsubscribe", "Unsubscribe"), "unsubscribe", "btn ghost outline danger sub-stop", "stop"));
+      } else if (one.again) {
+        // A channel or a podcast spends again only from the confirm page, where its cap
+        // is chosen and said beside the press (design.md §12, "A monthly cap is the second
+        // press that lasts"): Subscribe again goes there, never straight back on.
+        var again = el("a", "btn filled sub-resume", t("subs.subscribe-again", "Subscribe again"));
+        again.href = keyed(one.again);
+        out.push(again);
       } else {
         out.push(act(t("subs.subscribe-again", "Subscribe again"), "resume", "btn filled sub-resume"));
       }
@@ -709,7 +912,7 @@
     var names = el("div", "sub-names");
     var h1 = el("h1", "sub-title");
     h1.id = "sub-name";
-    h1.appendChild(said(nameOf(one), one.kind === "series" ? "" : one.language));
+    h1.appendChild(named(one));
     names.appendChild(h1);
     if (one.hebrew) {
       var hebrew = said(one.hebrew, "he");
@@ -721,7 +924,9 @@
     var facts = [];
     if (languageName(one.language)) facts.push(languageName(one.language));
     facts.push(every(one));
-    if (one.since) facts.push(t("subs.since", "subscribed since {date}", { date: whenSaid(one.since) }));
+    var off = one.state === "off";
+    if (off && one.ended) facts.push(t("subs.ended", "You unsubscribed on {date}.", { date: whenSaid(one.ended) }));
+    else if (!off && one.since) facts.push(t("subs.since", "subscribed since {date}", { date: whenSaid(one.since) }));
     meta.appendChild(document.createTextNode(" " + facts.join(" · ")));
     names.appendChild(meta);
     head.appendChild(names);
@@ -733,7 +938,7 @@
     body.appendChild(head);
 
     if (one.state === "paused") {
-      body.appendChild(el("p", "sub-paused-note", t("subs.paused.note", "Paused. Nothing gets ready and nothing is mailed. When you resume, what came out meanwhile is listed here for you to choose.")));
+      body.appendChild(el("p", "sub-paused-note", t("subs.paused.note", "Paused. Nothing gets ready and we send no mail about it. When you resume, you'll find what came out meanwhile here, to choose from.")));
     }
 
     var items = one.items || [];
@@ -754,24 +959,23 @@
         return item.state === "waiting";
       })[0];
       var full = el("section", "card sub-capped");
-      full.appendChild(
-        el(
-          "p",
-          "",
-          waiting
-            ? t("subs.capped.says", "This month's {cap} credits for {name} are used. {title} gets ready by itself on {date}.", {
-                cap: one.cap,
-                name: nameOf(one),
-                title: waiting.title,
-                date: back,
-              })
-            : t("subs.capped.says-none", "This month's {cap} credits for {name} are used. The next one gets ready by itself on {date}.", {
-                cap: one.cap,
-                name: nameOf(one),
-                date: back,
-              })
-        )
+      var says = el("p", "");
+      says.appendChild(
+        waiting
+          ? spliced(
+              "subs.capped.says",
+              "You've used this month's {cap} credits for {name}. {title} gets ready by itself on {date}.",
+              { cap: one.cap, date: back },
+              { name: named(one), title: said(waiting.title, one.language) }
+            )
+          : spliced(
+              "subs.capped.says-none",
+              "You've used this month's {cap} credits for {name}. The next one gets ready by itself on {date}.",
+              { cap: one.cap, date: back },
+              { name: named(one) }
+            )
       );
+      full.appendChild(says);
       var row = el("div", "sub-capped-row");
       var raise = el("a", "btn filled", t("subs.act.raise-cap", "Raise the cap"));
       raise.href = "#sub-cap";
@@ -789,31 +993,44 @@
     else {
       var none = el("section", "card sub-items");
       none.appendChild(el("h2", "section-title", itemsHead(one)));
-      none.appendChild(el("p", "note sub-none", t("subs.items.none", "Nothing yet. New ones appear here as they come out.")));
+      // Off, nothing more comes, so the page doesn't promise any (#475, qa-claude).
+      none.appendChild(
+        el(
+          "p",
+          "note sub-none",
+          off
+            ? t("subs.items.none-off", "You're unsubscribed, so nothing new comes here.")
+            : t("subs.items.none", "Nothing yet. New ones appear here as they come out.")
+        )
+      );
       main.appendChild(none);
     }
-    var meanwhile = section(t("subs.paused.head", "Out while it was paused"), t("subs.not-by-itself", "Not got ready unless you choose"), paused, one, back);
+    var meanwhile = section(t("subs.paused.head", "Out while it was paused"), t("subs.not-by-itself", "Gets ready only when you choose"), paused, one, back);
     if (meanwhile) main.appendChild(meanwhile);
-    var earlier = section(t("subs.before.head", "Out before you subscribed"), t("subs.not-by-itself", "Not got ready unless you choose"), before, one, back);
+    var earlier = section(t("subs.before.head", "Out before you subscribed"), t("subs.not-by-itself", "Gets ready only when you choose"), before, one, back);
     if (earlier) main.appendChild(earlier);
 
-    if (one.builds) side.appendChild(capSection(answer, body, saidLine, now));
+    // Off, there is no cap and no mail to speak of: nothing comes until it is subscribed
+    // to again, and for a channel or a podcast the cap is chosen again then.
+    if (one.builds && !off) side.appendChild(capSection(answer, body, saidLine, now));
     // The mail (design.md §12, "Everything new comes in one mail a day"): one a day, with
     // everything new; the way out of it is the way out of the subscription.
-    var mail = el("section", "card sub-mail");
-    mail.appendChild(el("h2", "section-title", t("subs.mail.head", "Mail")));
-    var line = el("p", "sub-mail-line");
-    line.appendChild(glyph("mail"));
-    line.appendChild(
-      document.createTextNode(
-        one.key === "weekly" && one.kind === "series"
-          ? t("subs.mail.weekly", "The weekly comes by mail every Monday. To stop it, unsubscribe.")
-          : t("subs.mail.says", "What's new comes in one mail a day, with everything else new. To stop it, unsubscribe.")
-      )
-    );
-    mail.appendChild(line);
-    mail.appendChild(el("p", "note", t("subs.mail.continue", "It shows under Continue too.")));
-    side.appendChild(mail);
+    if (!off) {
+      var mail = el("section", "card sub-mail");
+      mail.appendChild(el("h2", "section-title", t("subs.mail.head", "Mail")));
+      var line = el("p", "sub-mail-line");
+      line.appendChild(glyph("mail"));
+      line.appendChild(
+        document.createTextNode(
+          one.key === "weekly" && one.kind === "series"
+            ? t("subs.mail.weekly", "The weekly comes by mail every Monday. To stop it, unsubscribe.")
+            : t("subs.mail.says", "What's new comes in one mail a day, with everything else new. To stop it, unsubscribe.")
+        )
+      );
+      mail.appendChild(line);
+      mail.appendChild(el("p", "note", t("subs.mail.continue", "It shows under Continue too.")));
+      side.appendChild(mail);
+    }
 
     // On a phone, Pause and Unsubscribe at the foot, each with what it does.
     var stop = el("section", "card sub-stop-card");
@@ -839,6 +1056,7 @@
         hook(answer, body, saidLine);
       } catch (e) {}
     });
+    return sayUnderHead;
   }
 
   /* The month's cap, changed here and nowhere else (design.md §12, "A monthly cap is the
@@ -888,14 +1106,18 @@
       radio.checked = Number(value) === Number(one.cap);
       label.appendChild(radio);
       label.appendChild(el("span", "cap-number", String(value)));
-      if (each) {
+      if (each && value < each) {
+        // A cap smaller than one new one says so, and never rounds up to one (#475 B7).
+        label.appendChild(el("span", "cap-about is-short", t("subs.cap.less-than-one", "less than one new one")));
+      } else if (each) {
+        var fits = Math.floor(value / each);
         label.appendChild(
           el(
             "span",
             "cap-about",
             one.kind === "podcast"
-              ? tn("subs.cap.about-episodes", Math.max(1, Math.round(value / each)), "about {n} episode", "about {n} episodes")
-              : tn("subs.cap.about-videos", Math.max(1, Math.round(value / each)), "about {n} video", "about {n} videos")
+              ? tn("subs.cap.about-episodes", fits, "about {n} episode", "about {n} episodes")
+              : tn("subs.cap.about-videos", fits, "about {n} video", "about {n} videos")
           )
         );
       }
@@ -927,14 +1149,15 @@
       save.disabled = true;
       ask("/subscriptions/" + one.id, { action: "cap", cap: Number(picked.value) }).then(function (got) {
         if (got.status === 200 && got.subscription) {
-          drawOne(got, body, saidLine);
-          saidLine.textContent = t("subs.cap.saved", "Saved. The cap is {cap} credits a month.", { cap: got.subscription.cap });
-          saidLine.hidden = false;
+          drawOne(got, body, saidLine)(t("subs.cap.saved", "Saved. The cap is {cap} credits a month.", { cap: got.subscription.cap }));
           return;
         }
         save.disabled = false;
-        saidLine.textContent = got.status === 0 ? UNREACHED : FAILED;
-        saidLine.hidden = false;
+        if (got.status === 0) unreachedSaid(null);
+        else {
+          saidLine.textContent = FAILED;
+          saidLine.hidden = false;
+        }
       });
     };
     cap.appendChild(form);
@@ -953,28 +1176,45 @@
     var saidLine = document.getElementById("sub-said");
     var backLink = document.getElementById("sub-back");
     if (backLink) backLink.href = keyed(backLink.getAttribute("href"));
+    var loading = document.getElementById("sub-loading");
     if (!found) {
+      if (loading) loading.hidden = true;
       gone.hidden = false;
       return;
     }
-    ask("/subscriptions/" + found[1] + ".json").then(function (answer) {
-      if (answer.status === 401) {
-        stranger.hidden = false;
-        return;
-      }
-      if (answer.status !== 200 || !answer.subscription) {
-        if (answer.status === 0) {
-          saidLine.textContent = UNREACHED;
-          saidLine.hidden = false;
-          section.hidden = false;
+    function load() {
+      var settle = waiting(loading, document.getElementById("sub-loading-said"), load);
+      ask("/subscriptions/" + found[1] + ".json").then(function (answer) {
+        settle();
+        if (answer.status === 401) {
+          stranger.hidden = false;
+          var line = stranger.querySelector("p");
+          if (line && !stranger.querySelector(".sub-sign-in")) {
+            line.appendChild(document.createTextNode(" "));
+            line.appendChild(signIn());
+          }
           return;
         }
-        gone.hidden = false;
-        return;
-      }
-      section.hidden = false;
-      drawOne(answer, body, saidLine);
-    });
+        if (answer.status === 404) {
+          gone.hidden = false;
+          return;
+        }
+        if (answer.status !== 200 || !answer.subscription) {
+          // No connection, or a fault on our side: never told as "we couldn't find it".
+          section.hidden = false;
+          if (answer.status === 0) {
+            unreachedSaid(saidLine, load);
+            return;
+          }
+          faultLine(saidLine, t("subs.load-failed-one", "We couldn't load this subscription."), tryAgain(load));
+          return;
+        }
+        saidLine.hidden = true;
+        section.hidden = false;
+        drawOne(answer, body, saidLine);
+      });
+    }
+    load();
   }
 
   window.TargumSubs = {

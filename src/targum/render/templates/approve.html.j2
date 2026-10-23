@@ -64,7 +64,7 @@
           {%- else %}<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>{% endif -%}
         </svg></span>
         <span class="scope-says">{{ t("connect.scope." + scope.name, scope.says) }}
-          {%- if scope.name == 'chat' %}<small>{{ t("connect.scope.chat-also", "And add texts to your playlists, and offer texts, playlists and subscriptions, which you confirm here, on targum") }}</small>{% endif %}</span>
+          {%- if scope.name == 'chat' %}<small>{{ t("connect.scope.chat-also", "It can also add texts to your playlists, and suggest texts, playlists and subscriptions for you to confirm on targum.") }}</small>{% endif %}</span>
       </li>
       {%- endfor %}
     </ul>
@@ -76,7 +76,7 @@
     <div class="grant-well">
       <p><b>{{ t("connect.page.chatting-is-included-sentence", "Chatting is included.") }}</b></p>
       <p>{{ t("connect.page.uses-credits-once-confirmed", "A text, playlist or subscription uses credits only once you confirm it here.") }}
-        {%- if left is not none %} {{ tn("connect.page.credits-left", left, "You have {n} credit left this month, about {clock} of audio.", "You have {n} credits left this month, about {clock} of audio.", clock=clock) }}{% endif %}</p>
+        {%- if left is not none %} {{ tn("connect.page.credits-left", left, "You have {n} credit left this month, about {clock} of audio or video.", "You have {n} credits left this month, about {clock} of audio or video.", clock=clock) }}{% endif %}</p>
       <p class="grant-keep">{{ t("connect.page.we-keep-the-lines", "We keep the lines we correct, and add that language to the ones you're learning.") }}</p>
     </div>
     {%- endif %}
@@ -91,7 +91,7 @@
       <button class="ghost" type="submit" name="press" value="refuse">{{ t("connect.page.not-now", "Not now") }}</button>
     </form>
 
-    <p class="aside">{{ t("connect.page.you-can-disconnect-it-later", "You can disconnect it from your account at any time.") }}</p>
+    <p class="aside">{{ t("connect.page.you-can-disconnect-it-later", "You can disconnect it any time from Your account.") }}</p>
   </div>
 </main>
 </body>

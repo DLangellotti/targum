@@ -14,6 +14,7 @@ from __future__ import annotations
 import gzip
 import importlib.util
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +74,33 @@ def test_a_verb_is_found_though_the_two_sources_call_it_different_things(
         found = shipped.of(dicta)
         assert found is not None, f"{dicta} should reach {wikidata}"
         assert bare(found.lemma) == bare(wikidata)
+
+
+def test_a_piel_written_plene_is_found_under_its_defective_spelling(shipped: Table) -> None:
+    """DICTA writes דיבר, ביקש, סיפר with a yod for the hiriq; the source has only the
+    pointed דִּבֵּר, whose letters are דבר, so the commonest pi'els had no table at all
+    (targum-internal#307, 2026-10-21). Only the pi'el: דבר is also דֻּבַּר."""
+    for plene, piel in (("דיבר", "דִּבֵּר"), ("ביקש", "בִּקֵּשׁ"), ("סיפר", "סִפֵּר"), ("לימד", "לִמֵּד")):
+        found = shipped.of(plene)
+        assert found is not None, f"{plene} should reach {piel}"
+        assert found.lemma == piel
+    assert shipped.candidates("דבר") != shipped.candidates("דיבר"), "the defective is two verbs"
+    assert shipped.of("שירר") is None, "no pi'el under the defective spelling, no table"
+
+
+def test_a_root_with_its_binyan_finds_its_verb(shipped: Table) -> None:
+    """Open Scriptures files הִשְׁלִיךְ under שלך and הוֹשִׁיעַ under ישע, with the binyan
+    beside them; the table knows each verb by its forms (targum-internal#307)."""
+    for root, binyan, lemma in (
+        ("שלך", "הפעיל", "הִשְׁלִיךְ"),
+        ("ישע", "הפעיל", "הוֹשִׁיעַ"),
+        ("שאר", "נפעל", "נִשְׁאַר"),
+        ("שאר", "הפעיל", "הִשְׁאִיר"),
+    ):
+        found = shipped.of(root, binyan=binyan)
+        assert found is not None and found.lemma == lemma, (root, binyan)
+    assert shipped.of("שלך") is None, "a root without its binyan names no verb"
+    assert shipped.of("רום", binyan="הפעיל") is None, "a hollow root is not read"
 
 
 def test_the_points_settle_a_verb_two_binyanim_share(shipped: Table) -> None:
@@ -1089,3 +1117,73 @@ def test_an_infinitive_s_binyan_still_names_its_verb(shipped: Table) -> None:
     assert struck is not None and struck.lemma == "הִכָּה"
     born = shipped.of("ילד", seen="לָלֶדֶת", binyan="פעל", infinitive=True)
     assert born is not None and born.lemma == "ילד"
+
+
+def test_a_plene_word_of_another_binyan_gets_no_piel(shipped: Table) -> None:
+    """ניתץ, ניכר and ניפץ tagged nif'al are נִתַּץ, נִכַּר and נִפַּץ: the plene pi'el is
+    not theirs (qa on #841). Untagged or tagged pi'el, the pi'el still stands."""
+    for plene in ("ניתץ", "ניכר", "ניפץ"):
+        found = shipped.of(plene, binyan="נפעל")
+        assert found is None or "פיעל" != shipped.binyan_of(
+            next(lid for lid, verb in shipped.verbs.items() if verb is found)
+        ), plene
+    assert shipped.of("דיבר", binyan="פיעל") is not None
+    assert shipped.of("דיבר", binyan="נפעל") is None
+
+
+def test_one_candidate_in_another_binyan_is_refused(shipped: Table) -> None:
+    """A root that is also a qal lemma: בוא in hif'il is "brought", and בָּא's table under
+    it said "came"; מות in hif'il drew מֵת, "died" (ling-he on #841). Where the root has
+    a verb in the occurrence's binyan, that one; where not, nothing."""
+    for root, binyan in (("בוא", "הפעיל"), ("מות", "הפעיל"), ("שוב", "הפעיל")):
+        found = shipped.of(root, binyan=binyan)
+        assert found is None or bare(found.lemma) != root, (root, binyan)
+    for root, binyan, lemma in (
+        ("עלה", "הפעיל", "הֶעֱלָה"),
+        ("לחם", "נפעל", "נִלְחַם"),
+    ):
+        found = shipped.of(root, binyan=binyan)
+        assert found is not None and found.lemma == lemma, (root, binyan)
+    # The qal still finds the qal.
+    found = shipped.of("עלה", binyan="פעל")
+    assert found is not None and bare(found.lemma) == "עלה"
+    # ניצב, the nif'al "stands", is not יִצֵּב "stabilized", whose 1pl future it spells.
+    found = shipped.of("ניצב", binyan="נפעל")
+    assert found is None or bare(found.lemma) != "יצב"
+
+
+def test_a_verb_the_source_holds_twice_is_one_candidate(shipped: Table) -> None:
+    """The source holds קִבֵּל twice; two candidates was a refusal (ling-he on #841)."""
+    found = shipped.of("קיבל")
+    assert found is not None and bare(found.lemma) == "קבל"
+
+
+def test_a_hifil_with_a_consonant_vav_is_not_filed_under_a_yod_first_root(shipped: Table) -> None:
+    """הִוְרִיד "turned pink" is ורד's; under ירד beside הוֹרִיד it made ירד in hif'il,
+    "brought down", two candidates and a refusal (ling-he on #841)."""
+    found = shipped.of("ירד", binyan="הפעיל")
+    assert found is not None and bare(found.lemma) == "הוריד"
+    assert "ו" not in found.lemma.split("ְ")[0][-1:], found.lemma
+
+
+def test_no_table_prints_a_wikidata_item_for_a_feature() -> None:
+    """targum-internal#508 (ling-he): the הלך and היה tables printed "Q1305037", "Q344 ·
+    Q500726" and "Q462367", features the source never named, on 70 of 164 pages. A form
+    carrying one is left out, and every other form of the verb stays."""
+    from targum.annotate.paradigms import from_shipped, table
+
+    shipped = {
+        "features": ["Q1305037", "singular", "1st", "past", "Q344"],
+        "verbs": {"L1": ["הָלַךְ", [["הָלַכְתִּי", [2, 3, 1]], ["הלכתי", [0, 1]], ["אֵלְכָה", [2, 4, 1]]]]},
+        "by_form": {"הלך": ["L1"]},
+    }
+    forms = from_shipped(shipped).verbs["L1"].forms
+    assert [form.written for form in forms] == ["הָלַכְתִּי"]
+    unnamed = {
+        feature
+        for verb in table().verbs.values()
+        for form in verb.forms
+        for feature in form.features
+        if re.fullmatch(r"Q[0-9]+", feature)
+    }
+    assert not unnamed, unnamed

@@ -582,6 +582,19 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
 }
 .talk-close:hover { color: var(--ink); background: var(--ground); }
 .talk-frame { display: block; inline-size: 100%; block-size: 100%; border: 0; background: var(--card); }
+.talk-frame[hidden] { display: none; }
+/* Signed out: one line and Sign in, in the frame's place (#472 B4). */
+.talk-out {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 1rem;
+  padding: 1.5rem 1.25rem;
+  font-family: var(--chrome);
+  color: var(--ink);
+}
+.talk-out p { margin: 0; font-size: 0.9375rem; }
+.talk-out[hidden] { display: none; }
 .talk-scrim { display: none; }
 .talk-scrim[hidden] { display: none; }
 @keyframes talk-in {
@@ -1552,6 +1565,19 @@ body .site-footer { max-inline-size: var(--column); }
   .site-head-row .site-nav { gap: 0; padding-inline: 0.25rem; }
   .site-nav a { padding-inline: 0; }
 }
+/* A long badge between the two: "Арамейский Экспериментальный" made the row 415px at
+   390 and the account went off the edge, so every Aramaic page in Russian scrolled
+   sideways (targum-internal#522, §14.2). The language may give up room, and only its
+   badge does: it ends in an ellipsis rather than pushing the account off the bar. The
+   name and the chevron keep their size, and the page's own line under the title still
+   says what the badge says. */
+@media (max-width: 40rem) {
+  .site-head-row > .lang-menu { flex: 0 1 auto; min-inline-size: 0; }
+  .lang-menu .lang-open { max-inline-size: 100%; }
+  .lang-menu .lang-open .lang-name,
+  .lang-menu .lang-open::before { flex: none; }
+  .lang-menu .lang-open .lang-status { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+}
 
 /* =====================================================================================
    The components (design.md §12, "The boards are the desk", 2026-10-09; P2 of the
@@ -1609,7 +1635,9 @@ body .site-footer { max-inline-size: var(--column); }
 .tab[aria-selected="true"],
 .tab[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); cursor: default; }
 .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.tab .tab-count { font-variant-numeric: tabular-nums; opacity: 0.8; font-weight: 400; }
+/* The count keeps the chip's own colour at full ink: at 0.8 it read at about 3:1 on the
+   tint (#475 B11). Its lighter weight is what sets it apart. */
+.tab .tab-count { font-variant-numeric: tabular-nums; font-weight: 400; }
 .tab .tab-count:empty { display: none; }
 /* On a phone a row of tabs is one line that scrolls sideways, as the boards' phones draw
    it: wrapped, Your targums' four took two lines and pushed the list a screen down. */
@@ -1624,6 +1652,10 @@ body .site-footer { max-inline-size: var(--column); }
   }
   .tabs::-webkit-scrollbar { display: none; }
   .tab { flex: none; padding-inline: 0.75rem; }
+  /* Your targums' four fit a phone in Russian too: «Загрузки» was cut at the edge, with
+     nothing to say the row scrolls (targum-internal#474, polish 3). */
+  .yours-tabs { gap: 0.25rem; }
+  .yours-tabs .tab { padding-inline: 0.5rem; }
 }
 
 /* --- a card: `.card` (and `.panel`, its older name) ----------------------------------
@@ -1742,7 +1774,7 @@ textarea.well { min-block-size: 5rem; resize: vertical; }
 .field input:focus,
 .field select:focus,
 .field textarea:focus,
-.well:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.well:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 2px var(--focus); }
 
 /* --- how far: `.meter` ----------------------------------------------------------------
    A 6px rail in the rule's grey with a fill in leaf, because green is progress (§4): how

@@ -412,7 +412,7 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     link = postbox.link
     status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
     assert status == 200
-    assert b"This link has expired" in body
+    assert b"That link no longer works" in body
 
 
 def test_an_address_is_never_confirmed_or_denied(served: tuple[int, str, Path]) -> None:
@@ -634,6 +634,50 @@ def test_the_switcher_s_language_is_kept_on_the_account(
     # A language the reader is not learning is not one a page can ask in.
     _, asked, _ = call(port, "GET", f"/words/common?language=fr&k={token}", cookie=cookie)
     assert asked["language"] == "yi", "the switcher's, not the page's"
+
+
+def test_the_library_names_the_account_s_language_for_its_shelf(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fresh browser asked for Hebrew's shelf whatever the account said (qa-claude on
+    #891): the page now names the account's language and what it learns, and the page's
+    policy still names every inline block."""
+    from targum.serve import ACCOUNT_SLOT, Handler
+
+    page = f"<html><script>{ACCOUNT_SLOT}</script></html>"
+    monkeypatch.setattr(Handler, "catalogue", page, raising=False)
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    call(
+        port,
+        "POST",
+        f"/account/languages?k={token}",
+        {"learning": ["he", "yi"], "reads": ["en"]},
+        cookie=cookie,
+    )
+    call(port, "POST", f"/account/language?k={token}", {"language": "yi"}, cookie=cookie)
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", "/library", headers={"Cookie": cookie})
+    answer = connection.getresponse()
+    body = answer.read()
+    said = b'window.TARGUM_ACCOUNT = {"language": "yi", "learning": ["he", "yi"]};'
+    assert said in body, body
+    import base64
+    import hashlib
+    import re
+
+    block = re.search(rb"<script>(.*?)</script>", body, re.S)
+    assert block
+    digest = base64.b64encode(hashlib.sha256(block.group(1)).digest()).decode()
+    assert f"'sha256-{digest}'" in (answer.getheader("Content-Security-Policy") or "")
+    connection.close()
+
+
+def test_a_page_names_no_account_language_that_is_not_a_code() -> None:
+    from targum.serve import ACCOUNT_SLOT, with_account
+
+    named = with_account(ACCOUNT_SLOT, '"</script>', ["he", "<b>"])
+    assert named == 'window.TARGUM_ACCOUNT = {"learning": ["he"]};'
 
 
 def test_ticking_a_language_again_writes_its_translations_back_into_the_readers(
@@ -2728,6 +2772,18 @@ def test_a_chapter_is_drawn_in_the_style_of_its_book(tmp_path: Path, monkeypatch
     assert kept.is_file()
     assert kept.stat().st_size < len(picture(1)) / 10, "and what is kept is a tile"
     assert job.spent == pytest.approx(3 * 0.04), "what was drawn, not what was reserved"
+    # And each says where it came from, beside the library's own (targum-internal#429).
+    from datetime import date
+
+    from targum import thumbs
+
+    said = thumbs.read_sources(out / "thumbs")
+    assert len(said) == 3
+    assert said["judenstaat"] == {
+        "from": "drawn",
+        "model": "fake/1",
+        "date": date.today().isoformat(),
+    }
 
 
 def test_nothing_is_drawn_without_a_key(served: tuple[int, str, Path]) -> None:

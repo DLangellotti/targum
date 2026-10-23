@@ -328,7 +328,7 @@ def test_the_chat_rail_refuses_and_names_when_it_lifts(tmp_path: Path) -> None:
     feed = chats.feed_for(first.chat_id, second.n)
     assert feed is not None
     errors = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert errors and "talking" in errors[0]["message"]
+    assert errors and "today's chat limit" in errors[0]["message"]
     assert "Try again in" in errors[0]["message"]
     # What still works rides beside it, for the panel (design.md §12, 2026-10-09).
     assert "library still open" in errors[0]["fact"] and errors[0]["act"] == "library"
@@ -373,7 +373,7 @@ def test_a_failing_model_is_said_to_the_reader_and_released(tmp_path: Path) -> N
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said[0]["message"] == "We couldn't answer that."
+    assert said[0]["message"] == "We couldn't answer that. Try asking another way."
     assert "boom" not in json.dumps(said), "the library's own words never reach a reader"
     assert library.jobs[f"chat-{asked.chat_id}-1"].stage == "failed"
     assert store.committed(0) == 0.0, "the reserve went back"
@@ -429,7 +429,7 @@ def test_a_turn_past_its_deadline_ends_and_says_so(tmp_path: Path, monkeypatch) 
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None and feed.closed
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said[0]["message"] == "We took too long to answer that."
+    assert said[0]["message"] == "We took too long to answer that. Try asking again."
     row = next(t for t in store.chat_turns(asked.chat_id) if t["n"] == asked.n)
     assert row["stage"] == "failed" and row["error"] == said[0]["message"]
 
@@ -704,7 +704,7 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     assert feed is not None
     error = [json.loads(data) for kind, data in feed.events if kind == "error"][0]
     said, fact = error["message"], error["fact"]
-    assert "credits for audio and talk" in said and "library still open" in fact
+    assert "credits for audio and chat" in said and "library still open" in fact
     assert error["act"] == "top-up"
     assert "$" not in said
     assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"
@@ -1123,11 +1123,11 @@ def test_a_worker_outlives_the_turn_it_lost(tmp_path: Path, monkeypatch: Any) ->
 
     row = next(r for r in store.chat_turns(first.chat_id) if r["n"] == first.n)
     assert row["stage"] == "failed", "the page stops waiting"
-    assert row["error"] == "We couldn't answer that."
+    assert row["error"] == "We couldn't answer that. Try asking another way."
     feed = chats.feed_for(first.chat_id, first.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said and said[0]["message"] == "We couldn't answer that."
+    assert said and said[0]["message"] == "We couldn't answer that. Try asking another way."
     assert "wordlist" not in json.dumps(said), "the library's own words never reach a reader"
 
     second = chats.say(None, library.home(None), "", "again", admin=False)

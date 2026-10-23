@@ -73,6 +73,10 @@ class Item:
     #: RSS's `<category>`, Atom's `<category term>`, Dublin Core's `<dc:subject>`. Raw,
     #: in the publisher's language; `chat.sources.topics_of` reads them as topics.
     categories: tuple[str, ...] = ()
+    #: The episode's own picture, where a podcast feed gives one (`<itunes:image href>`
+    #: on the item; targum-internal#429). The show's, for an item with none, is the
+    #: channel's (`artwork`).
+    artwork: str = ""
 
 
 def _name(tag: str) -> str:
@@ -198,6 +202,20 @@ def _categories(entry: ElementTree.Element) -> tuple[str, ...]:
     return tuple(out)
 
 
+def _image(element: ElementTree.Element | None) -> str:
+    """The address an image element names: iTunes writes it as `href`, RSS's own
+    `<image>` as a `<url>` inside it."""
+    if element is None:
+        return ""
+    href = element.get("href", "").strip()
+    if href:
+        return href
+    for child in element:
+        if _name(child.tag) == "url":
+            return _text(child)
+    return ""
+
+
 def _link(entry: ElementTree.Element) -> str:
     """RSS writes the address as text; Atom writes it as an `href` attribute, and may
     write several with only one of them the article."""
@@ -256,6 +274,7 @@ def parse(xml: bytes) -> list[Item]:
                 seconds=_seconds(_text(fields.get("duration"))),
                 full_text=whole,
                 categories=_categories(element),
+                artwork=_image(fields.get("image")),
             )
         )
     return items
@@ -277,6 +296,32 @@ def title(xml: bytes) -> str:
     for element in holder:
         if _name(element.tag) == "title":
             return _plain(_text(element))
+    return ""
+
+
+def artwork(xml: bytes) -> str:
+    """The show's own picture: `<itunes:image href>` on the channel, else RSS's
+    `<image><url>`, else Atom's `<logo>`. "" for a feed that names none, or for anything
+    that is not one (targum-internal#429)."""
+    try:
+        root = ElementTree.fromstring(xml)
+    except ElementTree.ParseError:
+        return ""
+    holder = root
+    for element in root:
+        if _name(element.tag) == "channel":
+            holder = element
+            break
+    images = [element for element in holder if _name(element.tag) == "image"]
+    # iTunes' first: it is the square a podcast app shows, where RSS's `<image>` is a
+    # small badge capped at 144 pixels wide.
+    for element in sorted(images, key=lambda element: not element.get("href")):
+        found = _image(element)
+        if found:
+            return found
+    for element in holder:
+        if _name(element.tag) == "logo":
+            return _text(element)
     return ""
 
 

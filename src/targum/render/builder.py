@@ -19,7 +19,7 @@ from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from functools import cache
+from functools import cache, lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlencode, urlparse
@@ -520,7 +520,6 @@ def _environment() -> Environment:
     # A page's own files: by address on a desk page, inline everywhere else (`DESK_PAGES`).
     env.globals["script"] = _script
     env.globals["styles"] = _styles
-    env.globals["data_script"] = _data_script
     env.globals["data_uri"] = _data_uri
     # The faces likewise: a stylesheet by address on a desk page, a `<style>` elsewhere.
     env.globals["hebrew_face"] = _page_hebrew_face
@@ -555,6 +554,10 @@ def _build() -> str:
     from ..about import build
 
     return build()
+
+
+#: A run written in Hebrew letters (Hebrew, Yiddish, Aramaic in square script).
+_HEBREW_LETTERS = re.compile(r"[\u0590-\u05ff\ufb1d-\ufb4f]")
 
 
 def _page_language(language: str) -> str:
@@ -898,6 +901,8 @@ def _faces() -> dict[str, Markup]:
         "face-scripture.css": _scripture_face(),
         "face-chrome.css": _chrome_face(),
         "face-chrome-upright.css": _chrome_face(italic=False),
+        "face-chrome-ru.css": _chrome_face(cyrillic=True),
+        "face-chrome-upright-ru.css": _chrome_face(italic=False, cyrillic=True),
     }
 
 
@@ -920,7 +925,7 @@ def asset_address(name: str) -> str:
     return f"{ASSET_ROUTE}{stem}.{digest}.{kind}"
 
 
-#: Files made rather than read: the Library's shelf data (`_data_script`), by address.
+#: Files made rather than read: the Library's shelf data (`data_file`), by address.
 #: Filled as pages are rendered, which `targum serve` does at start-up.
 _GENERATED: dict[str, tuple[bytes, str, str]] = {}
 
@@ -939,7 +944,7 @@ def asset_files() -> dict[str, tuple[bytes, str, str]]:
     asset they are. Read once, so `targum serve` answers from memory; an address that is
     not here is a 404. The worker is left out: it is served from the root, and only there
     (`worker_script`)."""
-    return {**_read_files(), **_GENERATED}
+    return {**_read_files(), **_pictures(), **_GENERATED}
 
 
 def asset_set() -> str:
@@ -949,6 +954,40 @@ def asset_set() -> str:
     import hashlib
 
     return hashlib.sha256("\n".join(sorted(asset_files())).encode("utf-8")).hexdigest()[:16]
+
+
+#: The pictures a page served by the server wears (targum-internal#484): a series' head
+#: photograph, the parasha's scroll and each cycle's manuscript. Folders under `assets/`.
+PICTURE_FOLDERS = ("manuscripts", "scroll")
+
+
+@cache
+def _pictures() -> dict[str, tuple[bytes, str, str]]:
+    """Every picture `picture_address` can name, by its address."""
+    found: dict[str, tuple[bytes, str, str]] = {}
+    for folder in PICTURE_FOLDERS:
+        for path in sorted((ASSETS / folder).glob("*.jpg")):
+            name = f"{folder}/{path.name}"
+            found[picture_address(name)] = (path.read_bytes(), "image/jpeg", name)
+    return found
+
+
+@cache
+def picture_address(name: str) -> str:
+    """Where one of the pictures is served, named by a hash of its bytes, so it is kept
+    for a year and a changed picture is a new address.
+
+    It rode inside the page as a `data:` URI until 2026-10-22, in a `<style>` that holds
+    the first paint until all of it has arrived: on /parasha 151 kB gzipped of a 305 kB
+    page, the only page whose first paint came late (1.40 s on the phone profile,
+    qa-claude's audit, #484). From our own origin it arrives after the page has drawn,
+    and the reader still fetches nothing from anybody else's."""
+    import hashlib
+
+    path = ASSETS / name
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    stem, _, kind = path.name.rpartition(".")
+    return f"{ASSET_ROUTE}{stem}.{digest}.{kind}"
 
 
 @cache
@@ -986,21 +1025,25 @@ def _script(context: Context, name: str, **attributes: Any) -> Markup:
     return Markup(f"<script{said}>") + _asset(name) + Markup("</script>")
 
 
-@pass_context
-def _data_script(context: Context, name: str, text: str) -> Markup:
-    """A script made from a page's data, such as the Library's shelf: by address on a
-    desk page, named by the hash of what it says, so it is kept until the data changes;
-    inline everywhere else. A classic script like the rest, so a page reads its data
-    where it stands, as it did when the data was written into it."""
-    if not context.get("linked_assets"):
-        return Markup("<script>") + Markup(text) + Markup("</script>")
+def data_file(name: str, value: Any) -> str:
+    """A page's data as a JSON file of its own, such as the Library's shelf: its address,
+    named by the hash of what it says, so a browser keeps it until the data changes.
+
+    It was a classic script the page ran where it stood until 2026-10-22, which a desk
+    page sent whole (a first visit) carried inside it: 303 kB gzipped of a 479 kB Library,
+    all of it in front of the first card (2.78 s on the phone profile, #484). The page
+    now asks for it once it is up, beside what it asks the account, and never carries it."""
     import hashlib
 
-    body = text.encode("utf-8")
+    body = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
     stem, _, kind = name.rpartition(".")
     address = f"{ASSET_ROUTE}{stem}.{hashlib.sha256(body).hexdigest()[:16]}.{kind}"
-    _GENERATED[address] = (body, ASSET_KINDS[f".{kind}"], name)
-    return Markup(f'<script src="{_named(address)}"></script>')
+    _GENERATED[address] = (body, "application/json; charset=utf-8", name)
+    # Named like the desk's files, so a page sent whole fetches it with them once it is
+    # up, and the Library after it finds it kept.
+    return _named(address)
 
 
 @pass_context
@@ -1037,8 +1080,10 @@ def _page_scripture_face(context: Context) -> Markup:
 
 @pass_context
 def _page_chrome_face(context: Context, italic: bool = True) -> Markup:
-    name = "face-chrome.css" if italic else "face-chrome-upright.css"
-    return _sheet(context, name, _chrome_face(italic))
+    # A page rendered in Russian carries the Cyrillic subset beside the Latin one.
+    cyrillic = str(context.get("page_language") or "").split("-")[0] == "ru"
+    name = ("face-chrome" if italic else "face-chrome-upright") + ("-ru" if cyrillic else "")
+    return _sheet(context, f"{name}.css", _chrome_face(italic, cyrillic))
 
 
 #: A script a page names by address.
@@ -1219,10 +1264,16 @@ def _scripture_face() -> Markup:
 #: would get whatever the machine has, which is the wall of text §12 records. Chrome
 #: pages carry both cuts; a reader carries the upright, for its menus (2026-10-09).
 CHROME_FACE = ("Source Sans 3", "fonts/SourceSans3.woff2", "fonts/SourceSans3-Italic.woff2")
+#: Its Cyrillic subset (design.md §13, "Russian is carried too", 2026-10-21;
+#: targum-internal#476, B1), carried only on a page in Russian, as a second face of the
+#: same family whose range is the Cyrillic block: the Latin still comes from the Latin
+#: file, and a page in English pays nothing. `scripts/cyrillic_face.py` cuts both.
+CHROME_CYRILLIC = ("fonts/SourceSans3-Cyrillic.woff2", "fonts/SourceSans3-Cyrillic-Italic.woff2")
+CYRILLIC_RANGE = "U+0400-04FF,U+2011,U+2116"
 
 
 @cache
-def _chrome_face(italic: bool = True) -> Markup:
+def _chrome_face(italic: bool = True, cyrillic: bool = False) -> Markup:
     """The chrome's face, in the page. `--chrome` in reader.css names it with its
     fallbacks; this is what makes the name true.
 
@@ -1240,6 +1291,19 @@ def _chrome_face(italic: bool = True) -> Markup:
             f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
             f'src:url({_data_uri(slanted)}) format("woff2");font-display:block}}'
         )
+    if cyrillic:
+        cyr_upright, cyr_slanted = CHROME_CYRILLIC
+        faces += (
+            f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:normal;'
+            f'src:url({_data_uri(cyr_upright)}) format("woff2");font-display:block;'
+            f"unicode-range:{CYRILLIC_RANGE}}}"
+        )
+        if italic:
+            faces += (
+                f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
+                f'src:url({_data_uri(cyr_slanted)}) format("woff2");font-display:block;'
+                f"unicode-range:{CYRILLIC_RANGE}}}"
+            )
     return Markup(f"<style>{faces}</style>")
 
 
@@ -2184,12 +2248,15 @@ def about_page(language: str = "en", address: str = "") -> str:
             return 0
         return min(4, 1 + int(3 * (count - 1) / max(1, busiest - 1)))
 
+    said = page_words(language)
     return (
         _environment()
         .get_template("about.html.j2")
         .render(
-            t=page_words(language),
+            t=said,
             page_language=_page_language(language),
+            title=said("about.page.built-in-public-targum", "built in public — targum"),
+            description=said("about.head.description", "Every change to targum, day by day."),
             work=found,
             tn=page_counts(language),
             # The count as a person writes it: 1,174, and 1 174 in Russian.
@@ -3878,7 +3945,7 @@ def weekly_page(
             "cadence": t("series.weekly.cadence", "Every Monday · three levels · free"),
             "says": t(
                 "subs.series.weekly-says",
-                "New issues show on Your targums and come by mail each Monday.",
+                "New issues show in Your targums and come by mail each Monday.",
             ),
         },
         now=now,
@@ -4079,11 +4146,11 @@ def daily_page(
             ),
             "says": t(
                 "subs.series.cycle-says",
-                "Each day's reading shows on Your targums and comes in your daily mail.",
+                "Each day's reading shows in Your targums and comes in your daily mail.",
             ),
         },
         head_tile={"src": "@pic", "letter": "", "tone": "book"},
-        picture_uri=_data_uri("manuscripts/" + cycle.picture),
+        picture_uri=picture_address("manuscripts/" + cycle.picture),
         now=now,
         cells=cells,
         month_title=month_title,
@@ -4470,11 +4537,11 @@ def parasha_page(
             ),
             "says": t(
                 "subs.series.portion-says",
-                "Each week's portion shows on Your targums and comes in your daily mail.",
+                "Each week's portion shows in Your targums and comes in your daily mail.",
             ),
         },
         head_tile={"src": "@pic", "letter": "", "tone": "book"},
-        picture_uri=_data_uri("scroll/columns.jpg"),
+        picture_uri=picture_address("scroll/columns.jpg"),
         pdf_href=pdf_href,
         now=now,
         parts=parts,
@@ -4586,6 +4653,8 @@ def subscribe_page(
     via: str = "",
     cap: int = 0,
     token: str = "",
+    unreachable: bool = False,
+    again: str = "",
 ) -> str:
     """Where a subscription is confirmed (design.md §12, "A monthly cap is the second press
     that lasts", 2026-10-09; boards SubConfirm and ConnConfirm). What it is, what a new one
@@ -4593,10 +4662,27 @@ def subscribe_page(
     then one press. No script: the cap is a radio and the press a form post, so the page
     is the same with script off, as the set's is."""
     from ..accounts import CAPS, DEFAULT_CAP
+    from ..strings import text as said_text
 
     each = int((offer or {}).get("creditsEach") or 0)
     chosen = cap if cap in CAPS else DEFAULT_CAP
     weekly = float((offer or {}).get("perWeek") or 0)
+    # How the thing is named, and in what (targum-internal#475 B4, B5): a topic by the
+    # catalogue's name in the page's language, never its key; a channel's, a podcast's or
+    # an outlet's own name marked Hebrew only when it is written in Hebrew letters; a
+    # series by its name in the interface. The tile's letter follows the letter it draws.
+    code = _page_language(language)
+    name, name_lang = "", ""
+    if offer is not None:
+        if offer.get("kind") == "topic":
+            name = said_text(f"subs.topic.{offer.get('key')}", code)
+            name_lang = code
+        else:
+            name = str(offer.get("name") or "")
+            if offer.get("kind") != "series" and _HEBREW_LETTERS.search(name):
+                name_lang = str(offer.get("language") or "he")
+    letter = str((offer or {}).get("hebrew") or name)[:1]
+    letter_rtl = bool(_HEBREW_LETTERS.search(letter))
     return (
         _environment()
         .get_template("subscribe.html.j2")
@@ -4610,8 +4696,22 @@ def subscribe_page(
             already=already,
             allowed=allowed,
             via=via,
-            caps=[{"cap": one, "about": (one // each) if each else 0} for one in CAPS],
+            # A cap smaller than one new one says so, and never rounds up (#475 B7).
+            caps=[
+                {
+                    "cap": one,
+                    "about": (one // each) if each else 0,
+                    "short": bool(each) and one < each,
+                }
+                for one in CAPS
+            ],
             chosen=chosen,
+            name=name,
+            name_lang=name_lang,
+            unreachable=unreachable,
+            again=again,
+            letter=letter,
+            letter_lang="he" if letter_rtl else "",
             per_week=round(weekly) if weekly >= 1 else 0,
             per_month=max(1, round(weekly * 30 / 7)) if 0 < weekly < 1 else 0,
             languages=dict(_language_names(language)),
@@ -4680,6 +4780,7 @@ def you_page(token: str, language: str = "en") -> str:
     and a signed-out visitor gets a sentence rather than an empty form. The languages
     are baked in: which exist is a fact about targum, not about the person.
     """
+    from ..accounts import GRACE_DAYS
     from ..translate.prompts import INTO, READING, REQUIRED_LEARNING
 
     return (
@@ -4694,6 +4795,7 @@ def you_page(token: str, language: str = "en") -> str:
             into=_staged(INTO, language),
             required=list(REQUIRED_LEARNING),
             languages=_language_names(language),
+            grace=GRACE_DAYS,
         )
     )
 
@@ -4730,23 +4832,58 @@ def read_as_portions(entry: Any) -> bool:
     return bool(corpus.readable())
 
 
-def _shelf_script(**data: Any) -> str:
-    """`window.TARGUM_CATALOGUE = …;` and the rest, as `library.js` reads them."""
-    return "".join(
-        f"window.TARGUM_{name.upper()} = {htmlsafe_json_dumps(value, sort_keys=True)};\n"
-        for name, value in data.items()
-    )
+#: The language whose shelf also carries another's rows: the Aramaic door stands on the
+#: Hebrew shelf (`BESIDE_HEBREW` in `library.js`).
+SHELF_BESIDE = {"arc": "he"}
+
+
+def shelf_files(
+    entries: list[dict[str, Any]], groups: list[Any], sets: list[Any]
+) -> dict[str, str]:
+    """The Library's shelf as files, by language: what `TARGUM_SHELF_FILES` names.
+
+    `""` is what every shelf needs: the collections, the sets, and every row's id in the
+    catalogue's order (where a row sits is the only evidence of arrival most rows have).
+    Each language's file is its rows, each carrying that `place`, so a row in two
+    languages is in both files and the page merges them back into one order. The page
+    asks for the shelf it opens on and another only when the reader moves to it
+    (targum-internal#484): the whole shelf was 270 kB gzipped and the Hebrew is half.
+    """
+    by_language: dict[str, list[dict[str, Any]]] = {}
+    for place, entry in enumerate(entries, start=1):
+        codes = {
+            str(code).split("-")[0].lower()
+            for code in (entry.get("languages") or [entry.get("language", "")])
+            if code
+        }
+        codes |= {SHELF_BESIDE[code] for code in codes if code in SHELF_BESIDE}
+        for code in codes:
+            by_language.setdefault(code, []).append({**entry, "place": place})
+    files = {
+        "": data_file(
+            "catalogue.json",
+            {
+                "ids": [entry["id"] for entry in entries],
+                "collections": groups,
+                "sets": sets,
+            },
+        )
+    }
+    for code in sorted(by_language):
+        files[code] = data_file(f"catalogue-{code}.json", {"catalogue": by_language[code]})
+    return files
 
 
 def library_page(token: str, language: str = "en") -> str:
     """Texts worth reading, and the ones you have already built.
 
-    The catalogue ships with targum rather than being asked for: a page that has to ask
-    the server for it would be a page that can be empty. Since 2026-10-19 it is a script
-    of its own beside the page (`_data_script`), run where it stands like any other, so
-    the page has it before `library.js` starts, exactly as when it was written inside.
+    The catalogue ships with targum rather than being asked of a model or the network:
+    it is a file of this origin's, the same for everybody (`data_file`). Since 2026-10-22
+    `library.js` fetches it beside `/readers` instead of the page carrying it (#484).
     """
     from ..catalogue import collections, everything, swipe_sets
+    from ..chat.sources import TOPICS as news_topics
+    from ..strings import text as said_text
 
     return (
         _environment()
@@ -4755,22 +4892,27 @@ def library_page(token: str, language: str = "en") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             token=token,
-            # The shelf, as a script of its own: a file the desk keeps, named by what it
-            # says, so it is fetched again only when the catalogue changes (design.md
-            # §12, 2026-10-19). It is the same in every language.
-            shelf=_shelf_script(
-                catalogue=[entry.state() for entry in everything() if not read_as_portions(entry)],
-                # Which texts the page meets as one thing. Beside the catalogue and for
-                # the same reason, and only the members actually on the shelf, so a
-                # collection can never open onto a row that is not there.
-                collections=[group.state() for group in collections()],
+            # The shelf, as files of their own: the desk keeps them, named by what they
+            # say, so each is fetched again only when the catalogue changes (design.md
+            # §12, 2026-10-19 and 2026-10-22). The same in every page language.
+            shelf=shelf_files(
+                [entry.state() for entry in everything() if not read_as_portions(entry)],
+                # Which texts the page meets as one thing, and only the members actually
+                # on the shelf, so a collection can never open onto a row that is not there.
+                [group.state() for group in collections()],
                 # targum's own playlists, a shelf of their own (design.md §12,
                 # 2026-10-09). The page offers only the ones with members built on the
                 # shared shelf, as `Library.targum_sets` does, from what `/readers` says.
-                sets=[group.state() for group in swipe_sets()],
+                [group.state() for group in swipe_sets()],
             ),
             languages=_language_names(language),
             strings=script_strings(language, "library."),
+            # The news topics a reader can follow, each a row in News with Subscribe going
+            # to the confirm page (David, 2026-10-22; targum-internal#475 B3).
+            topics=[
+                (key, said_text(f"subs.topic.{key}", _page_language(language)))
+                for key in news_topics
+            ],
         )
     )
 
@@ -4981,7 +5123,7 @@ def english_title(document: Document, language: str = "en") -> str:
     its Hebrew one alone.
 
     In `language` where the reader is built in another (QA, 2026-10-05): the row's own
-    name in it, or a portion's from the catalogue's `portion.name.*` — «Берешит» beside
+    name in it, or a portion's from the catalogue's `portion.name.*` — «Берейшит» beside
     בְּרֵאשִׁית on the reader built in Russian, not "Bereshit".
     """
     from .. import catalogue as catalogue_module
@@ -5002,6 +5144,13 @@ def english_title(document: Document, language: str = "en") -> str:
         if entry.id.startswith("parasha-"):
             return said_portion(entry.id.removeprefix("parasha-"), entry.english, code)
     return entry.english
+
+
+def _rides_late(entry: dict[str, Any], key: str, drawn_at: int) -> bool:
+    """Whether a rendering's data waits for the block after `reader.js`: a commentary
+    beside the verse (Rashi), which is not the rendering drawn in the column. Onkelos
+    stays, because the verse walk asks for it as the page opens."""
+    return bool(entry.get("companion")) and bool(entry.get("commented")) and key != f"t{drawn_at}"
 
 
 def render(
@@ -5588,15 +5737,20 @@ def render(
         stands: dict[str, list[list[object]]] = {}
         # Every form each verb is written in on this page, so the conjugation table a
         # word gets is one all of them agree on and not the first one's (#307).
-        verb_forms: dict[tuple[str, str], list[str]] = {}
+        verb_forms: dict[tuple[str, str, str], list[str]] = {}
         # And the grammar each of those forms was tagged with, which is what tells a
         # participle's verb from a verb spelled like it (#307).
-        verb_said: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
+        verb_said: dict[tuple[str, str, str], list[tuple[str, str, str]]] = {}
         # Where an occurrence's own pointing names another table than the word's, or
         # refuses it: per segment, rows of [the token's row, the table] (#307, decided
         # 2026-10-03). Only where it differs, so a page the vowels change nothing on
         # weighs what it did.
         paradigms_here: dict[str, list[list[int]]] = {}
+        # And an occurrence's own binyan where it is not the word's (targum-internal#508):
+        # the row above is the first occurrence's, so Gen 12:3 וְנִבְרְכוּ (nif'al) was
+        # shown as the page's first ברך, a pi'el. Per segment, [the token's row, binyan];
+        # only where it differs, like `paradigms_here`, and its table rides there.
+        binyanim_here: dict[str, list[list[object]]] = {}
         if annotation is not None:
             from ..annotate.paradigms import bare as unpointed
             from ..annotate.paradigms import pointed_form, written_form
@@ -5605,8 +5759,10 @@ def render(
                 for token in chips(annotation.tokens.get(sid) or ()):
                     if token.pos == "VERB":
                         form = written_form(token.surface, token.built)
-                        verb_forms.setdefault((token.lemma, token.head), []).append(form)
-                        verb_said.setdefault((token.lemma, token.head), []).append(
+                        # By binyan too: a nif'al's forms have no say in its pi'el's table.
+                        verb = (token.lemma, token.head, token.binyan or "")
+                        verb_forms.setdefault(verb, []).append(form)
+                        verb_said.setdefault(verb, []).append(
                             (form, token.feats or "", token.surface)
                         )
         if annotation is not None:
@@ -5644,6 +5800,7 @@ def render(
                 # A name of several words is one chip (targum-internal#149).
                 for token in on_row:
                     word = (token.lemma, token.head)
+                    verb = (token.lemma, token.head, token.binyan or "")
                     if word not in lemma_at:
                         lemma_at[word] = len(lemmas)
                         lemmas.append(token.lemma)
@@ -5662,8 +5819,8 @@ def render(
                                 tables,
                                 table_at,
                                 feature_at,
-                                tuple(verb_forms.get(word, ())),
-                                tuple(verb_said.get(word, ())),
+                                tuple(verb_forms.get(verb, ())),
+                                tuple(verb_said.get(verb, ())),
                             )
                         )
                     # Offsets arrive measured against the segment as ingested, which may
@@ -5677,7 +5834,12 @@ def render(
                         # well as at the reading, so a text read before the list
                         # existed says כָּל right without being annotated again.
                         ipa = qatan(said_as, token.ipa)
-                        sound = (ipa, guessed(said_as, ipa))
+                        sound = (
+                            ipa,
+                            guessed(
+                                said_as, ipa, pointed=_pointed_word(pointed, sid, token, to_bare)
+                            ),
+                        )
                     elif token.start in heard:
                         sound = (heard[token.start], 0)
                     if sound not in sound_at:
@@ -5722,15 +5884,23 @@ def render(
                         row.append(label)
                     rows.append(row)
                     seen = pointed_form(token.surface, token.built) if token.pos == "VERB" else ""
-                    if seen and seen != unpointed(seen):
+                    pointed_here = bool(seen) and seen != unpointed(seen)
+                    other_binyan = (
+                        token.pos == "VERB" and (token.binyan or "") != binyanim[lemma_at[word]]
+                    )
+                    if other_binyan:
+                        binyanim_here.setdefault(sid, []).append(
+                            [len(rows) - 1, token.binyan or ""]
+                        )
+                    if pointed_here or other_binyan:
                         here = _paradigm_at(
                             token,
                             tables,
                             table_at,
                             feature_at,
-                            tuple(verb_forms.get(word, ())),
-                            tuple(verb_said.get(word, ())),
-                            seen,
+                            tuple(verb_forms.get(verb, ())),
+                            tuple(verb_said.get(verb, ())),
+                            seen if pointed_here else "",
                         )
                         if here != paradigms[lemma_at[word]]:
                             paradigms_here.setdefault(sid, []).append([len(rows) - 1, here])
@@ -5958,7 +6128,10 @@ def render(
             cases=any("Case=" in line for line in grammar),
             # The prepositions lens, on a page whose verbs say what they take — a Hebrew
             # one with DICTA's syntax (design.md §12, "Lenses wait for a second read").
-            governs=any("Takes=" in line for line in grammar),
+            # Not on a Biblical page, where the spot is declared out (targum-internal#454):
+            # the few verses DICTA's fallback parsed would light a lens the register does
+            # not claim.
+            governs=not is_biblical(document.source) and any("Takes=" in line for line in grammar),
             # The word-order lens, on a Russian page with a subject after its verb
             # (design.md §12, "Subjects after their verb, on a lens").
             orders=any("Order=VS" in line for line in grammar),
@@ -6083,10 +6256,28 @@ def render(
                 and index in covering
                 and index != drawn_at
             ],
+            # Rashi and the other commentaries beside the verse ride after `reader.js`
+            # (targum-internal#409): a word in the verse answers a tap before their text
+            # and word tables are parsed. The rendering drawn in the column never waits.
+            data_late=embed_json(
+                {
+                    "translations": {
+                        key: entry
+                        for key, entry in payload.items()
+                        if _rides_late(entry, key, drawn_at)
+                    }
+                }
+            )
+            if any(_rides_late(entry, key, drawn_at) for key, entry in payload.items())
+            else "",
             data=embed_json(
                 {
                     "schemaVersion": PAYLOAD_VERSION,
-                    "translations": payload,
+                    "translations": {
+                        key: entry
+                        for key, entry in payload.items()
+                        if not _rides_late(entry, key, drawn_at)
+                    },
                     "words": words,
                     "lemmas": lemmas,
                     **({"heads": heads} if any(heads) else {}),
@@ -6146,6 +6337,7 @@ def render(
                     # An occurrence's own table where its pointing says another than the
                     # word's (targum-internal#307). Absent wherever it says nothing new.
                     **({"paradigmsHere": paradigms_here} if paradigms_here else {}),
+                    **({"binyanimHere": binyanim_here} if binyanim_here else {}),
                     # A verb's citation form and a noun's lying plural, parallel to the
                     # lemmas. Left out while nothing on the page has either — which is
                     # every text glossed before they existed.
@@ -6758,3 +6950,27 @@ def contents_page(
 def _write(path: Path, html: str) -> Path:
     path.write_text(html, encoding="utf-8")
     return path
+
+
+def _pointed_word(
+    pointed: Mapping[str, str], sid: str, token: Token, to_bare: Mapping[str, list[int]]
+) -> str:
+    """The word as the reader shows it pointed, for `pronounce.guessed`; "" where the
+    segment has no pointing or the token falls outside it."""
+    line = pointed.get(sid)
+    if not line or sid not in to_bare:
+        return ""
+    start, end = map_span(token.start, token.end, to_bare[sid])
+    positions = _positions(line)
+    if end >= len(positions):
+        return ""
+    first, last = map_span(start, end, positions)
+    return line[first:last]
+
+
+@lru_cache(maxsize=256)
+def _positions(line: str) -> list[int]:
+    """Kept for the few lines being rendered now, not the whole shelf (the box is 7.7 GB)."""
+    from ..vocalize import pointed_positions
+
+    return pointed_positions(line)

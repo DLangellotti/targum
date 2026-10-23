@@ -147,6 +147,7 @@ if (payload.copy === undefined)
     saveHidden: save ? Boolean(save.hidden) : null,
     saved,
     legend: (box.querySelector(".level-legend") || {}).textContent || null,
+    ignoreSays: (box.querySelector(".level-ignore-says") || {}).textContent || null,
     kept,
     levels,
   })

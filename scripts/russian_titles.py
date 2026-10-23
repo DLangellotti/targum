@@ -56,29 +56,30 @@ INSTRUCTIONS = (
 )
 
 
-#: The Tanakh is named differently (decided 2026-09-17). The Synodal names a Russian
-#: Bible uses — Бытие, Есфирь, Первая книга Царств — are the ones a Russian reader knows,
-#: and they disagree with the Hebrew sitting beside them on the shelf: Samuel is filed
-#: under "Kings", I Kings comes out *third*, and somebody hunting for שמואל א finds
-#: nothing that looks like it. The transliterated names Israeli Russian-language Jewish
-#: publishing uses match the Hebrew line exactly, which is the line this one is here to
-#: help somebody read.
+#: The Tanakh is named differently (decided 2026-09-17). The Synodal names a Russian Bible
+#: uses — Бытие, Есфирь, Первая книга Царств — disagree with the Hebrew sitting beside
+#: them on the shelf: Samuel is filed under "Kings", I Kings comes out *third*, and
+#: somebody hunting for שמואל א finds nothing that looks like it. So a book is named as
+#: the interface names it, the book names in `ru.json` in Jewish Russian spelling
+#: (Берейшит, Теилим, Млахим, Диврей а-Ямим), with no Synodal name in brackets and no «г»
+#: for ה; Иов keeps its Russian name (David, 2026-10-21). Changing this redrafts nothing:
+#: a row a person has already written is never overwritten.
 TANAKH = (
     "Below are books of the Hebrew Bible, each with its Hebrew title, its English title "
     "and a short blurb. Give the Russian for both, for a Russian-speaking oleh learning "
     "Hebrew.\n\n"
-    "Name the book in two parts: the Hebrew name transliterated into Cyrillic, then the "
-    "Synodal name in brackets after it — Берешит (Бытие), Шмот (Исход), Ваикра "
-    "(Левит), Дварим (Второзаконие), Рут (Руфь), Эстер (Есфирь), Коѓелет "
-    "(Екклесиаст), Теѓилим (Псалтирь), Мишлей (Притчи), Эйха (Плач Иеремии).\n\n"
-    "The transliteration is what matches the Hebrew title on the page; the bracket is "
-    "for a reader who knows the book by its Russian Bible name. A numbered book keeps "
-    "the Hebrew numbering outside the bracket and the Synodal numbering inside it, so "
-    "both readers find it: Шмуэль I (1-я Царств), Шмуэль II (2-я Царств), Мелахим I "
-    "(3-я Царств), Мелахим II (4-я Царств), Диврей ѓа-ямим I (1-я Паралипоменон).\n\n"
-    "Where the two names are the same word, give it once with no bracket — Амос, Йоэль. "
-    "The blurb is ordinary Russian prose, never transliterated. Keep it to the length "
-    "of the English one, plain and unexcited. No exclamation marks anywhere.\n\n"
+    "Name the book as the interface names it: the Hebrew name in the spelling Jewish "
+    "Russian-language publishing uses, and nothing after it — Берейшит, Шмот, Ваикра, "
+    "Бемидбар, Дварим, Йеошуа, Шофтим, Шмуэль, Млахим, Йешаяу, Йирмеяу, Йехезкель, "
+    "Ошеа, Йона, Теилим, Мишлей, Иов, Шир а-Ширим, Рут, Эйха, Коэлет, Эстер, Даниэль, "
+    "Эзра, Нехемья, Диврей а-Ямим.\n\n"
+    "No Synodal name in brackets. Never write the letter ה as «г» or «ѓ»: it is silent "
+    "or «а», as in Коэлет, Теилим, Диврей а-Ямим, Шир а-Ширим. Иов keeps its Russian name. A "
+    "numbered book takes a Roman numeral after the name: Шмуэль I, Шмуэль II, Млахим I, "
+    "Млахим II, Диврей а-Ямим I, Диврей а-Ямим II.\n\n"
+    "The blurb is ordinary Russian prose, never transliterated, and names a book of the "
+    "Bible the same way. Keep it to the length of the English one, plain and unexcited. "
+    "No exclamation marks anywhere.\n\n"
     'Answer with a JSON array of objects {"id": ..., "title": ..., "blurb": ...}, one per '
     "text, in the order given, and nothing else."
 )

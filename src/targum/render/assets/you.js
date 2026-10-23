@@ -22,6 +22,11 @@
 
   var key = window.TARGUM_KEY;
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   function keyed(path) {
     if (!key) return path;
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
@@ -52,6 +57,13 @@
     });
   }
 
+  // One card on show, every other card in `main` put away: the states that are not the
+  // account (loading, unreachable, offline) and the one after Delete.
+  function only(id) {
+    var cards = document.querySelectorAll("main.account > section");
+    for (var n = 0; n < cards.length; n++) cards[n].hidden = cards[n].id !== id;
+  }
+
   function say(where, message, bad, again) {
     var node = at(where);
     node.hidden = !message;
@@ -65,6 +77,47 @@
       node.textContent = "";
       node.appendChild(window.TargumFault.line(message, "", again || null, true));
     }
+  }
+
+  /* A day as the page's language writes it, in the one form the page uses (targum-
+     internal#469, polish 3 and 4): the day and the month in full, as credits and the plan
+     say "November 1", with the year only when it isn't this one, and never broken from
+     its month at the end of a line. Connections and Telegram said "Oct 12, 2026". */
+  function day(stamp) {
+    var root = document.documentElement;
+    try {
+      var when = new Date(stamp);
+      var form = { day: "numeric", month: "long" };
+      if (when.getFullYear() !== new Date().getFullYear()) form.year = "numeric";
+      return when.toLocaleDateString((root && root.lang) || "en", form).replace(/ /g, "\u00a0");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  /* A row as Your languages draws one (targum-internal#469, polish 6): its name over a
+     quiet line at the start, which `clamp` holds to two lines, and the press at the end.
+     Prompts and Telegram were bare items, the name in plain body and the text a size up
+     in ink, which turned the hierarchy over. */
+  function acctRow(name, says, press, clamp) {
+    var row = document.createElement("li");
+    row.className = "row";
+    var main = document.createElement("span");
+    main.className = "row-main";
+    var called = document.createElement("span");
+    called.className = "acct-name";
+    called.textContent = name;
+    var what = document.createElement("span");
+    what.className = clamp ? "acct-says acct-clamp" : "acct-says";
+    what.textContent = says;
+    main.appendChild(called);
+    main.appendChild(what);
+    var end = document.createElement("span");
+    end.className = "acct-end";
+    end.appendChild(press);
+    row.appendChild(main);
+    row.appendChild(end);
+    return row;
   }
 
   function grouped(count) {
@@ -130,7 +183,7 @@
         gone.textContent = t("you.remove", "Remove");
         gone.setAttribute("aria-label", t("you.remove-named", "Remove {language}", { language: row.name }));
         gone.addEventListener("click", function () {
-          if (learning.length <= 1) return say("you-languages-said", t("you.keep-one-language", "Keep at least one language."));
+          if (learning.length <= 1) return say("you-languages-said", t("you.keep-one-language", "This is your only language, so it stays. Start another to remove this one."));
           learning = learning.filter(function (code) {
             return code !== row.code;
           });
@@ -244,7 +297,7 @@
         say("you-languages-said", SAVED);
         // The pages that offer a language read the account's answer through sync, so
         // asking it to look again is what makes them agree.
-        if (window.TargumSync) window.TargumSync.start();
+        if (window.TargumSync) window.TargumSync.start(true);
         // The menus are in the language read into: a change there is a new page.
         // `strings.reading_language`: the one language read into other than English, or
         // English.
@@ -341,19 +394,6 @@
       said.hidden = !text;
     }
 
-    /* A day as the page's language writes it. */
-    function day(stamp) {
-      var root = document.documentElement;
-      try {
-        return new Date(stamp).toLocaleDateString((root && root.lang) || "en", {
-          day: "numeric",
-          month: "short",
-          year: "numeric"
-        });
-      } catch (e) {
-        return "";
-      }
-    }
 
     /* One row an app, as board ConnYou draws it. Claude registers itself afresh each
        time it is reconnected, and removing it in Claude does not tell us, so two grants
@@ -397,7 +437,7 @@
       var last = app.made.length > 1 ? day(app.made[app.made.length - 1]) : "";
       var said =
         last && last !== first
-          ? t("you.connections.connected-again", "Connected {made}, again {again}", { made: first, again: last })
+          ? t("you.connections.connected-again", "Connected {made}, reconnected {again}", { made: first, again: last })
           : t("you.connections.connected-on", "Connected {made}", { made: first });
       if (app.seen) said += t("you.connections.last-used", ", last used {seen}", { seen: day(app.seen) });
       return said;
@@ -420,12 +460,22 @@
       return svg;
     }
 
-    function paint(connections, keep) {
+    function paint(connections) {
       rows.textContent = "";
       var apps = grouped(connections);
-      /* Kept open by a press on it, so the last Disconnect still shows that it worked;
-         the next visit, with nothing connected, draws no panel. */
-      panel.hidden = !apps.length && !keep;
+      /* Drawn with nothing connected too (targum-internal#469, polish 1): one quiet line
+         and "Connect an app", so the account says apps can be connected at all. */
+      panel.hidden = false;
+      var none = at("connections-none");
+      var says = at("connections-says");
+      var more = at("connect-link");
+      if (none) none.hidden = !!apps.length;
+      if (says) says.hidden = !apps.length;
+      if (more) {
+        more.textContent = apps.length
+          ? t("you.page.connect-another", "Connect another app")
+          : t("you.page.connect-an-app", "Connect an app");
+      }
       apps.forEach(function (app) {
         var row = document.createElement("li");
         row.className = "conn-row";
@@ -489,8 +539,8 @@
               });
             }, Promise.resolve())
             .then(function () {
-              paint(last && last.connections, true);
-              tell(t("you.connections.disconnected-app", "Disconnected. {app} can't reach your targum any more.", { app: name }));
+              paint(last && last.connections);
+              tell(t("you.connections.disconnected-app", "Disconnected. {app} can't reach your account any more.", { app: name }));
             })
             .catch(function () {
               press.disabled = false;
@@ -527,9 +577,10 @@
             ". " +
             t(
               "connect.scope.chat-also",
-              "And add texts to your playlists, and offer texts, playlists and subscriptions, which you confirm here, on targum"
+              "It can also add texts to your playlists, and suggest texts, playlists and subscriptions for you to confirm on targum."
             ) +
-            ". " +
+            // A sentence of its own since ling-en's pass (targum-internal#473), full stop and all.
+            " " +
             t("you.connections.chat-included", "Chatting is included."),
         });
       }
@@ -568,13 +619,6 @@
       rows.textContent = "";
       panel.hidden = !connected;
       (prompts || []).forEach(function (one) {
-        var row = document.createElement("li");
-        var called = document.createElement("span");
-        called.className = "acct-name";
-        called.textContent = one.name;
-        var what = document.createElement("span");
-        what.className = "note";
-        what.textContent = one.says;
         var press = document.createElement("button");
         press.type = "button";
         press.className = "btn ghost outline";
@@ -591,10 +635,28 @@
               tell(t("you.prompts.could-not-remove", "We couldn't remove that. Try again."));
             });
         };
-        row.appendChild(called);
-        row.appendChild(what);
-        row.appendChild(press);
+        var row = acctRow(one.name, one.says, press, true);
         rows.appendChild(row);
+        openable(row.querySelector && row.querySelector(".acct-clamp"));
+      });
+    }
+
+    /* Clamped to two lines, a long prompt had nowhere to show the rest (qa-claude on
+       #871): where it runs over, the text itself opens and closes on a press. */
+    function openable(text) {
+      if (!text || !(text.scrollHeight > text.clientHeight + 1)) return;
+      text.tabIndex = 0;
+      text.setAttribute("role", "button");
+      text.setAttribute("aria-expanded", "false");
+      function flip() {
+        var open = text.classList.toggle("acct-open");
+        text.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      text.addEventListener("click", flip);
+      text.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        flip();
       });
     }
 
@@ -668,7 +730,7 @@
 
   function rungLabels() {
     return {
-      "": t("you.level.none", "Not said"),
+      "": t("you.level.none", "Not set"),
       aleph: t("learn.level.aleph", "Just starting"),
       "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
       bet: t("learn.level.bet", "I can hold a simple conversation"),
@@ -715,8 +777,48 @@
 
   /* --- ending it -------------------------------------------------------------- */
 
+  /* Export says when it fails and when it is done (targum-internal#469, B6). Fetched
+     here rather than followed, so a session that has gone is said, not saved as a file
+     named "export"; the href stays for a page with no script. */
+  function wireExport() {
+    var link = at("you-export");
+    link.href = keyed("/account/export");
+    link.addEventListener("click", function (event) {
+      if (typeof fetch !== "function" || typeof Blob !== "function") return;
+      event.preventDefault();
+      var failed = function () {
+        say("you-ending-said", t("you.export.failed", "We couldn't make the file."), true, function () {
+          say("you-ending-said", "");
+          link.click();
+        });
+      };
+      fetch(keyed("/account/export"), {
+        credentials: "same-origin",
+        headers: key ? { "X-Targum-Key": key } : {},
+      })
+        .then(function (response) {
+          if (response.status === 401) return say("you-ending-said", SIGNED_OUT, true);
+          if (!response.ok) return failed();
+          return response.blob().then(function (blob) {
+            var url = URL.createObjectURL(blob);
+            var save = document.createElement("a");
+            save.href = url;
+            save.download = "targum.json";
+            document.body.appendChild(save);
+            save.click();
+            document.body.removeChild(save);
+            setTimeout(function () {
+              URL.revokeObjectURL(url);
+            }, 1000);
+            say("you-ending-said", t("you.export.done", "Downloaded targum.json."));
+          });
+        })
+        .catch(failed);
+    });
+  }
+
   function ending() {
-    at("you-export").href = keyed("/account/export");
+    wireExport();
     at("you-out").addEventListener("click", function () {
       // Through sync, not straight at the endpoint: signing out empties this browser's
       // store as well as ending the session, and only sync knows how to do both.
@@ -732,10 +834,12 @@
         // And a way back beside it (2026-09-14): the second question had no answer but
         // reloading the page.
         press.setAttribute("data-sure", "yes");
-        press.textContent = t("you.forget.sure", "Delete my account and words");
+        press.textContent = t("you.forget.sure", "Yes, delete my account");
         var keep = at("you-keep");
         if (keep) {
           keep.hidden = false;
+          // The safe choice first: the focus goes to Keep my account (§14.3).
+          keep.focus();
           keep.onclick = function () {
             press.removeAttribute("data-sure");
             press.textContent = t("you.forget", "Delete account");
@@ -749,16 +853,21 @@
       if (keeping) keeping.hidden = true;
       ask("/account/forget", {})
         .then(function (answer) {
-          say("you-ending-said", answer.message || t("you.closing", "We're closing your account."));
+          // Success ends the session too, and answers signed out; only an error is one.
+          if (answer && answer.error) {
+            press.disabled = false;
+            return say("you-ending-said", answer.error, true);
+          }
+          // One card that says what happened, focused so a screen reader hears it, and a
+          // way on that the reader presses: no redirect on a timer (targum-internal#469,
+          // B5). It was one line for a second and a half, then the front door.
+          only("you-closed");
+          at("you-closed-said").textContent =
+            answer.message || t("you.closing", "We've signed you out.");
+          at("you-closed").focus();
           // The words were left in this browser and the page went on showing the profile
           // (2026-09-14). Signed out here too, the way Sign out empties the browser.
-          if (window.TargumSync && window.TargumSync.signOut) {
-            window.TargumSync.signOut().then(function () {
-              setTimeout(function () {
-                location.href = keyed("/");
-              }, 1500);
-            });
-          }
+          if (window.TargumSync && window.TargumSync.signOut) window.TargumSync.signOut();
         })
         .catch(function () {
           press.disabled = false;
@@ -792,29 +901,10 @@
       said.hidden = !text;
     }
 
-    function day(stamp) {
-      var root = document.documentElement;
-      try {
-        return new Date(stamp).toLocaleDateString((root && root.lang) || "en", {
-          day: "numeric",
-          month: "short",
-          year: "numeric"
-        });
-      } catch (e) {
-        return "";
-      }
-    }
 
     function paint(chats) {
       rows.textContent = "";
       (chats || []).forEach(function (one) {
-        var row = document.createElement("li");
-        var name = document.createElement("span");
-        name.className = "acct-name";
-        name.textContent = t("you.telegram.chat", "A Telegram chat");
-        var when = document.createElement("span");
-        when.className = "note when";
-        when.textContent = t("you.telegram.linked-on", "Linked {made}", { made: day(one.linked) });
         var press = document.createElement("button");
         press.type = "button";
         press.className = "btn ghost outline";
@@ -831,10 +921,14 @@
               tell(t("you.telegram.could-not", "We couldn't do that. Try again."));
             });
         };
-        row.appendChild(name);
-        row.appendChild(press);
-        row.appendChild(when);
-        rows.appendChild(row);
+        rows.appendChild(
+          acctRow(
+            t("you.telegram.chat", "A Telegram chat"),
+            t("you.telegram.linked-on", "Linked {made}", { made: day(one.linked) }),
+            press,
+            false
+          )
+        );
       });
     }
 
@@ -866,6 +960,8 @@
     var free = plan.plan !== "plan";
     var back = (who.hours && who.hours.ends) || "";
     var hours = Math.round((plan.planCredits || 0) / 60);
+    var seeAll = document.getElementById("plan-see");
+    if (seeAll) seeAll.hidden = false;
     document.getElementById("plan-free").hidden = !free;
     document.getElementById("plan-paid").hidden = free;
     if (free) {
@@ -876,15 +972,36 @@
       );
       document.getElementById("plan-offer").textContent = t(
         "you.plan.offer",
-        "A plan gives you {n} credits a month, which is {hours} hours of audio or video, and lets you subscribe to YouTube channels and podcasts.",
+        "A plan gives you {n} credits a month, which is {hours} hours of audio or video. It also lets you subscribe to YouTube channels and podcasts.",
         { n: plan.planCredits, hours: hours }
       );
       if (plan.words) {
-        document.getElementById("plan-words").textContent = t(
-          "you.plan.words",
-          "{n} of {cap} words being learned. Known words don't count.",
-          { n: plan.listed || 0, cap: plan.words }
-        );
+        /* Past nine in ten of the cap, the line says how many more fit and points to the
+           plans (targum-internal#469, polish 10): 287 of 300 read the same as 12 of 300. */
+        var listed = plan.listed || 0;
+        var left = Math.max(0, plan.words - listed);
+        var near = listed >= plan.words * 0.9;
+        document.getElementById("plan-words").textContent = !near
+          ? t("you.plan.words", "{n} of {cap} saved words. Known words don't count.", {
+              n: listed,
+              cap: plan.words,
+            })
+          : left
+            ? t(
+                "you.plan.words-near",
+                "{n} of {cap} saved words. You can save {left} more on Free. Known words don't count.",
+                { n: listed, cap: plan.words, left: left }
+              )
+            : t(
+                "you.plan.words-full",
+                "{n} of {cap} saved words, as many as Free keeps. Mark words known to make room.",
+                { n: listed, cap: plan.words }
+              );
+        var more = document.getElementById("plan-words-more");
+        if (more) more.hidden = !near;
+        // "See plans" once: near the cap the row's link says why, so the head's goes
+        // (qa-claude on #871).
+        if (seeAll) seeAll.hidden = near;
         document.getElementById("plan-words-row").hidden = false;
       }
     } else {
@@ -909,8 +1026,33 @@
 
   /* --- putting it together ---------------------------------------------------- */
 
-  ask("/account/me")
+  /* Three answers that are not the account, told apart (targum-internal#469, B1, B2):
+     still asking, with a line past three seconds; offline; and not reached, with Try
+     again. Only the server saying nobody is signed in draws the line to sign in. */
+  var slow = setTimeout(function () {
+    var line = at("you-slow");
+    if (line && !at("you-loading").hidden) line.hidden = false;
+  }, 3000);
+  ["you-slow-again", "you-reach-again"].forEach(function (id) {
+    var press = at(id);
+    if (press) {
+      press.addEventListener("click", function () {
+        location.reload();
+      });
+    }
+  });
+
+  meOnce(keyed("/account/me"), {
+    credentials: "same-origin",
+    headers: key ? { "X-Targum-Key": key } : {},
+  })
+    .then(function (response) {
+      if (!response.ok && response.status !== 401) throw new Error(String(response.status));
+      return response.json();
+    })
     .then(function (who) {
+      clearTimeout(slow);
+      at("you-loading").hidden = true;
       show(!!who.signedIn);
       if (!who.signedIn) return;
       drawWho(who);
@@ -928,11 +1070,11 @@
       ending();
       if (window.TargumSync) window.TargumSync.start();
     })
-    // A server that cannot be reached is a reader who is not signed in as far as this
-    // page can tell, and saying so is the whole of what it can do. Without this the
-    // request failed, nothing was shown, and the page sat blank — not even the line that
-    // tells somebody where to sign in.
+    // A server that cannot be reached is not a reader who is signed out, and telling a
+    // signed-in reader on a train to sign in was the old answer here. Offline says what
+    // still works; anything else says the account could not be reached, with Try again.
     .catch(function () {
-      show(false);
+      clearTimeout(slow);
+      only(typeof navigator !== "undefined" && navigator.onLine === false ? "you-offline" : "you-unreachable");
     });
 })();

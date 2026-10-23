@@ -208,6 +208,19 @@ def test_the_focus_ring_is_one_colour() -> None:
             )
 
 
+def test_no_focus_ring_is_a_wash() -> None:
+    """§8: focus is a 2px ring in `--focus`. A 9% teal wash round a field with no border
+    showed nothing, and a keyboard reader could not see where they were on the account
+    page's selects and fields (targum-internal#469, B7). No focus rule draws a wash."""
+    for sheet in STYLESHEETS:
+        css = re.sub(r"/\*.*?\*/", "", sheet.read_text(encoding="utf-8"), flags=re.S)
+        for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+            if ":focus" not in selector:
+                continue
+            for shadow in re.findall(r"box-shadow:\s*([^;]+)", body):
+                assert "-wash" not in shadow, f"{sheet.name}: {selector.strip()} rings in a wash"
+
+
 def test_no_focus_ring_is_the_gold() -> None:
     """The gold measured 2.31:1 on the ground and 2.71:1 on paper, under 1.4.11's 3:1
     (§12, "The focus ring is teal everywhere", 2026-10-11). It stays the mark's and is
@@ -516,6 +529,28 @@ THUMBED = (
     # The "Met in" press and the texts it lists (targum-internal#497).
     ".met-open",
     ".met-text",
+    # Your account (targum-internal#469, B8): the Hebrew address segments, its links.
+    "#you-address > button",
+    ".acct-link",
+    ".acct-inline",
+    # Your Progress's What next (targum-internal#471, B4), and the fault panel's Tell us.
+    ".next-more",
+    ".next-link",
+    ".fault-act",
+    # Listening's finish (targum-internal#474, B7): a playlist row's title, the way back,
+    # Add from…, the sheet's × and the Listening view's position.
+    "a.item-title",
+    ".pl-back",
+    ".pl-add-link",
+    ".pl-sheet-shut",
+    ".lv-track",
+    # And its polish (targum-internal#474): the link to Saved on this device offline.
+    ".pl-away a",
+    # The chat's finish (targum-internal#472, B9): Hear under an answer, and the quote
+    # card's source link and More options.
+    ".chat-play",
+    ".quote-source",
+    ".quote-more",
 )
 
 
@@ -1362,3 +1397,117 @@ def test_every_hebrew_run_says_its_direction() -> None:
             if not re.search(r'\bdir="', tag):
                 loose.append(f"{page.name}: {tag[:80]}")
     assert not loose, "§14: Hebrew runs with no direction:\n" + "\n".join(loose)
+
+
+#: A Hebrew letter, with its points and cantillation: the block and its presentation forms.
+HEBREW_LETTER = re.compile(r"[\u0590-\u05FF\uFB1D-\uFB4F]")
+RTL_LANGUAGES = {"he", "arc", "yi"}
+
+
+def hebrew_without_language(markup: str) -> list[str]:
+    """Every run of Hebrew in `markup` that no element around it declares, with its
+    direction. `lang` is inherited, so a run is told by the nearest element carrying one;
+    the page's own `<html lang="en">` is the case this exists to catch."""
+    from html.parser import HTMLParser
+
+    void = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "wbr"}
+
+    class Runs(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self.open: list[tuple[str, dict[str, str | None]]] = []
+            self.loose: list[str] = []
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            if tag not in void:
+                self.open.append((tag, dict(attrs)))
+
+        def handle_endtag(self, tag: str) -> None:
+            for depth in range(len(self.open) - 1, -1, -1):
+                if self.open[depth][0] == tag:
+                    del self.open[depth:]
+                    break
+
+        def handle_data(self, data: str) -> None:
+            if not HEBREW_LETTER.search(data):
+                return
+            if any(tag in {"script", "style", "title", "template"} for tag, _ in self.open):
+                return
+            said = [attrs for _, attrs in self.open if attrs.get("lang")]
+            nearest = said[-1] if said else {}
+            if nearest.get("lang") not in RTL_LANGUAGES or not nearest.get("dir"):
+                tag, attrs = self.open[-1] if self.open else ("", {})
+                self.loose.append(f"<{tag} class={attrs.get('class')!r}> {data.strip()[:30]}")
+
+    runs = Runs()
+    runs.feed(markup)
+    return runs.loose
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_every_hebrew_run_on_the_front_door_says_its_language(language: str) -> None:
+    """§14, line 3, for the runs that carry no `lang` at all (targum-internal#517). The
+    test above reads only tags that already say `lang`, so the 68 Hebrew runs on the front
+    door, marked `class="he"` and nothing else, were invisible to it, and a screen reader
+    read them in the page's English or Russian voice. Read off the rendered pages, since
+    the band and the letters are drawn from partials; `landing.js`'s own runs are held by
+    `test_landing_browser.py`."""
+    from targum.render.builder import aliyah_page, front_page
+
+    loose = []
+    for name, page in (
+        ("landing", front_page(language, "https://targum.page")),
+        ("aliyah", aliyah_page(language, "https://targum.page")),
+    ):
+        loose += [f"{name}: {run}" for run in hebrew_without_language(page)]
+    assert not loose, "§14: Hebrew with no lang or no dir:\n" + "\n".join(loose)
+
+
+def test_a_hebrew_run_with_no_language_is_seen() -> None:
+    """The check above, shown to catch what it is for, and to pass what is right."""
+    bare = '<html lang="en"><body><p class="he">שָׁלוֹם</p></body></html>'
+    told = '<html lang="en"><body><p lang="he" dir="rtl">שָׁלוֹם <b>וּ</b></p></body></html>'
+    undirected = '<html lang="en"><body><span lang="he">שָׁלוֹם</span></body></html>'
+    assert hebrew_without_language(bare)
+    assert not hebrew_without_language(told)
+    assert hebrew_without_language(undirected)
+
+
+def test_a_page_in_russian_carries_the_cyrillic_face_and_one_in_english_does_not() -> None:
+    """design.md §13, "Russian is carried too" (2026-10-21; targum-internal#476, B1): the
+    chrome's Cyrillic subset is a second face of the same family whose range is the
+    Cyrillic block, carried only on a page rendered in Russian. A reader whose interface is
+    Russian carries the upright alone, as it does the Latin."""
+    ttlib = pytest.importorskip("fontTools.ttLib", reason="fontTools reads the faces")
+
+    from targum.render.builder import CHROME_CYRILLIC, _chrome_face, carried, progress_page
+
+    russian = carried(progress_page("k", "ru"))
+    english = carried(progress_page("k", "en"))
+    assert russian.count("unicode-range:U+0400-04FF,U+2011,U+2116") == 2
+    assert "unicode-range" not in english
+    assert str(_chrome_face(italic=False, cyrillic=True)).count("unicode-range") == 1
+    fonts = Path(__file__).parents[1] / "src" / "targum" / "render" / "assets"
+    for name in CHROME_CYRILLIC:
+        cmap = ttlib.TTFont(fonts / name).getBestCmap()
+        wanted = [*range(0x0410, 0x0450), 0x0401, 0x0451, 0x2116, 0x2011]
+        assert all(code in cmap for code in wanted), name
+        assert not any(0x41 <= code <= 0x7A for code in cmap), f"{name} carries no Latin"
+
+
+def test_the_listening_view_draws_its_far_lines_in_soft_ink_and_says_what_play_in_order_does() -> (
+    None
+):
+    """targum-internal#474: the lines either side of the one being said stood back by
+    opacity, ink at 0.38, about 2.3:1 on paper (B9); and Play in order said what it does
+    only in a title (B5)."""
+    root = Path(__file__).parents[1] / "src" / "targum" / "render"
+    css = (root / "assets" / "reader.css").read_text(encoding="utf-8")
+    far = re.search(r"\n\.lv-far \{(.*?)\}", css, re.S)
+    assert far is not None
+    assert "opacity" not in far.group(1) and "color: var(--ink-soft)" in far.group(1)
+    page = (root / "templates" / "reader.html.j2").read_text(encoding="utf-8")
+    assert 'aria-describedby="lv-order-says"' in page
+    assert re.search(
+        r'<p class="lv-order-says" id="lv-order-says">\{\{ t\("reader.list.play-on-title"', page
+    )

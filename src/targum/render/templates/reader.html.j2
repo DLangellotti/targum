@@ -13,13 +13,7 @@
 {%- if preread %}
 {{ styles('preread.css') }}
 {% endif %}
-{#- The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
-    script has no Hebrew to draw with it (2026-09-13). Every Hebrew-script text carries
-    it, Yiddish and Aramaic included. -#}
-{% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
-{#- The chrome's face, upright only, for the reader's own menus (design.md §12,
-    2026-10-09, "The reader's menus are the board's"). -#}
-{{ chrome_face(false) }}
+{#- The faces ride after reader.js: see there (targum-internal#409). -#}
 {{ script('durable.js') }}
 {{ script('keep.js') }}
 </head>
@@ -989,9 +983,12 @@
       <button type="button" class="lv-qdone">{{ t("reader.listen.done", "Done") }}</button>
     </header>
     <div class="lv-qbody">
-      <button type="button" class="lv-order" role="switch" aria-checked="false" title="{{ t("reader.list.play-on-title", "When a recording ends, the next one starts") }}">
+      <button type="button" class="lv-order" role="switch" aria-checked="false" aria-describedby="lv-order-says" title="{{ t("reader.list.play-on-title", "When a recording ends, the next one starts") }}">
         <span>{{ t("reader.listen.play-in-order", "Play in order") }}</span><span class="lv-sw" aria-hidden="true"></span>
       </button>
+      {#- What it does, on the page and not in a title alone (targum-internal#474, B5;
+          design.md §14, nothing is hover-only). -#}
+      <p class="lv-order-says" id="lv-order-says">{{ t("reader.list.play-on-title", "When a recording ends, the next one starts") }}</p>
       <p class="lv-grp">{{ t("reader.listen.now-playing", "Now playing") }}</p>
       <div class="lv-qrow is-now">
         <span class="lv-qcover" aria-hidden="true"><span class="lv-letter" lang="{{ source_language }}">{{ (title or "·")[:1] }}</span></span>
@@ -1355,7 +1352,7 @@
   <dl>
     {% if words %}<dt>&larr; &rarr;</dt><dd>{{ t("reader.page.forward-through-the-words-you-have-not", "on to the next word you haven't finished with, then the foot of the page, the next page and, after the last, the next chapter; back through every word in order") }}</dd>
     <dt>k 4</dt><dd>{{ t("reader.page.known", "known") }}</dd>
-    <dt>1 2 3</dt><dd>{{ t("reader.page.just-met-getting-there-nearly-there", "just met, getting there, nearly there") }}</dd>
+    <dt>1 2 3</dt><dd>{{ t("reader.page.keys-steps", "new, learning, almost known") }}</dd>
     <dt>i</dt><dd>{{ t("reader.page.ignore-it-a-name-a-numeral-a", "ignore it — a name, a numeral, a word from another language") }}</dd>
     <dt>Enter</dt><dd>{{ t("reader.page.what-the-word-you-are-on-means", "what the word you are on means; again to look it up") }}</dd>
     <dt>u</dt><dd>{{ t("reader.page.take-back-the-last-level-and-stand", "take back the last level and return to that word") }}</dd>
@@ -1422,12 +1419,32 @@
 {{ script('sync.js') }}
 {{ script('events.js') }}
 {{ script('landed.js') }}
-{#- The player, only where the text has a recording (reader QA, 2026-10-20): it defines
-    `targumPlayer`, which `reader.js` runs where the player's closure used to stand, so it
-    has to be here before it. A reader with a film or a recording carries it whole, saved
-    or opened off a disk; a reader with neither never needed it. -#}
-{% if spoken_audio %}{{ script('player.js') }}{% endif %}
 {{ script('reader.js') }}
+{%- if data_late %}
+{#- After reader.js, so a word answers a tap before the commentaries' data is parsed
+    (targum-internal#409). `adoptLate` takes it in. -#}
+<script type="application/json" id="targum-data-late">{{ data_late }}</script>
+{%- endif %}
+{#- The player, only where the text has a recording (reader QA, 2026-10-20). A reader with
+    a film or a recording carries it whole, saved or opened off a disk; a reader with
+    neither never needed it. It defines `targumPlayer`, which `reader.js` runs where the
+    player's closure used to stand; since 2026-10-21 it comes after `reader.js`
+    (targum-internal#409: seventeen kilobytes a word waited for), and runs itself on
+    arrival when `reader.js` got there first, so it still starts after everything the
+    reader starts and before anything below. -#}
+{% if spoken_audio %}{{ script('player.js') }}{% endif %}
+{#- The faces, after reader.js (design.md §12, "The reading face may arrive just after
+    the first paint", 2026-10-21; targum-internal#409): sixty kilobytes the page had to
+    take before a word could answer a tap. The first frame may set its letters in the
+    platform's face for a moment; `reader.js` lays the page out again, in place, when
+    they load.
+    The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
+    script has no Hebrew to draw with it (2026-09-13). Every Hebrew-script text carries
+    it, Yiddish and Aramaic included. -#}
+{% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
+{#- The chrome's face, upright only, for the reader's own menus (design.md §12,
+    2026-10-09, "The reader's menus are the board's"). -#}
+{{ chrome_face(false) }}
 {#- After `reader.js`, since 2026-10-20 (reader QA): a word answers a tap once `reader.js` has
     run, and the page reads its scripts in order as they arrive, so what a first tap does not
     need comes after it. Saving for offline and the worker that answers it (design.md §12,

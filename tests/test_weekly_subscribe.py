@@ -465,12 +465,15 @@ def test_last_week_does_not_stop_this_week(store: Store) -> None:
 def test_each_letter_names_its_own_issue(store: Store) -> None:
     """Two weeks running, and the second must not link to the first."""
     last, this = _issue("2026-w35", "2026-08-24"), _issue("2026-w36", "2026-08-31")
-    older = letter(last, "https://targum.page", "abc").text
-    newer = letter(this, "https://targum.page", "abc").text
+    older_mail = letter(last, "https://targum.page", "abc")
+    newer_mail = letter(this, "https://targum.page", "abc")
+    older, newer = older_mail.text, newer_mail.text
 
     assert "/weekly/2026-w35" in older and "/weekly/2026-w36" not in older
     assert "/weekly/2026-w36" in newer and "/weekly/2026-w35" not in newer
-    assert "August 24, 2026" in older and "August 31, 2026" in newer
+    # The date is the subject's and the masthead's since the label says what the mail is
+    # (targum-internal#470).
+    assert "August 24, 2026" in older_mail.subject and "August 31, 2026" in newer_mail.subject
 
 
 def test_somebody_who_joined_between_issues_gets_the_new_one(store: Store) -> None:

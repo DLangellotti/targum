@@ -430,6 +430,50 @@ def test_the_sheet_from_a_later_page_keeps_the_vowels_and_the_teamim(browser, se
     context.close()
 
 
+def test_the_reader_s_sheet_press_says_when_it_is_slow_and_when_offline(
+    browser, served: str
+) -> None:
+    """targum-internal#409, slice 2: past three seconds, "Still making your PDF…"; offline,
+    that the PDF needs a connection."""
+    context, page = opened(browser, served, DESK)
+    page.route("**/*.pdf*", lambda route: None)  # held: never answered
+    page.click("#print-open")
+    page.locator(SHEET).first.click()
+    page.wait_for_timeout(3300)
+    slow = page.locator("#sheet-said").inner_text()
+    context.close()
+    assert slow == "Still making your PDF…", slow
+
+    context, page = opened(browser, served, DESK)
+    context.set_offline(True)
+    page.click("#print-open")
+    page.locator(SHEET).first.click()
+    page.wait_for_timeout(200)
+    offline = page.locator("#sheet-said").inner_text()
+    context.close()
+    assert offline == "You're offline. The PDF is made on targum, so it needs a connection."
+
+
+def test_the_slow_line_goes_when_the_sheet_arrives(browser, served: str) -> None:
+    """qa on #857: a PDF that arrived after the slow line left the line on screen."""
+    context, page = opened(browser, served, DESK)
+    held: list = []
+    page.route("**/*.pdf*", lambda route: held.append(route))
+    page.click("#print-open")
+    page.locator(SHEET).first.click()
+    page.wait_for_timeout(3300)
+    assert page.locator("#sheet-said").inner_text() == "Still making your PDF…"
+    held[0].fulfill(status=200, body=b"%PDF-1.4\n", headers={"Content-Type": "application/pdf"})
+    page.wait_for_timeout(300)
+    # Read off the line itself: the ⋯ panel round it may be hidden either way (qa on #857).
+    line = page.evaluate(
+        "() => { const s = document.getElementById('sheet-said');"
+        " return {hidden: s.hidden, text: s.textContent}; }"
+    )
+    context.close()
+    assert line["hidden"] and line["text"] == "", line
+
+
 # -- S1 and S3: the bar on a phone ---------------------------------------------------------
 
 TOOLS = """

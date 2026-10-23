@@ -51,14 +51,14 @@ def test_the_menu_lists_every_language_the_reader_learns() -> None:
 def test_every_language_wears_how_far_along_it_is() -> None:
     """design.md §12, 2026-10-09: a badge, on the menu's button and on every row, and
     nothing more. Since 2026-10-12 the words come from `stages.DECLARED` through the page,
-    checked by `test_stages.py`: Hebrew keeps Beta by decision, the rest wear what they
-    have earned, which today is Experimental."""
+    checked by `test_stages.py`: Hebrew wears the Beta it earned, Russian the Alpha it is
+    kept at (David, 2026-10-21), and the rest what they have earned, Experimental."""
     learning = ["he", "ru", "it", "fr", "arc", "yi"]
     drawn = menu(stored={"targum:learning": json.dumps(learning)}, pageCodes=["he"])
     said = dict(zip(drawn["before"]["items"], drawn["before"]["badges"], strict=True))
     assert said == {
         "he": "Beta",
-        "ru": "Experimental",
+        "ru": "Alpha",
         "it": "Experimental",
         "fr": "Experimental",
         "arc": "Experimental",

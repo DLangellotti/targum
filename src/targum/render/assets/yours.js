@@ -232,6 +232,9 @@
   }
 
   function accountPlaces() {
+    // Home asked the same question as the page opened (`home.js`, #484): read its answer.
+    var home = window.TargumHome;
+    if (home && home.asked) return home.asked();
     return ask("/account/places?limit=20")
       .then(function (answer) {
         return (answer && answer.places) || [];

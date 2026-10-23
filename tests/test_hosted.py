@@ -712,7 +712,7 @@ def test_a_closing_account_is_told_so_at_every_door(
     neither true, and neither said how to keep the account."""
     sent: list[str] = []
     port, store = _hosted_box(tmp_path, free_port, sent)
-    closing = "This account is being closed. To keep it, email hello@targum.page."
+    closing = "We're closing this account. To keep it, email hello@targum.page."
     store.invite("leaving@example.com")
     got = store.finish_sign_in(store.start_sign_in("leaving@example.com"))
     assert got is not None

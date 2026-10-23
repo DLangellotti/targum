@@ -2,9 +2,10 @@
  * it. Only a reader whose text has a recording carries this file (reader QA,
  * targum-internal#464, 2026-10-19): everything here waited for `speech.audio` and
  * returned at once without it, and every other reader paid for it anyway, about a
- * fifth of the reader's script. It stands before `reader.js` and only defines
- * `targumPlayer`; `targumReader` runs it where this closure used to stand, so the
- * order everything starts in is the order it always was.
+ * fifth of the reader's script. It only defines `targumPlayer`; `targumReader` runs
+ * it where this closure used to stand, so the order everything starts in is the order
+ * it always was. It comes after `reader.js` since 2026-10-21 (targum-internal#409) and
+ * runs itself on arrival when the reader got there first (the foot of this file).
  */
 
 /* Playing a dialogue: one line, or the whole scene with the text following along.
@@ -2571,3 +2572,12 @@ var targumPlayer = function () {
   });
 })();
 };
+
+/* After `reader.js` since 2026-10-21 (targum-internal#409): where the reader has already
+   run and found no player, it left word to run this on arrival. Where the reader runs
+   later (it waits on the store), it finds `targumPlayer` and runs it itself. Once,
+   either way. */
+if (window.targumPlayerWanted) {
+  window.targumPlayerWanted = false;
+  targumPlayer();
+}

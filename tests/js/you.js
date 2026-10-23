@@ -54,7 +54,15 @@ global.fetch = (url, options) => {
   }
   // An answer of "fail" is a request that never came back.
   if (answers[at] === "fail") return Promise.reject(new Error("offline"));
-  return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
+  // A real answer says whether it was ok, which the page reads (targum-internal#469: a
+  // refusal is not the same as signed out). `status:<path>` in the payload overrides it.
+  const status = (payload.statuses || {})[at] || 200;
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(answers[at] || {}),
+    blob: () => Promise.resolve(new Blob([JSON.stringify(answers[at] || {})])),
+  });
 };
 
 require(path.join(assets, "strings.js"));
@@ -138,6 +146,8 @@ setTimeout(() => {
           hidden: at("you-languages-said").hidden,
         },
         ending: { text: at("you-ending-said").textContent, hidden: at("you-ending-said").hidden },
+        // The card a closed account is told on (targum-internal#469, B5).
+        closed: { text: at("you-closed-said").textContent, hidden: at("you-closed").hidden },
         forget: { label: at("you-forget").textContent, disabled: at("you-forget").disabled },
         /* One row an app: what it says it is, what it may do, and nothing that could be
            a credential (targum-internal#80). */
@@ -151,9 +161,24 @@ setTimeout(() => {
         })),
         promptsPanel: at("prompts").hidden,
         prompts: Array.from(at("prompt-rows").children).map((row) => ({
-          name: row.children[0].textContent,
-          says: row.children[1].textContent,
+          name: (row.querySelector(".acct-name") || {}).textContent,
+          says: (row.querySelector(".acct-says") || {}).textContent,
         })),
+        /* How a prompt's and a Telegram chat's row is drawn (targum-internal#469, polish
+           6): its class, whether its line is clamped, and the press at its end. */
+        promptRows: Array.from(at("prompt-rows").children).map((row) => ({
+          className: row.className,
+          clamped: Boolean(row.querySelector(".acct-clamp")),
+          press: (row.querySelector(".acct-end") || { children: [{}] }).children[0].textContent,
+        })),
+        telegram: Array.from(at("telegram-rows").children).map((row) => ({
+          className: row.className,
+          name: (row.querySelector(".acct-name") || {}).textContent,
+          says: (row.querySelector(".acct-says") || {}).textContent,
+        })),
+        connectionsNone: at("connections-none").hidden,
+        connectionsSays: at("connections-says").hidden,
+        connectLink: at("connect-link").textContent,
         promptsSaid: { text: at("prompts-said").textContent, hidden: at("prompts-said").hidden },
         connectionsSaid: {
           text: at("connections-said").textContent,
@@ -169,6 +194,8 @@ setTimeout(() => {
           offer: at("plan-offer").textContent,
           words: at("plan-words").textContent,
           wordsHidden: at("plan-words-row").hidden,
+          wordsMore: at("plan-words-more").hidden,
+          see: at("plan-see").hidden,
           paidSays: at("plan-paid-says").textContent,
           back: at("plan-back").textContent,
           topUps: at("plan-top-ups").children.map((one) => one.textContent),

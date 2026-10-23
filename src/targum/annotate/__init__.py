@@ -30,7 +30,7 @@ from .base import (
     unread,
 )
 from .biblical import METHOD as TANAKH_METHOD
-from .dicta import mend_pointed
+from .dicta import mend_pointed, verb_shape
 from .dictionary import Entry as DictionaryEntry
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
@@ -39,6 +39,7 @@ from .moves import letters as _letters
 from .moves import shared as _shared
 from .pronounce import PhonikudPronouncer, as_prefixed
 from .pronounce import supports as pronounceable
+from .suffix_stress import GATE, gate
 
 __all__ = [
     "BAND_COUNT",
@@ -266,7 +267,13 @@ class Annotator:
                         token.lemma, token.pos, source_text[segment_id][start:end]
                     )
                     if (lemma, pos) != (token.lemma, token.pos):
-                        token = token.model_copy(update={"lemma": lemma, "pos": pos})
+                        mended: dict[str, object] = {"lemma": lemma, "pos": pos}
+                        if pos == "VERB" and lemma != token.lemma:
+                            # A nif'al taken off a future: the binyan and root the lemma
+                            # spells are new too.
+                            binyan, root = verb_shape(lemma)
+                            mended |= {"binyan": binyan, "root": root}
+                        token = token.model_copy(update=mended)
                 if segment_id in elsewhere:
                     # Read, and deliberately not rated. See `elsewhere` above.
                     band = UNRATED
@@ -441,6 +448,9 @@ class Annotator:
                 # לְ in לְהוֹסִיף is said, and the reading has to be told it is a prefix.
                 if token.syntax is not None and token.syntax.lead == 1:
                     word = as_prefixed(word)
+                # Asked per form and class, not per form: בָּנוּ "in us" and בָּנוּ "they
+                # built" are pointed the same and stressed apart (targum-internal#500).
+                word = f"{word}{GATE}{gate(token.pos, token.feats)}"
                 found.append(word)
                 distinct.add(word)
             surfaces[segment_id] = found

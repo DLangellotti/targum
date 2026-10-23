@@ -31,7 +31,7 @@ import threading
 import time
 import traceback
 import webbrowser
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from functools import cache, lru_cache, partial
@@ -115,6 +115,9 @@ MAX_UPLOAD = 32 * 1024 * 1024
 #: The longest thing a word's card may ask to hear, pointing included: a word, or the few
 #: a fixed expression is, and never a sentence.
 WORD_SAID_CHARS = 60
+#: Ends a word can be cut with that are not the word, as the card's Hear trims them:
+#: spaces, maqaf, paseq, sof pasuq, punctuation.
+EDGES_SAID = " \t\n\u05be\u05c0\u05c3.,;:!?\"'()[]\u2013\u2014"
 
 #: The chunked door, for recordings. An audiobook is a gigabyte and the JSON door reads
 #: its whole body into memory as base64; chunks arrive raw, 8 MiB at a time — under
@@ -1660,6 +1663,54 @@ class Jobs(dict[str, Job]):
 BUILD_KINDS = ("build", "subscription")
 
 
+def said_clip(text: str, language: str) -> tuple[Path, Path | None]:
+    """Where the voice's clip of one word is kept, and the clip if it has been made: by
+    what was said and in which language, never by who asked, so a word anybody has heard
+    is free for everyone after (design.md §12, "A word said from its card is on targum")."""
+    from . import speech
+    from .ids import content_hash
+    from .paths import cache_dir
+
+    key = content_hash(speech.NAME, speech.VOICE, speech.ask(language), language, text)
+    into = cache_dir() / "said" / key[:2] / key
+    kept = next((p for p in into.parent.glob(f"{key}.*") if p.is_file()), None)
+    return into, kept
+
+
+#: How many words one Anki export gives a sound to (David, 2026-10-21): a clip is about a
+#: second, so this is about an hour and a half of speech, a few dollars, at most.
+ANKI_MOST = 5000
+
+
+@dataclass
+class Deck:
+    """One Anki export being made: how far it has got, and the file when it is done."""
+
+    id: str
+    owner: int
+    total: int
+    making: int = 0
+    made: int = 0
+    silent: int = 0
+    state: str = "making"
+    name: str = ""
+    path: Path | None = None
+    note: str = ""
+    #: When it was asked for, in `now()`'s milliseconds: a deck nobody fetches is thrown
+    #: away an hour on (`Handler._decks_expire`).
+    made_at: int = field(default_factory=now)
+
+
+#: How long an Anki deck waits to be fetched before it is thrown away, in milliseconds.
+ANKI_KEPT_MS = 60 * 60 * 1000
+#: How long a deck may be "making" before it is taken for stuck and thrown away, so a
+#: thread that died never holds the person's one deck for good (qa on #854). 5,000 clips
+#: made one after another take well under this.
+ANKI_STUCK_MS = 6 * 60 * 60 * 1000
+#: One deck at a time a person: the check and the start are one step under this lock.
+ANKI_LOCK = threading.Lock()
+
+
 class Library:
     """Everything built so far, and the jobs building more."""
 
@@ -1740,6 +1791,8 @@ class Library:
         # What stopped a set's press, held for the page it redirects back to (#365). A
         # form post answered by a redirect has nowhere else to put a sentence.
         self.set_refusals: dict[int, str] = {}
+        # The Anki decks being made, by id (targum-internal#496); one at a time a person.
+        self.decks: dict[str, Deck] = {}
         # The quota's view of each home, cached a minute: a gigabyte arrives in a
         # hundred chunks and the disk should not be walked for every one of them.
         self._used: dict[Path, tuple[int, int]] = {}
@@ -1989,6 +2042,7 @@ class Library:
                 title_language=job.language,
                 parts=max(job.parts, job.chapters),
                 seconds=job.seconds,
+                gift=bool(job.gift),
             )
             self.mailer.notify(
                 person.email, letter.subject, letter.text, letter.headers or None, letter.html
@@ -2117,7 +2171,10 @@ class Library:
         # 14" on Learn); "1 October" beside it was a second convention on one screen.
         english = datetime(year, month, 1, tzinfo=UTC).strftime("%B")
         named = said_in(ui, f"date.month.{month}", english)
-        return said_in(ui, "date.month-day", "{month} {day}", month=named, day=1)
+        # Never broken from its month at the end of a line: "resets / on 1 November" and
+        # «обновится 1 / ноября» at 390 (targum-internal#469, polish 4).
+        said = said_in(ui, "date.month-day", "{month} {day}", month=named, day=1)
+        return said.replace(" ", "\u00a0")
 
     def settle(self, job: Job) -> None:
         """Swap what a build reserved for what it spent — and, for a turn of
@@ -2277,7 +2334,7 @@ class Library:
                 said_in(
                     ui,
                     "job.out-of.talk-credits",
-                    "You've used this month's credits for audio and talk. Top up, or they "
+                    "You've used this month's credits for audio and chat. Top up, or they "
                     "reset on {date}.",
                     credits=f"{allowed / SECONDS_A_CREDIT:g}",
                     date=self._month_ends(ui),
@@ -2294,7 +2351,7 @@ class Library:
                 said_in(
                     ui,
                     "job.out-of.chat",
-                    "That's a lot of talking for one day. Try again in {hours} hours.",
+                    "You've reached today's chat limit. Try again in {hours} hours.",
                     hours=BUDGET_HOURS,
                 ),
                 said_in(ui, "job.out-of.library-opens", "The library still opens"),
@@ -3063,6 +3120,15 @@ class Library:
             folder, "document", [document], partial(self._document_facts, document)
         )
         return str(facts.get("title") or "")
+
+    def document_named(self, folder: Path) -> tuple[str, str]:
+        """A built text's title and language, as the shelf has them: what a door to it in
+        the chat is named by (targum-internal#472 B2), never its folder."""
+        document = folder / "document.json"
+        facts = self.remembered.get(
+            folder, "document", [document], partial(self._document_facts, document)
+        )
+        return str(facts.get("title") or ""), str(facts.get("language") or "")
 
     @staticmethod
     def _recording_seconds(folder: Path) -> int:
@@ -4765,6 +4831,7 @@ class Library:
         before its book, and if the book's own cover fails there is nothing to match.
         """
         from . import covers as covers_module
+        from . import thumbs as thumbs_module
 
         illustrator = covers_module.build()
         usable, detail = illustrator.available()
@@ -4823,6 +4890,12 @@ class Library:
                 if name == entry_id:
                     original = drawing
                 (where / f"{name}.webp").write_bytes(covers_module.shrink(drawing))
+                # Where it came from, beside every other picture's (targum-internal#429).
+                thumbs_module.record(
+                    where,
+                    name,
+                    thumbs_module.drawn_entry(illustrator.name, date.today().isoformat()),
+                )
                 drawn += 1
                 job.done = drawn
                 self.remember(job)
@@ -5213,6 +5286,27 @@ def kept_cookie(value: str, address: str) -> str:
     return (
         f"{KEPT_COOKIE}={value}; HttpOnly; SameSite=Lax; Path=/; "
         f"Max-Age={KEPT_DAYS * 24 * 60 * 60}{secure}"
+    )
+
+
+#: Where the Library's page names the account's languages (`library.html.j2`), empty as
+#: rendered once at start-up and filled per request for a signed-in reader.
+ACCOUNT_SLOT = "window.TARGUM_ACCOUNT = {};"
+
+
+def with_account(page: str, language: str, learning: Iterable[str]) -> str:
+    """The Library's page naming the account's language and what it learns, so a browser
+    that has never been told them asks for that language's shelf first rather than
+    Hebrew's (targum-internal#484, qa-claude on #891). They are what `sync.js` writes
+    into the browser once the account answers, given before the shelf is asked for.
+    Language codes and nothing else: two or three letters, or left out. The page's inline
+    blocks are hashed per response (`_policy`), so the policy follows."""
+    code = re.compile(r"[a-z]{2,3}")
+    said: dict[str, Any] = {"learning": sorted(c for c in learning if code.fullmatch(c))}
+    if code.fullmatch(language or ""):
+        said["language"] = language
+    return page.replace(
+        ACCOUNT_SLOT, f"window.TARGUM_ACCOUNT = {json.dumps(said, sort_keys=True)};", 1
     )
 
 
@@ -8567,11 +8661,13 @@ class Handler(BaseHTTPRequestHandler):
             page = self._desk(f"lists:{which}", self.lists[which])
             return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/library":
-            return self._send(
-                200,
-                self._desk("catalogue", self.catalogue).encode("utf-8"),
-                "text/html; charset=utf-8",
-            )
+            page = self._desk("catalogue", self.catalogue)
+            person = self._person()
+            if person is not None and self.store is not None:
+                page = with_account(
+                    page, self.store.language(person.id), self.store.learning(person.id)
+                )
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/you":
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
@@ -8688,6 +8784,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._story(parse_qs(urlparse(self.path).query))
         if route == "/account/words":
             return self._words_page(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki":
+            return self._deck_state(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki/deck":
+            return self._deck_file(parse_qs(urlparse(self.path).query))
         if route == "/account/met":
             return self._met_texts(parse_qs(urlparse(self.path).query))
         if route == "/account/practice":
@@ -8921,6 +9021,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._voice(payload)
         if route == "/say-word":
             return self._hear_word(payload)
+        if route == "/account/anki":
+            return self._deck_start(payload)
         if route == "/chat/save":
             return self._chat_save(payload)
         if route == "/weekly/follow":
@@ -9066,6 +9168,7 @@ class Handler(BaseHTTPRequestHandler):
                 if state.get("done"):
                     # A page polling rather than streaming saw the answer too.
                     store.chat_opened(chat_id)
+                    state["doors"] = self._door_names(str(state.get("text") or ""))
                 return self._json(state)
             if pieces[0] == "audio":
                 return self._chat_audio(chat_id, n, person)
@@ -9112,6 +9215,8 @@ class Handler(BaseHTTPRequestHandler):
                     # read (`chat/record.py`); None where none were.
                     "words": turn.get("words"),
                 }
+                if turn["role"] == "assistant" and turn["said"]:
+                    entry["doors"] = self._door_names(str(turn["said"]))
                 if turn["role"] == "assistant" and turn["said"] and waiting:
                     entry["quotes"] = waiting
                     waiting = []
@@ -9266,6 +9371,41 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
+    #: A door in an answer, as `chat.js` reads one: `/reader/...` or `/library/...`.
+    DOOR_PATH = re.compile(r"(?:^|\s)(/(?:reader|library)/[^\s)]+)")
+
+    def _door_names(self, text: str) -> dict[str, dict[str, str]]:
+        """What each door in an answer opens, by its title and language, so the page says
+        "Open {title}" and never the folder the path names (targum-internal#472 B2). Only
+        texts this reader may open are named: their own, the shared ones and the weekly,
+        the roots `_serve_reader` allows, and the catalogue's by its id."""
+        from . import catalogue as catalogue_module
+
+        named: dict[str, dict[str, str]] = {}
+        for path in self.DOOR_PATH.findall(str(text or "")):
+            if path in named:
+                continue
+            wanted = unquote(path)
+            title, language = "", ""
+            if wanted.startswith("/reader/"):
+                name = wanted[len("/reader/") :].split("/")[0]
+                if not name or name.startswith("."):
+                    continue
+                for root in (self._home(), self.library.shared, self.library.weekly):
+                    folder = root / name
+                    if folder.parent.resolve() != root.resolve():
+                        continue
+                    if (folder / "reader" / "index.html").is_file():
+                        title, language = self.library.document_named(folder)
+                        break
+            else:
+                entry = catalogue_module.by_id(wanted[len("/library/") :].split("/")[0])
+                if entry is not None:
+                    title, language = entry.title, entry.language
+            if title:
+                named[path] = {"title": title, "language": language.split("-")[0]}
+        return named
+
     def _chat_seen(self, chat_id: str) -> None:
         """An answer was delivered to a page that was open on it."""
         store = getattr(self.chats, "store", None)
@@ -9273,6 +9413,15 @@ class Handler(BaseHTTPRequestHandler):
             store.chat_opened(chat_id)
 
     def _chat_event(self, index: int, kind: str, data: str) -> None:
+        if kind == "done":
+            # The doors in the answer, named by their texts' titles (#472 B2).
+            try:
+                payload = json.loads(data)
+            except json.JSONDecodeError:
+                payload = None
+            if isinstance(payload, dict):
+                payload["doors"] = self._door_names(str(payload.get("text") or ""))
+                data = json.dumps(payload, ensure_ascii=False)
         lines = "".join(f"data: {line}\n" for line in data.split("\n"))
         self.wfile.write(f"id: {index}\nevent: {kind}\n{lines}\n".encode())
         self.wfile.flush()
@@ -9412,8 +9561,6 @@ class Handler(BaseHTTPRequestHandler):
         import unicodedata
 
         from . import speech
-        from .ids import content_hash
-        from .paths import cache_dir
 
         text = unicodedata.normalize("NFC", str(payload.get("text") or "")).strip()
         language = str(payload.get("language") or "he").split("-")[0].lower()
@@ -9430,9 +9577,7 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 402,
             )
-        key = content_hash(speech.NAME, speech.VOICE, speech.ask(language), language, text)
-        into = cache_dir() / "said" / key[:2] / key
-        kept = next((p for p in into.parent.glob(f"{key}.*") if p.is_file()), None)
+        into, kept = said_clip(text, language)
         if kept is None:
             usable, why = speech.available()
             if not usable:
@@ -9458,7 +9603,7 @@ class Handler(BaseHTTPRequestHandler):
             seconds = 2.0
             job = Job(
                 ui=self._page_language(),
-                id=f"say-{key[:12]}-{secrets.token_hex(3)}",
+                id=f"say-{into.name[:12]}-{secrets.token_hex(3)}",
                 source=f"word:{language}",
                 estimate=seconds / 60 * speech.PRICES[speech.NAME],
                 seconds=seconds,
@@ -9509,6 +9654,333 @@ class Handler(BaseHTTPRequestHandler):
         kind = "audio/mpeg" if kept.suffix == ".mp3" else "audio/wav"
         encoded = base64.b64encode(kept.read_bytes()).decode("ascii")
         return self._json({"audio": f"data:{kind};base64,{encoded}"})
+
+    def _deck_start(self, payload: dict[str, Any]) -> None:
+        """Start making an Anki deck of a reader's words, with each word's sound
+        (targum-internal#496; David, 2026-10-21; design.md §12, "The Anki deck carries each
+        word's sound").
+
+        **The words are the account's, not the page's** (qa on #854): the deck is every
+        word this person keeps in the language, not ignored, read from the store, so a
+        request cannot have the voice say anything else. The page may narrow it to the
+        stages it shows (`statuses`) and hand the back of each card it shows (`backs`, the
+        meaning and the reader's note, by lemma), which is only text on the card and is
+        escaped there; a word the account does not keep is ignored.
+
+        A word whose clip the voice already made is free. For the rest, a clip is made the
+        way a Hear press makes one, under the same guard (one word or a few, at most
+        `WORD_SAID_CHARS`), as one `gift` job through `Library.claim_turn` held to the box
+        ceiling and settled to the seconds made, stopping at what was claimed. **At most
+        `ANKI_MOST` new sounds a reader a month, across exports**, counted off their own
+        export jobs (`Store.anki_clips_since`), so exporting again spends nothing more
+        past it. A word with no sound still goes in the deck, silent. Made in the
+        background; one deck at a time a person.
+        """
+        import unicodedata
+
+        from . import speech
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str(payload.get("language") or "").split("-")[0].lower()
+        if not language:
+            return self._json({"error": "bad request"}, 400)
+        self._decks_expire()
+        statuses = payload.get("statuses")
+        # The words the page shows, by lemma: the deck is what the reader sees, kept to
+        # the words the account saves (qa on #854). Absent, every saved word at the stages.
+        shown = payload.get("lemmas")
+        shown_set = {str(x) for x in shown} if isinstance(shown, list) else None
+        wanted_stages = (
+            {int(n) for n in statuses if isinstance(n, int | float)}
+            if isinstance(statuses, list)
+            else None
+        )
+        backs = payload.get("backs") if isinstance(payload.get("backs"), dict) else {}
+        words: list[dict[str, str]] = []
+        for row in self.store.saved_words(person, language):
+            if wanted_stages is not None and row["status"] not in wanted_stages:
+                continue
+            lemma = str(row["lemma"])
+            if shown_set is not None and lemma not in shown_set:
+                continue
+            term = unicodedata.normalize("NFC", str(row["surface"] or lemma)).strip()
+            given = backs.get(lemma) if isinstance(backs, dict) else None
+            back = str(given)[:2000] if isinstance(given, str) else ""
+            if not back:
+                back = " · ".join(part for part in (row["meaning"], row["note"]) if part)
+            words.append(
+                {
+                    "term": term,
+                    "lemma": lemma,
+                    "back": back,
+                    "tags": f"targum targum::{language} targum::level-{row['status']}",
+                }
+            )
+        if not words:
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.anki-nothing",
+                        "There are no saved words here to put in a deck.",
+                    )
+                },
+                400,
+            )
+        name = str(payload.get("deck") or f"targum {language}")[:120]
+        with ANKI_LOCK:
+            for deck in list(self.library.decks.values()):
+                if deck.owner == person.id and deck.state == "making":
+                    return self._json({"id": deck.id, **self._deck_said(deck)})
+            deck = Deck(id=secrets.token_hex(8), owner=person.id, total=len(words), name=name)
+            self.library.decks[deck.id] = deck
+        voiced = speech.speaks(language) and speech.available()[0]
+        room = max(0, ANKI_MOST - self._anki_made(person.id))
+        admin = self.store.is_admin(person.email)
+        home = self._home()
+        ui = self._page_language()
+        threading.Thread(
+            target=self._deck_make,
+            args=(deck, words, language, voiced, room, person.id, admin, home, ui),
+            daemon=True,
+        ).start()
+        self._json({"id": deck.id, **self._deck_said(deck)})
+
+    def _decks_expire(self) -> None:
+        """Throw away decks nobody fetched within `ANKI_KEPT_MS`, file and all, and any
+        still "making" past `ANKI_STUCK_MS`. Under `ANKI_LOCK`, so the walk never meets a
+        deck being added (qa on #854)."""
+        moment = now()
+        with ANKI_LOCK:
+            for deck in list(self.library.decks.values()):
+                stale = deck.state != "making" and deck.made_at < moment - ANKI_KEPT_MS
+                # A deck whose voice is still working is slow, not stuck: dropped, it would
+                # let a second deck start beside it and the two together pass the month's
+                # cap (qa on #868). Only a deck whose job has stopped, or never was, goes.
+                job = self.library.jobs.get(f"anki-{deck.id}")
+                working = job is not None and job.stage not in Library.SETTLED
+                stuck = (
+                    deck.state == "making" and deck.made_at < moment - ANKI_STUCK_MS and not working
+                )
+                if stale or stuck:
+                    if deck.path is not None:
+                        deck.path.unlink(missing_ok=True)
+                    self.library.decks.pop(deck.id, None)
+
+    def _anki_made(self, owner: int) -> int:
+        """New sounds this person's Anki exports have had made this month: off the job
+        rows where the library keeps them (`Store.anki_clips_since`), and off the jobs this
+        process holds where it keeps none."""
+        since = Library._month_from()
+        if self.library.store is not None:
+            return self.library.store.anki_clips_since(owner, since)
+        return sum(
+            job.done
+            for job in list(self.library.jobs.values())
+            if job.owner == owner and job.source.startswith("anki:") and job.made >= since
+        )
+
+    @staticmethod
+    def _sayable(text: str) -> bool:
+        """What `/say-word` itself would say: one word, or the few a fixed expression is."""
+        return bool(text) and len(text) <= WORD_SAID_CHARS and len(text.split()) <= 4
+
+    def _deck_make(
+        self,
+        deck: Deck,
+        words: list[dict[str, str]],
+        language: str,
+        voiced: bool,
+        room: int,
+        owner: int,
+        admin: bool,
+        home: Path,
+        ui: str,
+    ) -> None:
+        """The work behind `_deck_start`, off the request's thread."""
+        from . import anki
+        from .paths import cache_dir
+
+        try:
+            found: list[tuple[dict[str, str], Path, Path | None]] = []
+            for word in words:
+                said = word["term"].strip(EDGES_SAID)
+                into, kept = said_clip(said, language) if self._sayable(said) else (Path(), None)
+                found.append((word, into, kept))
+            needed = [
+                at
+                for at, (word, _into, kept) in enumerate(found)
+                if kept is None and self._sayable(word["term"].strip(EDGES_SAID))
+            ]
+            wanted = needed[:room]
+            if voiced and len(needed) > room:
+                deck.note = "cap"
+            deck.making = len(wanted) if voiced else 0
+            if voiced and wanted:
+                found = self._deck_voice(deck, found, wanted, language, owner, admin, home, ui)
+            notes = [
+                anki.Note(
+                    word=word["term"],
+                    meaning=word["back"],
+                    tags=tuple(word["tags"].split()),
+                    key=f"{language}:{word['lemma']}",
+                    sound=kept,
+                )
+                for word, _into, kept in found
+            ]
+            deck.silent = sum(1 for note in notes if note.sound is None)
+            folder = cache_dir() / "anki"
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"{deck.id}.apkg"
+            part = path.with_suffix(".part")
+            part.write_bytes(anki.build(deck.name, notes))
+            part.replace(path)
+            deck.path = path
+            deck.state = "ready"
+            with ANKI_LOCK:
+                dropped = deck.id not in self.library.decks
+            if dropped:
+                # Thrown away while it was made: nobody can fetch it, so it is not kept.
+                path.unlink(missing_ok=True)
+        except Exception as error:  # noqa: BLE001 - said on the page, logged here
+            traceback.print_exc()
+            incidents_module.record(self.library.incidents, "anki", error, job=deck.id)
+            deck.state = "failed"
+
+    def _deck_voice(
+        self,
+        deck: Deck,
+        found: list[tuple[dict[str, str], Path, Path | None]],
+        wanted: list[int],
+        language: str,
+        owner: int,
+        admin: bool,
+        home: Path,
+        ui: str,
+    ) -> list[tuple[dict[str, str], Path, Path | None]]:
+        """The clips the deck still needs, made under one gift claim for all of them, and
+        never past it: the claim is two seconds a word, and making stops once the seconds
+        made reach it (qa on #854)."""
+        from . import speech
+
+        seconds = 2.0 * len(wanted)
+        job = Job(
+            ui=ui,
+            id=f"anki-{deck.id}",
+            source=f"anki:{language}",
+            estimate=seconds / 60 * speech.PRICES[speech.NAME],
+            seconds=seconds,
+            stage="working",
+            owner=owner,
+            home=home,
+            admin=admin,
+            kind="chat",
+            gift=True,
+            total=len(wanted),
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        refused = self.library.claim_turn(job)
+        if refused:
+            job.stage = "blocked"
+            job.blocked = refused
+            self.library.remember(job)
+            deck.making = 0
+            deck.note = "refused"
+            return found
+        made = 0.0
+        out = list(found)
+        # Whatever happens, the claim is settled to what was made, or given back, and the
+        # count the monthly cap reads is saved (qa on #854).
+        try:
+            for at in wanted:
+                if made >= seconds:
+                    # Never past the claim: what is left goes in silent.
+                    deck.note = deck.note or "claim"
+                    break
+                word, into, _kept = out[at]
+                try:
+                    clip = speech.render(word["term"].strip(EDGES_SAID), into, language=language)
+                except Exception as error:  # noqa: BLE001 - one word without a sound is a silent card
+                    if isinstance(error, speech.Interrupted):
+                        # Paid for, so it counts toward the cap too.
+                        made += error.seconds
+                        job.done += 1
+                        self.library.remember(job)
+                    deck.made += 1
+                    continue
+                made += clip.seconds
+                out[at] = (word, into, clip.path)
+                deck.made += 1
+                job.done += 1
+                # Each clip on the job's row as it is made, so the month's count the cap
+                # reads is never behind what was rendered (qa on #868).
+                self.library.remember(job)
+        finally:
+            spent = Usage()
+            spent.add_seconds(speech.NAME, made)
+            job.seconds = made
+            job.spent = spent.cost()
+            job.stage = "done"
+            if made > 0:
+                self.library.settle(job)
+            else:
+                self.library.release(job)
+            self.library.remember(job)
+        return out
+
+    def _deck_said(self, deck: Deck) -> dict[str, Any]:
+        return {
+            "state": deck.state,
+            "total": deck.total,
+            "making": deck.making,
+            "made": deck.made,
+            "silent": deck.silent,
+            "refused": deck.note == "refused",
+            "capped": deck.note == "cap",
+            "stopped": deck.note == "claim",
+        }
+
+    def _deck_owned(self, query: dict[str, list[str]]) -> Deck | None:
+        person = self._person()
+        deck = self.library.decks.get(str((query.get("id") or [""])[0]))
+        if person is None or deck is None or deck.owner != person.id:
+            return None
+        return deck
+
+    def _deck_state(self, query: dict[str, list[str]]) -> None:
+        """How far an Anki deck has got."""
+        deck = self._deck_owned(query)
+        if deck is None:
+            return self._json({"error": "not found"}, 404)
+        self._json({"id": deck.id, **self._deck_said(deck)})
+
+    def _deck_file(self, query: dict[str, list[str]]) -> None:
+        """The finished `.apkg`, once, as an attachment."""
+        deck = self._deck_owned(query)
+        if deck is None or deck.state != "ready" or deck.path is None or not deck.path.is_file():
+            return self._send(404, b"not found", "text/plain")
+        body = deck.path.read_bytes()
+        name = re.sub(r"[^\w .-]", "", deck.name, flags=re.UNICODE).strip() or "targum"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header(
+            "Content-Disposition",
+            f"attachment; filename=\"targum.apkg\"; filename*=UTF-8''{quote(name + '.apkg')}",
+        )
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        # Fetched once; the clips stay in the cache, the deck does not.
+        deck.path.unlink(missing_ok=True)
+        with ANKI_LOCK:
+            self.library.decks.pop(deck.id, None)
 
     def _chat_hear(self, query: dict[str, list[str]]) -> None:
         """A line spoken into the microphone, written down and asked. Push-to-talk in.
@@ -10269,6 +10741,22 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 400,
             )
+        if action == "resume" and found["state"] == "off" and found["kind"] in SUB_BUILDS:
+            # A channel or a podcast that was unsubscribed spends again only from the
+            # confirm page, where the cap is chosen and said beside the press (design.md
+            # §12, "A monthly cap is the second press that lasts"). Never in one press here.
+            from . import subscriptions as subs
+
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.subscribe-again-confirm",
+                        "Choose the monthly cap again to subscribe.",
+                    ),
+                    "confirm": subs.again(found),
+                },
+                409,
+            )
         if (
             action == "resume"
             and found["kind"] in SUB_BUILDS
@@ -10296,12 +10784,15 @@ class Handler(BaseHTTPRequestHandler):
     #: `source` (an address) or `key` (a series, a topic, an outlet) — and where it was
     #: asked for, which the page says ("Asked for in a conversation").
     SUBSCRIBE_VIA = frozenset({"chat", "connector", "library", "series"})
+    #: Whether the last offer failed because its source didn't answer (#475 polish 5).
+    _source_unreached: bool = False
 
     def _subscribe_offer(self, asked: Mapping[str, str]) -> tuple[dict[str, Any] | None, str]:
         """What the confirm page offers, read afresh from the source, or the sentence that
         says why it cannot be offered."""
         from . import subscriptions as subs
 
+        self._source_unreached = False
         kind = str(asked.get("kind") or "")
         given = str(asked.get("source") or asked.get("key") or "")
         learning = str(asked.get("language") or "") or self._learning_language()
@@ -10311,6 +10802,8 @@ class Handler(BaseHTTPRequestHandler):
             return None, told(self._ui_language(), refusal, hosted=self.require_account)
         except Exception as error:  # noqa: BLE001 - a source that would not answer
             log.warning("subscribe: describing %s %s failed: %s", kind, given, error)
+            # Said with Try again on the page (#475 polish 5).
+            self._source_unreached = True
             return None, self._say(
                 "serve.subscribe-unreachable",
                 "We couldn't reach it just now. Try again in a moment.",
@@ -10350,6 +10843,15 @@ class Handler(BaseHTTPRequestHandler):
             via=via if via in self.SUBSCRIBE_VIA else "",
             cap=int(query.get("cap") or 0) if str(query.get("cap") or "").isdigit() else 0,
             token=self._key_if_given(),
+            unreachable=self._source_unreached,
+            again="/subscribe?"
+            + urlencode(
+                {
+                    key: str(value)
+                    for key, value in query.items()
+                    if key in ("kind", "source", "key", "language", "via", "cap")
+                }
+            ),
         )
         self._send(200, page.encode("utf-8"), HTML)
 
@@ -10500,10 +11002,15 @@ class Handler(BaseHTTPRequestHandler):
                     for n, (entry, folder) in enumerate(built)
                 ]
                 shown = self._playlist_facts(person, {"items": members}, vocabulary)
+                code = language.split("-")[0].lower()
                 targum.append(
                     {
                         "id": collection.id,
                         "name": collection.name_in(language),
+                        # What the name is in: the page's language where the collection
+                        # has a name in it, and its English where it falls back
+                        # (targum-internal#474, B8).
+                        "nameLanguage": code if collection.named.get(code) else "en",
                         "english": collection.english,
                         "count": len(built),
                         **{key: value for key, value in shown.items() if key != "items"},
@@ -10522,7 +11029,14 @@ class Handler(BaseHTTPRequestHandler):
         found = self.store.playlist(person.id, int(which)) if which.isdigit() else None
         if found is None:
             return self._json({"error": "not found"}, 404)
-        return self._json(self._playlist_facts(person, found, vocabulary))
+        # The language it keeps to (2026-10-12), so a title still getting ready, or one that
+        # failed, says what it is written in (targum-internal#474, B8).
+        return self._json(
+            {
+                **self._playlist_facts(person, found, vocabulary),
+                "language": self.library.playlist_language(self._home(), found),
+            }
+        )
 
     def _playlist_facts(
         self,
@@ -11595,7 +12109,7 @@ class Handler(BaseHTTPRequestHandler):
         it cannot sign in, and the one way to keep it."""
         return self._say(
             "serve.account-closing",
-            "This account is being closed. To keep it, email hello@targum.page.",
+            "We're closing this account. To keep it, email hello@targum.page.",
         )
 
     def _keeps_why(self, why: str) -> bool:
@@ -12882,26 +13396,59 @@ class Handler(BaseHTTPRequestHandler):
             )
         self._json({"signedIn": True, "texts": texts, "more": more})
 
-    @staticmethod
-    def _met_href(line: Any, homes: list[Path]) -> str:
+    def _met_href(self, line: Any, homes: list[Path]) -> str:
         """The address of the reader page that holds `line`, at its sentence and naming
         its word, or "" where the text is under none of `homes` (`_serve_reader`'s
-        roots, in its order)."""
+        roots, in its order).
+
+        A Torah book is read as its portions (targum-internal#446), so a line in one is
+        sent to `/torah/<book>.<c>.<v>`, which opens the portion at that verse; the
+        verse's row answers to `#c:v`, and the reader marks the word there
+        (targum-internal#506). Its own page would forward by chapter alone, and lose both.
+        """
         reader = line.folder / "reader"
         page = f"sec-{line.section:04d}.html"
         if not (reader / page).is_file():
             page = "index.html"
-        for root in homes:
+        for number, root in enumerate(homes):
             try:
                 relative = line.folder.resolve().relative_to(root.resolve())
             except (OSError, ValueError):
                 continue
+            # The weekly's readers are served as built, as `_serve_reader` serves them.
+            book = self._torah_book(reader / page) if number < 2 else None
+            verse = self._verse_of(line.folder, line.segment) if book else ""
+            if book and verse:
+                chapter, _, at = verse.partition(":")
+                return f"/torah/{quote(book)}.{chapter}.{at}?met={quote(line.lemma)}"
             return (
                 "/reader/"
                 + "/".join(quote(part) for part in relative.parts)
                 + f"/reader/{page}?met={quote(line.lemma)}#{quote(line.segment)}"
             )
         return ""
+
+    def _verse_of(self, folder: Path, segment: str) -> str:
+        """The "12:5" a segment of a built text is, off its `segments.json`, or ""."""
+        from .render.builder import verse_address
+
+        path = folder / "segments.json"
+
+        def work() -> dict[str, str]:
+            try:
+                rows = json.loads(path.read_text(encoding="utf-8")).get("segments") or []
+            except (OSError, ValueError, AttributeError):
+                return {}
+            found: dict[str, str] = {}
+            for row in rows:
+                if isinstance(row, dict) and row.get("kind") == "verse":
+                    address = verse_address(str(row.get("ref") or ""))
+                    if address:
+                        found[str(row.get("id"))] = address
+            return found
+
+        verses = self.library.remembered.get(folder, "verses", [path], work)
+        return str((verses or {}).get(segment) or "")
 
     def _practice_page(self, query: dict[str, list[str]]) -> None:
         """What the Grammar tab draws for one language (targum-internal#440, design.md

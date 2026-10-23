@@ -31,8 +31,10 @@ def run(
     who: dict[str, Any] | None = None,
     strings: dict[str, Any] | None = None,
     poll: int = 0,
+    now: int = 0,
 ) -> dict[str, Any]:
     payload = {
+        "now": now,
         "poll": poll,
         "strings": strings,
         "thread": thread,
@@ -86,17 +88,32 @@ def test_text_arrives_in_pieces_and_a_path_becomes_a_keyed_link() -> None:
             {
                 "type": "stream",
                 "event": "done",
-                "data": json.dumps({"text": "Try רות at /reader/ruth-he/reader/index.html"}),
+                "data": json.dumps(
+                    {
+                        "text": "Try רות at /reader/ruth-he/reader/index.html",
+                        "doors": {
+                            "/reader/ruth-he/reader/index.html": {
+                                "title": "מגילת רות",
+                                "language": "he",
+                            }
+                        },
+                    }
+                ),
             },
         ],
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
     answer = page["turns"][1]
-    assert answer["text"] == "Try רות at Open ruth", "the path is drawn as a door, not read"
+    assert answer["text"] == "Try רות at Open מגילת רות", "the path is drawn as a door, not read"
     assert answer["links"] == ["/reader/ruth-he/reader/index.html?k=k"]
     assert page["doors"] == [
-        {"href": "/reader/ruth-he/reader/index.html?k=k", "text": "Open ruth"}
-    ], "a path is a door the reader presses, named by its folder"
+        {
+            "href": "/reader/ruth-he/reader/index.html?k=k",
+            "text": "Open מגילת רות",
+            "lang": "he",
+            "dir": "rtl",
+        }
+    ], "a door is named by its text's title, never its folder (#472 B2)"
     assert answer["hebrew"] == 1, "the Hebrew run is marked as Hebrew"
     assert "working" not in answer["cls"]
     assert page["sendDisabled"] is False
@@ -234,7 +251,7 @@ def test_a_build_waiting_its_turn_says_how_many_are_ahead() -> None:
         {**QUOTE, "stage": "queued", "behind": 2, "done": 0, "total": 0}, poll=60_000
     )
     progress = page["cards"][0]["progress"]
-    assert progress["stage"] == "Waiting behind 2 builds"
+    assert progress["stage"] == "Waiting behind 2 other texts"
     assert progress["meter"]["done"] == "0.04", "a sliver, so the bar reads as begun"
 
 
@@ -377,9 +394,9 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
     # that, which is the balance told twice in two units and neither of them the one a
     # cost is counted in.
     assert page["hours"] == (
-        "90 credits left this month. That's about 1 hour 30 minutes of audio. "
-        "They reset on 1 October."
-    )
+        "90 credits left this month. That's about 1 hour 30 minutes of audio or video. "
+        "They reset on 1\u00a0October."
+    ), "the date is never broken from its month (#472 polish 6)"
     assert not page["hoursHidden"]
     quiet = run(
         answers={
@@ -456,8 +473,11 @@ def test_in_hebrew_a_path_on_its_own_line_is_a_door_between_the_pairs() -> None:
     )
     assert [p["he"] for p in page["pairs"]] == ["בּוֹא נִקְרָא", "מָה הָיָה קָשֶׁה?"]
     assert page["doors"] == [
-        {"href": "/reader/%D7%94%D7%A9%D7%A7%D7%A8-he/reader/index.html?k=k", "text": "Open השקר"}
-    ]
+        {
+            "href": "/reader/%D7%94%D7%A9%D7%A7%D7%A8-he/reader/index.html?k=k",
+            "text": "Open the text",
+        }
+    ], "with no title sent, the door says what it opens, not the folder (#472 B2)"
 
 
 def test_a_plain_answer_is_still_a_line() -> None:
@@ -516,7 +536,7 @@ def test_a_spoken_line_carries_its_language_and_where_the_reader_is() -> None:
 
 def test_the_box_names_the_conversation_s_language() -> None:
     page = run(do=[], stored={"targum:learning": '["he", "ru"]', "targum:language": "ru"})
-    assert page["placeholder"] == "Write in Russian or English"
+    assert page["placeholder"] == "Russian or English"
 
 
 def test_a_conversation_opened_again_keeps_its_cards_and_a_card_links_to_its_source() -> None:
@@ -721,7 +741,7 @@ def test_the_foot_counts_what_was_not_met_and_never_names_a_level() -> None:
     page = record_page()
     foot = page["foot"]
     assert foot is not None and foot["save"]
-    assert foot["counts"] == "4 min · 1 word you have not met · you know 50%", (
+    assert foot["counts"] == "4 min · 1 word you haven't met · you know 50%", (
         "four minutes off the clock; מצפה not met; two of four vocabulary words known"
     )
     assert "level" not in foot["counts"] and "%" in foot["counts"]
@@ -775,7 +795,7 @@ def test_a_conversation_come_back_to_is_drawn_with_its_words() -> None:
         ledger=LEDGER,
     )
     assert [w["state"] for w in page["pairs"][1]["words"]] == ["known", "learning", "new", ""]
-    assert page["foot"]["counts"].startswith("2 min · 1 word you have not met")
+    assert page["foot"]["counts"].startswith("2 min · 1 word you haven't met")
 
 
 BUILT = {
@@ -1341,6 +1361,8 @@ def test_a_recast_that_changed_something_says_so_and_marks_the_words() -> None:
     assert recast["fixed"] == ["הָלַכְתִּי"], "the word that changed, and only it"
     assert recast["why"] == {"text": "Past tense: הָלַכְתִּי, not הָלַךְ.", "hidden": True}
     assert not page["pairs"][1]["corrected"] and page["pairs"][1]["why"] is None
+    # The label is the catalogue's, not English in the stylesheet (#472, qa-claude).
+    assert recast["said"] == "corrected" and page["pairs"][1]["said"] is None
 
 
 def test_a_right_line_recast_for_idiom_is_not_called_corrected() -> None:
@@ -1350,6 +1372,7 @@ def test_a_right_line_recast_for_idiom_is_not_called_corrected() -> None:
     right = corrected("אני הלכתי אתמול לחנות", reply=RIGHT, ledger=KNOWN)
     assert not right["pairs"][0]["corrected"] and right["pairs"][0]["fixed"] == []
     assert right["pairs"][0]["why"] is None
+    assert right["pairs"][0]["said"] == "you said"
     english = corrected("I went to the shop yesterday", reply=RIGHT, ledger=KNOWN)
     assert not english["pairs"][0]["corrected"]
     explained = corrected("I went to the shop yesterday", ledger=KNOWN)
@@ -1477,18 +1500,47 @@ TWO = {
 }
 
 
-def test_framed_in_the_front_page_nothing_opens_by_itself() -> None:
+HOUR_MS = 60 * 60 * 1000
+
+
+def test_framed_an_old_conversation_does_not_open_by_itself() -> None:
     """The front page frames this page since 2026-09-11 (design.md §13) — "I should not
-    be sent to a new page". Framed, the newest conversation is not opened by itself
-    (the front page is a door, not a thread), and the list is still every conversation,
-    behind the pill."""
-    page = run(embed=True, answers={"/chat/list": TWO})
+    be sent to a new page". Framed, a newest conversation last seen over an hour ago is
+    not opened by itself (David, 2026-10-22: the chips, after an hour), and the list is
+    still every conversation, behind the pill."""
+    page = run(embed=True, answers={"/chat/list": TWO}, now=2 * HOUR_MS)
     assert "/chat/list?language=he" in page["asked"]
     assert page["hash"] == "" and page["replaced"] == [], "a front door, not a thread"
     assert page["list"] == ["First", "Second"] and page["turns"] == []
     assert page["freshHidden"], "New has nothing to do until a conversation is open"
     whole = run(answers={"/chat/list": TWO, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}})
     assert whole["hash"] == "#abc", "the page itself opens the newest"
+
+
+def test_framed_the_conversation_you_were_in_opens_within_the_hour() -> None:
+    """#472 polish 4, David 2026-10-22 (design.md §13, "The drawer opens the conversation
+    you were in"): closed mid-conversation and pressed again, the drawer opens the newest
+    conversation when it was seen in the last hour, not the chips."""
+    recent = {
+        "chats": [
+            {"id": "abc", "title": "First", "seen": 2 * HOUR_MS - 5 * 60 * 1000},
+            {"id": "def", "title": "Second", "seen": 1},
+        ],
+        "usable": True,
+    }
+    page = run(
+        embed=True,
+        answers={"/chat/list": recent, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}},
+        now=2 * HOUR_MS,
+    )
+    assert page["replaced"] == ["#abc"], page["replaced"]
+    opened = dict(recent, chats=[dict(recent["chats"][0], seen=1, opened=2 * HOUR_MS - 60_000)])
+    page = run(
+        embed=True,
+        answers={"/chat/list": opened, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}},
+        now=2 * HOUR_MS,
+    )
+    assert page["replaced"] == ["#abc"], "opened in the hour counts as seen"
 
 
 def test_a_line_in_the_frame_is_answered_there_and_a_text_is_offered_to_the_page() -> None:
@@ -1749,6 +1801,61 @@ def test_a_turn_says_what_we_are_doing_while_it_works() -> None:
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
     assert quiet["turns"][1]["doing"] == ["We're still working on it…"]
+
+
+def test_a_turn_says_we_are_writing_from_the_moment_it_is_sent() -> None:
+    """#472 B7 (§14.5: nothing waits for a model without saying so): until a tool line or
+    the first words, a sent line was answered by a bare "…" for up to 20 seconds."""
+    page = run(
+        do=[{"type": "say", "text": "hi"}],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["turns"][1]["doing"] == ["We're writing an answer…"]
+    page = run(
+        do=[
+            {"type": "say", "text": "hi"},
+            {"type": "stream", "event": "text", "data": "Hello"},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["turns"][1]["doing"] == [], "the first words clear it"
+
+
+def test_a_door_says_its_title_in_the_title_s_language() -> None:
+    """#472 B2: "Open {title}", the title in a `bdi` with its `lang` and `dir`; a turn
+    opened again from the list is named by the doors the server sends with it."""
+    page = run(
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "hi"}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc", "language": "he"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "hi", "stage": "done"},
+                    {
+                        "n": 2,
+                        "role": "assistant",
+                        "said": "Try /reader/ha-yam-he/reader/index.html",
+                        "stage": "done",
+                        "doors": {
+                            "/reader/ha-yam-he/reader/index.html": {
+                                "title": "הַיָּם",
+                                "language": "he",
+                            }
+                        },
+                    },
+                ],
+            },
+        },
+        hash="#abc",
+    )
+    assert page["doors"] == [
+        {
+            "href": "/reader/ha-yam-he/reader/index.html?k=k",
+            "text": "Open הַיָּם",
+            "lang": "he",
+            "dir": "rtl",
+        }
+    ], page["doors"]
 
 
 def test_the_page_stops_waiting_after_the_server_s_deadline() -> None:
@@ -2067,3 +2174,26 @@ def test_a_turn_read_back_rather_than_streamed_keeps_the_refused_link_too() -> N
     )
     prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
     assert prepared["body"]["came_from"] == TOK
+
+
+def test_the_chat_pill_s_copy_is_plain_and_says_the_way_on() -> None:
+    """ling-en's pass on the chat pill (targum-internal#472): the list is Chats, an error
+    says what to do next, the word check says Select and where the list lives, the
+    daily limit is said plainly, and "chat" is the term."""
+    catalogue = json.loads(
+        (Path(__file__).resolve().parents[1] / "src/targum/strings/en.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert catalogue["chat.page.conversations"] == "Chats"
+    assert catalogue["chat.page.ask-us-for-something-to-read-or"].startswith(
+        "Ask us for something to read, or ask which words you know."
+    )
+    assert catalogue["chat.cannot-answer"].endswith("Try again in a minute.")
+    assert catalogue["chat.unreached"].endswith("Check your connection and try again.")
+    assert catalogue["chat.doing.subscription"] == "We're checking how often it posts…"
+    assert "Select them" in catalogue["chat.claim.ask"]
+    assert catalogue["chat.claim.done"].endswith("under Words, in Your targums.")
+    assert catalogue["job.out-of.chat"].startswith("You've reached today's chat limit.")
+    assert "audio and chat" in catalogue["job.out-of.talk-credits"]
+    assert catalogue["shelf.building.behind.other"] == "Waiting behind {n} other texts"

@@ -276,16 +276,19 @@ def test_the_confirm_page_draws_for_every_kind() -> None:
         "before": [],
     }
     page = subscribe_page(channel, credits=caps, via="connector")
-    assert "Asked for in a conversation" in page and "כאן ארכיון" in page
+    assert "Asked for in a chat" in page and "כאן ארכיון" in page
     assert 'value="60" checked' in page and "about 7 new ones" in page
     assert "About 8 credits." in page and "354 credits left in your plan" in page
     assert "About 2 new ones a week." in page
     assert 'name="source" value="https://www.youtube.com/channel/UCkan"' in page
     barred = subscribe_page(channel, credits=caps, allowed=False)
-    assert "comes with a plan" in barred and "disabled>" in barred
-    # The plan, in place (design.md §12, 2026-10-09): Start a plan greyed, See plans, and
-    # the credits left for opening its videos one at a time.
-    assert "Start a plan" in barred and 'href="/plans"' in barred
+    assert "needs a plan" in barred
+    # The plan, in place (design.md §12, 2026-10-09): "Payments open soon", See plans, and
+    # the credits left for opening its videos one at a time. While payments are closed no
+    # press stands there that does nothing: no greyed Start a plan, no greyed Subscribe
+    # (targum-internal#475 polish 2).
+    assert "Payments open soon" in barred and 'href="/plans"' in barred
+    assert "Start a plan" not in barred and "sub-confirm-go" not in barred
     assert "with the 354 credits you have left this month" in barred
     topic = dict(
         channel, kind="topic", key="sport", name="", builds=False, outlets=3, creditsEach=0
@@ -442,7 +445,7 @@ def test_with_plans_on_a_channel_needs_a_plan(
     monkeypatch.setenv("TARGUM_PLANS", "1")
     monkeypatch.setattr(subs, "describe", lambda kind, given, **_: dict(CHANNEL, key="UCother"))
     status, page, _ = send(port, "GET", "/subscribe?kind=channel&source=x", session=theirs)
-    assert "comes with a plan" in page and "disabled>" in page and "Start a plan" in page
+    assert "needs a plan" in page and "Payments open soon" in page
     status, page, _ = send(
         port,
         "POST",
@@ -471,3 +474,90 @@ def test_a_source_that_cannot_be_read_is_said_plainly(
     monkeypatch.setattr(subs, "describe", lambda *a, **k: 1 / 0)
     status, page, _ = send(port, "GET", "/subscribe?kind=channel&source=x", session=mine)
     assert "couldn" in page and "Try again in a moment" in page
+
+
+# --- the finish (targum-internal#475) ---------------------------------------------------
+
+FINISH_CHANNEL = {
+    "kind": "channel",
+    "key": "UCivrit",
+    "name": "Ivrit Club",
+    "hebrew": "",
+    "what": "",
+    "language": "he",
+    "source": "https://www.youtube.com/channel/UCivrit",
+    "perWeek": 2.0,
+    "seconds": 2700.0,
+    "creditsEach": 45,
+    "builds": True,
+    "outlets": 0,
+    "before": [],
+}
+
+
+def test_a_topic_is_named_by_the_catalogue_in_the_page_s_language() -> None:
+    """#475 B4 and B5: the English page said "Subscribe to sport" with a lowercase "s"
+    tile marked Hebrew; the name is the catalogue's and in the page's language."""
+    topic = dict(FINISH_CHANNEL, kind="topic", key="sport", name="", builds=False, outlets=3)
+    page = subscribe_page(topic, language="en")
+    assert '<h1 class="sub-confirm-title"><bdi dir="auto" lang="en">Sport</bdi></h1>' in page
+    assert 'class="glyph">S<' in page, "a Latin letter is not marked Hebrew"
+    russian = subscribe_page(topic, language="ru")
+    assert 'lang="ru">Спорт</bdi>' in russian and 'class="glyph">С<' in russian
+
+
+def test_a_name_is_marked_hebrew_only_when_it_is_written_in_hebrew() -> None:
+    """#475 B5 and B6: "Ivrit Club" was marked Hebrew; a Hebrew name inside the plan's
+    sentence was bare text, so the sentence reordered around it."""
+    latin = subscribe_page(FINISH_CHANNEL)
+    assert '<h1 class="sub-confirm-title"><bdi dir="auto">Ivrit Club</bdi></h1>' in latin
+    hebrew = dict(FINISH_CHANNEL, name="כאן ארכיון")
+    barred = subscribe_page(hebrew, allowed=False)
+    assert (
+        'each new video from <bdi dir="rtl" lang="he">כאן ארכיון</bdi> gets ready by itself'
+        in barred
+    )
+
+
+def test_a_cap_smaller_than_one_new_one_says_so() -> None:
+    """#475 B7: an episode of about 45 credits was offered a cap of 30 with nothing under
+    it, as if it fitted. It says "less than one new one", in clay, and never rounds up."""
+    page = subscribe_page(FINISH_CHANNEL)
+    assert 'value="30"' in page
+    assert '<span class="cap-about is-short">less than one new one</span>' in page
+    assert "about 1 new one" in page, "60 fits one"
+
+
+def test_a_source_that_did_not_answer_offers_try_again() -> None:
+    """#475 polish 5: the refusal's only way on was a small underlined link."""
+    page = subscribe_page(
+        None, refused="We couldn't reach it.", unreachable=True, again="/subscribe?kind=x"
+    )
+    assert '<a class="btn filled" href="/subscribe?kind=x">Try again</a>' in page
+    assert 'class="btn tonal" href="/?show=subscriptions"' in page
+    refused = subscribe_page(None, refused="We couldn't find that topic.")
+    assert "Try again" not in refused
+
+
+def test_the_confirm_page_s_copy_is_ling_en_s() -> None:
+    """ling-en's pass on #475: "needs a plan", no "free" inside the product, a credit said
+    once, and how we tell you."""
+    page = subscribe_page(dict(FINISH_CHANNEL, creditsEach=0))
+    assert "A credit for every minute of audio or video." in page
+    assert "We'll email you once when one is waiting." in page
+    series = subscribe_page(dict(FINISH_CHANNEL, kind="series", key="weekly", builds=False))
+    assert "Nothing. Series use no credits." in series and "are free" not in series
+    topic = subscribe_page(dict(FINISH_CHANNEL, kind="topic", key="world", builds=False))
+    assert "News on this topic from 0 outlets in Hebrew." in topic
+
+
+def test_the_subscriptions_tab_is_a_list_not_a_one_row_table() -> None:
+    """#475 B9: `role=table` over a header row of `columnheader`s and rows that were
+    `<li>`s: a screen reader heard a table of one row, then a list."""
+    from targum.render.builder import list_page
+
+    page = list_page("", "texts")
+    start = page.index('id="subs-panel"')
+    panel = page[start : page.index("</section>", start)]
+    assert 'role="table"' not in panel and "columnheader" not in panel
+    assert 'id="subs-head" aria-hidden="true"' in panel

@@ -98,12 +98,15 @@ def chapter(
     taamim: bool = False,
     parts: int = 1,
     beyond: dict[str, dict[str, str]] | None = None,
+    verses: str = "",
 ) -> Path:
     """A built reader with everything the bar can change: words, vowels, translation.
 
     With `taamim`, the pointed text also carries accents, which is what gives the switch
     its third position — the form a Masoretic edition publishes. With two `parts`, a
     heading halfway opens a second chapter file, so the first has somewhere to go on to.
+    With `verses` naming a book, each sentence is a verse of its first chapter, so its row
+    answers to `#1:<n>`.
     """
     segments, pointed, tokens, minted = [], {}, {}, 0
     for n in range(VERSES):
@@ -125,7 +128,13 @@ def chapter(
         minted += len(words)
         text = " ".join(words)
         segment = Segment(
-            id=f"{n:04d}.000-aaaaaa", block_id=f"b{n:04d}", block_index=n, index=n, text=text
+            id=f"{n:04d}.000-aaaaaa",
+            block_id=f"b{n:04d}",
+            block_index=n,
+            index=n,
+            text=text,
+            kind=BlockKind.verse if verses else BlockKind.paragraph,
+            ref=f"{verses} 1:{n + 1}" if verses else "",
         )
         segments.append(segment)
         last = QAMATS + ZAQEF if taamim else QAMATS
@@ -1046,7 +1055,7 @@ CARD_BOX = """
 """
 
 
-@pytest.mark.parametrize("step", ["1", "2", "3", "known", "ignore"])
+@pytest.mark.parametrize("step", ["New", "Learning", "Almost", "Known", "ignore"])
 def test_a_level_pressed_on_the_card_leaves_it_where_it_was(page, step: str) -> None:
     """A level pressed on the card rebuilds it, so every step agrees which one is set,
     and then lets it fade where it stands. The rebuild seated it against the span the
@@ -1104,16 +1113,16 @@ def test_the_stage_a_word_has_pressed_again_stays(page) -> None:
     assert page.evaluate(TAP_ABOVE), "no word in the top half of the window to tap"
     page.evaluate(COUNT_SENT)
 
-    page.locator("#gloss-card .level", has_text="3").first.click()
+    page.locator("#gloss-card .level-3").first.click()
     assert list(page.evaluate(STAGES).values()) == [3]
-    page.locator("#gloss-card .level", has_text="3").first.click()
+    page.locator("#gloss-card .level-3").first.click()
 
     assert list(page.evaluate(STAGES).values()) == [3], "the second press took the mark off"
     assert page.evaluate("() => window.__sent") == 1, "the second press sent a change"
     pressed = page.evaluate(
         "() => document.querySelector('#gloss-card .level[aria-pressed=\"true\"]')?.textContent"
     )
-    assert pressed == "3", f"the card shows {pressed!r} pressed after a second press of 3"
+    assert pressed == "Almost", f"the card shows {pressed!r} pressed after a second press of 3"
 
 
 #: A word looked up: what the card says it means, and whether it is still offering to
@@ -8270,3 +8279,63 @@ def test_the_suffix_lens_lights_every_pronoun_ending_and_is_one_lens_at_a_time(
     said = page.evaluate("() => document.getElementById('spoken').textContent")
     assert said == "Pronoun endings, 5 here.", "the cue is said once"
     context.close()
+
+
+def test_the_card_says_the_binyan_its_own_occurrence_is_in(browser, tmp_path: Path) -> None:
+    """targum-internal#508, ling-he's read of Gen 12:3. וַאֲבָרֶכְךָ is pi'el and וְנִבְרְכוּ
+    nif'al, both ברך. The row for the word is the first occurrence's, so the card for the
+    second said פִּעֵל. Each card now says the binyan its own word was tagged with."""
+    text = "ואברכך ונברכו"
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0", block_index=0, index=0, text=text)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "and I will bless you, and they will be blessed"},
+    )
+    tokens = [
+        Token(start=0, end=6, surface="ואברכך", lemma="ברך", band=1, pos="VERB", binyan="פיעל"),
+        Token(start=7, end=13, surface="ונברכו", lemma="ברך", band=1, pos="VERB", binyan="נפעל"),
+    ]
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segment.id: tokens},
+    )
+    out = tmp_path / "blessed"
+    render(
+        document,
+        SegmentedDocument(document_hash="h", language="he", segmenter="f/1", segments=[segment]),
+        [translation],
+        out,
+        annotation=annotation,
+    )
+    context = opened(browser)
+    page = context.new_page()
+    try:
+        page.goto(address(out / "index.html"))
+        words = page.locator(".pair:not([hidden]) .src .w")
+        said = []
+        for n in (0, 1):
+            words.nth(n).click()
+            page.wait_for_selector("#gloss-card .card-facts")
+            said.append(
+                page.evaluate(
+                    """() => {
+                      const terms = [...document.querySelectorAll('#gloss-card .card-facts dt')];
+                      const binyan = terms.find((dt) => dt.textContent === 'Binyan');
+                      return binyan ? binyan.nextElementSibling.textContent : null;
+                    }"""
+                )
+            )
+            page.keyboard.press("Escape")
+            page.wait_for_timeout(100)
+        assert said == ["פִּעֵל", "נִפְעַל"], said
+    finally:
+        context.close()

@@ -33,8 +33,14 @@
       it the wake-up move — spent on one it is striking, spent on three it is a dark
       theme — so everything below here stays paper and ink. It is also the only surface
       the bright set is legal on: --leaf-bright does not reach 3:1 against paper. -#}
-  <section class="ledger" id="ledger" aria-label="{{ t("progress.page.what-you-have-built", "What you have built") }}">
+  <section class="ledger" id="ledger" aria-label="{{ t("progress.page.what-you-have-built", "Your totals") }}">
     <div class="counts" id="counts"></div>
+    {#- What "learned on targum" counts, said under the totals wherever the figure is: it sat
+        in part 2's time and words, which is hidden signed out, with recording stopped or
+        with no record, while the figure always shows (qa on #858; targum-internal#471, B1).
+        Inside the ledger as its quiet last line, not on the desk ground under it
+        (targum-internal#522). -#}
+    <p class="note ledger-note" id="learned-note">{{ t("progress.count.learned.note", "“Learned on targum” counts the words you saved as new and have since marked known.") }}</p>
   </section>
 
   {#- 1 · Where you are: the touchstones, a ladder of kinds of text from the language's
@@ -42,6 +48,12 @@
   <section class="panel story" id="where" aria-labelledby="where-title">
     <p class="story-step">{{ t("progress.story.where", "1 · Where you are") }}</p>
     <h2 id="where-title" class="section-title story-head"></h2>
+    {#- Until the account answers, one quiet line, and on a failure Try again: an empty
+        card said nothing, and What next said "None yet" to a reader with a record
+        (targum-internal#471, B2). -#}
+    <p class="quiet-line story-wait" id="where-wait" role="status">{{ t("progress.where.loading", "We're working out where you are.") }}</p>
+    <p class="quiet-line story-failed" id="where-failed" hidden>{{ t("progress.story.failed", "We couldn't load this part.") }}
+      <button type="button" class="btn ghost outline story-again" id="story-again">{{ t("fault.try-again", "Try again") }}</button></p>
     <ol class="touchstones" id="touchstones" aria-label="{{ t("progress.touch.ladder", "Kinds of text, easiest first") }}" hidden></ol>
     <p class="note" id="where-note" hidden></p>
 
@@ -51,9 +63,12 @@
         fall, said as a count in ten and never a percentage (§6, §12 2026-09-27). Read from
         the account, so absent signed out. Drawn by `progress.js`. -#}
     <div class="reading" id="reading" hidden>
-      <h3 class="story-sub" title="{{ t("progress.reading.note", "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}">{{ t("progress.reading.title", "How much of what you read you knew, month by month") }}</h3>
+      <h3 class="story-sub">{{ t("progress.reading.title", "How much of what you read you knew, month by month") }}</h3>
       <div id="reading-line"></div>
       <div class="reading-words" id="reading-said"></div>
+      {#- Said under the line, not hidden in a title a phone never shows (§14.3;
+          targum-internal#471, B1). -#}
+      <p class="note">{{ t("progress.reading.note", "We check each section you finish against the words you'd marked known that day. Sections finished before we started checking aren't counted.") }}</p>
     </div>
   </section>
 
@@ -65,12 +80,13 @@
     <h2 id="how-title" class="section-title story-head"></h2>
     <div class="spent" id="spent" hidden>
       <div class="chips" id="spent-period" role="group" aria-label="{{ t("progress.spent.when", "When") }}"></div>
-      {#- What counts as read rides on the figures as a title: the board has no line under
-          them (§12, "The mockups win on Your Progress", 2026-10-09). -#}
-      <div class="spent-figures" id="spent-figures" title="{{ t("progress.spent.note", "A word counts as read when you turn past its page or mark its section done.") }}"></div>
+      {#- What counts as read, under the figures as a quiet line: it rode on them as a
+          title, which a phone and a keyboard never show (targum-internal#471, B1). -#}
+      <div class="spent-figures" id="spent-figures"></div>
+      <p class="note">{{ t("progress.spent.note", "We count a word as read when you turn past its page or mark its section done.") }}</p>
     </div>
-    <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "Time and words aren't shown because recording is stopped. You can start it again on your account page.") }}</p>
-    <h3 class="story-sub" id="weeks-title">{{ t("progress.weeks.title", "The words you took up, week by week") }}</h3>
+    <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "We're not showing time and words because recording is stopped. You can start it again in Your account.") }}</p>
+    <h3 class="story-sub" id="weeks-title">{{ t("progress.weeks.title", "The words you saved, week by week") }}</h3>
     <div id="weeks"></div>
   </section>
 
@@ -81,7 +97,7 @@
     <h2 id="next-title" class="section-title story-head">{{ t("progress.next.title", "The words and texts that would help most") }}</h2>
     <div class="next-halves">
       <div class="next-half" id="next-words">
-        <h3 class="story-sub" id="next-words-title">{{ t("progress.next.words", "Words you keep meeting and haven't learned") }}</h3>
+        <h3 class="story-sub" id="next-words-title">{{ t("progress.next.words", "Words you keep meeting and don't know yet") }}</h3>
         <ul class="next-rows" id="met-rows"></ul>
         <p class="quiet-line" id="met-empty" hidden></p>
         <a class="next-more" id="practise" href="/words">{{ t("progress.next.practise", "Practise these words") }} →</a>
@@ -98,11 +114,12 @@
 
 {#- Before the foot, not after it: it was drawn under the foot, so a reader with
     nothing yet saw the site's foot and then the page's one line (2026-09-28). -#}
-<p class="nothing" id="nothing" hidden>
-  {#- "your library" meant the catalogue and the reader's own shelf at once, and the
-      link went to the upload page, which was neither. Both have their own page now. -#}
-  {{ t("progress.page.nothing-yet", "Your progress starts with the first word you mark.") }} <a id="library-link" href="/library">{{ t("progress.page.open-something-from-the-library", "Open something from the Library.") }}</a>
-</p>
+{#- A line and a press, in a card on the desk (polish 8, targum-internal#471): it was one
+    line of text on the desk ground with a link inside it. -#}
+<section class="panel nothing" id="nothing" hidden>
+  <p>{{ t("progress.page.nothing-yet", "Your progress starts with the first word you mark in a text.") }}</p>
+  <p><a class="btn filled" id="library-link" href="/library">{{ t("progress.page.open-the-library", "Open the Library") }}</a></p>
+</section>
 {#- Where the account never answered (errors QA, targum-internal#468): a refusal, a dropped
     connection or no connection at all said "Your progress starts with the first word you
     mark" to a reader with a record, which reads as everything gone. The panel is the one

@@ -213,7 +213,7 @@
       if (!quota) return;
       /* The board's figure: what is used in the serif, and what the browser allows after
          it. The sentence is one string, so a language can put the two where it says them. */
-      var said = t("saved.used", "{used} used of about {quota}", {
+      var said = t("saved.used", "{used} of about {quota} used", {
         used: "\u0000",
         quota: offline.size(quota),
       }).split("\u0000");

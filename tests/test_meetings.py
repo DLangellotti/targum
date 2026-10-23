@@ -318,3 +318,44 @@ def test_met_in_opens_each_text_at_the_word(
     assert said == {"signedIn": True, "texts": [], "more": 0}, "a word met nowhere lists nothing"
     status, _, _ = call(port, "GET", f"/account/met?language=he&k={token}", cookie=cookie)
     assert status == 400
+
+
+def test_met_in_a_torah_book_opens_its_portion_at_the_verse(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Torah book is read as its portions (targum-internal#446), and its own pages
+    forward by chapter alone, so "Met in" opened chapter 1 with nothing marked
+    (targum-internal#506). The link names the verse, which `/torah/` opens in its portion
+    at `#c:v`, and the word rides along as `met=`."""
+    from targum.parasha import build as corpus
+
+    port, token, out = served
+    folder = text(
+        out / "shared" / "בראשית-he",
+        {1: [("לך לך", [w("לך", "הלך")]), ("ספר וים", [w("ספר", "ספר"), w("ים", "ים")])]},
+        content_hash="genesis",
+    )
+    segments = json.loads((folder / "segments.json").read_text(encoding="utf-8"))
+    for n, row in enumerate(s for s in segments["segments"] if s["kind"] != "heading"):
+        row.update(kind="verse", ref=f"Genesis 1:{n + 4}")
+    (folder / "segments.json").write_text(json.dumps(segments), encoding="utf-8")
+    facts = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    (folder / "document.json").write_text(
+        json.dumps({**facts, "source": "sefaria:Genesis"}), encoding="utf-8"
+    )
+    cookie = sign_in(port, postbox)
+    sections = [{"hash": "genesis", "section": "1", "at": ms(2026, 9), "seen": ms(2026, 9)}]
+    call(port, "POST", f"/sync?k={token}", {"sections": sections}, cookie=cookie)
+    asked = f"/account/met?language=he&lemma=%D7%99%D7%9D&k={token}"
+
+    monkeypatch.setattr(corpus, "readable", lambda index=None: {"lech-lecha"})
+    _, said, _ = call(port, "GET", asked, cookie=cookie)
+    (one,) = said["texts"]
+    assert one["href"] == "/torah/Genesis.1.5?met=%D7%99%D7%9D", "the verse, not the chapter"
+
+    # Without the portions built, the book is the only Torah there is, and is opened as
+    # any text is.
+    monkeypatch.setattr(corpus, "readable", lambda index=None: set())
+    _, said, _ = call(port, "GET", asked, cookie=cookie)
+    (one,) = said["texts"]
+    assert one["href"].endswith("/reader/sec-0001.html?met=%D7%99%D7%9D#s1-1")

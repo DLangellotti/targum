@@ -29,7 +29,9 @@
     var found = /filename="?([^";]+)"?/.exec(said);
     return found ? found[1] : "parasha.pdf";
   }
+  var slow = null;
   function settle() {
+    clearTimeout(slow);
     preparing = false;
     press.setAttribute("aria-label", label);
     press.removeAttribute("aria-busy");
@@ -45,6 +47,17 @@
     press.setAttribute("aria-label", busy);
     note.textContent = busy;
     note.hidden = false;
+    var offline = t("parasha.sheet.offline", "You're offline. The PDF is made on targum, so it needs a connection.");
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      settle();
+      note.textContent = offline;
+      note.hidden = false;
+      return;
+    }
+    // Past three seconds, still at it (targum-internal#409): five or six is the usual.
+    slow = setTimeout(function () {
+      note.textContent = t("parasha.sheet.still", "Still making your PDF…");
+    }, 3000);
     fetch(press.getAttribute("href"), { credentials: "same-origin" })
       .then(function (response) {
         if (!response.ok) throw new Error(String(response.status));
@@ -64,7 +77,10 @@
       })
       .then(settle, function () {
         settle();
-        note.textContent = t("parasha.sheet.not-now", "We can't make the PDF right now. Try again in a minute.");
+        var away = typeof navigator !== "undefined" && navigator.onLine === false;
+        note.textContent = away
+          ? offline
+          : t("parasha.sheet.not-now", "We can't make the PDF right now. Try again in a minute.");
         note.hidden = false;
       });
   });

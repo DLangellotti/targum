@@ -217,7 +217,8 @@ require(path.join(assets, "speak.js"));
 require(path.join(assets, "claim.js"));
 // A clock the payload moves (`tick`), so waiting four minutes takes no time at all and a
 // timer left running cannot keep node from exiting (targum-internal#271).
-const clock = { at: 0, timers: [] };
+// A day and more past the epoch by default, so a conversation "seen" at 1 is long ago.
+const clock = { at: payload.now || 100 * 3600 * 1000, timers: [] };
 global.window.TargumClock = {
   now: () => clock.at,
   every: (fn, ms) => clock.timers.push({ fn, ms, stopped: false }) - 1,
@@ -314,6 +315,8 @@ function pairsDrawn() {
           return w ? { text: w.textContent, hidden: w.hidden } : null;
         })(),
         recast: String(node.className).split(" ").includes("recast"),
+        // The label over a recast, from the catalogue (#472): CSS draws `attr(data-said)`.
+        said: node.attrs["data-said"] === undefined ? null : node.attrs["data-said"],
         // The words the line was drawn with, each with its state on the ledger.
         words: he.children
           .filter((c) => String(c.className).split(" ")[0] === "chat-w")
@@ -342,7 +345,14 @@ function doors() {
   const out = [];
   const walk = (node) => {
     if (String(node.className).split(" ")[0] === "chat-door") {
-      out.push({ href: node.href, text: node.textContent });
+      const door = { href: node.href, text: node.textContent };
+      // The title's own run, where the door names one (#472 B2).
+      const named = (node.children || []).find((c) => c.tagName === "bdi");
+      if (named && named.attrs && named.attrs.lang) {
+        door.lang = named.attrs.lang;
+        door.dir = named.attrs.dir;
+      }
+      out.push(door);
     }
     (node.children || []).forEach(walk);
   };

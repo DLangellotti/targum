@@ -22,6 +22,7 @@ import logging
 import re
 
 from ..vocalize.base import LETTERS, TAAMIM, has_nikkud, has_taamim, strip_taamim
+from . import segolate, suffix_stress
 
 LOG = logging.getLogger(__name__)
 
@@ -174,6 +175,7 @@ def guessed(
     *,
     stress_confidence: float | None = None,
     stress_threshold: float | None = None,
+    pointed: str = "",
 ) -> int:
     """Which parts of this reading we guessed, as `STRESS_GUESSED | VOWELS_GUESSED` bits.
 
@@ -202,7 +204,15 @@ def guessed(
         and stress_threshold is not None
         and stress_confidence >= stress_threshold
     )
-    if not placed and not calibrated and syllables(reading) > 1:
+    # A segolate's stress placed from its pointing (`segolate`), where the reading says
+    # what the rule said: measured against ling-he's hand-read modern gold, at the floor
+    # in `evals/floors.json` (targum-internal#454). `pointed` is the word as the reader
+    # shows it. The suffix rule has no modern floor yet, so its words stay inferred.
+    ruled = bool(pointed) and not has_taamim(pointed) and segolate.penult(pointed) is not None
+    if ruled:
+        at = reading.find(STRESS_MARK)
+        ruled = at >= 0 and syllables(reading[at:]) == 2
+    if not placed and not calibrated and not ruled and syllables(reading) > 1:
         flags |= STRESS_GUESSED
     return flags
 
@@ -334,7 +344,11 @@ class PhonikudPronouncer:
     # The name rides in the annotator's name and so in what a built text records, which
     # is what lets a better reading reach a book already on the shelf: a file made before
     # this names something else, so it is redone. Redoing one is free.
-    name = "phonikud/2"
+    #
+    # `phonikud/3` (2026-10-21, targum-internal#454, #500): a segolate's stress from its
+    # pointing, and a suffix's that holds the stress back from the pointing and the word's
+    # class, where no accent places it. Rides the grammar/7 re-read.
+    name = "phonikud/3"
 
     def available(self) -> tuple[bool, str]:
         try:
@@ -360,8 +374,11 @@ class PhonikudPronouncer:
         out: dict[str, str] = {}
         failed = 0
         for surface in surfaces:
-            prefixed = PREFIX_MARK in surface
-            word = surface.replace(PREFIX_MARK, "")
+            # A key may carry the word's class after `GATE` (`suffix_stress.gate`): the
+            # same pointing reads differently as a verb and as a noun (בָּנוּ).
+            plain, _, klass = surface.partition(suffix_stress.GATE)
+            prefixed = PREFIX_MARK in plain
+            word = plain.replace(PREFIX_MARK, "")
             if not sayable(word):
                 continue
             # The chanting marks have to come off before phonikud sees them: fed
@@ -370,6 +387,17 @@ class PhonikudPronouncer:
             # removing them a translation rather than a loss.
             if has_taamim(word):
                 word = stressed(word) or strip_taamim(word)
+            elif HATAMA not in word:
+                # No accent, so no Masoretic text: the pointing's own rules, where the
+                # vowels and the grammar settle it. A suffix that holds the stress back
+                # (`suffix_stress`, targum-internal#500: אָמַרְתִּי is ʔamˈaʁti), then a
+                # segolate (`segolate`, #454: כֶּסֶף is kˈesef). Never where accents are,
+                # which win, the sequential perfect above all.
+                # A meteg may be a silluq, the verse's last word in a Masoretic text,
+                # where a sequential perfect is stressed at the end; the suffix rule
+                # stands aside there. A segolate is stressed the same in pause.
+                suffixed = None if METEG in word else suffix_stress.place(word, klass)
+                word = suffixed or segolate.place(word) or word
             word = vocal_shva(word.replace(METEG, ""), prefixed)
             try:
                 said = phonikud.phonemize(word)
@@ -382,7 +410,7 @@ class PhonikudPronouncer:
             # what it could not read, which is what it does with Latin and with anything
             # it has no rule for. Nothing is learned from showing it.
             if said and said != word:
-                out[surface] = qatan(surface, said)
+                out[surface] = qatan(plain, said)
         if failed:
             LOG.warning("no reading for %d of %d words", failed, len(surfaces))
         return out

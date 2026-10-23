@@ -130,3 +130,31 @@ def test_in_english_the_wait_is_said_in_english(browser, serving: int) -> None: 
         assert button.get_attribute("aria-label") == "Preparing PDF…"
     finally:
         context.close()
+
+
+def test_a_slow_sheet_says_it_is_still_being_made_and_offline_says_so(
+    browser,  # noqa: F811
+    serving: int,  # noqa: F811
+) -> None:
+    """targum-internal#409, slice 2: past three seconds the line says the PDF is still
+    being made; offline it says the PDF needs a connection, not "try again in a minute"."""
+    context, page = opened(browser, serving, f"/parasha/{SLUG}?lang=ru")
+    try:
+        held_pdf(page, {})
+        page.locator("a.series-pdf").click()
+        page.wait_for_function(BUSY)
+        assert page.locator(".series-pdf-note").inner_text() == "Готовим PDF…"
+        page.wait_for_timeout(3300)
+        assert page.locator(".series-pdf-note").inner_text() == "PDF ещё готовится…"
+    finally:
+        context.close()
+    context, page = opened(browser, serving, f"/parasha/{SLUG}?lang=ru")
+    try:
+        context.set_offline(True)
+        page.evaluate("() => window.dispatchEvent(new Event('offline'))")
+        page.locator("a.series-pdf").click()
+        page.wait_for_timeout(200)
+        said = page.locator(".series-pdf-note").inner_text()
+        assert said == "Вы не в сети. PDF готовится в targum, поэтому нужно подключение.", said
+    finally:
+        context.close()

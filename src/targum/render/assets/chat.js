@@ -17,7 +17,7 @@
   // The conversation is Hebrew whatever they are.
   var t = window.TargumStrings.t;
   var tn = window.TargumStrings.tn;
-  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer right now.");
+  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer right now. Try again in a minute.");
   // Beside it, in the panel (design.md §12, 2026-10-09).
   var STILL_OPEN = t("chat.cannot-answer.fact", "Your texts and the library still open");
 
@@ -123,7 +123,7 @@
   // targum out of reach is said once, by the connection's banner under the top of the
   // page (design.md §12, 2026-10-09); the answer still carries a sentence, for the places
   // that draw one where the thing did not come.
-  var UNREACHED = { error: t("chat.unreached", "We can't reach targum."), unreached: true };
+  var UNREACHED = { error: t("chat.unreached", "We can't reach targum. Check your connection and try again."), unreached: true };
   function unreached() {
     if (window.TargumFault) window.TargumFault.unreachable();
     return UNREACHED;
@@ -431,7 +431,7 @@
   // A path is drawn as a door: the model can say where a text is, and only the reader
   // opens it (design.md §9: the door-opening action is the ink call to action). The
   // door names the text by its folder, since a path is not something a person reads.
-  function door(path) {
+  function door(path, given) {
     var a = document.createElement("a");
     a.className = "chat-door";
     a.href = keyed(path);
@@ -443,24 +443,36 @@
       a.appendChild(document.createTextNode(t("chat.open-subscribe", "Subscribe on targum")));
       return a;
     }
-    var name = path;
-    try {
-      name = decodeURIComponent(path);
-    } catch (e) {
-      /* a path that is not valid UTF-8 is still a door */
+    // Named by the text's title, which the server sends beside the answer (`doors`),
+    // and never by the folder its path names (targum-internal#472 B2). Where no title is
+    // known, the door says what it opens in plain words.
+    var named = (given && given.title ? given : null) || doorNames[path] || null;
+    if (!named || !named.title) {
+      a.appendChild(document.createTextNode(t("chat.open-the-text", "Open the text")));
+      return a;
     }
-    var folder = name.replace(/^\/(?:reader|library)\//, "").split("/")[0];
-    folder = folder.replace(/-[a-z]{2}$/, "").replace(/-/g, " ");
     // The name wherever the sentence puts it: `{name}` marks the place.
     var sentence = t("chat.open-text", "Open {name}");
     var at = Math.max(0, sentence.indexOf("{name}"));
     a.appendChild(document.createTextNode(sentence.slice(0, at)));
     var who = document.createElement("bdi");
-    who.textContent = folder;
+    who.textContent = named.title;
+    var code = String(named.language || "").split("-")[0];
+    if (code) who.setAttribute("lang", code);
+    who.setAttribute("dir", HEBREW_LETTERS[code] ? "rtl" : "auto");
     a.appendChild(who);
     var after = sentence.slice(at).replace("{name}", "");
     if (after) a.appendChild(document.createTextNode(after));
     return a;
+  }
+
+  // What each door said so far opens, by path: `{title, language}` (#472 B2).
+  var doorNames = {};
+  function learnDoors(doors) {
+    if (!doors || typeof doors !== "object") return;
+    Object.keys(doors).forEach(function (path) {
+      doorNames[path] = doors[path];
+    });
   }
 
   // The conversation's shape: a line in its language, then "= " and its translation; "> "
@@ -533,6 +545,7 @@
     return now.filter(function (w) { return !had[w]; });
   }
 
+  var whyCount = 0;
   function render(target, text, words, asked) {
     target.textContent = "";
     var found = pairs(text);
@@ -545,6 +558,7 @@
         }
         var pair = document.createElement("div");
         pair.className = "chat-pair" + (p.recast ? " recast" : "");
+        if (p.recast) pair.setAttribute("data-said", t("chat.recast.you-said", "you said"));
         var he = document.createElement("span");
         he.className = "chat-he";
         he.setAttribute("lang", conversing());
@@ -564,6 +578,7 @@
           var changed = correctedBy(asked === undefined ? lastAsked : asked, p.he) || [];
           {
             pair.className += " corrected";
+            pair.setAttribute("data-said", t("chat.recast.corrected", "corrected"));
             var fixed = {};
             changed.forEach(function (w) { fixed[w] = true; });
             Array.prototype.forEach.call(he.querySelectorAll(".chat-w"), function (span) {
@@ -574,19 +589,29 @@
               why.className = "chat-why";
               why.textContent = p.why;
               why.hidden = hasKnown();
+              why.id = "chat-why-" + ++whyCount;
+              // A visible press says the reason is there (§14.3, "Nothing is hover-only",
+              // #472 B6): a `title` never shows on a phone or to a keyboard.
+              var whyPress = document.createElement("button");
+              whyPress.type = "button";
+              whyPress.className = "btn text small chat-why-press";
+              whyPress.textContent = t("chat.why", "Why?");
+              whyPress.setAttribute("aria-controls", why.id);
+              whyPress.setAttribute("aria-expanded", why.hidden ? "false" : "true");
+              var flip = function () {
+                why.hidden = !why.hidden;
+                whyPress.setAttribute("aria-expanded", why.hidden ? "false" : "true");
+              };
+              whyPress.onclick = function (event) {
+                if (event) event.stopPropagation();
+                flip();
+              };
+              pair.appendChild(whyPress);
               pair.appendChild(why);
-              pair.setAttribute("tabindex", "0");
-              pair.setAttribute("title", t("chat.why-corrected", "Why it was corrected"));
               pair.onclick = function (event) {
                 var hit = event && event.target;
                 if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
-                why.hidden = !why.hidden;
-              };
-              pair.onkeydown = function (event) {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  why.hidden = !why.hidden;
-                }
+                flip();
               };
             }
           }
@@ -724,7 +749,10 @@
         if (job.reader) {
           // The same bytes were already brought: the text is the answer.
           line.appendChild(
-            door("/reader/" + String(job.reader).split("/").map(encodeURIComponent).join("/"))
+            door("/reader/" + String(job.reader).split("/").map(encodeURIComponent).join("/"), {
+              title: job.title,
+              language: job.language,
+            })
           );
           return;
         }
@@ -1038,6 +1066,9 @@
     if (!listPill) return;
     list.classList.toggle("open", !!showing);
     listPill.setAttribute("aria-expanded", showing ? "true" : "false");
+    // While the list is open the chips step aside, so it is not drawn under them on a
+    // phone (#472 polish 3).
+    document.body.classList.toggle("chat-listing", !!showing);
   }
   if (listPill) {
     listPill.onclick = function () {
@@ -1148,7 +1179,7 @@
         tn("chat.foot.words", vocabulary, "{n} word", "{n} words") + " · " + t("chat.foot.none-marked", "none marked as known yet")
       );
     } else {
-      parts.push(tn("chat.foot.unmet", count, "{n} word you have not met", "{n} words you have not met"));
+      parts.push(tn("chat.foot.unmet", count, "{n} word you haven't met", "{n} words you haven't met"));
       if (vocabulary) {
         parts.push(t("chat.foot.known", "you know {share}%", { share: Math.round((known / vocabulary) * 100) }));
       }
@@ -1186,7 +1217,7 @@
     // English" until 2026-09-14.
     var named = (window.TARGUM_LANGUAGES || {})[listedIn];
     if (named && listedIn !== "en") {
-      field.placeholder = t("chat.write-in", "Write in {language} or English", { language: named });
+      field.placeholder = t("chat.write-in", "{language} or English", { language: named });
     }
     return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
       if (answer.error) return tell(answer.error);
@@ -1233,9 +1264,20 @@
         });
       }
       if (chats.length && !EMBED) return open(chats[0].id);
+      // Framed, the drawer opens the conversation you were in when it was seen in the
+      // last hour, and past that shows the chips (David, 2026-10-22; design.md §13,
+      // "The drawer opens the conversation you were in").
+      if (chats.length && EMBED && recentlySeen(chats[0])) return open(chats[0].id);
       if (!chats.length) firstExchange();
       if (empty) empty.hidden = !!current || welcomed;
     });
+  }
+
+  var RECENT_MS = 60 * 60 * 1000;
+  function recentlySeen(chat) {
+    var last = Math.max(Number(chat.opened) || 0, Number(chat.seen) || 0);
+    var at = window.TargumClock ? window.TargumClock.now() : Date.now();
+    return last > 0 && at - last < RECENT_MS;
   }
 
   // New has nothing to do until a conversation is open; framed, where none opens by
@@ -1257,7 +1299,7 @@
     welcomed = true;
     var li = turn(
       "assistant",
-      t("chat.claim.ask", "First, which of these words do you already know? Check them and we'll write at your level."),
+      t("chat.claim.ask", "First, which of these words do you already know? Select them and we'll write at your level."),
       ""
     );
     var host = document.createElement("div");
@@ -1285,7 +1327,7 @@
         note.className = "chat-claim-done";
         note.textContent = t(
           "chat.claim.done",
-          "Thank you. You'll find the rest of the list under Your words and phrases, in your account."
+          "Thank you. You'll find the rest of the list under Words, in Your targums."
         );
         host.appendChild(note);
         if (chips) chips.show(true);
@@ -1320,6 +1362,7 @@
           pending = one.stage === "working" ? one.n : null;
           if (one.stage === "failed" && one.error) failed(turn("assistant", "", ""), one.error);
         } else if (one.said) {
+          learnDoors(one.doors);
           var li = turn("assistant", one.said, "", lastWords);
           playButton(li, id, lastAsked);
           // The cards this answer quoted, as the jobs stand now (2026-09-11): a
@@ -1333,6 +1376,8 @@
       drawFoot(answer.seconds || 0);
       // Came back to an answer still being written: pick the stream up where it is.
       if (pending !== null) follow(id, pending, turn("assistant", "", "working"));
+      // A conversation opens at its newest turn, not its first (#472 polish 2).
+      if (thread && typeof thread.scrollHeight === "number") thread.scrollTop = thread.scrollHeight;
     });
   }
 
@@ -1550,7 +1595,7 @@
   // what we are doing, and after a long quiet that we are still at it.
   var GIVE_UP_MS = 270 * 1000;
   var QUIET_MS = 20 * 1000;
-  var TOO_LONG = t("chat.too-long", "We took too long to answer that.");
+  var TOO_LONG = t("chat.too-long", "We took too long to answer that. Try asking again.");
   var LIBRARY = t("chat.doing.library", "We're looking through the library…");
   var QUOTING = t("chat.doing.quote", "We're working out how long it'll take…");
   var DOING = {
@@ -1562,7 +1607,7 @@
     open_library_text: t("chat.doing.open", "We're opening the text…"),
     quote_build: QUOTING,
     quote_conversation: QUOTING,
-    quote_subscription: t("chat.doing.subscription", "We're looking at what it puts out…"),
+    quote_subscription: t("chat.doing.subscription", "We're checking how often it posts…"),
   };
   // A clock a test can stand in for; the browser's own everywhere else.
   var clock = window.TargumClock || {
@@ -1602,6 +1647,9 @@
         doing = null;
       }
     }
+    // Said at once, so a turn never waits on a model in silence (§14.5, #472 B7): a
+    // tool's line replaces it, and the first words of the answer clear it.
+    tellDoing(t("chat.doing.writing", "We're writing an answer…"));
     var watch = clock.every(function () {
       if (over) return;
       var at = clock.now();
@@ -1616,7 +1664,7 @@
         if (state && state.refused) cameFrom = state.refused;
         if (state && state.done && !state.error) {
           if (state.words) words = state.words;
-          return finish("done", { text: state.text || text });
+          return finish("done", { text: state.text || text, doors: state.doors });
         }
         finish("error", { message: (state && state.done && state.error) || TOO_LONG });
       });
@@ -1631,6 +1679,7 @@
       }
       var was = atBottom();
       li.className = "chat-turn them";
+      if (payload && payload.doors) learnDoors(payload.doors);
       if (kind === "error") failed(li, payload.message, payload.fact || payload.act ? null : again, payload.fact, payload.act);
       else render(line, payload.text || text, words);
       keepBottom(was);
@@ -1736,7 +1785,7 @@
           if (!li.querySelector('[data-job="' + job.id + '"]')) quoteCard(li, job);
         });
         if (state.refused) cameFrom = state.refused;
-        if (state.done) return finish("done", { text: text });
+        if (state.done) return finish("done", { text: text, doors: state.doors });
         setTimeout(poll, 800);
       });
     }

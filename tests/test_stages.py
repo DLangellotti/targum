@@ -45,13 +45,19 @@ def test_declared_is_earned_for_every_language_not_kept() -> None:
 
 
 def test_the_kept_exception_is_named_dated_and_its_shortfall_is_read() -> None:
-    """Hebrew kept its Beta by decision from 2026-10-12 and earned it on 2026-10-14, so
-    nothing is kept now. An entry has a date, a review date not yet passed, and a reason,
+    """Hebrew kept its Beta by decision from 2026-10-12 and earned it on 2026-10-14;
+    Russian is kept at Alpha from 2026-10-21 while its read-through is done. An entry
+    has a date, a review date not yet passed, and a reason,
     and this prints what the kept word still owes so it is seen on every run. Past the
     review date the entry fails until renewed with a new date and a design.md line, or
     removed."""
-    assert not set(KEPT), "a kept language needs a design.md entry first"
+    design = (Path(__file__).parents[1] / "design.md").read_text(encoding="utf-8")
     for code, held in KEPT.items():
+        # A kept language needs a design.md entry first, named in its reason.
+        named = re.search(r'"([^"]+)"', held.why)
+        assert named and f"### {named.group(1)}" in design, (
+            f"{code}: a kept badge names the design.md §12 entry that keeps it"
+        )
         assert held.stage == DECLARED[code]
         assert held.since <= dt.date.today(), code
         assert held.why.strip(), code
@@ -356,6 +362,17 @@ def test_the_vav_consecutive_is_covered_for_biblical_text_and_declared_out_of_mo
         ), metric
     held = evals.breaches(evals.read(stages.LEDGER), limits)
     assert not [b for b in held if b.floor.corpus == "oshb-wlc"], held
+
+
+def test_governed_prepositions_are_covered_for_modern_text_and_declared_out_of_biblical() -> None:
+    """targum-internal#454: the spot is read off the stored syntax, and Biblical text
+    carries almost none. Claimed in modern text, declared out of Biblical with the reason,
+    and still covered by its IAHLT floor."""
+    (spot,) = [s for s in stages.HARD_SPOTS["he"] if s.name == "governed prepositions and et"]
+    assert spot.registers == ("modern",)
+    ((register, why),) = spot.declared_out
+    assert register == "biblical" and "almost no syntax" in why
+    assert stages.facts("he").covered["governed prepositions and et"]
 
 
 def test_a_declaration_without_a_reason_or_out_of_every_register_is_not_covered() -> None:

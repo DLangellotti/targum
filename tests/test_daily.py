@@ -15,7 +15,7 @@ import pytest
 
 from targum.daily import calendar as cal
 from targum.daily.cut import pieces, place_of, within
-from targum.daily.cycles import ABSENT, BY_SLUG, CYCLES, parse_reference, reference_of
+from targum.daily.cycles import ABSENT, BY_SLUG, CYCLES, Cycle, parse_reference, reference_of
 from targum.models import BlockKind, Segment
 
 
@@ -197,3 +197,35 @@ def test_a_hebrew_citation_is_written_in_letters() -> None:
     assert hebrew_citation("כלים 30:4-אהלות 1:1") == "כלים ל׳, ד׳ – אהלות א׳, א׳"
     assert hebrew_citation("תהלים י״ח-כ״ב") == "תהלים י״ח–כ״ב"
     assert hebrew_citation("ירמיהו ב׳") == "ירמיהו ב׳"
+
+
+# -- the page's picture --------------------------------------------------------
+
+
+@pytest.mark.parametrize("cycle", CYCLES, ids=lambda one: one.slug)
+def test_a_cycle_s_manuscript_is_named_once_from_our_origin(cycle: Cycle) -> None:
+    """Each cycle's head wears its manuscript as a file of ours, named once, never as a
+    `data:` URI in the page's `<style>`, which held the first paint until the picture
+    had arrived (design.md §12, "A series page's picture is a file of ours", #484). The
+    address is one the server answers with that picture."""
+    import re
+
+    from targum.daily.calendar import Day
+    from targum.render.builder import asset_files, daily_page, picture_address
+
+    day = Day(
+        day=date(2026, 9, 1),
+        cycle=cycle.slug,
+        title="Kelim 28:2-3",
+        hebrew="כלים כח:ב-ג",
+        hdate="19 Elul 5786",
+        reference="Kelim 28:2-3",
+        span=None,
+    )
+    html = daily_page(cycle, day)
+    styles = "".join(re.findall(r"<style>(.*?)</style>", html, re.S))
+    assert not re.search(r"data:image/(jpeg|png|webp)", styles), "no picture in the styles"
+    address = picture_address("manuscripts/" + cycle.picture)
+    assert html.count(f"url({address})") == 1, "named once, for the head"
+    body, kind, _ = asset_files()[address]
+    assert kind == "image/jpeg" and body.startswith(b"\xff\xd8"), "the JPEG itself"

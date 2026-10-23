@@ -212,6 +212,9 @@ def test_a_playlist_is_made_and_read_through_the_door(box: tuple[int, str, str])
     assert made["items"][0]["open"] == "/reader/a-reel/reader/index.html"
     status, got = send(port, "GET", f"/playlists/{pid}.json", session=mine)
     assert status == 200 and got["name"] == "Reels"
+    # The language it keeps to, said with it (targum-internal#474, B8): a title still
+    # getting ready draws in it. This fixture's reel says none.
+    assert "language" in got
     status, listed = send(port, "GET", "/playlists.json", session=mine)
     assert status == 200 and pid in [one["id"] for one in listed["playlists"]]
 

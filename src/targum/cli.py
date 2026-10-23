@@ -1065,6 +1065,35 @@ def watch_health(
     console.print(said)
 
 
+@app.command("ytdlp-stopped")
+def ytdlp_stopped() -> None:
+    """Mail TARGUM_ALERT_TO that the nightly yt-dlp upgrade failed.
+
+    The 03:30 UTC line in /etc/cron.d/targum-ytdlp runs this when its `uv tool install
+    --upgrade yt-dlp` exits non-zero. Its MAILTO=root reaches nobody, because the box has
+    no mail transfer agent, and an install that stops halfway has already deleted
+    `bin/yt-dlp`: on 2026-10-22 YouTube, Instagram, TikTok and Facebook imports were off
+    for about 18 hours with nobody told (targum-internal#513). Without TARGUM_ALERT_TO it
+    says so and mails nobody.
+    """
+    from .alerts import recipient, tell
+
+    if not recipient():
+        console.print("[dim]yt-dlp alerts not configured: TARGUM_ALERT_TO is not set.[/dim]")
+        return
+    body = (
+        "The nightly yt-dlp upgrade on the box failed, so YouTube, Instagram, TikTok and\n"
+        "Facebook imports may be off for readers.\n\n"
+        "  journalctl -u targum-ytdlp -n 5 --no-pager\n\n"
+        "deploy/INCIDENT.md, under the preflight with connections, says what fixes it.\n"
+    )
+    try:
+        tell("targum: the nightly yt-dlp upgrade failed", body)
+    except Exception as error:
+        fail(TargumError("The yt-dlp upgrade failed and the mail about it did not go.", str(error)))
+    console.print("Told TARGUM_ALERT_TO that the yt-dlp upgrade failed.")
+
+
 @app.command("watch-weekly")
 def watch_weekly(
     state: Annotated[
@@ -1770,6 +1799,12 @@ def rebuild_one(
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
         if repointed or annotation.annotator != annotator.name:
+            # A Tanakh text with no verse refs is not read again (#507): the morphology
+            # would miss every verse and DICTA's reading would stand under OSHB's name.
+            # Refused here, the caller keeps the copy on the shelf and names it at the end.
+            from .refs import refuse_refless
+
+            refuse_refless(document, segmented)
             was = annotation
             annotation = annotator.annotate(segmented, vocalization)
             if was.document_hash == annotation.document_hash:
@@ -2255,6 +2290,15 @@ def thumbs(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Count what would happen; write nothing.")
     ] = False,
+    box: Annotated[
+        Path | None,
+        typer.Option(
+            "--for-box",
+            help="Write what a deploy carries into this folder (sources.json, exclude); "
+            "nothing else.",
+            hidden=True,
+        ),
+    ] = None,
 ) -> None:
     """Give every library text its picture: its own where its licence allows, drawn if not.
 
@@ -2264,20 +2308,42 @@ def thumbs(
     derivative and has no NonCommercial term. Everything else is drawn: its first letter
     on its kind's colour, made when it is asked for, so nothing is written for it.
 
+    Every picture in `thumbs/` gets a line in `thumbs/sources.json` saying where it came
+    from; a drawn cover with none is written down as drawn, dated by its file. The rows
+    left with only the letter tile are named, and counted by origin: own, drawn, tile.
+
     Spends no model money. Writes `thumbs/<entry id>.webp` and `thumbs/sources.json`.
     """
     from collections import Counter
+    from datetime import date
 
     from . import catalogue as catalogue_module
+    from . import covers as covers_module
     from . import thumbs as thumbs_module
     from .audio.manifest import POSTER
     from .ingest import url as url_module
 
     root = out or Path.cwd() / "targum-out"
     where = root / "thumbs"
-    if not thumbs_module.can_keep():
+    if not dry_run and box is None and not thumbs_module.can_keep():
         fail(TargumError("Nothing here can shrink a picture.", "uv sync --extra covers"))
     sources = thumbs_module.read_sources(where)
+    written = dict(sources)
+
+    # The drawn covers with no line yet, before anything below adds a picture of its own.
+    unrecorded = thumbs_module.backfill(
+        where, sources, covers_module.build().name, date.today().isoformat()
+    )
+
+    if box is not None:
+        # deploy.sh's: the library's lines, and the pictures that are not the library's.
+        ids = {entry.id for entry in catalogue_module.CATALOGUE}
+        lines, behind = thumbs_module.for_box(where, sources, ids)
+        thumbs_module.write_sources(box, lines)
+        write_atomic(
+            box / "exclude", "".join(thumbs_module.rsync_pattern(n) + "\n" for n in behind)
+        )
+        return
 
     # A video's frame, from any copy of it built on this disk.
     frames: dict[str, Path] = {}
@@ -2297,11 +2363,13 @@ def thumbs(
             console.print(f"[yellow]The image bank's licences did not load:[/yellow] {error}")
 
     counts: Counter[str] = Counter()
+    origins: Counter[str] = Counter()
     by_language: Counter[tuple[str, str]] = Counter()
+    bare: list[str] = []
     for entry in catalogue_module.CATALOGUE:
-        got = "drawn"
+        got = thumbs_module.TILE
         if thumbs_module.has_picture(where, entry.id):
-            got = sources.get(entry.id, {}).get("from") or "drawn cover"
+            got = sources.get(entry.id, {}).get("from") or thumbs_module.DRAWN
         elif entry.source in frames:
             target = where / f"{entry.id}.webp"
             if dry_run or thumbs_module.keep(frames[entry.source].read_bytes(), target):
@@ -2318,26 +2386,40 @@ def thumbs(
                         sources[entry.id] = {"from": what, "url": address, "licence": licence}
             except (TargumError, ValueError) as error:
                 console.print(f"[dim]{entry.id}: {error}[/dim]")
-        counts[got] += 1
-        by_language[(entry.language, "drawn" if got == "drawn" else "own")] += 1
-
-    if not dry_run and sources:
-        write_atomic(
-            where / thumbs_module.SOURCES,
-            json.dumps(sources, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+        kind = (
+            thumbs_module.TILE
+            if got == thumbs_module.TILE
+            else thumbs_module.origin(sources.get(entry.id))
         )
+        if kind == thumbs_module.TILE:
+            bare.append(entry.id)
+        counts[got] += 1
+        origins[kind] += 1
+        by_language[(entry.language, kind)] += 1
+
+    if not dry_run and sources != written:
+        thumbs_module.write_sources(where, sources)
     table = Table("picture", "rows")
     for what, number in counts.most_common():
         table.add_row(what, str(number))
     console.print(table)
+    kinds = (thumbs_module.OWN, thumbs_module.DRAWN, thumbs_module.TILE)
     console.print(
         "[dim]"
         + " · ".join(
-            f"{code} {by_language[(code, 'own')]} pictured, {by_language[(code, 'drawn')]} drawn"
+            f"{code} " + ", ".join(f"{by_language[(code, kind)]} {kind}" for kind in kinds)
             for code in sorted({language for language, _ in by_language})
         )
         + "[/dim]"
     )
+    if unrecorded:
+        verb = "would be" if dry_run else "were"
+        console.print(f"{unrecorded} drawn covers {verb} written into sources.json.")
+    for name in bare:
+        console.print(f"[dim]  {name}[/dim]", soft_wrap=True)
+    # Plain lines, not Rich's: deploy.sh reads the last one.
+    typer.echo(" · ".join(f"{origins[kind]} {kind}" for kind in kinds))
+    typer.echo(f"{len(bare)} {'row' if len(bare) == 1 else 'rows'} without a picture")
 
 
 @app.command()

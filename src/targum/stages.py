@@ -26,9 +26,9 @@ is a commit here; a regression anywhere in the pipeline fails CI.
 **An exception is named and dated** (`KEPT`). Hebrew kept the Beta it wore before the
 standard from 2026-10-12, while its measurements, its read-through record and its
 practices caught up, and the test printed its shortfall instead of failing on it. It
-earned Beta on 2026-10-14 and the entry came out, so `KEPT` is empty and Hebrew is held
-to the facts like every other language. Nothing may be added to `KEPT` without a
-design.md entry first.
+earned Beta on 2026-10-14 and the entry came out. Russian is kept at Alpha from 2026-10-21,
+short only of its read-through (David). Nothing may be added to `KEPT` without a design.md
+entry first, and the entry's name is in its `why`.
 
 **The record is a fact here, its substance stays private** (`RECORDED`, 2026-10-13). The
 read-through, the known-issues list and the reading of that list for blockers live in
@@ -187,7 +187,7 @@ class Kept:
 #: The claim. One word per language targum reads; a language not here wears nothing.
 DECLARED: dict[str, Stage] = {
     "he": Stage.beta,
-    "ru": Stage.experimental,
+    "ru": Stage.alpha,
     "it": Stage.experimental,
     "fr": Stage.experimental,
     "arc": Stage.experimental,
@@ -242,9 +242,20 @@ RECORDED: dict[str, Record] = {
 }
 
 
-#: The exception the test tolerates, named and dated. Empty since 2026-10-14, when Hebrew
-#: earned the Beta it had been kept at (David, 2026-10-12). See the module docstring.
-KEPT: dict[str, Kept] = {}
+#: The exception the test tolerates, named and dated. Hebrew earned the Beta it had been
+#: kept at on 2026-10-14 (David, 2026-10-12); Russian is kept at Alpha from 2026-10-21
+#: while its read-through is done. See the module docstring.
+KEPT: dict[str, Kept] = {
+    "ru": Kept(
+        stage=Stage.alpha,
+        since=date(2026, 10, 21),
+        review=date(2026, 11, 30),
+        why=(
+            'design.md §12, "Russian wears Alpha while its read-through is done" '
+            "(David, 2026-10-21): short only of the read-through of ten texts on record."
+        ),
+    ),
+}
 
 _DICTA = "dicta/dicta-il/dictabert-joint"
 _MENAKED = "dicta-il/dictabert-large-char-menaked"
@@ -278,6 +289,15 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "card",
             (_DICTA, "iahltknesset", "governed_precision"),
             lens=True,
+            # Read off the stored syntax, which Biblical text barely has (targum-internal
+            # #454): the reader's lens and the practice keep to modern text.
+            declared_out=(
+                (
+                    "biblical",
+                    "Biblical text carries almost no syntax: 199 of Genesis's 20,753 tokens "
+                    "have a parse, and the floor is IAHLT's modern treebank",
+                ),
+            ),
         ),
         HardSpot(
             "gender and number agreement",
@@ -290,12 +310,24 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "feature:Definite",
             "card",
             (_DICTA, "iahltknesset", "construct_precision"),
+            # Biblical text says it from Open Scriptures' state letter since oshb/7
+            # (targum-internal#454): a floor for each register, as pronoun suffixes have.
+            floors=(
+                ("modern", (_DICTA, "iahltknesset", "construct_precision")),
+                ("biblical", ("oshb-state/1", "oshb-wlc", "construct_precision")),
+            ),
         ),
         HardSpot(
             "stress and pronunciation",
             "stage:stress",
             "marks",
             ("stress-rule/1", "tanakh-taamim-v2", "rule_accuracy"),
+            # A floor for each register since the segolate rule (targum-internal#454): the
+            # Tanakh's accents, and ling-he's hand-read modern gold.
+            floors=(
+                ("biblical", ("stress-rule/1", "tanakh-taamim-v2", "rule_accuracy")),
+                ("modern", ("stress-rule/2", "modern-stress-handread", "modern_milel_precision")),
+            ),
         ),
         # The first of the four design.md §12 adds past Beta (targum-internal#449,
         # 2026-10-21). ויאמר is past: read off the pointing on every Biblical text

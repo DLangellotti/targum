@@ -146,6 +146,38 @@ def test_the_progress_page_is_only_the_numbers() -> None:
         assert gone not in progress, f"{gone} left with the story (§12, 2026-10-09)"
 
 
+def test_the_progress_page_says_what_its_figures_count_on_the_page() -> None:
+    """targum-internal#471, B1, pinned on qa's ask (#858): what a figure counts is a line
+    on the page, never a title a phone and a keyboard never show. "Learned on targum" is
+    explained under the totals and outside part 2's time and words, which is hidden
+    signed out, with recording stopped or with no record, while the figure always shows."""
+    progress = PAGES["progress"]
+    for said in (
+        "We check each section you finish against the words",
+        "We count a word as read when you turn past its page",
+        "counts the words you saved as new and have since marked known.",
+    ):
+        assert said in progress, said
+    spent = re.search(r'<div class="spent" id="spent" hidden>.*?\n    </div>', progress, re.S)
+    assert spent is not None
+    assert 'id="learned-note"' not in spent.group(0)
+    note = re.search(r'<p class="note ledger-note" id="learned-note"[^>]*>', progress)
+    assert note is not None and "hidden" not in note.group(0)
+    assert progress.index('id="ledger"') < note.start() < progress.index('id="where"')
+
+
+def test_the_learned_note_goes_where_the_learned_figure_goes() -> None:
+    """qa on #858: a phone shows three of the totals and "learned on targum" is not one of
+    them, so the line explaining it goes at the same width."""
+    css = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "progress.css"
+    ).read_text(encoding="utf-8")
+    phone = re.search(r"@media \(max-width: 40rem\) \{(.*?)\n\}", css, re.S)
+    assert phone is not None
+    assert ":not(.count-saved, .count-known, .count-finished) { display: none; }" in phone.group(1)
+    assert ".progress .ledger-note { display: none; }" in phone.group(1)
+
+
 def test_the_progress_page_says_it_is_empty_above_its_foot() -> None:
     """The empty state was drawn after the foot's include, so a reader with nothing
     marked saw the site's foot and then, under it, the page's one line (2026-09-28)."""
@@ -844,7 +876,7 @@ def test_the_profile_page_says_something_to_a_stranger() -> None:
     """Signed out there is nothing to show, and an empty form is not an answer."""
     you = PAGES["you"]
     assert 'id="stranger"' in you
-    assert "Sign in from the corner" in you
+    assert "Sign in to see your account." in you
 
 
 def test_the_corner_is_a_circle_rather_than_an_address() -> None:

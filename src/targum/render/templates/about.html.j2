@@ -1,13 +1,10 @@
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ t("about.page.built-in-public-targum", "built in public — targum") }}</title>
-{%- if canonical %}
-<link rel="canonical" href="{{ canonical }}">
-{%- endif %}
-{% include '_icons.html.j2' %}
+{#- The public head, as every page in the sitemap has it: a shared link to this page was a
+    bare line of text, with no description and no picture (targum-internal#518). One
+    address for every language, so no `alternates`. -#}
+{% include '_public_head.html.j2' %}
 {{ styles('tokens.css', 'shared.css', 'reader.css', 'about.css') }}
 {{ hebrew_face() }}
 {{ chrome_face() }}

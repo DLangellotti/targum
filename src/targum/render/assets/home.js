@@ -21,6 +21,11 @@
   var t = words.t;
   var tn = words.tn;
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   var key = window.TARGUM_KEY;
   function keyed(path) {
     if (!key) return path;
@@ -39,7 +44,7 @@
     return head;
   }
   function ask(path) {
-    return fetch(keyed(path), {
+    return (path === "/account/me" ? meOnce : fetch)(keyed(path), {
       credentials: "same-origin",
       headers: keyHeaders({ "Content-Type": "application/json" }),
     }).then(function (response) {
@@ -229,8 +234,11 @@
       });
   }
 
+  //: How many of the account's places are asked for: the shelf's twenty (`yours.js`), the
+  //: same question, so it is asked once and both read the answer (targum-internal#484).
+  var PLACES_ASKED = 20;
   function accountPlaces() {
-    return ask("/account/places?limit=" + CONTINUE_AT_MOST * 2)
+    return ask("/account/places?limit=" + PLACES_ASKED)
       .then(function (answer) {
         return (answer && answer.places) || [];
       })
@@ -938,8 +946,15 @@
      each time the menu moves. `readers` is everything of the reader's own and every shared
      text this browser has opened; `building` the builds still running. */
   var first = true;
-  var placed = null;
-  var brought = null;
+  /* The account's places and its subscriptions' new items, asked as the page opens
+     (targum-internal#484). Neither waits on the shelf, and asked at the first draw they
+     made a chain: the account, `/sync`, `/readers`, then these, then `/suggest`, each a
+     round trip of its own, about 0.17 s at a phone's 150 ms. Now they are in flight with
+     the shelf and usually answered before it. */
+  var placed = accountPlaces();
+  var brought = ask("/subscriptions/new.json").catch(function () {
+    return null;
+  });
   // Asked once a language and kept for the visit: `yours.js` draws again every few
   // seconds while something builds, and the series and the suggestion do not move.
   var seriesIn = {};
@@ -949,9 +964,6 @@
     var opened = stored("targum:opened");
     var follow = window.TargumFollow;
     // The account's subscriptions first; signed out, this browser's follows as before.
-    brought = brought || ask("/subscriptions/new.json").catch(function () {
-      return null;
-    });
     if (!seriesIn[code]) {
       seriesIn[code] = brought.then(function (answer) {
         if (answer && answer.signedIn) return [];
@@ -959,7 +971,6 @@
       });
     }
     var sawSeries = seriesIn[code];
-    placed = placed || accountPlaces();
     return Promise.all([me, placed, sawSeries, brought]).then(function (all) {
       var who = all[0];
       var places = mergePlaces(all[1]);
@@ -1082,6 +1093,10 @@
     gather: gatherContinue,
     next: nextUnfinished,
     places: mergePlaces,
+    // The account's places as asked when the page opened, for `yours.js`'s shelf.
+    asked: function () {
+      return placed;
+    },
     welcomeBack: welcomeBack,
     language: function () {
       return lang && lang.current ? lang.current(lang.learning ? lang.learning() : ["he"]) : "he";

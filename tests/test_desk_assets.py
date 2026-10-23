@@ -135,12 +135,20 @@ def test_a_desk_page_in_russian_still_carries_what_its_files_ask_for() -> None:
 def test_the_files_are_named_by_their_bytes() -> None:
     files = asset_files()
     assert files, "nothing to serve"
+    kinds = {
+        "js": "text/javascript",
+        "css": "text/css",
+        "jpg": "image/jpeg",
+        "json": "application/json",
+    }
     for address, (body, kind, name) in files.items():
-        stem, _, ext = name.rpartition(".")
+        # A picture is named by its folder (`scroll/columns.jpg`) and served by its name.
+        stem, _, ext = name.rpartition("/")[2].rpartition(".")
         digest = hashlib.sha256(body).hexdigest()[:16]
         assert address == f"{ASSET_ROUTE}{stem}.{digest}.{ext}", "named by its own bytes"
-        assert re.fullmatch(r"/assets/[a-z0-9-]+\.[0-9a-f]{16}\.(js|css)", address), address
-        assert kind.startswith("text/javascript" if address.endswith(".js") else "text/css")
+        named = r"/assets/[a-z0-9-]+\.[0-9a-f]{16}\.(js|css|jpg|json)"
+        assert re.fullmatch(named, address), address
+        assert kind.startswith(kinds[ext])
         assert body
     assert not any(name == "sw.js" for _, _, name in files.values()), "the worker is at the root"
 

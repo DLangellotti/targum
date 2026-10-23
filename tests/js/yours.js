@@ -121,9 +121,21 @@ global.fetch = (url, options) => {
   const clean = String(url).replace(/[?&]k=[^&]*/, "");
   if (options && options.method === "POST") {
     told.push({ url: clean, body: JSON.parse(options.body || "null") });
+    /* The server's Anki deck (targum-internal#496): `anki` is what `/account/anki`
+       answers about the deck, and the deck itself comes as a file. Without it the
+       POST answers no id and the page falls back to the text file. */
+    if (payload.anki && clean.indexOf("/account/anki") === 0) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "d1", ...payload.anki }) });
+    }
     return Promise.resolve({ ok: !payload.refuse, json: () => Promise.resolve({ ok: true }) });
   }
   asked.push(clean);
+  if (payload.anki && clean.indexOf("/account/anki/deck") === 0) {
+    return Promise.resolve({ ok: true, blob: () => Promise.resolve(new Blob(["apkg"], { type: "application/octet-stream" })) });
+  }
+  if (payload.anki && clean.indexOf("/account/anki") === 0) {
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: "d1", ...payload.anki }) });
+  }
   const offset = Number((/offset=(\d+)/.exec(clean) || [0, 0])[1]);
   let answer = (payload.pages || {})[String(offset)] || { words: [], offset, next: null };
   // Your targums (2026-09-11): the shelf rows moved here from Learn, and so did the
@@ -372,6 +384,8 @@ function phrases() {
       },
       /* What the presses above downloaded: the name off the anchor is not readable here,
          so a file is its type and its text, which is the half a format test is about. */
+      // The line under the exports: what the Anki deck said as it was made.
+      exportSaid: at("export-said").hidden ? "" : at("export-said").textContent,
       saved: saved.map((file) => ({ name: file.name || "", type: file.type, text: file.text })),
       claim: {
         hidden: at("claim-panel").hidden,

@@ -310,11 +310,24 @@ def test_the_scale_says_what_the_pressed_step_means() -> None:
     """ "Explain what the 1, 2, 3 stages of how well you know a word mean." The names were
     in the buttons' tooltips, which is nowhere on a phone. Since 2026-10-09 (§12, "The
     five stages are one control, on every card") the stage's own name, written once."""
-    assert run(status=2, legend=True)["legend"] == "Getting there"
-    assert run(status=9, legend=True)["legend"] == "Known", "said once, not 'known · known'"
+    # The stub document reads an element's own text; what ignore is for is its own span
+    # inside the legend (`test_what_ignore_is_for_is_said_on_the_card`).
+    assert run(status=2, legend=True)["legend"].startswith("Still learning")
+    known = run(status=9, legend=True)["legend"]
+    assert known.startswith("Known") and "known" not in known.lower()[5:], "said once"
     assert run(status=0, legend=True)["legend"] == "Ignored: a name or a number"
-    assert run(legend=True)["legend"] == "1 just met · 2 getting there · 3 nearly there"
+    assert run(legend=True)["legend"].startswith("How well do you know it?")
     assert run(status=2)["legend"] is None, "the list beside the text has no room for it"
+
+
+def test_what_ignore_is_for_is_said_on_the_card() -> None:
+    """targum-internal#476, B4: "ignore" explained itself only in its title, which a phone
+    and a keyboard never show (design.md §14). It is said under the scale, in every
+    language, except under a word already ignored, whose legend says it."""
+    assert run(status=2, legend=True)["ignoreSays"] == "Ignore is for names and numbers."
+    assert run(legend=True)["ignoreSays"] == "Ignore is for names and numbers."
+    assert run(status=0, legend=True)["ignoreSays"] is None
+    assert run(status=2)["ignoreSays"] is None, "not on the list beside the text"
 
 
 # -- copying a word out -----------------------------------------------------------

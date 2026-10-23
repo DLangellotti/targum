@@ -35,9 +35,11 @@ from targum.render.builder import (
     LISTS,
     about_page,
     add_page,
+    asset_files,
     carried,
     chat_page,
     holding_page,
+    legal_page,
     library_page,
     list_page,
     not_found_page,
@@ -118,6 +120,62 @@ def test_a_page_runs_its_scripts_without_throwing(browser, tmp_path: Path, name:
     context.close()
 
     assert not thrown, f"{name} threw: {thrown}"
+
+
+def test_the_grammar_page_catches_a_first_ask_that_fails_before_its_last_script(
+    browser,
+) -> None:
+    """The flake in the test above, made to happen every time (targum-internal#504).
+
+    `grammar.js` asks for the practice as it runs, and `yours.js`, the page's last script,
+    is what catches a refusal. Read off the disk as one document the two run back to back,
+    and only a parser that yielded between them let the failed fetch land first: about one
+    CI run in three, "Failed to fetch". Served as a desk page is, by address, the browser
+    runs other tasks between one file and the next, so a reader offline met it too. Here
+    `yours.js` is held until the ask has failed, which is the gap made wide.
+    """
+    files = asset_files()
+    last = next(path for path in files if re.fullmatch(r"/assets/yours\.[0-9a-f]+\.js", path))
+    html = list_page(TOKEN, "grammar")
+    assert last in html, "the grammar page no longer ends on yours.js"
+    # Named somewhere else for this test: every route here answers the desk's own files
+    # before the test's handler sees them (`conftest.desk_files_in_routed_browsers`).
+    html = html.replace(f'src="{last}"', 'src="/held/yours.js"')
+    held: list = []
+    failed: list[str] = []
+
+    def answer(route, request):
+        path = urlparse(request.url).path
+        if path == "/grammar":
+            route.fulfill(status=200, content_type="text/html", body=html)
+        elif path == "/held/yours.js":
+            held.append(route)
+        else:
+            if path == "/account/practice":
+                failed.append(path)
+            route.abort()
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    thrown: list[str] = []
+    open_page.on("pageerror", lambda error: thrown.append(str(error)))
+    open_page.route("http://grammar.test/**", answer)
+    open_page.goto("http://grammar.test/grammar", wait_until="commit")
+    for _ in range(50):
+        if failed and held:
+            break
+        open_page.wait_for_timeout(50)
+    # Long enough for an uncaught rejection to be reported, then the last script.
+    open_page.wait_for_timeout(300)
+    assert failed and held, "the practice was never asked for, or yours.js never fetched"
+    body, kind, _ = files[last]
+    held[0].fulfill(status=200, content_type=kind, body=body)
+    open_page.wait_for_timeout(300)
+    said = open_page.evaluate("() => document.getElementById('nothing').hidden")
+    context.close()
+
+    assert not thrown, f"the grammar page threw: {thrown}"
+    assert said is False, "the refusal was not drawn once yours.js ran"
 
 
 def test_the_add_page_wires_its_button(browser, tmp_path: Path) -> None:
@@ -749,9 +807,10 @@ def test_the_arrival_is_the_screen_on_a_phone(browser, width: int) -> None:
     assert got["footFixed"] == "fixed" and got["footInView"], got
     assert got["filled"] == ["arrival-done"], f"Continue is the one filled press: {got}"
     assert got["cards"] == 6 and got["tall"] and got["clearOfFoot"], got
-    # Hebrew keeps its Beta by decision; the rest wear what they have earned (design.md
-    # §12, "A badge is a promise, checked", 2026-10-12).
-    assert got["badges"] == ["Beta"] + ["Experimental"] * 5
+    # Hebrew wears the Beta it earned and Russian the Alpha it is kept at (design.md §12,
+    # "Russian wears Alpha while its read-through is done", 2026-10-21); the rest wear what
+    # they have earned (§12, "A badge is a promise, checked", 2026-10-12).
+    assert got["badges"] == ["Beta", "Alpha"] + ["Experimental"] * 4
     assert got["chrome"] == [], got
     assert not got["sideways"]
 
@@ -889,12 +948,14 @@ def _progress_with(
     reading: dict | None = None,
     width: int = 390,
     story: dict | None = None,
+    language: str = "en",
+    vocab: dict | None = None,
 ):
     from datetime import date, timedelta
 
     from targum.render.builder import progress_page
 
-    html = progress_page(TOKEN)
+    html = progress_page(TOKEN, language)
     today = date.today()
 
     def row(day: date, language: str, medium: str, **amounts: int) -> dict[str, object]:
@@ -921,14 +982,50 @@ def _progress_with(
 
     context = browser.new_context(viewport={"width": width, "height": 844})
     page = context.new_page()
+    words = vocab or {"a": {"surface": "a", "status": 9, "band": "easy", "at": 1}}
     page.add_init_script(
-        "localStorage.setItem('targum:vocab:he', JSON.stringify({a: {surface: 'a', status: 9,"
-        " band: 'easy', at: 1}})); localStorage.setItem('targum:language', 'he')"
+        f"localStorage.setItem('targum:vocab:he', {json.dumps(json.dumps(words))});"
+        " localStorage.setItem('targum:language', 'he')"
     )
     page.route("http://progress.test/**", answer)
     page.goto(f"http://progress.test/progress?k={TOKEN}")
     page.wait_for_timeout(600)
     return context, page
+
+
+@pytest.mark.parametrize("weeks", [1, 2])
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_progress_week_dates_stay_inside_the_card(browser, language: str, weeks: int) -> None:
+    """qa-claude on #870: with one or two weeks the dates' box was the weeks' width, and at
+    390 in Russian "15 окт." ran past the card's edge. Measured in a browser, because the
+    CSS-string tests could not see it."""
+    from datetime import date, datetime, time, timedelta
+
+    words = {}
+    for back in range(weeks):
+        day = date.today() - timedelta(days=7 * back)
+        at = int(datetime.combine(day, time(12, 0)).timestamp() * 1000)
+        for i in range(3):
+            words[f"w{back}-{i}"] = {"status": 9, "surface": f"w{back}-{i}", "at": at + i}
+    context, page = _progress_with(browser, {}, width=390, language=language, vocab=words)
+    page.wait_for_selector(".progress .weeks-dates span")
+    got = page.evaluate(
+        """() => {
+          const dates = document.querySelector('.progress .weeks-dates');
+          const column = dates.parentElement.getBoundingClientRect();
+          const spans = [...dates.querySelectorAll('span')].map((s) => s.getBoundingClientRect());
+          return {said: dates.textContent, start: Math.min(...spans.map((s) => s.left)),
+                  end: Math.max(...spans.map((s) => s.right)),
+                  left: column.left, right: column.right,
+                  apart: spans.length < 2 || spans[0].right <= spans[1].left,
+                  sideways: document.documentElement.scrollWidth > window.innerWidth};
+        }"""
+    )
+    context.close()
+    assert len(got["said"]) > 0, got
+    assert got["end"] <= got["right"] + 0.5 and got["start"] >= got["left"] - 0.5, got
+    assert got["apart"], got
+    assert not got["sideways"], got
 
 
 SPENT = """() => ({
@@ -2230,8 +2327,8 @@ def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
     page.wait_for_timeout(400)
     italian = field.get_attribute("placeholder")
     context.close()
-    assert hebrew == "Write in Hebrew or English", hebrew
-    assert italian == "Write in Italian or English", italian
+    assert hebrew == "Hebrew or English", hebrew
+    assert italian == "Italian or English", italian
     # Learn asks for its own chips without a language; the drawer asks in the page's.
     assert [code for code in asked if code] == ["he", "it"], asked
 
@@ -2972,14 +3069,14 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
     assert got["back"].startswith("/progress")
     assert got["summary"] == "3 on your list · 1 known"
     assert got["tabs"] == ["Words 3", "Phrases 0", "Grammar"] and got["current"].startswith("Words")
-    assert got["chips"][0] == "To work on" and "Getting there" in got["chips"]
-    five = ["1", "2", "3", "known", "ignore"]
+    assert got["chips"][0] == "To work on" and "Still learning" in got["chips"]
+    five = ["New", "Learning", "Almost", "Known", "ignore"]
     assert got["steps"] and all(steps == five for steps in got["steps"])
     assert not got["sideways"], got
     assert stored == 3
     # Most met first, with how often on the row, and the card a line the reader read: the
     # meaning on show beside the table, asked for first on a phone, where the card leads.
-    assert got["met"][0].startswith("Just met")
+    assert got["met"][0].startswith("New to you")
     assert got["practise"]["word"] == "הָעִיר" and got["practise"]["at"] == "1 of 1"
     assert got["practise"]["meaningShown"] == (width > 640)
     assert got["practise"]["first"] == (width <= 640)
@@ -3056,7 +3153,9 @@ def test_a_word_claimed_from_the_list_shows_its_meaning(browser, width: int) -> 
             "() => !!JSON.parse(localStorage.getItem('targum:meanings:he:en') || '{}')['עם']",
             timeout=5000,
         )
-        known = page.locator("#stage-chips [data-stage]", has_text="Known")
+        known = page.locator("#stage-chips [data-stage]").filter(
+            has_text=re.compile(r"^\s*Known\b")
+        )
         if known.count():
             known.first.click()
         page.wait_for_selector("#word-rows tr[data-word='עם']")
@@ -3106,7 +3205,7 @@ def test_an_ignored_word_can_be_undone_in_its_row(browser, width: int) -> None:
     assert got["note"] == "דרך is in Ignored" and got["focused"] and got["clear"], got
     assert "Ignored" in got["tabs"]
     assert ignored == 0 and stage == 2
-    assert ["דרך", "Getting there"] in back
+    assert ["דרך", "Still learning"] in back
 
 
 def test_an_ignored_word_is_found_under_ignored_and_put_back_by_a_stage(browser) -> None:
@@ -3456,3 +3555,46 @@ def test_the_grammar_tab_works_one_example_then_asks_and_says_why(browser, width
     assert posted[0] == {"spot": "tense", "key": "a:s2", "right": False, "language": "he"}
     assert posted[1] == {"spot": "tense", "done": [0, 1], "language": "he"}
     assert len(posted) == 2
+
+
+@pytest.mark.parametrize("which", ["privacy", "terms", "retention", "deletion"])
+def test_the_legal_pages_sign_in_keeps_the_buttons_colours(browser, which: str) -> None:
+    """targum-internal#516: the documents' link rule outranked the corner's call to action,
+    so on the four legal pages Sign in was ink text on its ink fill, about 1.1:1. §9: a
+    call to action is ink-filled with paper text. The document's own links stay ink."""
+    html = legal_page(which)
+
+    def answer(route, request):
+        if urlparse(request.url).path == f"/{which}":
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    page.route("http://legal.test/**", answer)
+    page.goto(f"http://legal.test/{which}")
+    page.wait_for_selector(".corner .enter")
+    got = page.evaluate(
+        """() => {
+          const style = getComputedStyle(document.querySelector('.corner .enter'));
+          const link = document.querySelector('.legal .changed a');
+          const linked = getComputedStyle(link);
+          return {
+            color: style.color,
+            fill: style.backgroundColor,
+            weight: style.fontWeight,
+            border: style.borderBottomStyle,
+            link: linked.color,
+            underline: linked.borderBottomStyle,
+          };
+        }"""
+    )
+    context.close()
+
+    assert got["color"] == "rgb(255, 253, 249)", got
+    assert got["fill"] == "rgb(18, 17, 16)", got
+    assert got["weight"] == "600", got
+    assert got["border"] == "none", "the document's underline does not reach the button"
+    assert got["underline"] == "solid", "the document's links keep their rule"
+    assert got["link"] != got["color"], got

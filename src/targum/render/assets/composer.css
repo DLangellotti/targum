@@ -69,7 +69,7 @@
   max-block-size: 9.5rem;
   width: 100%;
 }
-.composer textarea:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.composer textarea:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 2px var(--focus); }
 
 /* A file or a recording, brought and priced in place (2026-09-06): the Add page's job
    in one press, where Upload was a corner of the nav. A typed `+` as itself (§7), in a
@@ -403,7 +403,7 @@
   padding: 0.7rem 0.9rem;
   min-block-size: 2.6rem;
 }
-.composer textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.composer textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 2px var(--focus); }
 .chat-bring, .chat-mic {
   width: 2.6rem;
   height: 2.6rem;
@@ -422,3 +422,24 @@
 .quote-go:hover { background: var(--teal); filter: brightness(1.08); }
 .chat-another, .chat-first-yes, .chat-first-no { border: 0; background: var(--teal-wash); color: var(--teal); padding: 0.4rem 0.9rem; }
 .chat-another:hover, .chat-first-yes:hover, .chat-first-no:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+
+/* §8: the card's two quiet links answer a thumb over 44px, with a centred reach drawn as
+   their `::after` over the space around them (#472 B9: they were 24px tall). */
+@media (hover: none) and (pointer: coarse) {
+  .quote-source,
+  .quote-more {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .quote-source::after,
+  .quote-more::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}

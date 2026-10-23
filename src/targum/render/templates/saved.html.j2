@@ -33,9 +33,12 @@
       one column, the room first (OffSavedPhone). -#}
   <div class="saved-grid">
     <div class="saved-main">
-      {#- Nothing saved yet is said inside the card the rows would be in. -#}
+      {#- Nothing saved yet is said inside the card the rows would be in. Its line is about
+          saving by hand, so the card is Saved by you: headed Saved automatically it stood
+          beside Saving automatically, two headings a letter apart (targum-internal#474,
+          polish 1). -#}
       <section class="card saved-group" id="saved-none" hidden>
-        <h2 class="section-title">{{ t("saved.page.on-their-own", "Saved automatically") }}</h2>
+        <h2 class="section-title">{{ t("saved.page.by-you", "Saved by you") }}</h2>
         <p class="note">{{ t("saved.page.none", "Nothing is saved on this device yet. Before you go, choose Save for offline in a text's ⋯ menu.") }}</p>
       </section>
 
@@ -64,7 +67,7 @@
 
     <div class="saved-aside">
       <section class="card saved-room" id="saved-room" aria-labelledby="saved-room-title" hidden>
-        <h2 class="section-title" id="saved-room-title">{{ t("saved.page.room", "Room on this device") }}</h2>
+        <h2 class="section-title" id="saved-room-title">{{ t("saved.page.room", "Space on this device") }}</h2>
         <p class="saved-used" id="saved-used"></p>
         <span class="meter is-building saved-meter" aria-hidden="true"><span id="saved-meter"></span></span>
         <p class="note">{{ t("saved.page.browser-sets", "This browser sets how much targum can keep.") }}</p>
@@ -97,7 +100,7 @@
         <div class="saved-choice">
           <span class="saved-choice-what">
             <span class="saved-choice-name" id="film-label">{{ t("saved.page.videos", "Videos") }}</span>
-            <span class="note">{{ t("saved.page.videos-says", "The picture takes about six times the room") }}</span>
+            <span class="note">{{ t("saved.page.videos-says", "Video takes about six times the space of sound alone") }}</span>
           </span>
           <span class="seg saved-segment" role="radiogroup" aria-labelledby="film-label">
             <button type="button" role="radio" aria-checked="true" data-film="1">{{ t("saved.page.with-picture", "With the picture") }}</button>

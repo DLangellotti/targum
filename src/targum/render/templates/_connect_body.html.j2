@@ -129,7 +129,7 @@
               <li>{{ t("connect.page.chatgpt-choose-oauth-then-connect", "Choose OAuth, then sign in to targum and choose Connect.") }}</li>
               <li>{{ t("connect.page.chatgpt-turn-it-on-in-each-chat", "In each new chat, choose the + button and turn on targum.") }}</li>
             </ol>
-            <p class="quiet">{{ t("connect.page.chatgpt-menus-move", "Developer mode is on ChatGPT’s paid plans. Its menus move now and then: if yours differ, look for Connectors or Apps.") }}</p>
+            <p class="quiet">{{ t("connect.page.chatgpt-menus-move", "Developer mode is on ChatGPT’s paid plans. Its menus move now and then. If yours look different, look for Connectors or Apps.") }}</p>
           </div>
         </div>
 
@@ -202,7 +202,7 @@
           <ul class="cn-grant-list">
             <li>{{ glyph('search') }}<span>{{ t("connect.scope.library", "Search the library and look up what is at a link") }}</span></li>
             <li>{{ glyph('lines') }}<span>{{ t("connect.scope.record", "Read your words, your mistakes and your progress") }}</span></li>
-            <li>{{ glyph('talk') }}<span>{{ t("connect.scope.chat", "Send us what you write in a language you're learning, for us to correct") }}<small>{{ t("connect.scope.chat-also", "And add texts to your playlists, and offer texts, playlists and subscriptions, which you confirm here, on targum") }}</small></span></li>
+            <li>{{ glyph('talk') }}<span>{{ t("connect.scope.chat", "Send us what you write in a language you're learning, for us to correct") }}<small>{{ t("connect.scope.chat-also", "It can also add texts to your playlists, and suggest texts, playlists and subscriptions for you to confirm on targum.") }}</small></span></li>
           </ul>
           <span class="cn-grant-go">{{ t("connect.page.connect", "Connect") }}{{ glyph('arrow') }}</span>
         </div>
@@ -222,11 +222,11 @@
     {%- endif %}
     <div class="cn-feats">
       {%- for icon, head, says in [
-          ('search', t("connect.page.something-to-read-next", "Something to read next"), t("connect.page.nearly-500-free-texts-and-videos-sorted-by-the-words-you-know", "More than 500 texts and videos, sorted by the words you know. Or paste a link to your own.")),
+          ('search', t("connect.page.something-to-read-next", "Something to read next"), t("connect.page.nearly-500-free-texts-and-videos-sorted-by-the-words-you-know", "More than 700 texts and videos, sorted by the words you know. Or paste a link to your own.")),
           ('talk', t("connect.page.the-fix-and-why", "The fix, and why"), t("connect.page.write-in-hebrew-and-see-the-fix", "Write in Hebrew and see what to change and why. The mistake goes on your list to practise.")),
           ('lines', t("connect.page.words-where-you-met-them", "Words where you met them"), t("connect.page.ask-about-a-word-and-see-it-in-the-sentence-you-read-it-in", "Ask about a word and see it in the sentence you read it in, with how well you know it.")),
           ('list', t("connect.page.playlists", "Playlists"), t("connect.page.playlists-says", "Ask for a few texts on one theme. They come back as a playlist you confirm with one press.")),
-          ('feed', t("connect.page.subscriptions", "Subscriptions"), t("connect.page.subscriptions-says", "Ask to follow the news, a YouTube channel or a podcast. News comes as free links; a channel or podcast gets ready within a monthly cap you set.")),
+          ('feed', t("connect.page.subscriptions", "Subscriptions"), t("connect.page.subscriptions-says", "Ask to subscribe to the news, a YouTube channel or a podcast. News comes as links. A channel or podcast gets each new one ready by itself, up to a monthly cap you set.")),
           ('lock', t("connect.page.nothing-starts-without-you", "Nothing starts without you"), t("connect.page.nothing-starts-says", "Your AI can’t make anything on its own. It sends a link, and you confirm on targum.")),
         ] %}
       <div class="cn-feat">
@@ -245,8 +245,8 @@
         <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so are searching the library and your word list. Chatting is included in your monthly credits. A new text, playlist or subscription uses credits, and you confirm it on targum first.") }}</p></details>
         <details><summary>{{ t("connect.page.q-which-apps", "Which apps does it work with?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-which-apps", "Claude, ChatGPT, Claude Code, VS Code, Gemini CLI and Codex, and any other app that can add a remote MCP server and sign in with OAuth.") }}</p></details>
         <details><summary>{{ t("connect.page.q-will-it-speak-hebrew", "Will it talk to me in Hebrew?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-will-it-speak-hebrew", "Yes. We give your AI the rules our own chat follows: short replies in simple Hebrew, built from the words you know, with the English when you ask.") }}</p></details>
-        <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "No. When you ask for a text, it sends you a link. Nothing is made until you confirm it on targum.") }}</p></details>
-        <details><summary>{{ t("connect.page.q-how-do-i-disconnect", "How do I disconnect?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-how-do-i-disconnect", "From your targum account, where every connected app is listed, or by removing it in the app.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "No. When you ask for a text, it sends you a link. We don't get anything ready until you confirm it on targum.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-how-do-i-disconnect", "How do I disconnect?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-how-do-i-disconnect", "In Your account on targum, which lists every connected app. Or remove it in the app itself.") }}</p></details>
         <details><summary>{{ t("connect.page.q-what-is-mcp", "Why do the steps say MCP?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-what-is-mcp", "MCP is how these apps add a tool like targum. Some menus call it a connector.") }}</p></details>
       </div>
   </section>

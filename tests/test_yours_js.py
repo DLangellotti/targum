@@ -313,7 +313,7 @@ def test_a_text_being_built_is_the_first_row_of_your_targums() -> None:
 def test_a_build_waiting_its_turn_says_so_rather_than_looking_stuck() -> None:
     queued = building(stage="queued", behind=2, message="", total=0, done=0)
     (row,) = draw(which="texts", jobs=[queued])["shelf"]
-    assert row["facts"].startswith("Waiting behind 2 builds"), row["facts"]
+    assert row["facts"].startswith("Waiting behind 2 other texts"), row["facts"]
 
 
 def test_a_build_alone_is_a_shelf_and_not_an_empty_page() -> None:
@@ -559,7 +559,7 @@ def test_the_table_says_where_each_word_was_met_most_met_first() -> None:
     assert [row["term"] for row in drawn["words"]] == ["ספר", "דרך", "עיר"]
     assert [row["met"] for row in drawn["words"]] == ["4 texts", "1 text", ""]
     assert drawn["order"] == "Most met first" and drawn["hasMet"]
-    assert drawn["words"][0]["status"] == "Getting there", "the stage by name"
+    assert drawn["words"][0]["status"] == "Still learning", "the stage by name"
 
 
 def test_met_often_keeps_to_the_words_met_in_two_texts_or_more() -> None:
@@ -902,9 +902,9 @@ def test_the_stages_are_chips_and_the_table_opens_on_what_to_work_on() -> None:
     drawn = draw(vocabulary(word("ספר", "book", status=9), word("דרך", "road", status=2)))
     assert drawn["chips"] == [
         "To work on",
-        "Just met",
-        "Getting there",
-        "Nearly there",
+        "New to you",
+        "Still learning",
+        "Almost known",
         "Known",
         "All",
     ]
@@ -944,3 +944,43 @@ def test_a_browser_just_signed_in_is_not_told_it_has_nothing_before_the_account_
     assert empty["shown"] and not empty["nothing"]
     assert empty["wordsEmpty"].startswith("Nothing yet")
     assert not waiting["shown"], "and not drawn empty while the account is answering"
+
+
+@pytest.mark.parametrize(
+    ("deck", "said"),
+    [
+        (
+            {"state": "ready", "silent": 0},
+            "Your deck is ready, with a sound for every word.",
+        ),
+        (
+            {"state": "ready", "silent": 2, "capped": True},
+            "Your deck is ready. 2 words have no sound. "
+            "You've used this month's sounds for decks, so the rest have none.",
+        ),
+        (
+            {"state": "ready", "silent": 1, "refused": True},
+            "Your deck is ready. 1 word has no sound. "
+            "We couldn't make new sounds just now, so those words have none.",
+        ),
+        (
+            {"state": "ready", "silent": 3, "stopped": True},
+            "Your deck is ready. 3 words have no sound. "
+            "We stopped at the sounds we'd set aside for this deck, so the rest have none.",
+        ),
+    ],
+)
+def test_the_anki_deck_says_why_words_have_no_sound(deck: dict[str, Any], said: str) -> None:
+    """targum-internal#496, the page's half (qa on #854): the server's deck is saved as an
+    `.apkg`, and the line under the exports says why any word came out silent."""
+    drawn = draw(
+        # Two saved, one filtered out by the list's opening stage (known): the deck asks
+        # for the one on screen only (qa on #868).
+        vocabulary(word("ספר", "book", status=2, at=100), word("דרך", "road", status=9, at=90)),
+        do=[{"type": "export", "which": "anki"}],
+        anki=deck,
+    )
+    assert [file["type"] for file in drawn["saved"]] == ["application/octet-stream"]
+    assert drawn["exportSaid"] == said
+    posted = [one["body"] for one in drawn["told"] if one["url"].startswith("/account/anki")]
+    assert posted and posted[0]["lemmas"] == ["ספר"], "the words on screen"

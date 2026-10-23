@@ -31,6 +31,18 @@ Coming back the other way — the box is gone and there is a backup — is
 [`RESTORE.md`](RESTORE.md). It was run once on 2026-09-04 rather than written from
 imagination, and it says what came back.
 
+A deploy that went out and is worse than what it replaced is
+[`ROLLBACK.md`](ROLLBACK.md): a wheel the box kept put back with `rollback.sh`, or the
+previous commit deployed again, and the database put back only if the data itself is
+damaged. Something wrong on the site, whatever the cause,
+is [`INCIDENT.md`](INCIDENT.md): who is told, where to look, and how to tell the box from
+a model provider from the network in the first ten minutes.
+
+The step that runs right after the next approved deploy (targum-internal#507) is
+[`REINGEST-TANAKH.md`](REINGEST-TANAKH.md): find every Tanakh copy on the box without
+verse refs, give it its refs, and re-annotate it so OSHB reads it, with readers' marks
+carried across. On 2026-10-22 the box had none and the laptop had thirteen.
+
 Every time after that, from here:
 
 ```

@@ -22,6 +22,23 @@ SSH_OPTS=(-o ServerAliveInterval=60 -o ServerAliveCountMax=120)
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# What is being shipped, by whom, and when, said once and read by three things on the
+# box: the database copy taken before the install, the wheel kept for rollback.sh, and
+# the line in deploys.log (targum-internal#482). A tree with changes nobody committed is
+# not the commit it sits on, so it says so in every name. WHO is the laptop's own
+# account name, never anything read from the vault.
+SHA="$(git rev-parse HEAD)"
+KEEP_AS="${SHA:0:12}"
+# Tracked changes only: an untracked file outside src/ never reaches the wheel, and the
+# main checkout always holds a few, which made every deploy from it read as -dirty.
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  SHA="$SHA-dirty"
+  KEEP_AS="$KEEP_AS-dirty"
+fi
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+WHO="$(id -un | tr -cd 'A-Za-z0-9._-')"
+WHO="${WHO:-unknown}"
+
 echo "== checks, before anything leaves this machine =="
 # Deploying a tree that fails its own tests is how a bad afternoon starts.
 #
@@ -130,6 +147,17 @@ uv export --frozen --no-hashes --no-emit-project --no-header --no-annotate \
 echo "   $(wc -l < "$CONSTRAINTS" | tr -d ' ') versions pinned from uv.lock"
 
 echo "== ship =="
+# A deploy whose rebuild is still running on the box is refused here, before anything is
+# sent: the keys merge below rewrites the env file that unit's later steps read, the
+# covers land in the live thumbs directory, and the private catalogue would sit in /tmp.
+# The same check runs again at the top of the box-side block, for a deploy started in
+# between.
+if ssh "${SSH_OPTS[@]}" "$HOST" "systemctl is-active --quiet targum-deploy.service"; then
+  echo "   a deploy is already running on this box (targum-deploy.service); nothing was sent." >&2
+  echo "   Its rebuild may be hours. Wait for it, or stop it, then deploy again:" >&2
+  echo "     ssh $HOST journalctl -u targum-deploy -f" >&2
+  exit 1
+fi
 scp -q "$WHEEL" "$CONSTRAINTS" "$HOST:/tmp/"
 REMOTE_WHEEL="/tmp/$(basename "$WHEEL")"
 REMOTE_CONSTRAINTS="/tmp/$(basename "$CONSTRAINTS")"
@@ -186,21 +214,87 @@ scp -q deploy/targum-backup.service deploy/targum-backup.timer \
 # by hand on 2026-10-08. Read from the main checkout's targum-out by default, so a deploy
 # from a worktree, which has no targum-out of its own, still carries them; skipped when
 # there are none. Never --delete: the box draws a cover for every upload, named
-# <home>-<name>.webp, and this machine has none of those. Dotfiles and partial writes stay
-# behind (a cover is written as .<name>.part and renamed). macOS rsync is 2.6.9 and has
-# no --chown, so the files arrive as root and are handed to the service after.
+# <home>-<name>.webp. So does this machine, for its own uploads, and those stay behind:
+# only the library's pictures (a row's, or a chapter's) go, because a laptop upload under
+# the same <home>-<name> would replace the box's, picture and line. `targum thumbs
+# --for-box` names what stays. Dotfiles and partial writes stay behind too (a cover is
+# written as .<name>.part and renamed).
+#
+# Everything on the box side runs as the service account, never as root: the folder is
+# targum's, so anything in it, a symlink included, may have been put there by the
+# service, and root following one writes wherever it points (targum-internal#512). The
+# receiving rsync is started as targum (--rsync-path), so the files arrive as targum's and
+# no chown is needed after; macOS rsync has no --chown, and a root chown -R over a
+# folder the service writes was the same hole.
+#
+# sources.json says where each picture came from, and both machines write it: this one
+# for the library, the box for every upload cover it draws. So it is merged rather than
+# copied: this machine's library lines win, and the box keeps every line only it has. The
+# merge takes the lock the box's own writers take (thumbs.record), so a cover drawn there
+# during a deploy keeps its line.
+#
+# Before anything goes, the count of library rows with no picture at all, only the letter
+# tile (targum-internal#429): a row filed after the last drawing shows up here rather than
+# on the shelf. Read by this tree's own catalogue, which is the one being shipped.
 COMMON_GIT="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$ROOT/.git")"
 MAIN_CHECKOUT="$(dirname "$COMMON_GIT")"
 THUMBS="${TARGUM_THUMBS:-$MAIN_CHECKOUT/targum-out/thumbs}"
 REMOTE_THUMBS="${TARGUM_REMOTE_THUMBS:-/var/lib/targum/targums/thumbs}"
+THUMBS_CLI="${TARGUM_THUMBS_CLI:-uv run targum thumbs}"
+MERGE_SOURCES='import fcntl, json, os, sys
+path = sys.argv[1]
+mine = json.load(sys.stdin)
+# No name here is followed if it is a symlink (targum-internal#512): run as targum it
+# could only reach what targum can, and refused it cannot reach anything.
+NOFOLLOW = os.O_NOFOLLOW | os.O_CLOEXEC
+lock = os.open(os.path.join(os.path.dirname(path), ".sources.json.lock"),
+               os.O_WRONLY | os.O_CREAT | os.O_APPEND | NOFOLLOW, 0o644)
+fcntl.flock(lock, fcntl.LOCK_EX)
+try:
+    with os.fdopen(os.open(path, os.O_RDONLY | NOFOLLOW), encoding="utf-8") as held:
+        kept = json.load(held)
+except (FileNotFoundError, ValueError):
+    kept = {}
+kept.update(mine)
+part = path + ".part"
+try:
+    os.unlink(part)
+except FileNotFoundError:
+    pass
+with os.fdopen(os.open(part, os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW, 0o644),
+               "w", encoding="utf-8") as out:
+    out.write(json.dumps(kept, ensure_ascii=False, indent=1, sort_keys=True) + "\n")
+os.replace(part, path)'
+# The box side, as the service account. root on the far end hands the command to it.
+AS_TARGUM="runuser -u targum --"
 if [ -d "$THUMBS" ]; then
-  ssh "${SSH_OPTS[@]}" "$HOST" "mkdir -p '$REMOTE_THUMBS'"
-  # rsync's own ssh, kept talking like every other one here.
-  RSYNC_RSH="$(printf '%q ' ssh "${SSH_OPTS[@]}")" rsync -a -q --delay-updates \
-    --exclude='.*' --exclude='*.part' --exclude='*.tmp' --exclude='*~' \
-    "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
-  ssh "${SSH_OPTS[@]}" "$HOST" "chown -R targum:targum '$REMOTE_THUMBS'"
-  echo "   $(find "$THUMBS" -type f -name '*.webp' | wc -l | tr -d ' ') covers"
+  # shellcheck disable=SC2086 # the command is separate words on purpose
+  BARE="$($THUMBS_CLI --dry-run --no-fetch --out "$(dirname "$THUMBS")" 2>/dev/null \
+    | grep -E '^[0-9]+ rows? without a picture$' || true)"
+  echo "   ${BARE:-the rows without a picture could not be counted}"
+  CARRIED="$(mktemp -d)"
+  # shellcheck disable=SC2086
+  if ! $THUMBS_CLI --for-box "$CARRIED" --out "$(dirname "$THUMBS")" >/dev/null 2>&1; then
+    # Nothing to say which pictures are the library's: carry none of them rather than
+    # risk a laptop upload over a box one.
+    echo "   the library's pictures could not be told apart; covers not carried" >&2
+    rm -rf "$CARRIED"
+    CARRIED=""
+  fi
+  if [ -n "$CARRIED" ]; then
+    ssh "${SSH_OPTS[@]}" "$HOST" "$AS_TARGUM mkdir -p '$REMOTE_THUMBS'"
+    # rsync's own ssh, kept talking like every other one here.
+    RSYNC_RSH="$(printf '%q ' ssh "${SSH_OPTS[@]}")" rsync -a -q --delay-updates \
+      --rsync-path="$AS_TARGUM rsync" \
+      --exclude='.*' --exclude='*.part' --exclude='*.tmp' --exclude='*~' \
+      --exclude='/sources.json' --exclude-from="$CARRIED/exclude" \
+      "$THUMBS/" "$HOST:$REMOTE_THUMBS/"
+    ssh "${SSH_OPTS[@]}" "$HOST" "$AS_TARGUM python3 -c '$MERGE_SOURCES' '$REMOTE_THUMBS/sources.json'" \
+      < "$CARRIED/sources.json"
+    SHIPPED=$(( $(find "$THUMBS" -type f -name '*.webp' | wc -l) - $(wc -l < "$CARRIED/exclude") ))
+    rm -rf "$CARRIED"
+    echo "   $SHIPPED covers"
+  fi
 fi
 
 # The keys, over the connection's own stdin rather than scp: nothing holding them is
@@ -217,6 +311,58 @@ printf '%s\n' "$SECRETS" | ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -c '
 unset SECRETS
 
 ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
+  # Before the wheel goes in, not after: a deploy that cannot finish must not start.
+  # This sat below the install until 2026-10-22, so a refused deploy had already
+  # replaced the tool under the running rebuild. The laptop asks the same before it sends
+  # anything (== ship ==); this is the second look, for a deploy started in between, and
+  # it comes before the database copy and the install.
+  if systemctl is-active --quiet targum-deploy.service; then
+    echo "   a deploy is already running on this box (targum-deploy.service)." >&2
+    echo "   Its rebuild may be hours. Wait for it, or stop it, then deploy again:" >&2
+    echo "     journalctl -u targum-deploy -f" >&2
+    exit 1
+  fi
+
+  # The database, copied before anything is installed, so stepping back is a restore of
+  # this file rather than of last night's (targum-internal#482). As the service account,
+  # through systemd like every targum command here, so the copy is targum's own and no
+  # root-owned file lands beside the live one. SQLite's .backup, a consistent snapshot
+  # through the backup API while the service keeps writing, never a plain cp. Then the
+  # copy is checked, opened immutable so the check itself writes no -wal or -shm beside
+  # it, and anything but "ok" stops the deploy here, before the install. Named
+  # targum.db.before-<sha12>-<utc>, which the nightly sweep's targum-*.db never matches,
+  # so the nightly fourteen are untouched; these are pruned to the last ten here. A box
+  # with no database yet (a fresh one) has nothing to copy and says so.
+  if [ -f /var/lib/targum/targum.db ]; then
+    BEFORE=/var/lib/targum/backups/targum.db.before-${KEEP_AS}-${STAMP}
+    systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+      /usr/bin/mkdir -p /var/lib/targum/backups
+    # UMask=0077: the copy holds reader data, so it is 0600 targum, not the 0644 the
+    # default umask gave every copy until targum-internal#514.
+    if ! systemd-run --quiet --wait --pipe --collect -p UMask=0077 --uid=targum --gid=targum \
+        /usr/bin/sqlite3 /var/lib/targum/targum.db ".backup '\$BEFORE'"; then
+      echo "   the database could not be copied before this deploy; nothing was installed." >&2
+      exit 1
+    fi
+    CHECKED="\$(systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+      /usr/bin/sqlite3 "file:\$BEFORE?immutable=1" "pragma integrity_check;" 2>&1 || true)"
+    if [ "\$CHECKED" != "ok" ]; then
+      echo "   the database copy before this deploy did not check out; nothing was installed." >&2
+      echo "   integrity_check said: \$(printf '%s' "\$CHECKED" | head -5)" >&2
+      echo "   the copy is kept to look at: \$BEFORE" >&2
+      exit 1
+    fi
+    echo "   database copied and checked: \$BEFORE"
+    # The prune as targum too: root removes nothing inside the service account's tree.
+    systemd-run --quiet --wait --pipe --collect --expand-environment=no --uid=targum --gid=targum \
+      /bin/bash -c \
+      "ls -1t /var/lib/targum/backups/ \
+        | grep -E '^targum\.db\.before-[0-9a-f]{12}(-dirty)?-[0-9]{8}T[0-9]{6}Z\\\$' \
+        | tail -n +11 | sed 's|^|/var/lib/targum/backups/|' | xargs -r rm -f --"
+  else
+    echo "   no database at /var/lib/targum/targum.db yet; nothing to copy"
+  fi
+
   # Installed as the service account so the tool and its virtualenv are owned by the
   # user that runs it. --force because the version usually has not changed.
   # The covers extra is Pillow, which shrinks a drawn cover to the 320px tile that is
@@ -244,20 +390,76 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # the account then cannot remove: the install stops at "failed to remove directory
   # .../tools/targum/lib: Permission denied", after it has begun taking the old
   # environment apart (2026-09-29). Nothing on a fresh box, where there is no tool yet.
-  if [ -d /srv/targum/.local/share/uv/tools/targum ]; then
-    chown -R targum:targum /srv/targum/.local/share/uv/tools/targum
+  #
+  # A repair, not a hand-over: only what is not targum's already is touched, and each
+  # name is changed itself, never what it points at. The tree is the service account's,
+  # so a symlink in it may have been put there by the service, and root following one
+  # changes the owner of whatever it names, /etc/targum included; find does not descend
+  # through a symlink and chown -h does not follow one (targum-internal#513). The
+  # account owns every directory above the tool too, so it could swap one of them for a
+  # symlink to /etc and the path would lead there: the directory is entered with cd -P
+  # and its real path compared before anything is walked, and the deploy stops if it is
+  # anywhere else. execdir changes each name from inside its own directory, so no path
+  # is resolved again after find has seen it. Nothing here is written as root: the
+  # install below is the account's own, run from / because root's home is closed to it.
+  if cd -P /srv/targum/.local/share/uv/tools/targum 2>/dev/null; then
+    if [ "\$(pwd -P)" != /srv/targum/.local/share/uv/tools/targum ]; then
+      echo "   /srv/targum/.local/share/uv/tools/targum is reached through a symlink; nothing was installed." >&2
+      exit 1
+    fi
+    find . ! -user targum -execdir chown -h targum:targum {} +
   fi
-  sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
+  cd /
+  runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[${REMOTE_EXTRAS}]" \
       --constraints "${REMOTE_CONSTRAINTS}" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
       >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
+  # The wheel that just went in, kept with the constraints it went in with and the
+  # extras, so deploy/rollback.sh can put it back without building anything on a laptop
+  # (targum-internal#482). Under /var/lib/targum-deploy, root's all the way down, and
+  # never under /var/lib/targum: the service account owns that directory, so it could
+  # rename a root-owned child and put a symlink in its place, and root's prune, install
+  # and append would then follow it anywhere. Readable by everyone, so the service
+  # account can read a wheel for rollback.sh's install, and writable by root alone.
+  # Kept only once the install has succeeded, so every directory here is a wheel that
+  # installed. The last five are kept, by when each last went in; a rollback touches the
+  # one it uses, so it is not the next one pruned. The prune lists real directories
+  # only (find -type d never follows a link) and removes them by name.
+  DEPLOYS=/var/lib/targum-deploy
+  if [ -L "\$DEPLOYS" ] || [ -L "\$DEPLOYS/wheels" ]; then
+    echo "   \$DEPLOYS or its wheels is a symlink; refusing to write through it." >&2
+    exit 1
+  fi
+  install -d -o root -g root -m 0755 "\$DEPLOYS" "\$DEPLOYS/wheels"
+  KEPT=\$DEPLOYS/wheels/${KEEP_AS}
+  install -d -o root -g root -m 0755 "\$KEPT"
+  rm -f "\$KEPT"/*.whl
+  install -o root -g root -m 0644 "${REMOTE_WHEEL}" "${REMOTE_CONSTRAINTS}" "\$KEPT/"
+  printf '%s\n' "${REMOTE_EXTRAS}" > "\$KEPT/extras"
+  chmod 0644 "\$KEPT/extras"
+  touch "\$KEPT"
+  find "\$DEPLOYS/wheels" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+    | sort -rn | tail -n +6 | cut -d' ' -f2- | xargs -r rm -rf --
   rm -f "${REMOTE_WHEEL}" "${REMOTE_CONSTRAINTS}"
+  # Who shipped what, when: one line per deploy, appended and never rewritten, so
+  # "what was running at three" has an answer that is not a guess from timestamps.
+  # rollback.sh appends to the same file. Root's, beside the wheels, for the same reason.
+  printf '%s %s %s\n' "${STAMP}" "${SHA}" "${WHO}" >> "\$DEPLOYS/deploys.log"
   # The directory too: it was root-only, which systemd never minded — it reads the
   # secrets as root — and the service, which reads the catalogue as targum, could not
   # reach into it. The library was empty for the length of one deploy.
   install -d -o root -g targum -m 0750 /etc/targum
+  # The catalogue being replaced, kept beside it as catalogue.json.prev so rollback.sh
+  # can offer it back: a catalogue change ships with the code, and stepping the code back
+  # alone can leave rows pointing at things the older code does not know. Only when the
+  # new one differs, or a second deploy of the same catalogue would overwrite the copy
+  # worth having with a copy of itself.
+  if [ -f /etc/targum/catalogue.json ] && ! cmp -s /tmp/catalogue.json /etc/targum/catalogue.json; then
+    # Not cp -p: the copy's time is when it was replaced, which is what rollback.sh shows.
+    install -o root -g targum -m 0640 /etc/targum/catalogue.json /etc/targum/catalogue.json.prev
+  fi
   install -o root -g targum -m 0640 /tmp/catalogue.json /etc/targum/catalogue.json
   rm -f /tmp/catalogue.json
   if [ -f /tmp/sources.json ]; then
@@ -274,14 +476,6 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
     install -o root -g targum -m 0640 "\$held" /etc/targum/published/
   done
   rm -rf /tmp/targum-published
-
-  # Before the wheel goes in, not after: a deploy that cannot finish must not start.
-  if systemctl is-active --quiet targum-deploy.service; then
-    echo "   a deploy is already running on this box (targum-deploy.service)." >&2
-    echo "   Its rebuild may be hours. Wait for it, or stop it, then deploy again:" >&2
-    echo "     journalctl -u targum-deploy -f" >&2
-    exit 1
-  fi
 
   install -o root -g root -m 0644 /tmp/targum.service /etc/systemd/system/targum.service
   rm -f /tmp/targum.service
@@ -448,15 +642,26 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
       # not built said nothing. Written after the rebuild and the seed, from the
       # annotations they leave on the shelf, so it is as wide as the box is. It annotates
       # nothing and buys nothing. The service account cannot write to /etc/targum, so it
-      # writes under /var/lib/targum and root puts it in place. Not fatal: an index that
-      # could not be written leaves the old one, or none, which is what the page drew
-      # before.
+      # writes under /var/lib/targum and root puts it in place: read as targum and
+      # written as root, because the file is targum'"'"'s in targum'"'"'s folder, and root
+      # opening it by name would follow a symlink planted there and copy whatever it
+      # points at into /etc/targum, readable by the service (targum-internal#512). Read
+      # as targum it carries only what targum could read already. The .part sits in
+      # /etc/targum, which only root writes, and is renamed into place. Not fatal: an
+      # index that could not be written leaves the old one, or none, which is what the
+      # page drew before.
       if systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
           --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
           /usr/local/bin/targum catalogue-lemmas --out /var/lib/targum/targums \
             --write /var/lib/targum/catalogue-lemmas.json; then
-        install -o root -g targum -m 0640 /var/lib/targum/catalogue-lemmas.json \
-          /etc/targum/lemmas.json
+        if ! { runuser -u targum -- cat /var/lib/targum/catalogue-lemmas.json \
+                 > /etc/targum/.lemmas.json.part \
+               && chown root:targum /etc/targum/.lemmas.json.part \
+               && chmod 0640 /etc/targum/.lemmas.json.part \
+               && mv -f /etc/targum/.lemmas.json.part /etc/targum/lemmas.json; }; then
+          rm -f /etc/targum/.lemmas.json.part
+          echo "   the catalogue lemma index could not be put in place; the library keeps the one it had" >&2
+        fi
       else
         echo "   the catalogue lemma index was not written; the library keeps the one it had" >&2
       fi

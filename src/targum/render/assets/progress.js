@@ -35,9 +35,9 @@
 
   var KNOWN = 9;
   var STEPS = [
-    { status: 1, name: t("progress.status.1", "just met"), slot: "--step-1" },
-    { status: 2, name: t("progress.status.2", "getting there"), slot: "--step-2" },
-    { status: 3, name: t("progress.status.3", "nearly there"), slot: "--step-3" },
+    { status: 1, name: t("progress.status.1", "new to you"), slot: "--step-1" },
+    { status: 2, name: t("progress.status.2", "still learning"), slot: "--step-2" },
+    { status: 3, name: t("progress.status.3", "almost known"), slot: "--step-3" },
     { status: KNOWN, name: t("progress.status.9", "known"), slot: "--step-4" },
   ];
 
@@ -47,7 +47,7 @@
      slot would be wrong in two of the three. */
   var RUNGS = {
     dialogue: {
-      chip: t("progress.touch.dialogue", "Dialogue"),
+      chip: t("progress.touch.dialogue", "A dialogue"),
       follow: t("progress.where.follow.dialogue", "You'd follow a dialogue"),
       nearly: t("progress.where.nearly.dialogue", "You'd follow nearly all of a dialogue"),
       most: t("progress.where.most.dialogue", "You'd follow most of a dialogue"),
@@ -153,33 +153,44 @@
     fault.hidden = false;
   }
 
-  if (!codes.length) {
+  // Nothing in this browser yet: the page is drawn once the account has had its say.
+  var waiting = !codes.length;
+  if (waiting) {
     document.getElementById("library-link").href = keyed("/library");
     wireNav();
     // Signing in on a browser that has nothing is the whole point of signing in: this
     // is the new phone, and everything is about to arrive. So "nothing yet" waits for
     // the account's answer, and is said only if it brought nothing (2026-10-10): said
     // at once, it told somebody just signed in that their whole record was gone.
+    //
+    // What did arrive is drawn in place by the `onChange` below, which has run by the
+    // time this resolves. It reloaded the page until 2026-10-22, so a new phone loaded
+    // Progress twice: 2.67 s on the phone profile against §14's 1.5 s (#484).
     if (window.TargumSync && window.TargumSync.settled) {
       window.TargumSync.settled().then(function (changed) {
-        if (changed) location.reload();
-        else if (window.TargumSync.reached === false) couldNot();
+        if (changed && codes.length) return;
+        if (window.TargumSync.reached === false) couldNot();
         else document.getElementById("nothing").hidden = false;
       });
     } else {
       document.getElementById("nothing").hidden = false;
     }
-    return;
+  } else {
+    document.getElementById("page").hidden = false;
   }
-
-  document.getElementById("page").hidden = false;
 
   // Which language everything below is drawn for. The menu moves it.
   var currentCode = window.TargumLang.current(codes);
 
   // 1,000 rather than 1000. The counts are the point of the page and they get read.
   function grouped(count) {
-    return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    // In the page's language: 11 385 in Russian, 11,385 in English (polish 7, #471).
+    var page = (document.documentElement && document.documentElement.lang) || "en";
+    try {
+      return Number(count).toLocaleString(page);
+    } catch (e) {
+      return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
   }
 
   /* --- the totals ------------------------------------------------------------
@@ -206,15 +217,17 @@
       host.appendChild(box);
     }
 
-    count(sums.saved, tn("progress.count.saved", sums.saved, "word on your list", "words on your list"), null, null, "saved");
+    count(sums.saved, tn("progress.count.saved", sums.saved, "saved word", "saved words"), null, null, "saved");
     // The board's labels (§12, "The mockups win on Your Progress", 2026-10-09).
     count(sums.known, tn("progress.count.known", sums.known, "word known", "words known"), "leaf", null, "known");
     // What targum carried up to known, rather than what a reader arrived already having.
+    // No title: a phone and a keyboard never show one, and the label says it (§14.3;
+    // targum-internal#471, B1).
     count(
       sums.learned,
       tn("progress.count.learned", sums.learned, "learned on targum", "learned on targum"),
       "sun",
-      t("progress.count.learned.title", "Saved as new and since marked known."),
+      null,
       "learned"
     );
     count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris", null, "phrases");
@@ -268,10 +281,10 @@
         code === "arc"
           ? t(
               "progress.where.no-ladder-arc",
-              "There's no ladder of texts for Aramaic: we have no list of how common its words are, so its texts can't be measured."
+              "We can't place Aramaic texts by difficulty, because we have no list of how common its words are."
             )
           : !said.library
-            ? t("progress.where.no-library", "The library has nothing in this language yet, so there's no ladder of texts to place you on.")
+            ? t("progress.where.no-library", "The library has nothing in this language yet, so we can't show which texts you'd follow.")
             : t("progress.where.unmeasured", "We'll show which kinds of text you'd follow once we've measured the library's texts.");
       note.hidden = false;
       return;
@@ -300,22 +313,39 @@
       if (rung.state === "here") link.setAttribute("aria-current", "step");
       link.title =
         typeof rung.share === "number"
-          ? t("progress.touch.title", "{kind}: you know {n}% of the words. Open this shelf in the Library", {
+          ? t("progress.touch.title", "{kind}: you know {n}% of its words. Open this shelf in the Library.", {
               kind: named_,
               n: rung.share,
             })
           : t("progress.touch.open", "Open this shelf in the Library");
+      // The share and where it goes, said to a screen reader too, not in the title alone
+      // (polish 1, targum-internal#471; design.md §14, nothing is hover-only).
+      link.setAttribute("aria-label", link.title);
       item.appendChild(link);
       list.appendChild(item);
     });
     list.hidden = false;
   }
 
+  // Whether the story for a language has answered, and whether its asking failed.
+  var storyFailed = {};
+
+  function storyState(code) {
+    var wait = document.getElementById("where-wait");
+    var failed = document.getElementById("where-failed");
+    var answered = signedIn === false || !!story[code];
+    if (wait) wait.hidden = answered || !!storyFailed[code];
+    if (failed) failed.hidden = answered || !storyFailed[code];
+  }
+
   function askStory(code) {
     if (!window.fetch || storyAsked[code]) return;
     storyAsked[code] = true;
+    storyFailed[code] = false;
+    storyState(code);
     fetch(keyed("/account/story?language=" + encodeURIComponent(code)), { credentials: "same-origin" })
       .then(function (answer) {
+        if (answer.ok === false && answer.status !== 401) throw new Error(String(answer.status));
         return answer.json();
       })
       .then(function (said) {
@@ -326,12 +356,19 @@
           story[code] = said;
         }
         if (code === currentCode) {
+          storyState(code);
           drawWhere(code);
           drawNext(code);
         }
       })
       .catch(function () {
-        /* nothing to say is a part that says nothing, which is how the page already stood */
+        // Said, with Try again, rather than a card holding only its heading.
+        storyFailed[code] = true;
+        storyAsked[code] = false;
+        if (code === currentCode) {
+          storyState(code);
+          drawNext(code);
+        }
       });
   }
 
@@ -496,10 +533,12 @@
       return Math.max(top, column.all);
     }, 0);
     if (!most) {
-      host.appendChild(el("p", "empty", t("progress.weeks.none", "No words taken up in the last twelve weeks.")));
+      host.appendChild(el("p", "empty", t("progress.weeks.none", "No words saved in the last twelve weeks.")));
       return;
     }
     var bars = el("ol", "weeks");
+    var weekLabels = [];
+    var weekDates = [];
     var total = 0;
     var first = 0;
     while (first < columns.length && !columns[first].all) first += 1;
@@ -508,11 +547,13 @@
       if (index < first) return;
       var bar = el("li", "week");
       var from = new Date(start + index * 7 * DAY);
+      var dated = from.toLocaleDateString(words.language || "en", { day: "numeric", month: "short" });
+      weekDates.push(dated);
       var label = tn("progress.weeks.week", column.all, "Week of {date}: {n} word", "Week of {date}: {n} words", {
-        date: from.toLocaleDateString(words.language || "en", { day: "numeric", month: "short" }),
+        date: dated,
       });
       bar.title = label;
-      bar.setAttribute("aria-label", label);
+      weekLabels.push(label);
       var share = column.all / most;
       // A week with nothing in it keeps its place and draws nothing.
       if (!column.all) {
@@ -526,11 +567,26 @@
       bars.appendChild(bar);
     });
     bars.setAttribute("role", "img");
+    // Each week's count in the chart's own label, which a screen reader says: a title on
+    // a bar inside an image was reached by nothing (polish 2; §14, nothing is hover-only).
     bars.setAttribute(
       "aria-label",
-      tn("progress.weeks.label", total, "{n} word taken up in the last twelve weeks", "{n} words taken up in the last twelve weeks")
+      [tn("progress.weeks.label", total, "{n} word saved in the last twelve weeks", "{n} words saved in the last twelve weeks")]
+        .concat(weekLabels)
+        .join(". ")
     );
+    // This week at the end edge whatever came before it, so the newest column is always
+    // in the same place (polish 2, targum-internal#471).
     host.appendChild(bars);
+    // The first and the last week's dates under the chart, as the month line names its
+    // months: the bars had no dates at all (polish 2). The label above already says each
+    // week, so these are for the eye only.
+    var dates = el("p", "weeks-dates");
+    dates.setAttribute("aria-hidden", "true");
+    dates.style.setProperty("--weeks", String(weekDates.length));
+    dates.appendChild(el("span", "", weekDates[0]));
+    if (weekDates.length > 1) dates.appendChild(el("span", "", weekDates[weekDates.length - 1]));
+    host.appendChild(dates);
   }
 
   //: The step of the ramp a column of this share of the tallest is drawn in.
@@ -543,8 +599,13 @@
 
   /* --- 3 · what next ------------------------------------------------------------ */
 
+  // What next draws a word with its meaning, in the language the reader reads meanings
+  // in: `collect()` with no target gathered none, and every row was a bare Hebrew word
+  // (targum-internal#471, B3). Gathered once a language, again when the store changes.
+  var meant = {};
   function meaningOf(code, lemma) {
-    var entry = data[code];
+    if (!meant[code]) meant[code] = collect(charts.meaningLanguage(code));
+    var entry = meant[code][code] || data[code];
     if (!entry) return null;
     for (var n = 0; n < entry.words.length; n++) {
       if (entry.words[n].lemma === lemma) return entry.words[n];
@@ -567,6 +628,7 @@
     item.appendChild(holder);
     if (end) item.appendChild(el("span", "next-end" + (endLeaf ? " leaf" : ""), end));
     host.appendChild(item);
+    return item;
   }
 
   function drawNext(code) {
@@ -582,14 +644,32 @@
     level.textContent = "";
     metEmpty.hidden = true;
     levelEmpty.hidden = true;
-    document.getElementById("practise").href = keyed("/words");
+    var practise = document.getElementById("practise");
+    practise.href = keyed("/words");
 
     wordsTitle.textContent =
       code === "arc"
         ? t("progress.next.words-arc", "Words you keep meeting, from your Aramaic list (kept apart from your Hebrew one)")
-        : t("progress.next.words", "Words you keep meeting and haven't learned");
+        : t("progress.next.words", "Words you keep meeting and don't know yet");
 
+    // Nothing is said about what is missing until the account has answered: "None yet"
+    // to a reader with six such words was false (targum-internal#471, B2).
+    var answered = signedIn === false || !!said;
     var found = (said && said.words) || [];
+    var nextWait = t("progress.next.loading", "We're finding the words and texts for you.");
+    if (!answered && !storyFailed[code]) {
+      metEmpty.textContent = nextWait;
+      metEmpty.hidden = false;
+    }
+    // When the asking failed, each half says so under its heading rather than standing
+    // empty; part 1 carries the Try again (targum-internal#522).
+    if (!answered && storyFailed[code]) {
+      var failedLine = t("progress.story.failed", "We couldn't load this part.");
+      metEmpty.textContent = failedLine;
+      metEmpty.hidden = false;
+      levelEmpty.textContent = failedLine;
+      levelEmpty.hidden = false;
+    }
     found.forEach(function (one) {
       var word = meaningOf(code, one.lemma);
       row(
@@ -601,7 +681,7 @@
       );
     });
     // With none, one quiet line rather than a paragraph (§12, 2026-10-09).
-    if (!found.length) {
+    if (!found.length && answered) {
       metEmpty.textContent =
         signedIn === false
           ? t("progress.next.words-signed-out", "Sign in and we'll find the words you keep meeting.")
@@ -609,18 +689,24 @@
       metEmpty.hidden = false;
     }
 
+    // Nothing to practise, no press to practise (polish 3; §12 2026-10-10 left Home's
+    // Practise line out in the same case).
+    practise.hidden = !found.length;
+
     // A language with no library offers what the reader brought (board ProgressYi).
     var library = !said || said.library !== false;
     textsTitle.textContent = library
       ? t("progress.next.texts", "Texts at your level now")
-      : t("progress.next.texts-yours", "The library has nothing in this language yet, so what comes next is what you bring");
+      : t("progress.next.texts-yours", "Upload something of your own.");
     more.textContent = library
       ? t("progress.next.library", "More in the Library") + " →"
       : t("progress.next.uploads", "All your uploads") + " →";
     more.href = keyed(library ? "/library" : "/?show=uploads");
 
     if (!library) {
-      row(level, "+ " + t("progress.next.upload", "Upload something new"), "", t("progress.next.upload-how", "A link, a file, or a photo of a page"), "", keyed("/add"));
+      var upload = row(level, "+ " + t("progress.next.upload", "Upload something new"), "", t("progress.next.upload-how", "A link, a file, or a photo of a page"), "", keyed("/add"));
+      // On a phone its aside goes under the term rather than being cut short (polish 9).
+      upload.className += " next-stack";
       ((said && said.uploads) || []).forEach(function (one) {
         row(
           level,
@@ -635,6 +721,18 @@
       return;
     }
 
+    // Aramaic texts are never placed by difficulty, so this half says that, once, and
+    // offers the Library (polish 10).
+    if (code === "arc") {
+      if (answered) {
+        levelEmpty.textContent = t(
+          "progress.next.texts-arc",
+          "We don't place Aramaic texts by difficulty, so none are listed here."
+        );
+        levelEmpty.hidden = false;
+      }
+      return;
+    }
     var texts = (said && said.texts) || [];
     // The title alone and how much of it is known, as the board has it.
     texts.forEach(function (one) {
@@ -648,11 +746,11 @@
         true
       );
     });
-    if (!texts.length) {
+    if (!texts.length && answered) {
       levelEmpty.textContent =
         signedIn === false
           ? t("progress.next.texts-signed-out", "Sign in and we'll find the texts at your level.")
-          : t("progress.next.texts-none", "Nothing is quite at your level yet. The Library's Hard for now shelf has the nearest.");
+          : t("progress.next.texts-none", "Nothing is quite at your level yet. The Library's “Hard for now” shelf has the closest.");
       levelEmpty.hidden = false;
     }
   }
@@ -896,9 +994,26 @@
     askStory(code);
   }
 
-  show(currentCode);
-  askSpent();
-  askReading();
+  var again = document.getElementById("story-again");
+  if (again) {
+    again.addEventListener("click", function () {
+      askStory(currentCode);
+    });
+  }
+
+  // The account's own figures, asked once the page has a language to draw them in.
+  var askedAccount = false;
+  function askAccount() {
+    if (askedAccount) return;
+    askedAccount = true;
+    askSpent();
+    askReading();
+  }
+
+  if (!waiting) {
+    show(currentCode);
+    askAccount();
+  }
 
   // If the account turns out to hold words this browser had not seen — kept on a phone,
   // or kept here before signing in on another machine — everything is gathered again
@@ -907,6 +1022,7 @@
     window.TargumSync.onChange(function (changed) {
       if (!changed) return;
       data = collect();
+      meant = {};
       readingDays = charts.days();
       codes = window.TargumLang.order(Object.keys(data), names);
       document.getElementById("nothing").hidden = codes.length > 0;
@@ -915,6 +1031,7 @@
       if (codes.indexOf(currentCode) < 0) currentCode = window.TargumLang.current(codes);
       storyAsked = {};
       show(currentCode);
+      askAccount();
     });
     if (window.TargumSync.settled) window.TargumSync.settled();
     else window.TargumSync.start();

@@ -183,4 +183,8 @@ a.saved-name:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   .saved-ask,
   #saved-all { min-block-size: 44px; }
   .saved-x { min-inline-size: 44px; }
+  /* And across: Recent texts' 3, 5 and 10 were 36px wide and the switch 42px
+     (targum-internal#474, polish 6). */
+  .saved-segment button,
+  .saved-switch { min-inline-size: 44px; }
 }

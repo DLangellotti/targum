@@ -13,6 +13,7 @@ and source greps stood in. Same harness as `test_learn_js.py`: a stub document i
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -46,6 +47,8 @@ def draw(
     reading: dict[str, Any] | None = None,
     story: dict[str, Any] | None = None,
     totals: list[dict[str, Any]] | None = None,
+    story_fails: bool = False,
+    story_held: bool = False,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -58,6 +61,8 @@ def draw(
                     "strings": strings,
                     "reading": reading,
                     "story": story,
+                    "storyFails": story_fails,
+                    "storyHeld": story_held,
                     "totals": totals,
                 }
             ),
@@ -89,7 +94,7 @@ def test_the_ledger_counts_what_the_reader_actually_did() -> None:
     )
 
     assert drawn["counts"]["words known"] == 12
-    assert drawn["counts"]["words on your list"] == 17, "known and still learning together"
+    assert drawn["counts"]["saved words"] == 17, "known and still learning together"
     assert "texts opened" not in drawn["counts"], "a fact about browsing"
     # Days do not follow the language switcher, because a day is not in a language and
     # you can read both in one.
@@ -175,7 +180,7 @@ def test_a_name_marked_known_is_not_a_word_marked_known() -> None:
     drawn = page(words)
     plain = page(marked(known=4, learning=2))
     assert tile(drawn, "words known") == 4
-    assert tile(drawn, "words on your list") == 6
+    assert tile(drawn, "saved words") == 6
     assert tile(drawn, "learned on targum") == 0
     assert drawn["weeks"] == plain["weeks"], "nor among the words taken up"
 
@@ -228,7 +233,7 @@ def test_every_figure_is_said_once_on_the_page() -> None:
     labels = [box["label"] for box in drawn["tiles"]]
     assert len(labels) == len(set(labels)), f"a figure is said twice: {labels}"
     assert labels == [
-        "words on your list",
+        "saved words",
         "words known",
         "learned on targum",
         "phrases saved",
@@ -509,7 +514,7 @@ def test_where_you_are_names_the_hardest_kind_you_would_follow() -> None:
     ]
     # The share is on the rung you are on and the next one, and nowhere else.
     assert [rung["text"] for rung in drawn["rungs"]] == [
-        "Dialogue",
+        "A dialogue",
         "A video",
         "A news article93%",
         "A short story86%",
@@ -518,6 +523,17 @@ def test_where_you_are_names_the_hardest_kind_you_would_follow() -> None:
     ]
     assert [rung["ticked"] for rung in drawn["rungs"]] == [True, True, False, False, False, False]
     assert drawn["rungs"][2]["current"] == "step"
+
+
+def test_every_rung_says_its_share_and_where_it_goes_to_a_screen_reader() -> None:
+    """targum-internal#471 polish 1, pinned on qa's ask (#858): the share of a passed or
+    ahead rung is drawn nowhere, so it is said in the link's name, not in a title alone,
+    which a phone and a keyboard never show (design.md §14)."""
+    labels = [rung["label"] for rung in story()["where"]["rungs"]]
+    assert labels[0] == "A dialogue: you know 99% of its words. Open this shelf in the Library."
+    assert labels[4] == "A novel: you know 70% of its words. Open this shelf in the Library."
+    # A rung with no share still says where it goes.
+    assert labels[5] == "Open this shelf in the Library"
 
 
 def test_every_touchstone_opens_its_shelf_in_the_library() -> None:
@@ -569,7 +585,7 @@ def test_aramaic_shows_known_words_and_no_ladder() -> None:
     )
     assert drawn["where"]["head"] == "You know 12 words so far"
     assert not drawn["where"]["shown"]
-    assert "no ladder of texts for Aramaic" in drawn["where"]["note"]
+    assert "We can't place Aramaic texts by difficulty" in drawn["where"]["note"]
     assert drawn["how"] == "Reading"
     assert drawn["next"]["wordsTitle"].startswith("Words you keep meeting, from your Aramaic list")
 
@@ -592,7 +608,7 @@ def test_yiddish_has_no_library_so_what_next_is_what_you_bring() -> None:
     assert "library has nothing in this language" in drawn["where"]["note"]
     assert drawn["how"] == "Reading and watching", "nobody's voice in Yiddish"
     nxt = drawn["next"]
-    assert nxt["textsTitle"].startswith("The library has nothing in this language yet")
+    assert nxt["textsTitle"] == "Upload something of your own."
     assert nxt["level"][0]["href"] == "/add?k=k"
     assert nxt["level"][1]["text"] == "אויפֿן פּריפּעטשיקUploaded by you | 84% known"
     assert nxt["more"] == "All your uploads →"
@@ -616,6 +632,8 @@ def test_what_next_names_the_words_with_their_own_meanings_and_the_texts() -> No
         story=LADDER,
     )["next"]
     assert drawn["met"][0]["text"].startswith("מושלים")
+    # With its meaning, in the language meanings are read in (targum-internal#471, B3).
+    assert "rulers" in drawn["met"][0]["text"]
     assert drawn["met"][0]["text"].endswith("met in 4 texts")
     # A word the server met that this browser has not seen yet is still named.
     assert drawn["met"][1]["text"] == "elsewhere | met in 2 texts"
@@ -647,7 +665,7 @@ def test_the_words_taken_up_are_a_column_a_week_shaded_by_height() -> None:
     words |= _on(today - timedelta(days=200), 40, "long-ago")
     drawn = draw({"targum:vocab:he": words})["weeks"]
     assert drawn["columns"] == 2, "from the first week with a word in it"
-    assert drawn["label"] == "5 words taken up in the last twelve weeks"
+    assert drawn["label"].startswith("5 words saved in the last twelve weeks. Week of ")
     assert drawn["shades"] == ["var(--step-2)", "var(--step-4)"]
     assert drawn["titles"][-1].endswith(": 3 words")
     assert not drawn["legend"]
@@ -656,7 +674,7 @@ def test_the_words_taken_up_are_a_column_a_week_shaded_by_height() -> None:
 def test_no_words_lately_is_said_rather_than_drawn_flat() -> None:
     words = _on(date.today() - timedelta(days=300), 4, "old")
     assert draw({"targum:vocab:he": words})["weeks"]["said"] == (
-        "No words taken up in the last twelve weeks."
+        "No words saved in the last twelve weeks."
     )
 
 
@@ -676,3 +694,150 @@ def test_words_read_joins_the_totals_where_the_account_keeps_a_record() -> None:
     drawn = draw({"targum:vocab:he": vocab(known=3)}, totals=totals)
     assert drawn["counts"]["words read"] == 1200
     assert "words read" not in draw({"targum:vocab:he": vocab(known=3)})["counts"]
+
+
+def test_while_the_story_is_asked_nothing_false_is_said() -> None:
+    """targum-internal#471, B2: before the account answers, one quiet line, and What next
+    does not say "None yet" to a reader who may have a record."""
+    drawn = draw({"targum:vocab:he": vocab(known=3, learning=2)}, story_held=True)
+    assert drawn["next"]["waiting"]
+    assert drawn["next"]["metEmpty"] == "We're finding the words and texts for you."
+    assert drawn["next"]["levelEmpty"] == ""
+
+
+def test_a_story_that_cannot_be_reached_says_so_with_try_again() -> None:
+    """Part 1 says it with Try again, and What next's two halves each say it under their
+    heading rather than standing empty (targum-internal#522, §14.1)."""
+    drawn = draw({"targum:vocab:he": vocab(known=3, learning=2)}, story_fails=True)
+    assert drawn["next"]["failed"] and not drawn["next"]["waiting"]
+    assert drawn["next"]["metEmpty"] == "We couldn't load this part."
+    assert drawn["next"]["levelEmpty"] == "We couldn't load this part."
+
+
+def test_nothing_to_practise_offers_no_practise_press() -> None:
+    drawn = story(words=[], texts=[])["next"]
+    assert not drawn["practise"]
+
+
+# --- the finish bar's polish (targum-internal#471, design's §14 pass) ------------------
+
+CSS = (
+    Path(__file__).resolve().parent.parent / "src" / "targum" / "render" / "assets" / "progress.css"
+).read_text(encoding="utf-8")
+
+
+def _rule(selector: str, css: str = CSS) -> str:
+    """The body of the first rule whose selector is exactly `selector`."""
+    plain = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    for found, body in re.findall(r"([^{}]+)\{([^{}]*)\}", plain):
+        if found.strip() == selector:
+            return body
+    raise AssertionError(f"no rule for {selector}")
+
+
+def test_the_week_chart_names_its_first_and_last_week_under_it() -> None:
+    """Polish 2: the bars had no dates. The first and the last week's dates sit under
+    them, as wide as the weeks drawn, and are for the eye: the label says every week."""
+    today = date.today()
+    words: dict[str, Any] = {}
+    words |= _on(today, 3, "now")
+    words |= _on(today - timedelta(days=15), 2, "earlier")
+    drawn = draw({"targum:vocab:he": words})["weeks"]
+    assert drawn["columns"] == 3
+    assert len(drawn["dates"]) == 2, "the first week's date and the last's"
+    assert drawn["titles"][0].startswith(f"Week of {drawn['dates'][0]}:")
+    assert drawn["titles"][-1].startswith(f"Week of {drawn['dates'][1]}:")
+    assert drawn["datesSpan"] == "3", "as wide as the three weeks drawn"
+    assert not drawn["legend"]
+
+
+def test_one_week_of_words_names_one_date() -> None:
+    drawn = draw({"targum:vocab:he": _on(date.today(), 2, "now")})["weeks"]
+    assert len(drawn["dates"]) == 1
+
+
+def test_this_week_is_always_at_the_end_edge() -> None:
+    """Polish 2: bars started at the left, so this week moved with how many came before."""
+    assert "justify-content: flex-end" in _rule(".progress .weeks")
+    dates = _rule(".progress .weeks-dates")
+    assert "margin-inline-start: auto" in dates and "var(--weeks" in dates
+
+
+def test_the_period_chips_are_tinted_pills_at_the_control_size() -> None:
+    """Polish 4 (§12 "The mockups win" and "The boards are the desk"; §13 controls):
+    tinted on the wash with no border, the chosen one teal, 0.9375rem and 40px."""
+    chip = _rule(".progress .spent .chip")
+    assert "background: var(--teal-wash)" in chip
+    assert "border: 0" in chip
+    assert "font-size: 0.9375rem" in chip
+    assert "min-block-size: 2.5rem" in chip
+    chosen = _rule('.progress .spent .chip[aria-pressed="true"]')
+    assert "background: var(--teal)" in chosen
+
+
+def test_a_story_step_is_a_label_on_the_scale() -> None:
+    """Polish 5: §13 labels are 0.6875rem uppercase at 0.08em, and the sub is meta."""
+    step = _rule(".progress .story-step")
+    assert "font-size: 0.6875rem" in step and "letter-spacing: 0.08em" in step
+    assert "font-size: 0.875rem" in _rule(".progress .story-sub")
+
+
+def test_the_upload_row_stacks_its_aside_on_a_phone() -> None:
+    """Polish 9: at 390 Yiddish's "A link, a file, or a photo of a page" was cut short.
+    The Upload row is marked to stack, and under 40rem its aside goes under the term."""
+    drawn = draw(
+        {"targum:vocab:yi": vocab(known=5)},
+        chosen="yi",
+        story={
+            "library": False,
+            "known": 5,
+            "ladder": [],
+            "here": None,
+            "said": "",
+            "texts": [],
+            "words": [],
+            "uploads": [{"name": "song", "title": "אויפֿן פּריפּעטשיק", "known": 84}],
+        },
+    )
+    classes = drawn["next"]["levelClasses"]
+    assert "next-stack" in classes[0].split()
+    assert "next-stack" not in classes[1].split(), "an upload's own row is not"
+    phone = CSS[CSS.index("@media (max-width: 40rem)") :]
+    assert "white-space: normal" in _rule(".progress .next-stack .next-aside", phone)
+    assert "flex-direction: column" in _rule(".progress .next-stack .next-link", phone)
+
+
+def test_a_reading_point_rings_round_not_square() -> None:
+    """Polish 11: the outline drew a square box round an 8px dot. The ring is the dot's
+    own stroke, in the focus colour."""
+    ring = _rule(".reading .reading-point:focus-visible")
+    assert "outline: none" in ring
+    assert "stroke: var(--focus)" in ring
+
+
+def test_a_tip_with_no_room_above_goes_under_its_point() -> None:
+    """Polish 11: clamped to the chart's top, the first month's tip sat on its point."""
+    script = """
+const path = require("path");
+const { install, element } = require(path.resolve(DOM_DIR, "dom.js"));
+install({});
+require(path.resolve(CHARTS));
+const host = element("div");
+host.rect = { width: 400, height: 120 };
+const tip = window.TargumCharts.tipFor(host);
+const drawn = host.children[0];
+drawn.rect = { width: 80, height: 30 };
+tip.show("x", 20, 10);
+const low = drawn.style.top;
+tip.show("x", 200, 90);
+process.stdout.write(JSON.stringify({ low: low, high: drawn.style.top }));
+"""
+    charts = HARNESS.parent.parent.parent / "src" / "targum" / "render" / "assets" / "charts.js"
+    script = script.replace("DOM_DIR", json.dumps(str(HARNESS.parent))).replace(
+        "CHARTS", json.dumps(str(charts))
+    )
+    done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    placed = json.loads(done.stdout)
+    assert placed["low"] == "24px", "under a point near the top"
+    assert placed["high"] == "50px", "above a point with room"

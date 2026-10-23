@@ -15,6 +15,11 @@
     return t("add.link.broken", "That isn't a whole link. Copy it again from the address bar.");
   }
 
+  // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
+  function meOnce(address, options) {
+    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  }
+
   var key = window.TARGUM_KEY;
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
@@ -493,7 +498,7 @@
 
   // What targum thinks it was given, in a sentence.
   function understanding() {
-    if (away()) return t("offline.upload-needs", "Uploading needs the connection.");
+    if (away()) return t("offline.upload-needs", "Uploading needs a connection.");
     if (SHUT) {
       // The notice above the box already says that nothing new can be made; said here
       // too, the page told it twice (QA 2026-10-20). The line keeps what still works.
@@ -2468,7 +2473,7 @@
   //: What is left this month, for the card a press is priced on: credits and hours.
   var balance = null;
   if (hoursLine) {
-    fetch(keyed("/account/me"), { credentials: "same-origin" })
+    meOnce(keyed("/account/me"), { credentials: "same-origin" })
       .then(function (answer) {
         return answer.ok ? answer.json() : null;
       })

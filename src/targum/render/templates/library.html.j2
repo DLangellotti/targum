@@ -31,10 +31,22 @@
       band it was opened from. The shell's "Library" stands down while it is up. -#}
   <p class="see-back" id="see-back" hidden><a href="/library" id="see-back-link"><span aria-hidden="true">←</span> {{ t("nav.library", "Library") }}</a></p>
   <h2 class="see-title" id="see-title" hidden></h2>
-  {#- News opened from its door: the topics a reader can follow live on Subscriptions,
-      so one line goes there (David, 2026-10-20, from the Library QA). Signed in only,
-      since following needs an account; `library.js` shows it. -#}
-  <p class="see-topics" id="see-topics" hidden><a href="/?show=subscriptions&amp;chip=news">{{ t("library.see.follow-topic", "Follow a topic") }}</a></p>
+  {#- News opened from its door: the eight topics a reader can follow, each a row with
+      Subscribe, which goes to the confirm page (David, 2026-10-22; targum-internal#475
+      B3: "Follow a topic" used to lead to a tab with nothing to follow). Signed in only,
+      since following needs an account; `library.js` shows it and puts the language
+      being browsed on each link. -#}
+  <section class="see-topics" id="see-topics" aria-labelledby="see-topics-head" hidden>
+    <h3 class="see-topics-head" id="see-topics-head">{{ t("library.see.follow-topic", "Follow a topic") }}</h3>
+    <ul class="see-topic-rows">
+    {%- for key, name in topics %}
+      <li class="see-topic-row">
+        <span class="see-topic-name">{{ name }}</span>
+        <a class="btn tonal small see-topic-go" data-topic="{{ key }}" href="/subscribe?kind=topic&amp;key={{ key }}&amp;via=library" aria-label="{{ t("library.see.subscribe-to", "Subscribe to {name}", name=name) }}">{{ t("library.see.subscribe", "Subscribe") }}</a>
+      </li>
+    {%- endfor %}
+    </ul>
+  </section>
 
   {#- The search on the ground, the field the board draws (Library, SeeAllDesk), and on
       See all the three menus beside it: kind, level, language. Nothing else to choose
@@ -66,6 +78,9 @@
       answered, said nothing at all when it never did, and drew the shelves as if the
       reader had marked no words when it was refused. `library.js` says which. -#}
   <p class="lib-waiting" id="lib-waiting" role="status">{{ t("library.waiting", "Opening the Library…") }}</p>
+  {#- A language whose shelf could not be fetched while another's is on the page: the page
+      stays as it is and says so in one quiet line (#484). `library.js` fills it. -#}
+  <p class="lib-held" id="lib-held" role="status" hidden></p>
   <section class="fault-panel page-fault lib-fault" id="lib-fault" role="alert" hidden>
     <p class="fault-panel-said" id="lib-fault-lede">{{ t("library.fault.lede", "We couldn't open the Library.") }}</p>
     <div class="fault-panel-row">
@@ -106,16 +121,28 @@
 
   {#- Somebody who has just failed to find what they wanted is exactly who needs the
       add page. A link, not a form: this page's job is browsing. -#}
-  <p class="elsewhere">{{ t("library.page.not-here", "Not here?") }} <a href="/add">{{ t("library.page.upload-your-own", "Upload your own") }}</a>.</p>
+  {#- A language with no shelf at all (targum-internal#476, B3): one card that says so
+      and offers Upload, in place of a search over nothing, an empty list's card and a
+      "Not here?" answering a search nobody made. `library.js` shows it. -#}
+  <section class="card no-shelf" id="no-shelf" hidden>
+    <p class="no-shelf-said" id="no-shelf-said"></p>
+    <a class="btn filled no-shelf-go" href="/add">{{ t("library.no-shelf.upload", "Upload a text") }}</a>
+    <p class="note no-shelf-works">{{ t("library.no-shelf.works", "Anything you upload in it is read, translated and given word cards.") }}</p>
+  </section>
+  <p class="elsewhere" id="elsewhere">{{ t("library.page.not-here", "Not here?") }} <a href="/add">{{ t("library.page.upload-your-own", "Upload your own") }}</a>.</p>
 </main>
 {% include '_foot.html.j2' %}
 
+{#- `TARGUM_ACCOUNT`: the account's language and what it learns, filled in per request by
+    `serve.with_account` for a signed-in reader, so a fresh browser asks for that
+    language's shelf first (#484). #}
 <script>
 window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_SHELF_FILES = {{ shelf|tojson }};
+window.TARGUM_ACCOUNT = {};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
-{{ data_script('catalogue.js', shelf) }}
 {{ script('strings.js') }}
 {{ script('charts.js') }}
 {{ script('scenes.js') }}

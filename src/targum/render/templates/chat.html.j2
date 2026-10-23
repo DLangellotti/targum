@@ -40,7 +40,7 @@
           (2026-09-10, targum-internal#238). Drawn only at phone width; the stylesheet
           decides. -#}
       <button type="button" id="chat-open-list" class="chat-open-list"
-              aria-expanded="false" aria-controls="chat-list">{{ t("chat.page.conversations", "Chat History") }}</button>
+              aria-expanded="false" aria-controls="chat-list">{{ t("chat.page.conversations", "Chats") }}</button>
     </div>
     {#- Newest first, each with when it was last opened; "More" at the foot for the next
         page. A row writes the conversation into the address, so a conversation can be
@@ -59,8 +59,7 @@
     <button type="button" class="chat-english" id="chat-english" aria-pressed="false" hidden>{{ t("chat.page.show-translations", "Show translations") }}</button>
     {#- What this is, said once to a reader with no conversations yet. The copy is the
         product's register: precise, unpatronising, no selling. -#}
-    <p class="chat-empty" id="chat-empty">{{ t("chat.page.ask-us-for-something-to-read-or", "Ask us for something to read, or ask what you know.
-      We look through your texts, the library and the web.") }}</p>
+    <p class="chat-empty" id="chat-empty">{{ t("chat.page.ask-us-for-something-to-read-or", "Ask us for something to read, or ask which words you know. We look through your texts, the library and the web.") }}</p>
     {% include '_chips.html.j2' %}
   {% include '_first_language.html.j2' %}
     <ol class="turns" id="turns"></ol>
@@ -83,7 +82,7 @@
     <bdi class="chat-reading-text" id="chat-reading-text" dir="auto"></bdi>
     <button type="button" class="chat-reading-ask" id="chat-reading-ask">{{ t("chat.page.explain-this-sentence", "Explain this sentence") }}</button>
   </p>
-  {% set placeholder = t("chat.page.write-in-hebrew-or-english", "Write in Hebrew or English") %}
+  {% set placeholder = t("chat.page.write-in-hebrew-or-english", "Hebrew or English") %}
   {% include '_composer.html.j2' %}
 </main>
 {% if not embed %}{% include '_foot.html.j2' %}{% endif %}

@@ -141,6 +141,37 @@ def test_a_line_goes_up_and_the_answer_streams_back(chatting) -> None:
     assert whole["chat"]["title"] == "what first"
 
 
+def test_a_door_in_an_answer_is_named_by_its_text_s_title(chatting) -> None:
+    """targum-internal#472 B2: the page named a door by the folder its path names ("Open
+    ruth"). The server sends each door's title and language beside the answer: on the
+    stream's closing event, on a polled turn and on a conversation opened again. A path
+    to nothing this reader may open is not named."""
+    port, key, store, chats = chatting
+    home = chats.library.home(None)
+    folder = home / "ruth-he"
+    (folder / "reader").mkdir(parents=True)
+    (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps({"title": "מגילת רות", "language": "he", "blocks": []}), encoding="utf-8"
+    )
+    _, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "what first"})
+    chats.answer(chats.queue.get())
+    named = {"/reader/ruth-he/reader/index.html": {"title": "מגילת רות", "language": "he"}}
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", f"/chat/stream/{asked['chat']}/1?k={key}")
+    body = connection.getresponse().read().decode("utf-8")
+    connection.close()
+    done = [line for line in body.splitlines() if line.startswith("data: {")]
+    assert json.loads(done[-1][len("data: ") :])["doors"] == named
+    _, state, _ = call(port, "GET", f"/chat/turn/{asked['chat']}/1?k={key}")
+    assert state["doors"] == named
+    _, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert whole["turns"][-1]["doors"] == named
+    (folder / "reader" / "index.html").unlink()
+    _, state, _ = call(port, "GET", f"/chat/turn/{asked['chat']}/1?k={key}")
+    assert state["doors"] == {}, "no reader there, no name"
+
+
 def test_a_lost_feed_answers_from_the_store(chatting) -> None:
     port, key, store, chats = chatting
     _, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi"})

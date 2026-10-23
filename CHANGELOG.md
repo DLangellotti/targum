@@ -6,6 +6,403 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Russian says "known" one way and names the cantillation marks one way (David,
+  2026-10-23; targum-internal#476): 91 strings. A word's stage is «знаю», marking one is
+  «отметить как «знаю»», and a share or count you know reads «вы знаете» («Вы знаете
+  80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
+  marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
+  unchanged.
+- The Russian interface after ling-ru's read-through of the whole catalogue
+  (targum-internal#476): 93 strings. A language name no longer sits capitalised
+  mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
+  broke after 1–4 or 21–24 say the number after a colon or use «ч»; «Играть» became
+  «Включить»; Continue is a block («в блоке «Продолжить»»); a queued text says «В очереди
+  перед ним {n} текст» as the other queue lines do; «Экспериментальный» became «Пробный»,
+  which fits the badge; and plan, prompts, waitlist and the AI assistant have one word
+  each. English is unchanged.
+- Your Progress no longer scrolls sideways on a phone (targum-internal#522, the last
+  blocker on #471). Under 40rem the time figures wrap instead of holding three 91px
+  columns, so "9 ч 28 мин" no longer runs into the next figure: words read take the whole
+  width and the times sit beside or under each other. On an Aramaic page in Russian the
+  bar's long badge pushed the account 25px off the edge; the badge now ends in an
+  ellipsis instead. "Learned on targum" is the ledger's quiet last line rather than text
+  on the desk ground under it, and when the story fails to load What next's two halves
+  each say so instead of standing empty. A browser test loads Progress in Russian at 390
+  and 320 for Hebrew, Aramaic and Yiddish and holds the page to its width with no figure
+  overlapping another.
+- CI no longer installs ffmpeg from the apt mirror, which still failed several times a
+  day after the timeouts and retries below (run 39907694995 on master, 02a6c102). It
+  takes BtbN's static 8.1 build of `ffmpeg` and `ffprobe` from GitHub, checks it against
+  the release's checksums and keeps it in the Actions cache, keyed on the version and the
+  runner, so a run with the cache warm fetches nothing. apt is the fallback only, for
+  when the download fails or BtbN drops the 8.1 branch.
+- The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
+  "you said" and "corrected", came from the stylesheet in English. They are catalogue
+  keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
+  Russian. The box's placeholder is shorter ("Hebrew or English", «Иврит или русский»), so
+  it fits a phone's one-row field. Hear and the quote card's source link and More options
+  are in `test_brand.py`'s 44px registry, which keeps their reach from drifting.
+- A shared link to /about shows the picture and says what the page is (targum-internal#518).
+  It was the one page in the sitemap with no public head: no description, no `og:` tags,
+  no `twitter:card`. It now includes `_public_head.html.j2` like the others, keeps its one
+  address for every language, and a test holds the tags in English and Russian.
+- Sign in reads again on the four legal pages (targum-internal#516). The documents' link
+  rule in `public.css` was more specific than the corner's call to action and painted it
+  ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
+  browser test holds the button to paper on ink at weight 600 on all four pages.
+- Every Hebrew run on the front door and /aliyah says it is Hebrew (targum-internal#517).
+  None of the 68 carried `lang`, so a screen reader read them in the page's English or
+  Russian voice. The templates, the shared band and what `landing.js` draws (the word
+  card, the film's lines and caption, the Genesis verses, with Onkelos as `arc`) now
+  carry `lang` and `dir`. A brand test reads the rendered pages for Hebrew with no
+  language around it, and a browser test presses every word and walks the Torah demo.
+- A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
+  door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
+  than a cap: a host sending a byte every half second held a 2-second read for fifty
+  seconds. Every fetch through `ingest.url` (pages, openings and downloads, direct or
+  through the proxy) now has a deadline from first knock to last byte, redirects
+  included: 90 seconds for a page or an opening, 30 minutes for a download. Past it the
+  door says it couldn't open the page, as it does for a timeout, and a half-written
+  download is removed.
+- Subscriptions' last three loose ends after #883 and #890 (targum-internal#475). An
+  unsubscribed subscription with nothing listed says "You're unsubscribed, so nothing new
+  comes here." instead of promising new ones. A Resume the door refuses with 409 (a
+  channel or podcast unsubscribed meanwhile in another tab) goes to the confirm page the
+  door names, on the subscription's page and on the tab's row, instead of "We couldn't do
+  that". And the Library's News says Subscribed on a topic you follow already, going to
+  its own page rather than the confirm page again.
+- Database copies on the box are `0600 targum` rather than `0644` (targum-internal#514).
+  The copy `deploy.sh` takes before an install runs under `UMask=0077`, and so does the
+  nightly `targum-backup.service`; the two copies `deploy/ROLLBACK.md` has you take by hand
+  are chmodded straight after. Every restore step reads a copy as root, so nothing that
+  reads them changes. Copies already on the box keep their old mode until chmodded once.
+- "Met in" from a Torah book opens the portion at the verse, with the word marked
+  (targum-internal#506). A Torah book is read as its portions, and its own page forwarded
+  by chapter alone, so the link landed on the chapter's first verse with nothing marked.
+  The link now names the verse (`/torah/Genesis.12.5?met=…`), read off the book's
+  `segments.json`, and the reader marks the word in the row that answers to `#12:5` as
+  well as in the row named by its sentence. Without the portions built, the book opens as
+  any text does.
+- Root no longer writes inside targum's uv tools (targum-internal#513). `deploy.sh` and
+  `rollback.sh` gave the targum tool back with a root `chown -R` before each install; it is
+  now a repair of only what is not targum's, by `find . ! -user targum -execdir chown -h`
+  from inside the tool, so it never follows a symlink the service could have put there.
+  The tool is entered with `cd -P` and its real path checked first, and the deploy or
+  rollback stops if a symlinked directory above it leads anywhere else; INCIDENT.md's hand
+  repair does the same. The install runs from `/` rather than root's closed home. The install itself, and
+  `provision.sh`'s yt-dlp install, run under `runuser -u targum --`, and provision's plugin
+  check runs the tool's python as targum, where it used to run it as root and leave a
+  root-owned `__pycache__` that stops the nightly upgrade, as it did for 18 hours on
+  2026-10-22. Pinned by `tests/test_deploy_backup.py`. Reaches the box with the next deploy
+  or rollback; provision.sh only on its next run.
+- The ship scripts no longer write as root inside the service's own folders
+  (targum-internal#515). `ship-parasha`, `ship-daily`, `ship-weekly`, `ship-shared` and
+  `ship-audio` receive with `--rsync-path="runuser -u targum -- rsync"`, run their remote
+  `mkdir`, `mv`, `rm` and `install -d` as targum, and drop the root `chown -R` after, as
+  `deploy.sh` does for the covers since targum#889: a symlink the service planted, or a
+  symlinked parent, can no longer lead a root write or chown out of `/var/lib/targum`.
+  The index files and the weekly's folders go by rsync rather than scp, which cannot run
+  its far end as anyone else. Writing `/etc/targum/targum.env`, the catalogue and the
+  restart stay root. The output and the checks are unchanged. Pinned by
+  `tests/test_ship_as_targum.py`.
+- A failed nightly yt-dlp upgrade mails `TARGUM_ALERT_TO` (targum-internal#513). The
+  cron's `MAILTO=root` reached nobody, and on 2026-10-22 an upgrade that stopped halfway
+  left YouTube, Instagram, TikTok and Facebook imports off for about 18 hours. The line
+  in `/etc/cron.d/targum-ytdlp` now runs `targum ytdlp-stopped` when the install fails.
+- `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
+  targum-internal#482): both say when they were first run; `rollback.sh` is the first way
+  back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
+  and INCIDENT.md says what a `warn yt-dlp` in preflight means, where the nightly
+  upgrade's log is, and how to give root-owned files back to `targum` and rerun it.
+- CI's ffmpeg install gives up on a slow mirror in eighteen minutes rather than eighty. It
+  held the job for 30-80 minutes four times on 2026-10-22. The mirror crawls rather than
+  stalls, so the first cut (four minutes, one retry) only killed downloads in progress:
+  the install now skips ffmpeg's recommends (227 MB nothing uses) and has three attempts
+  of five minutes, each resuming what the last one fetched. Within an attempt apt drops a
+  connection silent for thirty seconds and retries it, up to three times.
+- The chat pill's finish (targum-internal#472): design's eleven blockers, five of its six
+  polish items and ling-en's fourteen lines. A door to a text reads on its fill (it was the
+  accent's brown on teal, about 1:1) and says "Open {title}" in the title's own language,
+  from titles the server now sends beside each answer (`doors`), never the folder; with no
+  title it says "Open the text". Pressed open, the drawer is modal: `aria-modal`, and the
+  page behind the scrim is `inert`, so Tab stays inside. Signed out, the drawer says "Sign
+  in to talk to targum." with Sign in, where it was a blank sheet. With no connection the
+  band is one row at the top of the frame. A corrected recast has a visible "Why?" press.
+  A turn says "We're writing an answer…" from the moment it is sent. The box's placeholder
+  stays on one line. Hear and the quote card's two links reach 44px under a thumb.
+  Continue's title carries its language. Offline, the pill is greyed by its colours, so its
+  reason keeps full ink, and is said once. Try again stands on its sentence's line; a
+  conversation opens at its newest turn; the chips step aside while Chats is open; the
+  reset date never breaks. The drawer opens the conversation you were in when it was seen
+  in the last hour (David, 2026-10-22; design.md §13). Copy: Chats; errors say what to do
+  next; Select, and the list is under Words in Your targums; "You've reached today's chat
+  limit"; "audio and chat"; "of audio or video"; "Waiting behind {n} other texts".
+- Subscriptions and news topics at the finish bar (targum-internal#475): design's B2–B7,
+  B9–B11, polish 1–5 and ling-en's eighteen lines (B8 and B1 are targum#883). While the
+  list is on its way the tab and a subscription's page say so, and past 3 s that it is
+  slow, with Try again. The Library's News lists the eight topics as rows, each with
+  Subscribe going to the confirm page, and an empty News chip says "You don't follow a
+  news topic yet." with the way there (David, 2026-10-22). A topic is named by the
+  catalogue in the page's language ("Sport", not "sport"); a channel's or an outlet's name
+  is marked Hebrew only when it is written in Hebrew letters; a Hebrew name or title inside
+  a sentence is a run of its own. A cap smaller than one new one says "less than one new
+  one" in clay and never rounds up to one. The tab is a list, not a one-row table; the
+  confirm page's mosaic fills its tile; the chips' counts are full ink. No connection is
+  said once, by the band; a free reader meets "Payments open soon" and See plans with no
+  greyed presses; an article with no picture takes no tile on a phone; what a press did
+  is said under the head; a source that didn't answer offers Try again. The waiting rows
+  are rows with a hairline between, not cards, since the tab's card holds them.
+
+### Added
+- `deploy/REINGEST-TANAKH.md`, the step that runs after the next approved deploy
+  (targum-internal#507 part 2): a read-only query for every Tanakh copy on the box whose
+  verses carry no refs, then `targum refs`, a marked annotator name and `rebuild --words`,
+  so OSHB reads it and readers' marks move with the lemmas. It says why deleting
+  `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
+  how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
+  0 on the box, 13 on the laptop's `targum-out`.
+- Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
+  build back with `rollback.sh` when the box kept its wheel, or by deploying its commit
+  again from a worktree (the only way back until a second deploy with targum#876 has
+  kept one), restores the pre-deploy
+  database through SQLite's `.restore` only when the data is damaged, and says what a
+  step back across an annotator rename costs in box hours. `deploy/INCIDENT.md` is the
+  first ten minutes: who is told, the read-only checks in order, how to tell the box from
+  a model provider from the network, when to roll back, and what never to do. Neither has
+  run as a drill yet.
+- A step back without a laptop build (targum-internal#482). Every deploy keeps the wheel
+  it installed, with its constraints and extras, in `/var/lib/targum-deploy/wheels/<sha12>/` on
+  the box (the last five), and `deploy/rollback.sh <sha>` installs one of them again as
+  the service account, restarts and checks `/health`. It refuses a commit the box does not
+  keep, and says which ones it does; with no commit it lists them. Each deploy appends
+  `<utc> <sha> <who>` to `/var/lib/targum-deploy/deploys.log` (who is the laptop's account), and
+  a rollback appends its own line. The catalogue a deploy replaces is kept as
+  `/etc/targum/catalogue.json.prev`, and `rollback.sh` offers it back (`--catalogue`).
+- `deploy.sh` copies the database itself before installing anything: as `targum`, with
+  SQLite's `.backup`, into `/var/lib/targum/backups/targum.db.before-<sha12>-<utc>`, and
+  stops the deploy unless `integrity_check` says `ok`. The last ten such copies are kept;
+  the nightly ones are untouched.
+
+### Fixed
+- A desk page asks who is signed in once (targum-internal#484). The inbox, the language
+  keys, the account's corner and the page's own script each sent `/account/me` for
+  themselves, three to six times on a cold load, some waiting on each other. `keep.js` now
+  sends it once and hands each a copy; a change of languages still asks again. Phone
+  profile, median of 3: your account 1.17 s → 1.01 s, Progress 2.69 s → 2.36 s.
+- Progress on a new device draws what the account brings in place (targum-internal#484).
+  With nothing in the browser it waited for the account and then reloaded itself whenever
+  the answer brought anything, so a reader signing in on a new phone loaded it twice. It is
+  drawn where it stands now, as Your Words is. Phone profile, median of 3: 2.69 s → 1.35 s.
+- Your targums asks what does not wait on the shelf as the page opens
+  (targum-internal#484). The account's places, the subscriptions' new items and the
+  Subscriptions tab's own list were asked once `/readers` had answered, a round trip each
+  after it, and the places were asked twice, by home and by the shelf. They go out with the
+  shelf now, once each, and the tab's list is not asked again by the page's own redraws.
+  Phone profile, median of 3: Your targums 1.69 s → 1.57 s, Subscriptions 1.61 s → 1.44 s.
+- /parasha paints at once (targum-internal#484). The scroll's photograph rode in the page
+  as a `data:` URI inside a `<style>`, 151 kB gzipped of a 305 kB page, and a stylesheet
+  holds the first paint until all of it has arrived. A series page's picture (the scroll,
+  each cycle's manuscript) is now a file of ours, `/assets/<name>.<hash>.jpg`, kept a
+  year; nothing is fetched from anybody else's origin and a reader still fetches nothing
+  (design.md §12, 2026-10-22). Phone profile, median of 3: first paint 1.40 s → 0.74 s,
+  Read 1.66 s → 0.96 s.
+- The Library no longer carries its shelf (targum-internal#484). A first visit is sent the
+  page whole, and whole it carried the catalogue inside it: 303 kB gzipped of a 479 kB
+  page, all in front of the first card. The shelf is JSON files of ours now, one with what
+  every shelf needs and one per language, kept a year. `library.js` asks for the common
+  one and the language it opens on beside `/readers`, and another language's only when
+  the reader moves to it. Phone profile, median of 3: Library as a first page 2.74 s →
+  2.21 s, 549 kB → 402 kB (design.md §12, 2026-10-22). A fresh browser asks for the
+  account's language first, which the page now names, rather than Hebrew's; and a move to
+  a language whose file does not arrive keeps the shelf and the language on the page and
+  says so in one quiet line, opening by itself when the connection is back.
+- `deploy.sh` no longer writes as root inside the service's own folders
+  (targum-internal#512). The covers' `mkdir`, the receiving `rsync` (`--rsync-path`) and the
+  `sources.json` merge run as targum through `runuser`, and the root `chown -R` after them
+  is gone, since the files now arrive as targum's. The merge follows no symlink: a planted
+  `.part` is replaced rather than written through, and a symlinked `sources.json` or lock
+  stops the deploy before the wheel goes in. The catalogue lemma index is read as targum
+  and written by root through a `.part` in `/etc/targum`, so a symlink in
+  `/var/lib/targum` can no longer have root copy another file where the service can read
+  it. Pinned by `tests/test_deploy_thumbs.py` and `tests/test_deploy_lemmas.py`, which
+  fail on the old script.
+- A Tanakh text with no verse refs is refused rather than read by the wrong engine
+  (targum-internal#507, part 1). The morphology (OSHB) is looked up by ref, so the shared
+  Ruth, ingested before refs, had every verse read by DICTA under an annotator name that
+  still said `oshb`. A build, a seed and a rebuild's re-annotation now refuse such a text
+  with "This Tanakh text has no verse refs, so the morphology cannot read it. Run targum
+  refs, then rebuild it."; seed and rebuild skip it and name it at the end, keeping the
+  copy on the shelf. A build whose Tanakh text the morphology read less than half of says
+  so by name. Re-ingesting and re-annotating the copies on the box is part 2, a deploy step.
+- The Grammar tab no longer reports an uncaught "Failed to fetch" when its first ask
+  fails before the page's last script has run (targum-internal#504). `grammar.js` handed
+  `yours.js` a promise nobody had caught yet; served by address, the browser runs other
+  tasks between the two files, so a reader offline met it as a browser fault, and the
+  page-scripts browser test met it about one CI run in three. The promise is caught where
+  it is made, and `yours.js` still draws the refusal from it.
+- A deploy refused because a rebuild was still running had already installed its wheel
+  and catalogue under that rebuild: the `targum-deploy` guard sat below the install
+  despite its comment. The laptop now asks before it sends anything, and the box-side
+  block asks again first, so a refused deploy changes nothing on the box.
+- At a desk, in Theatre, the playlist foot is no longer laid out under the picture
+  (targum-internal#505). It stands beside `main`, which Theatre hides, so it stayed under
+  the fixed picture, out of sight, and a press on its Play in order went to the video's tap
+  layer. Theatre now hides the foot too; the row under the picture carries the same switch
+  and Next, the transcript view still draws the foot under the picture, and the end card
+  still takes it in.
+- A Hebrew verb's card says the binyan of the word tapped, and draws that binyan's table
+  (targum-internal#508, ling-he's grammar/7 read). The word's row is its first occurrence's,
+  so Gen 12:3 וְנִבְרְכוּ (nif'al) showed the page's first ברך, a pi'el. An occurrence in
+  another binyan now carries its own (`binyanimHere`) and its own table
+  (`paradigmsHere`). And no conjugation table prints a raw Wikidata item: the three forms
+  the source never named (Q1305037, Q344 · Q500726, Q462367 on הלך and היה) are left out
+  of their tables. Render-time only; no annotator rename.
+- Subscriptions, design's B8 and B1 (targum-internal#475). Subscribe again on a channel or
+  a podcast that was unsubscribed goes to the confirm page with its old cap chosen, so the
+  monthly cap is said beside the press again, and the door refuses a one-press resume of
+  one (409, with the confirm page's link). A series or a topic, which is free, keeps its
+  one press. An unsubscribed one draws no cap or mail card, and says "You unsubscribed on
+  {date}." in its head. A fault is no longer told as data: a 502 on the tab says "We
+  couldn't load your subscriptions." with Try again, not "You haven't subscribed to
+  anything yet."; signed out, it says to sign in, with Sign in; and on one subscription's
+  page only a 404 says we couldn't find it.
+- Listening's finish, design's eight polish items (targum-internal#474). Play on and Play in
+  order were one setting under two names and two drawings: both say "Play in order" and
+  are the same switch. An empty Saved page heads its line "Saved by you", not "Saved
+  automatically" beside "Saving automatically". Your targums' four tabs fit a phone in
+  Russian. Deleting a playlist says "Deleted {name}." on the tab, and only after this tab's
+  own Delete: the link carries the id, the name comes from a note the press left, so a
+  crafted link says nothing. A screen reader hears a
+  playlist's name and count apart in the sheet and the menu. Recent texts' 3, 5 and 10
+  and the playlist switch are 44px across under a thumb. From targum's known share keeps
+  to one line at a desk. Offline, the tab says where the saved playlists are, in one
+  quiet line instead of a second fault, with its link underlined, and asks again when the
+  connection is back. A length keeps its number and unit on one line ("25 min").
+
+### Changed
+- /connect and the approval page's copy, ling-en's pass on targum-internal#473 (the page
+  lines; the four connector prompts are #848): the chat scope's second line is a sentence
+  that says you confirm on targum, since /connect and Your account share it with the
+  approval page;
+  a credit is about a minute of audio or video; Your account by its name; subscribe, not
+  follow, and news as links; we get a text ready, not "nothing is made". Russian twins
+  drafted for ling-ru.
+- Your account's finish polish (targum-internal#469, design's polish 1, 3–7 and 10):
+  What's connected is drawn with nothing connected, with one quiet line and Connect an
+  app. Every date is the day and the month in full, the year only when it isn't this
+  one, and joined by a no-break space so it never splits at the end of a line (the day
+  the credits come back too). The page's quiet lines are one note at §13's meta size in
+  ink-soft. Prompts and Telegram chats are rows like the languages, a long prompt held to
+  two lines, which opens on a press and closes on another. With plans on, a Free word
+  list past nine in ten of its cap says how many more fit, with See plans beside it and
+  not in the card's head as well.
+- CI cancels a branch's or a PR's run when a newer push to the same ref arrives, so a
+  round of fixes queues one run. Master's runs are never cancelled, because a deploy
+  may skip the suite only for a commit CI passed there (`TARGUM_CHECKED`).
+- Russian's badge says Alpha, to match its card (David, 2026-10-21). It is kept there by
+  decision (`stages.KEPT`, reviewed by 2026-11-30): Russian is short only of the
+  read-through of ten texts on record, and the stages test prints that on every run.
+  design.md §12, "Russian wears Alpha while its read-through is done".
+
+### Fixed
+- Your Progress takes the rest of design's finish-bar polish (targum-internal#471). The
+  words-by-week chart keeps this week at the end edge and names its first and last week
+  under the columns, never in a box narrower than the dates, so one or two weeks' dates
+  stay inside the card on a phone in Russian. The period chips are tinted pills at the control size. A story's step
+  is §13's label. The Upload row stacks its aside under the term on a phone. A reading
+  point focuses with a round ring, and a chart's tip goes under its point where there is
+  no room above it.
+- A page printed in Russian carries the chrome's Cyrillic cut, as a desk page does, so its
+  own words are set in one face (qa on targum-internal#476). The fonts README cuts the
+  subset in a scratch folder, not the checkout.
+
+### Fixed
+- The Anki deck's follow-ups from qa on #854 (targum-internal#496): a deck that stops at
+  the sounds set aside for it says so ("We stopped at the sounds we'd set aside for this
+  deck"), the cap line says "used", a deck whose voice is still working is never thrown
+  away (so a second deck cannot start beside it and pass the month's cap), one stuck
+  "making" for six hours with no job working is, each sound is counted as it is made, and
+  the decks are walked under their lock.
+- Russian's surfaces, design's four blockers (targum-internal#476). A page in Russian
+  carries Source Sans 3's Cyrillic subset beside its Latin one, so a line is set in one
+  face (design.md §13, "Russian is carried too"); a page in English pays nothing, and a
+  reader carries the upright alone. The arrival no longer offers Torah and Judaism to a
+  reader learning Russian, Italian or French. A language with no shelf (Yiddish) is one
+  card that says so, with Upload and what works for it, not a search over nothing. The
+  word card says what ignore is for ("Ignore is for names and numbers."), in every
+  language, not in a title alone.
+- The daily mail, from design's pass (targum-internal#470). A subscription named in Hebrew
+  is drawn in Hebrew, right to left, in the Hebrew face, not as a capitalised English
+  label, and a row's tile letter says its language. The whole row is the link, not only
+  its title. The unsubscribe links have room round them on a phone, and the foot's links
+  stand on their own line there. A one-item subject isolates the name as well as the
+  title. A busy day draws thirty rows and says how many more are in Your subscriptions,
+  so Gmail never clips the foot. The ready mail says hours past an hour ("3 hr 5 min"),
+  and the card keeps its 14px corner on a phone.
+
+### Fixed
+- Listening's finish (targum-internal#474), design's nine blockers and ling-en's lines.
+  Your playlists and a playlist's page say they are loading, and past three seconds that
+  it is taking longer, with Try again; a fault is the shared panel with Try again, and a
+  server that failed is no longer told as one that cannot be reached. A failed text says
+  "Remove it, then add it again." A Russian reader's playlist foot is in Russian however
+  fast the list answers. What the grip and Play in order do is said on the page, not in a
+  title alone. The add sheet holds the focus and gives it back. A playlist row's title,
+  the way back, Add from…, the sheet's × and the Listening view's position answer a thumb
+  over 44px. A title still getting ready says its language. The lines either side of the
+  one being said in the Listening view are drawn in soft ink, not at 38% opacity.
+
+### Fixed
+- The press that makes a playlist says "Create", not "Confirm", in the New playlist form
+  and the Add-to-playlist menu (David, 2026-10-21; targum-internal#474).
+- A library row filed without a picture is caught, and every picture in `thumbs/` says
+  where it came from (targum-internal#429, slices 2 and 3). `targum thumbs --dry-run`
+  names the rows left with only the letter tile and ends on "N rows without a picture",
+  after the counts by origin (own, drawn, tile, overall and by language); `deploy.sh`
+  prints that count before the covers go. All 152 tile-only rows of 2026-10-21 were
+  filed after the October drawing, which is what this stops recurring. A drawn cover now
+  writes its line in `thumbs/sources.json` (`from: drawn`, the model, the day) when it
+  is drawn, under a lock, and `targum thumbs` writes one for any picture still without,
+  dated by its file and marked `backfilled`. The laptop's 993 drawn pictures (927
+  library covers, 66 chapter and upload covers) were written in this way, with no
+  drawing and no spend: 379 own, 927 drawn, 0 tile. `deploy.sh` now merges
+  `sources.json` into the box's rather than copying over it, so the lines the box writes
+  for its own upload covers stay, under the lock the box's own writers take. A picture
+  that belongs to no library row (a laptop upload's cover, a retired row's) no longer
+  goes to the box, file or line: the box has its own uploads, and a laptop one with the
+  same name would replace it.
+- A word on a portion page answers sooner on a phone (targum-internal#409). The two faces,
+  the player and the data behind Rashi's words now come after `reader.js` (Rashi's lines
+  are in the page from the start; his words answer once their block arrives). The first
+  tap on slow 4G with a 4x slower CPU, on pages built with their recordings: Bereshit's
+  first aliyah 2.14 s to 1.39 s, Ki Tavo's sixth 2.30 s to 1.74 s.
+  `scripts/measure_tap.py` takes the figure.
+- The portion's PDF press says more than "Preparing PDF…" (targum-internal#409): past
+  three seconds it says "Still making your PDF…", and offline it says the PDF is made on
+  targum and needs a connection rather than "try again in a minute". On the reader's ⋯
+  and on the series page, in English and Russian.
+- Your Progress, design's four blockers (targum-internal#471). The month line's and the
+  time figures' notes are quiet lines under them, not titles a phone never shows, and
+  "learned on targum" has no tooltip. Until the account answers, part 1 says "We're working
+  out where you are." and What next says nothing false; a story that cannot be reached says
+  so with Try again. What next draws each word's meaning in the reader's meaning language.
+  Its presses, and the fault panel's Tell us, reach 44px under a thumb. And from the
+  polish list: no Practise press with nothing to practise, numbers grouped as the page's
+  language groups them (11 385 in Russian), and a time figure kept on one line.
+- Russian interface strings from the ling-ru audit (targum-internal#476), drafted for
+  David's read. The case lens says «падеж», not «регистр» (letter case). Two hints said
+  «нажмите Continue» over a button that reads «Продолжить». `add.spoken.ours` no longer
+  promises a spend the English does not. A word's levels have one set of names on the card, the lists,
+  the keys help and Your Words («едва знакомо / осваивается / почти знакомо / знакомо»);
+  the landing demo's two buttons speak in the reader's voice («Знаю», «Осваиваю»). The foot buttons are Russian
+  («Готово и отметить…»). Counts that came out as «342 слов», «в 21 строках» or «из 21
+  глав» are said with a colon instead, and a one-form that also counts 21 carries its
+  number («Прочитать {n} страницу»). `serve.give-a-link` has its Russian.
+  `progress.reading.note` says words known *as of* that day. A phrase is «фраза»
+  everywhere (David, 2026-10-21), and the books of the Bible are named in the Jewish
+  Russian system: «Берейшит», «Шмуэль I», «Млахим I», «Диврей а-Ямим», «Теилим»
+  (David, 2026-10-21), and the first portion is «Берейшит» like its book. The 24 missing `.other` plural forms are filled for fractional
+  counts.
 - The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
   words and the column it opens on are written in when it is built, in its first
   rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
@@ -72,26 +469,113 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (it was cut at 16: "something…" is now "something waited for").
 
 ### Changed
+- Your account, to the finish bar (targum-internal#469): ling-en's twenty lines (credits
+  are "of audio or video", the export holds chats and not uploads, Delete says what goes at
+  once and that we email when the rest is gone, and the plan and languages rows say what
+  they mean), and design's eight blockers. A slow account says "We're getting your
+  account." and, past three seconds, that it is taking longer, with Try again; an account
+  that cannot be reached, or a reader offline, is no longer told to sign in, and the corner
+  keeps the initials it held. A sign-in refused for an account inside its seven days now
+  shows the server's sentence, the one way to keep it. Nearly out and out say what still
+  works and when the credits come back. Delete ends on a card that says what happened,
+  focused and heard, with Go to targum, and no redirect on a timer. Export says when it is
+  done and when the session has gone. Selects and fields carry the 2px focus ring, which a
+  brand test now holds against any focus wash, and four small controls reach 44px under a
+  thumb. Every line the page says back is a status.
+- Every mail's copy, from ling-en's pass (targum-internal#470): the sign-in mail no longer
+  tells an unknown address its account is unchanged; the invitation names the button and
+  carries its Claude and ChatGPT link as a link of its own rather than escaped text; a link
+  saved on the front page and got ready on targum says so in its foot instead of "your text took more than a few minutes"; the
+  digest is named "Weekly News Digest" over its dated masthead, its button says "Read this
+  issue" and each level says "If you know {n} words"; the subscriptions mail says the cause
+  before the instruction; and the deleted-account mail takes its days from the grace period
+  and no longer says nothing remains before naming the backup that still holds it.
+  "Uploaded by you" stays (David, 2026-10-21).
 - The connector's four prompts are said in the reader's own words (targum-internal#473,
   ling-en's plain versions). A host puts each into the chat as the reader's message, so
   "Call find_text, then find_text with where set to mine" came out of the reader's mouth.
   The tools are still named where the model reads them: in each prompt's `needs`, in the
-  tool descriptions and in the server's instructions. **Not merged until a live check in
-  Claude and ChatGPT** shows each prompt still reaches its tools.
+  tool descriptions and in the server's instructions. Merged before the live check, on
+  David's word (2026-10-23): it follows the deploy, in Claude and ChatGPT, to show each
+  prompt still reaches its tools.
 
 ### Added
+- A podcast episode a reader adds keeps its feed's artwork as its picture
+  (targum-internal#429, slice 4). The item's `itunes:image`, else the show's (`itunes:image`,
+  RSS's `<image>`, Atom's `<logo>`), is fetched once on the box at build time through the one
+  outbound door and kept as the reader's own `thumb.webp`, served only to them like any
+  upload's cover. It is read no further than 5 MB, must decode as PNG, JPEG or WebP and be at
+  most 6000 pixels a side, so an SVG or an error page is refused. Where it came from is
+  written in `thumb-source.json` beside it. A feed with no artwork keeps the letter tile, and
+  an episode's audio is no longer fetched as a page to look for an `og:image`.
+- Your Words' Anki export carries each word's sound (targum-internal#496, a beta reader's
+  ask). The deck is an `.apkg` built on the server (`targum.anki`, Anki's schema 11),
+  replacing the browser's text file, which could not carry media. A word with no clip yet
+  gets one the way a Hear press makes it, a targum gift under one claim per export, kept
+  by the word, at most 5,000 words; a word without a sound still imports. The page says
+  how far the sounds have got, and falls back to the text file, without sound, if the
+  server cannot.
 - Your Words plays a word's sound from the list (targum-internal#498, a beta reader: "And
   be able to play the sounds here too"). Each row, and the word's card on the page, carries
   the reader card's Hear: the voice's clip from `/say-word`, which targum pays for and
   keeps by the word, so a word anybody has heard is free after. Only in the languages the
   voice reads (Hebrew, French, Russian, Italian) and only on a served page.
   `TargumVocab.hearButton` is the shared control.
+- Governed prepositions are declared modern-only (targum-internal#454). The spot reads
+  the stored syntax, and Biblical text has almost none: 199 of Genesis's 20,753 tokens have
+  a parse. So `targum stages` now says "modern only, not Biblical" with that reason, the
+  practice offers no Biblical sentence for it (`practices.VERSION` 4), and a Biblical page
+  draws no prepositions lens. No rename and no rebuild: the lens follows each page's next
+  render.
 - Your Words' "Met in" opens the text at the word (targum-internal#497, a beta reader:
   "link the full text here … context is king"). "2 texts" is a press that lists the texts
   under the row, finished latest first, eight at most and "And 3 more texts."; each opens
   its reader at the line the word first came round in, with the word marked in the
   practice card's teal ring. `/account/met` answers it off builds already on the machine
   (`meetings.texts_lines`), nothing fetched and nothing spent.
+- More verbs find their conjugation table, and fewer find the wrong one
+  (targum-internal#307). A pi'el written plene finds its pointed lemma (דיבר is דִּבֵּר's),
+  and a root with its binyan finds its verb (שלך in hif'il is הִשְׁלִיךְ). An occurrence's
+  binyan now has its say everywhere: a plene word of another binyan gets no pi'el (ניתץ
+  tagged nif'al), one candidate in a binyan other than the occurrence's is refused (בוא in
+  hif'il no longer draws בָּא, "came"), and where the letters find only another binyan the
+  root's verb in the right one is used (עלה in hif'il is הֶעֱלָה, לחם in nif'al נִלְחַם). A
+  verb the source holds twice is one candidate, so קיבל draws its table. Render-time only.
+- `grammar/7`, an annotator rename and so a scheduled re-read (targum-internal#491, #494,
+  #490). A lemma that shares none of its word's strong letters is refused, so לטחון is
+  no longer "slipped" and לעבוד no longer "enslaved"; the word stands in, as where DICTA
+  declines. An active verb is no longer filed under its nif'al: ויאמר, אמרו and לעשות are
+  אמר's and עשה's, while a nif'al that spells itself (נכנסתי, להיכנס, and the future of an
+  א- or ת-first root, תתפס, אאסף) keeps it. A pointed future is read by its marks, and only
+  a qal is mended: a hif'il or pi'el future keeps DICTA's lemma rather than becoming
+  "gathered". A present is filed under its past (לוקחים is לקח's, הולכים הלך's, חוגגים
+  חגג's), and a pointed מוֹצֵא or מוֹכֵר is מצא's or מכר's where מוּצָג stays a hof'al. The
+  seller mend reaches a verb again. A nif'al spelled before its root gets its binyan, so
+  965 bare נאמר tokens draw a table. Marks follow the moves through the #141 lemma
+  migration when a text is opened, and since this change a weekly portion and a day of a
+  cycle carry their books' moves too (`moves.gathered`), so a mark made on a /parasha page
+  is not stranded by the re-read.
+- `oshb/7`, in the same re-read (targum-internal#454): a Biblical noun or adjective in the
+  construct state says so from Open Scriptures' state letter, so the card's construct line
+  reaches the Tanakh (בִּימֵי, בִּשְׂדֵי); not a suffixed noun (בָנָיו), a proper noun or the
+  Aramaic emphatic. Scored by `scripts/eval_construct_state.py` with a floor, and the
+  construct spot claims both registers.
+- `phonikud/3`, in the same re-read (targum-internal#454): a pointed modern segolate is
+  stressed on its first syllable where no accent places the stress, from ling-he's rule
+  (`annotate/segolate.py`): כֶּסֶף is kˈesef, בַּיִת bˈajit, רַכֶּבֶת ʁakˈevet, where phonikud
+  said every one on the last. Scored on the Tanakh against the accents
+  (`scripts/eval_segolate.py`, `stress-rule/2`). And a suffix that holds the stress back,
+  from the pointing and the word's class (targum-internal#500, `annotate/suffix_stress.py`):
+  אָמַרְתִּי is ʔamˈaʁti, שֶׁלָּנוּ ʃelˈanu, אֵלֶיךָ ʔelˈexa. The annotator now asks a reading
+  per form and class, since בָּנוּ "in us" and בָּנוּ "they built" are pointed the same, and
+  neither rule runs on a word that carries accents, so no Biblical text's stress changes.
+  Scored on the Tanakh as `stress-rule/3`. A segolate the rule placed is no longer
+  "inferred" on the card: ling-he's hand-read modern gold (`evals/stress-modern-gold.tsv`,
+  300 firings) scores it at 0.9899 with הַחַג and שֶׁאֶת listed, and the stress spot
+  claims both registers with a floor each. The suffix rule's words stay "inferred" until
+  its modern gold is read. The shelf survey (`versions.current_name`) now
+  carries the pronouncer's version, so a phonikud bump shows as behind; `rebuild --words`
+  already compared whole names and re-reads the pronunciations either way.
 - `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front
   door, which does not change: "Learn Hebrew from your own life in Israel", the four
   moments that send an oleh looking, four lines of everyday Hebrew from the bank, the
@@ -622,6 +1106,31 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- The front door's English says what the app does now (targum-internal#477, from
+  ling-en's pass). "How you learn" no longer promises the ulpan ladder, which Your
+  Progress dropped: the card says Your Progress shows the kinds of text you can follow,
+  and its demo reads "2,140 words known · You'd follow most of a news article", the
+  page's own sentence. The library heading counts what the live Library links, more
+  than 700 Hebrew texts and videos (720 on 2026-10-21), where it said nearly 500, and
+  `/connect` says the same. "Cantillation marks" replaces the in-house "chanting marks"
+  on this page, the Aramaic chapters keep "a word list of their own", the phone's link
+  says "Save as a text" as the chat's button does, and four answers lose their colon
+  lists and passives. The cost answer names no price and promises no early word of one;
+  the tap card still says each vowel we add is marked (design.md, 2026-10-02). The expired sign-in link's heading is "That link no longer
+  works", since it may have been used rather than timed out. The link preview's alt is
+  a string key (`public.head.preview-alt`), so the Russian page can carry its own.
+  The Russian lines were redrafted and re-stamped with it.
+- The front door's lede is two plain sentences and an offer: "Everything here arrives
+  ready to read. Every word has its vowels (nikkud) and every line has its English
+  beside it. Tap any word and we'll explain it." It opened on an aphorism and carried a
+  colon list. The headline and the four points under the box are unchanged, as design.md
+  holds them (2026-10-02, amended here).
+- design.md §12 "Every text has a picture" now says what happened: the image-model batch
+  David approved on 2026-10-08 drew 735 library covers, and the 152 rows it missed (151
+  filed after it, one it skipped) were drawn on 2026-10-21 (targum-internal#429). The
+  section now lists four places a picture comes from, in order: the text's own, the
+  library's licensed batch, a drawn cover, and the letter tile until a cover is drawn.
+  Before this it said the batch "is not done".
 - A video text has a viewer of its own (targum-internal#422, David's A + B + C from the
   mockups). **Beside**: the picture at the left with one thin row under it — play and
   pause, the time, a hairline of where the voice is (the line being said a faint band on

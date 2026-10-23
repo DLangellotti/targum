@@ -66,6 +66,10 @@ global.fetch = global.window.fetch = (url) => {
     body = { signedIn: true, reading: payload.reading };
   } else if (String(url).indexOf("/account/totals") === 0 && payload.totals) {
     body = { signedIn: true, kept: true, on: true, totals: payload.totals };
+  } else if (String(url).indexOf("/account/story") === 0 && payload.storyFails) {
+    return Promise.reject(new Error("unreachable"));
+  } else if (String(url).indexOf("/account/story") === 0 && payload.storyHeld) {
+    return new Promise(() => {});
   } else if (String(url).indexOf("/account/story") === 0 && payload.story) {
     body = Object.assign({ signedIn: true }, payload.story);
   }
@@ -152,6 +156,7 @@ setImmediate(() => setImmediate(() => process.stdout.write(
             state: String(link.className).replace("touch-", ""),
             href: link.href,
             current: link.getAttribute("aria-current") || "",
+            label: link.getAttribute("aria-label") || "",
             ticked: Boolean(link.innerHTML),
           };
         }),
@@ -168,15 +173,25 @@ setImmediate(() => setImmediate(() => process.stdout.write(
         said: "",
         shades: bars.children.map((bar) => (bar.children[0] ? bar.children[0].style.background : "")),
         titles: bars.children.map((bar) => bar.title),
-        legend: at("weeks").children.length > 1,
+        dates: at("weeks")
+          .children.filter((node) => String(node.className) === "weeks-dates")
+          .map((node) => node.children.map((span) => span.textContent))[0] || [],
+        datesSpan: at("weeks")
+          .children.filter((node) => String(node.className) === "weeks-dates")
+          .map((node) => node.style.getPropertyValue ? node.style.getPropertyValue("--weeks") : node.style["--weeks"])[0] || "",
+        legend: at("weeks").children.filter((node) => String(node.className) !== "weeks-dates").length > 1,
       };
     })(),
     next: {
       wordsTitle: at("next-words-title").textContent,
       met: rows("met-rows"),
       metEmpty: at("met-empty").hidden === false ? at("met-empty").textContent : "",
+      waiting: at("where-wait").hidden === false,
+      failed: at("where-failed").hidden === false,
+      practise: at("practise").hidden === false,
       textsTitle: at("next-texts-title").textContent,
       level: rows("level-rows"),
+      levelClasses: at("level-rows").children.map((item) => String(item.className)),
       levelEmpty: at("level-empty").hidden === false ? at("level-empty").textContent : "",
       more: at("more-texts").textContent,
       moreHref: at("more-texts").href,

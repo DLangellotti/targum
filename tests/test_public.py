@@ -533,18 +533,18 @@ def _a_day(title: str = "Kelim 28:2-3", hdate: str = "19 Elul 5786"):  # type: i
 @pytest.mark.parametrize(
     ("english", "russian"),
     [
-        ("Numbers 4:21-7:89", "Числа 4:21-7:89"),
-        ("Genesis 1:1-6:8", "Бытие 1:1-6:8"),
-        ("Deuteronomy 33:1-34:12", "Второзаконие 33:1-34:12"),
-        ("I Kings 18:46-19:21", "I Царей 18:46-19:21"),
-        ("II Kings 4:1-37", "II Царей 4:1-37"),
-        ("II Samuel 22:1-51", "II Самуила 22:1-51"),
-        ("Isaiah 54:1-10", "Исаия 54:1-10"),
-        ("Hosea 14:2-10; Micah 7:18-20", "Осия 14:2-10; Михей 7:18-20"),
-        ("Song of Songs Seder 1.1", "Песнь песней седер 1.1"),
-        ("Ezra and Nehemiah Seder 10", "Ездра и Неемия седер 10"),
-        ("Nehemiah 12:27-13:31", "Неемия 12:27-13:31"),
-        ("Psalms 90-96", "Псалмы 90-96"),
+        ("Numbers 4:21-7:89", "Бемидбар 4:21-7:89"),
+        ("Genesis 1:1-6:8", "Берейшит 1:1-6:8"),
+        ("Deuteronomy 33:1-34:12", "Дварим 33:1-34:12"),
+        ("I Kings 18:46-19:21", "Млахим I 18:46-19:21"),
+        ("II Kings 4:1-37", "Млахим II 4:1-37"),
+        ("II Samuel 22:1-51", "Шмуэль II 22:1-51"),
+        ("Isaiah 54:1-10", "Йешаяу 54:1-10"),
+        ("Hosea 14:2-10; Micah 7:18-20", "Ошеа 14:2-10; Миха 7:18-20"),
+        ("Song of Songs Seder 1.1", "Шир а-Ширим седер 1.1"),
+        ("Ezra and Nehemiah Seder 10", "Эзра и Нехемья седер 10"),
+        ("Nehemiah 12:27-13:31", "Нехемья 12:27-13:31"),
+        ("Psalms 90-96", "Теилим 90-96"),
         # A tractate has no Russian name in the catalogue, and is left as Hebcal spells it.
         ("Kelim 30:4-Oholot 1:1", "Kelim 30:4-Oholot 1:1"),
     ],
@@ -552,7 +552,7 @@ def _a_day(title: str = "Kelim 28:2-3", hdate: str = "19 Elul 5786"):  # type: i
 def test_a_reading_names_its_book_in_russian(english: str, russian: str) -> None:
     """targum-internal#188: "Numbers 4:21-7:89" on a Russian page is the one English
     phrase the parasha's title kept. The numbers stay; the book is named the way the
-    Russian shelf already names it, «Числа»."""
+    Russian interface names it, «Бемидбар»."""
     from targum.strings import said_reference
 
     assert said_reference(english, "ru") == russian
@@ -687,9 +687,9 @@ def test_a_russian_parasha_page_names_its_books_and_its_month_in_russian() -> No
         language="ru",
     )
     seen = _body(html)
-    assert "Числа 4:21-7:89" in seen and "Numbers" not in html
+    assert "Бемидбар 4:21-7:89" in seen and "Numbers" not in html
     assert "14 сивана" in seen and "Sivan" not in seen
-    assert "Судьи 13:2-25 · 24 стиха" in seen
+    assert "Шофтим 13:2-25 · 24 стиха" in seen
     assert "Metsudah linear" not in seen and "подстрочный перевод Мецуда" in seen
 
     base = f"{ADDRESS}/parasha/{portion.slug}"
@@ -776,6 +776,33 @@ def test_every_public_page_names_the_link_preview() -> None:
     head = LINK_PREVIEW.read_bytes()[:24]
     assert head[:8] == b"\x89PNG\r\n\x1a\n"
     assert struct.unpack(">II", head[16:24]) == LINK_PREVIEW_SIZE, "the size the tags say"
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_the_about_page_carries_the_public_head(language: str) -> None:
+    """targum-internal#518: /about is in the sitemap and in every public foot, and a shared
+    link to it was a bare line, with no description and no picture. It takes the head
+    every other public page has, from the same partial."""
+    from targum.render.builder import about_page
+
+    page = about_page(language=language, address=ADDRESS)
+    for tag in (
+        'name="description" content="',
+        'property="og:title" content="',
+        'property="og:description" content="',
+        f'property="og:url" content="{ADDRESS}/about"',
+        f'property="og:image" content="{ADDRESS}/link-preview.png"',
+        'property="og:image:alt" content="',
+        'name="twitter:card" content="summary_large_image"',
+        f'<link rel="canonical" href="{ADDRESS}/about">',
+    ):
+        assert tag in page, tag
+    described = re.search(r'<meta name="description" content="([^"]+)"', page)
+    assert described and described.group(1).strip()
+    if language == "ru":
+        assert "Все изменения" in described.group(1), "the Russian page says it in Russian"
+    assert page.count("<title>") == 1 and page.count('rel="canonical"') == 1
+    assert 'hreflang="' not in page, "one address for every language, so no alternates"
 
 
 def test_a_page_with_no_address_names_no_preview(monkeypatch: pytest.MonkeyPatch) -> None:

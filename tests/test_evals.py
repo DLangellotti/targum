@@ -243,8 +243,12 @@ def test_every_eval_script_has_a_name_and_every_name_a_script() -> None:
 def test_a_stage_measured_two_ways_names_both_rather_than_picking() -> None:
     assert evals.script_for("lemma/iahlt") == "score_annotation.py"
     # Three since the vav-consecutive rule's eval (targum-internal#449, 2026-10-21), and
-    # four since the pronoun suffixes' (targum-internal#450, the same day).
-    with pytest.raises(ValueError, match="lemma/iahlt, lemma/oshb, lemma/oshb-suffixes, lemma/ud"):
+    # four since the pronoun suffixes' (targum-internal#450, the same day), five since the
+    # construct state's (targum-internal#454).
+    with pytest.raises(
+        ValueError,
+        match="lemma/iahlt, lemma/oshb, lemma/oshb-construct, lemma/oshb-suffixes, lemma/ud",
+    ):
         evals.script_for("lemma")
     with pytest.raises(ValueError, match="no eval called 'segment'"):
         evals.script_for("segment")

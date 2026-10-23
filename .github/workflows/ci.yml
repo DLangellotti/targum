@@ -3,6 +3,14 @@ on:
   push:
   pull_request:
 
+# A new push to a branch or a PR cancels that ref's run still going, so a round of fixes
+# queues one run, not one per superseded commit (CI stood 35 runs deep on 2026-10-21).
+# Never on master: a deploy may skip the suite only for a commit CI passed there
+# (`TARGUM_CHECKED` in deploy/deploy.sh), so every master run finishes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -25,7 +33,64 @@ jobs:
       # the audio and video tests fail rather than skipping. CI never had it, and nothing
       # needed it until the audio import landed with a hard check, so master went red on
       # the commit that added the tests rather than on anything about this file.
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      #
+      # The Azure apt mirror was the step that failed: slow for 30-80 minutes four times on
+      # 2026-10-22, and still failing several times a day after #895, #897 and #899 gave
+      # it timeouts, a smaller download and retries. So CI no longer asks the mirror. It
+      # takes BtbN's static build of an ffmpeg release branch (two self-contained files,
+      # ffmpeg and ffprobe, all the codecs the tests use, libx264 included) from GitHub,
+      # checks it against the release's checksums, and keeps it in the Actions cache keyed
+      # on the branch and the runner. A hit restores it in seconds and fetches nothing.
+      #
+      # BtbN keeps the two newest branches only. When 8.1 drops off, a miss fails to
+      # download and falls back to apt, which is what to watch for: bump FFMPEG below.
+      # The apt fallback is the old step, kept whole: three attempts of five minutes, apt
+      # resuming from /var/cache/apt/archives, no recommends (227 MB of VA drivers, docs
+      # and speech models nothing here uses).
+      - name: Restore ffmpeg
+        id: ffmpeg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/ffmpeg
+          key: ffmpeg-n8.1-${{ runner.os }}-${{ runner.arch }}
+      - name: Install ffmpeg
+        id: ffmpeg
+        timeout-minutes: 18
+        env:
+          FFMPEG: ffmpeg-n8.1-latest-linux64-gpl-8.1
+          RELEASE: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest
+        run: |
+          if [ "${{ steps.ffmpeg-cache.outputs.cache-hit }}" != true ]; then
+            mkdir -p ~/ffmpeg && cd "$RUNNER_TEMP"
+            if curl -fsSL --retry 3 --max-time 300 -O "$RELEASE/$FFMPEG.tar.xz" \
+                && curl -fsSL --retry 3 -O "$RELEASE/checksums.sha256" \
+                && grep " $FFMPEG.tar.xz\$" checksums.sha256 | sha256sum -c - \
+                && tar -xJf "$FFMPEG.tar.xz" --strip-components=2 -C ~/ffmpeg "$FFMPEG/bin/ffmpeg" "$FFMPEG/bin/ffprobe"; then
+              echo "save=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "static ffmpeg unavailable, falling back to apt"
+              rm -rf ~/ffmpeg
+              APT="-o Acquire::http::Timeout=30 -o Acquire::Retries=3"
+              for attempt in 1 2 3; do
+                if timeout 300 sh -c "sudo apt-get $APT update && sudo apt-get $APT install -y --no-install-recommends ffmpeg"; then
+                  exit 0
+                fi
+                echo "apt-get attempt $attempt failed or stalled"
+              done
+              exit 1
+            fi
+          fi
+          echo ~/ffmpeg >> "$GITHUB_PATH"
+          ~/ffmpeg/ffmpeg -hide_banner -version | head -1
+      # Saved straight away rather than at the end of the job, so a red suite still keeps
+      # the download. The two matrix legs can both miss at once; the second save then
+      # warns that the key exists, which is harmless.
+      - name: Save ffmpeg
+        if: steps.ffmpeg.outputs.save == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/ffmpeg
+          key: ${{ steps.ffmpeg-cache.outputs.cache-primary-key }}
       # `phonetics` is here so the readings are exercised rather than skipped. It caps
       # Python below 3.13, so adding 3.13 to the matrix above means dropping this extra
       # from that leg — the failure is a resolution error, which is loud but obscure.

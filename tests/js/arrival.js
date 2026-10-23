@@ -245,7 +245,9 @@ function report() {
       first: first ? first.title : "",
       arrival: at("arrival").hidden
         ? []
-        : Array.from(at("arrival-doors").children).map((p) => p.textContent),
+        : Array.from(at("arrival-doors").children)
+            .filter((p) => !p.hidden)
+            .map((p) => p.textContent),
       picked: at("arrival").hidden
         ? []
         : Array.from(at("arrival-doors").children)

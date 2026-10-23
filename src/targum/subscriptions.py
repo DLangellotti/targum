@@ -202,6 +202,8 @@ def _shown_row(
         "state": row["state"],
         "since": int(row["since"]),
         "paused": int(row["paused"] or 0),
+        "ended": int(row.get("ended") or 0),
+        "again": again(row),
         "every": _every(str(row["kind"]), str(row["key"]), series_row),
         "perWeek": per_week(items, now_ms) if row["kind"] != "series" else 0,
         "builds": builds,
@@ -211,6 +213,26 @@ def _shown_row(
         "new": int(row.get("new") or 0),
         "page": f"/subscriptions/{int(row['id'])}",
     }
+
+
+def again(row: Mapping[str, Any]) -> str:
+    """Where Subscribe again goes for a subscription that is off: the confirm page, with
+    the cap it had chosen there, for a channel or a podcast; nowhere for anything free,
+    which comes back on its one press. A subscription that spends starts again only on
+    targum's own confirm page, with its cap said beside the press (design.md §12, "A
+    monthly cap is the second press that lasts", 2026-10-09)."""
+    if row.get("state") != "off" or row.get("kind") not in SUB_BUILDS:
+        return ""
+    from urllib.parse import urlencode
+
+    asked = {
+        "kind": str(row["kind"]),
+        "source": str(row.get("source") or row["key"]),
+    }
+    cap = int(row.get("cap") or 0)
+    if cap in CAPS:
+        asked["cap"] = str(cap)
+    return "/subscribe?" + urlencode(asked)
 
 
 def one(
@@ -312,7 +334,7 @@ def describe(
             (one for one in series.current(public=True, language=ui) if one["id"] == given), None
         )
         if row is None:
-            raise TargumError("There's no such series.", key="subscribe.no-series")
+            raise TargumError("We couldn't find that series.", key="subscribe.no-series")
         out.update(
             name=str(row.get("name") or given),
             hebrew=str(row.get("hebrew") or ""),
@@ -326,7 +348,7 @@ def describe(
 
         if kind == "topic":
             if given not in sources.TOPICS:
-                raise TargumError("There's no such topic.", key="subscribe.no-topic")
+                raise TargumError("We couldn't find that topic.", key="subscribe.no-topic")
             code = (language or "he").split("-")[0].lower()
             out["outlets"] = sum(
                 1

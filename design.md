@@ -370,7 +370,8 @@ pages in `DESK_PAGES`, `render/builder.py`) names them instead, by address under
 `/assets/<name>.<hash>.<ext>`, and the browser keeps them. Templates say which files a
 page wants with `styles(...)` and `script(...)`, and the page decides how they ride, so
 a template never inlines a file by hand. A page's data that rides as a file, such as the
-Library's shelf, is `data_script(...)`. A browser that has not kept the files is sent
+Library's shelf, is JSON files the page asks for, `data_file(...)` (2026-10-22, §12
+"The Library asks for its shelf"). A browser that has not kept the files is sent
 the desk page whole (2026-10-19, §12 "A first visit gets the page whole").
 
 ## 12 · Where the code departs, and why
@@ -378,6 +379,118 @@ the desk page whole (2026-10-19, §12 "A first visit gets the page whole").
 Each entry below was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
+
+### A series page's picture is a file of ours — 2026-10-22
+
+Page speed (targum-internal#484, qa-claude's audit of 2026-10-22): /parasha was the one
+page whose first paint came late, 1.40 s on the phone profile, because the scroll's
+photograph rode in the page as a `data:` URI inside a `<style>`, 151 kB of a 305 kB page,
+and a stylesheet holds the first paint until all of it has arrived.
+
+- **The picture a series page wears is served from this origin** as
+  `/assets/<name>.<hash>.jpg` (`picture_address`, `render/builder.py`), kept for a year
+  like the desk's files and named by its bytes. That is the scroll on /parasha and each
+  cycle's manuscript on the daily pages. The page still names it once, in one rule, for
+  every tile that wears it.
+- **What it does not overturn:** a reader still fetches nothing, and nothing on any page
+  is fetched from anybody else's origin. The series pages keep their stylesheets, scripts
+  and faces inline as "A desk page loads its files once and keeps them" says; only the
+  photograph moved. `img-src` already allowed `'self'`.
+
+### The Library asks for its shelf — 2026-10-22
+
+Page speed (targum-internal#484, qa-claude's audit of 2026-10-22): the Library as a first
+page was 2.78 s on the phone profile against §14's 1.5 s. A first visit is sent the desk
+page whole (2026-10-19), and whole it carried the shelf inside it: 303 kB gzipped of a
+479 kB page, all of it in front of the first card.
+
+- **The shelf is JSON files, one per language** (`shelf_files` in `render/builder.py`):
+  `/assets/catalogue.<hash>.json` holds what every shelf needs (the collections, the
+  sets, and every row's id in the catalogue's order), and `/assets/catalogue-<code>.<hash>.json`
+  each language's rows, each carrying its `place` in that order. A row in two languages
+  is in both files. Hebrew's file carries the Aramaic door's rows too, because they stand
+  on the Hebrew shelf. Each file is named by what it says and kept a year like the desk's
+  files. The page names them in one line, `TARGUM_SHELF_FILES`, and never carries them,
+  whole or not.
+- **`library.js` asks for the common file and the language it is likely to open on**
+  (the one the reader last chose, else the account's, else Hebrew), beside `/readers`,
+  `/jobs` and `/portions`, so they cost no extra round trip. The server names the
+  account's language and what it learns in the page for a signed-in reader
+  (`TARGUM_ACCOUNT`), so a browser that has never been told them does not pay for
+  Hebrew's file before an Italian or Russian reader's own. It asks for another language's file only
+  when the reader moves to that language, and draws it once it has arrived. Measured
+  moving the shelf alone, with no split, gave nothing: the first card still waited for all
+  270 kB. Hebrew's half is what bought the time.
+- **A shelf that does not arrive is the Library's could-not-open card**, with Try again,
+  as a lost shelf script already was. The 2026-10-19 entry chose a script to avoid this
+  state; it is handled the way the other three answers are.
+- **A move to a language whose file does not arrive keeps the page as it is.** The shelf
+  on the page stays, and so does the language the reader is in, on the menu and in what
+  is kept, until the other language's rows are in. One quiet line says why: offline,
+  "Italian opens when you're back online.", and it opens by itself when the connection is
+  back; otherwise "We couldn't open Italian." with Try again.
+- **Offline is otherwise unchanged.** The worker never kept the Library. A Library opened
+  offline says so and points at Saved, before and after.
+
+### Russian wears Alpha while its read-through is done — 2026-10-21
+
+David, 2026-10-21: Russian's badge in the language menu says Alpha, to match what its card
+already says. By the facts (`stages.facts("ru")`) Russian is short of Alpha by one thing
+only, the read-through of ten texts on record; every hard spot is covered, the shelf is
+measured and the known issues are listed (targum#798). So Alpha is **kept**, by decision,
+in `stages.KEPT` with this entry's name, dated 2026-10-21 and reviewed by 2026-11-30: the
+test prints what it still owes on every run, and past the review date it fails until the
+read-through is on record (and the entry comes out) or this line is renewed with a new
+date.
+
+### The scale reads by name and colour — 2026-10-21
+
+A beta reader, 2026-10-21, on the word card's 1 · 2 · 3 · known: "for rating how you know
+the word do it by colour. It was a bit confusing for me." The numbers read as a score, and
+the stage's name sat small under the control, where "Just met" was read as "just me"
+(targum-internal#499). David approved this on the same day; ling-en wrote the names.
+
+- **Each segment says its stage by name, on its own step of the ramp.** New, Learning,
+  Almost, Known, in place of 1, 2, 3, known, at every width: measured, the four short
+  names fit the card's row on a phone and at a desk, where today's full names did not.
+  Every segment wears its step at rest as a wash (`--step-1` … `--step-3`, and leaf for
+  Known), so the colours are learnt from the names.
+- **The one a word is on is filled with its step and ringed in ink**, so which one is
+  pressed never rests on colour alone (§4).
+- **The full forms are where there is a line to spare**: New to you, Still learning,
+  Almost known, Known — the legend under the control, the Your Words tabs and Status
+  column, Your Progress, the command palette, the keys help and the spoken line. The
+  segment's title and label for a screen reader are the full form. With no stage yet the
+  legend asks "How well do you know it?".
+- The keys stay 1, 2, 3, 4 and k. "To work on" stays the name for steps 1 to 3 together.
+
+### The Anki deck carries each word's sound — 2026-10-21
+
+A beta reader, 2026-10-21: "I love the export to anki … but it doesn't export the sound."
+(targum-internal#496). David chose the same day:
+
+- **The deck is an `.apkg` the server builds**, in place of the text file the browser
+  wrote. A text import cannot bring media into Anki. The words are the account's own:
+  the page sends the stages and the words on screen (search and filters and all) and
+  the back of each card as it draws it, and the server keeps only the words the account
+  saves, so nothing but a saved word is ever said; the back is escaped. The
+  note is the same as before: the word, its meaning, the level as a tag. A note keeps its
+  id across exports, so importing again updates it.
+- **Every word gets its sound, made where it has none**, the way a Hear press makes one
+  ("A word said from its card is on targum"): one `gift` job through `Library.claim_turn`
+  for the export, held to the box ceiling, settled to the seconds made, each clip kept by
+  what was said, under `/say-word`'s own guard and never past the claim. **At most 5,000
+  new sounds a reader a month, across exports**, so exporting again spends nothing past
+  it; a clip already made costs nothing. A word past the cap, or one the voice cannot say,
+  goes in the deck silent.
+- **The reader is told plainly while it is made**: "Making the sounds: 120 of 400 words.
+  Keep this page open." and then "Your deck is ready" with how many have no sound, and
+  why: the month's sounds are used, the voice refused, or the deck reached the sounds
+  set aside for it.
+  Where the server cannot make it, the text file comes as before, and the line says it
+  has no sound. Exports are only offered signed in, so there is always a server to ask.
+- The reader's own Anki button, inside a text, is unchanged: it is a file the reader
+  carries offline.
 
 ### Your Words says each word, as its card does — 2026-10-21
 
@@ -414,6 +527,34 @@ Gives me context and context is king." (targum-internal#497)
 - **Nothing spends and nothing is fetched from anywhere else.** `/account/met` reads the
   same meetings the column counts, off builds already on the machine, and is asked on the
   first press for a word, never with the page.
+
+### The reading face may arrive just after the first paint — 2026-10-21
+
+David, 2026-10-21, on the portion's first tap (targum-internal#409): a portion page on a
+phone made a word wait for everything before `reader.js`, and on Ki Tavo's sixth aliyah
+that was 2.3 seconds.
+
+- **The two faces come after `reader.js`, on every reader.** The Hebrew face and the
+  chrome's face are about sixty kilobytes the page took before a word could answer. The
+  first frame may set its letters in the platform's face for a moment, which on a short
+  page is too brief to see; `reader.js` lays the page out again, in place, when they
+  load, so nothing the reader is looking at moves under a tap. Readers still fetch
+  nothing: the faces are in the page, later.
+- **The commentaries' words come after it too.** Rashi's and Rashi in English's lines
+  are in the markup from the first paint; their data (the words to tap, their tables)
+  rides in a second block after `reader.js`, and their words answer once it has
+  arrived. The rendering drawn in the column and Onkelos, which the verse walk and
+  practice ask for as the page opens, stay in the first.
+- **So does the player.** `player.js` comes after `reader.js` and runs itself on arrival
+  when the reader got there first, so it starts where it always did relative to
+  everything else.
+- **Measured, not guessed, on the page as shipped, with its recordings.**
+  `scripts/measure_tap.py` times the first working tap on slow 4G with a 4x slower CPU:
+  Bereshit's first aliyah 2.14 s → 1.39 s, its third 1.91 s → 1.34 s, Nasso's fourth
+  2.26 s → 1.58 s, Ki Tavo's sixth, the longest, 2.30 s → 1.74 s. The longest aliyot are
+  still over a second and a half: what is left in front of a tap is `reader.js` itself
+  (71 kB gzipped, about a third of a second to run on that phone) and the page's own
+  text, which a later slice has to split.
 
 ### A reader carries only what its text uses, and a missing part opens the first — 2026-10-20
 
@@ -472,7 +613,8 @@ first (clause 3.13, dated 19 October 2026).
   classic script just before `library.js`, so the page has the shelf where it had it,
   with no new state to wait in or fail. It is a script rather than JSON for that reason:
   `library.js` reads it on its first lines, as it always did. On a whole page it is
-  inside the page again.
+  inside the page again. *Superseded 2026-10-22, see "The Library asks for its shelf":
+  on a whole page that was 303 kB in front of the first card.*
 
 Measured on the same phone profile through an HTTP/2 front, against #820:
 
@@ -2734,12 +2876,13 @@ drawn as five loose buttons with the pressed one in the accent, the name under t
 on asked "I know this" or "Still learning" instead.
 
 - **One segmented control on the knowledge ramp**, wherever a stage is asked: four
-  segments joined — 1, 2, 3, known — the current one filled with its step of the ramp
+  segments joined — 1, 2, 3, known *(named New, Learning, Almost, Known on their own
+  steps of the ramp since 2026-10-21: "The scale reads by name and colour")* — the current one filled with its step of the ramp
   (§12, "The knowledge ramp climbs to leaf"), known in leaf with paper text, the rest
   outlined; ignore after a gap as a quiet word. On a phone each segment is a thumb tall.
   This retires the accent fill for a pressed level (2026-08-28): the ramp says which step
   a word is on, and the accent said only that something was pressed.
-- **On cards the stage's own name is written under it**: "Getting there", "Known",
+- **On cards the stage's own name is written under it**: "Getting there", "Known" *(Still learning, Known since 2026-10-21)*,
   "Ignored: a name or a number" — every card, the reader's phrase cards included. Dense
   rows (the list beside the text, the Words table) carry the control without the name.
   *(The Words table names it in a column of its own since the same day: "Your Words is
@@ -2766,7 +2909,7 @@ Your Progress's "Practise these words", one language at a time, the one the menu
   they are the Phrases tab. The way back to Your targums at the foot goes: the nav
   already has it.
 - **The stage is chips, not a select**: To work on (steps 1 to 3, where it opens), Just
-  met, Getting there, Nearly there, Known, All — the step names the control itself uses
+  met, Getting there, Nearly there, Known, All *(New to you, Still learning, Almost known since 2026-10-21)* — the step names the control itself uses
   (`vocab.js` `steps()`), and the choice remembered in this browser. *(Ignored follows
   All since 2026-10-11: "An ignored word can be taken back, and found under Ignored".)*
 - **Every row carries the five stages**: the same control the card has, pressed in the
@@ -2789,8 +2932,8 @@ The page drew the words still being learned twice — What to work on over the t
 beside a word. Now:
 
 - **One card holds the list**: Words and Phrases as tabs with the find field in its
-  head, the stages as tabs (To work on · Just met · Getting there · Nearly there · Known
-  · All, and Ignored since 2026-10-11), then **Met often**, pressed on and off apart
+  head, the stages as tabs (To work on · New to you · Still learning · Almost known · Known
+  · All, named so since 2026-10-21, and Ignored since 2026-10-11), then **Met often**, pressed on and off apart
   from them, and one table — the word, its meaning, **Met in** (how many texts), its
   stage by name on the ramp's
   colour, and the five stages — with "Most met first" and Show more at its foot. On a
@@ -3381,7 +3524,7 @@ Saving for offline is the next slice's; the card and the page leave it a place.
 
 David, 2026-10-08, deciding the calmer home and Library: they lean on pictures, and the
 laptop had drawn covers for 40 of 1,155 catalogue rows. targum-internal#429. A text's picture
-comes from three places, in this order.
+comes from four places, in this order.
 
 - **Its own.** A video's frame or poster, an article's lead image (`og:image`), a book's
   cover in its EPUB, a PDF's first page, the first of a reader's pictures. An upload's is
@@ -3394,14 +3537,18 @@ comes from three places, in this order.
   when the image bank's own table says CC BY. A news row's lead image is not taken, whatever
   the article's own terms: the picture is often somebody else's. NonCommercial and
   NoDerivatives pictures are not taken either. Each picture's origin and licence is written
-  in `thumbs/sources.json`.
-- **Drawn, for everything else.** The first letter on a colour by kind: teal news, iris
-  sets (the scenes, the liturgy, the rabbinic shelf), clay things said (a talk, a video),
-  muted for books, in card white. It costs no model, and no file is written for it. This
+  in `thumbs/sources.json` (not yet for the drawn covers, targum-internal#429).
+- **A drawn cover, for a library row with no picture of its own.** David approved one
+  estimated batch on 2026-10-08, drawn with the image model at about $0.04 a cover
+  (`catalogue.cover_prompt`, the same rules as every cover). It drew 735 covers on
+  2026-10-08 and 10-10. The 152 rows it missed, 151 filed after it and one it skipped,
+  were drawn on 2026-10-21, also on David's approval (targum-internal#429).
+- **The letter tile, until then.** For a row filed but not yet drawn, and for an upload
+  with no picture of its own. The first letter on a colour by kind: teal news, iris sets
+  (the scenes, the liturgy, the rabbinic shelf), clay things said (a talk, a video), muted
+  for books, in card white. It costs no model, and no file is written for it. This
   departs from §4 on purpose: teal is the desk's door and clay is cost and errors, and
-  here both colour a tile. One hue per tile, flat, and never on text. The earlier plan was
-  to draw the missing covers with an image model at about $0.03 each. That is not
-  done; the letter tile is the fallback.
+  here both colour a tile. One hue per tile, flat, and never on text.
 
 What it does not overturn: readers fetch nothing (every picture is fetched at most once,
 by the server, and then carried in the page or served from the box), and covers already
@@ -4085,7 +4232,9 @@ and is sharpened (targum-internal#399):
 - **The hero is today's headline and lede, with one call to action**: the box, and under
   it the live page's own four points (start at any level, upload any text or media,
   hundreds of free texts and videos, no credit card required); written anew they read
-  as generated (David, 2026-10-02).
+  as generated (David, 2026-10-02). The lede was rewritten on 2026-10-21 (targum-internal#477) without its
+  aphorism opener and its colon list, its two AI tells; the headline and
+  the four points stand as they were.
   The whole word card stands beside the headline; the reader runs the full width under
   both and, leaving the top, makes room for the card in one 400ms move, keeping its
   height so nothing under it rises, and the card stays beside it while the lines are read.
@@ -7471,7 +7620,8 @@ so a teal thing is always a control and a green thing is always progress. The wa
 teal at 9%.
 
 **Type.** The chrome speaks in Source Sans 3, self-hosted under its licence (OFL), Latin
-subset, on chrome pages only; the fallback is `"Segoe UI", system-ui, sans-serif`.
+subset, on chrome pages only *(and its Cyrillic subset beside it on a page in Russian since 2026-10-21 —
+"Russian is carried too", below)*; the fallback is `"Segoe UI", system-ui, sans-serif`.
 Section titles 1.25rem/700 *(superseded 2026-10-09: a page's title is the serif at 34px/500 on
 the desk under the bar, and a section's the serif at 24px/500 — §12, "The boards are the desk", 2026-10-09)*, card and panel titles 1.0625rem/600, body and controls
 0.9375rem, meta 0.875rem, labels 0.6875rem uppercase at 0.08em. The reading serif appears
@@ -7539,6 +7689,40 @@ nothing — the drawer in a served reader (2026-09-11) has no address until it i
 phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
 page's lines keep §8 as written.
 
+**Russian is carried too — 2026-10-21** (targum-internal#469). The chrome's face was
+carried as a Latin subset, 231 glyphs and none in Cyrillic, so a Russian page set its
+letters in the platform's sans — SF on a Mac, Segoe UI on Windows, Roboto on Android — and
+its digits, punctuation and Latin names in Source Sans 3: two faces in one line, their
+x-heights apart at 0.8125rem, and a different pair on every platform. That fails "one
+look" (§14.7) on every desk page in Russian. So Source Sans 3's Cyrillic subset is carried
+too, under the same licence as the Latin one (SIL Open Font License 1.1, Adobe's, Reserved
+Font Name "Source", `LICENSE.sourcesans3` already in the repository), **only on pages
+rendered in Russian**, as a second `@font-face` of the same family whose `unicode-range`
+is the Cyrillic block, so the Latin glyphs still come from the Latin file and a page in
+English pays nothing. What it costs, measured on the 3.052 release the Latin cut comes
+from, subset to U+0400–04FF with № (U+2116) and the non-breaking hyphen (U+2011), the
+layout features the Latin cut keeps, inlined as base64: the upright, variable 200–900,
+**29.2 kB** (21.9 kB as a file); the italic, at 400 as the carried italic is, **15.1 kB**
+(11.3 kB). A desk page in Russian carries both, **+44 kB**, beside the 59 kB of Latin face
+it carries today; a reader whose interface is Russian carries the upright alone, as it
+does the Latin (2026-10-09), **+29 kB** beside 38 kB. Stopping at U+045F, the letters
+Russian and its neighbours use, would save 6 kB upright and 3 kB italic; the block is
+carried whole so a Ukrainian or Kazakh name in the chrome is not the one word in another
+face. The other way out, dropping Source Sans 3 from `--chrome` under `:lang(ru)`, made a line one
+face but a different face on every platform, and was not taken. The serif needs nothing:
+Iowan carries Cyrillic on a Mac, and Palatino Linotype and Georgia elsewhere. A reader
+still fetches nothing.
+
+**The drawer opens the conversation you were in — 2026-10-22** (David, targum-internal#472,
+design's polish 4). Framed, the conversation page never opened the newest conversation by
+itself: that was right for Learn's frame, where the front page was a door and not a
+thread. Learn went on 2026-10-08, and the drawer is the only frame now, so a reader who
+closed it mid-conversation and pressed the pill again landed on the chips. **The drawer
+opens the newest conversation when it was seen or opened in the last hour; past that it
+shows the chips, as before.** The page itself (`/chat`, unframed) still opens the newest
+whenever it is asked. A line handed over from another page still starts a conversation of
+its own.
+
 
 ## 14 · Finished — what done means for a surface
 
@@ -7558,6 +7742,13 @@ card: screenshots for 1, 2 and 7, test names for 8. Added 2026-10-18 (targum-int
 3. **Keyboard and screen reader.** Every control is reached by Tab, has a name a screen
    reader says, and shows the one focus ring (§4). A Hebrew, Aramaic or Yiddish run
    carries its `lang` and its `dir`.
+
+   **Nothing is hover-only — 2026-10-21** (targum-internal#471). A tooltip is never the
+   only place an explanation lives: a `title` is never shown to a phone or a keyboard, and
+   most screen readers skip it. A note that matters is a visible quiet line under what it
+   explains, or behind a press that says so ("How we count"). Where a mockup or a board
+   has no line for it, the line wins over the board. A `title` may repeat what is already
+   visible; it may never be the only place a thing is said.
 4. **Copy.** Active and plain, we to you (§6), no word from the data layer, every string
    keyed in the catalogue, and Russian present for each of them.
 5. **Speed.** On a phone profile the surface is useful in under 1.5 s, and nothing on it

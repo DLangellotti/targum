@@ -246,10 +246,13 @@
   // in arrive after this file.
   function steps() {
     return [
-      { value: 1, label: "1", title: t("vocab.step.1", "Just met") },
-      { value: 2, label: "2", title: t("vocab.step.2", "Getting there") },
-      { value: 3, label: "3", title: t("vocab.step.3", "Nearly there") },
-      { value: KNOWN, label: t("vocab.step.known", "known"), title: t("vocab.step.known.title", "Known") },
+      // Each segment says its stage by name, short, on its step of the ramp (design.md
+      // §12, "The scale reads by name and colour", 2026-10-21): the numbers read as a
+      // score, and the full form is the title a screen reader says.
+      { value: 1, label: t("vocab.step.1.short", "New"), title: t("vocab.step.1", "New to you") },
+      { value: 2, label: t("vocab.step.2.short", "Learning"), title: t("vocab.step.2", "Still learning") },
+      { value: 3, label: t("vocab.step.3.short", "Almost"), title: t("vocab.step.3", "Almost known") },
+      { value: KNOWN, label: t("vocab.step.known", "Known"), title: t("vocab.step.known.title", "Known") },
       { value: IGNORED, label: t("vocab.step.ignore", "ignore"), title: t("vocab.step.ignore.title", "A name or a number") },
     ];
   }
@@ -308,6 +311,8 @@
       button.className = "level level-" + step.value;
       button.textContent = step.label;
       button.title = step.title;
+      // A screen reader says the full name: "Still learning", not "Learning".
+      if (step.title && step.title !== step.label) button.setAttribute("aria-label", step.title);
       var on = options.status === step.value;
       button.setAttribute("aria-pressed", on ? "true" : "false");
       if (on) button.classList.add("on");
@@ -339,14 +344,25 @@
         if (step.value === options.status) pressed = step;
       });
       // The stage's own name, written under the control (design.md §12, "The five
-      // stages are one control, on every card", 2026-10-09): "Getting there", "Known".
+      // stages are one control, on every card", 2026-10-09): "Still learning", "Known".
       // It was "2 · getting there", the segment's label said again beside its name.
       legend.textContent = pressed
         ? pressed.value === IGNORED
           ? t("vocab.legend.ignored", "Ignored: a name or a number")
           : pressed.title
-        : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");
+        : t("vocab.legend", "How well do you know it?");
       box.appendChild(legend);
+      // What ignore is for, on the card and not in its title alone (targum-internal#476,
+      // B4; design.md §14, nothing is hover-only): a phone and a keyboard never see a
+      // title. Not under a word already ignored, whose legend says it.
+      // Inside the legend's own line, so the card grows no taller.
+      if (options.levels !== false && !(pressed && pressed.value === IGNORED)) {
+        var says = document.createElement("span");
+        says.className = "level-ignore-says";
+        says.textContent = t("vocab.legend.ignore-says", "Ignore is for names and numbers.");
+        legend.appendChild(document.createTextNode(" "));
+        legend.appendChild(says);
+      }
     }
 
     if (options.onNote) {

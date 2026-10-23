@@ -476,9 +476,9 @@
   function stageWord(stage) {
     return (
       {
-        1: t("palette.stage.1", "Just met"),
-        2: t("palette.stage.2", "Getting there"),
-        3: t("palette.stage.3", "Nearly there"),
+        1: t("palette.stage.1", "New to you"),
+        2: t("palette.stage.2", "Still learning"),
+        3: t("palette.stage.3", "Almost known"),
         9: t("palette.stage.known", "Known"),
         0: t("palette.stage.ignore", "A name or a number"),
       }[stage] || ""

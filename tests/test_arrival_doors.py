@@ -177,7 +177,7 @@ def test_a_second_press_on_a_spent_link_keeps_the_room(
     status, headers, _ = _exchange(port, "POST", "/account/enter", form, kind)
     assert status == 303 and headers["location"] == "/progress"
     status, _, page = _exchange(port, "POST", "/account/enter", form, kind)
-    assert status == 200 and "This link has expired" in page
+    assert status == 200 and "That link no longer works" in page
     assert 'data-next="/progress"' in page
 
 

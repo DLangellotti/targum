@@ -206,16 +206,33 @@ def test_every_link_in_the_public_foot_reaches_44px(browser, monkeypatch) -> Non
     context.close()
 
 
-def test_news_says_follow_a_topic_and_reaches_44px(browser, library_html) -> None:
-    """The Library's News door opens News; its topics live on Subscriptions, so one line
-    goes there (2026-10-20). Signed in only, since following needs an account."""
+def test_news_lists_the_topics_to_follow_and_reaches_44px(browser, library_html) -> None:
+    """The Library's News door opens News, and its eight topics stand there as rows, each
+    with Subscribe going to the confirm page (David, 2026-10-22; targum-internal#475 B3:
+    "Follow a topic" used to lead to a tab with nothing to follow). Signed in only, since
+    following needs an account."""
     signed_in = {"/readers": {"readers": [], "shared": [], "signedIn": True}}
     context, page, thrown = phone(browser, library_html, signed_in)
     page.goto(f"{SITE}/library#see/kind/article")
-    line = page.locator("#see-topics a")
-    line.wait_for(state="visible")
-    assert line.inner_text() == "Follow a topic"
-    assert line.get_attribute("href") == "/?show=subscriptions&chip=news"
+    page.locator("#see-topics").wait_for(state="visible")
+    assert page.inner_text("#see-topics-head") == "Follow a topic"
+    names = page.eval_on_selector_all(".see-topic-name", "all => all.map((n) => n.textContent)")
+    assert names == [
+        "World",
+        "Politics",
+        "Economy",
+        "Culture",
+        "Science",
+        "Technology",
+        "Sport",
+        "Health",
+    ], names
+    first = page.locator("#see-topics a").first
+    assert first.get_attribute("href") == (
+        "/subscribe?kind=topic&key=world&via=library&language=he"
+    ), first.get_attribute("href")
+    assert first.inner_text() == "Subscribe"
+    assert first.get_attribute("aria-label") == "Subscribe to World"
     assert reaches_44(reach(page, "#see-topics a"))
     # Not on another kind's list, nor on the shelves.
     page.goto(f"{SITE}/library#see/kind/talk")
@@ -228,5 +245,37 @@ def test_news_says_follow_a_topic_and_reaches_44px(browser, library_html) -> Non
     page.goto(f"{SITE}/library#see/kind/article")
     page.locator("#see-title").wait_for(state="visible")
     assert page.locator("#see-topics").is_hidden(), "signed out, there is nothing to follow"
+    assert not thrown
+    context.close()
+
+
+def test_a_topic_you_follow_says_subscribed_in_news(browser, library_html) -> None:
+    """A topic the reader follows already says Subscribed and goes to its own page, not
+    to the confirm page again; one they unsubscribed from offers Subscribe as before
+    (#475, qa-claude after #890)."""
+    signed_in = {
+        "/readers": {"readers": [], "shared": [], "signedIn": True},
+        "/subscriptions.json": {
+            "signedIn": True,
+            "subscriptions": [
+                {"kind": "topic", "key": "sport", "state": "on", "page": "/subscriptions/3"},
+                {"kind": "topic", "key": "world", "state": "off", "page": "/subscriptions/5"},
+                {"kind": "channel", "key": "health", "state": "on", "page": "/subscriptions/6"},
+            ],
+        },
+    }
+    context, page, thrown = phone(browser, library_html, signed_in)
+    page.goto(f"{SITE}/library#see/kind/article")
+    page.locator('#see-topics a[data-topic="sport"].is-on').wait_for(state="visible")
+    rows = page.eval_on_selector_all(
+        "#see-topics a[data-topic]",
+        """all => Object.fromEntries(all.map((a) => [a.dataset.topic,
+             [a.textContent, a.getAttribute('href'), a.getAttribute('aria-label')]]))""",
+    )
+    assert rows["sport"] == ["Subscribed", "/subscriptions/3", "Subscribed to Sport"], rows
+    assert rows["world"][0] == "Subscribe", rows
+    assert rows["world"][1].startswith("/subscribe?kind=topic&key=world"), rows
+    assert rows["health"][0] == "Subscribe", "a channel is not a topic"
+    assert reaches_44(reach(page, '#see-topics a[data-topic="sport"]'))
     assert not thrown
     context.close()

@@ -182,7 +182,7 @@ def test_a_playlist_lists_its_texts_in_order_with_its_keys(browser, tmp_path: Pa
         "titles": ["Cheese swirls", "Raiba"],
         "upFirst": True,
         "downLast": True,
-        "failed": "We couldn't get this text ready.",
+        "failed": "We couldn't get this text ready. Remove it, then add it again.",
         "byline": "By you",
     }
     assert sent == [["/playlists/1", {"do": "move", "position": 0, "to": 1}]]
@@ -268,7 +268,7 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
             # As many cells as texts, filling the square (P2): no empty quarter.
             "cells": 2,
             "here": "You're in it · 2 of 2",
-            "facts": "By you · 2 texts · 10 min",
+            "facts": "By you · 2 texts · 10\u00a0min",
             "known": "88% known",
             "foot": None,
             "open": "/playlists/1?k=test-key",
@@ -276,7 +276,7 @@ def test_the_tab_draws_a_card_a_playlist(browser, tmp_path: Path) -> None:
         {
             "cells": 2,
             "here": None,
-            "facts": "From an assistant · 3 texts · 10 min",
+            "facts": "From your AI · 3 texts · 10\u00a0min",
             "known": "88% known",
             "foot": "Not confirmed yetUses 12 credits · Confirm",
             "open": "/playlists/3?k=test-key",
@@ -372,7 +372,7 @@ def test_the_menu_makes_a_new_playlist_with_the_text_in_it(browser, tmp_path: Pa
     page.wait_for_selector(".playlist-menu .pm-status:not([hidden])")
     sent = posted(page)
     context.close()
-    assert confirm == "Confirm"
+    assert confirm == "Create", "the press makes a playlist, so it says so (David, 2026-10-21)"
     assert sent == [["/playlists", {"name": "Morning", "reader": "jonah", "title": "יונה"}]]
     assert not thrown
 
@@ -489,7 +489,7 @@ def test_delete_asks_before_it_takes_a_whole_playlist(browser, tmp_path: Path) -
     context.close()
     assert not thrown, thrown
     assert first == [], "one press takes nothing away"
-    assert label == "Confirm delete"
+    assert label == "Yes, delete"
     assert second == [["/playlists/1", {"do": "gone"}]]
 
 
@@ -517,14 +517,146 @@ def test_no_connection_is_not_a_sign_in(browser, tmp_path: Path) -> None:
         browser,
         tmp_path,
         "window.fetch = () => Promise.reject(new TypeError('offline'));",
-        wait="#lists-said:not([hidden])",
+        wait="#fault:not([hidden])",
     )
-    said = page.locator("#lists-said").text_content()
+    said = page.locator("#fault .fault-panel-said").text_content()
+    again = page.locator("#fault .fault-go").text_content()
     stranger = page.locator("#stranger").is_hidden()
     context.close()
     assert not thrown, thrown
-    assert said == "We can't reach targum. Try again in a moment."
+    # The press says Try again, so the sentence does not (ling-en's rule).
+    assert said == "We can't reach targum."
+    assert again == "Try again", "a fault offers something to press (targum-internal#474, B2)"
     assert stranger, "a network that failed is not a reader who is signed out"
+
+
+def test_a_server_that_fails_is_not_one_that_cannot_be_reached(browser, tmp_path: Path) -> None:
+    """targum-internal#474, B2: a 502 with no JSON said "We can't reach targum", which is
+    another fault, and offered nothing to press. It says the playlists did not load, and
+    Try again asks again."""
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        """
+        const before = window.fetch;
+        window.fetch = (url, opts) => {
+          if (String(url).includes('/playlists.json') && !sessionStorage.getItem('failed')) {
+            sessionStorage.setItem('failed', '1');
+            return Promise.resolve(new Response('<html>Bad gateway</html>', {status: 502}));
+          }
+          return before(url, opts);
+        };
+        """,
+        wait="#fault:not([hidden])",
+    )
+    said = page.locator("#fault .fault-panel-said").text_content()
+    page.locator("#fault .fault-go").click()
+    page.wait_for_selector("#playlists .pl-card")
+    gone = page.locator("#fault").is_hidden()
+    context.close()
+    assert not thrown, thrown
+    assert said == "We couldn't load your playlists."
+    assert gone
+
+
+def test_a_slow_answer_says_so_and_offers_try_again(browser, tmp_path: Path) -> None:
+    """targum-internal#474, B1: until the server answered, the page was the tabs and
+    nothing else. It says it is getting them at once, and past three seconds that it is
+    taking longer, with Try again."""
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        """
+        const before = window.fetch;
+        window.fetch = (url, opts) => {
+          if (String(url).includes('/playlists.json') && !sessionStorage.getItem('held')) {
+            sessionStorage.setItem('held', '1');
+            // Answered late, and badly, once Try again has drawn the page.
+            return new Promise((done) => { window.answerLate = done; });
+          }
+          return before(url, opts);
+        };
+        """,
+        wait="#wait:not([hidden])",
+    )
+    first = page.locator("#wait").text_content()
+    early = page.locator("#slow").is_hidden()
+    page.wait_for_selector("#slow:not([hidden])", timeout=5000)
+    slow = page.locator("#slow span").text_content()
+    page.locator("#slow-again").click()
+    page.wait_for_selector("#playlists .pl-card")
+    after = page.evaluate(
+        "() => [document.getElementById('wait').hidden, document.getElementById('slow').hidden]"
+    )
+    # The first ask answering now, with a server fault, draws nothing: only the last does.
+    page.evaluate("() => window.answerLate(new Response('<html>502</html>', {status: 502}))")
+    page.wait_for_timeout(200)
+    late = page.evaluate(
+        "() => [document.getElementById('fault').hidden,"
+        " document.querySelectorAll('#playlists .pl-card').length > 0]"
+    )
+    context.close()
+    assert not thrown, thrown
+    assert first == "We're getting your playlists."
+    assert early, "not before three seconds"
+    assert slow == "This is taking longer than usual."
+    assert after == [True, True]
+    assert late == [True, True], "a late first answer does not undo the drawn page"
+
+
+def test_the_sheet_holds_the_focus_and_gives_it_back(browser, tmp_path: Path) -> None:
+    """targum-internal#474, B6: the sheet is a modal dialog, so Tab stays in it, and
+    Escape puts it away and gives the focus back to New playlist (the strip's press, at a
+    desk; a phone has the last card instead)."""
+    context, page, thrown = opened(browser, tmp_path, width=1280)
+    page.locator("#new-press").focus()
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#adding:not([hidden])")
+    inside = []
+    for _ in range(8):
+        page.keyboard.press("Tab")
+        inside.append(page.evaluate("() => !!document.activeElement.closest('#adding')"))
+    page.keyboard.press("Shift+Tab")
+    inside.append(page.evaluate("() => !!document.activeElement.closest('#adding')"))
+    page.keyboard.press("Escape")
+    back = page.evaluate("() => document.activeElement.id")
+    context.close()
+    assert not thrown, thrown
+    assert all(inside), inside
+    assert back == "new-press"
+
+
+def test_a_title_getting_ready_says_its_language(browser, tmp_path: Path) -> None:
+    """targum-internal#474, B8: a text that failed or is still getting ready has no facts,
+    so its title took the page's language. The playlist keeps to one, and says which."""
+    hebrew = {
+        **KITCHEN,
+        "language": "he",
+        "items": [
+            KITCHEN["items"][0],
+            {**KITCHEN["items"][1], "title": "רייבה"},
+        ],
+    }
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        f"Object.assign(KITCHEN, {json.dumps(hebrew)});",
+        wait="#one .item",
+        query="?playlist=1",
+    )
+    got = page.evaluate(
+        """() => {
+          const bdi = document.querySelector('.item.failed .item-title bdi');
+          const letter = document.querySelector('.item.failed .pl-thumb [lang]');
+          return [bdi.getAttribute('lang'), bdi.getAttribute('dir'),
+                  letter && letter.getAttribute('lang')];
+        }"""
+    )
+    note = page.locator(".pl-reorder-note").text_content()
+    context.close()
+    assert not thrown, thrown
+    assert got == ["he", "auto", "he"], "the title and its thumbnail's letter"
+    assert note == "Drag to reorder, or Alt+↑/↓.", "B5: what the grip does, on the page"
 
 
 def test_the_protocols_words_never_reach_the_reader(browser, tmp_path: Path) -> None:
@@ -576,3 +708,202 @@ def test_a_long_name_wraps_inside_its_press(browser, tmp_path: Path, query: str)
     width = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
     context.close()
     assert over == [] and width <= 0, over
+
+
+# --- the finish bar's polish (targum-internal#474) ----------------------------------
+
+
+def test_the_russian_tabs_fit_a_phone(browser, tmp_path: Path) -> None:
+    """Polish 3: at 390 in Russian the fourth tab, «Загрузки», was cut at the edge with
+    no sign the row scrolls. All four fit."""
+    page_file = tmp_path / "playlists.html"
+    page_file.write_text(carried(playlists_page(TOKEN, "ru")), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.add_init_script(fake())
+    page.goto(page_file.as_uri())
+    page.wait_for_selector("#playlists .pl-card")
+    seen = page.evaluate(
+        """() => {
+          const row = document.getElementById('yours-tabs');
+          const last = row.querySelector('[data-tab="uploads"]').getBoundingClientRect();
+          return {over: row.scrollWidth - row.clientWidth, end: last.right,
+                  edge: row.getBoundingClientRect().right, said: row.innerText};
+        }"""
+    )
+    context.close()
+    assert "Загрузки" in seen["said"], seen
+    assert seen["over"] <= 0 and seen["end"] <= seen["edge"] + 0.5, seen
+
+
+def test_a_deleted_playlist_is_said_on_the_tab(browser, tmp_path: Path) -> None:
+    """Polish 4: after the second press the page went to the tab and the playlist was just
+    gone. Delete leaves a note in this tab and carries the id, and the tab says what went,
+    once."""
+    context, page, thrown = opened(browser, tmp_path, "?playlist=1")
+    went: list[str] = []
+    page.on("request", lambda request: went.append(request.url))
+    page.locator(".pl-more").click()
+    away = page.locator(".pl-menu .danger")
+    away.click()
+    away.click()
+    page.wait_for_timeout(500)
+    context.close()
+    assert not thrown, thrown
+    assert any("/playlists?deleted=1" in url for url in went), went
+    assert not any("deleted=Kitchen" in url for url in went), "the name stays out of the link"
+
+    said, role, left = deleted_tab(browser, tmp_path, {"id": "1", "name": "Kitchen"}, "1")
+    assert said == "Deleted \u2068Kitchen\u2069."
+    assert role == "status"
+    assert "deleted" not in left, "a reload does not say it again"
+
+
+def deleted_tab(browser, tmp_path: Path, note: dict | None, deleted: str) -> tuple:
+    """The tab opened at `?deleted=`, with this tab's note (or none) left by a Delete."""
+    context, page, thrown = opened(browser, tmp_path)
+    page.evaluate(
+        "(note) => note ? sessionStorage.setItem('targum.playlist-deleted', JSON.stringify(note))"
+        " : sessionStorage.removeItem('targum.playlist-deleted')",
+        note,
+    )
+    page.goto(page.url.split("?")[0] + "?deleted=" + deleted)
+    page.wait_for_selector("#playlists .pl-card")
+    page.wait_for_timeout(200)
+    said = page.locator("#lists-said").text_content()
+    role = page.locator("#lists-said").get_attribute("role")
+    left = page.evaluate("() => location.search")
+    kept = page.evaluate("() => sessionStorage.getItem('targum.playlist-deleted')")
+    marked = page.locator("#lists-said *").count()
+    context.close()
+    assert not thrown, thrown
+    assert kept is None, "the note is read once"
+    assert marked == 0, "text only, never markup"
+    return said, role, left
+
+
+@pytest.mark.parametrize(
+    ("note", "deleted"),
+    [
+        # A crafted link and no note: nothing to say.
+        (None, "Your account is closed. Call us"),
+        (None, "1"),
+        # A note for another playlist does not lend its name to this id.
+        ({"id": "2", "name": "Kitchen"}, "1"),
+        # The link's text is never the line, even with a note in the tab.
+        ({"id": "1", "name": "Kitchen"}, "<b>Pay here</b>"),
+    ],
+)
+def test_a_crafted_deleted_link_says_nothing(
+    browser, tmp_path: Path, note: dict | None, deleted: str
+) -> None:
+    """qa-claude on #872: `?deleted=` echoed any text into "Deleted {name}.", so a link
+    could make the page say anything. Only this tab's own Delete is said."""
+    said, _, left = deleted_tab(browser, tmp_path, note, deleted)
+    assert said == ""
+    assert "deleted" not in left
+
+
+def test_a_length_keeps_its_number_with_its_unit(browser, tmp_path: Path) -> None:
+    """qa-claude on #872: "25" and "min" broke across two lines on a card at 1440."""
+    context, page, thrown = opened(browser, tmp_path, width=1440)
+    facts = page.locator(".pl-facts").first.text_content()
+    context.close()
+    assert not thrown, thrown
+    assert "10\u00a0min" in facts and "10 min" not in facts, facts
+
+
+def test_the_sheet_s_choice_says_its_name_and_count_apart(browser, tmp_path: Path) -> None:
+    """Polish 5: a screen reader heard "Kitchen2 texts", the name and count one run."""
+    context, page, thrown = opened(browser, tmp_path, "?add=jonah&title=Jonah")
+    page.wait_for_selector("#choose .named")
+    heard = page.evaluate(
+        "() => document.querySelector('#choose .named').textContent.replace(/\\s+/g, ' ')"
+    )
+    drawn = page.evaluate(
+        "() => document.querySelector('#choose .named .unseen').getBoundingClientRect().width"
+    )
+    context.close()
+    assert not thrown, thrown
+    assert heard.strip() == "Kitchen · 2 texts", heard
+    assert drawn <= 1, "said, not drawn"
+
+
+def test_from_targum_s_share_stays_on_one_line_at_a_desk(browser, tmp_path: Path) -> None:
+    """Polish 7: at 1440 the From targum card wrapped "60% known" onto two lines beside
+    Open. The bar takes the column and the share keeps to one line."""
+    sets = [
+        {
+            "id": "s1",
+            "name": "מילים ראשונות",
+            "nameLanguage": "he",
+            "english": "First words",
+            "count": 6,
+            "seconds": 1500,
+            "known": 0.6,
+            "covers": [],
+        }
+    ]
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        f"""
+        const SETS = {json.dumps(sets)};
+        const before = window.fetch;
+        window.fetch = (url, opts) => {{
+          const listed = String(url).split('?')[0].endsWith('/playlists.json');
+          if (listed && !(opts && opts.method === 'POST')) {{
+            return Promise.resolve(new Response(JSON.stringify(
+              {{playlists: [CARD], current: null, targum: SETS}})));
+          }}
+          return before(url, opts);
+        }};
+        """,
+    )
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.wait_for_selector("#from-targum:not([hidden]) .pl-share")
+    lines = page.evaluate(
+        """() => {
+          const share = document.querySelector('.pl-targum-card .pl-share');
+          const tall = parseFloat(getComputedStyle(share).lineHeight) ||
+            parseFloat(getComputedStyle(share).fontSize) * 1.3;
+          return share.getBoundingClientRect().height / tall;
+        }"""
+    )
+    context.close()
+    assert not thrown, thrown
+    assert lines < 1.5, lines
+
+
+def test_offline_the_tab_says_where_saved_playlists_are_once(browser, tmp_path: Path) -> None:
+    """Polish 8: offline with the page open, the tab drew a clay fault under the band that
+    already says so. It says one quiet line, with the way to Saved on this device, and
+    asks again when the connection is back."""
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        """
+        Object.defineProperty(navigator, 'onLine', {get: () => window.ONLINE === true});
+        const before = window.fetch;
+        window.fetch = (url, opts) => window.ONLINE === true
+          ? before(url, opts) : Promise.reject(new TypeError('offline'));
+        """,
+        wait="#fault:not([hidden])",
+    )
+    panels = page.locator("#fault .fault-panel").count()
+    said = page.locator("#fault .pl-away").text_content()
+    href = page.locator("#fault .pl-away a").get_attribute("href")
+    # Underlined at rest like a text link, not only on hover (qa-claude on #872).
+    lined = page.evaluate(
+        "() => getComputedStyle(document.querySelector('#fault .pl-away a')).textDecorationLine"
+    )
+    page.evaluate("() => { window.ONLINE = true; window.dispatchEvent(new Event('online')); }")
+    page.wait_for_selector("#playlists .pl-card")
+    gone = page.locator("#fault").is_hidden()
+    context.close()
+    assert not thrown, thrown
+    assert panels == 0, "no second fault under the band"
+    assert said == "Playlists you saved for offline are under Saved on this device."
+    assert href.startswith("/you/saved")
+    assert lined == "underline", lined
+    assert gone
