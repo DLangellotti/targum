@@ -23,6 +23,9 @@ Wants=network-online.target
 Type=oneshot
 User=targum
 Group=targum
+# The copies hold reader data: 0600, not the 0644 the default umask gave them until
+# targum-internal#514. Nothing but targum (and root) reads them; rclone runs as targum.
+UMask=0077
 # --store, named. Without it `targum backup` falls back to ~/.targum/targum.db, an empty
 # leftover on this box, and copied that faithfully every night until 2026-09-04.
 # EnvironmentFile, so it sees TARGUM_CACHE_DIR and copies the cache, and so the remote's
