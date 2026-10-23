@@ -828,6 +828,45 @@
     return subscribePress(what, row);
   }
 
+  /* News's topics the reader follows already say so, and go to that subscription's own
+     page rather than to the confirm page again (#475, qa-claude after #890). Asked once a
+     page, and only when the topics are shown; a refusal leaves every row as Subscribe,
+     which the confirm page answers with "subscribed already". */
+  var followedTopics = null;
+  function markFollowed(host) {
+    if (!followedTopics) {
+      followedTopics = fetch(keyed("/subscriptions.json"), {
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+      })
+        .then(function (response) {
+          return response.ok ? response.json() : {};
+        })
+        .then(function (answer) {
+          var pages = {};
+          ((answer && answer.subscriptions) || []).forEach(function (one) {
+            if (one.kind === "topic" && one.state !== "off" && one.page) pages[one.key] = one.page;
+          });
+          return pages;
+        })
+        .catch(function () {
+          return {};
+        });
+    }
+    followedTopics.then(function (pages) {
+      Array.prototype.forEach.call(host.querySelectorAll("a[data-topic]"), function (go) {
+        var page = pages[go.getAttribute("data-topic")];
+        if (!page) return;
+        var row = go.closest ? go.closest(".see-topic-row") : null;
+        var nameNode = row && row.querySelector(".see-topic-name");
+        var name = nameNode ? nameNode.textContent : "";
+        go.href = keyed(page);
+        go.textContent = t("library.subscribed", "Subscribed");
+        go.setAttribute("aria-label", t("library.see.subscribed-to", "Subscribed to {name}", { name: name }));
+        go.className = "btn ghost outline small see-topic-go is-on";
+      });
+    });
+  }
+
   function subscribePress(what, row) {
     var hook = window.TargumSubscribe;
     var cell = el("span", "row-sub");
@@ -2768,6 +2807,7 @@
               "&via=library&language=" + encodeURIComponent(chosen)
           );
         });
+        if (!topicsLine.hidden) markFollowed(topicsLine);
       }
       var menus = document.getElementById("see-menus");
       if (menus) {

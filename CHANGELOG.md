@@ -6,16 +6,49 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
-- The ship scripts no longer write as root inside the service's own folders
-  (targum-internal#515). `ship-parasha`, `ship-daily`, `ship-weekly`, `ship-shared` and
-  `ship-audio` receive with `--rsync-path="runuser -u targum -- rsync"`, run their remote
-  `mkdir`, `mv`, `rm` and `install -d` as targum, and drop the root `chown -R` after, as
-  `deploy.sh` does for the covers since targum#889: a symlink the service planted, or a
-  symlinked parent, can no longer lead a root write or chown out of `/var/lib/targum`.
-  The index files and the weekly's folders go by rsync rather than scp, which cannot run
-  its far end as anyone else. Writing `/etc/targum/targum.env`, the catalogue and the
-  restart stay root. The output and the checks are unchanged. Pinned by
-  `tests/test_ship_as_targum.py`.
+- The Russian interface after ling-ru's read-through of the whole catalogue
+  (targum-internal#476): 93 strings. A language name no longer sits capitalised
+  mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
+  broke after 1–4 or 21–24 say the number after a colon or use «ч»; «Играть» became
+  «Включить»; Continue is a block («в блоке «Продолжить»»); a queued text says «В очереди
+  перед ним {n} текст» as the other queue lines do; «Экспериментальный» became «Пробный»,
+  which fits the badge; and plan, prompts, waitlist and the AI assistant have one word
+  each. English is unchanged.
+- The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
+  "you said" and "corrected", came from the stylesheet in English. They are catalogue
+  keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
+  Russian. The box's placeholder is shorter ("Hebrew or English", «Иврит или русский»), so
+  it fits a phone's one-row field. Hear and the quote card's source link and More options
+  are in `test_brand.py`'s 44px registry, which keeps their reach from drifting.
+- A shared link to /about shows the picture and says what the page is (targum-internal#518).
+  It was the one page in the sitemap with no public head: no description, no `og:` tags,
+  no `twitter:card`. It now includes `_public_head.html.j2` like the others, keeps its one
+  address for every language, and a test holds the tags in English and Russian.
+- Sign in reads again on the four legal pages (targum-internal#516). The documents' link
+  rule in `public.css` was more specific than the corner's call to action and painted it
+  ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
+  browser test holds the button to paper on ink at weight 600 on all four pages.
+- Every Hebrew run on the front door and /aliyah says it is Hebrew (targum-internal#517).
+  None of the 68 carried `lang`, so a screen reader read them in the page's English or
+  Russian voice. The templates, the shared band and what `landing.js` draws (the word
+  card, the film's lines and caption, the Genesis verses, with Onkelos as `arc`) now
+  carry `lang` and `dir`. A brand test reads the rendered pages for Hebrew with no
+  language around it, and a browser test presses every word and walks the Torah demo.
+- A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
+  door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
+  than a cap: a host sending a byte every half second held a 2-second read for fifty
+  seconds. Every fetch through `ingest.url` (pages, openings and downloads, direct or
+  through the proxy) now has a deadline from first knock to last byte, redirects
+  included: 90 seconds for a page or an opening, 30 minutes for a download. Past it the
+  door says it couldn't open the page, as it does for a timeout, and a half-written
+  download is removed.
+- Subscriptions' last three loose ends after #883 and #890 (targum-internal#475). An
+  unsubscribed subscription with nothing listed says "You're unsubscribed, so nothing new
+  comes here." instead of promising new ones. A Resume the door refuses with 409 (a
+  channel or podcast unsubscribed meanwhile in another tab) goes to the confirm page the
+  door names, on the subscription's page and on the tab's row, instead of "We couldn't do
+  that". And the Library's News says Subscribed on a topic you follow already, going to
+  its own page rather than the confirm page again.
 - Database copies on the box are `0600 targum` rather than `0644` (targum-internal#514).
   The copy `deploy.sh` takes before an install runs under `UMask=0077`, and so does the
   nightly `targum-backup.service`; the two copies `deploy/ROLLBACK.md` has you take by hand
@@ -28,6 +61,28 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `segments.json`, and the reader marks the word in the row that answers to `#12:5` as
   well as in the row named by its sentence. Without the portions built, the book opens as
   any text does.
+- Root no longer writes inside targum's uv tools (targum-internal#513). `deploy.sh` and
+  `rollback.sh` gave the targum tool back with a root `chown -R` before each install; it is
+  now a repair of only what is not targum's, by `find . ! -user targum -execdir chown -h`
+  from inside the tool, so it never follows a symlink the service could have put there.
+  The tool is entered with `cd -P` and its real path checked first, and the deploy or
+  rollback stops if a symlinked directory above it leads anywhere else; INCIDENT.md's hand
+  repair does the same. The install runs from `/` rather than root's closed home. The install itself, and
+  `provision.sh`'s yt-dlp install, run under `runuser -u targum --`, and provision's plugin
+  check runs the tool's python as targum, where it used to run it as root and leave a
+  root-owned `__pycache__` that stops the nightly upgrade, as it did for 18 hours on
+  2026-10-22. Pinned by `tests/test_deploy_backup.py`. Reaches the box with the next deploy
+  or rollback; provision.sh only on its next run.
+- The ship scripts no longer write as root inside the service's own folders
+  (targum-internal#515). `ship-parasha`, `ship-daily`, `ship-weekly`, `ship-shared` and
+  `ship-audio` receive with `--rsync-path="runuser -u targum -- rsync"`, run their remote
+  `mkdir`, `mv`, `rm` and `install -d` as targum, and drop the root `chown -R` after, as
+  `deploy.sh` does for the covers since targum#889: a symlink the service planted, or a
+  symlinked parent, can no longer lead a root write or chown out of `/var/lib/targum`.
+  The index files and the weekly's folders go by rsync rather than scp, which cannot run
+  its far end as anyone else. Writing `/etc/targum/targum.env`, the catalogue and the
+  restart stay root. The output and the checks are unchanged. Pinned by
+  `tests/test_ship_as_targum.py`.
 - `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
   targum-internal#482): both say when they were first run; `rollback.sh` is the first way
   back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;

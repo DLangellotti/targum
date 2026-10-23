@@ -42,7 +42,23 @@ USER_AGENT = "targum/0.1 (+https://github.com/DLangellotti/targum)"
 #: itself; setting our own on top would give a fingerprint that disagrees with its
 #: headers, which is its own tell — israelhayom.co.il refused exactly that.
 BROWSER = "chrome"
+#: How long one wait on the wire may last. On a streamed response `curl_cffi` turns this
+#: into a speed floor of one byte a second over that window, not a cap on the fetch:
+#: measured 2026-10-23, a host sending a byte every half second held a `timeout=2` read
+#: for fifty seconds. So it is never the only clock (targum-internal#511).
 TIMEOUT = 30.0
+
+#: The most one fetch may take from first knock to last byte, redirects and body
+#: together, in seconds. A host that trickles bytes passes `TIMEOUT` for ever, and the
+#: build it holds is a box worker held with it. An article is hundreds of kilobytes and
+#: arrives in a second or two; a minute and a half is room for a slow site and none for
+#: one that is stalling on purpose. The proxied retry gets a deadline of its own.
+DEADLINE_S = 90.0
+
+#: The same for `download`, which moves recordings up to `MAX_AUDIO_BYTES` rather than
+#: pages. Half an hour is a gigabyte at half a megabyte a second; an episode is a tenth
+#: of that.
+DOWNLOAD_DEADLINE_S = 30 * 60.0
 
 #: The least time between two knocks on one host, in seconds. The fetch door is polite
 #: because it has to be: one afternoon of careless probing from a laptop on 2026-09-08
@@ -221,7 +237,37 @@ def _session(proxy: str = "") -> Any:
     return session
 
 
-def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "") -> tuple[Any, str]:
+def _overdue(url: str, host: str, via: str, ends: float) -> None:
+    """Refuse to go on once the fetch's deadline has passed.
+
+    No status, like a timeout, so `shut()` reads it as a shut door: a host that trickles
+    is a host that will trickle next time too.
+    """
+    if time.monotonic() >= ends:
+        raise Unreachable(
+            f"We couldn't open {url}.",
+            "It was taking too long",
+            host=host,
+            via=via,
+            key="fetch.would-not-open",
+            url=url,
+        )
+
+
+def _streamed(response: Any, url: str, host: str, via: str, ends: float) -> Any:
+    """The body's chunks, until the deadline passes.
+
+    Checked between chunks, so the overrun is at most one wait on the wire, and that
+    wait is bounded by `TIMEOUT`'s speed floor.
+    """
+    for chunk in response.iter_content():
+        _overdue(url, host, via, ends)
+        yield chunk
+
+
+def _open(
+    url: str, params: dict[str, str] | None, *, via: str, proxy: str = "", ends: float
+) -> tuple[Any, str]:
     """Walk to the page, checking every hop, and return the streaming response.
 
     Redirects are followed by hand rather than by the client, because every hop has to
@@ -230,6 +276,9 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
     is advisory — the proxy resolves the name — and what stands in for it is that only
     https is ever retried that way: TLS is end-to-end through CONNECT, so the proxy
     cannot substitute an origin without failing certificate validation.
+
+    `ends` is the `time.monotonic()` by which the whole fetch must be done, body
+    included; each hop is checked against it and given no longer than what is left.
     """
     target = url
     session = _session(proxy)
@@ -237,11 +286,12 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
         _reachable(target)
         host = urlparse(target).hostname or ""
         _polite(host)
+        _overdue(url, host, via, ends)
         try:
             response = session.get(
                 target,
                 params=params,
-                timeout=TIMEOUT,
+                timeout=min(TIMEOUT, ends - time.monotonic()),
                 allow_redirects=False,
                 impersonate=BROWSER,
                 stream=True,
@@ -591,7 +641,8 @@ def page(url: str) -> Fetched:
 
 
 def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "") -> Fetched:
-    response, _ = _open(url, params, via=via, proxy=proxy)
+    ends = time.monotonic() + DEADLINE_S
+    response, target = _open(url, params, via=via, proxy=proxy, ends=ends)
     try:
         declared = response.headers.get("content-length")
         if declared and declared.isdigit() and int(declared) > MAX_BYTES:
@@ -602,7 +653,7 @@ def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
                 url=url,
             )
         body = bytearray()
-        for chunk in response.iter_content():
+        for chunk in _streamed(response, url, urlparse(target).hostname or "", via, ends):
             body += chunk
             if len(body) > MAX_BYTES:
                 raise TargumError(
@@ -656,11 +707,12 @@ def opening(url: str, most: int = OPENING_BYTES) -> Opening:
 
 
 def _opened(url: str, most: int, *, via: str, proxy: str = "") -> Opening:
-    response, _ = _open(url, None, via=via, proxy=proxy)
+    ends = time.monotonic() + DEADLINE_S
+    response, target = _open(url, None, via=via, proxy=proxy, ends=ends)
     try:
         declared = response.headers.get("content-length")
         body = bytearray()
-        for chunk in response.iter_content():
+        for chunk in _streamed(response, url, urlparse(target).hostname or "", via, ends):
             body += chunk
             if len(body) >= most:
                 break
@@ -708,7 +760,8 @@ def download(url: str, into: Path, max_bytes: int = MAX_AUDIO_BYTES) -> Download
 
 def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") -> Downloaded:
     try:
-        response, target = _open(url, None, via=via, proxy=proxy)
+        ends = time.monotonic() + DOWNLOAD_DEADLINE_S
+        response, target = _open(url, None, via=via, proxy=proxy, ends=ends)
     except TargumError:
         into.unlink(missing_ok=True)
         raise
@@ -720,7 +773,7 @@ def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") ->
             )
         written = 0
         with into.open("wb") as out:
-            for chunk in response.iter_content():
+            for chunk in _streamed(response, url, urlparse(target).hostname or "", via, ends):
                 written += len(chunk)
                 if written > max_bytes:
                     raise TargumError(
