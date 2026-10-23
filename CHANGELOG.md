@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Sign in reads again on the four legal pages (targum-internal#516). The documents' link
+  rule in `public.css` was more specific than the corner's call to action and painted it
+  ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
+  browser test holds the button to paper on ink at weight 600 on all four pages.
 - A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
   door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
   than a cap: a host sending a byte every half second held a 2-second read for fifty

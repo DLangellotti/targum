@@ -258,13 +258,16 @@ body.public {
 
 /* §4 rations the accent to the single primary action in a view, and on a page that is
    nothing but prose an accent on every link makes the accent the body-text colour —
-   the one thing §10 names outright. Same ruling as the about page, same reason. */
-.legal .sheet a:not(.brand) {
+   the one thing §10 names outright. Same ruling as the about page, same reason.
+   The document's links only: the masthead's name and its Sign in keep their own rules,
+   and this one, being more specific, once painted the Sign in ink on its ink fill
+   (targum-internal#516). */
+.legal .sheet > :not(.masthead) a {
   color: var(--ink);
   text-decoration: none;
   border-block-end: 1px solid var(--rule);
 }
-.legal .sheet a:not(.brand):hover {
+.legal .sheet > :not(.masthead) a:hover {
   border-block-end-color: var(--ink-soft);
 }
 
