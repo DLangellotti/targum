@@ -2248,12 +2248,15 @@ def about_page(language: str = "en", address: str = "") -> str:
             return 0
         return min(4, 1 + int(3 * (count - 1) / max(1, busiest - 1)))
 
+    said = page_words(language)
     return (
         _environment()
         .get_template("about.html.j2")
         .render(
-            t=page_words(language),
+            t=said,
             page_language=_page_language(language),
+            title=said("about.page.built-in-public-targum", "built in public — targum"),
+            description=said("about.head.description", "Every change to targum, day by day."),
             work=found,
             tn=page_counts(language),
             # The count as a person writes it: 1,174, and 1 174 in Russian.

@@ -337,7 +337,9 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
     BEFORE=/var/lib/targum/backups/targum.db.before-${KEEP_AS}-${STAMP}
     systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
       /usr/bin/mkdir -p /var/lib/targum/backups
-    if ! systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+    # UMask=0077: the copy holds reader data, so it is 0600 targum, not the 0644 the
+    # default umask gave every copy until targum-internal#514.
+    if ! systemd-run --quiet --wait --pipe --collect -p UMask=0077 --uid=targum --gid=targum \
         /usr/bin/sqlite3 /var/lib/targum/targum.db ".backup '\$BEFORE'"; then
       echo "   the database could not be copied before this deploy; nothing was installed." >&2
       exit 1

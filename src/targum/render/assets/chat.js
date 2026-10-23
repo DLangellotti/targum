@@ -558,6 +558,7 @@
         }
         var pair = document.createElement("div");
         pair.className = "chat-pair" + (p.recast ? " recast" : "");
+        if (p.recast) pair.setAttribute("data-said", t("chat.recast.you-said", "you said"));
         var he = document.createElement("span");
         he.className = "chat-he";
         he.setAttribute("lang", conversing());
@@ -577,6 +578,7 @@
           var changed = correctedBy(asked === undefined ? lastAsked : asked, p.he) || [];
           {
             pair.className += " corrected";
+            pair.setAttribute("data-said", t("chat.recast.corrected", "corrected"));
             var fixed = {};
             changed.forEach(function (w) { fixed[w] = true; });
             Array.prototype.forEach.call(he.querySelectorAll(".chat-w"), function (span) {
@@ -1215,7 +1217,7 @@
     // English" until 2026-09-14.
     var named = (window.TARGUM_LANGUAGES || {})[listedIn];
     if (named && listedIn !== "en") {
-      field.placeholder = t("chat.write-in", "Write in {language} or English", { language: named });
+      field.placeholder = t("chat.write-in", "{language} or English", { language: named });
     }
     return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
       if (answer.error) return tell(answer.error);

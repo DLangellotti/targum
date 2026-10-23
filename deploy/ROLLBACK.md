@@ -236,11 +236,11 @@ not optional:
 
 ```sh
 COPY=/var/lib/targum/backups/targum.db.before-rollback-$(date -u +%Y-%m-%d-%H%M)
-ssh root@targum.page "runuser -u targum -- sqlite3 /var/lib/targum/targum.db '.backup $COPY' && cp $COPY /tmp/rollback-check.db && sqlite3 /tmp/rollback-check.db 'PRAGMA integrity_check; PRAGMA user_version;'; rm -f /tmp/rollback-check.db*"
+ssh root@targum.page "runuser -u targum -- sqlite3 /var/lib/targum/targum.db '.backup $COPY' && chmod 0600 $COPY && cp $COPY /tmp/rollback-check.db && sqlite3 /tmp/rollback-check.db 'PRAGMA integrity_check; PRAGMA user_version;'; rm -f /tmp/rollback-check.db*"
 ```
 
 You should see `ok` and the schema number (`47` on 2026-10-22). Taken as `targum`, so the
-copy is the service's and not root's; checked on a throwaway duplicate, so the copy
+copy is the service's and not root's, and made `0600` because it holds reader data; checked on a throwaway duplicate, so the copy
 itself is never opened and grows no `-wal`/`-shm` beside it. The name does not match
 the `before-<sha12>-<stamp>` pattern `deploy.sh` prunes to the last ten, so it stays
 until somebody removes it. (The `before-deploy-*` copies from before #876 were taken as
@@ -335,10 +335,14 @@ API, never a plain `cp` of a live WAL database), and they all sit in
 
 - `targum.db.before-<sha12>-<YYYYMMDDTHHMMSSZ>`: the copy `deploy.sh` takes itself, from
   targum#876 on, as `targum` and checked with `integrity_check` before anything is
-  installed. `<sha12>` is the commit being deployed (the bad one, for the copy taken just
+  installed, `0600 targum` from targum-internal#514 on. `<sha12>` is the commit being deployed (the bad one, for the copy taken just
   before it), with `-dirty` for a tree with uncommitted changes. The last ten are kept.
 - `targum.db.before-rollback-<date>`: the one step 3b takes by hand.
-- `targum-YYYYMMDD-HHMMSS.db`: the nightly copies `targum-backup.timer` takes at 04:00 UTC.
+- `targum-YYYYMMDD-HHMMSS.db`: the nightly copies `targum-backup.timer` takes at 04:00 UTC,
+  `0600 targum` from targum-internal#514 on.
+
+Every step below reads a copy as root (`cp`, `install`), so a `0600 targum` copy, an
+older `0644` one and a `0600 root` one all restore the same way.
 
 Copies from before #876 (`targum.db.before-deploy-<date>`, taken by hand) may still sit
 beside the database in `/var/lib/targum/`, so look in both:
@@ -428,6 +432,7 @@ would risk.
 ```sh
 STAMP=$(date -u +%Y-%m-%d-%H%M)
 runuser -u targum -- sqlite3 /var/lib/targum/targum.db ".backup /var/lib/targum/targum.db.before-restore-$STAMP"
+chmod 0600 /var/lib/targum/targum.db.before-restore-$STAMP
 install -o targum -g targum -m 0600 "$FROM" /var/lib/targum/restore-source.db
 runuser -u targum -- sqlite3 /var/lib/targum/targum.db ".restore /var/lib/targum/restore-source.db"
 runuser -u targum -- sqlite3 /var/lib/targum/targum.db 'PRAGMA integrity_check; PRAGMA user_version;'

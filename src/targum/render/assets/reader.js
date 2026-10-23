@@ -260,7 +260,7 @@ var targumReader = function () {
   }
 
   /* The word a "Met in" link on Your Words opened this page at (targum-internal#497):
-     `?met=<dictionary form>#<sentence>`. Its first time round in that sentence wears
+     `?met=<dictionary form>#<sentence>`, or `#c:v` for a verse. Its first time round in that sentence wears
      the practice card's mark, so the reader finds it in its line at a glance. Drawn with
      the word's other marks rather than after them, so a redraw keeps it. */
   var metWord = "";
@@ -2965,7 +2965,13 @@ var targumReader = function () {
     }
 
     var layers = [];
-    var metHere = !beside && !!metWord && segmentId === metAt;
+    // A Torah book's "Met in" opens its portion at the verse (targum-internal#506), and
+    // a verse's row answers to `#c:v` as well as to its sentence.
+    var metHere =
+      !beside &&
+      !!metWord &&
+      !!metAt &&
+      (segmentId === metAt || (!!holder && holder.id === metAt));
     (beside ? besideRows(table, segmentId) : wordData[segmentId] || []).forEach(function (token) {
       var lemma = lemmas[token[4]];
       var classes = ["w"];

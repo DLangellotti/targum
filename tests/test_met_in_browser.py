@@ -24,6 +24,7 @@ from test_reader_browser import (  # noqa: E402, F401
     address,
     browser,
     built,
+    chapter,
     coin,
     opened,
 )
@@ -71,6 +72,44 @@ def test_the_reader_opens_at_the_sentence_with_the_word_marked(browser, built: P
     assert lemmas[got["index"]] == word
     assert got["seen"], "the page opens where the word is"
     assert "inset" in got["ring"], "a ring as well as a wash: never colour alone"
+
+
+@pytest.fixture(scope="module")
+def portion(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A reader whose rows are verses, as a Torah portion's are."""
+    return chapter(tmp_path_factory.mktemp("portion") / "reader", verses="Genesis")
+
+
+def test_a_torah_book_opens_its_portion_at_the_verse_with_the_word_marked(
+    browser, portion: Path
+) -> None:
+    """A Torah book is read as its portions, so its "Met in" goes by `/torah/`, which
+    lands on the portion at `#c:v` (targum-internal#506): the verse's row, not the
+    sentence's id, and the word is marked there all the same."""
+    word = lemma_in(AT, 2)
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(portion) + "?met=" + word + f"#1:{AT + 1}")
+    page.wait_for_selector(".w.met-here")
+    got = page.evaluate(
+        """() => {
+          const marked = [...document.querySelectorAll('.w.met-here')];
+          const box = marked[0].getBoundingClientRect();
+          return {
+            count: marked.length,
+            row: marked[0].closest('.pair').id,
+            pair: marked[0].closest('.pair').getAttribute('data-id'),
+            index: Number(marked[0].getAttribute('data-lemma')),
+            seen: box.top >= 0 && box.bottom <= window.innerHeight,
+          };
+        }"""
+    )
+    lemmas = page.evaluate("JSON.parse(document.getElementById('targum-data').textContent).lemmas")
+    context.close()
+    assert got["count"] == 1
+    assert (got["row"], got["pair"]) == (f"1:{AT + 1}", f"{AT:04d}.000-aaaaaa")
+    assert lemmas[got["index"]] == word
+    assert got["seen"], "the page opens at the verse"
 
 
 def test_without_a_word_named_nothing_is_marked(browser, built: Path) -> None:

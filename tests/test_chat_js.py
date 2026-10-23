@@ -536,7 +536,7 @@ def test_a_spoken_line_carries_its_language_and_where_the_reader_is() -> None:
 
 def test_the_box_names_the_conversation_s_language() -> None:
     page = run(do=[], stored={"targum:learning": '["he", "ru"]', "targum:language": "ru"})
-    assert page["placeholder"] == "Write in Russian or English"
+    assert page["placeholder"] == "Russian or English"
 
 
 def test_a_conversation_opened_again_keeps_its_cards_and_a_card_links_to_its_source() -> None:
@@ -1361,6 +1361,8 @@ def test_a_recast_that_changed_something_says_so_and_marks_the_words() -> None:
     assert recast["fixed"] == ["הָלַכְתִּי"], "the word that changed, and only it"
     assert recast["why"] == {"text": "Past tense: הָלַכְתִּי, not הָלַךְ.", "hidden": True}
     assert not page["pairs"][1]["corrected"] and page["pairs"][1]["why"] is None
+    # The label is the catalogue's, not English in the stylesheet (#472, qa-claude).
+    assert recast["said"] == "corrected" and page["pairs"][1]["said"] is None
 
 
 def test_a_right_line_recast_for_idiom_is_not_called_corrected() -> None:
@@ -1370,6 +1372,7 @@ def test_a_right_line_recast_for_idiom_is_not_called_corrected() -> None:
     right = corrected("אני הלכתי אתמול לחנות", reply=RIGHT, ledger=KNOWN)
     assert not right["pairs"][0]["corrected"] and right["pairs"][0]["fixed"] == []
     assert right["pairs"][0]["why"] is None
+    assert right["pairs"][0]["said"] == "you said"
     english = corrected("I went to the shop yesterday", reply=RIGHT, ledger=KNOWN)
     assert not english["pairs"][0]["corrected"]
     explained = corrected("I went to the shop yesterday", ledger=KNOWN)
