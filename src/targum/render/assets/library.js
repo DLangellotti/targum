@@ -2035,21 +2035,24 @@
     var state = open.querySelector(".row-state");
     open.disabled = true;
     tell(state, t("library.build.getting-ready", "We're getting it ready…"));
-    ask("/prepare", {
-      source: entry.source,
-      // The language this reader reads into, not English by assumption. They read in
-      // two; a button that always bought one of them would be a button that reads their
-      // mind wrong half the time. Clamped to what the account is offered, so a
-      // remembered choice that no longer stands asks for English rather than a refusal.
-      to: window.TargumSync ? window.TargumSync.into(lang.into()) : lang.into() || "en",
-      from: entry.language,
-      words: true,
-      gloss: false,
-      // Every published translation this text has. The reader switches between them.
-      translations: entry.translations.map(function (t) {
-        return t.source;
-      }),
-    })
+    buildReady(entry)
+      .then(function () {
+        return ask("/prepare", {
+          source: entry.source,
+          // The language this reader reads into, not English by assumption. They read in
+          // two; a button that always bought one of them would be a button that reads their
+          // mind wrong half the time. Clamped to what the account is offered, so a
+          // remembered choice that no longer stands asks for English rather than a refusal.
+          to: window.TargumSync ? window.TargumSync.into(lang.into()) : lang.into() || "en",
+          from: entry.language,
+          words: true,
+          gloss: false,
+          // Every published translation this text has. The reader switches between them.
+          translations: (entry.translations || []).map(function (t) {
+            return t.source;
+          }),
+        });
+      })
       .then(function (job) {
         if (job.error) throw new Error(job.error);
         if (job.blocked) throw new Error(job.blocked);
@@ -2482,6 +2485,15 @@
             have[entry.id] = true;
           });
           sayOn(both[1]);
+          if (shelfFiles[code + ".build"] && !buildAsked[code]) {
+            buildAsked[code] = new Promise(function (resolve) {
+              onceDrawn(function () {
+                askShelfFile(shelfFiles[code + ".build"]).then(buildOn, function () {
+                  delete buildAsked[code];
+                }).then(resolve);
+              });
+            });
+          }
           if (english && english !== saidHere) {
             onceDrawn(function () {
               askShelfFile(english).then(sayOn, function () {});
@@ -2499,6 +2511,29 @@
       );
     }
     return shelfAsked[code];
+  }
+
+  /* What a Build press sends, a row's source and its published translations: a file per
+     language (`"<code>.build"`), asked after the first draw. A press that comes first
+     waits for it. */
+  var buildAsked = {};
+  function buildOn(got) {
+    var by = (got && got.build) || {};
+    catalogue.forEach(function (entry) {
+      var one = by[entry.id];
+      if (one && entry.source === undefined) {
+        entry.source = one.source;
+        entry.translations = one.translations || [];
+      }
+    });
+  }
+  function buildReady(entry) {
+    if (entry.source !== undefined) return Promise.resolve();
+    return Promise.all(
+      Object.keys(buildAsked).map(function (code) {
+        return buildAsked[code];
+      })
+    );
   }
 
   /* After the first draw, or now if it is past: what the first card does not need. */

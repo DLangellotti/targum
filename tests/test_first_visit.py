@@ -252,6 +252,8 @@ def _keys_of(code: str) -> set[str]:
         return {"ids"}
     if code.endswith(".en"):
         return {"blurb"}
+    if code.endswith(".build"):
+        return {"build"}
     if "." in code:
         return {"blurbs", "blurb"}
     return {"catalogue"}
@@ -306,12 +308,16 @@ def test_a_row_s_blurbs_are_a_file_per_page_language() -> None:
     by_id = {entry.id: entry for entry in everything()}
     files = shelf_files(library_page(TOKEN))
     for code, rows in _rows_of(files).items():
-        assert not any("blurb" in row or "blurbs" in row for row in rows), code
+        assert not any(set(row) & builder.AFTER_THE_CARD for row in rows), code
         english = json.loads(asset_files()[files[f"{code}.en"]][0])["blurb"]
         assert english == {
             row["id"]: by_id[row["id"]].blurb for row in rows if by_id[row["id"]].blurb
         }
-        for key in [key for key in files if key.startswith(f"{code}.") and key != f"{code}.en"]:
+        for key in [
+            key
+            for key in files
+            if key.startswith(f"{code}.") and key not in (f"{code}.en", f"{code}.build")
+        ]:
             other = key.split(".", 1)[1]
             said = json.loads(asset_files()[files[key]][0])
             for row in rows:
@@ -321,6 +327,21 @@ def test_a_row_s_blurbs_are_a_file_per_page_language() -> None:
                     assert said["blurb"][row["id"]] == by_id[row["id"]].blurb
                 else:
                     assert row["id"] not in said["blurb"]
+
+
+def test_what_a_build_press_sends_is_a_file_after_the_card() -> None:
+    """#484: a row's `source` and `translations` are read only by a Build press, so they
+    are `<code>.build`, asked after the first draw, not in the rows the card waits for."""
+    from targum.catalogue import everything
+
+    by_id = {entry.id: entry.state() for entry in everything()}
+    files = shelf_files(library_page(TOKEN))
+    for code, rows in _rows_of(files).items():
+        build = json.loads(asset_files()[files[f"{code}.build"]][0])["build"]
+        assert set(build) == {row["id"] for row in rows}, code
+        for row in rows:
+            assert build[row["id"]]["source"] == by_id[row["id"]].get("source", "")
+            assert build[row["id"]]["translations"] == (by_id[row["id"]].get("translations") or [])
 
 
 def test_a_different_shelf_is_a_different_file(monkeypatch: pytest.MonkeyPatch) -> None:

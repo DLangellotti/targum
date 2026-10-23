@@ -5006,6 +5006,11 @@ def read_as_portions(entry: Any) -> bool:
     return bool(corpus.readable())
 
 
+#: What a row on the shelf carries in a file of its own rather than in its language's
+#: rows, so the first card does not wait for it (#484): its blurbs, which are a file per
+#: page language, and what a Build press sends.
+AFTER_THE_CARD = frozenset({"blurb", "blurbs", "source", "translations"})
+
 #: The language whose shelf also carries another's rows: the Aramaic door stands on the
 #: Hebrew shelf (`BESIDE_HEBREW` in `library.js`).
 SHELF_BESIDE = {"arc": "he"}
@@ -5031,10 +5036,14 @@ def shelf_files(
     is `{"blurb": {id: text}}`; another page language's is `{"blurbs": {id: text}}`
     with `"blurb"` for the rows it has none for, so the first card wants one file. A page
     in another language asks for the English after it has drawn, for search.
+
+    What only a Build press reads, a row's `source` and `translations`, is
+    `"<code>.build"`, asked after the first draw too, and waited for by a press that
+    comes before it.
     """
     by_language: dict[str, list[dict[str, Any]]] = {}
     for place, whole in enumerate(entries, start=1):
-        entry = {key: value for key, value in whole.items() if key not in ("blurb", "blurbs")}
+        entry = {key: value for key, value in whole.items() if key not in AFTER_THE_CARD}
         codes = {
             str(code).split("-")[0].lower()
             for code in (entry.get("languages") or [entry.get("language", "")])
@@ -5057,6 +5066,18 @@ def shelf_files(
         )
         english = {row["id"]: row["said"]["blurb"] for row in rows if row["said"].get("blurb")}
         files[f"{code}.en"] = data_file(f"catalogue-{code}-en.json", {"blurb": english})
+        files[f"{code}.build"] = data_file(
+            f"catalogue-{code}-build.json",
+            {
+                "build": {
+                    row["id"]: {
+                        "source": row["said"].get("source", ""),
+                        "translations": row["said"].get("translations") or [],
+                    }
+                    for row in rows
+                }
+            },
+        )
         others = sorted(
             {key for row in rows for key, said in row["said"].get("blurbs", {}).items() if said}
         )

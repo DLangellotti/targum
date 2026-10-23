@@ -415,8 +415,8 @@ def two_shelves_html() -> str:
 
 
 def shelf_asked(page: Any) -> list[str]:
-    """The shelf's files the page asked for, less the order, which is asked after the
-    first draw (and so may or may not have gone yet)."""
+    """The shelf's files the page asked for, less the order and the build files, which
+    are asked after the first draw (and so may or may not have gone yet)."""
     return [
         name
         for name in (
@@ -424,7 +424,7 @@ def shelf_asked(page: Any) -> list[str]:
             for url in page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
             if "/assets/catalogue" in url
         )
-        if name != "catalogue-order"
+        if name != "catalogue-order" and not name.endswith("-build")
     ]
 
 
@@ -620,5 +620,53 @@ def test_a_russian_page_draws_its_blurbs_from_their_own_file(browser) -> None:
     blurb = page.locator(".row-blurb", has_text=said).first
     blurb.wait_for()
     assert blurb.get_attribute("lang") == "ru"
+    assert not thrown
+    context.close()
+
+
+def test_a_build_press_before_its_file_waits_for_it_and_sends_the_source(
+    browser, page_html
+) -> None:
+    """A row's `source` and `translations` are a file asked after the first draw (#484).
+    A press that comes before it waits for it, and then sends what it says."""
+    from targum.render.builder import asset_files
+
+    found = re.search(r"/assets/catalogue-he-build\.[0-9a-f]{16}\.json", page_html)
+    assert found
+    body = asset_files()[found.group(0)][0]
+    build = json.loads(body)["build"]
+    # At an address of the test's own, so it can be held: the conftest answers every
+    # file the server holds before a test's route sees it.
+    elsewhere = "/assets/catalogue-he-build.0000000000000000.json"
+    html = page_html.replace(found.group(0), elsewhere)
+    sent: list[dict] = []
+    answers: dict[str, Any] = {
+        "/readers": {"readers": [], "shared": [], "signedIn": True},
+        elsewhere: "hold",
+        "/prepare": {"error": "We can't open this one right now. Try another text."},
+    }
+    context, page, thrown, held, url = library(browser, html, answers, phone=True)
+    page.on(
+        "request",
+        lambda request: (
+            sent.append(json.loads(request.post_data or "{}"))
+            if "/prepare" in request.url
+            else None
+        ),
+    )
+    page.goto(url)
+    card = page.locator("#shelves button.band-card").first
+    card.click()
+    page.wait_for_timeout(300)
+    assert sent == [], "no press goes out without its source"
+    assert held, "the build file was asked after the draw"
+    held[0].fulfill(
+        status=200, content_type="application/json", body=asset_files()[found.group(0)][0]
+    )
+    page.wait_for_function("() => true")
+    page.wait_for_timeout(300)
+    assert len(sent) == 1
+    assert sent[0]["source"] in {one["source"] for one in build.values()}
+    assert sent[0]["source"]
     assert not thrown
     context.close()
