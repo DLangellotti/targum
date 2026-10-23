@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Sign in reads again on the four legal pages (targum-internal#516). The documents' link
+  rule in `public.css` was more specific than the corner's call to action and painted it
+  ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
+  browser test holds the button to paper on ink at weight 600 on all four pages.
 - Database copies on the box are `0600 targum` rather than `0644` (targum-internal#514).
   The copy `deploy.sh` takes before an install runs under `UMask=0077`, and so does the
   nightly `targum-backup.service`; the two copies `deploy/ROLLBACK.md` has you take by hand
