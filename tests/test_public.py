@@ -778,6 +778,33 @@ def test_every_public_page_names_the_link_preview() -> None:
     assert struct.unpack(">II", head[16:24]) == LINK_PREVIEW_SIZE, "the size the tags say"
 
 
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_the_about_page_carries_the_public_head(language: str) -> None:
+    """targum-internal#518: /about is in the sitemap and in every public foot, and a shared
+    link to it was a bare line, with no description and no picture. It takes the head
+    every other public page has, from the same partial."""
+    from targum.render.builder import about_page
+
+    page = about_page(language=language, address=ADDRESS)
+    for tag in (
+        'name="description" content="',
+        'property="og:title" content="',
+        'property="og:description" content="',
+        f'property="og:url" content="{ADDRESS}/about"',
+        f'property="og:image" content="{ADDRESS}/link-preview.png"',
+        'property="og:image:alt" content="',
+        'name="twitter:card" content="summary_large_image"',
+        f'<link rel="canonical" href="{ADDRESS}/about">',
+    ):
+        assert tag in page, tag
+    described = re.search(r'<meta name="description" content="([^"]+)"', page)
+    assert described and described.group(1).strip()
+    if language == "ru":
+        assert "Все изменения" in described.group(1), "the Russian page says it in Russian"
+    assert page.count("<title>") == 1 and page.count('rel="canonical"') == 1
+    assert 'hreflang="' not in page, "one address for every language, so no alternates"
+
+
 def test_a_page_with_no_address_names_no_preview(monkeypatch: pytest.MonkeyPatch) -> None:
     """A local build knows no origin, and a picture at a relative address is one a crawler
     drops. Nothing is better than a broken one."""

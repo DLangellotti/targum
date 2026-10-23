@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A shared link to /about shows the picture and says what the page is (targum-internal#518).
+  It was the one page in the sitemap with no public head: no description, no `og:` tags,
+  no `twitter:card`. It now includes `_public_head.html.j2` like the others, keeps its one
+  address for every language, and a test holds the tags in English and Russian.
 - Database copies on the box are `0600 targum` rather than `0644` (targum-internal#514).
   The copy `deploy.sh` takes before an install runs under `UMask=0077`, and so does the
   nightly `targum-backup.service`; the two copies `deploy/ROLLBACK.md` has you take by hand
