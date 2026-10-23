@@ -951,3 +951,44 @@ def test_the_credit_heading_is_said_in_the_pages_language(
     entry = a_torah_row(monkeypatch, drawn=True)
     assert "<h2>Перевод</h2>" in provenance(text_page(entry, ADDRESS, language="ru"))
     assert "<h2>Translation</h2>" in provenance(text_page(entry, ADDRESS, language="en"))
+
+
+@pytest.mark.parametrize(("language", "ours"), [("en", "We translated this text."), ("ru", None)])
+def test_a_bought_translation_says_it_is_ours_and_names_targum_as_translator(
+    monkeypatch: pytest.MonkeyPatch, language: str, ours: str | None
+) -> None:
+    """A row whose translation we bought, with no published rendering, says so in words
+    and in the JSON-LD rather than crediting nobody."""
+    from dataclasses import replace
+
+    from targum import catalogue
+    from targum.catalogue import Line
+    from targum.strings import text
+
+    bought = replace(CATALOGUE[0], id="a-bought-text", translations=[], model="claude-opus-5")
+    lines = [
+        Line(source="כיון שנושב רוח חם", target="As soon as a warm wind", said={"ru": "Как только"})
+    ]
+    monkeypatch.setattr(catalogue, "sample_for", lambda entry_id: lines)
+    html = text_page(bought, ADDRESS, language=language)
+    said = ours or text("text.page.we-translated-this-text", language)
+    assert said in strip(provenance(html))
+    assert structured(html)["workTranslation"] == [
+        {
+            "@type": "Book",
+            "inLanguage": language,
+            "translator": {"@type": "Organization", "name": "targum"},
+        }
+    ]
+
+
+def test_lines_we_translated_name_targum_beside_the_english_in_the_json_ld(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = a_torah_row(monkeypatch, drawn=False)
+    works = structured(text_page(entry, ADDRESS, language="ru"))["workTranslation"]
+    assert [(work.get("name"), work["inLanguage"]) for work in works] == [
+        (ENGLISH, "en"),
+        (None, "ru"),
+    ]
+    assert works[1]["translator"] == {"@type": "Organization", "name": "targum"}
