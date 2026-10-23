@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The Russian interface after ling-ru's read-through of the whole catalogue
+  (targum-internal#476): 93 strings. A language name no longer sits capitalised
+  mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
+  broke after 1–4 or 21–24 say the number after a colon or use «ч»; «Играть» became
+  «Включить»; Continue is a block («в блоке «Продолжить»»); a queued text says «В очереди
+  перед ним {n} текст» as the other queue lines do; «Экспериментальный» became «Пробный»,
+  which fits the badge; and plan, prompts, waitlist and the AI assistant have one word
+  each. English is unchanged.
 - Subscriptions' last three loose ends after #883 and #890 (targum-internal#475). An
   unsubscribed subscription with nothing listed says "You're unsubscribed, so nothing new
   comes here." instead of promising new ones. A Resume the door refuses with 409 (a
