@@ -12,6 +12,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Russian names a language in its case mid-sentence (David, 2026-10-23;
+  targum-internal#524): «На иврите пока ничего нет.», not «На языке «Иврит» пока ничего
+  нет.». A translation asks for a form on the same blank, `{language:in}` («на иврите»),
+  `{language:adv}` («по-русски») or `{language:nom}` («иврит»), and `language-in.*`,
+  `language-adv.*` and `language-nom.*` hold the forms for the eleven languages targum
+  names; a language with none is quoted as before. 37 Russian sentences changed, on the
+  server, the templates and the scripts alike. English is unchanged.
 - The Russian interface after ling-ru's read-through of the whole catalogue
   (targum-internal#476): 93 strings. A language name no longer sits capitalised
   mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that

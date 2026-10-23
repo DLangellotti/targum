@@ -479,7 +479,7 @@ def _with_called_strings(html: str) -> str:
     said = given.get("strings") if isinstance(given, dict) else None
     if not code or not isinstance(said, dict):
         return html
-    from ..strings import catalogue
+    from ..strings import CASED, catalogue, language_codes
 
     known = catalogue(code)
     missing = {
@@ -489,9 +489,16 @@ def _with_called_strings(html: str) -> str:
         for key in dict.fromkeys(_CALLED.findall(html + linked_scripts(html)))
         if key in known and key not in said
     }
-    if not missing:
-        return html
     filled = {**given, "strings": {**said, **missing}}
+    if any(CASED.search(text) for text in filled["strings"].values()):
+        # A sentence that names a language in a case (targum-internal#524) needs the
+        # forms, and the names the page fills it with mapped to their codes.
+        filled["strings"].update(
+            {key: text for key, text in known.items() if key.startswith("language-")}
+        )
+        filled["names"] = language_codes(code)
+    if filled == given:
+        return html
     return html[: at.end()] + str(htmlsafe_json_dumps(filled, sort_keys=True)) + html[end:]
 
 
@@ -699,15 +706,18 @@ def page_words(language: str) -> Callable[..., Markup]:
     English apostrophe into an entity and change every page that has one. The catalogue
     test keeps these strings free of quotes and angle brackets, so one can stand in an
     attribute."""
-    from ..strings import SOURCE, catalogue
+    from ..strings import SOURCE, cased, catalogue
 
     code = (language or SOURCE).split("-")[0].lower()
     said = catalogue(code) if code != SOURCE else {}
 
     def t(key: str, english: str, **fill: object) -> Markup:
         # A blank is filled escaped, since what fills it can come from anywhere.
-        text = Markup(said.get(key, english))
-        return text.format(**fill) if fill else text
+        if not fill:
+            return Markup(said.get(key, english))
+        # A language's name in the case the sentence asks for (targum-internal#524).
+        text, filled = cased(said.get(key, english), code, fill)
+        return Markup(text).format(**filled)
 
     return t
 
@@ -724,11 +734,12 @@ def page_counts(language: str) -> Callable[..., Markup]:
     The English written at the call is the fallback, the same promise `t` makes, and `{n}`
     is filled for free because every counted string wants it.
     """
-    from ..strings import counted
+    from ..strings import cased, counted
 
     def tn(key: str, n: int, one: str, other: str, **fill: object) -> Markup:
         said = counted(key, n, language, {"one": one, "other": other})
-        return Markup(said).format(n=n, **fill)
+        text, filled = cased(said, language, fill)
+        return Markup(text).format(n=n, **filled)
 
     return tn
 

@@ -13,11 +13,27 @@
   var given = window.TARGUM_STRINGS || {};
   var said = given.strings || {};
   var language = given.language || "en";
+  // Every way the page names a language, to its code (targum-internal#524).
+  var codes = given.names || {};
+  // The form that stands in where a language has none of the one asked for.
+  var standIn = { "in": "in", adv: "in", nom: "nom" };
+
+  /* A language's name in the form a sentence asks for, `{language:in}`: «на иврите»
+     rather than the menu's «Иврит». The same rule as `strings.case_form` on the server;
+     a capital, `{language:In}`, starts a sentence with it. */
+  function cased(name, asked) {
+    var low = asked.toLowerCase();
+    var code = Object.prototype.hasOwnProperty.call(codes, name) ? codes[name] : null;
+    var form = code ? said["language-" + low + "." + code] || said["language-" + standIn[low] + "." + code] : "";
+    if (!form) form = (said["language-" + standIn[low] + ".any"] || "{language}").split("{language}").join(name);
+    return asked.charAt(0) === low.charAt(0) ? form : form.charAt(0).toUpperCase() + form.slice(1);
+  }
 
   function fillIn(text, fill) {
     if (!fill) return text;
-    return text.replace(/\{(\w+)\}/g, function (all, name) {
-      return Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    return text.replace(/\{(\w+)(?::(in|adv|nom|In|Adv|Nom))?\}/g, function (all, name, asked) {
+      if (!Object.prototype.hasOwnProperty.call(fill, name)) return all;
+      return asked ? cased(String(fill[name]), asked) : String(fill[name]);
     });
   }
 
