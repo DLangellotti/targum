@@ -12,16 +12,34 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the release's checksums and keeps it in the Actions cache, keyed on the version and the
   runner, so a run with the cache warm fetches nothing. apt is the fallback only, for
   when the download fails or BtbN drops the 8.1 branch.
+- The Russian interface after ling-ru's read-through of the whole catalogue
+  (targum-internal#476): 93 strings. A language name no longer sits capitalised
+  mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
+  broke after 1–4 or 21–24 say the number after a colon or use «ч»; «Играть» became
+  «Включить»; Continue is a block («в блоке «Продолжить»»); a queued text says «В очереди
+  перед ним {n} текст» as the other queue lines do; «Экспериментальный» became «Пробный»,
+  which fits the badge; and plan, prompts, waitlist and the AI assistant have one word
+  each. English is unchanged.
 - The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
   "you said" and "corrected", came from the stylesheet in English. They are catalogue
   keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
   Russian. The box's placeholder is shorter ("Hebrew or English", «Иврит или русский»), so
   it fits a phone's one-row field. Hear and the quote card's source link and More options
   are in `test_brand.py`'s 44px registry, which keeps their reach from drifting.
+- A shared link to /about shows the picture and says what the page is (targum-internal#518).
+  It was the one page in the sitemap with no public head: no description, no `og:` tags,
+  no `twitter:card`. It now includes `_public_head.html.j2` like the others, keeps its one
+  address for every language, and a test holds the tags in English and Russian.
 - Sign in reads again on the four legal pages (targum-internal#516). The documents' link
   rule in `public.css` was more specific than the corner's call to action and painted it
   ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
   browser test holds the button to paper on ink at weight 600 on all four pages.
+- Every Hebrew run on the front door and /aliyah says it is Hebrew (targum-internal#517).
+  None of the 68 carried `lang`, so a screen reader read them in the page's English or
+  Russian voice. The templates, the shared band and what `landing.js` draws (the word
+  card, the film's lines and caption, the Genesis verses, with Onkelos as `arc`) now
+  carry `lang` and `dir`. A brand test reads the rendered pages for Hebrew with no
+  language around it, and a browser test presses every word and walks the Torah demo.
 - A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
   door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
   than a cap: a host sending a byte every half second held a 2-second read for fifty
