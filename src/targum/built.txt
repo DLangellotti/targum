@@ -6,7 +6,7 @@
 # deploy/built.md is the brief these are written to.
 
 2026-10-22
-A podcast episode shows its show's artwork as its picture.
+A podcast episode carries the artwork of its show as its picture.
 A Hebrew verb's card names the binyan it takes on that line, and shows that binyan's table.
 News in the Library lists eight topics, each with Subscribe beside it.
 
