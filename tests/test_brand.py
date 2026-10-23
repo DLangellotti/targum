@@ -546,6 +546,11 @@ THUMBED = (
     ".lv-track",
     # And its polish (targum-internal#474): the link to Saved on this device offline.
     ".pl-away a",
+    # The chat's finish (targum-internal#472, B9): Hear under an answer, and the quote
+    # card's source link and More options.
+    ".chat-play",
+    ".quote-source",
+    ".quote-more",
 )
 
 
