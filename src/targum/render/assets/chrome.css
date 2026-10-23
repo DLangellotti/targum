@@ -1565,6 +1565,19 @@ body .site-footer { max-inline-size: var(--column); }
   .site-head-row .site-nav { gap: 0; padding-inline: 0.25rem; }
   .site-nav a { padding-inline: 0; }
 }
+/* A long badge between the two: "Арамейский Экспериментальный" made the row 415px at
+   390 and the account went off the edge, so every Aramaic page in Russian scrolled
+   sideways (targum-internal#522, §14.2). The language may give up room, and only its
+   badge does: it ends in an ellipsis rather than pushing the account off the bar. The
+   name and the chevron keep their size, and the page's own line under the title still
+   says what the badge says. */
+@media (max-width: 40rem) {
+  .site-head-row > .lang-menu { flex: 0 1 auto; min-inline-size: 0; }
+  .lang-menu .lang-open { max-inline-size: 100%; }
+  .lang-menu .lang-open .lang-name,
+  .lang-menu .lang-open::before { flex: none; }
+  .lang-menu .lang-open .lang-status { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+}
 
 /* =====================================================================================
    The components (design.md §12, "The boards are the desk", 2026-10-09; P2 of the

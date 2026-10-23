@@ -6,12 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
-- CI no longer installs ffmpeg from the apt mirror, which still failed several times a
-  day after the timeouts and retries below (run 39907694995 on master, 02a6c102). It
-  takes BtbN's static 8.1 build of `ffmpeg` and `ffprobe` from GitHub, checks it against
-  the release's checksums and keeps it in the Actions cache, keyed on the version and the
-  runner, so a run with the cache warm fetches nothing. apt is the fallback only, for
-  when the download fails or BtbN drops the 8.1 branch.
+- Russian says "known" one way and names the cantillation marks one way (David,
+  2026-10-23; targum-internal#476): 91 strings. A word's stage is «знаю», marking one is
+  «отметить как «знаю»», and a share or count you know reads «вы знаете» («Вы знаете
+  80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
+  marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
+  unchanged.
 - The Russian interface after ling-ru's read-through of the whole catalogue
   (targum-internal#476): 93 strings. A language name no longer sits capitalised
   mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
@@ -20,6 +20,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   перед ним {n} текст» as the other queue lines do; «Экспериментальный» became «Пробный»,
   which fits the badge; and plan, prompts, waitlist and the AI assistant have one word
   each. English is unchanged.
+- Your Progress no longer scrolls sideways on a phone (targum-internal#522, the last
+  blocker on #471). Under 40rem the time figures wrap instead of holding three 91px
+  columns, so "9 ч 28 мин" no longer runs into the next figure: words read take the whole
+  width and the times sit beside or under each other. On an Aramaic page in Russian the
+  bar's long badge pushed the account 25px off the edge; the badge now ends in an
+  ellipsis instead. "Learned on targum" is the ledger's quiet last line rather than text
+  on the desk ground under it, and when the story fails to load What next's two halves
+  each say so instead of standing empty. A browser test loads Progress in Russian at 390
+  and 320 for Hebrew, Aramaic and Yiddish and holds the page to its width with no figure
+  overlapping another.
+- CI no longer installs ffmpeg from the apt mirror, which still failed several times a
+  day after the timeouts and retries below (run 39907694995 on master, 02a6c102). It
+  takes BtbN's static 8.1 build of `ffmpeg` and `ffprobe` from GitHub, checks it against
+  the release's checksums and keeps it in the Actions cache, keyed on the version and the
+  runner, so a run with the cache warm fetches nothing. apt is the fallback only, for
+  when the download fails or BtbN drops the 8.1 branch.
 - The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
   "you said" and "corrected", came from the stylesheet in English. They are catalogue
   keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
@@ -67,6 +83,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `segments.json`, and the reader marks the word in the row that answers to `#12:5` as
   well as in the row named by its sentence. Without the portions built, the book opens as
   any text does.
+- Root no longer writes inside targum's uv tools (targum-internal#513). `deploy.sh` and
+  `rollback.sh` gave the targum tool back with a root `chown -R` before each install; it is
+  now a repair of only what is not targum's, by `find . ! -user targum -execdir chown -h`
+  from inside the tool, so it never follows a symlink the service could have put there.
+  The tool is entered with `cd -P` and its real path checked first, and the deploy or
+  rollback stops if a symlinked directory above it leads anywhere else; INCIDENT.md's hand
+  repair does the same. The install runs from `/` rather than root's closed home. The install itself, and
+  `provision.sh`'s yt-dlp install, run under `runuser -u targum --`, and provision's plugin
+  check runs the tool's python as targum, where it used to run it as root and leave a
+  root-owned `__pycache__` that stops the nightly upgrade, as it did for 18 hours on
+  2026-10-22. Pinned by `tests/test_deploy_backup.py`. Reaches the box with the next deploy
+  or rollback; provision.sh only on its next run.
 - `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
   targum-internal#482): both say when they were first run; `rollback.sh` is the first way
   back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
