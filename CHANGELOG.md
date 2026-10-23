@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The ship scripts no longer write as root inside the service's own folders
+  (targum-internal#515). `ship-parasha`, `ship-daily`, `ship-weekly`, `ship-shared` and
+  `ship-audio` receive with `--rsync-path="runuser -u targum -- rsync"`, run their remote
+  `mkdir`, `mv`, `rm` and `install -d` as targum, and drop the root `chown -R` after, as
+  `deploy.sh` does for the covers since targum#889: a symlink the service planted, or a
+  symlinked parent, can no longer lead a root write or chown out of `/var/lib/targum`.
+  The index files and the weekly's folders go by rsync rather than scp, which cannot run
+  its far end as anyone else. Writing `/etc/targum/targum.env`, the catalogue and the
+  restart stay root. The output and the checks are unchanged. Pinned by
+  `tests/test_ship_as_targum.py`.
 - Database copies on the box are `0600 targum` rather than `0644` (targum-internal#514).
   The copy `deploy.sh` takes before an install runs under `UMask=0077`, and so does the
   nightly `targum-backup.service`; the two copies `deploy/ROLLBACK.md` has you take by hand
