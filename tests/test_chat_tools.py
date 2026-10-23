@@ -153,6 +153,52 @@ def test_open_library_text_says_how(world) -> None:
     assert "error" in tools.open_library_text(ctx, {"id": "nope"})
 
 
+def lined(folder: Path, sentences: list[str], pointed: dict[str, str] | None = None) -> None:
+    """A built text's sentences, and its pointing where given."""
+    segments = [{"id": f"0001.{n:03d}-a", "text": one} for n, one in enumerate(sentences, 1)]
+    (folder / "segments.json").write_text(
+        json.dumps({"segments": segments}, ensure_ascii=False), encoding="utf-8"
+    )
+    if pointed:
+        (folder / "vocalization.json").write_text(
+            json.dumps({"language": "he", "segments": pointed}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+
+def test_open_library_text_hands_over_its_lines(world) -> None:
+    """targum-internal#527: Claude read Genesis "from memory" with targum's text one call
+    away. A text that opens now comes with its lines, a few at a time, pointed where the
+    text was built with vowels, and a note to read from them."""
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    sentences = [f"שורה {n} של אסתר." for n in range(1, 12)]
+    lined(library.shared / "esther-he", sentences, {"0001.001-a": "שׁוּרָה 1 שֶׁל אֶסְתֵּר."})
+    got = tools.open_library_text(ctx, {"id": "esther"})
+    assert [line["n"] for line in got["lines"]] == list(range(1, tools.LINES_AT_ONCE + 1))
+    assert got["lines"][0] == {"n": 1, "text": sentences[0], "pointed": "שׁוּרָה 1 שֶׁל אֶסְתֵּר."}
+    assert "pointed" not in got["lines"][1]
+    assert got["next_line"] == tools.LINES_AT_ONCE + 1
+    assert got["how_to_read"] == tools.READ_FROM_LINES
+    assert "never from memory" in tools.READ_FROM_LINES
+    rest = tools.open_library_text(ctx, {"id": "esther", "from_line": got["next_line"]})
+    assert [line["text"] for line in rest["lines"]] == sentences[tools.LINES_AT_ONCE :]
+    assert "next_line" not in rest, "the end of the text"
+    unbuilt = next(
+        row for row in tools.search_library(ctx, {"limit": 20})["texts"] if not row["on_shelf"]
+    )
+    assert "lines" not in tools.open_library_text(ctx, {"id": unbuilt["id"]}), "nothing to read"
+
+
+def test_the_reader_s_own_copy_is_read_only_with_the_record(world) -> None:
+    library, store, person, home = world
+    lined(home / "ruth-he", ["ויהי בימי שפט השפטים."])
+    ctx = context(library, store, person, home)
+    assert tools.open_library_text(ctx, {"id": "ruth"})["lines"][0]["n"] == 1
+    ctx.sees_record = False
+    assert "lines" not in tools.open_library_text(ctx, {"id": "ruth"})
+
+
 def test_my_shelf_is_mine_and_the_shared_one(world) -> None:
     library, store, person, home = world
     ctx = context(library, store, person, home)

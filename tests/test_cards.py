@@ -142,7 +142,12 @@ def test_check_job_s_text_is_unchanged_and_the_card_reads_the_same_rows(
     monkeypatch.setattr(connector, "context", lambda *_a, **_k: None)
     monkeypatch.setattr(tools_module, "run", lambda *_a: (text, False))
     result = ask("tools/call", params={"name": "check_job", "arguments": {"id": "j1"}})["result"]
-    assert result["content"] == [{"type": "text", "text": text}]
+    # The text first, as it always was; the note after it is a block of its own
+    # (`mcp_http.follow`, targum-internal#527), so the text is still the tool's JSON.
+    assert result["content"] == [
+        {"type": "text", "text": text},
+        {"type": "text", "text": mcp_http.follow(text)},
+    ]
     assert result["isError"] is False
     assert result["structuredContent"] == state
 

@@ -12,6 +12,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The connector's results say what the model must follow beside the links they carry
+  (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
+  Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a
+  /build link with no cost. Every tool result over `/mcp` now ends with a short note in
+  a second block: write targum in lowercase, and where there are links, each on a line
+  of its own and the links last; a link the reader confirms on (a build, set,
+  subscription or reading aloud) goes with its credits, 0 included. `open_library_text`
+  hands over a text's lines, eight at a time from `from_line`, where it opens now, and
+  read-with-me asks the host to open the text on targum and read from it, never from
+  memory. The connector eval checks all four. Nothing costs more and nothing spends
+  sooner.
 - The other languages' polish left from #476 (targum-internal#523). A desk page's column
   stays centred: the room kept for the AI Assistant's pill went on the end edge only, so
   the column slid 25px off centre in English and 6px off the edge in Russian; now both
