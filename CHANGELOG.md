@@ -20,6 +20,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Russian. The box's placeholder is shorter ("Hebrew or English", «Иврит или русский»), so
   it fits a phone's one-row field. Hear and the quote card's source link and More options
   are in `test_brand.py`'s 44px registry, which keeps their reach from drifting.
+- A shared link to /about shows the picture and says what the page is (targum-internal#518).
+  It was the one page in the sitemap with no public head: no description, no `og:` tags,
+  no `twitter:card`. It now includes `_public_head.html.j2` like the others, keeps its one
+  address for every language, and a test holds the tags in English and Russian.
 - Sign in reads again on the four legal pages (targum-internal#516). The documents' link
   rule in `public.css` was more specific than the corner's call to action and painted it
   ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
