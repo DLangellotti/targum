@@ -51,6 +51,79 @@ def test_an_empty_catalogue_says_so_rather_than_pretending(
     assert "Nothing here yet" in shelf_page(ADDRESS)
 
 
+def _shelf_of_two(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ruth drafted in Russian, and a text nobody has drafted yet."""
+    from targum.catalogue import Entry
+
+    monkeypatch.setattr(
+        "targum.catalogue.CATALOGUE",
+        [
+            Entry(
+                id="ruth",
+                title="רות",
+                author="Ketuvim · Ruth",
+                language="he",
+                source="sefaria:he:Ruth",
+                blurb="Four chapters, the shortest way in.",
+                words=100,
+                english="Ruth",
+                named={"ru": "Рут (Руфь)"},
+                blurbs={"ru": "Четыре главы — самый короткий путь внутрь."},
+            ),
+            Entry(
+                id="undrafted",
+                title="ספר",
+                author="Somebody, 1990",
+                language="he",
+                source="s",
+                blurb="Nobody has said this in Russian yet.",
+                words=100,
+                english="A Book",
+            ),
+        ],
+    )
+
+
+def _row(html: str, entry_id: str) -> str:
+    start = html.index(f'href="/library/{entry_id}"')
+    return html[start : html.index("</li>", start)]
+
+
+def test_a_russian_shelf_row_is_in_russian_where_the_text_page_is(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shelf ignored what the catalogue knew: 1,306 of 1,315 rows drew English under
+    a Russian chrome while each text page said the Russian (targum-internal#520)."""
+    _shelf_of_two(monkeypatch)
+    ruth = _row(shelf_page(ADDRESS, language="ru"), "ruth")
+    assert '<span class="english" lang="ru" dir="ltr">Рут (Руфь)</span>' in ruth
+    assert '<span class="blurb">Четыре главы — самый короткий путь внутрь.</span>' in ruth
+    assert "Ruth" not in ruth and "shortest" not in ruth
+    # The place takes the book names David chose on 2026-10-21.
+    assert '<span class="byline">Писания · Рут</span>' in ruth
+
+
+def test_a_row_with_no_russian_falls_back_to_english_and_says_so(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Never wrong, only foreign — and marked English, so a screen reader reads it as
+    English rather than as Russian."""
+    _shelf_of_two(monkeypatch)
+    row = _row(shelf_page(ADDRESS, language="ru"), "undrafted")
+    assert '<span class="english" lang="en" dir="ltr">A Book</span>' in row
+    assert '<span class="blurb" lang="en">Nobody has said this in Russian yet.</span>' in row
+    assert '<span class="byline">Somebody, 1990</span>' in row
+
+
+def test_an_english_shelf_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    _shelf_of_two(monkeypatch)
+    ruth = _row(shelf_page(ADDRESS), "ruth")
+    assert '<span class="english" lang="en" dir="ltr">Ruth</span>' in ruth
+    assert '<span class="blurb">Four chapters, the shortest way in.</span>' in ruth
+    assert '<span class="byline">Ketuvim · Ruth</span>' in ruth
+    assert not re.search("[А-Яа-я]", ruth)
+
+
 # -- what a text is -----------------------------------------------------------
 
 
@@ -123,9 +196,11 @@ def test_a_translation_is_named_wherever_a_text_is_shown() -> None:
     That is why it is body text rather than an attribution footnote — and for CC-BY it
     is also the obligation being discharged by the code rather than by memory.
     """
+    from targum.render.builder import translation_credit
+
     for entry in CATALOGUE:
         text = strip(text_page(entry, ADDRESS))
-        for rendering in entry.translations:
+        for rendering in translation_credit(entry).renderings:
             assert rendering.name in text
             if rendering.publisher:
                 assert rendering.publisher in text
@@ -812,3 +887,181 @@ def test_a_page_with_no_address_names_no_preview(monkeypatch: pytest.MonkeyPatch
     page = shelf_page("")
     assert "og:image" not in page
     assert 'name="twitter:card" content="summary"' in page
+
+
+# -- the credit names the translation the page shows (targum-internal#521) ----------
+#
+# A Russian page set Hebrew beside Russian lines and credited, under an English
+# "Translation", Metsudah's English: a credit for words it did not show and none for the
+# words it did. Built on rows of this file's own, for the reason given above.
+
+ENGLISH = "The Metsudah test Chumash"
+RUSSIAN = "Пятикнижие, пер. Герштейна и Гордона"
+
+
+def a_torah_row(monkeypatch: pytest.MonkeyPatch, drawn: bool):  # type: ignore[no-untyped-def]
+    """A Torah book carrying an English and a Russian rendering, and Rashi, with an
+    opening whose Russian is copied out of the Russian rendering or (`drawn=False`) is
+    ours, translated from the English the way every sample's Russian was."""
+    from dataclasses import replace
+
+    from targum import catalogue
+    from targum.catalogue import Line, Rendering
+
+    entry = replace(
+        CATALOGUE[0],
+        id="a-torah-book",
+        translations=[
+            Rendering(
+                name=ENGLISH,
+                source="sefaria:en:Genesis",
+                publisher="Metsudah Publications",
+                licence="CC-BY",
+            ),
+            Rendering(
+                name=RUSSIAN,
+                source="published:ru:Genesis",
+                publisher="Gerstein & Gordon (Vilna, 1875)",
+                licence="Public Domain",
+                licence_url="https://rusneb.ru/catalog/000199_000009_009682814/",
+            ),
+            Rendering(name="Rashi Chumash", source="sefaria:en:Rashi on Genesis", licence="CC-BY"),
+        ],
+    )
+    lines = [
+        Line(
+            source="בְּרֵאשִׁית בָּרָא אֱלֹהִים",
+            target="In the beginning Elohim created",
+            said={"ru": "Въ началѣ сотворилъ Богъ"},
+            drawn={"ru": "published:ru:Genesis"} if drawn else {},
+        )
+    ]
+    monkeypatch.setattr(catalogue, "sample_for", lambda entry_id: lines)
+    return entry
+
+
+def structured(html: str) -> dict:  # type: ignore[type-arg]
+    import json
+
+    found = re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S)
+    assert found
+    return json.loads(found.group(1))  # type: ignore[no-any-return]
+
+
+def provenance(html: str) -> str:
+    found = re.search(r'<section class="provenance".*?</section>', html, re.S)
+    assert found, "the page names no translation"
+    return found.group(0)
+
+
+def test_a_russian_page_credits_the_russian_translation_it_shows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = a_torah_row(monkeypatch, drawn=True)
+    html = text_page(entry, ADDRESS, language="ru")
+    credit = strip(provenance(html))
+    assert RUSSIAN in credit and "Gerstein & Gordon" in credit and "Public Domain" in credit
+    assert 'href="https://rusneb.ru/catalog/000199_000009_009682814/"' in provenance(html)
+    assert ENGLISH not in credit, "the English is not on this page"
+    assert "Rashi" not in credit
+    assert '<p class="target" lang="ru"' in html
+    works = structured(html)["workTranslation"]
+    assert [(work["name"], work["inLanguage"]) for work in works] == [(RUSSIAN, "ru")]
+
+
+def test_an_english_page_credits_the_english_translation_it_shows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = a_torah_row(monkeypatch, drawn=True)
+    html = text_page(entry, ADDRESS, language="en")
+    credit = strip(provenance(html))
+    assert ENGLISH in credit and "Metsudah Publications" in credit and "CC-BY" in credit
+    assert RUSSIAN not in credit, "the Russian is not on this page"
+    assert '<p class="target" lang="en"' in html
+    works = structured(html)["workTranslation"]
+    assert [(work["name"], work["inLanguage"]) for work in works] == [(ENGLISH, "en")]
+
+
+def test_russian_lines_we_translated_say_so_and_name_the_english_they_came_from(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every sample's Russian so far: a model's, from the English beside it. The page
+    does not call it the published Russian, and names the CC BY English it was made
+    from, which a translation of that English still owes."""
+    from targum.strings import text
+
+    entry = a_torah_row(monkeypatch, drawn=False)
+    credit = strip(provenance(text_page(entry, ADDRESS, language="ru")))
+    assert RUSSIAN not in credit, "the published Russian is not what is shown"
+    assert ENGLISH in credit and "CC-BY" in credit
+    assert text("text.page.we-translated-these-lines-from-the-english", "ru") in credit
+
+
+def test_a_text_in_the_pages_language_shows_its_english(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A Russian story beside a Russian "translation" of itself is no translation."""
+    from dataclasses import replace
+
+    from targum import catalogue
+    from targum.catalogue import Line, Rendering
+
+    story = replace(
+        CATALOGUE[0],
+        id="a-russian-story",
+        language="ru",
+        translations=[Rendering(name="The English original", source="https://x.test/en")],
+    )
+    lines = [Line(source="Встречайте", target="Meet", said={"ru": "Познакомьтесь"})]
+    monkeypatch.setattr(catalogue, "sample_for", lambda entry_id: lines)
+    html = text_page(story, ADDRESS, language="ru")
+    assert '<p class="target" lang="en" dir="ltr">Meet</p>' in html
+    assert "Познакомьтесь" not in html
+    assert "The English original" in strip(provenance(html))
+
+
+def test_the_credit_heading_is_said_in_the_pages_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = a_torah_row(monkeypatch, drawn=True)
+    assert "<h2>Перевод</h2>" in provenance(text_page(entry, ADDRESS, language="ru"))
+    assert "<h2>Translation</h2>" in provenance(text_page(entry, ADDRESS, language="en"))
+
+
+@pytest.mark.parametrize(("language", "ours"), [("en", "We translated this text."), ("ru", None)])
+def test_a_bought_translation_says_it_is_ours_and_names_targum_as_translator(
+    monkeypatch: pytest.MonkeyPatch, language: str, ours: str | None
+) -> None:
+    """A row whose translation we bought, with no published rendering, says so in words
+    and in the JSON-LD rather than crediting nobody."""
+    from dataclasses import replace
+
+    from targum import catalogue
+    from targum.catalogue import Line
+    from targum.strings import text
+
+    bought = replace(CATALOGUE[0], id="a-bought-text", translations=[], model="claude-opus-5")
+    lines = [
+        Line(source="כיון שנושב רוח חם", target="As soon as a warm wind", said={"ru": "Как только"})
+    ]
+    monkeypatch.setattr(catalogue, "sample_for", lambda entry_id: lines)
+    html = text_page(bought, ADDRESS, language=language)
+    said = ours or text("text.page.we-translated-this-text", language)
+    assert said in strip(provenance(html))
+    assert structured(html)["workTranslation"] == [
+        {
+            "@type": "Book",
+            "inLanguage": language,
+            "translator": {"@type": "Organization", "name": "targum"},
+        }
+    ]
+
+
+def test_lines_we_translated_name_targum_beside_the_english_in_the_json_ld(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = a_torah_row(monkeypatch, drawn=False)
+    works = structured(text_page(entry, ADDRESS, language="ru"))["workTranslation"]
+    assert [(work.get("name"), work["inLanguage"]) for work in works] == [
+        (ENGLISH, "en"),
+        (None, "ru"),
+    ]
+    assert works[1]["translator"] == {"@type": "Organization", "name": "targum"}

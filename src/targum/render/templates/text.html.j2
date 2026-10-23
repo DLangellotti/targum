@@ -50,20 +50,29 @@
   </section>
   {%- endif %}
 
-  {%- if entry.translations %}
+  {%- if credit.renderings or credit.ours %}
   {#- Who made the translation, and under what. A reader deciding whether to trust an
-      English Tanakh decides on this, so it is body text rather than a footnote. -#}
-  <section class="provenance">
-    <h2>{{ 'Translations' if entry.translations | length > 1 else 'Translation' }}</h2>
+      English Tanakh decides on this, so it is body text rather than a footnote.
+
+      Only the translation this page shows (targum-internal#521): a Russian page credited
+      Metsudah's English under an English heading, beside Russian lines that were not
+      Metsudah's. `translation_credit` makes the pick; this draws it. -#}
+  <section class="provenance" lang="{{ page_language }}">
+    <h2>{{ t("text.page.translations", "Translations") if credit.renderings | length > 1 else t("text.page.translation", "Translation") }}</h2>
     <ul>
-      {%- for rendering in entry.translations %}
-      <li>
+      {%- for rendering in credit.renderings %}
+      <li lang="{{ rendering.language }}">
         <b>{{ rendering.name }}</b>
         {%- if rendering.publisher %}<span class="publisher">{{ rendering.publisher }}</span>{% endif %}
         {%- if rendering.note %}<span class="note">{{ rendering.note }}</span>{% endif %}
-        {%- if rendering.licence %}<span class="licence">{{ rendering.licence }}</span>{% endif %}
+        {%- if rendering.licence %}<span class="licence">{% if rendering.licence_url %}<a href="{{ rendering.licence_url }}" rel="noopener">{{ rendering.licence }}</a>{% else %}{{ rendering.licence }}{% endif %}</span>{% endif %}
       </li>
       {%- endfor %}
+      {%- if credit.ours == "lines" %}
+      <li class="ours">{{ t("text.page.we-translated-these-lines-from-the-english", "We translated these lines from the English.") }}</li>
+      {%- elif credit.ours == "text" %}
+      <li class="ours">{{ t("text.page.we-translated-this-text", "We translated this text.") }}</li>
+      {%- endif %}
     </ul>
   </section>
   {%- endif %}

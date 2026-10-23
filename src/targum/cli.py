@@ -1065,6 +1065,35 @@ def watch_health(
     console.print(said)
 
 
+@app.command("ytdlp-stopped")
+def ytdlp_stopped() -> None:
+    """Mail TARGUM_ALERT_TO that the nightly yt-dlp upgrade failed.
+
+    The 03:30 UTC line in /etc/cron.d/targum-ytdlp runs this when its `uv tool install
+    --upgrade yt-dlp` exits non-zero. Its MAILTO=root reaches nobody, because the box has
+    no mail transfer agent, and an install that stops halfway has already deleted
+    `bin/yt-dlp`: on 2026-10-22 YouTube, Instagram, TikTok and Facebook imports were off
+    for about 18 hours with nobody told (targum-internal#513). Without TARGUM_ALERT_TO it
+    says so and mails nobody.
+    """
+    from .alerts import recipient, tell
+
+    if not recipient():
+        console.print("[dim]yt-dlp alerts not configured: TARGUM_ALERT_TO is not set.[/dim]")
+        return
+    body = (
+        "The nightly yt-dlp upgrade on the box failed, so YouTube, Instagram, TikTok and\n"
+        "Facebook imports may be off for readers.\n\n"
+        "  journalctl -u targum-ytdlp -n 5 --no-pager\n\n"
+        "deploy/INCIDENT.md, under the preflight with connections, says what fixes it.\n"
+    )
+    try:
+        tell("targum: the nightly yt-dlp upgrade failed", body)
+    except Exception as error:
+        fail(TargumError("The yt-dlp upgrade failed and the mail about it did not go.", str(error)))
+    console.print("Told TARGUM_ALERT_TO that the yt-dlp upgrade failed.")
+
+
 @app.command("watch-weekly")
 def watch_weekly(
     state: Annotated[

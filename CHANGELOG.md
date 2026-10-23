@@ -12,6 +12,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Russian names a language in its case mid-sentence (David, 2026-10-23;
+  targum-internal#524): «На иврите пока ничего нет.», not «На языке «Иврит» пока ничего
+  нет.». A translation asks for a form on the same blank, `{language:in}` («на иврите»),
+  `{language:adv}` («по-русски») or `{language:nom}` («иврит»), and `language-in.*`,
+  `language-adv.*` and `language-nom.*` hold the forms for the eleven languages targum
+  names; a language with none is quoted as before. 37 Russian sentences changed, on the
+  server, the templates and the scripts alike. English is unchanged.
+- A text page credits the translation it shows (targum-internal#521). In Russian it set
+  Russian lines beside the Hebrew and credited the English (Metsudah, "Official English")
+  under an English "Translation", and its JSON-LD said `inLanguage: en`. The credit and
+  the JSON-LD now follow the lines: a published rendering when the lines are copied from
+  one (a sample line's new `from` names it, with its licence linked), and otherwise the
+  English the lines were translated from, with «Эти строки мы перевели с английского.»
+  An English page credits only its English: Onkelos, Rashi and the Russian Torah are not
+  on it. A row with a bought translation and no rendering says "We translated this
+  text." A text in Russian shows its English opening on a Russian page, not a model's
+  Russian of its own English original. The heading is keyed («Перевод» / «Переводы»).
 - `test_a_refused_answer_is_not_kept_for_the_page` no longer fails on about a quarter of
   CI's browser jobs (targum-internal#526). The page was right: `building.js` asks
   `/account/me` as it runs and `sync.js` only at DOMContentLoaded, they share the question
@@ -36,6 +53,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   each say so instead of standing empty. A browser test loads Progress in Russian at 390
   and 320 for Hebrew, Aramaic and Yiddish and holds the page to its width with no figure
   overlapping another.
+- CI no longer installs ffmpeg from the apt mirror, which still failed several times a
+  day after the timeouts and retries below (run 39907694995 on master, 02a6c102). It
+  takes BtbN's static 8.1 build of `ffmpeg` and `ffprobe` from GitHub, checks it against
+  the release's checksums and keeps it in the Actions cache, keyed on the version and the
+  runner, so a run with the cache warm fetches nothing. apt is the fallback only, for
+  when the download fails or BtbN drops the 8.1 branch.
+- The signed-out Library in Russian draws its rows in Russian (targum-internal#520). Each
+  row's name and blurb come from the catalogue's `named`/`blurbs`, the same fields the
+  text page reads, and a book's place takes the Russian book names («Писания · Рут» for
+  "Ketuvim · Ruth"). Rows with no Russian yet (162 of 1,306) show the English, marked
+  `lang="en"`. Nothing new is fetched or stored; the English page is byte-for-byte as it
+  was, and the Russian one grows by its Cyrillic, about 20 KB gzipped.
 - The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
   "you said" and "corrected", came from the stylesheet in English. They are catalogue
   keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
@@ -105,6 +134,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   its far end as anyone else. Writing `/etc/targum/targum.env`, the catalogue and the
   restart stay root. The output and the checks are unchanged. Pinned by
   `tests/test_ship_as_targum.py`.
+- A failed nightly yt-dlp upgrade mails `TARGUM_ALERT_TO` (targum-internal#513). The
+  cron's `MAILTO=root` reached nobody, and on 2026-10-22 an upgrade that stopped halfway
+  left YouTube, Instagram, TikTok and Facebook imports off for about 18 hours. The line
+  in `/etc/cron.d/targum-ytdlp` now runs `targum ytdlp-stopped` when the install fails.
 - `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
   targum-internal#482): both say when they were first run; `rollback.sh` is the first way
   back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;
