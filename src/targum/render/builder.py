@@ -29,7 +29,7 @@ from jinja2.runtime import Context
 from jinja2.utils import htmlsafe_json_dumps
 
 if TYPE_CHECKING:  # imported for types only; the real import is inside each function,
-    from ..catalogue import Entry  # because catalogue imports nothing from here
+    from ..catalogue import Entry, Rendering  # because catalogue imports nothing from here
     from ..weekly.models import Issue as WeeklyIssue
     from ..weekly.models import Level as WeeklyLevel
 from markupsafe import Markup, escape
@@ -3586,7 +3586,71 @@ def shelf_page(address: str = "", language: str = "en") -> str:
     )
 
 
-def text_schema(entry: Entry, address: str = "") -> dict[str, Any]:
+class Credit(NamedTuple):
+    """Who made the translation a text page shows, and nobody else (targum-internal#521).
+
+    `shown` is the language of the translated lines on the page. `renderings` are the
+    published translations those lines are, or were made from. `ours` says what targum
+    made itself: "" for nothing, `"lines"` where the shown lines are our translation of
+    the English renderings listed beside them, and `"text"` where the whole translation
+    is ours (an entry with a `model` and no rendering).
+    """
+
+    shown: str
+    renderings: list[Rendering]
+    ours: str
+
+
+def translation_credit(entry: Entry, language: str = "en") -> Credit:
+    """The translation a text page in `language` shows, and who made it.
+
+    The page said "Translation" over Metsudah's English beside Russian lines that are not
+    Metsudah's: a credit for words it did not show, and none for the words it did. So the
+    credit follows the lines:
+
+    - A sample whose every line has the page's language shows that language. Where each
+      line says which published rendering it was copied out of (`Line.drawn`), that
+      rendering is the credit. Where it does not, the line is ours, translated from the
+      English by `scripts/russian_samples.py`, and the credit is the English it was made
+      from, with a line saying so: a translation of a CC BY work still names the work.
+    - A text in the page's own language shows its English: a Russian story "translated"
+      into Russian beside itself is no translation, and the lines were a model's Russian
+      of the English original, put back into the language it started in.
+    - Otherwise the page shows the English, and the English renderings are the credit.
+    - With no sample at all, the renderings in the page's language where it has one,
+      since those are what the reader opens; else the English.
+
+    A commentary (Rashi) and a column in another language (Onkelos) are never what the
+    page shows, so they are not credited here; the reader's own credits name them.
+    """
+    from ..renderings import commentary_ref
+    from ..strings import SOURCE
+
+    code = _page_language(language)
+    lines = entry.sample
+    published = [r for r in entry.translations if not commentary_ref(r.source)]
+
+    def written_in(tongue: str) -> list[Rendering]:
+        return [r for r in published if r.language.split("-")[0] == tongue]
+
+    shown = SOURCE
+    if code != SOURCE and code != entry.language.split("-")[0]:
+        if lines and all(line.said.get(code) for line in lines):
+            shown = code
+        elif not lines and written_in(code):
+            return Credit(code, written_in(code), "")
+    if shown == SOURCE:
+        english = written_in(SOURCE)
+        return Credit(SOURCE, english, "" if english or not entry.model else "text")
+    by_source = {r.source: r for r in published}
+    drawn = [by_source.get(line.drawn.get(code, "")) for line in lines]
+    if all(drawn):
+        return Credit(code, list(dict.fromkeys(r for r in drawn if r is not None)), "")
+    english = written_in(SOURCE)
+    return Credit(code, english, "lines" if english else "text" if entry.model else "")
+
+
+def text_schema(entry: Entry, address: str = "", language: str = "en") -> dict[str, Any]:
     """What a text page is about, in the vocabulary a search engine reads.
 
     Every one of these pages carries a title, a byline, a translator and two lines of the
@@ -3627,21 +3691,35 @@ def text_schema(entry: Entry, address: str = "") -> dict[str, Any]:
             "name": holding.title,
             **({"alternateName": holding.english} if holding.english else {}),
         }
-    if entry.translations:
-        about["workTranslation"] = [
+    # The same pick the page's credit makes (targum-internal#521): the translation shown
+    # in the page's language, and not every rendering the row carries.
+    credit = translation_credit(entry, language)
+    translated: list[dict[str, Any]] = [
+        {
+            "@type": "Book",
+            "name": rendering.name,
+            "inLanguage": rendering.language,
+            **(
+                {"publisher": {"@type": "Organization", "name": rendering.publisher}}
+                if rendering.publisher
+                else {}
+            ),
+            **(
+                {"license": rendering.licence_url or rendering.licence} if rendering.licence else {}
+            ),
+        }
+        for rendering in credit.renderings
+    ]
+    if credit.ours and credit.shown not in {work["inLanguage"] for work in translated}:
+        translated.append(
             {
                 "@type": "Book",
-                "name": rendering.name,
-                "inLanguage": rendering.language,
-                **(
-                    {"publisher": {"@type": "Organization", "name": rendering.publisher}}
-                    if rendering.publisher
-                    else {}
-                ),
-                **({"license": rendering.licence} if rendering.licence else {}),
+                "inLanguage": credit.shown,
+                "translator": {"@type": "Organization", "name": "targum"},
             }
-            for rendering in entry.translations
-        ]
+        )
+    if translated:
+        about["workTranslation"] = translated
     return about
 
 
@@ -3655,6 +3733,7 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     from ..strings import text
 
     name = text("nav.library", language)
+    credit = translation_credit(entry, language)
     here, alternates = _addressed_in(f"{address}/library/{entry.id}" if address else "", language)
     return (
         _environment()
@@ -3675,18 +3754,25 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             canonical=here,
             alternates=alternates,
             og_type="book",
-            structured=text_schema(entry, address),
+            structured=text_schema(entry, address, language),
             entry=entry,
+            credit=credit,
             shelf_name=name,
             direction=direction_for(entry.language),
             # The opening, with its translation in the language this page speaks
             # (targum-internal#188). The name and the blurb above it have been the
             # reader's language since targum#362; the sample was the last English on a
             # page whose whole point is that a Russian searcher can read it.
+            # In the language the credit says is shown, all lines alike, so the `lang` on
+            # each and the credit under them cannot disagree (targum-internal#521).
             sample=[
-                {"source": line.source, "target": line.said_in(language)} for line in entry.sample
+                {
+                    "source": line.source,
+                    "target": line.said.get(credit.shown) or line.target,
+                }
+                for line in entry.sample
             ],
-            sample_language=_page_language(language),
+            sample_language=credit.shown,
             minutes=max(1, round(entry.words / 130)),
             # The door carries the text (known issues 2.13): "Read it" signed in and then
             # landed home, and the learner had to find the text again. `/open/` is the

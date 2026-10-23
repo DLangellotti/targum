@@ -224,6 +224,14 @@ class Line:
     #: only be English is a page that answers in English whatever the address said.
     #: Empty for every sample written before this, which `said_in` reads as the English.
     said: dict[str, str] = field(default_factory=dict)
+    #: Where a line in `said` came from, by the same code: the `source` of the entry's
+    #: published rendering it was copied out of (`"from": {"ru": "published:ru:Genesis"}`
+    #: in the file). Empty for every sample written before it, and a line with no entry
+    #: here is ours: `scripts/russian_samples.py`, the only thing that has ever written
+    #: `said`, translated each one from the English beside it with a model. The page's
+    #: credit says which (targum-internal#521), so it never names a published translation
+    #: for words that are not that translation's.
+    drawn: dict[str, str] = field(default_factory=dict)
 
     def said_in(self, language: str) -> str:
         """This line's translation in `language`, English where it has none.
@@ -245,6 +253,11 @@ def _samples() -> dict[str, list[Line]]:
                 target=line["target"],
                 said={
                     str(code): str(text) for code, text in (line.get("said") or {}).items() if text
+                },
+                drawn={
+                    str(code): str(source)
+                    for code, source in (line.get("from") or {}).items()
+                    if source
                 },
             )
             for line in lines
