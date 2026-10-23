@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- `test_a_refused_answer_is_not_kept_for_the_page` no longer fails on about a quarter of
+  CI's browser jobs (targum-internal#526). The page was right: `building.js` asks
+  `/account/me` as it runs and `sync.js` only at DOMContentLoaded, they share the question
+  while it is out, and a refusal is forgotten once it is back. On a slow runner the 502
+  came back before the rest of the page had run, so the later scripts asked again, as
+  they should. The test now holds the first answer until the page has loaded.
 - The Russian interface after ling-ru's read-through of the whole catalogue
   (targum-internal#476): 93 strings. A language name no longer sits capitalised
   mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
