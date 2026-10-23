@@ -661,6 +661,15 @@
       metEmpty.textContent = nextWait;
       metEmpty.hidden = false;
     }
+    // When the asking failed, each half says so under its heading rather than standing
+    // empty; part 1 carries the Try again (targum-internal#522).
+    if (!answered && storyFailed[code]) {
+      var failedLine = t("progress.story.failed", "We couldn't load this part.");
+      metEmpty.textContent = failedLine;
+      metEmpty.hidden = false;
+      levelEmpty.textContent = failedLine;
+      levelEmpty.hidden = false;
+    }
     found.forEach(function (one) {
       var word = meaningOf(code, one.lemma);
       row(

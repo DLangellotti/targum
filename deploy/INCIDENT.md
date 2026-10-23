@@ -151,12 +151,15 @@ ssh root@targum.page 'find /srv/targum/.local/share/uv/tools ! -user targum | he
 Healthy: no `error:` in the last run, and `0` files. On 2026-10-22 the journal said
 `failed to remove directory …/yt_dlp/utils/jslib/__pycache__: Permission denied` and 90
 files were root's, left by somebody running `yt-dlp` as root. The fix, on David's word:
-give those files back to `targum`, then run the cron's install again. It runs as
+give those files back to `targum`, then run the cron's install again. The first line
+gives nothing back unless the tools directory's real path is the one named, because
+`targum` owns every directory above it and one of them swapped for a symlink would send
+root's chown elsewhere. It runs as
 `targum` through `systemd-run`, so copy the command from the cron file rather than
 typing it, because it pins the token minter's version:
 
 ```sh
-ssh root@targum.page 'find /srv/targum/.local/share/uv/tools ! -user targum -exec chown -h targum:targum {} +'
+ssh root@targum.page 'cd -P /srv/targum/.local/share/uv/tools && [ "$(pwd -P)" = /srv/targum/.local/share/uv/tools ] && find . ! -user targum -execdir chown -h targum:targum {} +'
 ssh root@targum.page 'cat /etc/cron.d/targum-ytdlp'
 ssh root@targum.page '<everything after "root" on the 30 3 line>'
 ```
