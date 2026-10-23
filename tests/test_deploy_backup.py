@@ -13,7 +13,9 @@ so a deploy carries it; the assertions moved with it.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -167,14 +169,69 @@ def test_the_deploy_takes_the_tool_back_before_it_replaces_it() -> None:
     The install itself is the account's, so nothing in it is written as root."""
     for name in ("deploy.sh", "rollback.sh"):
         script = (DEPLOY / name).read_text(encoding="utf-8")
-        owns = (
-            "find /srv/targum/.local/share/uv/tools/targum ! -user targum \\\n"
-            "      -exec chown -h targum:targum {} +"
-        )
+        owns = "find . ! -user targum -execdir chown -h targum:targum {} +"
         assert owns in script, name
         assert script.index(owns) < script.index("uv tool install --force"), name
-        assert "if [ -d /srv/targum/.local/share/uv/tools/targum ]; then" in script, name
+        assert "chown -R" not in script.split("uv tool install --force")[0][-3000:], name
+        assert runnable_repair(script) in script, name
         assert "runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=" in script, name
+        assert "  cd /\n  runuser -u targum -- env" in script, name
+
+
+def runnable_repair(script: str) -> str:
+    """The repair block as it sits in a script, from its cd -P to its fi."""
+    start = script.index(f"  if cd -P {TOOLS}/targum 2>/dev/null; then")
+    end = script.index("\n  fi\n", start) + len("\n  fi\n")
+    return script[start:end]
+
+
+def test_the_repair_refuses_a_tool_reached_through_a_symlink(tmp_path: Path) -> None:
+    """The service account owns every directory above the tool, so it could swap
+    `tools` for a symlink to /etc, and root's walk of `tools/targum` would then give
+    /etc/targum to targum: find does not follow a symlink inside the tree, but the
+    kernel follows one in the path to it (qa-claude on targum#900). The block is run
+    here against such a link, with chown made to record rather than act."""
+    real = tmp_path / "srv" / "tools"
+    real.mkdir(parents=True)
+    elsewhere = tmp_path / "etc"
+    (elsewhere / "targum").mkdir(parents=True)
+    (elsewhere / "targum" / "targum.env").write_text("secret")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    called = tmp_path / "chowned"
+    (bin_dir / "chown").write_text(f'#!/bin/sh\necho "$PWD $*" >> {called}\n')
+    (bin_dir / "chown").chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+    for name in ("deploy.sh", "rollback.sh"):
+        block = runnable_repair((DEPLOY / name).read_text(encoding="utf-8"))
+        block = block.replace("\\$(", "$(")
+        # Healthy: the real directory, with a file that is not the runner's.
+        (real / "targum").mkdir(exist_ok=True)
+        healthy = block.replace(TOOLS, str(real.resolve()))
+        done = subprocess.run(
+            ["bash", "-c", healthy.replace("! -user targum", "! -user root")],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert done.returncode == 0, (name, done.stderr)
+        assert called.exists(), name
+        called.unlink()
+        # Swapped: tools is now a symlink to etc, so tools/targum is /etc/targum.
+        (real / "targum").rmdir()
+        link = tmp_path / "srv" / "link"
+        link.symlink_to(elsewhere)
+        swapped = block.replace(TOOLS, str(link))
+        done = subprocess.run(
+            ["bash", "-c", swapped.replace("! -user targum", "! -user root")],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert done.returncode == 1, (name, done.stdout, done.stderr)
+        assert "through a symlink" in done.stderr, name
+        assert not called.exists(), (name, "nothing was given away")
+        link.unlink()
 
 
 TOOLS = "/srv/targum/.local/share/uv/tools"

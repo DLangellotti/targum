@@ -393,12 +393,21 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # name is changed itself, never what it points at. The tree is the service account's,
   # so a symlink in it may have been put there by the service, and root following one
   # changes the owner of whatever it names, /etc/targum included; find does not descend
-  # through a symlink and chown -h does not follow one (targum-internal#513). Nothing
-  # here is written as root: the install below is the account's own.
-  if [ -d /srv/targum/.local/share/uv/tools/targum ]; then
-    find /srv/targum/.local/share/uv/tools/targum ! -user targum \
-      -exec chown -h targum:targum {} +
+  # through a symlink and chown -h does not follow one (targum-internal#513). The
+  # account owns every directory above the tool too, so it could swap one of them for a
+  # symlink to /etc and the path would lead there: the directory is entered with cd -P
+  # and its real path compared before anything is walked, and the deploy stops if it is
+  # anywhere else. execdir changes each name from inside its own directory, so no path
+  # is resolved again after find has seen it. Nothing here is written as root: the
+  # install below is the account's own, run from / because root's home is closed to it.
+  if cd -P /srv/targum/.local/share/uv/tools/targum 2>/dev/null; then
+    if [ "\$(pwd -P)" != /srv/targum/.local/share/uv/tools/targum ]; then
+      echo "   /srv/targum/.local/share/uv/tools/targum is reached through a symlink; nothing was installed." >&2
+      exit 1
+    fi
+    find . ! -user targum -execdir chown -h targum:targum {} +
   fi
+  cd /
   runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[${REMOTE_EXTRAS}]" \
       --constraints "${REMOTE_CONSTRAINTS}" \

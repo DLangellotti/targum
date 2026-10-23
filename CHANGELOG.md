@@ -8,8 +8,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Fixed
 - Root no longer writes inside targum's uv tools (targum-internal#513). `deploy.sh` and
   `rollback.sh` gave the targum tool back with a root `chown -R` before each install; it is
-  now a repair of only what is not targum's, by `find … ! -user targum -exec chown -h`, so
-  it never follows a symlink the service could have put there. The install itself, and
+  now a repair of only what is not targum's, by `find . ! -user targum -execdir chown -h`
+  from inside the tool, so it never follows a symlink the service could have put there.
+  The tool is entered with `cd -P` and its real path checked first, and the deploy or
+  rollback stops if a symlinked directory above it leads anywhere else; INCIDENT.md's hand
+  repair does the same. The install runs from `/` rather than root's closed home. The install itself, and
   `provision.sh`'s yt-dlp install, run under `runuser -u targum --`, and provision's plugin
   check runs the tool's python as targum, where it used to run it as root and leave a
   root-owned `__pycache__` that stops the nightly upgrade, as it did for 18 hours on
